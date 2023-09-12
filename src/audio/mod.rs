@@ -50,10 +50,14 @@ pub(crate) async fn stream_output(device: &cpal::Device) -> Result<(), anyhow::E
     
     stream.play().unwrap();
     for s in nsstream.incoming() {
-        let mut rx_bytes = [0u8; 4];
+        let mut rx_bytes = [0u8; 3840];
         let mut ss = s.unwrap();
         ss.read(&mut rx_bytes).unwrap();
-        producer.push(f32::from_be_bytes(rx_bytes)).unwrap();
+        let bytes = convert_u8_to_f32(&rx_bytes);
+        //println!("Recv: {:?}", bytes);
+        for sample in bytes {
+            producer.push(sample.to_owned()).unwrap();
+        }
     }
 
     println!("Exiting listener");
@@ -70,18 +74,10 @@ pub(crate) async fn stream_input(device: &cpal::Device) -> Result<(), anyhow::Er
         &config,
         move |data: & [f32], _: &cpal::InputCallbackInfo| {
             let mut nsstream = TcpStream::connect("127.0.0.1:8444").unwrap();
-            for &sample in data {
-                // Send the sample packets to the server
-                match nsstream.write(&sample.to_be_bytes()) {
-                    Ok(_) => {
-                    },
-                    Err(e) => {
-                        // An existing connection was forcibly closed by the remote host. (os error 10054)
-                       println!("{}", e.to_string());
-                    }
-                };
-                nsstream.flush().unwrap();
-            }
+            // We need a low & highpass filter, and a noise gate before transmitting
+            let d = convert_f32_to_u8(&data);
+            nsstream.write(d).unwrap();
+            nsstream.flush().unwrap();
         },
         move |err| {
             // react to errors here.
@@ -101,4 +97,30 @@ pub(crate) async fn stream_input(device: &cpal::Device) -> Result<(), anyhow::Er
 
 pub(crate) async fn get_devices(host: &cpal::platform::Host) -> Result<(Option<cpal::Device>, Option<cpal::Device>), anyhow::Error> {
     Ok((host.default_input_device(), host.default_output_device()))
+}
+
+fn convert_f32_to_u8(input: &[f32]) -> &[u8] {
+    // Assuming the input slice is of the same length
+    let input_bytes = unsafe {
+        std::slice::from_raw_parts(
+            input.as_ptr() as *const u8,
+            input.len() * std::mem::size_of::<f32>(),
+        )
+    };
+
+    // Convert the bytes to &[u8]
+    unsafe { std::slice::from_raw_parts(input_bytes.as_ptr(), input_bytes.len()) }
+}
+
+fn convert_u8_to_f32(input: &[u8]) -> &[f32] {
+    // Assuming the input slice is of the same length
+    let input_f32 = unsafe {
+        std::slice::from_raw_parts(
+            input.as_ptr() as *const f32,
+            input.len() / std::mem::size_of::<f32>(),
+        )
+    };
+
+    // Convert the bytes to &[f32]
+    unsafe { std::slice::from_raw_parts(input_f32.as_ptr(), input_f32.len()) }
 }
