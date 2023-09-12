@@ -3,6 +3,8 @@ use std::io::prelude::*;
 use std::net::{TcpListener, TcpStream};
 
 use anyhow::anyhow;
+use cpal::SampleRate;
+use cpal::StreamConfig;
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
     FromSample, Sample, SizedSample,
@@ -59,7 +61,8 @@ pub(crate) async fn stream_output(device: &cpal::Device) -> Result<(), anyhow::E
 }
 
 pub(crate) async fn stream_input(device: &cpal::Device) -> Result<(), anyhow::Error> {
-    let config: cpal::StreamConfig = device.default_input_config()?.into();
+    // Input should be a mono channel
+    let config: cpal::StreamConfig = StreamConfig { channels: 2, sample_rate: SampleRate(48000), buffer_size: cpal::BufferSize::Default };
 
     println!("{}", device.name().unwrap());
 
@@ -73,6 +76,7 @@ pub(crate) async fn stream_input(device: &cpal::Device) -> Result<(), anyhow::Er
                     Ok(_) => {
                     },
                     Err(e) => {
+                        // An existing connection was forcibly closed by the remote host. (os error 10054)
                        println!("{}", e.to_string());
                     }
                 };
