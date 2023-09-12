@@ -6,10 +6,26 @@ use cpal::traits::{DeviceTrait, HostTrait};
 use crate::audio;
 #[derive(Debug, Parser, Clone)]
 #[clap(author, version, about, long_about = None)]
-pub struct Config {}
+pub struct Config {
+    // todo!() Conver this to be an Xbox Live authentication request
+    /// Your Xbox Live Gamertag
+    #[clap(long, required = true)]
+    pub gamertag: String,
+
+    /// The bedrock voice chat server (host:port) you want to connect to
+    #[clap(long, required = true)]
+    pub server: String
+}
 
 impl Config {
     pub async fn run<'a>(&'a self, _cfg: &Arc<Command>) {
+        /*
+        let (username, id) = match crate::auth::auth().await {
+            Ok((u, i)) => (u, i),
+            Err(e) => panic!("{}", e.to_string())
+        };
+        */
+
         let host: cpal::platform::Host;
         #[cfg(target_os = "windows")]
         {
@@ -45,13 +61,19 @@ impl Config {
         // Start recording on the input device and stream it to the server
         // We're going to always push this to the server
         let input_stream = tokio::spawn(async move {
-            audio::stream_input(&input).await
+            match audio::stream_input(&input).await {
+                Ok(r) => println!("did something"),
+                Err(e) => println!("input {}", e.to_string())
+            }
         });
         tasks.push(input_stream);
 
         // Spawn an output stream with the device we have
         let output_stream = tokio::spawn(async move {
-            audio::stream_output(&output).await
+            match audio::stream_output(&output).await {
+                Ok(r) => println!("did something"),
+                Err(e) => println!("output {}", e.to_string())
+            }
         });
         tasks.push(output_stream);
 
@@ -61,5 +83,7 @@ impl Config {
                 task.await;
             }
         }
+
+        loop {};
     }
 }
