@@ -1,14 +1,41 @@
 use std::io::Read;
 use std::io::prelude::*;
-use std::net::{TcpListener, TcpStream};
+use std::net::TcpStream;
 
 use anyhow::anyhow;
 use cpal::SampleRate;
 use cpal::StreamConfig;
-use cpal::{
-    traits::{DeviceTrait, HostTrait, StreamTrait},
-    FromSample, Sample, SizedSample,
-};
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+
+use opus;
+
+const FRAME_LEN: usize = 5760;
+
+#[derive(Copy, Clone)]
+pub(crate) enum AudioSampleRates {
+    Sr44100 = 1,
+    Sr48000 = 2
+}
+
+impl From<u32> for AudioSampleRates {
+    fn from(input: u32) -> Self {
+        match input {
+            44100 => AudioSampleRates::Sr44100,
+            48000 => AudioSampleRates::Sr48000,
+            _ => AudioSampleRates::Sr48000
+        }
+    }
+}
+
+impl From<AudioSampleRates> for u32 {
+    fn from(input: AudioSampleRates) -> Self {
+        match input {
+            AudioSampleRates::Sr44100 => 44100,
+            AudioSampleRates::Sr48000 => 48000
+        }
+    }
+}
+
 pub(crate) async fn stream_output(device: &cpal::Device) -> Result<(), anyhow::Error> {
     let config = device.default_output_config().unwrap();
     
@@ -40,7 +67,7 @@ pub(crate) async fn stream_output(device: &cpal::Device) -> Result<(), anyhow::E
                 }
             },
             move |err| {
-                // react to errors here.
+                println!("{}", err.to_string());
             },
             None // None=blocking, Some(Duration)=timeout
         ) {
@@ -49,14 +76,38 @@ pub(crate) async fn stream_output(device: &cpal::Device) -> Result<(), anyhow::E
         };
     
     stream.play().unwrap();
-    for s in nsstream.incoming() {
-        let mut rx_bytes = [0u8; 3840];
-        let mut ss = s.unwrap();
-        ss.read(&mut rx_bytes).unwrap();
-        let bytes = convert_u8_to_f32(&rx_bytes);
-        //println!("Recv: {:?}", bytes);
-        for sample in bytes {
-            producer.push(sample.to_owned()).unwrap();
+    for stream in nsstream.incoming() {
+        match stream {
+            Ok(mut stream) => {
+                let mut size_buffer = [0u8; 2];
+                match stream.peek(&mut size_buffer) {
+                    Ok(_) => {
+                        let sample_length = AudioSampleRates::from(size_buffer[1] as u32);
+                        let compressed_opus_len = size_buffer[0] as usize + 2;
+                        let mut buffer = vec![0; compressed_opus_len];
+
+                        // Fill the buffer with the stream
+                        stream.read(&mut buffer).unwrap();
+                        let audio_buffer = &buffer[2..compressed_opus_len];
+                        
+                        let mut output: Vec<f32> = vec![0.0; FRAME_LEN];
+                        match opus::Decoder::new(sample_length.into(), opus::Channels::Stereo) {
+                            Ok(mut decoder) => match decoder.decode_float(audio_buffer, &mut output, false) {
+                                Ok(size) => {
+                                    let output_slice = &output[0..size];
+                                    for sample in output_slice {
+                                        producer.push(sample.to_owned()).unwrap();
+                                    }
+                                },
+                                Err(e) => { println!("{:?}", e) }
+                            },
+                            Err(_) => {}
+                        }
+                    },
+                    Err(_) => {}
+                };
+            },
+            Err(_) => {}
         }
     }
 
@@ -73,11 +124,25 @@ pub(crate) async fn stream_input(device: &cpal::Device) -> Result<(), anyhow::Er
     let stream = match device.build_input_stream(
         &config,
         move |data: & [f32], _: &cpal::InputCallbackInfo| {
+            //println!("\nsent {:?}", &data);
+            let sample_rate_e: AudioSampleRates = config.sample_rate.0.into();
             let mut nsstream = TcpStream::connect("127.0.0.1:8444").unwrap();
             // We need a low & highpass filter, and a noise gate before transmitting
-            let d = convert_f32_to_u8(&data);
-            nsstream.write(d).unwrap();
-            nsstream.flush().unwrap();
+            match opus::Encoder::new(sample_rate_e.into(), opus::Channels::Stereo, opus::Application::Voip) {
+                Ok(mut encoder) => match encoder.encode_vec_float(&data, 1024) {
+                    Ok(mut result) => {
+                        let size = result.len();
+                        let mut ds: Vec::<u8> = vec![size as u8];
+                        ds.append(&mut vec![sample_rate_e as u8]);
+                        ds.append(&mut result);
+                        
+                        nsstream.write(ds.as_ref()).unwrap();
+                        nsstream.flush().unwrap();
+                    },
+                    Err(_) => {}
+                },
+                Err(_) => {}
+            };
         },
         move |err| {
             // react to errors here.
@@ -91,36 +156,8 @@ pub(crate) async fn stream_input(device: &cpal::Device) -> Result<(), anyhow::Er
 
     stream.play().unwrap();
     loop {}
-    println!("exiting input");
-    Ok(())
 }
 
 pub(crate) async fn get_devices(host: &cpal::platform::Host) -> Result<(Option<cpal::Device>, Option<cpal::Device>), anyhow::Error> {
     Ok((host.default_input_device(), host.default_output_device()))
-}
-
-fn convert_f32_to_u8(input: &[f32]) -> &[u8] {
-    // Assuming the input slice is of the same length
-    let input_bytes = unsafe {
-        std::slice::from_raw_parts(
-            input.as_ptr() as *const u8,
-            input.len() * std::mem::size_of::<f32>(),
-        )
-    };
-
-    // Convert the bytes to &[u8]
-    unsafe { std::slice::from_raw_parts(input_bytes.as_ptr(), input_bytes.len()) }
-}
-
-fn convert_u8_to_f32(input: &[u8]) -> &[f32] {
-    // Assuming the input slice is of the same length
-    let input_f32 = unsafe {
-        std::slice::from_raw_parts(
-            input.as_ptr() as *const f32,
-            input.len() / std::mem::size_of::<f32>(),
-        )
-    };
-
-    // Convert the bytes to &[f32]
-    unsafe { std::slice::from_raw_parts(input_f32.as_ptr(), input_f32.len()) }
 }

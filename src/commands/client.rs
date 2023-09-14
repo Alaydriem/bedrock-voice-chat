@@ -1,8 +1,6 @@
 use clap::Parser;
 use std::sync::Arc;
 use super::Command;
-use anyhow::anyhow;
-use cpal::traits::{DeviceTrait, HostTrait};
 use crate::audio;
 #[derive(Debug, Parser, Clone)]
 #[clap(author, version, about, long_about = None)]
@@ -62,7 +60,7 @@ impl Config {
         // We're going to always push this to the server
         let input_stream = tokio::spawn(async move {
             match audio::stream_input(&input).await {
-                Ok(r) => println!("did something"),
+                Ok(_) => println!("did something"),
                 Err(e) => println!("input {}", e.to_string())
             }
         });
@@ -71,7 +69,7 @@ impl Config {
         // Spawn an output stream with the device we have
         let output_stream = tokio::spawn(async move {
             match audio::stream_output(&output).await {
-                Ok(r) => println!("did something"),
+                Ok(_) => println!("did something"),
                 Err(e) => println!("output {}", e.to_string())
             }
         });

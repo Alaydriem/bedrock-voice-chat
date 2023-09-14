@@ -1,7 +1,7 @@
 mod commands;
 mod audio;
-mod auth;
 use commands::SubCommand::*;
+
 #[tokio::main]
 async fn main() {
     let cfg = commands::get_config();
