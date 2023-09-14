@@ -5,6 +5,7 @@ use std::net::TcpStream;
 use anyhow::anyhow;
 use cpal::SampleRate;
 use cpal::StreamConfig;
+use cpal::Sample;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 
 use opus;
@@ -58,7 +59,7 @@ pub(crate) async fn stream_output(device: &cpal::Device) -> Result<(), anyhow::E
                 // react to stream events and read or write stream data here.
                 for sample in data {
                     *sample = match consumer.pop() {
-                        Some(s) => { s },
+                        Some(s) => { f32::from_sample(s) },
                         None => {
                             //println!("nothing");
                             0.0
@@ -93,7 +94,7 @@ pub(crate) async fn stream_output(device: &cpal::Device) -> Result<(), anyhow::E
                         match opus::Decoder::new(sample_length.into(), opus::Channels::Stereo) {
                             Ok(mut decoder) => match decoder.decode_float(&buffer[2..compressed_opus_len], &mut output, false) {
                                 Ok(size) => {
-                                    //println!("{}, {}", size, output.len());
+                                    // size is the number of samples per channel
                                     for sample in &output[0..size*2] {
                                         match producer.push(sample.to_owned()) {
                                             Ok(_) => {},
@@ -134,7 +135,6 @@ pub(crate) async fn stream_input(device: &cpal::Device) -> Result<(), anyhow::Er
                 Ok(mut encoder) => match encoder.encode_vec_float(&data, data.len() * 2) {
                     Ok(mut result) => {
                         let size = result.len();
-                        println!("Generated Size: {} {}", size, data.len());
                         let mut ds: Vec::<u8> = vec![size as u8];
                         ds.append(&mut vec![sample_rate_e as u8]);
                         ds.append(&mut result);
