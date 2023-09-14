@@ -1,7 +1,7 @@
-use clap::Parser;
-use std::sync::Arc;
 use super::Command;
 use crate::audio;
+use clap::Parser;
+use std::sync::Arc;
 #[derive(Debug, Parser, Clone)]
 #[clap(author, version, about, long_about = None)]
 pub struct Config {
@@ -12,7 +12,7 @@ pub struct Config {
 
     /// The bedrock voice chat server (host:port) you want to connect to
     #[clap(long, required = true)]
-    pub server: String
+    pub server: String,
 }
 
 impl Config {
@@ -28,7 +28,13 @@ impl Config {
         #[cfg(target_os = "windows")]
         {
             //host = cpal::host_from_id(cpal::HostId::Asio).expect("failed to initialise ASIO host");
-            host = cpal::host_from_id(cpal::HostId::Wasapi).expect("failed to initialise ASIO host");
+            host =
+                cpal::host_from_id(cpal::HostId::Wasapi).expect("failed to initialise ASIO host");
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            host = cpal::default_host();
         }
 
         // Default to the system input devices
@@ -40,10 +46,10 @@ impl Config {
                 } else {
                     panic!("Default i/o not working.")
                 }
-            },
-            Err(e) => panic!("{}", e.to_string())
+            }
+            Err(e) => panic!("{}", e.to_string()),
         };
-        
+
         let mut tasks = Vec::new();
 
         // Create a task to get everyone on the server, the port they are streaming to, their position data, and any user settings
@@ -61,7 +67,7 @@ impl Config {
         let input_stream = tokio::spawn(async move {
             match audio::stream_input(&input).await {
                 Ok(_) => println!("did something"),
-                Err(e) => println!("input {}", e.to_string())
+                Err(e) => println!("input {}", e.to_string()),
             }
         });
         tasks.push(input_stream);
@@ -70,7 +76,7 @@ impl Config {
         let output_stream = tokio::spawn(async move {
             match audio::stream_output(&output).await {
                 Ok(_) => println!("did something"),
-                Err(e) => println!("output {}", e.to_string())
+                Err(e) => println!("output {}", e.to_string()),
             }
         });
         tasks.push(output_stream);
@@ -82,6 +88,6 @@ impl Config {
             }
         }
 
-        loop {};
+        loop {}
     }
 }
