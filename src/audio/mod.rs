@@ -10,13 +10,21 @@ use cpal::StreamConfig;
 
 use opus;
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub(crate) enum AudioSampleRates {
     Sr44100 = 1,
     Sr48000 = 2,
 }
 
 impl AudioSampleRates {
+    pub fn new(i: u8) -> Self {
+        match i {
+            1 => Self::Sr44100,
+            2 => Self::Sr48000,
+            _ => Self::Sr48000,
+        }
+    }
+
     /// Returns the frame size for stereo we expect for each sample rate
     pub fn get_frame_size(&self) -> u32 {
         match self {
@@ -46,23 +54,31 @@ impl From<AudioSampleRates> for u32 {
 }
 
 pub(crate) async fn stream_output(device: &cpal::Device) -> Result<(), anyhow::Error> {
-    let config = device.default_output_config().unwrap();
+    let config = device.default_input_config().unwrap();
+    let sample_config: cpal::StreamConfig = StreamConfig {
+        channels: 2,
+        // Use the device sample rate, but it should be 48kHz. Enforce?
+        sample_rate: config.sample_rate(),
+        // 48kHz => 480 samples per channel, 960 per frame; 1920 bytes for Mono, 3840 for stereo
+        // 1920 bytes is per-channel - the data callback will be double (3840 at 48kHz)
+        // We want a fixed size so we can pack it into an Opus frame evenly
+        // Opus wants the frame length to be sizeof(float) * channel * frame_size
+        // If our input is 3840, the opus:: crate wil set the frame size to 960 per channel, which'll give us a 10ms frame_size
+        buffer_size: cpal::BufferSize::Fixed(1920),
+    };
 
     println!("{}", device.name().unwrap());
     let nsstream = std::net::TcpListener::bind("0.0.0.0:8444").unwrap();
-    let c = config.config();
-    let latency_frames = (300.0 / 1_000.0) * c.sample_rate.0 as f32;
-    let latency_samples = latency_frames as usize * c.channels as usize;
-    let ring = ringbuf::HeapRb::<f32>::new(latency_samples * 2);
+    let ring = ringbuf::HeapRb::<f32>::new(3840);
     let (mut producer, mut consumer) = ring.split();
-    for _ in 0..latency_samples {
+    for _ in 0..3840 {
         // The ring buffer has twice as much space as necessary to add latency here,
         // so this should never fail
         producer.push(0.0).unwrap();
     }
 
     let stream = match device.build_output_stream(
-        &c,
+        &sample_config,
         move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
             // react to stream events and read or write stream data here.
             for sample in data {
@@ -88,30 +104,46 @@ pub(crate) async fn stream_output(device: &cpal::Device) -> Result<(), anyhow::E
     for stream in nsstream.incoming() {
         match stream {
             Ok(mut stream) => {
-                let mut size_buffer = [0u8; 2];
+                let mut size_buffer = [0u8; 10];
                 match stream.peek(&mut size_buffer) {
                     Ok(_) => {
-                        let compressed_opus_len = size_buffer[0] as usize;
-                        let sample_length = AudioSampleRates::from(size_buffer[1] as u32);
+                        let sb = [
+                            size_buffer[0],
+                            size_buffer[1],
+                            size_buffer[2],
+                            size_buffer[3],
+                            size_buffer[4],
+                            size_buffer[5],
+                            size_buffer[6],
+                            size_buffer[7],
+                        ];
+                        let compressed_opus_len = usize::from_be_bytes(sb);
+                        let sample_length = AudioSampleRates::new(size_buffer[8]);
                         let mut buffer = vec![0; compressed_opus_len];
 
                         // Fill the buffer with the stream
                         stream.read(&mut buffer).unwrap();
 
-                        //dbg!("Frame Size: {}", sample_length.get_frame_size());
                         let mut output: Vec<f32> =
-                            vec![0.0; sample_length.get_frame_size() as usize];
-                        //dbg!("{}", output.len());
+                            vec![0.0; (sample_length.get_frame_size() as usize) * 4];
+
+                        println!(
+                            "rec {} => {} | {:?}",
+                            compressed_opus_len,
+                            output.len(),
+                            sample_length
+                        );
+
                         match opus::Decoder::new(sample_length.into(), opus::Channels::Stereo) {
                             Ok(mut decoder) => match decoder.decode_float(
-                                &buffer[2..compressed_opus_len],
+                                &buffer[9..compressed_opus_len],
                                 &mut output,
                                 false,
                             ) {
                                 Ok(size) => {
-                                    println!("{:?} {:?}", size, output.len());
+                                    //println!("{:?} {:?}", size, output.len());
                                     // size is the number of samples per channel
-                                    for sample in &output {
+                                    for sample in output {
                                         match producer.push(sample.to_owned()) {
                                             Ok(_) => {}
                                             Err(_) => {}
@@ -137,21 +169,26 @@ pub(crate) async fn stream_output(device: &cpal::Device) -> Result<(), anyhow::E
 }
 
 pub(crate) async fn stream_input(device: &cpal::Device) -> Result<(), anyhow::Error> {
-    // Input should be a mono channel
-    let config: cpal::StreamConfig = StreamConfig {
+    let config = device.default_input_config().unwrap();
+    let sample_config: cpal::StreamConfig = StreamConfig {
         channels: 2,
-        sample_rate: SampleRate(48000),
-        buffer_size: cpal::BufferSize::Default,
+        // Use the device sample rate, but it should be 48kHz. Enforce?
+        sample_rate: config.sample_rate(),
+        // 48kHz => 480 samples per channel, 960 per frame; 1920 bytes for Mono, 3840 for stereo
+        // 1920 bytes is per-channel - the data callback will be double (3840 at 48kHz)
+        // We want a fixed size so we can pack it into an Opus frame evenly
+        // Opus wants the frame length to be sizeof(float) * channel * frame_size
+        // If our input is 3840, the opus:: crate wil set the frame size to 960 per channel, which'll give us a 10ms frame_size
+        buffer_size: cpal::BufferSize::Fixed(1920),
     };
 
     println!("{}", device.name().unwrap());
 
     let stream = match device.build_input_stream(
-        &config,
+        &sample_config,
         move |data: &[f32], _: &cpal::InputCallbackInfo| {
-            // 48kHz => 480 samples per channel, 960 per frame; 1920 bytes for Mono, 3840 for stereo
             //println!("\nsent {:?}", &data.len());
-            let sample_rate_e: AudioSampleRates = config.sample_rate.0.into();
+            let sample_rate_e: AudioSampleRates = sample_config.sample_rate.0.into();
             let mut nsstream = TcpStream::connect("127.0.0.1:8444").unwrap();
             // We need a low & highpass filter, and a noise gate before transmitting
             match opus::Encoder::new(
@@ -159,14 +196,16 @@ pub(crate) async fn stream_input(device: &cpal::Device) -> Result<(), anyhow::Er
                 opus::Channels::Stereo,
                 opus::Application::Audio,
             ) {
-                Ok(mut encoder) => match encoder.encode_vec_float(&data[0..960], 960) {
+                Ok(mut encoder) => match encoder.encode_vec_float(&data, data.len() * 2) {
                     Ok(mut result) => {
-                        let size = result.len() + 2;
-                        let mut ds: Vec<u8> = vec![size as u8];
-                        ds.append(&mut vec![sample_rate_e as u8]);
-                        ds.append(&mut result);
+                        let size = result.len() + 9;
+                        let sr = (sample_rate_e as u32) as u8;
+                        let mut size_buffer = size.to_be_bytes().to_vec();
+                        size_buffer.push(sr);
+                        size_buffer.extend(result);
 
-                        nsstream.write(ds.as_ref()).unwrap();
+                        println!("Sent {} => {}", data.len(), size);
+                        nsstream.write(size_buffer.as_ref()).unwrap();
                         nsstream.flush().unwrap();
                     }
                     Err(e) => {
