@@ -88,15 +88,17 @@ pub(crate) async fn stream_output(device: &cpal::Device) -> Result<(), anyhow::E
 
                         // Fill the buffer with the stream
                         stream.read(&mut buffer).unwrap();
-                        let audio_buffer = &buffer[2..compressed_opus_len];
                         
                         let mut output: Vec<f32> = vec![0.0; FRAME_LEN];
                         match opus::Decoder::new(sample_length.into(), opus::Channels::Stereo) {
-                            Ok(mut decoder) => match decoder.decode_float(audio_buffer, &mut output, false) {
+                            Ok(mut decoder) => match decoder.decode_float(&buffer[2..compressed_opus_len], &mut output, false) {
                                 Ok(size) => {
-                                    let output_slice = &output[0..size];
-                                    for sample in output_slice {
-                                        producer.push(sample.to_owned()).unwrap();
+                                    //println!("{}, {}", size, output.len());
+                                    for sample in &output[0..size*2] {
+                                        match producer.push(sample.to_owned()) {
+                                            Ok(_) => {},
+                                            Err(_) => {}
+                                        }
                                     }
                                 },
                                 Err(e) => { println!("{:?}", e) }
@@ -128,10 +130,11 @@ pub(crate) async fn stream_input(device: &cpal::Device) -> Result<(), anyhow::Er
             let sample_rate_e: AudioSampleRates = config.sample_rate.0.into();
             let mut nsstream = TcpStream::connect("127.0.0.1:8444").unwrap();
             // We need a low & highpass filter, and a noise gate before transmitting
-            match opus::Encoder::new(sample_rate_e.into(), opus::Channels::Stereo, opus::Application::Voip) {
-                Ok(mut encoder) => match encoder.encode_vec_float(&data, 1024) {
+            match opus::Encoder::new(sample_rate_e.into(), opus::Channels::Stereo, opus::Application::Audio) {
+                Ok(mut encoder) => match encoder.encode_vec_float(&data, data.len() * 2) {
                     Ok(mut result) => {
                         let size = result.len();
+                        println!("Generated Size: {} {}", size, data.len());
                         let mut ds: Vec::<u8> = vec![size as u8];
                         ds.append(&mut vec![sample_rate_e as u8]);
                         ds.append(&mut result);
