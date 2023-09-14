@@ -149,8 +149,7 @@ pub(crate) async fn stream_input(device: &cpal::Device) -> Result<(), anyhow::Er
     let stream = match device.build_input_stream(
         &config,
         move |data: &[f32], _: &cpal::InputCallbackInfo| {
-            // 41.1kHz => 411 samples per channel, 822 per frame
-            // 48kHz => 480 samples per channel, 960 per frame
+            // 48kHz => 480 samples per channel, 960 per frame; 1920 bytes for Mono, 3840 for stereo
             //println!("\nsent {:?}", &data.len());
             let sample_rate_e: AudioSampleRates = config.sample_rate.0.into();
             let mut nsstream = TcpStream::connect("127.0.0.1:8444").unwrap();
