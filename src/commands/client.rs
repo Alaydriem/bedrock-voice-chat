@@ -32,9 +32,9 @@ impl Config {
                 cpal::host_from_id(cpal::HostId::Wasapi).expect("failed to initialise ASIO host");
         }
 
-        #[cfg(not(target_os = "windows"))]
+        #[cfg(target_os = "macos")]
         {
-            host = cpal::default_host();
+            host = cpal::host_from_id(cpal::HostId::CoreAudio).unwrap();
         }
 
         // Default to the system input devices
