@@ -141,9 +141,6 @@ pub(crate) async fn stream_input(device: &cpal::Device) -> Result<(), anyhow::Er
         sample_rate: SampleRate(48000),
         buffer_size: cpal::BufferSize::Default,
     };
-    
-    // 480 per channel at 48kHz, 20ms samples
-    let frame_size = 120;
 
     // 960 = frame_size * channels * sizeof(float)
     // 480 = frame_size * sizeof(float)
@@ -156,6 +153,7 @@ pub(crate) async fn stream_input(device: &cpal::Device) -> Result<(), anyhow::Er
         move |data: &[f32], _: &cpal::InputCallbackInfo| {
             // Drop audio packets less than 960. Ideally we should throw this into a ring buffer then capture it
             if data.len() != 960 { return; }
+            let frame_size = (data.len() / config.channels as usize / 4) as u32;
 
             let mut mono = vec![0.0; data.len()];
             for i in (0..data.len()).step_by(2) {
