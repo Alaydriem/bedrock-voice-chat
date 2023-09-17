@@ -158,7 +158,7 @@ pub(crate) async fn stream_input(device: &cpal::Device) -> Result<(), anyhow::Er
             let mut mono = vec![0.0; data.len()];
             for i in (0..data.len()).step_by(2) {
                 // Gain boost on the average
-                let average = (data[i] / 2.0  + data[i+1] / 2.0) * 6.0;
+                let average = (data[i] / 2.0  + data[i+1] / 2.0);
                 mono[i] = average;
                 mono[i+1] = average;
             }
