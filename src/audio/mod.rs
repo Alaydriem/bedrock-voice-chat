@@ -150,16 +150,22 @@ pub(crate) async fn stream_input(device: &cpal::Device) -> Result<(), anyhow::Er
     // 120 = frame_size
     println!("{}", device.name().unwrap());
 
-    let mut lengths = Vec::<usize>::new();
     let mut encoder = opus::Encoder::new(config.sample_rate.0, opus::Channels::Stereo, opus::Application::Audio).unwrap();
     let stream = match device.build_input_stream(
         &config,
         move |data: &[f32], _: &cpal::InputCallbackInfo| {
-
             // Drop audio packets less than 960. Ideally we should throw this into a ring buffer then capture it
             if data.len() != 960 { return; }
 
-            match encoder.encode_vec_float(&data, 2048) {
+            let mut mono = vec![0.0; data.len()];
+            for i in (0..data.len()).step_by(2) {
+                // Gain boost on the average
+                let average = (data[i] / 2.0  + data[i+1] / 2.0) * 6.0;
+                mono[i] = average;
+                mono[i+1] = average;
+            }
+
+            match encoder.encode_vec_float(&mono, 2048) {
                 // This is an single opus packet that we're sending across the network
                 Ok(result) => {
                     // We need a low & highpass filter, and a noise gate before transmitting
