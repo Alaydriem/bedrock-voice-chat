@@ -2,19 +2,22 @@ use std::io::prelude::*;
 use std::io::Read;
 use std::net::TcpStream;
 
+use anyhow::Context;
 use anyhow::anyhow;
+use cpal::BufferSize;
+use cpal::Device;
+use cpal::SampleFormat;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::SampleRate;
-use cpal::SizedSample;
 use cpal::StreamConfig;
-use cpal::{FromSample, Sample};
 use serde::{Deserialize, Serialize};
+
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct AudioFrame {
     pub length: usize,
     pub sample_rate: u32,
-    pub data: Vec<u8>,
+    pub data: Vec<f32>,
     pub channels: u16,
     pub frame_size: u32,
     pub player: String,
@@ -84,7 +87,6 @@ pub(crate) async fn stream_output(device: &cpal::Device) -> Result<(), anyhow::E
                             size_buffer[7],
                         ]);
 
-                        
                         // The buffer for ron is the packet length
                         let mut buffer = vec![0; packet_len + 8];
                         stream.read(&mut buffer).unwrap();
@@ -92,31 +94,16 @@ pub(crate) async fn stream_output(device: &cpal::Device) -> Result<(), anyhow::E
                         let decompressed = zstd::decode_all(&buffer[8..buffer.len()]).unwrap();
 
                         let data =
-                            std::str::from_utf8(&decompressed[0..decompressed.len()]).unwrap();
+                            std::str::from_utf8(&decompressed[..]).unwrap();
                         
                         match ron::from_str::<AudioFrame>(data) {
                             Ok(frame) => {
-                                let frame_size = frame.frame_size;
-                                let channels = frame.channels as u32;
-
-                                // With a frame size of 120, the output buffer should be 960 bytes, which is the same as our original input size
-                                let mut output = vec![0.0; (frame_size * channels * 4) as usize];
-
-                                // this does not produce clear audio
-                                match opus::Decoder::new(frame.sample_rate, opus::Channels::Stereo) {
-                                    Ok(mut decoder) => match decoder.decode_float(&frame.data, &mut output, false){
-                                        Ok(result) => {
-                                            output.truncate(result);
-                                            for sample in output {
-                                                producer.push(sample.to_owned()).unwrap_or({});
-                                            }
-                                        },
-                                        Err(e) => { println!("{}", e.to_string()); }
-                                    },
-                                    Err(e) => { println!("{}", e.to_string()); }
-                                };
-
-                                
+                                for sample in frame.data {
+                                    match producer.push(sample.to_owned()) {
+                                        Ok(_) => {},
+                                        Err(_) => {}
+                                    }
+                                }                            
                             }
                             Err(_) => {
                                 println!("Unable to decode frame");
@@ -135,64 +122,56 @@ pub(crate) async fn stream_output(device: &cpal::Device) -> Result<(), anyhow::E
 }
 
 pub(crate) async fn stream_input(device: &cpal::Device) -> Result<(), anyhow::Error> {
-    // Input should be a mono channel
-    let config: cpal::StreamConfig = StreamConfig {
+    let mut config: cpal::StreamConfig = StreamConfig {
         channels: 2,
         sample_rate: SampleRate(48000),
         buffer_size: cpal::BufferSize::Default,
     };
-
-    // 960 = frame_size * channels * sizeof(float)
+    
+    // 960 =    frame_size * channels * sizeof(float)
     // 480 = frame_size * sizeof(float)
     // 120 = frame_size
     println!("{}", device.name().unwrap());
 
-    let mut encoder = opus::Encoder::new(config.sample_rate.0, opus::Channels::Stereo, opus::Application::Audio).unwrap();
     let stream = match device.build_input_stream(
         &config,
         move |data: &[f32], _: &cpal::InputCallbackInfo| {
-            // Drop audio packets less than 960. Ideally we should throw this into a ring buffer then capture it
-            if data.len() != 960 { return; }
-            let frame_size = (data.len() / config.channels as usize / 4) as u32;
+            // Drop frames less than 960
+            // todo!() add a ring buffer so we don't lose packets
+            let input_frame_size = data.len();
+            if input_frame_size != 960 { return; }
 
-            let mut mono = vec![0.0; data.len()];
-            for i in (0..data.len()).step_by(2) {
-                // Gain boost on the average
-                let average = (data[i] / 2.0  + data[i+1] / 2.0);
+            let frame_size = (input_frame_size / config.channels as usize / 4) as u32;
+
+            // Convert the stream into a single mono channel, sent as stereo
+            let mut mono = vec![0.0; input_frame_size];
+            for i in (0..input_frame_size).step_by(2) {
+                let average = (data[i] / 2.0  + data[i+1] / 2.0) * 24.0;
                 mono[i] = average;
                 mono[i+1] = average;
             }
 
-            match encoder.encode_vec_float(&mono, 2048) {
-                // This is an single opus packet that we're sending across the network
-                Ok(result) => {
-                    // We need a low & highpass filter, and a noise gate before transmitting
-                    let af = AudioFrame {
-                        length: result.len(),
-                        data: result,
-                        sample_rate: config.sample_rate.0,
-                        channels: config.channels,
-                        frame_size,
-                        player: "Alaydriem".to_string(),
-                        group: "Default".to_string()
-                    };
-
-                    let raw = ron::to_string(&af).unwrap();
-                    let d = raw.as_bytes();
-
-                    let compressed = zstd::encode_all(&d[0..d.len()], 9).unwrap();
-                    let mut buffer = compressed.len().to_be_bytes().to_vec();
-                    buffer.extend_from_slice(&compressed);
-
-                    let mut nsstream = TcpStream::connect("127.0.0.1:8444").unwrap();
-                    nsstream.write(&buffer).unwrap();
-                    nsstream.flush().unwrap();
-                    drop(nsstream);
-                    encoder.reset_state().unwrap();
-                },
-                Err(e) => { println!("{}", e.to_string()); }
+            let af = AudioFrame {
+                length: mono.len(),
+                data: mono,
+                sample_rate: config.sample_rate.0,
+                channels: config.channels,
+                frame_size,
+                player: "Alaydriem".to_string(),
+                group: "Default".to_string()
             };
-            encoder.reset_state().unwrap();
+
+            let raw = ron::to_string(&af).unwrap();
+            let d = raw.as_bytes();
+
+            let compressed = zstd::encode_all(&d[0..d.len()], 13).unwrap();
+            let mut buffer = compressed.len().to_be_bytes().to_vec();
+            buffer.extend_from_slice(&compressed);
+
+            let mut nsstream = TcpStream::connect("127.0.0.1:8444").unwrap();
+            nsstream.write(&buffer).unwrap();
+            nsstream.flush().unwrap();
+            drop(nsstream);
         },
         move |err| {
             // react to errors here.
@@ -215,4 +194,3 @@ pub(crate) async fn get_devices(
 ) -> Result<(Option<cpal::Device>, Option<cpal::Device>), anyhow::Error> {
     Ok((host.default_input_device(), host.default_output_device()))
 }
-
