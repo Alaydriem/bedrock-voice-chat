@@ -22,7 +22,7 @@ pub struct AudioFrame {
 
 pub(crate) async fn stream_output(device: &cpal::Device) -> Result<(), anyhow::Error> {
     let config: cpal::StreamConfig = StreamConfig {
-        channels: 1,
+        channels: 2,
         sample_rate: SampleRate(48000),
         buffer_size: cpal::BufferSize::Default,
     };
@@ -32,7 +32,7 @@ pub(crate) async fn stream_output(device: &cpal::Device) -> Result<(), anyhow::E
     let c = config;
     let latency_frames = (50.0 / 1_000.0) * c.sample_rate.0 as f32;
     let latency_samples = latency_frames as usize * c.channels as usize;
-    let ring = ringbuf::HeapRb::<f32>::new(latency_samples * 2);
+    let ring = ringbuf::HeapRb::<f32>::new(latency_samples * 4);
     let (mut producer, mut consumer) = ring.split();
     for _ in 0..latency_samples {
         // The ring buffer has twice as much space as necessary to add latency here,
@@ -132,7 +132,7 @@ pub(crate) async fn stream_output(device: &cpal::Device) -> Result<(), anyhow::E
 pub(crate) async fn stream_input(device: &cpal::Device) -> Result<(), anyhow::Error> {
     // Input should be a mono channel
     let config: cpal::StreamConfig = StreamConfig {
-        channels: 1,
+        channels: 2,
         sample_rate: SampleRate(48000),
         buffer_size: cpal::BufferSize::Default,
     };
@@ -175,7 +175,14 @@ pub(crate) async fn stream_input(device: &cpal::Device) -> Result<(), anyhow::Er
         data_stream.push(sample.unwrap());
 
         if data_stream.len() == 3840 {
-            let dsc = data_stream.clone();
+            let mut mono = vec![0.0; data_stream.len()];
+            for i in (0..data_stream.len()).step_by(2) {
+                let average = (data_stream[i] / 2.0 + data_stream[i + 1] / 2.0) * 1.0;
+                mono[i] = average;
+                mono[i + 1] = average;
+            }
+
+            let dsc = mono.clone();
             data_stream = Vec::<f32>::new();
 
             let mut encoder = opus::Encoder::new(
