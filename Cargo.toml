@@ -18,3 +18,4 @@ ringbuf = "0.3.3"
 opus = "0.3.0"
 ron = "0.8.1"
 zstd = { version = "0.12.4", features = ["bindgen"] }
+async-once-cell = "0.5.3"
