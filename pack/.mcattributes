@@ -1,0 +1,4 @@
+diagnostic.enable=true
+diagnose.objectives=true
+diagnose.tags=true
+diagnose.mcfunctions=true
