@@ -15,20 +15,20 @@ import * as mcsa from "@minecraft/server-admin";
 world.beforeEvents.chatSend.subscribe(async (event) => {
   let v = new Version(event, event.sender);
   let cmd = event.message.split(" ");
-  switch (cmd[0]) {
-    case "!version":
-      event.cancel = true;
-      system.run(() => {
-        v.version();
-      });
-      break;
-    default:
-      break;
+  if (cmd[0] == "!bvc") {
+    switch (cmd[1] ?? "version") {
+      default:
+      case "version":
+        event.cancel = true;
+        system.run(() => {
+          v.version();
+        });
+        break;
+    }
   }
 });
 
 const bvc_server = mcsa.variables.get("bvc_server");
-console.log(bvc_server);
 
 system.runInterval(async (e) => {
   let data = [];

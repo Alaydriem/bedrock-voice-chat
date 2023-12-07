@@ -1,0 +1,11 @@
+[Unit]
+Description=Bedrock Voice Chat Server
+After=network-online.target remote-fs.target nss-lookup.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/bvc-server server -c /etc/bvc-server/config.hcl
+
+[Install]
+WantedBy=multi-user.target

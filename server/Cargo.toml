@@ -1,8 +1,48 @@
 [package]
-name = "server"
-version = "0.1.0"
+name = "bedrock-voice-chat-server"
+authors = ["Charles R. Portwood II <charlesportwoodii@erianna.com>"]
+description = "Bedrock Voice Chat is a voice chat server for Minecraft Bedrock edition."
+repository = "https://github.com/alaydriem/bedrock-voice-chat"
+version = "0.0.1"
 edition = "2021"
+build = "build.rs"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[registries.crates-io]
+protocol = "sparse"
 
 [dependencies]
+common = { path = "./../common" }
+tokio = { version = "^1.11", features = ["full"] }
+rocket = { path = "../vendor/rocket.rs/core/lib", features = ["tls", "json"] }
+clap = { version = "^4.0", features = ["derive", "env", "wrap_help"] }
+hcl-rs = { version = "^0.8" }
+anyhow = "1.0.75"
+serde = { version = "^1", features = ["derive"] }
+serde_json = { version = "^1", features = ["raw_value"] }
+async-stream = { version = "^0.3" }
+async-trait = { version = "^0.1" }
+reqwest = { version = "^0.11", default-features=false, features = ["json", "rustls-tls", "brotli", "gzip", "stream", "blocking"] }
+tracing = { version = "^0.1" }
+tracing-subscriber = { version = "^0.3" }
+tracing-appender = { version = "^0.2" }
+base64 = { version = "^0.13" }
+faccess = "0.2.4"
+moq-transport = "0.2.0"
+
+[build-dependencies]
+built = { version = "^0.5", features = ["git2", "chrono", "semver"]  }
+
+[package.metadata.deb]
+maintainer = "Charles R. Portwood II <charlesportwoodii@erianna.com>"
+copyright = "2022 - Present, Charles R. Portwood II <charlesportwoodii@erianna.com>"
+extended-description = """bvc-server is a voice chat server for Minecraft Bedrock Edition."""
+depends = "$auto"
+section = "utility"
+priority = "optional"
+revision = "__REVISION__"
+assets = [
+    ["target/release/bvc-server", "usr/local/bin/", "755"],
+    ["../README.md", "usr/share/doc/bvc-server/README", "644"],
+    ["templates/**/*", "etc/bvc-server/templates/", "644"],
+    [".systemd/bvc-server.service", "etc/systemd/system/bvc-server.service", "644"],
+]

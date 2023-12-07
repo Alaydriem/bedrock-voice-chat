@@ -1,0 +1,7 @@
+[submodule "vendor/rocket.rs"]
+	path = vendor/rocket.rs
+	url = https://github.com/charlesportwoodii/rocket.rs
+	branch = peek_buffer
+[submodule "vendor/ncryptf-rs"]
+	path = vendor/ncryptf-rs
+	url = https://github.com/ncryptf/ncryptf-rs

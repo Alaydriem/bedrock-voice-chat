@@ -1,0 +1,7 @@
+.asio
+client/target
+server/target
+*.mcpack
+*.mcaddon
+server.key
+server.crt
