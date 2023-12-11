@@ -1,54 +1,48 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="stylesheet" href="/src/styles.css" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tauri App</title>
-    <script type="module" src="/src/main.ts" defer></script>
-    <style>
-      .logo.vite:hover {
-        filter: drop-shadow(0 0 2em #747bff);
-      }
+    <link rel="stylesheet" href="/src/index.css" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css?family=Bebas Neue"
+    />
 
-      .logo.typescript:hover {
-        filter: drop-shadow(0 0 2em #2d79c7);
-      }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bedrock Voice Chat</title>
+    <script type="module" src="/src/index.ts" defer></script>
   </head>
 
-  <body>
-    <div class="container">
-      <h1>Welcome to Tauri!</h1>
-
-      <div class="row">
-        <a href="https://vitejs.dev" target="_blank">
-          <img src="/src/assets/vite.svg" class="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img
-            src="/src/assets/tauri.svg"
-            class="logo tauri"
-            alt="Tauri logo"
-          />
-        </a>
-        <a href="https://www.typescriptlang.org/docs" target="_blank">
-          <img
-            src="/src/assets/typescript.svg"
-            class="logo typescript"
-            alt="typescript logo"
-          />
-        </a>
+  <body class="bg-gray-1 dark:bg-dark py-20 lg:py-[240px]">
+    <section class="main">
+      <div class="container mx-auto">
+        <div class="flex flex-wrap -mx-4">
+          <div class="w-full px-4">
+            <div
+              class="relative mx-auto max-w-[525px] overflow-hidden rounded-lg bg-white py-7 px-10 text-center sm:px-12 md:px-[30px] dark:bg-dark-2"
+            >
+              <div class="text-white snap-center py-5">
+                <img class="m-auto pb-0 pt-0 w-3/4" src="/src/assets/bedrock-voice-chat-high-resolution-logo-transparent.png" />
+                <p class="py-1 pb-6">Enter your BVC Endpoint URL to get started</p>
+              </p>
+              <form>
+                <div class="flex flex-row space-x-5">
+                  <input
+                    type="text"
+                    placeholder="https://bvc.alaydriem.com"
+                    class="basis-full text-center px-5 py-3 text-base bg-transparent border rounded-md outline-none border-stroke text-body-color dark:text-white dark:border-dark-3 focus:border-primary focus-visible:shadow-none"
+                  />
+                </div>
+                <div class="flex flex-row space-x-5 self-center m-auto pt-5">
+                  <button id="login-with-microsoft-button" class="m-auto snap-center">
+                  <img class="m-auto snap-center" src="https://learn.microsoft.com/en-us/entra/identity-platform/media/howto-add-branding-in-apps/ms-symbollockup_signin_dark.svg" />
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
       </div>
-
-      <p>Click on the Tauri logo to learn more about the framework</p>
-
-      <form class="row" id="greet-form">
-        <input id="greet-input" placeholder="Enter a name..." />
-        <button type="submit">Greet</button>
-      </form>
-
-      <p id="greet-msg"></p>
-    </div>
+    </section>
   </body>
 </html>
