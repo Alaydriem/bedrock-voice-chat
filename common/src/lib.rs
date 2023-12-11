@@ -8,10 +8,14 @@ pub mod redis;
 pub use serde::{Serialize, Deserialize};
 /// [{"name":"Alaydriem","dimension":"minecraft:overworld","coordinates":{"x":0.5,"y":70,"z":0.5},"deafen":false}]
 
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Dimension {
+    #[serde(rename = "minecraft:overworld")]
     Overworld,
+    #[serde(rename = "minecraft:the_nether")]
     TheEnd,
+    #[serde(rename = "minecraft:the_end")]
     TheNether
 }
 

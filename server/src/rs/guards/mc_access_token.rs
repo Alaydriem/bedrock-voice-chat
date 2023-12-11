@@ -1,18 +1,19 @@
-use common::{
-    rocket::{
-        async_trait,
-        http::Status,
-        request::{FromRequest, Outcome, Request},
-    },
+use common:: rocket::{
+    State,
+    async_trait,
+    http::Status,
+    request::{FromRequest, Outcome, Request}
 };
 
+use crate::config::ApplicationConfigServer;
+
 /// Extracts the Access Token from the ncryptf request
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MCAccessToken(pub String);
 
 #[derive(Debug)]
 pub enum MCAccessTokenError {
-    Missing,
-    Invalid,
+    Invalid
 }
 
 #[async_trait]
@@ -21,8 +22,18 @@ impl<'r> FromRequest<'r> for MCAccessToken {
 
     async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
         return match req.headers().get_one("X-MC-Access-Token") {
-            Some(key) => Outcome::Success(MCAccessToken(key.to_string())),
-            None => Outcome::Failure((Status::BadRequest, MCAccessTokenError::Missing)),
+            Some(key) => {
+                let at =  req.guard::<&State<ApplicationConfigServer>>().await.map(|config| MCAccessToken(config.minecraft.access_token.clone()));
+                let current = Outcome::Success(MCAccessToken(key.to_string()));
+
+                // Ensure that the access tokens match
+                if at.eq(&current) {
+                    Outcome::Success(MCAccessToken(key.to_string()))
+                } else {
+                    Outcome::Failure((Status::Forbidden, MCAccessTokenError::Invalid))
+                }
+            },
+            None => Outcome::Failure((Status::BadRequest, MCAccessTokenError::Invalid)),
         };
     }
 }

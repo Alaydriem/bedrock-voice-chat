@@ -1,8 +1,6 @@
-use common::{
-    rocket::{
-        data::{Limits, ToByteUnit},
-        figment::Figment,
-    }
+use common::rocket::{
+    data::{Limits, ToByteUnit},
+    figment::Figment
 };
 
 use serde::{Deserialize, Serialize};
@@ -36,7 +34,8 @@ pub struct ApplicationConfigServer {
     pub port: u32,
     #[serde(default)]
     pub public_addr: String,
-    pub tls: ApplicationConfigServerTLS
+    pub tls: ApplicationConfigServerTLS,
+    pub minecraft: ApplicationConfigMinecraft
 }
 
 /// TLS Configuration for server
@@ -46,6 +45,15 @@ pub struct ApplicationConfigServerTLS {
     key: String,
     #[serde(default)]
     pub so_reuse_port: bool,
+    pub certs_path: String
+}
+
+/// Minecraft Configuration
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ApplicationConfigMinecraft {
+    pub access_token: String,
+    pub client_id: String,
+    pub client_secret: String
 }
 
 /// OAuth2 Client Configuration
@@ -72,7 +80,13 @@ impl Default for ApplicationConfig {
                     certificate: String::from("/etc/bvc/server.crt"),
                     key: String::from("/etc/bvc/server.key"),
                     so_reuse_port: false,
+                    certs_path: String::from("/etc/bvc/certificates")
                 },
+                minecraft: ApplicationConfigMinecraft {
+                    access_token: String::from(""),
+                    client_id: String::from(""),
+                    client_secret: String::from("")
+                }
             },
             log: ApplicationConfigLogger {
                 level: String::from("info"),
@@ -122,6 +136,7 @@ impl ApplicationConfig {
             .merge(("limits", Limits::new().limit("json", 10.megabytes())))
             .merge(("tls.certs", &self.server.tls.certificate))
             .merge(("tls.key", &self.server.tls.key))
+            .merge(("minecraft.access_token", &self.server.minecraft.access_token))
             .merge((
                 "databases.cache",
                 common::rocket_db_pools::Config {

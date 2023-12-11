@@ -16,7 +16,7 @@ tokio = { version = "^1.11", features = ["full"] }
 rocket = { path = "../vendor/rocket.rs/core/lib", features = ["tls", "json"] }
 clap = { version = "^4.0", features = ["derive", "env", "wrap_help"] }
 hcl-rs = { version = "^0.8" }
-anyhow = "1.0.75"
+anyhow = { version = "^1.0" } 
 serde = { version = "^1", features = ["derive"] }
 serde_json = { version = "^1", features = ["raw_value"] }
 async-stream = { version = "^0.3" }
@@ -28,6 +28,7 @@ tracing-appender = { version = "^0.2" }
 base64 = { version = "^0.13" }
 faccess = "0.2.4"
 moq-transport = "0.2.0"
+rcgen = { version = "^0.11", features = ["pem", "x509-parser"] }
 
 [build-dependencies]
 built = { version = "^0.5", features = ["git2", "chrono", "semver"]  }

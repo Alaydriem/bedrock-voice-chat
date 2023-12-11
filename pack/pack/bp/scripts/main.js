@@ -29,6 +29,7 @@ world.beforeEvents.chatSend.subscribe(async (event) => {
 });
 
 const bvc_server = mcsa.variables.get("bvc_server");
+const access_token = mcsa.variables.get("bvc_access_token");
 
 system.runInterval(async (e) => {
   let data = [];
@@ -46,7 +47,11 @@ system.runInterval(async (e) => {
   let request = new HttpRequest(bvc_server + "/api/position");
   request.setBody(JSON.stringify(data));
   request.setMethod(HttpRequestMethod.Post);
-  request.setHeaders([new HttpHeader("Content-Type", "application/json")]);
+  request.setHeaders([
+    new HttpHeader("Content-Type", "application/json"),
+    new HttpHeader("X-MC-Access-Token", access_token),
+    new HttpHeader("Accept", "application/json"),
+  ]);
   request.setTimeout(1);
 
   await http
