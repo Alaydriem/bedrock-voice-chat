@@ -1,5 +1,5 @@
-import { invoke } from "@tauri-apps/api/tauri";
 import Main from "./main";
+import Login from "./login";
 
 declare global {
   interface Window {
@@ -12,6 +12,7 @@ export default class Application extends Main {
     super();
     // Your Application
 
+    const login = new Login();
     console.log("load");
   }
 }

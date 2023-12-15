@@ -5,3 +5,5 @@ server/target
 *.mcaddon
 server.key
 server.crt
+certificates/
+config.hcl

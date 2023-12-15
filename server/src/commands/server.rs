@@ -1,21 +1,21 @@
-use clap::Parser;
-use rcgen::{CertificateParams, Certificate, KeyPair, PKCS_ED25519, DistinguishedName, IsCa};
-use rocket::time::OffsetDateTime;
-use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
-use tracing_subscriber::fmt::SubscriberBuilder;
-use std::{process::exit, path::Path, fs::File, io::Write};
 use crate::commands::State as StateConfig;
 use crate::rs::routes;
 use anyhow::anyhow;
-use std::fs;
+use clap::Parser;
 use faccess::PathExt;
+use rcgen::{Certificate, CertificateParams, DistinguishedName, IsCa, KeyPair, PKCS_ED25519};
+use rocket::time::OffsetDateTime;
+use std::fs;
+use std::{fs::File, io::Write, path::Path, process::exit};
+use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
+use tracing_subscriber::fmt::SubscriberBuilder;
 
 use common::{
     ncryptflib as ncryptf,
-    rocket::{self, routes},
-    rocket_db_pools,
     ncryptflib::rocket::Fairing as NcryptfFairing,
     pool::redis::RedisDb,
+    rocket::{self, routes},
+    rocket_db_pools,
 };
 use tracing::info;
 
@@ -92,7 +92,7 @@ impl Config {
             .init();
 
         info!("Logger established!");
-        
+
         // Create the root CA certificate if it doesn't already exist.
         let root_ca_path_str = format!("{}/{}", &self.config.server.tls.certs_path, "ca.crt");
         let root_ca_key_path_str = format!("{}/{}", &self.config.server.tls.certs_path, "ca.key");
@@ -106,7 +106,6 @@ impl Config {
 
             let mut distinguished_name = DistinguishedName::new();
             distinguished_name.push(rcgen::DnType::CommonName, "Bedrock Voice Chat");
-
 
             let mut cp = CertificateParams::new(vec![self.config.server.public_addr.clone()]);
             cp.alg = &PKCS_ED25519;
@@ -127,7 +126,7 @@ impl Config {
             key_file.write_all(cert.as_bytes()).unwrap();
             let mut cert_file = File::create(root_ca_key_path_str).unwrap();
             cert_file.write_all(key.as_bytes()).unwrap();
-        }        
+        }
 
         // Launch Rocket and QUIC
         let mut tasks = Vec::new();
@@ -152,6 +151,7 @@ impl Config {
                         //        routes::ncryptf::token_refresh_route,
                         //    ],
                         //)
+                        .mount("/api/config", routes![routes::api::config::get_config])
                         .mount("/api/mc", routes![routes::mc::position]);
 
                     if let Ok(ignite) = rocket.ignite().await {

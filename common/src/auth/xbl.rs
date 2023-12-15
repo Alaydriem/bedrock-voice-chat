@@ -2,14 +2,13 @@ use anyhow::Context;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
 use reqwest::header::HeaderMap;
-use reqwest::Url;
+use reqwest::{get, Url};
+use rocket::{get, routes, Shutdown};
 use serde::Deserialize;
 use std::borrow::Cow;
 use std::env;
-use std::sync::mpsc;
-use warp::Filter;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct Query {
     pub code: String,
     pub state: String,
@@ -85,19 +84,38 @@ pub struct Profile {
     pub name: String,
 }
 
+#[doc(hidden)]
+static mut RESPONSE_DATA: Option<Query> = None;
+
+#[doc(hidden)]
+#[get("/?<code>&<state>")]
+fn index(shutdown: Shutdown, code: &str, state: &str) {
+    unsafe {
+        RESPONSE_DATA = Some(Query {
+            code: code.to_string(),
+            state: state.to_string(),
+        })
+    };
+    shutdown.notify();
+}
+
 /// Start listening on a random port for the callback
-async fn receive_query(port: u16) -> Query {
-    let (sender, receiver) = mpsc::sync_channel(1);
-    let route = warp::get()
-        .and(warp::filters::query::query())
-        .map(move |query: Query| {
-            sender.send(query).expect("failed to send query");
-            "Successfully received query"
-        });
+async fn receive_query(port: u16) -> Option<Query> {
+    let figment = rocket::Config::figment()
+        .merge(("address", "127.0.0.1"))
+        .merge(("port", port));
 
-    tokio::task::spawn(warp::serve(route).run(([127, 0, 0, 1], port)));
+    let _ = rocket::custom(figment)
+        .mount("/", routes![index])
+        .ignite()
+        .await
+        .unwrap()
+        .launch()
+        .await;
 
-    receiver.recv().expect("channel has hung up")
+    // Extract the response
+    let data: Option<Query> = unsafe { RESPONSE_DATA.clone() };
+    data
 }
 
 /// Generates a random string for the state token
@@ -111,9 +129,10 @@ fn random_string() -> String {
 
 /// The client should call client_authenticate_step_1 with the embeded client_id provided by the server
 /// This will return a URL that should be presented to the client to be opened in a web browser
-pub async fn client_authenticate_step_1(client_id: String) -> anyhow::Result<(String, String), anyhow::Error>
-{    
-    let redirect_uri: Url = "127.0.0.1"
+pub async fn client_authenticate_step_1(
+    client_id: String,
+) -> anyhow::Result<(String, String), anyhow::Error> {
+    let redirect_uri: Url = "http://localhost:8085"
         .parse()
         .context("redirect uri is not a valid url")?;
 
@@ -127,7 +146,7 @@ pub async fn client_authenticate_step_1(client_id: String) -> anyhow::Result<(St
         &state={}",
         client_id, redirect_uri, state
     );
-    
+
     return Ok((url, state));
 }
 
@@ -135,22 +154,28 @@ pub async fn client_authenticate_step_1(client_id: String) -> anyhow::Result<(St
 /// And awaits a callback from the server.
 /// Upon return, the client should call POST /api/auth with the code in the body parameters
 pub async fn client_authenticate_step_2(state: String) -> anyhow::Result<String, anyhow::Error> {
-    let query = receive_query(8085).await;
+    match receive_query(8085).await {
+        Some(query) => {
+            anyhow::ensure!(
+                state == query.state,
+                "state mismatch: got state '{}' from query, but expected state was '{}'",
+                state,
+                query.state
+            );
 
-    anyhow::ensure!(
-        query.state == state,
-        "state mismatch: got state '{}' from query, but expected state was '{}'",
-        query.state,
-        state
-    );
-    
-    return Ok(query.code);
+            return Ok(query.code);
+        }
+        None => Err(anyhow::anyhow!("Did not receive code back from API")),
+    }
 }
 
 /// Takes the OAuth2 state code from the client, and completes the OAuth2 transaction
 /// This is used on the server to get the player's identity and information and persist it in the state
-pub async fn server_authenticate_with_client_code(client_id: String, client_secret: String, code: String) -> anyhow::Result<serde_json::Value, anyhow::Error>
-{
+pub async fn server_authenticate_with_client_code(
+    client_id: String,
+    client_secret: String,
+    code: String,
+) -> anyhow::Result<serde_json::Value, anyhow::Error> {
     let client = reqwest::Client::builder()
         .connection_verbose(true)
         .build()
