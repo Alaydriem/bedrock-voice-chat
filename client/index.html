@@ -1,48 +1,105 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
+    <!-- Meta tags  -->
     <meta charset="UTF-8" />
-    <link rel="stylesheet" href="/src/index.css" />
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css?family=Bebas Neue"
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta
+      name="viewport"
+      content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0"
     />
 
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Bedrock Voice Chat</title>
-    <script type="module" src="/src/index.ts" defer></script>
+    <title>Welcome to Bedrock Voice Chat</title>
+    <link rel="icon" type="image/png" href="/src/images/favicon.png" />
+
+    <!-- CSS Assets -->
+    <link rel="stylesheet" href="/src/css/app.css" />
+
+    <!-- Javascript Assets -->
+    <script type="module" src="/src/js/app.ts" defer></script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      /**
+       * THIS SCRIPT REQUIRED FOR PREVENT FLICKERING IN SOME BROWSERS
+       */
+      localStorage.getItem("dark-mode") === "dark" &&
+        document.documentElement.classList.add("dark");
+    </script>
   </head>
 
-  <body class="bg-gray-1 dark:bg-dark py-20 lg:py-[240px]">
-    <section class="main">
-      <div class="container mx-auto">
-        <div class="flex flex-wrap -mx-4">
-          <div class="w-full px-4">
-            <div
-              class="relative mx-auto max-w-[525px] overflow-hidden rounded-lg bg-white py-7 px-10 text-center sm:px-12 md:px-[30px] dark:bg-dark-2"
-            >
-              <div class="text-white snap-center py-5">
-                <img class="m-auto pb-0 pt-0 w-3/4" src="/src/assets/bedrock-voice-chat-high-resolution-logo-transparent.png" />
-                <p class="py-1 pb-6">Enter your BVC Endpoint URL to get started</p>
-              </p>
-              <form>
-                <div class="flex flex-row space-x-5">
-                  <input
-                    type="text"
-                    placeholder="https://bvc.alaydriem.com"
-                    class="basis-full text-center px-5 py-3 text-base bg-transparent border rounded-md outline-none border-stroke text-body-color dark:text-white dark:border-dark-3 focus:border-primary focus-visible:shadow-none"
-                  />
-                </div>
-                <div class="flex flex-row space-x-5 self-center m-auto pt-5">
-                  <button id="login-with-microsoft-button" class="m-auto snap-center">
-                  <img class="m-auto snap-center" src="https://learn.microsoft.com/en-us/entra/identity-platform/media/howto-add-branding-in-apps/ms-symbollockup_signin_dark.svg" />
-                  </button>
-                </div>
-              </form>
+  <body class="is-header-blur is-sidebar-open dark">
+    <!-- App preloader-->
+    <div
+      class="app-preloader fixed z-50 grid h-full w-full place-content-center bg-slate-50 dark:bg-navy-900"
+    >
+      <div class="app-preloader-inner relative inline-block h-48 w-48"></div>
+    </div>
+
+    <!-- Page Wrapper -->
+    <div
+      id="root"
+      class="min-h-100vh cloak flex grow bg-slate-50 dark:bg-navy-900"
+    >
+      <!-- Main Content Wrapper -->
+      <main class="grid w-full grow grid-cols-1 place-items-center">
+        <div class="w-full max-w-[26rem] p-4 sm:px-5">
+          <div class="text-center">
+            <img
+              class="mx-auto h-32 w-32"
+              src="/src/images/bedrock-voice-chat-favicon-white.png"
+              alt="Bedrock Voice Chat Logo"
+            />
+            <div class="mt-4">
+              <h2
+                class="text-2xl font-semibold text-slate-600 dark:text-navy-100"
+              >
+                Welcome to Bedrock!
+              </h2>
             </div>
           </div>
+          <div class="card mt-5 rounded-lg p-5 lg:p-7">
+            <div>
+              <p class="text-slate-300 dark:text-navy-200 pb-3">
+                Set your server, then sign in with your Microsoft Account
+              </p>
+              <label class="mt-1.5 flex -space-x-px">
+                <span
+                  class="flex items-center justify-center rounded-l-lg border border-slate-300 px-3.5 font-inter dark:border-navy-450"
+                >
+                  <span class="-mt-1"
+                    ><i class="fa-solid fa-server" style="color: #ffffff"></i
+                  ></span>
+                </span>
+                <input
+                  class="form-input w-full rounded-r-lg border border-slate-300 bg-transparent px-3 py-2 placeholder:text-slate-400/70 hover:z-10 hover:border-slate-400 focus:z-10 focus:border-primary dark:border-navy-450 dark:hover:border-navy-400 dark:focus:border-accent"
+                  placeholder="bvc.alaydriem.com"
+                  type="text"
+                />
+              </label>
+            </div>
+            <button class="btn mt-5 w-full">
+              <img
+                src="/src/images/ms-symbollockup_signin_dark.svg"
+                alt="Sign in with Microsoft Account"
+              />
+            </button>
+          </div>
+          <div
+            class="mt-8 flex justify-center text-xs text-slate-400 dark:text-navy-300"
+          >
+            <a href="#">Privacy Notice</a>
+            <div class="mx-3 my-1 w-px bg-slate-200 dark:bg-navy-500"></div>
+            <a href="#">Term of service</a>
+          </div>
         </div>
-      </div>
-    </section>
+      </main>
+    </div>
   </body>
 </html>

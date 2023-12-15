@@ -1,6 +1,12 @@
 import { defineConfig } from "vite";
+import path from "path";
 
 export default defineConfig({
+  resolve: {
+    alias: [
+      { find: "@", replacement: path.resolve(__dirname, "node_modules/") },
+    ],
+  },
   // prevent vite from obscuring rust errors
   clearScreen: false,
   // Tauri expects a fixed port, fail if that port is not available

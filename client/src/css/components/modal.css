@@ -1,0 +1,59 @@
+.modal:not(.show) {
+  @apply hidden;
+}
+
+.modal {
+  @apply animate-[cubic-bezier(var(--ease-out))_fade-in_300ms];
+}
+
+.modal.animate\:leave {
+  @apply animate-[cubic-bezier(var(--ease-in))_fade-out_300ms];
+}
+
+.modal.shift-up {
+  @apply [--modal-from:translate3d(0,1rem,0)] [--modal-to:translate3d(0,0,0)];
+}
+
+.modal.modal-sheet {
+  @apply [--modal-from:translateY(100%)] [--modal-to:translateY(0)];
+}
+
+.modal.shift-down {
+  @apply [--modal-to:translate3d(0,0,0)] [--modal-from:translate3d(0,-1rem,0)];
+}
+
+.modal.modal-scale {
+  @apply [--modal-from:scale(0.95)] [--modal-to:scale(1)];
+}
+
+.modal.shift-up .modal-content,
+.modal.shift-down .modal-content,
+.modal.modal-scale .modal-content,
+.modal.modal-sheet .modal-content {
+  @apply animate-[cubic-bezier(var(--ease-out))_modal-open_300ms];
+}
+
+.modal.shift-up.animate\:leave .modal-content,
+.modal.shift-down.animate\:leave .modal-content,
+.modal.modal-scale.animate\:leave .modal-content,
+.modal.modal-sheet.animate\:leave .modal-content {
+  @apply animate-[cubic-bezier(var(--ease-in))_modal-close_300ms];
+}
+
+@keyframes modal-open {
+  from {
+    transform: var(--modal-from);
+  }
+  to {
+    transform: var(--modal-to);
+  }
+}
+
+@keyframes modal-close {
+  from {
+    transform: var(--modal-to);
+  }
+  to {
+    transform: var(--modal-from);
+  }
+}

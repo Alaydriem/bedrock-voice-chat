@@ -1,0 +1,33 @@
+.tab-content.tab-shift-left {
+  @apply animate-[cubic-bezier(var(--ease-in-out))_tab-shift-left_300ms_forwards];
+}
+
+.tab-content.tab-shift-up {
+  @apply animate-[cubic-bezier(var(--ease-in-out))_tab-shift-up_300ms_forwards];
+}
+
+.tab-content:not(.is-active) {
+  @apply !hidden;
+}
+
+@keyframes tab-shift-left {
+  from {
+    opacity: 0;
+    transform: translate3d(1rem, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes tab-shift-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 1rem, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
