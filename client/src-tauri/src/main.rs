@@ -69,7 +69,8 @@ async fn main() {
         .invoke_handler(tauri::generate_handler![
             invocations::login::check_api_status,
             invocations::login::microsoft_auth,
-            invocations::login::microsoft_auth_listener
+            invocations::login::microsoft_auth_listener,
+            invocations::login::microsoft_auth_login
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

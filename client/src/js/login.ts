@@ -43,23 +43,30 @@ export default class Login {
                             invoke("microsoft_auth_listener", { state: data.state }).then((code) => {
                                 // Once we get a response back, close the window
                                 webview.close();
-
-                                console.log(code);
                                 // Submit the code to the API to complete the OAuth2 exchange
 
                                 // If successful, redirect the user to the correct internal screen
+                                invoke("microsoft_auth_login", { server: inpt.value, code: code }).then((result) => {
+
+                                    console.log("We hit the login endpoint and did the thing!");
+                                }).catch((error) => {
+                                    inpt.classList.add("border-error");
+                                    errorMessage.classList.remove("invisible");
+                                })
                             }).catch((error) => {
                                 // Close the window anyways
                                 webview.close();
+                                inpt.classList.add("border-error");
+                                errorMessage.classList.remove("invisible");
                             });
                         });
                     }).catch((error) => {
-
+                        inpt.classList.add("border-error");
+                        errorMessage.classList.remove("invisible");
                     });
             }
             console.log(result);
         }).catch((error) => {
-            console.log("error happened");
             inpt.classList.add("border-error");
             errorMessage.classList.remove("invisible");
         });

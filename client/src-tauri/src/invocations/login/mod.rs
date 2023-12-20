@@ -1,18 +1,21 @@
-use reqwest::StatusCode;
+use common::structs::config::LoginRequest;
+use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 
 use crate::invocations::get_reqwest_client;
 const CONFIG_ENDPOINT: &'static str = "/api/config";
+const AUTH_ENDPOINT: &'static str = "/api/auth";
 
+pub(crate) fn get_base_endpoint(server: String, endpoint: String) -> (Client, String) {
+    let client = get_reqwest_client();
+    let endpoint = format!("https://{}/{}", server.replace("https://", ""), endpoint);
+
+    (client, endpoint)
+}
 /// Checks the API and ensures that we can connect to it.
 #[tauri::command(async)]
 pub(crate) async fn check_api_status(server: String) -> Result<bool, bool> {
-    let client = get_reqwest_client();
-    let endpoint = format!(
-        "https://{}/{}",
-        server.replace("https://", ""),
-        CONFIG_ENDPOINT
-    );
+    let (client, endpoint) = get_base_endpoint(server, CONFIG_ENDPOINT.to_string());
 
     match client.get(endpoint).send().await {
         Ok(response) => match response.status() {
@@ -56,6 +59,23 @@ pub(crate) async fn microsoft_auth() -> Result<MicrosoftAuthCodeAndUrlResponse, 
 pub(crate) async fn microsoft_auth_listener(state: String) -> Result<String, bool> {
     match common::auth::xbl::client_authenticate_step_2(state).await {
         Ok(code) => Ok(code),
+        Err(e) => {
+            tracing::error!("{}", e.to_string());
+            Err(false)
+        }
+    }
+}
+
+#[tauri::command(async)]
+pub(crate) async fn microsoft_auth_login(server: String, code: String) -> Result<bool, bool> {
+    let (client, endpoint) = get_base_endpoint(server, AUTH_ENDPOINT.to_string());
+    let payload = LoginRequest { code };
+
+    match client.post(endpoint).json(&payload).send().await {
+        Ok(response) => match response.status() {
+            StatusCode::OK => Ok(true),
+            _ => Err(false),
+        },
         Err(e) => {
             tracing::error!("{}", e.to_string());
             Err(false)

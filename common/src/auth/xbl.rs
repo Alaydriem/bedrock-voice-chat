@@ -2,11 +2,11 @@ use anyhow::Context;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
 use reqwest::header::HeaderMap;
-use reqwest::{get, Url};
+use reqwest::Url;
 use rocket::{get, routes, Shutdown};
 use serde::Deserialize;
+use serde::Serialize;
 use std::borrow::Cow;
-use std::env;
 
 #[derive(Deserialize, Clone)]
 pub struct Query {
@@ -28,6 +28,28 @@ pub struct Xui {
 #[derive(Deserialize)]
 pub struct DisplayClaims {
     pub xui: Vec<Xui>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileResponse {
+    pub profile_users: Vec<ProfileUser>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileUser {
+    pub id: String,
+    pub host_id: String,
+    pub settings: Vec<Setting>,
+    pub is_sponsored_user: bool,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Setting {
+    pub id: String,
+    pub value: String,
 }
 
 #[derive(Deserialize)]
@@ -175,27 +197,31 @@ pub async fn server_authenticate_with_client_code(
     client_id: String,
     client_secret: String,
     code: String,
-) -> anyhow::Result<serde_json::Value, anyhow::Error> {
+) -> anyhow::Result<ProfileResponse, anyhow::Error> {
     let client = reqwest::Client::builder()
         .connection_verbose(true)
         .build()
         .unwrap();
 
-    let access_token: AccessToken = client
+    let redirect_uri: Url = "http://localhost:8085"
+        .parse()
+        .context("redirect uri is not a valid url")?;
+
+    let token: AccessToken = client
         .post("https://login.live.com/oauth20_token.srf")
         .form(&[
             ("client_id", client_id),
             ("client_secret", client_secret),
             ("code", code),
             ("grant_type", "authorization_code".to_string()),
-            ("redirect_uri", "127.0.0.1".to_string()), // This shouldn't really matter, it just needs to be set
+            ("redirect_uri", redirect_uri.to_string()), // This shouldn't really matter, it just needs to be set
         ])
         .send()
         .await?
         .json()
         .await?;
 
-    let access_token = access_token.access_token;
+    let access_token = token.access_token;
     let json = serde_json::json!({
         "Properties": {
             "AuthMethod": "RPS",
@@ -268,7 +294,7 @@ pub async fn server_authenticate_with_client_code(
         format!("XBL3.0 x={};{}", user_hash, token).parse().unwrap(),
     );
     headers.insert("x-xbl-contract-version", "3".parse().unwrap());
-    let profile = client
+    let profile: ProfileResponse = client
         .post("https://profile.xboxlive.com/users/batch/profile/settings")
         .json(&serde_json::json!({
             "userIds": vec![&xuid],
@@ -280,7 +306,7 @@ pub async fn server_authenticate_with_client_code(
         .headers(headers.clone())
         .send()
         .await?
-        .json::<serde_json::Value>()
+        .json()
         .await?;
 
     return Ok(profile);

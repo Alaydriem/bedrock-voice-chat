@@ -4,3 +4,8 @@ use serde::{Deserialize, Serialize};
 pub struct ApiConfig {
     pub status: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoginRequest {
+    pub code: String,
+}

@@ -141,7 +141,7 @@ impl Config {
                         .manage(app_config.server.clone())
                         .attach(RedisDb::init())
                         .attach(NcryptfFairing)
-                        .mount("/api/auth", routes![routes::auth::authenticate])
+                        .mount("/api/auth", routes![routes::api::auth::authenticate])
                         //.mount(
                         //    "/ncryptf",
                         //    routes![
@@ -152,7 +152,7 @@ impl Config {
                         //    ],
                         //)
                         .mount("/api/config", routes![routes::api::config::get_config])
-                        .mount("/api/mc", routes![routes::mc::position]);
+                        .mount("/api/mc", routes![routes::api::mc::position]);
 
                     if let Ok(ignite) = rocket.ignite().await {
                         info!("Rocket server is now running and awaiting request!");
