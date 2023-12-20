@@ -142,15 +142,15 @@ impl Config {
                         .attach(RedisDb::init())
                         .attach(NcryptfFairing)
                         .mount("/api/auth", routes![routes::api::auth::authenticate])
-                        //.mount(
-                        //    "/ncryptf",
-                        //    routes![
-                        //        ncryptf_ek_route,
-                        //        routes::ncryptf::token_info_route,
-                        //        routes::ncryptf::token_revoke_route,
-                        //        routes::ncryptf::token_refresh_route,
-                        //    ],
-                        //)
+                        .mount(
+                            "/ncryptf",
+                            routes![
+                                ncryptf_ek_route,
+                                //        routes::ncryptf::token_info_route,
+                                //        routes::ncryptf::token_revoke_route,
+                                //        routes::ncryptf::token_refresh_route,
+                            ],
+                        )
                         .mount("/api/config", routes![routes::api::config::get_config])
                         .mount("/api/mc", routes![routes::api::mc::position]);
 
