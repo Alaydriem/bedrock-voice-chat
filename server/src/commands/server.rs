@@ -2,7 +2,9 @@ use crate::commands::State as StateConfig;
 use crate::rs::routes;
 use anyhow::anyhow;
 use clap::Parser;
+use common::sea_orm_rocket::Database;
 use faccess::PathExt;
+use migration::{Migrator, MigratorTrait};
 use rcgen::{Certificate, CertificateParams, DistinguishedName, IsCa, KeyPair, PKCS_ED25519};
 use rocket::time::OffsetDateTime;
 use std::fs;
@@ -13,7 +15,7 @@ use tracing_subscriber::fmt::SubscriberBuilder;
 use common::{
     ncryptflib as ncryptf,
     ncryptflib::rocket::Fairing as NcryptfFairing,
-    pool::redis::RedisDb,
+    pool::{redis::RedisDb, seaorm::AppDb},
     rocket::{self, routes},
     rocket_db_pools,
 };
@@ -139,8 +141,13 @@ impl Config {
                 Ok(figment) => {
                     let rocket = rocket::custom(figment)
                         .manage(app_config.server.clone())
+                        .attach(AppDb::init())
                         .attach(RedisDb::init())
                         .attach(NcryptfFairing)
+                        .attach(rocket::fairing::AdHoc::try_on_ignite(
+                            "Migrations",
+                            Self::migrate,
+                        ))
                         .mount("/api/auth", routes![routes::api::auth::authenticate])
                         .mount(
                             "/ncryptf",
@@ -186,6 +193,16 @@ impl Config {
                 task.await;
             }
         }
+    }
+
+    async fn migrate(rocket: rocket::Rocket<rocket::Build>) -> rocket::fairing::Result {
+        let conn = match AppDb::fetch(&rocket) {
+            Some(db) => &db.conn,
+            None => return Err(rocket),
+        };
+
+        let _ = Migrator::up(conn, None).await;
+        Ok(rocket)
     }
 
     /// Reads in the HCL configuration file

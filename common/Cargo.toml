@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 ncryptf-rs = { path = "./../vendor/ncryptf-rs", features = [
     "rocket",
+    "sea-orm",
     "client",
 ] }
 tokio = { version = "1.12.0", features = ["macros", "rt-multi-thread"] }

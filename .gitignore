@@ -1,9 +1,13 @@
 .asio
 client/target
 server/target
+migration/target
+entity/target
 *.mcpack
 *.mcaddon
 server.key
 server.crt
 certificates/
 config.hcl
+*.sqlite3
+*.sqlite

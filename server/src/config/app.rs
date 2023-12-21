@@ -1,18 +1,31 @@
 use common::rocket::{
     data::{Limits, ToByteUnit},
-    figment::Figment
+    figment::Figment,
 };
 
+use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 use tracing::Level;
-use anyhow::anyhow;
 
 /// Application Configuration as described in homemaker.hcl configuration file
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ApplicationConfig {
+    pub database: ApplicationConfigDatabase,
     pub redis: ApplicationConfigRedis,
     pub server: ApplicationConfigServer,
     pub log: ApplicationConfigLogger,
+}
+
+/// Database configuration for MySQL/MariaDB
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ApplicationConfigDatabase {
+    pub scheme: String,
+    pub database: String,
+    pub host: Option<String>,
+    pub username: Option<String>,
+    pub password: Option<String>,
+    #[serde(default)]
+    pub port: Option<u32>,
 }
 
 /// Database configuration for Redis
@@ -35,7 +48,7 @@ pub struct ApplicationConfigServer {
     #[serde(default)]
     pub public_addr: String,
     pub tls: ApplicationConfigServerTLS,
-    pub minecraft: ApplicationConfigMinecraft
+    pub minecraft: ApplicationConfigMinecraft,
 }
 
 /// TLS Configuration for server
@@ -45,7 +58,7 @@ pub struct ApplicationConfigServerTLS {
     key: String,
     #[serde(default)]
     pub so_reuse_port: bool,
-    pub certs_path: String
+    pub certs_path: String,
 }
 
 /// Minecraft Configuration
@@ -53,7 +66,7 @@ pub struct ApplicationConfigServerTLS {
 pub struct ApplicationConfigMinecraft {
     pub access_token: String,
     pub client_id: String,
-    pub client_secret: String
+    pub client_secret: String,
 }
 
 /// OAuth2 Client Configuration
@@ -72,6 +85,14 @@ impl Default for ApplicationConfig {
                 host: String::from("127.0.0.1"),
                 port: 6379,
             },
+            database: ApplicationConfigDatabase {
+                scheme: String::from("sqlite3"),
+                database: String::from("/etc/bvc/bvc.sqlite3"),
+                host: None,
+                port: None,
+                username: None,
+                password: None,
+            },
             server: ApplicationConfigServer {
                 listen: String::from("127.0.0.1"),
                 port: 443,
@@ -80,13 +101,13 @@ impl Default for ApplicationConfig {
                     certificate: String::from("/etc/bvc/server.crt"),
                     key: String::from("/etc/bvc/server.key"),
                     so_reuse_port: false,
-                    certs_path: String::from("/etc/bvc/certificates")
+                    certs_path: String::from("/etc/bvc/certificates"),
                 },
                 minecraft: ApplicationConfigMinecraft {
                     access_token: String::from(""),
                     client_id: String::from(""),
-                    client_secret: String::from("")
-                }
+                    client_secret: String::from(""),
+                },
             },
             log: ApplicationConfigLogger {
                 level: String::from("info"),
@@ -97,6 +118,25 @@ impl Default for ApplicationConfig {
 }
 
 impl ApplicationConfig {
+    fn get_dsn<'a>(&'a self) -> String {
+        match self.database.scheme.as_str() {
+            "sqlite" => format!("sqlite://{}", &self.database.database),
+            "mysql" => format!(
+                "mysql://{}:{}@{}:{}/{}",
+                &self.database.username.clone().unwrap_or(String::from("")),
+                &self.database.password.clone().unwrap_or(String::from("")),
+                &self
+                    .database
+                    .host
+                    .clone()
+                    .unwrap_or(String::from("127.0.0.1")),
+                &self.database.port.unwrap_or(3306),
+                &self.database.database
+            ),
+            _ => format!("sqlite://{}", "/etc/bvc/bvc.sqlite3"),
+        }
+    }
+
     /// Returns the appropriate log level for Rocket.rs
     pub fn get_rocket_log_level<'a>(&'a self) -> common::rocket::config::LogLevel {
         match self.log.level.as_str() {
@@ -127,6 +167,7 @@ impl ApplicationConfig {
             return Err(anyhow!("TLS certificate or private key is not valid"));
         }
 
+        tracing::info!("Database: {}", self.get_dsn().to_string());
         let figment = common::rocket::Config::figment()
             .merge(("profile", common::rocket::figment::Profile::new("release")))
             .merge(("ident", false))
@@ -136,7 +177,20 @@ impl ApplicationConfig {
             .merge(("limits", Limits::new().limit("json", 10.megabytes())))
             .merge(("tls.certs", &self.server.tls.certificate))
             .merge(("tls.key", &self.server.tls.key))
-            .merge(("minecraft.access_token", &self.server.minecraft.access_token))
+            .merge((
+                "minecraft.access_token",
+                &self.server.minecraft.access_token,
+            ))
+            .merge((
+                "databases.app",
+                common::sea_orm_rocket::Config {
+                    url: self.get_dsn().to_string(),
+                    min_connections: None,
+                    max_connections: 1024,
+                    connect_timeout: 3,
+                    idle_timeout: Some(1),
+                },
+            ))
             .merge((
                 "databases.cache",
                 common::rocket_db_pools::Config {
