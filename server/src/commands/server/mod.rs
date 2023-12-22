@@ -1,13 +1,11 @@
-use crate::commands::State as StateConfig;
+use crate::commands::Config as StateConfig;
 use crate::rs::routes;
-use anyhow::anyhow;
 use clap::Parser;
 use common::sea_orm_rocket::Database;
 use faccess::PathExt;
 use migration::{Migrator, MigratorTrait};
 use rcgen::{Certificate, CertificateParams, DistinguishedName, IsCa, KeyPair, PKCS_ED25519};
 use rocket::time::OffsetDateTime;
-use std::fs;
 use std::{fs::File, io::Write, path::Path, process::exit};
 use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
 use tracing_subscriber::fmt::SubscriberBuilder;
@@ -21,49 +19,16 @@ use common::{
 };
 use tracing::info;
 
-use crate::config::ApplicationConfig;
-use serde_json::Value;
-
 /// Starts the BVC Server
 #[derive(Debug, Parser, Clone)]
 #[clap(author, version, about, long_about = None)]
-pub struct Config {
-    // Path to bvc configuration file
-    #[clap(
-        short,
-        long,
-        value_parser,
-        required = false,
-        default_value = "config.hcl"
-    )]
-    pub config_file: String,
-
-    #[clap(skip)]
-    pub config: ApplicationConfig,
-}
+pub struct Config {}
 
 impl Config {
     /// Starts Homemaker API server.
     pub async fn run<'a>(&'a self, cfg: &StateConfig) {
-        match self.get_config_file() {
-            Ok(hcl) => {
-                let config = Config {
-                    config_file: self.config_file.clone(),
-                    config: hcl,
-                };
-                config.serve_internal(cfg).await;
-            }
-            Err(error) => {
-                println!("{}", error);
-                exit(1);
-            }
-        };
-    }
-
-    /// Internal serve function to operate with parsed configuration with config in place
-    async fn serve_internal<'a>(&'a self, _cfg: &StateConfig) {
         // Setup and configure the application logger
-        let out = &self.config.log.out;
+        let out = &cfg.config.log.out;
         let subscriber: SubscriberBuilder = tracing_subscriber::fmt();
         let non_blocking: NonBlocking;
         let _guard: WorkerGuard;
@@ -84,20 +49,18 @@ impl Config {
 
         subscriber
             .with_writer(non_blocking)
-            .with_max_level(self.config.get_tracing_log_level())
+            .with_max_level(cfg.config.get_tracing_log_level())
             .with_level(true)
-            .with_line_number(
-                &self.config.log.level == "debug" || &self.config.log.level == "trace",
-            )
-            .with_file(&self.config.log.level == "debug" || &self.config.log.level == "trace")
+            .with_line_number(&cfg.config.log.level == "debug" || &cfg.config.log.level == "trace")
+            .with_file(&cfg.config.log.level == "debug" || &cfg.config.log.level == "trace")
             .compact()
             .init();
 
         info!("Logger established!");
 
         // Create the root CA certificate if it doesn't already exist.
-        let root_ca_path_str = format!("{}/{}", &self.config.server.tls.certs_path, "ca.crt");
-        let root_ca_key_path_str = format!("{}/{}", &self.config.server.tls.certs_path, "ca.key");
+        let root_ca_path_str = format!("{}/{}", &cfg.config.server.tls.certs_path, "ca.crt");
+        let root_ca_key_path_str = format!("{}/{}", &cfg.config.server.tls.certs_path, "ca.key");
         let root_ca_path = Path::new(&root_ca_path_str);
 
         if !root_ca_path.exists() {
@@ -109,7 +72,7 @@ impl Config {
             let mut distinguished_name = DistinguishedName::new();
             distinguished_name.push(rcgen::DnType::CommonName, "Bedrock Voice Chat");
 
-            let mut cp = CertificateParams::new(vec![self.config.server.public_addr.clone()]);
+            let mut cp = CertificateParams::new(vec![cfg.config.server.public_addr.clone()]);
             cp.alg = &PKCS_ED25519;
             cp.is_ca = IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
             cp.not_before = OffsetDateTime::now_utc();
@@ -134,7 +97,7 @@ impl Config {
         let mut tasks = Vec::new();
 
         // Launch Rocket for all web related tasks
-        let app_config = self.config.clone().to_owned();
+        let app_config = cfg.config.clone().to_owned();
         let rocket_task = tokio::task::spawn(async move {
             ncryptf::ek_route!(RedisDb);
             match app_config.get_rocket_config() {
@@ -180,7 +143,7 @@ impl Config {
 
         // Media over QUIC IETF (MoQ) server
         // The relay connects publishers back to subscribers (which should be a 1:1 match)
-        let moq_relay_config = self.config.clone().to_owned();
+        let moq_relay_config = cfg.config.clone().to_owned();
         let moq_relay_task = tokio::task::spawn(async move {
             // @TODO: Implement MoQ Relay Transport
             drop(moq_relay_config);
@@ -203,23 +166,5 @@ impl Config {
 
         let _ = Migrator::up(conn, None).await;
         Ok(rocket)
-    }
-
-    /// Reads in the HCL configuration file
-    fn get_config_file<'a>(&'a self) -> std::result::Result<ApplicationConfig, anyhow::Error> {
-        if let Ok(config) = fs::read_to_string(&self.config_file) {
-            if let Ok(hcl) = hcl::from_str::<Value>(&config.as_str()) {
-                let app_config: Result<ApplicationConfig, serde_json::Error> =
-                    serde_json::from_value(hcl);
-                if app_config.is_ok() {
-                    let acr = app_config.unwrap();
-                    return Ok::<ApplicationConfig, anyhow::Error>(acr);
-                } else {
-                    return Err(anyhow!(app_config.unwrap_err()));
-                }
-            }
-        }
-
-        return Err(anyhow!("Unable to read or parse configuration file."));
     }
 }
