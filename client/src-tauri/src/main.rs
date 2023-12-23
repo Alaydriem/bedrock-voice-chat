@@ -70,7 +70,10 @@ async fn main() {
             invocations::login::check_api_status,
             invocations::login::microsoft_auth,
             invocations::login::microsoft_auth_listener,
-            invocations::login::microsoft_auth_login
+            invocations::login::microsoft_auth_login,
+            invocations::credentials::get_credential,
+            invocations::credentials::set_credential,
+            invocations::credentials::del_credential,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

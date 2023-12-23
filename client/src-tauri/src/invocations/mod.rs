@@ -1,3 +1,4 @@
+pub(crate) mod credentials;
 pub(crate) mod login;
 
 use reqwest::Client;

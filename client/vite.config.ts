@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import path from "path";
+import { viteRequire } from 'vite-require'
 
 export default defineConfig({
   resolve: {
@@ -32,4 +33,7 @@ export default defineConfig({
     // produce sourcemaps for debug builds
     sourcemap: !!process.env.TAURI_DEBUG,
   },
+  plugins: [
+    viteRequire(/* options */)
+  ]
 });

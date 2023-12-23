@@ -22,9 +22,21 @@ export default class Login {
     form: any;
 
     constructor() {
-        this.form = document.querySelector("#login-form");
-        this.form.addEventListener("submit", this.submitLoginForm);
-        this.form.form = this.form;
+        const page = document.querySelector("#login-page");
+
+        if (page != null) {
+            console.log("login page loaded");
+            // If we have credentials for a user, push them to the dashboard
+            invoke("get_credential", { key: "cert" }).then((_result) => {
+                window.location.href = "dashboard.html";
+            }).catch(() => {
+                // Make the main page visible
+                page?.querySelector("#root")?.classList.remove("invisible");
+                this.form = document.querySelector("#login-form");
+                this.form.addEventListener("submit", this.submitLoginForm);
+                this.form.form = this.form;
+            });
+        }
     }
 
     submitLoginForm(event: any) {
@@ -62,29 +74,26 @@ export default class Login {
                                 // If successful, redirect the user to the correct internal screen
                                 invoke("microsoft_auth_login", { server: inpt.value, code: code })
                                     .then((data) => data as LoginResponse)
-                                    .then((data) => {
-                                        console.log(data);
-                                        console.log("We hit the login endpoint and did the thing!");
+                                    .then((_data) => {
+                                        // We can pull data from keychain as necessary
+                                        window.location.href = "dashboard.html";
                                     }).catch((error) => {
                                         console.log(error);
                                         inpt.classList.add("border-error");
                                         errorMessage.classList.remove("invisible");
                                     })
-                            }).catch((error) => {
-                                console.log(error);
+                            }).catch((_error) => {
                                 // Close the window anyways
                                 webview.close();
                                 inpt.classList.add("border-error");
                                 errorMessage.classList.remove("invisible");
                             });
                         });
-                    }).catch((error) => {
-                        console.log(error);
+                    }).catch((_error) => {
                         inpt.classList.add("border-error");
                         errorMessage.classList.remove("invisible");
                     });
-            }).catch((error) => {
-                console.log(error);
+            }).catch((_error) => {
                 inpt.classList.add("border-error");
                 errorMessage.classList.remove("invisible");
             });

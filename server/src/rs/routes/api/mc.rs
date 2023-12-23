@@ -1,17 +1,12 @@
-use std::{
-    fs::{self, File},
-    io::Write,
-    path::Path,
-};
+use std::{fs, path::Path};
 
 use common::{
     pool::redis::RedisDb, rocket::http::Status, rocket::serde::json::Json,
     rocket_db_pools::Connection as RedisConnection, sea_orm::ActiveValue,
 };
 
-use common::{ncryptflib::rocket::Utc, sea_orm_migration::DbErr};
+use common::ncryptflib::rocket::Utc;
 
-use anyhow::anyhow;
 use entity::player;
 
 use crate::{config::ApplicationConfigServer, rs::guards::MCAccessToken};
@@ -20,14 +15,13 @@ use crate::{config::ApplicationConfigServer, rs::guards::MCAccessToken};
 use common::rocket_db_pools::deadpool_redis::redis::AsyncCommands;
 use common::{
     pool::seaorm::AppDb,
-    sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set},
+    sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter},
     sea_orm_rocket::Connection as SeaOrmConnection,
 };
-use rcgen::{Certificate, CertificateParams, KeyPair, PKCS_ED25519};
-use rocket::{
-    time::{Duration, OffsetDateTime},
-    State,
-};
+use rcgen::{Certificate, CertificateParams, KeyPair};
+use rocket::State;
+
+use super::{create_player_certificate, is_certificate_expiring};
 
 /// Stores player position data and online status from Minecraft Bedrock into Redis
 #[post("/", data = "<positions>")]
@@ -107,7 +101,7 @@ pub async fn position(
                                     {
                                         Ok(r) => r,
                                         Err(e) => {
-                                            tracing::error!("Unable to update cached value for if player is banished");
+                                            tracing::error!("Unable to update cached value for if player is banished: {}", e.to_string());
                                         }
                                     };
 
@@ -139,7 +133,7 @@ pub async fn position(
                             }
                         }
                         Err(e) => {
-                            tracing::error!("Failed to connect to database");
+                            tracing::error!("Failed to connect to database: {}", e.to_string());
 
                             // There's nothing we can do for this player if this happens, continue
                             continue;
@@ -200,77 +194,4 @@ pub async fn position(
         };
     }
     return Status::Ok;
-}
-
-fn is_certificate_expiring(certificate_path: &str, player_name: &str) -> bool {
-    let player_cert_path_str = format!("{}/{}.crt", &certificate_path, player_name);
-    let player_key_path_str = format!("{}/{}.key", &certificate_path, player_name);
-
-    let kp = KeyPair::from_pem(&fs::read_to_string(player_key_path_str).unwrap()).unwrap();
-    let cp =
-        CertificateParams::from_ca_cert_pem(&fs::read_to_string(player_cert_path_str).unwrap(), kp)
-            .unwrap();
-
-    // If the certificate is expiring in 15 days, renew it.
-    if cp.not_after
-        <= OffsetDateTime::now_utc()
-            .checked_sub(Duration::days(-15))
-            .unwrap()
-    {
-        return true;
-    }
-
-    return false;
-}
-
-/// Creates a new certificate and keypair for the given player from their name to the certificates_path directory
-/// This certificate is signed by the root CA for both mTLS and QUIC MoQ Transport
-fn create_player_certificate(
-    player_name: &str,
-    certificate_path: String,
-    root_certificate: &Certificate,
-) -> Result<Certificate, anyhow::Error> {
-    let player_kp = match KeyPair::generate(&PKCS_ED25519) {
-        Ok(r) => r,
-        Err(_) => return Err(anyhow!("Unable to generate keypair")),
-    };
-
-    let mut distinguished_name = rcgen::DistinguishedName::new();
-    distinguished_name.push(rcgen::DnType::CommonName, player_name);
-
-    let mut cp = CertificateParams::new(vec![player_name.to_string().clone()]);
-    cp.alg = &PKCS_ED25519;
-    cp.not_before = OffsetDateTime::now_utc();
-    // Certificates are valid for 90 days
-    // Having the server advertise the user being connected to the server will automatically issue a new certificate
-    // The client will need to retrieve the updated certificate to continue working 15 days or less prior
-    // If the client certificate is invalid we bounce them
-    // Certificates aren't revoked, the only expire
-    cp.not_after = cp.not_before.checked_add(Duration::days(90)).unwrap();
-    cp.distinguished_name = distinguished_name;
-    cp.key_pair = Some(player_kp);
-
-    let player_certificate = match Certificate::from_params(cp) {
-        Ok(c) => c,
-        Err(_) => return Err(anyhow!("Unable to generate certificate")),
-    };
-
-    // This is the signed player certificate
-    let signed_player_certificate = player_certificate
-        .serialize_pem_with_signer(&root_certificate)
-        .unwrap();
-
-    let key: String = player_certificate.get_key_pair().serialize_pem();
-
-    let player_cert_path_str = format!("{}/{}.crt", &certificate_path, player_name);
-    let player_key_path_str = format!("{}/{}.key", &certificate_path, player_name);
-
-    let mut key_file = File::create(player_cert_path_str).unwrap();
-    key_file
-        .write_all(signed_player_certificate.as_bytes())
-        .unwrap();
-    let mut cert_file = File::create(player_key_path_str).unwrap();
-    cert_file.write_all(key.as_bytes()).unwrap();
-
-    return Ok(player_certificate);
 }

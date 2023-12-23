@@ -46,7 +46,7 @@ module.exports = {
     "./src/fonts/**/*.{ttf,woff2}",
     "./src/images/**/*.{png,jpeg,jpg,svg}",
     "./src/images/*.{png,jpeg,jpg,svg}",
-    "./index.html",
+    "./*.html",
   ],
   darkMode: "class",
   theme: {

@@ -36,6 +36,7 @@ tracing-subscriber = { version = "^0.3" }
 tracing-appender = { version = "^0.2" }
 window-shadows = "0.2.2"
 faccess = "0.2.4"
+keytar = "0.1.6"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem
