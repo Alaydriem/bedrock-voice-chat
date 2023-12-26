@@ -60,10 +60,11 @@ async fn main() {
 
     info!("Logger established!");
 
-    tauri::Builder::default()
+    let tauri = tauri::Builder::default()
         .setup(|app| {
             let window = app.get_window("main").unwrap();
             set_shadow(&window, true).expect("Unsupported platform!");
+            window.set_always_on_top(true);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
