@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/tauri";
 import { open } from "@tauri-apps/api/shell";
+
 type MicrosoftAuthCodeAndUrlResponse = {
   url: string;
   state: string;
@@ -25,7 +26,7 @@ export default class Login {
 
     if (page != null) {
       // If we have credentials for a user, push them to the dashboard
-      invoke("get_credential", { key: "cert" })
+      invoke("get_credential", { key: "gamertag" })
         .then((_result) => {
           window.location.href = "dashboard.html";
         })

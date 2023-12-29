@@ -63,6 +63,7 @@ async fn main() {
             invocations::login::microsoft_auth,
             invocations::login::microsoft_auth_listener,
             invocations::login::microsoft_auth_login,
+            invocations::login::logout,
             invocations::credentials::get_credential,
             invocations::credentials::set_credential,
             invocations::credentials::del_credential,

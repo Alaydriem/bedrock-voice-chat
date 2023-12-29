@@ -44,6 +44,7 @@
     "@tauri-apps/api": "^1.5",
     "accordion-js": "^3.3.4",
     "apexcharts": "^3.44.0",
+    "axios": "^1.6.3",
     "cleave.js": "^1.6.0",
     "dayjs": "^1.11.10",
     "filepond": "^4.30.4",

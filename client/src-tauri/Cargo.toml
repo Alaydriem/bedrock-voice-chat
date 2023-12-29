@@ -15,7 +15,7 @@ tauri-build = { version = "1.5", features = [] }
 [dependencies]
 common = { path = "./../../common" }
 tokio = { version = "^1.11", features = ["full"] }
-tauri = { version = "^1.5", features = [ "shell-all",
+tauri = { version = "^1.5", features = [ "path-all", "fs-all", "shell-all",
     "window-all",
     "system-tray",
     "tracing"

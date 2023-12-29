@@ -13,6 +13,8 @@ use reqwest::{
 use serde::{Deserialize, Serialize};
 
 use crate::invocations::get_reqwest_client;
+
+use super::credentials::del_credential;
 const CONFIG_ENDPOINT: &'static str = "/api/config";
 const AUTH_ENDPOINT: &'static str = "/api/auth";
 const NCRYPTF_EK_ENDPOINT: &'static str = "/ncryptf/ek";
@@ -180,5 +182,14 @@ pub(crate) async fn microsoft_auth_login(
             tracing::error!("{}", e.to_string());
             Err(false)
         }
+    }
+}
+
+#[tauri::command(async)]
+pub async fn logout() {
+    let keys = vec!["gamertag", "gamerpic", "certificate", "key"];
+
+    for key in keys {
+        del_credential(key.to_string()).await;
     }
 }
