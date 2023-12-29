@@ -1,6 +1,5 @@
 import { invoke } from "@tauri-apps/api/tauri";
-import { WebviewWindow } from "@tauri-apps/api/window";
-
+import { open } from "@tauri-apps/api/shell";
 type MicrosoftAuthCodeAndUrlResponse = {
   url: string;
   state: string;
@@ -31,11 +30,11 @@ export default class Login {
           window.location.href = "dashboard.html";
         })
         .catch(() => {
-          invoke("open_webview");
           // Make the main page visible
           page?.querySelector("#root")?.classList.remove("invisible");
           this.form = document.querySelector("#login-form");
           this.form.form = this.form;
+
           this.form.addEventListener("submit", this.submitLoginForm);
         });
     }
@@ -58,50 +57,35 @@ export default class Login {
         invoke("microsoft_auth", { cid: data.client_id })
           .then(async (data) => data as MicrosoftAuthCodeAndUrlResponse)
           .then(async (data) => {
-            /*
-            const webview = new WebviewWindow("microsoft_auth_login_window", {
-              url: data.url,
-              title: "Sign in with your Microsoft Account",
-              center: true,
-            });
-
-            console.log("Call here.");
-            // Once the webview starts
-            webview.once("tauri://created", () => {
-              console.log("window created");
-              // Spawn a simple listening server to listen for the inbound request
-              invoke("microsoft_auth_listener", { state: data.state })
-                .then((code) => {
-                  // Once we get a response back, close the window
-                  webview.close();
-                  // Submit the code to the API to complete the OAuth2 exchange
-
-                  // If successful, redirect the user to the correct internal screen
-                  invoke("microsoft_auth_login", {
-                    server: inpt.value,
-                    code: code,
-                  })
-                    .then((data) => data as LoginResponse)
-                    .then((_data) => {
-                      // We can pull data from keychain as necessary
-                      window.location.href = "dashboard.html";
-                    })
-                    .catch((error) => {
-                      console.log(error);
-                      inpt.classList.add("border-error");
-                      errorMessage.classList.remove("invisible");
-                    });
+            // Spawn a simple listening server to listen for the inbound request
+            invoke("microsoft_auth_listener", { state: data.state })
+              .then((code) => {
+                // Submit the code to the API to complete the OAuth2 exchange
+                console.log(code);
+                // If successful, redirect the user to the correct internal screen
+                invoke("microsoft_auth_login", {
+                  server: inpt.value,
+                  code: code,
                 })
-                .catch((_error) => {
-                  // Close the window anyways
-                  webview.close();
-                  inpt.classList.add("border-error");
-                  errorMessage.classList.remove("invisible");
-                });
-            });
+                  .then((data) => data as LoginResponse)
+                  .then((data) => {
+                    console.log(data);
+                    // We can pull data from keychain as necessary
+                    window.location.href = "dashboard.html";
+                  })
+                  .catch((error) => {
+                    console.log(error);
+                    inpt.classList.add("border-error");
+                    errorMessage.classList.remove("invisible");
+                  });
+              })
+              .catch((_error) => {
+                inpt.classList.add("border-error");
+                errorMessage.classList.remove("invisible");
+              });
 
-            console.log("Called second");
-            */
+            // Tauri WebviewWindow doesn't work
+            await open(data.url);
           })
           .catch((_error) => {
             inpt.classList.add("border-error");

@@ -137,36 +137,40 @@ pub(crate) async fn microsoft_auth_login(
                                 common::ncryptflib::Response::from(kp.get_secret_key()).unwrap();
 
                             match r.decrypt(bbody, None, None) {
-                                Ok(json) => {
-                                    match serde_json::from_str::<JsonMessage<LoginResponse>>(&json)
-                                    {
-                                        Ok(response) => {
-                                            match response.data {
-                                                Some(mut data) => {
-                                                    // Store data in CredentialVault
-                                                    crate::invocations::credentials::set_credential("gamertag".to_string(), data.clone().gamertag).await;
-                                                    crate::invocations::credentials::set_credential("cert".to_string(), data.clone().cert).await;
-                                                    crate::invocations::credentials::set_credential("key".to_string(), data.clone().key).await;
-                                                    crate::invocations::credentials::set_credential("gamerpic".to_string(), data.clone().gamerpic).await;
+                                Ok(json) => match serde_json::from_str::<JsonMessage<LoginResponse>>(&json)
+                                {
+                                    Ok(response) => {
+                                        match response.data {
+                                            Some(mut data) => {
+                                                // Store data in CredentialVault
+                                                crate::invocations::credentials::set_credential("gamertag".to_string(), data.clone().gamertag).await;
+                                                crate::invocations::credentials::set_credential("cert".to_string(), data.clone().cert).await;
+                                                crate::invocations::credentials::set_credential("key".to_string(), data.clone().key).await;
+                                                crate::invocations::credentials::set_credential("gamerpic".to_string(), data.clone().gamerpic).await;
 
-                                                    // Only return the gamertag and gamerpic, the rest we don't want to expose to the frontend
-                                                    data.cert = String::from("");
-                                                    data.key = String::from("");
-                                                    Ok(data)
-                                                }
-                                                None => Err(false),
+                                                // Only return the gamertag and gamerpic, the rest we don't want to expose to the frontend
+                                                data.cert = String::from("");
+                                                data.key = String::from("");
+                                                Ok(data)
                                             }
-                                        }
-                                        Err(e) => {
-                                            tracing::error!("{:?}", e.to_string());
-                                            Err(false)
+                                            None => Err(false),
                                         }
                                     }
-                                }
-                                Err(_) => return Err(false),
+                                    Err(e) => {
+                                        tracing::error!("{:?}", e.to_string());
+                                        Err(false)
+                                    }
+                                },
+                                Err(e) => { 
+                                    tracing::error!("{}", e.to_string());
+                                    return Err(false);
+                                 },
                             }
                         }
-                        Err(_) => Err(false),
+                        Err(e) => { 
+                            tracing::error!("{}", e.to_string());
+                            return Err(false);
+                         },
                     }
                 }
                 _ => Err(false),

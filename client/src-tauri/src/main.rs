@@ -59,7 +59,6 @@ async fn main() {
 
     let _tauri = tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
-            invocations::open_webview,
             invocations::login::check_api_status,
             invocations::login::microsoft_auth,
             invocations::login::microsoft_auth_listener,

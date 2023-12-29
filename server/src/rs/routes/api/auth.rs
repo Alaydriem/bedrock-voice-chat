@@ -112,6 +112,7 @@ pub async fn authenticate(
         gamerpic,
         gamertag,
     };
+
     return JsonMessage::create(Status::Ok, Some(response), None, None);
 }
 
@@ -124,7 +125,6 @@ fn get_gamertag_and_gamepic(
             let mut gamerpic: Option<String> = None;
             let mut gamertag: Option<String> = None;
 
-            tracing::info!("{:?}", profile.profile_users[0].settings);
             for setting in profile.profile_users[0].settings.clone().into_iter() {
                 if setting.id == "GameDisplayPicRaw" {
                     gamerpic = Some(base64::encode(setting.value.clone()));
@@ -134,8 +134,6 @@ fn get_gamertag_and_gamepic(
                     gamertag = Some(setting.value.clone());
                 }
             }
-
-            tracing::info!("{:?} {:?}", gamerpic, gamertag);
 
             if gamerpic.is_some() && gamertag.is_some() {
                 return Ok((gamerpic.unwrap(), gamertag.unwrap()));

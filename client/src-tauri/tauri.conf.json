@@ -18,7 +18,7 @@
         "create": true
       },
       "shell": {
-        "all": false,
+        "all": true,
         "open": true
       }
     },
