@@ -1,4 +1,4 @@
-pub use common::sea_orm_migration::prelude::*;
+pub use sea_orm_migration::prelude::*;
 
 mod m20231220_000001_player;
 pub struct Migrator;

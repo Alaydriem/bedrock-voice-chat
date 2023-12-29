@@ -1,9 +1,5 @@
-use common::{
-    sea_orm::Statement,
-    sea_orm_migration,
-    sea_orm_migration::{prelude::*, sea_orm::ConnectionTrait},
-};
-
+use sea_orm::Statement;
+use sea_orm_migration::{self, prelude::*, sea_orm::ConnectionTrait};
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 

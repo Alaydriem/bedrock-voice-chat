@@ -19,7 +19,7 @@ const NCRYPTF_EK_ENDPOINT: &'static str = "/ncryptf/ek";
 
 pub(crate) fn get_base_endpoint(server: String, endpoint: String) -> (Client, String) {
     let client = get_reqwest_client();
-    let endpoint = format!("https://{}/{}", server.replace("https://", ""), endpoint);
+    let endpoint = format!("https://{}{}", server.replace("https://", ""), endpoint);
 
     (client, endpoint)
 }

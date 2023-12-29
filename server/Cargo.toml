@@ -15,7 +15,11 @@ common = { path = "./../common" }
 entity = { path = "./../entity" }
 migration = { path = "./../migration" }
 tokio = { version = "^1.11", features = ["full"] }
-rocket = { path = "../vendor/rocket.rs/core/lib", features = ["tls", "json"] }
+rocket = { version = "^0.5", features = ["tls", "json"] }
+rocket_db_pools = { version = "^0.1",  features = ["deadpool_redis"] }
+rocket_dyn_templates = { version = "^0.1",  features = ["handlebars"] }
+sea-orm = { version = "^0.12", features = [ "sqlx-mysql", "runtime-tokio-rustls", "macros", "sqlx-sqlite"] }
+sea-orm-rocket = { version = "^0.5" }
 clap = { version = "^4.0", features = ["derive", "env", "wrap_help"] }
 hcl-rs = { version = "^0.8" }
 anyhow = { version = "^1.0" }

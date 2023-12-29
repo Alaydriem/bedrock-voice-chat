@@ -1,6 +1,7 @@
-use common::sea_orm::{self, entity::prelude::*, ActiveValue, DeriveEntityModel};
+use sea_orm::entity::prelude::*;
+use sea_orm::{ActiveValue, ActiveModelBehavior};
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
 #[sea_orm(table_name = "player")]
 pub struct Model {
     #[sea_orm(primary_key)]
@@ -15,8 +16,12 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {}
 
+#[async_trait::async_trait]
 impl ActiveModelBehavior for ActiveModel {
-    fn before_save(mut self, _insert: bool) -> Result<Self, DbErr> {
+    async fn before_save<C>(mut self, _db: &C, _insert: bool) -> Result<Self, DbErr>
+    where
+        C: ConnectionTrait,
+    {
         self.updated_at =
             ActiveValue::Set(common::ncryptflib::rocket::Utc::now().timestamp() as u32);
         Ok(self)

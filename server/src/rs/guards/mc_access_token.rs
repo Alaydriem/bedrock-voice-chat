@@ -1,4 +1,4 @@
-use common:: rocket::{
+use rocket::{
     State,
     async_trait,
     http::Status,
@@ -30,10 +30,10 @@ impl<'r> FromRequest<'r> for MCAccessToken {
                 if at.eq(&current) {
                     Outcome::Success(MCAccessToken(key.to_string()))
                 } else {
-                    Outcome::Failure((Status::Forbidden, MCAccessTokenError::Invalid))
+                    Outcome::Error((Status::Forbidden, MCAccessTokenError::Invalid))
                 }
             },
-            None => Outcome::Failure((Status::BadRequest, MCAccessTokenError::Invalid)),
+            None => Outcome::Error((Status::BadRequest, MCAccessTokenError::Invalid)),
         };
     }
 }

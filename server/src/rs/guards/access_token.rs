@@ -1,10 +1,11 @@
 use common::{
-    ncryptflib as ncryptf,
-    rocket::{
-        async_trait,
-        http::Status,
-        request::{FromRequest, Outcome, Request},
-    },
+    ncryptflib as ncryptf
+};
+
+use rocket::{
+    async_trait,
+    http::Status,
+    request::{FromRequest, Outcome, Request},
 };
 /// Extracts the Access Token from the ncryptf request
 pub struct AccessToken(pub String);
@@ -23,9 +24,9 @@ impl<'r> FromRequest<'r> for AccessToken {
         return match req.headers().get_one("Authorization") {
             Some(key) =>  match ncryptf::Authorization::extract_params_from_header_string(key.to_string()) {
                 Ok(params) => Outcome::Success(AccessToken(params.access_token)),
-                Err(_) => Outcome::Failure((Status::BadRequest, AccessTokenError::Invalid))
+                Err(_) => Outcome::Error((Status::BadRequest, AccessTokenError::Invalid))
             },
-            None => Outcome::Failure((Status::BadRequest, AccessTokenError::Missing)),
+            None => Outcome::Error((Status::BadRequest, AccessTokenError::Missing)),
         };
     }
 }

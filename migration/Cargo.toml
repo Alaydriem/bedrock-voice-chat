@@ -11,3 +11,5 @@ path = "src/lib.rs"
 [dependencies]
 common = { path = "./../common" }
 async-std = { version = "^1", features = ["attributes", "tokio1"] }
+sea-orm = { version = "^0.12", features = [ "sqlx-mysql", "runtime-tokio-rustls", "macros", "sqlx-sqlite"] }
+sea-orm-migration = { version = "^0.12", features = ["sqlx-mysql",  "runtime-tokio-rustls", "sqlx-sqlite"] }

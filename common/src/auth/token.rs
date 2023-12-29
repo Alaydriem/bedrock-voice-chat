@@ -1,6 +1,6 @@
 #[allow(unused_imports)] // for rust-analyzer
-use crate::rocket_db_pools::deadpool_redis::redis::AsyncCommands;
-use crate::rocket_db_pools::deadpool_redis::Connection;
+use rocket_db_pools::deadpool_redis::redis::AsyncCommands;
+use rocket_db_pools::deadpool_redis::Connection;
 use serde::{Deserialize, Serialize};
 
 use tracing::error;

@@ -1,8 +1,5 @@
 pub mod ncryptflib;
-pub use ncryptf::{
-    rocket_db_pools, rocket_dyn_templates, rocketfw as rocket, sea_orm, sea_orm_migration,
-    sea_orm_rocket,
-};
+
 pub mod auth;
 pub mod pool;
 pub mod redis;
@@ -10,6 +7,8 @@ pub use serde::{Deserialize, Serialize};
 
 pub mod consts;
 pub mod structs;
+
+extern crate rocket;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Dimension {

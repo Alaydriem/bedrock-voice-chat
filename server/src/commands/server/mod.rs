@@ -1,7 +1,7 @@
 use crate::commands::Config as StateConfig;
 use crate::rs::routes;
 use clap::Parser;
-use common::sea_orm_rocket::Database;
+use sea_orm_rocket::Database;
 use faccess::PathExt;
 use migration::{Migrator, MigratorTrait};
 use rcgen::{Certificate, CertificateParams, DistinguishedName, IsCa, KeyPair, PKCS_ED25519};
@@ -12,11 +12,10 @@ use tracing_subscriber::fmt::SubscriberBuilder;
 
 use common::{
     ncryptflib as ncryptf,
-    ncryptflib::rocket::Fairing as NcryptfFairing,
     pool::{redis::RedisDb, seaorm::AppDb},
-    rocket::{self, routes},
-    rocket_db_pools,
 };
+use rocket::{self, routes};
+use rocket_db_pools;
 use tracing::info;
 
 /// Starts the BVC Server
@@ -106,7 +105,6 @@ impl Config {
                         .manage(app_config.server.clone())
                         .attach(AppDb::init())
                         .attach(RedisDb::init())
-                        .attach(NcryptfFairing)
                         .attach(rocket::fairing::AdHoc::try_on_ignite(
                             "Migrations",
                             Self::migrate,

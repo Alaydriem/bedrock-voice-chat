@@ -6,11 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ncryptf-rs = { path = "./../vendor/ncryptf-rs", features = [
-    "rocket",
-    "sea-orm",
-    "client",
-] }
+ncryptf-rs = { version = "^0.3", features = ["rocket", "client"] }
 tokio = { version = "1.12.0", features = ["macros", "rt-multi-thread"] }
 anyhow = { version = "^1.0" }
 serde = { version = "^1", features = ["derive"] }
@@ -21,4 +17,8 @@ async-trait = { version = "^0.1" }
 rand = { version = "^0.8" }
 reqwest = { version = "0.11.4", features = ["json", "multipart"] }
 webbrowser = { version = "^0.5" }
-rocket = { path = "../vendor/rocket.rs/core/lib", features = ["tls", "json"] }
+rocket = { version = "^0.5", features = ["tls", "json"] }
+rocket_db_pools = { version = "^0.1",  features = ["deadpool_redis"] }
+rocket_dyn_templates = { version = "^0.1",  features = ["handlebars"] }
+sea-orm = { version = "^0.12", features = [ "sqlx-mysql", "runtime-tokio-rustls", "macros", "sqlx-sqlite"] }
+sea-orm-rocket = { version = "^0.5" }

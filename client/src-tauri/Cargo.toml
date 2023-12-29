@@ -15,10 +15,11 @@ tauri-build = { version = "1.5", features = [] }
 [dependencies]
 common = { path = "./../../common" }
 tokio = { version = "^1.11", features = ["full"] }
-tauri = { version = "1.5", features = [
+tauri = { version = "^1.5", features = [
     "window-all",
     "system-tray",
     "shell-open",
+    "tracing"
 ] }
 anyhow = { version = "^1.0" }
 serde = { version = "^1", features = ["derive"] }
@@ -28,15 +29,13 @@ reqwest = { version = "^0.11", default-features = false, features = [
     "rustls-tls",
     "brotli",
     "gzip",
-    "stream",
-    "blocking",
+    "stream"
 ] }
 tracing = { version = "^0.1" }
 tracing-subscriber = { version = "^0.3" }
 tracing-appender = { version = "^0.2" }
-window-shadows = "0.2.2"
-faccess = "0.2.4"
-keytar = "0.1.6"
+faccess = "^0.2"
+keytar = "^0.1"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem

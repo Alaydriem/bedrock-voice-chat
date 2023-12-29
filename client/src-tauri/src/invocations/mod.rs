@@ -19,3 +19,12 @@ pub(crate) fn get_reqwest_client() -> Client {
 
     return builder.build().unwrap();
 }
+
+#[tauri::command(async)]
+pub(crate) async fn open_webview(handle: tauri::AppHandle) {
+    tauri::WindowBuilder::new(
+        &handle,
+        "Label",
+        tauri::WindowUrl::External("https://www.google.com".parse().unwrap())
+    ).build().unwrap();
+}

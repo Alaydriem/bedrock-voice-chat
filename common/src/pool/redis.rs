@@ -1,7 +1,5 @@
-use crate::{
-    rocket,
-    rocket_db_pools::{self, deadpool_redis::Pool, Database},
-};
+use rocket;
+use rocket_db_pools::{self, deadpool_redis::Pool, Database};
 
 #[derive(Database)]
 #[database("cache")]

@@ -1,4 +1,4 @@
-use common::rocket::{
+use rocket::{
     data::{Limits, ToByteUnit},
     figment::Figment,
 };
@@ -120,7 +120,19 @@ impl Default for ApplicationConfig {
 impl ApplicationConfig {
     fn get_dsn<'a>(&'a self) -> String {
         match self.database.scheme.as_str() {
-            "sqlite" => format!("sqlite://{}", &self.database.database),
+            "sqlite" => {
+                let path = std::path::Path::new(&self.database.database);
+                if !path.exists() {
+                    match std::fs::File::create(&self.database.database) {
+                        Ok(_) => {},
+                        Err(e) => {
+                            panic!("Verify that {} exists and is writable. You may need to create this file", &self.database.database);
+                        }
+                    }
+                }
+                
+                format!("sqlite://{}", &self.database.database)
+            }
             "mysql" => format!(
                 "mysql://{}:{}@{}:{}/{}",
                 &self.database.username.clone().unwrap_or(String::from("")),
@@ -138,14 +150,14 @@ impl ApplicationConfig {
     }
 
     /// Returns the appropriate log level for Rocket.rs
-    pub fn get_rocket_log_level<'a>(&'a self) -> common::rocket::config::LogLevel {
+    pub fn get_rocket_log_level<'a>(&'a self) -> rocket::config::LogLevel {
         match self.log.level.as_str() {
-            "info" => common::rocket::config::LogLevel::Normal,
-            "trace" => common::rocket::config::LogLevel::Debug,
-            "debug" => common::rocket::config::LogLevel::Normal,
-            "error" => common::rocket::config::LogLevel::Critical,
-            "warn" => common::rocket::config::LogLevel::Critical,
-            _ => common::rocket::config::LogLevel::Off,
+            "info" => rocket::config::LogLevel::Normal,
+            "trace" => rocket::config::LogLevel::Debug,
+            "debug" => rocket::config::LogLevel::Normal,
+            "error" => rocket::config::LogLevel::Critical,
+            "warn" => rocket::config::LogLevel::Critical,
+            _ => rocket::config::LogLevel::Off,
         }
     }
 
@@ -168,8 +180,8 @@ impl ApplicationConfig {
         }
 
         tracing::info!("Database: {}", self.get_dsn().to_string());
-        let figment = common::rocket::Config::figment()
-            .merge(("profile", common::rocket::figment::Profile::new("release")))
+        let figment = rocket::Config::figment()
+            .merge(("profile", rocket::figment::Profile::new("release")))
             .merge(("ident", false))
             .merge(("log_level", self.get_rocket_log_level()))
             .merge(("port", &self.server.port))
@@ -183,17 +195,18 @@ impl ApplicationConfig {
             ))
             .merge((
                 "databases.app",
-                common::sea_orm_rocket::Config {
+                sea_orm_rocket::Config {
                     url: self.get_dsn().to_string(),
                     min_connections: None,
                     max_connections: 1024,
                     connect_timeout: 3,
                     idle_timeout: Some(1),
+                    sqlx_logging: false
                 },
             ))
             .merge((
                 "databases.cache",
-                common::rocket_db_pools::Config {
+                rocket_db_pools::Config {
                     url: format!(
                         "redis://{}:{}/{}",
                         self.redis.host, self.redis.port, self.redis.database

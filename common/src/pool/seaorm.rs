@@ -1,8 +1,7 @@
-use crate::{
-    rocket,
-    sea_orm::{self, ConnectOptions},
-    sea_orm_rocket::{self, rocket::figment::Figment, Config, Database},
-};
+use rocket;
+use sea_orm::{self, ConnectOptions};
+use sea_orm_rocket::{self, rocket::figment::Figment, Config, Database};
+
 use async_trait::async_trait;
 use std::time::Duration;
 use tracing::log::LevelFilter;

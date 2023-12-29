@@ -4,9 +4,6 @@
 mod invocations;
 use std::path::Path;
 
-use tauri::Manager;
-use window_shadows::set_shadow;
-
 use faccess::PathExt;
 use tracing::info;
 use tracing::Level;
@@ -60,14 +57,9 @@ async fn main() {
 
     info!("Logger established!");
 
-    let tauri = tauri::Builder::default()
-        .setup(|app| {
-            let window = app.get_window("main").unwrap();
-            set_shadow(&window, true).expect("Unsupported platform!");
-            window.set_always_on_top(true);
-            Ok(())
-        })
+    let _tauri = tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
+            invocations::open_webview,
             invocations::login::check_api_status,
             invocations::login::microsoft_auth,
             invocations::login::microsoft_auth_listener,

@@ -4,7 +4,6 @@ use tokio;
 mod commands;
 mod config;
 mod rs;
-use commands::SubCommand::*;
 
 mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
@@ -15,5 +14,5 @@ extern crate rocket;
 
 #[tokio::main]
 async fn main() {
-    let app = commands::launch().await;
+    let _app = commands::launch().await;
 }

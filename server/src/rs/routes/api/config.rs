@@ -1,4 +1,4 @@
-use common::rocket::{serde::json::Json, State};
+use rocket::{serde::json::Json, State};
 use common::structs::config::ApiConfig;
 
 use crate::config::ApplicationConfigServer;

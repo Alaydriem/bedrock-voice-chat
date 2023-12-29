@@ -4,23 +4,25 @@ use common::{
     ncryptflib as ncryptf,
     pool::redis::RedisDb,
     pool::seaorm::AppDb,
-    rocket::http::Status,
-    rocket::serde::json::Json,
-    rocket::State,
-    rocket_db_pools::Connection as RedisConnection,
-    sea_orm::{ColumnTrait, EntityTrait, QueryFilter},
-    sea_orm_rocket::Connection as SeaOrmConnection,
     structs::{
         config::{LoginRequest, LoginResponse},
         ncryptf_json::JsonMessage,
     },
 };
+use rocket::{
+    http::Status,
+    serde::json::Json,
+    State
+};
+use rocket_db_pools::Connection as RedisConnection;
 
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm_rocket::Connection as SeaOrmConnection;
 use entity::player;
 
 use crate::config::ApplicationConfigServer;
 #[allow(unused_imports)] // for rust-analyzer
-use common::rocket_db_pools::deadpool_redis::redis::AsyncCommands;
+use rocket_db_pools::deadpool_redis::redis::AsyncCommands;
 
 /// Authenticates the Player to Xbox Live to grab their gamertag and other identifying information
 #[post("/", data = "<payload>")]
