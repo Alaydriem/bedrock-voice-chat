@@ -18,7 +18,13 @@ rand = { version = "^0.8" }
 reqwest = { version = "0.11.4", features = ["json", "multipart"] }
 webbrowser = { version = "^0.5" }
 rocket = { version = "^0.5", features = ["tls", "json"] }
-rocket_db_pools = { version = "^0.1",  features = ["deadpool_redis"] }
-rocket_dyn_templates = { version = "^0.1",  features = ["handlebars"] }
-sea-orm = { version = "^0.12", features = [ "sqlx-mysql", "runtime-tokio-rustls", "macros", "sqlx-sqlite"] }
+rocket_db_pools = { version = "^0.1", features = ["deadpool_redis"] }
+rocket_dyn_templates = { version = "^0.1", features = ["handlebars"] }
+sea-orm = { version = "^0.12", features = [
+    "sqlx-mysql",
+    "runtime-tokio-rustls",
+    "macros",
+    "sqlx-sqlite",
+] }
 sea-orm-rocket = { version = "^0.5" }
+ts-rs = { version = "^7.0" }

@@ -1,22 +1,9 @@
 import { invoke } from "@tauri-apps/api/tauri";
 import { open } from "@tauri-apps/api/shell";
 
-type MicrosoftAuthCodeAndUrlResponse = {
-  url: string;
-  state: string;
-};
-
-type ApiConfig = {
-  status: string;
-  client_id: string;
-};
-
-type LoginResponse = {
-  key: string;
-  cert: string;
-  gamerpic: string;
-  gamertag: string;
-};
+import { type MicrosoftAuthCodeAndUrlResponse } from "./bindings/MicrosoftAuthCodeAndUrlResponse";
+import { type ApiConfig } from "./bindings/ApiConfig";
+import { type LoginResponse } from "./bindings/LoginResponse";
 
 export default class Login {
   form: any;

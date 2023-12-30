@@ -1,6 +1,9 @@
 import { defineConfig } from "vite";
 import path from "path";
-import { viteRequire } from 'vite-require'
+import { viteRequire } from "vite-require";
+import { viteStaticCopy } from "vite-plugin-static-copy";
+
+console.log(path.resolve(__dirname));
 
 export default defineConfig({
   resolve: {
@@ -33,7 +36,5 @@ export default defineConfig({
     // produce sourcemaps for debug builds
     sourcemap: !!process.env.TAURI_DEBUG,
   },
-  plugins: [
-    viteRequire(/* options */)
-  ]
+  plugins: [viteRequire(/* options */)],
 });

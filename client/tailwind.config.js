@@ -43,6 +43,7 @@ module.exports = {
   content: [
     "./src/*.{js,ts,jsx,tsx}",
     "./src/**/*.{js,ts,jsx,tsx}",
+    "./../src/tauri-types.ts",
     "./src/fonts/**/*.{ttf,woff2}",
     "./src/images/**/*.{png,jpeg,jpg,svg}",
     "./src/images/*.{png,jpeg,jpg,svg}",

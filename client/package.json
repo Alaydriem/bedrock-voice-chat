@@ -2,7 +2,7 @@
   "name": "bedrock-voice-chat",
   "version": "0.0.1",
   "description": "Bedrock Voice Chat",
-  "license": "private",
+  "license": "UNLICENSED",
   "type": "module",
   "scripts": {
     "mix-start": "npm run prod && npm run hot",

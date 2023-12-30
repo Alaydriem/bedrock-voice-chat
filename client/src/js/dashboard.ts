@@ -6,12 +6,28 @@ import Drawer from "./components/drawer";
 import Popper from "./components/popper";
 import Tab from "./components/tab";
 
+import { StreamType } from "./bindings/StreamType";
+
 export default class Dashboard {
   constructor() {
     const page = document.querySelector("#dashboard-page");
     if (page == null) {
       return;
     }
+
+    invoke("input_stream", { s: "1" });
+    invoke("output_stream", { s: "1" });
+
+    setTimeout(() => {
+      // Test replacing the stream
+      invoke("input_stream", { s: "2" });
+      invoke("output_stream", { s: "2" });
+    }, 5000);
+
+    setTimeout(() => {
+      // Test killing the stream
+      invoke("stop_stream", { st: "OutputStream" as StreamType });
+    }, 6000);
 
     // Load the players gamer picture
     const profilePicture = document.querySelector(
@@ -32,8 +48,7 @@ export default class Dashboard {
             settingsFlyoverPicture?.setAttribute("src", gamerpic);
           });
         })
-        .catch((error) => {
-          console.error(error);
+        .catch((_) => {
           invoke("logout").then(() => {
             window.location.href = "index.html";
           });

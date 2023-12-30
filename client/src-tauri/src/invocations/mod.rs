@@ -1,5 +1,6 @@
 pub(crate) mod credentials;
 pub(crate) mod login;
+pub(crate) mod stream;
 
 use reqwest::Client;
 use std::time::Duration;
