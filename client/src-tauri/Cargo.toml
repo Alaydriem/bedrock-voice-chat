@@ -36,15 +36,15 @@ reqwest = { version = "^0.11", default-features = false, features = [
 tracing = { version = "^0.1" }
 tracing-subscriber = { version = "^0.3" }
 tracing-appender = { version = "^0.2" }
-faccess = "^0.2"
-keytar = "^0.1"
-ringbuf = "^0.3"
-parking_lot = "^0.12"
-cpal = { version = "^0.15" }
-async-mutex = "1.4.0"
-async-once-cell = "0.5.3"
+faccess = { version = "^0.2" }
+keytar = { version = "^0.1" }
+ringbuf = { version = "^0.3" }
+parking_lot = { version = "^0.12" }
+cpal = { git = "https://github.com/RustAudio/cpal.git", features = ["asio"] }
+async-mutex = { version = "^1.4" }
+async-once-cell = { version = "^0.5" }
 moka = { version = "^0.12", features = ["future"] }
-rand = "0.8.5"
+rand = { version = "^0.8" }
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem

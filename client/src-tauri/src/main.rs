@@ -3,21 +3,12 @@
 
 mod invocations;
 use std::path::Path;
-
+use std::sync::Arc;
 use faccess::PathExt;
 use tracing::info;
 use tracing::Level;
 use tracing_appender::non_blocking::{ NonBlocking, WorkerGuard };
 use tracing_subscriber::fmt::SubscriberBuilder;
-
-use std::sync::Arc;
-
-use async_once_cell::OnceCell;
-use moka::future::Cache;
-
-pub(crate) static STREAM_STATE_CACHE: OnceCell<
-    Option<Arc<Cache<String, String, std::collections::hash_map::RandomState>>>
-> = OnceCell::new();
 
 #[tokio::main]
 async fn main() {
@@ -67,7 +58,7 @@ async fn main() {
     info!("Logger established!");
 
     // Have an audio cache made available to the thread
-    crate::STREAM_STATE_CACHE.get_or_init(async {
+    crate::invocations::stream::STREAM_STATE_CACHE.get_or_init(async {
         return Some(Arc::new(moka::future::Cache::builder().max_capacity(20).build()));
     }).await;
 
@@ -78,6 +69,7 @@ async fn main() {
                 invocations::stream::input_stream,
                 invocations::stream::output_stream,
                 invocations::stream::stop_stream,
+                invocations::stream::get_devices,
                 invocations::login::check_api_status,
                 invocations::login::microsoft_auth,
                 invocations::login::microsoft_auth_listener,

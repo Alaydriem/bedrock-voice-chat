@@ -7,6 +7,8 @@ import Popper from "./components/popper";
 import Tab from "./components/tab";
 
 import { StreamType } from "./bindings/StreamType";
+import { AudioDevice } from "./bindings/AudioDevice";
+import { AudioDeviceType } from "./bindings/AudioDeviceType";
 
 export default class Dashboard {
   constructor() {
@@ -15,20 +17,11 @@ export default class Dashboard {
       return;
     }
 
-    invoke("input_stream", { s: "1" });
-    invoke("output_stream", { s: "1" });
-
-    setTimeout(() => {
-      // Test replacing the stream
-      invoke("input_stream", { s: "2" });
-      invoke("output_stream", { s: "2" });
-    }, 5000);
-
-    setTimeout(() => {
-      // Test killing the stream
-      invoke("stop_stream", { st: "OutputStream" as StreamType });
-    }, 6000);
-
+    invoke("get_devices")
+      .then((devices) => devices as Array<AudioDevice>)
+      .then((devices) => {
+        console.log(devices);
+      });
     // Load the players gamer picture
     const profilePicture = document.querySelector(
       "#profile-wrapper #profile-ref img.rounded-full",

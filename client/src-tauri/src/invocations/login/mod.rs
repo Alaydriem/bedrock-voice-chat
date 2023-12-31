@@ -4,7 +4,6 @@ use common::{
 };
 
 use reqwest::{ header::{ HeaderMap, HeaderValue }, Client, StatusCode };
-use serde::{ Deserialize, Serialize };
 use common::structs::config::MicrosoftAuthCodeAndUrlResponse;
 
 use crate::invocations::get_reqwest_client;
