@@ -179,6 +179,10 @@ pub(crate) fn get_cpal_hosts() -> Result<Vec<cpal::platform::Host>, anyhow::Erro
             }
         }
 
+        /*
+        /// asio-sys isn't returning any devices for the specified interface
+        /// For now, ignore this. We can add ASIO support later
+        /// @todo!()
         match cpal::host_from_id(cpal::HostId::Asio) {
             Ok(host) => hosts.push(host),
             Err(_) => {
@@ -186,10 +190,11 @@ pub(crate) fn get_cpal_hosts() -> Result<Vec<cpal::platform::Host>, anyhow::Erro
                     "ASIO host either couldn't be initialized, or isn't available on this system."
                 );
             }
-        };
+        }
+        */
     }
 
-    // I guess you could run this on a Mac...
+    // I guess you could run this on a Mac and be playing on a mobile device ?
     #[cfg(target_os = "macos")]
     {
         match cpal::host_from_id(cpal::HostId::CoreAudio) {
@@ -219,34 +224,46 @@ pub(crate) async fn get_devices() -> Result<HashMap<String, Vec<AudioDevice>>, b
 
     for host in hosts {
         let mut device_map = Vec::<AudioDevice>::new();
-        let host_devices = match host.devices() {
-            Ok(devices) => devices,
-            Err(e) => {
-                tracing::error!("{}", e.to_string());
-                return Err(false);
-            }
-        };
 
-        for (_, device) in host_devices.enumerate() {
-            let device_name = match device.name() {
-                Ok(name) => name,
-                Err(_) => {
-                    continue;
+        match host.input_devices() {
+            Ok(devices) => {
+                for device in devices {
+                    let name = match device.name() {
+                        Ok(name) => name,
+                        Err(e) => {
+                            tracing::warn!("{}", e.to_string());
+                            continue;
+                        }
+                    };
+                    device_map.push(AudioDevice {
+                        io: AudioDeviceType::InputDevice,
+                        name,
+                    });
                 }
-            };
-
-            if let Ok(_) = device.default_input_config() {
-                device_map.push(AudioDevice {
-                    io: AudioDeviceType::InputDevice,
-                    name: device_name.clone(),
-                });
             }
+            Err(e) => {
+                tracing::warn!("{}", e.to_string());
+            }
+        }
 
-            if let Ok(_) = device.default_output_config() {
-                device_map.push(AudioDevice {
-                    io: AudioDeviceType::OutputDevice,
-                    name: device_name.clone(),
-                });
+        match host.output_devices() {
+            Ok(devices) => {
+                for device in devices {
+                    let name = match device.name() {
+                        Ok(name) => name,
+                        Err(e) => {
+                            tracing::warn!("{}", e.to_string());
+                            continue;
+                        }
+                    };
+                    device_map.push(AudioDevice {
+                        io: AudioDeviceType::OutputDevice,
+                        name,
+                    });
+                }
+            }
+            Err(e) => {
+                tracing::warn!("{}", e.to_string());
             }
         }
 

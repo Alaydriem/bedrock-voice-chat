@@ -17,11 +17,6 @@ export default class Dashboard {
       return;
     }
 
-    invoke("get_devices")
-      .then((devices) => devices as Array<AudioDevice>)
-      .then((devices) => {
-        console.log(devices);
-      });
     // Load the players gamer picture
     const profilePicture = document.querySelector(
       "#profile-wrapper #profile-ref img.rounded-full",
