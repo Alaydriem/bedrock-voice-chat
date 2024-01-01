@@ -48,6 +48,10 @@ async-mutex = { version = "^1.4" }
 async-once-cell = { version = "^0.5" }
 moka = { version = "^0.12", features = ["future"] }
 rand = { version = "^0.8" }
+opus = { version = "^0.3" }
+ron = { version = "^0.8" }
+zstd = { version = "0.12.4", features = ["bindgen"] }
+nnnoiseless = "0.5.1"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem

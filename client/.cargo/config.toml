@@ -1,4 +1,4 @@
 [env]
 CPAL_ASIO_DIR = { value = "./../.asio", relative = true }
-LIBCLANG_PATH = { value = "C:\\Program Files\\Microsoft Visual Studio\\2022\\Professional\\VC\\Tools\\Llvm\\x64\\lib", relative = false }
+LIBCLANG_PATH = { value = "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\Llvm\\x64\\lib", relative = false }
 LIBCLANG_MACOS_PATH = { value = "/opt/homebrew/opt/llvm/lib", relative = false }
