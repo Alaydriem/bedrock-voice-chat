@@ -345,6 +345,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "audio-gate"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a1b86b8edfb30b3ea56bd3f9a666324840b439270b41f571aaebed0ff674322"
+
+[[package]]
 name = "audiopus_sys"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -401,6 +407,7 @@ dependencies = [
  "anyhow",
  "async-mutex",
  "async-once-cell",
+ "audio-gate",
  "common",
  "cpal",
  "faccess",

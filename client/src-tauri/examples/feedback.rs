@@ -7,6 +7,7 @@ use cpal::traits::{ DeviceTrait, HostTrait, StreamTrait };
 use cpal::SampleRate;
 use cpal::StreamConfig;
 use serde::{ Deserialize, Serialize };
+use audio_gate::NoiseGate;
 
 const BUFFER_SIZE: u32 = 960;
 #[derive(Debug, Deserialize, Serialize)]
@@ -169,7 +170,7 @@ pub(crate) async fn stream_input(device: &cpal::Device) -> Result<(), anyhow::Er
     }
 
     // Noise Gate Thresholds
-    let mut gate = NoiseGate::new(-36.0, -54.0, 48000.0, 150.0, 25.0, 150.0);
+    let mut gate = NoiseGate::new(-36.0, -54.0, 48000.0, 2, 150.0, 25.0, 150.0);
 
     let stream = match
         device.build_input_stream(
@@ -240,115 +241,4 @@ pub(crate) async fn stream_input(device: &cpal::Device) -> Result<(), anyhow::Er
     }
     println!("exiting input");
     Ok(())
-}
-
-#[derive(Debug, Clone)]
-pub struct NoiseGate {
-    open_threshold: f32,
-    close_treshold: f32,
-    sample_rate: f32,
-    release_rate: f32,
-    attack_rate: f32,
-    decay_rate: f32,
-    hold_time: f32,
-    channels: usize,
-
-    is_open: bool,
-    attenuation: f32,
-    level: f32,
-    held_time: f32,
-}
-
-impl NoiseGate {
-    pub fn new(
-        open_threshold: f32,
-        close_treshold: f32,
-        sample_rate: f32,
-        release_rate: f32,
-        attack_rate: f32,
-        hold_time: f32
-    ) -> Self {
-        let threshold_diff = open_threshold - close_treshold;
-        let min_decay_period = (1.0 / 75.0) * sample_rate;
-
-        Self {
-            open_threshold: match open_threshold.is_finite() {
-                true => (10_f32).powf(open_threshold / 20.0),
-                false => 0.0,
-            },
-            close_treshold: match close_treshold.is_finite() {
-                true => (10_f32).powf(close_treshold / 20.0),
-                false => 0.0,
-            },
-            sample_rate: 1.0 / sample_rate,
-            channels: 2,
-            release_rate: 1.0 / (release_rate * 0.001 * sample_rate),
-            attack_rate: 1.0 / (attack_rate * 0.001 * sample_rate),
-            decay_rate: threshold_diff / min_decay_period,
-            hold_time: hold_time * 0.001,
-            is_open: false,
-            attenuation: 0.0,
-            level: 0.0,
-            held_time: 0.0,
-        }
-    }
-
-    pub fn process_frame(&mut self, frame: &[f32]) -> Vec<f32> {
-        //return frame.into();
-        let mut channel_frames = Vec::<Vec<f32>>::new();
-        for _ in 0..self.channels {
-            channel_frames.push(Vec::<f32>::with_capacity(frame.len() / self.channels));
-        }
-
-        for c in 0..self.channels {
-            for (_, u) in frame.iter().enumerate().skip(c).step_by(self.channels) {
-                channel_frames[c].push(*u);
-            }
-        }
-
-        let mut resample = Vec::<f32>::with_capacity(frame.len());
-
-        for i in 0..channel_frames[0].len() {
-            let mut current_level = f32::abs(channel_frames[0][i]);
-
-            for j in 0..self.channels {
-                current_level = f32::max(current_level, channel_frames[j][i]);
-            }
-
-            if current_level > self.open_threshold && !self.is_open {
-                self.is_open = true;
-            }
-
-            if self.level < self.close_treshold && self.is_open {
-                self.held_time = 0.0;
-                self.is_open = false;
-            }
-
-            self.level = f32::max(self.level, current_level) - self.decay_rate;
-
-            if self.is_open {
-                self.attenuation = f32::min(1.0, self.attenuation + self.attack_rate);
-            } else {
-                self.held_time += self.sample_rate;
-                if self.held_time > self.hold_time {
-                    self.attenuation = f32::max(0.0, self.attenuation - self.release_rate);
-                }
-            }
-
-            for c in 0..self.channels {
-                channel_frames[c][i] *= self.attenuation;
-            }
-        }
-
-        // We need to flatten this back down to a single vec
-        // For each channel
-        // Grab the next element and push it to resample
-        for i in 0..channel_frames[0].len() {
-            for c in 0..self.channels {
-                resample.push(channel_frames[c][i]);
-            }
-        }
-
-        return resample.into();
-    }
 }
