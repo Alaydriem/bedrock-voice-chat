@@ -129,27 +129,46 @@ pub(crate) async fn microsoft_auth_login(
                                         Ok(response) => {
                                             match response.data {
                                                 Some(mut data) => {
+                                                    let kp = data.clone().keypair;
+                                                    let sk = data.clone().signature;
+
                                                     // Store data in CredentialVault
                                                     crate::invocations::credentials::set_credential(
                                                         "gamertag".to_string(),
                                                         data.clone().gamertag
                                                     ).await;
                                                     crate::invocations::credentials::set_credential(
-                                                        "cert".to_string(),
-                                                        data.clone().cert
-                                                    ).await;
-                                                    crate::invocations::credentials::set_credential(
-                                                        "key".to_string(),
-                                                        data.clone().key
-                                                    ).await;
-                                                    crate::invocations::credentials::set_credential(
                                                         "gamerpic".to_string(),
                                                         data.clone().gamerpic
                                                     ).await;
+                                                    crate::invocations::credentials::set_credential(
+                                                        "key_pk".to_string(),
+                                                        base64::encode(kp.pk)
+                                                    ).await;
+                                                    crate::invocations::credentials::set_credential(
+                                                        "key_sk".to_string(),
+                                                        base64::encode(kp.sk)
+                                                    ).await;
+                                                    crate::invocations::credentials::set_credential(
+                                                        "sig_pk".to_string(),
+                                                        base64::encode(sk.pk)
+                                                    ).await;
+                                                    crate::invocations::credentials::set_credential(
+                                                        "sig_sk".to_string(),
+                                                        base64::encode(sk.sk)
+                                                    ).await;
 
                                                     // Only return the gamertag and gamerpic, the rest we don't want to expose to the frontend
-                                                    data.cert = String::from("");
-                                                    data.key = String::from("");
+                                                    data.keypair =
+                                                        common::structs::config::Keypair {
+                                                            pk: Vec::<u8>::new(),
+                                                            sk: Vec::<u8>::new(),
+                                                        };
+                                                    data.signature =
+                                                        common::structs::config::Keypair {
+                                                            pk: Vec::<u8>::new(),
+                                                            sk: Vec::<u8>::new(),
+                                                        };
                                                     Ok(data)
                                                 }
                                                 None => Err(false),
@@ -189,7 +208,7 @@ pub async fn logout() {
     stop_stream(common::structs::config::StreamType::OutputStream).await;
 
     // Delete the credential store keys
-    let keys = vec!["gamertag", "gamerpic", "certificate", "key"];
+    let keys = vec!["gamertag", "gamerpic", "key_pk", "key_sk", "sig_pk", "sig_sk"];
     for key in keys {
         del_credential(key.to_string()).await;
     }

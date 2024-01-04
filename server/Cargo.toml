@@ -16,9 +16,14 @@ entity = { path = "./../entity" }
 migration = { path = "./../migration" }
 tokio = { version = "^1.11", features = ["full"] }
 rocket = { version = "^0.5", features = ["tls", "json"] }
-rocket_db_pools = { version = "^0.1",  features = ["deadpool_redis"] }
-rocket_dyn_templates = { version = "^0.1",  features = ["handlebars"] }
-sea-orm = { version = "^0.12", features = [ "sqlx-mysql", "runtime-tokio-rustls", "macros", "sqlx-sqlite"] }
+rocket_db_pools = { version = "^0.1", features = ["deadpool_redis"] }
+rocket_dyn_templates = { version = "^0.1", features = ["handlebars"] }
+sea-orm = { version = "^0.12", features = [
+    "sqlx-mysql",
+    "runtime-tokio-rustls",
+    "macros",
+    "sqlx-sqlite",
+] }
 sea-orm-rocket = { version = "^0.5" }
 clap = { version = "^4.0", features = ["derive", "env", "wrap_help"] }
 hcl-rs = { version = "^0.8" }
@@ -39,12 +44,25 @@ tracing = { version = "^0.1" }
 tracing-subscriber = { version = "^0.3" }
 tracing-appender = { version = "^0.2" }
 base64 = { version = "^0.13" }
-faccess = "0.2.4"
-moq-transport = "0.2.0"
-rcgen = { version = "^0.11", features = ["pem", "x509-parser"] }
+faccess = { version = "^0.2" }
+s2n-quic = { version = "^1.32", features = [
+    "provider-address-token-default",
+    "provider-tls-rustls",
+    "provider-event-tracing",
+] }
+ringbuf = "0.3.3"
+bytes = "1.5.0"
+parking_lot = "0.12.1"
+async-mutex = "1.4.0"
+async-ringbuf = "0.1.3"
+rand = "0.8.5"
+ron = "0.8.1"
 
 [build-dependencies]
 built = { version = "^0.5", features = ["git2", "chrono", "semver"] }
+
+[dev-dependencies]
+stringreader = "0.1.1"
 
 [package.metadata.deb]
 maintainer = "Charles R. Portwood II <charlesportwoodii@erianna.com>"

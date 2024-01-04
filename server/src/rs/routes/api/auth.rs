@@ -4,19 +4,12 @@ use common::{
     ncryptflib as ncryptf,
     pool::redis::RedisDb,
     pool::seaorm::AppDb,
-    structs::{
-        config::{LoginRequest, LoginResponse},
-        ncryptf_json::JsonMessage,
-    },
+    structs::{ config::{ LoginRequest, LoginResponse }, ncryptf_json::JsonMessage },
 };
-use rocket::{
-    http::Status,
-    serde::json::Json,
-    State
-};
+use rocket::{ http::Status, serde::json::Json, State };
 use rocket_db_pools::Connection as RedisConnection;
 
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{ ColumnTrait, EntityTrait, QueryFilter };
 use sea_orm_rocket::Connection as SeaOrmConnection;
 use entity::player;
 
@@ -34,9 +27,8 @@ pub async fn authenticate(
     // The player OAuth2 Code
     payload: Json<LoginRequest>,
     // The application state
-    config: &State<ApplicationConfigServer>,
+    config: &State<ApplicationConfigServer>
 ) -> ncryptf::rocket::JsonResponse<JsonMessage<LoginResponse>> {
-    let certificate_path = config.tls.certs_path.clone();
     let conn = db.into_inner();
 
     let oauth2_transaction_code = payload.0.code;
@@ -44,20 +36,21 @@ pub async fn authenticate(
     let client_id = config.minecraft.client_id.clone();
     let client_secret = config.minecraft.client_secret.clone();
 
-    let profile = match common::auth::xbl::server_authenticate_with_client_code(
-        client_id,
-        client_secret,
-        oauth2_transaction_code,
-    )
-    .await
+    let profile = match
+        common::auth::xbl::server_authenticate_with_client_code(
+            client_id,
+            client_secret,
+            oauth2_transaction_code
+        ).await
     {
         // We should only ever get a single user back, if we get none, or more than one then...
         // something not right
-        Ok(params) => match params.profile_users.len() {
-            0 => None,
-            1 => Some(params),
-            _ => None,
-        },
+        Ok(params) =>
+            match params.profile_users.len() {
+                0 => None,
+                1 => Some(params),
+                _ => None,
+            }
         Err(e) => {
             tracing::error!("{}", e.to_string());
             None
@@ -72,45 +65,45 @@ pub async fn authenticate(
         }
     };
 
-    let is_banished: bool = match player::Entity::find()
-        .filter(player::Column::Gamertag.eq(gamertag.clone()))
-        .one(conn)
-        .await
+    let p = match
+        player::Entity::find().filter(player::Column::Gamertag.eq(gamertag.clone())).one(conn).await
     {
-        Ok(record) => match record {
-            Some(r) => r.banished,
-            None => true,
-        },
+        Ok(record) => record,
         Err(e) => {
             tracing::error!("{}", e.to_string());
-            true
+            None
+        }
+    };
+
+    let actual = match p {
+        Some(p) => p,
+        None => {
+            return JsonMessage::create(Status::Forbidden, None, None, None);
         }
     };
 
     // Block banished users from logging in
-    match is_banished {
-        true => return JsonMessage::create(Status::Forbidden, None, None, None),
+    match actual.banished {
+        true => {
+            return JsonMessage::create(Status::Forbidden, None, None, None);
+        }
         false => {}
     }
 
-    let (key, cert) = match super::get_certificate_and_key_for_player(&gamertag, certificate_path) {
-        Ok((key, cert)) => (key, cert),
-        Err(e) => {
-            tracing::error!("{}", e.to_string());
-            return JsonMessage::create(
-                Status::Forbidden,
-                None,
-                None,
-                Some(e.to_string().as_str()),
-            );
-        }
-    };
+    let kp = actual.get_keypair().unwrap();
+    let sp = actual.get_signature().unwrap();
 
     let response = LoginResponse {
-        key,
-        cert,
-        gamerpic,
         gamertag,
+        gamerpic,
+        keypair: common::structs::config::Keypair {
+            pk: kp.get_public_key(),
+            sk: kp.get_public_key(),
+        },
+        signature: common::structs::config::Keypair {
+            pk: sp.get_public_key(),
+            sk: sp.get_public_key(),
+        },
     };
 
     return JsonMessage::create(Status::Ok, Some(response), None, None);
@@ -118,7 +111,7 @@ pub async fn authenticate(
 
 /// Extracts the gamerpicture and gamertag from the profile response
 fn get_gamertag_and_gamepic(
-    profile: Option<ProfileResponse>,
+    profile: Option<ProfileResponse>
 ) -> Result<(String, String), anyhow::Error> {
     match profile {
         Some(profile) => {
@@ -139,12 +132,14 @@ fn get_gamertag_and_gamepic(
                 return Ok((gamerpic.unwrap(), gamertag.unwrap()));
             }
 
-            return Err(anyhow!("Authentication was successful, but the profile did not include the expected attributes."));
+            return Err(
+                anyhow!(
+                    "Authentication was successful, but the profile did not include the expected attributes."
+                )
+            );
         }
         None => {
-            return Err(anyhow!(
-                "Authentication to Microsoft services was unsucccessful."
-            ))
+            return Err(anyhow!("Authentication to Microsoft services was unsucccessful."));
         }
     }
 }

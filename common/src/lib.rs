@@ -3,7 +3,7 @@ pub mod ncryptflib;
 pub mod auth;
 pub mod pool;
 pub mod redis;
-pub use serde::{Deserialize, Serialize};
+pub use serde::{ Deserialize, Serialize };
 
 pub mod consts;
 pub mod structs;

@@ -3,18 +3,14 @@ use crate::rs::routes;
 use clap::Parser;
 use sea_orm_rocket::Database;
 use faccess::PathExt;
-use migration::{Migrator, MigratorTrait};
-use rcgen::{Certificate, CertificateParams, DistinguishedName, IsCa, KeyPair, PKCS_ED25519};
-use rocket::time::OffsetDateTime;
-use std::{fs::File, io::Write, path::Path, process::exit};
-use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
+use migration::{ Migrator, MigratorTrait };
+
+use std::{ fs::File, io::Write, path::Path, process::exit };
+use tracing_appender::non_blocking::{ NonBlocking, WorkerGuard };
 use tracing_subscriber::fmt::SubscriberBuilder;
 
-use common::{
-    ncryptflib as ncryptf,
-    pool::{redis::RedisDb, seaorm::AppDb},
-};
-use rocket::{self, routes};
+use common::{ ncryptflib as ncryptf, pool::{ redis::RedisDb, seaorm::AppDb } };
+use rocket::{ self, routes };
 use rocket_db_pools;
 use tracing::info;
 
@@ -44,7 +40,7 @@ impl Config {
                 let file_appender = tracing_appender::rolling::daily(out, "homemaker.log");
                 (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
             }
-        };
+        }
 
         subscriber
             .with_writer(non_blocking)
@@ -57,41 +53,6 @@ impl Config {
 
         info!("Logger established!");
 
-        // Create the root CA certificate if it doesn't already exist.
-        let root_ca_path_str = format!("{}/{}", &cfg.config.server.tls.certs_path, "ca.crt");
-        let root_ca_key_path_str = format!("{}/{}", &cfg.config.server.tls.certs_path, "ca.key");
-        let root_ca_path = Path::new(&root_ca_path_str);
-
-        if !root_ca_path.exists() {
-            let root_kp = match KeyPair::generate(&PKCS_ED25519) {
-                Ok(r) => r,
-                Err(_) => panic!("Unable to generate root key. Check the certs_path configuration variable to ensure the path is writable")
-            };
-
-            let mut distinguished_name = DistinguishedName::new();
-            distinguished_name.push(rcgen::DnType::CommonName, "Bedrock Voice Chat");
-
-            let mut cp = CertificateParams::new(vec![cfg.config.server.public_addr.clone()]);
-            cp.alg = &PKCS_ED25519;
-            cp.is_ca = IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
-            cp.not_before = OffsetDateTime::now_utc();
-            cp.distinguished_name = distinguished_name;
-            cp.key_pair = Some(root_kp);
-
-            let root_certificate = match Certificate::from_params(cp) {
-                Ok(c) => c,
-                Err(_) => panic!("Unable to generate root certificates. Check the certs_path configuration variable to ensure the path is writable")
-            };
-
-            let key = root_certificate.get_key_pair().serialize_pem();
-            let cert = root_certificate.serialize_pem().unwrap();
-
-            let mut key_file = File::create(root_ca_path_str).unwrap();
-            key_file.write_all(cert.as_bytes()).unwrap();
-            let mut cert_file = File::create(root_ca_key_path_str).unwrap();
-            cert_file.write_all(key.as_bytes()).unwrap();
-        }
-
         // Launch Rocket and QUIC
         let mut tasks = Vec::new();
 
@@ -101,23 +62,21 @@ impl Config {
             ncryptf::ek_route!(RedisDb);
             match app_config.get_rocket_config() {
                 Ok(figment) => {
-                    let rocket = rocket::custom(figment)
+                    let rocket = rocket
+                        ::custom(figment)
                         .manage(app_config.server.clone())
                         .attach(AppDb::init())
                         .attach(RedisDb::init())
-                        .attach(rocket::fairing::AdHoc::try_on_ignite(
-                            "Migrations",
-                            Self::migrate,
-                        ))
+                        .attach(rocket::fairing::AdHoc::try_on_ignite("Migrations", Self::migrate))
                         .mount("/api/auth", routes![routes::api::auth::authenticate])
                         .mount(
                             "/ncryptf",
                             routes![
-                                ncryptf_ek_route,
-                                //        routes::ncryptf::token_info_route,
-                                //        routes::ncryptf::token_revoke_route,
-                                //        routes::ncryptf::token_refresh_route,
-                            ],
+                                ncryptf_ek_route
+                                //routes::ncryptf::token_info_route,
+                                //routes::ncryptf::token_revoke_route,
+                                //routes::ncryptf::token_refresh_route
+                            ]
                         )
                         .mount("/api/config", routes![routes::api::config::get_config])
                         .mount("/api/mc", routes![routes::api::mc::position]);
@@ -143,8 +102,7 @@ impl Config {
         // The relay connects publishers back to subscribers (which should be a 1:1 match)
         let moq_relay_config = cfg.config.clone().to_owned();
         let moq_relay_task = tokio::task::spawn(async move {
-            // @TODO: Implement MoQ Relay Transport
-            drop(moq_relay_config);
+            //_ = moq::serve(moq_relay_config, &root_ca_key_path_str, &root_ca_path_str).await;
         });
 
         tasks.push(moq_relay_task);
@@ -159,7 +117,9 @@ impl Config {
     async fn migrate(rocket: rocket::Rocket<rocket::Build>) -> rocket::fairing::Result {
         let conn = match AppDb::fetch(&rocket) {
             Some(db) => &db.conn,
-            None => return Err(rocket),
+            None => {
+                return Err(rocket);
+            }
         };
 
         let _ = Migrator::up(conn, None).await;

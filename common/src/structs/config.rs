@@ -19,11 +19,19 @@ pub struct LoginRequest {
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 
 #[ts(export, export_to = "./../client/src/js/bindings/")]
+pub struct Keypair {
+    pub pk: Vec<u8>,
+    pub sk: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+
+#[ts(export, export_to = "./../client/src/js/bindings/")]
 pub struct LoginResponse {
     pub gamerpic: String,
     pub gamertag: String,
-    pub cert: String,
-    pub key: String,
+    pub keypair: Keypair,
+    pub signature: Keypair,
 }
 
 #[derive(Clone, Serialize, Deserialize, TS)]
