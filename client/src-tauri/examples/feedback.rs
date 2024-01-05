@@ -3,11 +3,13 @@ use std::io::Read;
 use std::net::TcpStream;
 
 use anyhow::anyhow;
+use common::ncryptflib::rocket::DateTime;
 use cpal::traits::{ DeviceTrait, HostTrait, StreamTrait };
 use cpal::SampleRate;
 use cpal::StreamConfig;
 use serde::{ Deserialize, Serialize };
 use audio_gate::NoiseGate;
+use common::ncryptflib::rocket::Utc;
 
 const BUFFER_SIZE: u32 = 960;
 #[derive(Debug, Deserialize, Serialize)]
@@ -119,13 +121,9 @@ pub(crate) async fn stream_output(
                         let mut buffer = vec![0; packet_len + 8];
                         stream.read(&mut buffer).unwrap();
 
-                        let decompressed = zstd::decode_all(&buffer[8..buffer.len()]).unwrap();
+                        let data = std::str::from_utf8(&buffer[8..buffer.len()]).unwrap();
 
-                        let response = ncryptf::Response::from(kp.get_secret_key()).unwrap();
-                        let ott = response
-                            .decrypt(decompressed, Some(kp.get_public_key()), None)
-                            .unwrap();
-                        match ron::from_str::<AudioFrame>(ott.as_str()) {
+                        match ron::from_str::<AudioFrame>(data) {
                             Ok(frame) => {
                                 let mut out = vec![0.0; BUFFER_SIZE as usize];
                                 let out_len = match
@@ -252,16 +250,12 @@ pub(crate) async fn stream_input(
             };
 
             let raw = ron::to_string(&af).unwrap();
+            let d = raw.as_bytes();
 
-            let mut req = ncryptf::Request::from(kp.get_secret_key(), sk.get_secret_key()).unwrap();
-            let out = req.encrypt(raw.clone(), kp.get_public_key()).unwrap();
+            let mut len = d.to_vec().len().to_be_bytes().to_vec();
+            len.extend_from_slice(&d.to_vec());
 
-            let compressed = zstd::encode_all(out.as_slice(), 3).unwrap();
-
-            println!("Per Packet Encryption time: {}", now.elapsed().as_micros());
-            let mut len = compressed.len().to_be_bytes().to_vec();
-            len.extend_from_slice(&compressed);
-
+            println!("Per Packet Encryption Time: {}", now.elapsed().as_micros());
             let mut nsstream = TcpStream::connect("127.0.0.1:8444").unwrap();
             nsstream.write(&len).unwrap();
             nsstream.flush().unwrap();
