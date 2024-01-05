@@ -1,7 +1,7 @@
 #![deny(elided_lifetimes_in_paths)]
 
 use s2n_quic::Server;
-use std::{ error::Error, collections::HashMap };
+use std::error::Error;
 use std::sync::Arc;
 use async_mutex::Mutex;
 use serde::{ Serialize, Deserialize };
@@ -59,7 +59,8 @@ async fn server() -> Result<(), Box<dyn Error>> {
                                 Some(stream) => {
                                     let (mut receive_stream, mut send_stream) = stream.split();
 
-                                    let client_id = Arc::new(Mutex::new(0_i32));
+                                    let cid: Option<i32> = None;
+                                    let client_id = Arc::new(Mutex::new(cid));
                                     let rec_client_id = client_id.clone();
                                     let send_client_id = client_id.clone();
                                     // Receiving Stream
@@ -74,15 +75,15 @@ async fn server() -> Result<(), Box<dyn Error>> {
                                             match ron::from_str::<Packet>(ds) {
                                                 Ok(packet) => {
                                                     let mut client_id = client_id.lock().await;
-                                                    if client_id.eq(&0_i32) {
-                                                        *client_id = packet.client_id;
+                                                    if client_id.is_none() {
+                                                        *client_id = Some(packet.client_id);
                                                     }
 
                                                     let mut main_producer_mux =
                                                         main_producer_mux.lock_arc().await;
                                                     _ = main_producer_mux.push(packet).await;
                                                 }
-                                                Err(e) => {}
+                                                Err(_e) => {}
                                             }
                                         }
                                     });
@@ -99,8 +100,13 @@ async fn server() -> Result<(), Box<dyn Error>> {
                                             match packet {
                                                 Some(packet) => {
                                                     let client_id = client_id.lock().await;
-                                                    if client_id.eq(&packet.client_id) {
-                                                        continue;
+                                                    match *client_id {
+                                                        Some(client_id) => {
+                                                            if client_id.eq(&packet.client_id) {
+                                                                continue;
+                                                            }
+                                                        }
+                                                        None => {}
                                                     }
                                                     match ron::to_string(&packet) {
                                                         Ok::<String, _>(rs) => {

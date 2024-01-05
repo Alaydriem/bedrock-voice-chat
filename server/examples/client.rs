@@ -37,14 +37,12 @@ async fn client(id: i32) -> Result<(), Box<dyn Error>> {
     tasks.push(
         tokio::spawn(async move {
             while let Ok(Some(stream)) = receive_stream.receive().await {
-                println!("Waiting for data");
                 let ds = std::str::from_utf8(&stream).unwrap();
-                println!("Got response {}", ds);
                 match ron::from_str::<Packet>(ds) {
                     Ok::<Packet, _>(packet) => {
                         println!("Received Data from {}", packet.client_id);
                     }
-                    Err(e) => {}
+                    Err(_e) => {}
                 }
             }
 
@@ -63,8 +61,6 @@ async fn client(id: i32) -> Result<(), Box<dyn Error>> {
                 _ = send_stream.flush().await;
                 tokio::time::sleep(std::time::Duration::from_millis(100)).await;
             }
-
-            println!("Sending loop died.");
         })
     );
 
