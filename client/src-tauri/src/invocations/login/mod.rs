@@ -137,25 +137,40 @@ pub(crate) async fn microsoft_auth_login(
                                                         "gamertag".to_string(),
                                                         data.clone().gamertag
                                                     ).await;
+
                                                     crate::invocations::credentials::set_credential(
                                                         "gamerpic".to_string(),
                                                         data.clone().gamerpic
                                                     ).await;
+
                                                     crate::invocations::credentials::set_credential(
                                                         "key_pk".to_string(),
                                                         base64::encode(kp.pk)
                                                     ).await;
+
                                                     crate::invocations::credentials::set_credential(
                                                         "key_sk".to_string(),
                                                         base64::encode(kp.sk)
                                                     ).await;
+
                                                     crate::invocations::credentials::set_credential(
                                                         "sig_pk".to_string(),
                                                         base64::encode(sk.pk)
                                                     ).await;
+
                                                     crate::invocations::credentials::set_credential(
                                                         "sig_sk".to_string(),
                                                         base64::encode(sk.sk)
+                                                    ).await;
+
+                                                    crate::invocations::credentials::set_credential(
+                                                        "certificate".to_string(),
+                                                        data.clone().certificate
+                                                    ).await;
+
+                                                    crate::invocations::credentials::set_credential(
+                                                        "key".to_string(),
+                                                        data.clone().certificate_key
                                                     ).await;
 
                                                     // Only return the gamertag and gamerpic, the rest we don't want to expose to the frontend
@@ -208,7 +223,16 @@ pub async fn logout() {
     stop_stream(common::structs::config::StreamType::OutputStream).await;
 
     // Delete the credential store keys
-    let keys = vec!["gamertag", "gamerpic", "key_pk", "key_sk", "sig_pk", "sig_sk"];
+    let keys = vec![
+        "gamertag",
+        "gamerpic",
+        "key_pk",
+        "key_sk",
+        "sig_pk",
+        "sig_sk",
+        "certificate",
+        "key"
+    ];
     for key in keys {
         del_credential(key.to_string()).await;
     }

@@ -43,7 +43,7 @@ pub struct ApplicationConfigServer {
     #[serde(default)]
     pub port: u32,
     #[serde(default)]
-    pub moq_port: u32,
+    pub quic_port: u32,
     #[serde(default)]
     pub public_addr: String,
     pub tls: ApplicationConfigServerTLS,
@@ -95,7 +95,7 @@ impl Default for ApplicationConfig {
             server: ApplicationConfigServer {
                 listen: String::from("127.0.0.1"),
                 port: 443,
-                moq_port: 8443,
+                quic_port: 8443,
                 public_addr: String::from("127.0.0.1"),
                 tls: ApplicationConfigServerTLS {
                     certificate: String::from("/etc/bvc/server.crt"),
@@ -125,9 +125,9 @@ impl ApplicationConfig {
                 if !path.exists() {
                     match std::fs::File::create(&self.database.database) {
                         Ok(_) => {}
-                        Err(e) => {
+                        Err(_e) => {
                             panic!(
-                                "Verify that {} exists and is writable. You may need to create this file",
+                                "Verify that {} exists and is writable. You may need to create this file.",
                                 &self.database.database
                             );
                         }
@@ -191,6 +191,8 @@ impl ApplicationConfig {
             .merge(("limits", Limits::new().limit("json", (10).megabytes())))
             .merge(("tls.certs", &self.server.tls.certificate))
             .merge(("tls.key", &self.server.tls.key))
+            .merge(("tls.mutual.ca_certs", format!("{}/ca.crt", &self.server.tls.certs_path)))
+            .merge(("tls.mutual.mandatory", false))
             .merge(("minecraft.access_token", &self.server.minecraft.access_token))
             .merge((
                 "databases.app",

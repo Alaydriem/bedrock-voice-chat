@@ -18,7 +18,7 @@ use crate::config::ApplicationConfigServer;
 use rocket_db_pools::deadpool_redis::redis::AsyncCommands;
 
 /// Authenticates the Player to Xbox Live to grab their gamertag and other identifying information
-#[post("/", data = "<payload>")]
+#[post("/auth", data = "<payload>")]
 pub async fn authenticate(
     // Data is to be stored in Redis
     _rdb: RedisConnection<RedisDb>,
@@ -104,6 +104,8 @@ pub async fn authenticate(
             pk: sp.get_public_key(),
             sk: sp.get_public_key(),
         },
+        certificate: actual.certificate,
+        certificate_key: actual.certificate_key,
     };
 
     return JsonMessage::create(Status::Ok, Some(response), None, None);

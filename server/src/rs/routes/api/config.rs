@@ -1,8 +1,8 @@
-use rocket::{serde::json::Json, State};
+use rocket::{ serde::json::Json, State };
 use common::structs::config::ApiConfig;
 
 use crate::config::ApplicationConfigServer;
-#[get("/")]
+#[get("/config")]
 pub async fn get_config(config: &State<ApplicationConfigServer>) -> Json<ApiConfig> {
     Json(ApiConfig {
         status: String::from("Ok"),

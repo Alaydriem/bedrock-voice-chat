@@ -20,6 +20,8 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(Player::Gamertag).string())
                     .col(ColumnDef::new(Player::Gamerpic).string())
+                    .col(ColumnDef::new(Player::Certificate).string())
+                    .col(ColumnDef::new(Player::CertificateKey).string())
                     .col(ColumnDef::new(Player::Keypair).binary())
                     .col(ColumnDef::new(Player::Signature).binary())
                     .col(ColumnDef::new(Player::Banished).boolean())
@@ -55,6 +57,8 @@ pub enum Player {
     Gamerpic,
     Banished,
     Keypair,
+    Certificate,
+    CertificateKey,
     Signature,
     CreatedAt,
     UpdatedAt,

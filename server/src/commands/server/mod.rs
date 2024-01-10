@@ -1,18 +1,31 @@
 use crate::commands::Config as StateConfig;
-use crate::rs::routes;
+
 use clap::Parser;
-use sea_orm_rocket::Database;
+use rcgen::{
+    Certificate,
+    CertificateParams,
+    DistinguishedName,
+    IsCa,
+    KeyPair,
+    PKCS_ED25519,
+    SanType,
+    ExtendedKeyUsagePurpose,
+    KeyUsagePurpose,
+};
+use rocket::time::OffsetDateTime;
+use rocket::time::Duration;
+use anyhow::anyhow;
+
 use faccess::PathExt;
-use migration::{ Migrator, MigratorTrait };
 
 use std::{ fs::File, io::Write, path::Path, process::exit };
 use tracing_appender::non_blocking::{ NonBlocking, WorkerGuard };
 use tracing_subscriber::fmt::SubscriberBuilder;
 
-use common::{ ncryptflib as ncryptf, pool::{ redis::RedisDb, seaorm::AppDb } };
-use rocket::{ self, routes };
-use rocket_db_pools;
 use tracing::info;
+
+mod web;
+mod quic;
 
 /// Starts the BVC Server
 #[derive(Debug, Parser, Clone)]
@@ -53,59 +66,23 @@ impl Config {
 
         info!("Logger established!");
 
+        match self.generate_ca(&cfg).await {
+            Ok(_) => {}
+            Err(e) => {
+                println!("{}", e);
+                exit(1);
+            }
+        }
+
         // Launch Rocket and QUIC
         let mut tasks = Vec::new();
 
-        // Launch Rocket for all web related tasks
-        let app_config = cfg.config.clone().to_owned();
-        let rocket_task = tokio::task::spawn(async move {
-            ncryptf::ek_route!(RedisDb);
-            match app_config.get_rocket_config() {
-                Ok(figment) => {
-                    let rocket = rocket
-                        ::custom(figment)
-                        .manage(app_config.server.clone())
-                        .attach(AppDb::init())
-                        .attach(RedisDb::init())
-                        .attach(rocket::fairing::AdHoc::try_on_ignite("Migrations", Self::migrate))
-                        .mount("/api/auth", routes![routes::api::auth::authenticate])
-                        .mount(
-                            "/ncryptf",
-                            routes![
-                                ncryptf_ek_route
-                                //routes::ncryptf::token_info_route,
-                                //routes::ncryptf::token_revoke_route,
-                                //routes::ncryptf::token_refresh_route
-                            ]
-                        )
-                        .mount("/api/config", routes![routes::api::config::get_config])
-                        .mount("/api/mc", routes![routes::api::mc::position]);
-
-                    if let Ok(ignite) = rocket.ignite().await {
-                        info!("Rocket server is now running and awaiting request!");
-                        let result = ignite.launch().await;
-                        if result.is_err() {
-                            println!("{}", result.unwrap_err());
-                            exit(1);
-                        }
-                    }
-                }
-                Err(error) => {
-                    println!("{}", error);
-                    exit(1);
-                }
-            }
-        });
+        let rocket_task = web::get_task(&cfg.config.clone());
         tasks.push(rocket_task);
 
-        // Media over QUIC IETF (MoQ) server
-        // The relay connects publishers back to subscribers (which should be a 1:1 match)
-        let moq_relay_config = cfg.config.clone().to_owned();
-        let moq_relay_task = tokio::task::spawn(async move {
-            //_ = moq::serve(moq_relay_config, &root_ca_key_path_str, &root_ca_path_str).await;
-        });
+        let quic_server = quic::get_task(&cfg.config.clone());
+        tasks.push(quic_server);
 
-        tasks.push(moq_relay_task);
         for task in tasks {
             #[allow(unused_must_use)]
             {
@@ -114,15 +91,76 @@ impl Config {
         }
     }
 
-    async fn migrate(rocket: rocket::Rocket<rocket::Build>) -> rocket::fairing::Result {
-        let conn = match AppDb::fetch(&rocket) {
-            Some(db) => &db.conn,
-            None => {
-                return Err(rocket);
+    /// Generates the root CA
+    async fn generate_ca(&self, config: &StateConfig) -> Result<(String, String), anyhow::Error> {
+        let certs_path = &config.config.server.tls.certs_path;
+        let cert_root_path = Path::new(&certs_path);
+        if !cert_root_path.exists() {
+            match std::fs::create_dir_all(cert_root_path) {
+                Ok(_) => {}
+                Err(_) => {
+                    return Err(
+                        anyhow!("Could not create directory {}", cert_root_path.to_string_lossy())
+                    );
+                }
+            }
+        }
+
+        // Create the root CA certificate if it doesn't already exist.
+        let root_ca_path_str = format!("{}/{}", &certs_path, "ca.crt");
+        let root_ca_key_path_str = format!("{}/{}", &certs_path, "ca.key");
+
+        let root_kp = match KeyPair::generate(&PKCS_ED25519) {
+            Ok(r) => r,
+            Err(_) => {
+                return Err(
+                    anyhow!(
+                        "Unable to generate root key. Check the certs_path configuration variable to ensure the path is writable"
+                    )
+                );
             }
         };
 
-        let _ = Migrator::up(conn, None).await;
-        Ok(rocket)
+        let mut distinguished_name = DistinguishedName::new();
+        distinguished_name.push(rcgen::DnType::CommonName, "Bedrock Voice Chat");
+
+        let mut cp = CertificateParams::new(vec!["127.0.0.1".to_string(), "localhost".to_string()]);
+
+        cp.subject_alt_names = vec![
+            SanType::DnsName(String::from("localhost")),
+            SanType::IpAddress(std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1))),
+            SanType::IpAddress(
+                std::net::IpAddr::V6(std::net::Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1))
+            )
+        ];
+        cp.alg = &PKCS_ED25519;
+        cp.is_ca = IsCa::NoCa;
+        cp.not_before = OffsetDateTime::now_utc().checked_sub(Duration::days(3)).unwrap();
+        cp.distinguished_name = distinguished_name;
+        cp.key_pair = Some(root_kp);
+        cp.use_authority_key_identifier_extension = true;
+
+        cp.key_usages = vec![KeyUsagePurpose::KeyCertSign];
+        cp.extended_key_usages = vec![
+            ExtendedKeyUsagePurpose::ClientAuth,
+            ExtendedKeyUsagePurpose::ServerAuth
+        ];
+        let root_certificate = match Certificate::from_params(cp) {
+            Ok(c) => c,
+            Err(_) =>
+                panic!(
+                    "Unable to generate root certificates. Check the certs_path configuration variable to ensure the path is writable"
+                ),
+        };
+
+        let cert = root_certificate.serialize_pem_with_signer(&root_certificate).unwrap();
+        let key = root_certificate.get_key_pair().serialize_pem();
+
+        let mut key_file = File::create(root_ca_path_str).unwrap();
+        key_file.write_all(cert.as_bytes()).unwrap();
+        let mut cert_file = File::create(root_ca_key_path_str).unwrap();
+        cert_file.write_all(key.as_bytes()).unwrap();
+
+        Ok((cert, key))
     }
 }

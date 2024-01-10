@@ -1,14 +1,14 @@
 use common::{ pool::redis::RedisDb, ncryptflib as ncryptf };
-use rocket::{ http::Status, serde::json::Json };
+use rocket::{ http::Status, serde::json::Json, State };
 
 use rocket_db_pools::Connection as RedisConnection;
 use sea_orm::ActiveValue;
 
 use common::ncryptflib::rocket::Utc;
-
+use common::certificates::{ get_root_ca, sign_cert_with_ca };
 use entity::player;
 
-use crate::rs::guards::MCAccessToken;
+use crate::{ rs::guards::MCAccessToken, config::ApplicationConfigServer };
 
 #[allow(unused_imports)] // for rust-analyzer
 use rocket_db_pools::deadpool_redis::redis::AsyncCommands;
@@ -17,19 +17,28 @@ use sea_orm::{ ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter };
 use sea_orm_rocket::Connection as SeaOrmConnection;
 
 /// Stores player position data and online status from Minecraft Bedrock into Redis
-#[post("/", data = "<positions>")]
+#[post("/mc", data = "<positions>")]
 pub async fn position(
     // Guard the request so it's only accepted if we have a valid access token
     _access_token: MCAccessToken,
     // Data is to be stored in Redis
-    rdb: RedisConnection<RedisDb>,
+    _rdb: RedisConnection<RedisDb>,
     // Database connection
     db: SeaOrmConnection<'_, AppDb>,
     // The player position data
-    positions: Json<Vec<common::Player>>
+    positions: Json<Vec<common::Player>>,
+    // Configuration
+    config: &State<ApplicationConfigServer>
 ) -> Status {
-    let mut redis = rdb.into_inner();
     let conn = db.into_inner();
+
+    let root_certificate = match get_root_ca(config.tls.certs_path.clone()) {
+        Ok(root_certificate) => root_certificate,
+        Err(e) => {
+            tracing::error!("{}", e.to_string());
+            return Status::Ok;
+        }
+    };
 
     // Iterate through each of the players
     for player in positions.0 {
@@ -51,11 +60,21 @@ pub async fn position(
                         sgv.append(&mut signature.get_public_key());
                         sgv.append(&mut signature.get_secret_key());
 
+                        let (cert, key) = match sign_cert_with_ca(&root_certificate, &player_name) {
+                            Ok((cert, key)) => (cert, key),
+                            Err(e) => {
+                                tracing::error!("{}", e.to_string());
+                                continue;
+                            }
+                        };
+
                         // We didn't get a record, so create one
                         let p = player::ActiveModel {
                             id: ActiveValue::NotSet,
                             gamertag: ActiveValue::Set(Some(player_name.clone())),
                             gamerpic: ActiveValue::Set(None),
+                            certificate: ActiveValue::Set(cert),
+                            certificate_key: ActiveValue::Set(key),
                             banished: ActiveValue::Set(false),
                             keypair: ActiveValue::Set(kpv),
                             signature: ActiveValue::Set(sgv),
@@ -83,24 +102,9 @@ pub async fn position(
                 continue;
             }
         }
-        let mut _result = match
-            redis.set(
-                common::pool::redis::create_redis_key(
-                    common::consts::redis::REDIS_KEY_PLAYER_POSITION,
-                    player_name
-                ),
-                serde_json::to_string(&player).unwrap()
-            ).await
-        {
-            Ok(result) => result,
-            Err(e) => {
-                tracing::error!("Unable to write to Redis. {}", e.to_string());
-                continue;
-            }
-        };
     }
-    // Store the player position data in Redis
-    // annoying KV/RV set value is annoying
+
+    // Broadcast the player position to QUIC
 
     return Status::Ok;
 }

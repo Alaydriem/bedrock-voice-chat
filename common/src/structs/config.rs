@@ -32,6 +32,8 @@ pub struct LoginResponse {
     pub gamertag: String,
     pub keypair: Keypair,
     pub signature: Keypair,
+    pub certificate: String,
+    pub certificate_key: String,
 }
 
 #[derive(Clone, Serialize, Deserialize, TS)]
