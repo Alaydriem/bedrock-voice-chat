@@ -94,6 +94,17 @@ impl Config {
     /// Generates the root CA
     async fn generate_ca(&self, config: &StateConfig) -> Result<(String, String), anyhow::Error> {
         let certs_path = &config.config.server.tls.certs_path;
+        let root_ca_path_str = format!("{}/{}", &certs_path, "ca.crt");
+        let root_ca_key_path_str = format!("{}/{}", &certs_path, "ca.key");
+
+        // If the certificates already exist, just return them
+        if Path::new(&root_ca_key_path_str).exists() {
+            return Ok((
+                std::fs::read_to_string(root_ca_path_str).unwrap(),
+                std::fs::read_to_string(root_ca_key_path_str).unwrap(),
+            ));
+        }
+
         let cert_root_path = Path::new(&certs_path);
         if !cert_root_path.exists() {
             match std::fs::create_dir_all(cert_root_path) {
@@ -107,8 +118,6 @@ impl Config {
         }
 
         // Create the root CA certificate if it doesn't already exist.
-        let root_ca_path_str = format!("{}/{}", &certs_path, "ca.crt");
-        let root_ca_key_path_str = format!("{}/{}", &certs_path, "ca.key");
 
         let root_kp = match KeyPair::generate(&PKCS_ED25519) {
             Ok(r) => r,
@@ -129,6 +138,7 @@ impl Config {
         cp.subject_alt_names = vec![
             SanType::DnsName(String::from("localhost")),
             SanType::IpAddress(std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1))),
+            SanType::IpAddress(std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0))),
             SanType::IpAddress(
                 std::net::IpAddr::V6(std::net::Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1))
             )

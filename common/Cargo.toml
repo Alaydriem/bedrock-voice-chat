@@ -29,3 +29,6 @@ sea-orm = { version = "^0.12", features = [
 sea-orm-rocket = { version = "^0.5" }
 ts-rs = { version = "^7.0" }
 rcgen = { version = "0.12.0", features = ["x509-parser"] }
+erased-serde = "0.4.2"
+typetag = "0.2.15"
+dyn-clone = "1.0.16"
