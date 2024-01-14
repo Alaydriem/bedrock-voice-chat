@@ -37,7 +37,7 @@ system.runInterval(async (e) => {
   players.forEach((player) => {
     let p = {
       name: player.name,
-      dimension: player.dimension.id,
+      dimension: player.dimension.id.replace("minecraft:", ""),
       coordinates: player.location,
       deafen: player.isInWater || player.isSneaking,
     };

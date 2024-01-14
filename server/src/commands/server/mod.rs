@@ -1,6 +1,7 @@
 use crate::commands::Config as StateConfig;
 
 use clap::Parser;
+use common::structs::packet::QuicNetworkPacket;
 use rcgen::{
     Certificate,
     CertificateParams,
@@ -19,14 +20,15 @@ use anyhow::anyhow;
 use faccess::PathExt;
 
 use std::{ fs::File, io::Write, path::Path, process::exit };
+use std::sync::Arc;
 use tracing_appender::non_blocking::{ NonBlocking, WorkerGuard };
 use tracing_subscriber::fmt::SubscriberBuilder;
-
 use tracing::info;
 
 mod web;
 mod quic;
 
+const DEADQUEUE_SIZE: usize = 10_000;
 /// Starts the BVC Server
 #[derive(Debug, Parser, Clone)]
 #[clap(author, version, about, long_about = None)]
@@ -74,13 +76,15 @@ impl Config {
             }
         }
 
+        let queue = Arc::new(deadqueue::limited::Queue::<QuicNetworkPacket>::new(DEADQUEUE_SIZE));
+
         // Launch Rocket and QUIC
         let mut tasks = Vec::new();
 
-        let rocket_task = web::get_task(&cfg.config.clone());
+        let rocket_task = web::get_task(&cfg.config.clone(), queue.clone());
         tasks.push(rocket_task);
 
-        let quic_server = quic::get_task(&cfg.config.clone());
+        let quic_server = quic::get_task(&cfg.config.clone(), queue.clone());
         tasks.push(quic_server);
 
         for task in tasks {

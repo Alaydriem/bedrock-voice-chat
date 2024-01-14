@@ -1,4 +1,5 @@
 use crate::config::ApplicationConfig;
+use bytes::Bytes;
 use tokio::task::JoinHandle;
 use s2n_quic::Server;
 use std::{ error::Error, path::Path };
@@ -17,15 +18,21 @@ const MAIN_RINGBUFFER_CAPACITY: usize = 10000;
 /// The site each connection ringbuffer can hold
 const CONNECTION_RINGERBUFFER_CAPACITY: usize = 1000;
 
-pub(crate) fn get_task(config: &ApplicationConfig) -> JoinHandle<()> {
+pub(crate) fn get_task(
+    config: &ApplicationConfig,
+    queue: Arc<deadqueue::limited::Queue<QuicNetworkPacket>>
+) -> JoinHandle<()> {
     let app_config = config.clone();
     return tokio::task::spawn(async move {
-        _ = server(&app_config.clone()).await;
+        _ = server(&app_config.clone(), queue.clone()).await;
     });
 }
 
 /// A generic QUIC server to handle QuickNetworkPacket<PacketTypeTrait> packets
-async fn server(app_config: &ApplicationConfig) -> Result<(), Box<dyn Error>> {
+async fn server(
+    app_config: &ApplicationConfig,
+    queue: Arc<deadqueue::limited::Queue<QuicNetworkPacket>>
+) -> Result<(), Box<dyn Error>> {
     // This is our main ring buffer. Incoming packets from any client are added to it
     // Then a separate thread pushes them to all connected clients, which is a separate ringbuffer
     let ring = async_ringbuf::AsyncHeapRb::<QuicNetworkPacket>::new(MAIN_RINGBUFFER_CAPACITY);
@@ -49,6 +56,7 @@ async fn server(app_config: &ApplicationConfig) -> Result<(), Box<dyn Error>> {
         >::new(main_producer)
     );
 
+    let main_producer_mux_for_deadqueue = main_producer_mux.clone();
     let main_consumer_mux = Arc::new(
         Mutex::<
             async_ringbuf::AsyncConsumer<
@@ -91,6 +99,7 @@ async fn server(app_config: &ApplicationConfig) -> Result<(), Box<dyn Error>> {
     );
 
     let processor_mutex_map = mutex_map.clone();
+    let deadqueue_mutex_map = mutex_map.clone();
 
     // Setups mTLS for the connection
     let cert_path = format!("{}/ca.crt", &app_config.server.tls.certs_path.clone());
@@ -176,25 +185,77 @@ async fn server(app_config: &ApplicationConfig) -> Result<(), Box<dyn Error>> {
                                     tokio::spawn(async move {
                                         let main_producer_mux = main_producer_mux.clone();
 
-                                        while let Ok(Some(data)) = receive_stream.receive().await {
-                                            let client_id = rec_client_id.clone();
-                                            // Take the data packet, and push it into the main mux
-                                            let d = data.clone();
-                                            let ds = std::str::from_utf8(&d).unwrap();
-                                            match ron::from_str::<QuicNetworkPacket>(ds) {
-                                                Ok(packet) => {
-                                                    let mut client_id = client_id.lock().await;
-                                                    let author = packet.client_id.clone();
-                                                    if client_id.is_none() {
-                                                        *client_id = Some(author.clone());
-                                                        tracing::debug!("{:?} Connected", author);
-                                                    }
+                                        let magic_header: Vec<u8> = vec![251, 33, 51, 0, 27];
+                                        let mut packet = Vec::<u8>::new();
 
-                                                    let mut main_producer_mux =
-                                                        main_producer_mux.lock_arc().await;
-                                                    _ = main_producer_mux.push(packet).await;
+                                        while let Ok(Some(data)) = receive_stream.receive().await {
+                                            packet.append(&mut data.to_vec());
+
+                                            let packet_header = packet.get(0..5);
+
+                                            let packet_header = match packet_header {
+                                                Some(header) => header.to_vec(),
+                                                None => {
+                                                    continue;
                                                 }
-                                                Err(_e) => {}
+                                            };
+
+                                            let packet_length = packet.get(5..13);
+                                            if packet_length.is_none() {
+                                                continue;
+                                            }
+
+                                            let packet_len = usize::from_be_bytes(
+                                                packet_length.unwrap().try_into().unwrap()
+                                            );
+
+                                            if
+                                                packet_header.eq(&magic_header) &&
+                                                packet.len() == packet_len + 13
+                                            {
+                                                let packet_to_process = packet.clone();
+                                                let packet_to_process = packet_to_process.get(
+                                                    13..packet.len()
+                                                );
+
+                                                packet = Vec::<u8>::new();
+
+                                                if packet_to_process.is_none() {
+                                                    tracing::error!(
+                                                        "RON serialized packet data length mismatch after verifier."
+                                                    );
+                                                    continue;
+                                                }
+
+                                                match
+                                                    QuicNetworkPacket::from_vec(
+                                                        packet_to_process.unwrap()
+                                                    )
+                                                {
+                                                    Ok(packet) => {
+                                                        let mut client_id = client_id.lock().await;
+                                                        let author = packet.client_id.clone();
+
+                                                        if client_id.is_none() {
+                                                            *client_id = Some(author.clone());
+                                                            tracing::debug!(
+                                                                "{:?} Connected",
+                                                                author
+                                                            );
+                                                        }
+
+                                                        let mut main_producer_mux =
+                                                            main_producer_mux.lock_arc().await;
+                                                        _ = main_producer_mux.push(packet).await;
+                                                    }
+                                                    Err(e) => {
+                                                        tracing::error!(
+                                                            "Unable to deserialize RON packet. Possible packet length issue? {}",
+                                                            e.to_string()
+                                                        );
+                                                        continue;
+                                                    }
+                                                };
                                             }
                                         }
                                     });
@@ -214,19 +275,23 @@ async fn server(app_config: &ApplicationConfig) -> Result<(), Box<dyn Error>> {
                                                     let client_id = client_id.lock().await;
 
                                                     // If the packet ID is
-                                                    if client_id.ne(&author) {
-                                                        match ron::to_string(&packet) {
-                                                            Ok::<String, _>(rs) => {
-                                                                let reader = rs.as_bytes().to_vec();
-
-                                                                // Send the data, then flush the buffer
+                                                    if
+                                                        packet.data.broadcast() ||
+                                                        client_id.ne(&author)
+                                                    {
+                                                        match packet.to_vec() {
+                                                            Ok(rs) => {
                                                                 _ = send_stream.send(
-                                                                    reader.into()
+                                                                    rs.into()
                                                                 ).await;
-                                                                _ = send_stream.flush().await;
                                                             }
-                                                            Err(_) => {}
-                                                        }
+                                                            Err(e) => {
+                                                                tracing::error!(
+                                                                    "{:?}",
+                                                                    e.to_string()
+                                                                );
+                                                            }
+                                                        };
                                                     }
                                                 }
                                                 None => {}
@@ -241,6 +306,7 @@ async fn server(app_config: &ApplicationConfig) -> Result<(), Box<dyn Error>> {
                 });
             }
 
+            println!("Connection loop ended.");
             // If the main loop ends, then the connection was dropped
             // And we need to clean up the mutex_map table so we aren't keeping connection_ids that have been previously dropped
             match connection_id {
@@ -273,6 +339,19 @@ async fn server(app_config: &ApplicationConfig) -> Result<(), Box<dyn Error>> {
                     }
                     None => {}
                 }
+            }
+        })
+    );
+
+    tasks.push(
+        tokio::spawn(async move {
+            let main_producer_mux = main_producer_mux_for_deadqueue.clone();
+            let queue = queue.clone();
+
+            #[allow(irrefutable_let_patterns)]
+            while let packet = queue.pop().await {
+                let mut main_producer_mux = main_producer_mux.lock_arc().await;
+                _ = main_producer_mux.push(packet).await;
             }
         })
     );

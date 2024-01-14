@@ -999,6 +999,7 @@ dependencies = [
  "rocket",
  "rocket_db_pools",
  "rocket_dyn_templates",
+ "ron",
  "sea-orm",
  "sea-orm-rocket",
  "serde",

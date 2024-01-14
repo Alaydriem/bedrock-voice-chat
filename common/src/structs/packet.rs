@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use serde::{ Serialize, Deserialize };
 use dyn_clone::DynClone;
 use std::any::Any;
@@ -9,6 +10,54 @@ pub struct QuicNetworkPacket {
     pub author: String,
     pub client_id: Vec<u8>,
     pub data: Box<dyn PacketTypeTrait>,
+}
+
+/// Magic header
+const QUICK_NETWORK_PACKET_HEADER: &[u8; 5] = &[251, 33, 51, 0, 27];
+
+impl QuicNetworkPacket {
+    /// Converts the packet into a parseable string
+    pub fn to_vec(&self) -> Result<Vec<u8>, anyhow::Error> {
+        match ron::to_string(&self) {
+            Ok(rs) => {
+                let mut header: Vec<u8> = QUICK_NETWORK_PACKET_HEADER.to_vec();
+                let mut len = rs.as_bytes().len().to_be_bytes().to_vec();
+                let mut data = rs.as_bytes().to_vec();
+
+                header.append(&mut len);
+                header.append(&mut data);
+
+                return Ok(header);
+            }
+            Err(e) => {
+                tracing::error!("{}", e.to_string());
+                return Err(anyhow!("Could not parse packet."));
+            }
+        }
+    }
+
+    /// Convers a vec back into a raw packet
+    pub fn from_vec(data: &[u8]) -> Result<Self, anyhow::Error> {
+        match std::str::from_utf8(data) {
+            Ok(ds) =>
+                match ron::from_str::<QuicNetworkPacket>(ds) {
+                    Ok(packet) => {
+                        return Ok(packet);
+                    }
+                    Err(e) => {
+                        println!("{}", e.to_string());
+                        return Err(anyhow!("{}", e.to_string()));
+                    }
+                }
+            Err(e) => {
+                tracing::error!(
+                    "Unable to deserialize RON packet. Possible packet length issue? {}",
+                    e.to_string()
+                );
+                return Err(anyhow!("{}", e.to_string()));
+            }
+        };
+    }
 }
 
 /// The packet type
@@ -23,6 +72,7 @@ pub enum PacketType {
 #[typetag::serde]
 pub trait PacketTypeTrait: Send + Sync + DynClone {
     fn as_any(&self) -> &dyn Any;
+    fn broadcast(&self) -> bool;
 }
 
 dyn_clone::clone_trait_object!(PacketTypeTrait);
@@ -40,6 +90,10 @@ impl PacketTypeTrait for AudioFramePacket {
     fn as_any(&self) -> &dyn Any {
         self
     }
+
+    fn broadcast(&self) -> bool {
+        return false;
+    }
 }
 
 /// General Player Positioning data
@@ -53,6 +107,10 @@ impl PacketTypeTrait for PlayerDataPacket {
     fn as_any(&self) -> &dyn Any {
         self
     }
+
+    fn broadcast(&self) -> bool {
+        return true;
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -62,5 +120,9 @@ pub struct DebugPacket(pub String);
 impl PacketTypeTrait for DebugPacket {
     fn as_any(&self) -> &dyn Any {
         self
+    }
+
+    fn broadcast(&self) -> bool {
+        return false;
     }
 }

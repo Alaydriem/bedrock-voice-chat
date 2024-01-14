@@ -16,11 +16,11 @@ pub use rocket::time::Duration as RocketDuration;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Dimension {
-    #[serde(rename = "minecraft:overworld")]
+    #[serde(rename = "overworld")]
     Overworld,
-    #[serde(rename = "minecraft:the_nether")]
+    #[serde(rename = "the_nether")]
     TheEnd,
-    #[serde(rename = "minecraft:the_end")]
+    #[serde(rename = "the_end")]
     TheNether,
 }
 

@@ -1,5 +1,8 @@
+use common::structs::packet::{ QuicNetworkPacket, PlayerDataPacket, PacketType };
 use common::{ pool::redis::RedisDb, ncryptflib as ncryptf };
 use rocket::{ http::Status, serde::json::Json, State };
+
+use std::sync::Arc;
 
 use rocket_db_pools::Connection as RedisConnection;
 use sea_orm::ActiveValue;
@@ -28,10 +31,12 @@ pub async fn position(
     // The player position data
     positions: Json<Vec<common::Player>>,
     // Configuration
-    config: &State<ApplicationConfigServer>
+    config: &State<ApplicationConfigServer>,
+    // Deadqueue
+    queue: &State<Arc<deadqueue::limited::Queue<QuicNetworkPacket>>>
 ) -> Status {
     let conn = db.into_inner();
-
+    let queue = queue.clone();
     let root_certificate = match get_root_ca(config.tls.certs_path.clone()) {
         Ok(root_certificate) => root_certificate,
         Err(e) => {
@@ -41,7 +46,7 @@ pub async fn position(
     };
 
     // Iterate through each of the players
-    for player in positions.0 {
+    for player in positions.0.clone() {
         let player_name = &player.name;
         match
             player::Entity::find().filter(player::Column::Gamertag.eq(player_name)).one(conn).await
@@ -105,6 +110,15 @@ pub async fn position(
     }
 
     // Broadcast the player position to QUIC
+    let packet = QuicNetworkPacket {
+        client_id: vec![0u8; 0],
+        author: String::from("api"),
+        packet_type: PacketType::Positions,
+        data: Box::new(PlayerDataPacket {
+            players: positions.0,
+        }),
+    };
 
+    _ = queue.push(packet).await;
     return Status::Ok;
 }

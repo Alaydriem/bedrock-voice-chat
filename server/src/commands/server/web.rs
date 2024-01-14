@@ -6,8 +6,13 @@ use sea_orm_rocket::Database;
 use tokio::task::JoinHandle;
 use std::process::exit;
 use migration::{ Migrator, MigratorTrait };
+use std::sync::Arc;
+use common::structs::packet::QuicNetworkPacket;
 
-pub(crate) fn get_task(config: &ApplicationConfig) -> JoinHandle<()> {
+pub(crate) fn get_task(
+    config: &ApplicationConfig,
+    queue: Arc<deadqueue::limited::Queue<QuicNetworkPacket>>
+) -> JoinHandle<()> {
     let app_config = config.to_owned();
     return tokio::task::spawn(async move {
         ncryptf::ek_route!(RedisDb);
@@ -16,6 +21,7 @@ pub(crate) fn get_task(config: &ApplicationConfig) -> JoinHandle<()> {
                 let rocket = rocket
                     ::custom(figment)
                     .manage(app_config.server.clone())
+                    .manage(queue.clone())
                     .attach(AppDb::init())
                     .attach(RedisDb::init())
                     .attach(rocket::fairing::AdHoc::try_on_ignite("Migrations", migrate))

@@ -1,4 +1,5 @@
 use std::{ error::Error, net::SocketAddr };
+use bytes::Bytes;
 use common::structs::packet::{ QuicNetworkPacket, PacketType };
 use s2n_quic::{ client::Connect, Client };
 use std::path::Path;
@@ -35,32 +36,105 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
 
     // open a new stream and split the receiving and sending sides
     let stream = connection.open_bidirectional_stream().await?;
+    _ = stream.connection().keep_alive(true);
+
     let (mut receive_stream, mut send_stream) = stream.split();
 
+    _ = receive_stream.connection().keep_alive(true);
+    _ = send_stream.connection().keep_alive(true);
+
     let mut tasks = Vec::new();
+
     // spawn a task that copies responses from the server to stdout
     tasks.push(
         tokio::spawn(async move {
-            while let Ok(Some(stream)) = receive_stream.receive().await {
-                let ds = std::str::from_utf8(&stream).unwrap();
-                match ron::from_str::<QuicNetworkPacket>(ds) {
-                    Ok(packet) => {
-                        match packet.packet_type {
-                            PacketType::AudioFrame => {}
-                            PacketType::Positions => {}
-                            PacketType::Debug => {
-                                let data = packet.data
-                                    .as_any()
-                                    .downcast_ref::<common::structs::packet::DebugPacket>()
-                                    .unwrap();
-                                println!("{:?}", data);
-                            }
+            // Inbound packets may be split across multiple receive() calls, so we need to rejoin them
+            // Packets may arrive in a different order we sent them, but the packet itself should arrive serially in receive() calls
+            let magic_header: Vec<u8> = vec![251, 33, 51, 0, 27];
+            let mut packet = Vec::<u8>::new();
+
+            loop {
+                let mut chunks = [Bytes::new()];
+                match receive_stream.receive_vectored(&mut chunks).await {
+                    Ok((count, is_open)) => {
+                        // If the connection closes, then we can terminate the reader loop
+                        if !is_open {
+                            break;
                         }
+
+                        for chunk in &chunks[..count] {
+                            packet.append(&mut chunk.to_vec());
+                        }
+
+                        let packet_header = packet.get(0..5);
+
+                        let packet_header = match packet_header {
+                            Some(header) => header.to_vec(),
+                            None => {
+                                continue;
+                            }
+                        };
+
+                        let packet_length = packet.get(5..13);
+                        if packet_length.is_none() {
+                            continue;
+                        }
+
+                        let packet_len = usize::from_be_bytes(
+                            packet_length.unwrap().try_into().unwrap()
+                        );
+
+                        if packet_header.eq(&magic_header) && packet.len() == packet_len + 13 {
+                            let packet_to_process = packet.clone();
+                            let packet_to_process = packet_to_process.get(13..packet.len());
+
+                            packet = Vec::<u8>::new();
+
+                            if packet_to_process.is_none() {
+                                tracing::error!(
+                                    "RON serialized packet data length mismatch after verifier."
+                                );
+                                continue;
+                            }
+
+                            match QuicNetworkPacket::from_vec(packet_to_process.unwrap()) {
+                                Ok(packet) => {
+                                    println!("Got data packet in loop");
+                                    match packet.packet_type {
+                                        PacketType::AudioFrame => {}
+                                        PacketType::Positions => {
+                                            let data = packet.data
+                                                .as_any()
+                                                .downcast_ref::<common::structs::packet::PlayerDataPacket>()
+                                                .unwrap();
+                                            dbg!("{:?}", data);
+                                        }
+                                        PacketType::Debug => {
+                                            let data = packet.data
+                                                .as_any()
+                                                .downcast_ref::<common::structs::packet::DebugPacket>()
+                                                .unwrap();
+                                            println!("{:?}", data);
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    tracing::error!(
+                                        "Unable to deserialize RON packet. Possible packet length issue? {}",
+                                        e.to_string()
+                                    );
+                                    continue;
+                                }
+                            };
+                        }
+                        // Otherwise we need to collect more data.
                     }
-                    Err(_e) => {}
+                    Err(e) => {
+                        println!("{}", e.to_string());
+                        break;
+                    }
                 }
             }
-
             println!("Recieving loop died");
         })
     );
@@ -68,6 +142,7 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
     tasks.push(
         tokio::spawn(async move {
             let client_id: Vec<u8> = (0..32).map(|_| { rand::random::<u8>() }).collect();
+
             loop {
                 let packet = QuicNetworkPacket {
                     client_id: client_id.clone(),
@@ -76,6 +151,17 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
                     data: Box::new(common::structs::packet::DebugPacket(id.clone())),
                 };
 
+                match packet.to_vec() {
+                    Ok(reader) => {
+                        let result = send_stream.send(reader.into()).await;
+                        if result.is_err() {
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        println!("{}", e.to_string());
+                    }
+                }
                 let rs = match ron::to_string(&packet) {
                     Ok(s) => s,
                     Err(e) => {
@@ -83,12 +169,6 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
                     }
                 };
 
-                let reader = rs.as_bytes().to_vec();
-                let result = send_stream.send(reader.into()).await;
-                let result = send_stream.flush().await;
-                if result.is_err() {
-                    break;
-                }
                 tokio::time::sleep(std::time::Duration::from_millis(100)).await;
             }
 
