@@ -76,14 +76,23 @@ impl Config {
             }
         }
 
+        // The deadqueue is our primary way of sending messages to the QUIC stream to broadcast to clients
+        // without needing to setup a new stream.
+        // The QUIC server polls this queue and is configured to handle inbound packets and advertise them
+        // To the appropriate clients
         let queue = Arc::new(deadqueue::limited::Queue::<QuicNetworkPacket>::new(DEADQUEUE_SIZE));
 
-        // Launch Rocket and QUIC
         let mut tasks = Vec::new();
 
+        // Task for Rocket https API
+        // The API handles player positioning data from the game/source, and various non-streaming events
+        // such as channel creation, or anything else that may require a "broadcast".
         let rocket_task = web::get_task(&cfg.config.clone(), queue.clone());
         tasks.push(rocket_task);
 
+        // Tasks for the QUIC streaming server
+        // The QUIC server handles broadcasting of messages and raw packets to clients
+        // This includes audio frame, player positioning data, and more.
         let quic_server = quic::get_task(&cfg.config.clone(), queue.clone());
         tasks.push(quic_server);
 

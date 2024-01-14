@@ -1031,6 +1031,8 @@ dependencies = [
  "rocket_db_pools",
  "rocket_dyn_templates",
  "ron",
+ "rustls-pemfile",
+ "s2n-quic",
  "sea-orm",
  "sea-orm-rocket",
  "serde",

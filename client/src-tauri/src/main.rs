@@ -4,11 +4,18 @@
 mod invocations;
 use std::path::Path;
 use std::sync::Arc;
+use common::structs::packet::AudioFramePacket;
+use common::structs::packet::QuicNetworkPacket;
 use faccess::PathExt;
 use tracing::info;
 use tracing::Level;
 use tracing_appender::non_blocking::{ NonBlocking, WorkerGuard };
 use tracing_subscriber::fmt::SubscriberBuilder;
+
+use async_mutex::Mutex;
+
+use crate::invocations::network::{ QuicNetworkPacketConsumer, QuicNetworkPacketProducer };
+use crate::invocations::stream::{ AudioFramePacketProducer, AudioFramePacketConsumer };
 
 #[tokio::main]
 async fn main() {
@@ -57,13 +64,34 @@ async fn main() {
 
     info!("Logger established!");
 
-    // Have an audio cache made available to the thread
+    // Audio cache for managing audio stream state
     crate::invocations::stream::STREAM_STATE_CACHE.get_or_init(async {
-        return Some(Arc::new(moka::future::Cache::builder().max_capacity(20).build()));
+        return Some(Arc::new(moka::future::Cache::builder().max_capacity(100).build()));
     }).await;
+
+    // Network cache for managing network stream state
+    crate::invocations::network::NETWORK_STATE_CACHE.get_or_init(async {
+        return Some(Arc::new(moka::future::Cache::builder().max_capacity(100).build()));
+    }).await;
+
+    // Create a async ringbuffer for handling QUIC network connections
+    let ring = async_ringbuf::AsyncHeapRb::<QuicNetworkPacket>::new(10000);
+    let (producer, consumer) = ring.split();
+    let quic_producer: QuicNetworkPacketProducer = Arc::new(Mutex::new(producer));
+    let quic_consumer: QuicNetworkPacketConsumer = Arc::new(Mutex::new(consumer));
+
+    // The network consumer, sends audio packets to the audio producer, which is then consumed by the underlying stream
+    let ring = async_ringbuf::AsyncHeapRb::<AudioFramePacket>::new(10000);
+    let (producer, consumer) = ring.split();
+    let audio_producer: AudioFramePacketProducer = Arc::new(Mutex::new(producer));
+    let audio_consumer: AudioFramePacketConsumer = Arc::new(Mutex::new(consumer));
 
     let _tauri = tauri::Builder
         ::default()
+        .manage(quic_producer)
+        .manage(quic_consumer)
+        .manage(audio_producer)
+        .manage(audio_consumer)
         .invoke_handler(
             tauri::generate_handler![
                 invocations::stream::input_stream,

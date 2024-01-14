@@ -126,3 +126,17 @@ impl PacketTypeTrait for DebugPacket {
         return false;
     }
 }
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ConnectPacket(pub String);
+
+#[typetag::serde]
+impl PacketTypeTrait for ConnectPacket {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn broadcast(&self) -> bool {
+        return false;
+    }
+}

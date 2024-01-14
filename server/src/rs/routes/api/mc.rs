@@ -32,11 +32,10 @@ pub async fn position(
     positions: Json<Vec<common::Player>>,
     // Configuration
     config: &State<ApplicationConfigServer>,
-    // Deadqueue
+    // Deadqueue, which is how we communicate with the QUIC server without creating a new stream
     queue: &State<Arc<deadqueue::limited::Queue<QuicNetworkPacket>>>
 ) -> Status {
     let conn = db.into_inner();
-    let queue = queue.clone();
     let root_certificate = match get_root_ca(config.tls.certs_path.clone()) {
         Ok(root_certificate) => root_certificate,
         Err(e) => {
