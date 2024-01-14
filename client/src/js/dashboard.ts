@@ -24,6 +24,23 @@ export default class Dashboard {
     const settingsFlyoverPicture = document.querySelector(
       "#profile-box .avatar img.rounded-full",
     );
+
+    // Start the QUIC network stream if it isn't active
+    invoke("is_network_stream_active").then((result) => {
+      if (!result) {
+        invoke("network_stream");
+      }
+    });
+
+    invoke("is_audio_stream_active").then((result) => {
+      if (!result) {
+        // Start the audio streams if they aren't active
+        // We'll use the default audio interface if there's none in the cache
+        invoke("input_stream", { s: "default" });
+        invoke("output_stream", { s: "default" });
+      }
+    });
+
     let gamerpic = localStorage.getItem("gamerpic");
     if (gamerpic == null) {
       invoke("get_credential", { key: "gamerpic" })

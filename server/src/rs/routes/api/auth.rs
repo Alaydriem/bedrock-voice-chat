@@ -1,13 +1,15 @@
+use std::path::Path;
+
 use anyhow::anyhow;
 use common::{
     auth::xbl::ProfileResponse,
     ncryptflib as ncryptf,
-    pool::redis::RedisDb,
+    //pool::redis::RedisDb,
     pool::seaorm::AppDb,
     structs::{ config::{ LoginRequest, LoginResponse }, ncryptf_json::JsonMessage },
 };
 use rocket::{ http::Status, serde::json::Json, State };
-use rocket_db_pools::Connection as RedisConnection;
+//use rocket_db_pools::Connection as RedisConnection;
 
 use sea_orm::{ ColumnTrait, EntityTrait, QueryFilter };
 use sea_orm_rocket::Connection as SeaOrmConnection;
@@ -21,7 +23,7 @@ use rocket_db_pools::deadpool_redis::redis::AsyncCommands;
 #[post("/auth", data = "<payload>")]
 pub async fn authenticate(
     // Data is to be stored in Redis
-    _rdb: RedisConnection<RedisDb>,
+    //_rdb: RedisConnection<RedisDb>,
     // Database connection
     db: SeaOrmConnection<'_, AppDb>,
     // The player OAuth2 Code
@@ -106,6 +108,10 @@ pub async fn authenticate(
         },
         certificate: actual.certificate,
         certificate_key: actual.certificate_key,
+        certificate_ca: std::fs
+            ::read_to_string(Path::new(&format!("{}/ca.crt", config.tls.certs_path)))
+            .unwrap(),
+        quic_connect_string: config.quic_port.to_string(),
     };
 
     return JsonMessage::create(Status::Ok, Some(response), None, None);

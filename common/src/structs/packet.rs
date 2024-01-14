@@ -2,6 +2,7 @@ use anyhow::anyhow;
 use serde::{ Serialize, Deserialize };
 use dyn_clone::DynClone;
 use std::any::Any;
+use crate::Coordinate;
 
 /// A network packet to be sent via QUIC
 #[derive(Clone, Deserialize, Serialize)]
@@ -13,7 +14,7 @@ pub struct QuicNetworkPacket {
 }
 
 /// Magic header
-const QUICK_NETWORK_PACKET_HEADER: &[u8; 5] = &[251, 33, 51, 0, 27];
+pub const QUICK_NETWORK_PACKET_HEADER: &[u8; 5] = &[251, 33, 51, 0, 27];
 
 impl QuicNetworkPacket {
     /// Converts the packet into a parseable string
@@ -83,6 +84,8 @@ pub struct AudioFramePacket {
     pub length: usize,
     pub sample_rate: u32,
     pub data: Vec<u8>,
+    pub author: String,
+    pub coordinate: Option<Coordinate>,
 }
 
 #[typetag::serde]

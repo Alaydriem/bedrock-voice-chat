@@ -8,7 +8,7 @@ use common::structs::config::MicrosoftAuthCodeAndUrlResponse;
 
 use crate::invocations::get_reqwest_client;
 
-use super::{ credentials::del_credential, stream::stop_stream };
+use super::{ credentials::del_credential, stream::stop_stream, network::stop_network_stream };
 const CONFIG_ENDPOINT: &'static str = "/api/config";
 const AUTH_ENDPOINT: &'static str = "/api/auth";
 const NCRYPTF_EK_ENDPOINT: &'static str = "/ncryptf/ek";
@@ -173,6 +173,16 @@ pub(crate) async fn microsoft_auth_login(
                                                         data.clone().certificate_key
                                                     ).await;
 
+                                                    crate::invocations::credentials::set_credential(
+                                                        "ca".to_string(),
+                                                        data.clone().certificate_ca
+                                                    ).await;
+
+                                                    crate::invocations::credentials::set_credential(
+                                                        "quic_connect_string".to_string(),
+                                                        data.clone().quic_connect_string
+                                                    ).await;
+
                                                     // Only return the gamertag and gamerpic, the rest we don't want to expose to the frontend
                                                     data.keypair =
                                                         common::structs::config::Keypair {
@@ -222,6 +232,8 @@ pub async fn logout() {
     stop_stream(common::structs::config::StreamType::InputStream).await;
     stop_stream(common::structs::config::StreamType::OutputStream).await;
 
+    stop_network_stream().await;
+
     // Delete the credential store keys
     let keys = vec![
         "gamertag",
@@ -231,7 +243,10 @@ pub async fn logout() {
         "sig_pk",
         "sig_sk",
         "certificate",
-        "key"
+        "key",
+        "ca",
+        "quic_connect_string",
+        "host"
     ];
     for key in keys {
         del_credential(key.to_string()).await;

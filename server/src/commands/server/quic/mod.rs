@@ -1,24 +1,50 @@
 use crate::config::ApplicationConfig;
+use common::structs::packet::{ PacketType, QUICK_NETWORK_PACKET_HEADER };
 use tokio::task::JoinHandle;
 use s2n_quic::Server;
+use std::collections::hash_map::RandomState;
+use std::time::Duration;
 use std::{ error::Error, path::Path };
 use std::sync::Arc;
 use std::collections::HashMap;
 use async_mutex::Mutex;
 use common::{ mtlsprovider::MtlsProvider, structs::packet::QuicNetworkPacket };
-
+use moka::future::Cache;
+use async_once_cell::OnceCell;
+use anyhow::anyhow;
 /// The size our main ringbuffer can hold
-const MAIN_RINGBUFFER_CAPACITY: usize = 10000;
+const MAIN_RINGBUFFER_CAPACITY: usize = 1000000;
 
 /// The site each connection ringbuffer can hold
-const CONNECTION_RINGERBUFFER_CAPACITY: usize = 1000;
+const CONNECTION_RINGERBUFFER_CAPACITY: usize = 100000;
+
+/// Player position data
+pub(crate) static PLAYER_POSITION_CACHE: OnceCell<
+    Option<Arc<Cache<String, common::Player, RandomState>>>
+> = OnceCell::new();
 
 pub(crate) fn get_task(
     config: &ApplicationConfig,
     queue: Arc<deadqueue::limited::Queue<QuicNetworkPacket>>
 ) -> JoinHandle<()> {
     let app_config = config.clone();
+
     return tokio::task::spawn(async move {
+        // Instantiate the player position cache
+        // Player positions are valid for 5 minutes before they are evicted
+        PLAYER_POSITION_CACHE.get_or_init(async {
+            return Some(
+                Arc::new(
+                    moka::future::Cache
+                        ::builder()
+                        .time_to_live(Duration::from_secs(300))
+                        .max_capacity(100)
+                        .build()
+                )
+            );
+        }).await;
+
+        // Start the server
         _ = server(&app_config.clone(), queue.clone()).await;
     });
 }
@@ -178,7 +204,8 @@ async fn server(
                                     tokio::spawn(async move {
                                         let main_producer_mux = main_producer_mux.clone();
 
-                                        let magic_header: Vec<u8> = vec![251, 33, 51, 0, 27];
+                                        let magic_header: Vec<u8> =
+                                            QUICK_NETWORK_PACKET_HEADER.to_vec();
                                         let mut packet = Vec::<u8>::new();
 
                                         while let Ok(Some(data)) = receive_stream.receive().await {
@@ -263,11 +290,50 @@ async fn server(
                                         #[allow(irrefutable_let_patterns)]
                                         while let packet = consumer.pop().await {
                                             match packet {
-                                                Some(packet) => {
+                                                Some(mut packet) => {
                                                     let author = Some(packet.client_id.clone());
                                                     let client_id = client_id.lock().await;
 
-                                                    // If the packet ID is
+                                                    match packet.packet_type {
+                                                        PacketType::AudioFrame => {
+                                                            let data = packet.data
+                                                                .as_any()
+                                                                .downcast_ref::<common::structs::packet::AudioFramePacket>()
+                                                                .unwrap();
+
+                                                            // If we don't have coordinates on this audio frame, add them from the cache
+                                                            match data.coordinate {
+                                                                Some(_) => {}
+                                                                None =>
+                                                                    match get_cache().await {
+                                                                        Ok(cache) =>
+                                                                            match
+                                                                                cache.get(
+                                                                                    &data.author
+                                                                                ).await
+                                                                            {
+                                                                                Some(position) => {
+                                                                                    let mut data =
+                                                                                        data.to_owned();
+                                                                                    data.coordinate =
+                                                                                        Some(
+                                                                                            position.coordinates
+                                                                                        );
+                                                                                    packet.data =
+                                                                                        Box::new(
+                                                                                            data
+                                                                                        );
+                                                                                }
+                                                                                None => {}
+                                                                            }
+                                                                        Err(_) => {}
+                                                                    }
+                                                            };
+                                                        }
+                                                        _ => {}
+                                                    }
+
+                                                    // Send the packet to the player if it's a broadcast packet, or if it wasn't originated by them
                                                     if
                                                         packet.data.broadcast() ||
                                                         client_id.ne(&author)
@@ -341,11 +407,40 @@ async fn server(
             let main_producer_mux = main_producer_mux_for_deadqueue.clone();
             let queue = queue.clone();
 
-            #[allow(irrefutable_let_patterns)]
-            while let packet = queue.pop().await {
-                let mut main_producer_mux = main_producer_mux.lock_arc().await;
-                _ = main_producer_mux.push(packet).await;
-            }
+            match get_cache().await {
+                Ok(cache) => {
+                    // Iterate over each packet that we recieve
+                    #[allow(irrefutable_let_patterns)]
+                    while let packet = queue.pop().await {
+                        let pkc = packet.clone();
+
+                        // Packet specific handling
+                        match pkc.packet_type {
+                            PacketType::AudioFrame => {}
+                            PacketType::Debug => {}
+                            PacketType::Positions => {
+                                let data = pkc.data
+                                    .as_any()
+                                    .downcast_ref::<common::structs::packet::PlayerDataPacket>();
+
+                                match data {
+                                    Some(data) => {
+                                        for player in data.players.clone() {
+                                            cache.insert(player.name.clone(), player.clone()).await;
+                                        }
+                                    }
+                                    None => {}
+                                }
+                            }
+                        }
+
+                        // Push all packets into the main mux if they're received.
+                        let mut main_producer_mux = main_producer_mux.lock_arc().await;
+                        _ = main_producer_mux.push(packet).await;
+                    }
+                }
+                Err(_) => {}
+            };
         })
     );
 
@@ -353,4 +448,17 @@ async fn server(
         _ = task.await;
     }
     Ok(())
+}
+
+/// Returns the cache object without if match branching nonsense
+async fn get_cache() -> Result<Arc<Cache<String, common::Player>>, anyhow::Error> {
+    match PLAYER_POSITION_CACHE.get() {
+        Some(cache) =>
+            match cache {
+                Some(cache) => Ok(cache.clone()),
+                None => Err(anyhow!("Cache not found.")),
+            }
+
+        None => Err(anyhow!("Cache not found")),
+    }
 }

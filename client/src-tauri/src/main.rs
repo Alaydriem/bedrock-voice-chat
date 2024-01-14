@@ -75,16 +75,16 @@ async fn main() {
     }).await;
 
     // Create a async ringbuffer for handling QUIC network connections
-    let ring = async_ringbuf::AsyncHeapRb::<QuicNetworkPacket>::new(10000);
-    let (producer, consumer) = ring.split();
-    let quic_producer: QuicNetworkPacketProducer = Arc::new(Mutex::new(producer));
-    let quic_consumer: QuicNetworkPacketConsumer = Arc::new(Mutex::new(consumer));
+    let ring = async_ringbuf::AsyncHeapRb::<QuicNetworkPacket>::new(1000000);
+    let (qp, qc) = ring.split();
+    let quic_producer: QuicNetworkPacketProducer = Arc::new(Mutex::new(qp));
+    let quic_consumer: QuicNetworkPacketConsumer = Arc::new(Mutex::new(qc));
 
     // The network consumer, sends audio packets to the audio producer, which is then consumed by the underlying stream
-    let ring = async_ringbuf::AsyncHeapRb::<AudioFramePacket>::new(10000);
-    let (producer, consumer) = ring.split();
-    let audio_producer: AudioFramePacketProducer = Arc::new(Mutex::new(producer));
-    let audio_consumer: AudioFramePacketConsumer = Arc::new(Mutex::new(consumer));
+    let ring = async_ringbuf::AsyncHeapRb::<AudioFramePacket>::new(1000000);
+    let (ap, ac) = ring.split();
+    let audio_producer: AudioFramePacketProducer = Arc::new(Mutex::new(ap));
+    let audio_consumer: AudioFramePacketConsumer = Arc::new(Mutex::new(ac));
 
     let _tauri = tauri::Builder
         ::default()
@@ -94,18 +94,29 @@ async fn main() {
         .manage(audio_consumer)
         .invoke_handler(
             tauri::generate_handler![
-                invocations::stream::input_stream,
-                invocations::stream::output_stream,
-                invocations::stream::stop_stream,
-                invocations::stream::get_devices,
+                // Authentication
                 invocations::login::check_api_status,
                 invocations::login::microsoft_auth,
                 invocations::login::microsoft_auth_listener,
                 invocations::login::microsoft_auth_login,
                 invocations::login::logout,
+
+                // Credential Management
                 invocations::credentials::get_credential,
                 invocations::credentials::set_credential,
-                invocations::credentials::del_credential
+                invocations::credentials::del_credential,
+
+                // Quic
+                invocations::network::stop_network_stream,
+                invocations::network::network_stream,
+                invocations::network::is_network_stream_active,
+
+                // Audio
+                invocations::stream::input_stream,
+                invocations::stream::output_stream,
+                invocations::stream::stop_stream,
+                invocations::stream::get_devices,
+                invocations::stream::is_audio_stream_active
             ]
         )
         .run(tauri::generate_context!())

@@ -3,13 +3,11 @@ use std::io::Read;
 use std::net::TcpStream;
 
 use anyhow::anyhow;
-use common::ncryptflib::rocket::DateTime;
 use cpal::traits::{ DeviceTrait, HostTrait, StreamTrait };
 use cpal::SampleRate;
 use cpal::StreamConfig;
 use serde::{ Deserialize, Serialize };
 use audio_gate::NoiseGate;
-use common::ncryptflib::rocket::Utc;
 
 const BUFFER_SIZE: u32 = 960;
 #[derive(Debug, Deserialize, Serialize)]
@@ -18,7 +16,6 @@ pub struct AudioFrame {
     pub sample_rate: u32,
     pub data: Vec<u8>,
 }
-use common::ncryptflib as ncryptf;
 
 #[tokio::main]
 async fn main() {
@@ -26,20 +23,16 @@ async fn main() {
     let input_device = host.default_input_device().unwrap();
     let output_device = host.default_output_device().unwrap();
 
-    let kp = ncryptf::Keypair::new();
-    let sk = ncryptf::Signature::new();
-    let kp2 = kp.clone();
-    let sk2 = sk.clone();
     let mut tasks = Vec::new();
     tasks.push(
         tokio::spawn(async move {
-            _ = stream_input(&input_device, kp.clone(), sk.clone()).await;
+            _ = stream_input(&input_device).await;
         })
     );
 
     tasks.push(
         tokio::spawn(async move {
-            _ = stream_output(&output_device, kp2.clone(), sk2.clone()).await;
+            _ = stream_output(&output_device).await;
         })
     );
 
@@ -48,24 +41,16 @@ async fn main() {
     }
 }
 
-pub(crate) async fn stream_output(
-    device: &cpal::Device,
-    kp: common::ncryptflib::Keypair,
-    sk: common::ncryptflib::Keypair
-) -> Result<(), anyhow::Error> {
+pub(crate) async fn stream_output(device: &cpal::Device) -> Result<(), anyhow::Error> {
     let config: cpal::StreamConfig = StreamConfig {
         channels: 2,
         sample_rate: SampleRate(48000),
         buffer_size: cpal::BufferSize::Fixed(BUFFER_SIZE),
     };
 
-    let mut decoder = opus::Decoder
-        ::new(config.clone().sample_rate.0.into(), opus::Channels::Mono)
-        .unwrap();
-
     let nsstream = std::net::TcpListener::bind("0.0.0.0:8444").unwrap();
     let c = config;
-    let latency_frames = (250.0 / 1_000.0) * (c.sample_rate.0 as f32);
+    let latency_frames = (50.0 / 1_000.0) * (c.sample_rate.0 as f32);
     let latency_samples = (latency_frames as usize) * (c.channels as usize);
     let ring = ringbuf::HeapRb::<f32>::new(latency_samples * 2);
     let (mut producer, mut consumer) = ring.split();
@@ -107,13 +92,13 @@ pub(crate) async fn stream_output(
 
     stream.play().unwrap();
 
+    let mut decoder = opus::Decoder::new(48000, opus::Channels::Mono).unwrap();
     for s in nsstream.incoming() {
         match s {
             Ok(mut stream) => {
                 let mut size_buffer = [0u8; 8];
                 match stream.peek(&mut size_buffer) {
                     Ok(_) => {
-                        let now = std::time::Instant::now();
                         let packet_len = usize::from_be_bytes(
                             size_buffer[0..8].try_into().unwrap()
                         );
@@ -121,7 +106,10 @@ pub(crate) async fn stream_output(
                         let mut buffer = vec![0; packet_len + 8];
                         stream.read(&mut buffer).unwrap();
 
-                        let data = std::str::from_utf8(&buffer[8..buffer.len()]).unwrap();
+                        let decompressed = zstd::decode_all(&buffer[8..buffer.len()]).unwrap();
+                        let data = std::str
+                            ::from_utf8(&decompressed[0..decompressed.len()])
+                            .unwrap();
 
                         match ron::from_str::<AudioFrame>(data) {
                             Ok(frame) => {
@@ -138,10 +126,6 @@ pub(crate) async fn stream_output(
 
                                 out.truncate(out_len);
 
-                                println!(
-                                    "Per Packet Decryption Time: {}",
-                                    now.elapsed().as_micros()
-                                );
                                 if out.len() > 0 {
                                     for sample in &out {
                                         producer.push(sample.to_owned()).unwrap_or({});
@@ -164,24 +148,13 @@ pub(crate) async fn stream_output(
     Ok(())
 }
 
-pub(crate) async fn stream_input(
-    device: &cpal::Device,
-    kp: common::ncryptflib::Keypair,
-    sk: common::ncryptflib::Keypair
-) -> Result<(), anyhow::Error> {
+pub(crate) async fn stream_input(device: &cpal::Device) -> Result<(), anyhow::Error> {
     // Input should be a mono channel
     let config: cpal::StreamConfig = StreamConfig {
         channels: 2,
         sample_rate: SampleRate(48000),
         buffer_size: cpal::BufferSize::Fixed(BUFFER_SIZE),
     };
-
-    let mut encoder = opus::Encoder
-        ::new(config.sample_rate.0.into(), opus::Channels::Mono, opus::Application::LowDelay)
-        .unwrap();
-
-    // Noise Gate Thresholds
-    let mut gate = NoiseGate::new(-36.0, -54.0, 48000.0, 2, 150.0, 25.0, 150.0);
 
     println!("{}", device.name().unwrap());
 
@@ -195,6 +168,9 @@ pub(crate) async fn stream_input(
         // so this should never fail
         producer.push(0.0).unwrap();
     }
+
+    // Noise Gate Thresholds
+    let mut gate = NoiseGate::new(-36.0, -54.0, 48000.0, 2, 150.0, 25.0, 150.0);
 
     let stream = match
         device.build_input_stream(
@@ -218,6 +194,9 @@ pub(crate) async fn stream_input(
     stream.play().unwrap();
 
     let mut data_stream = Vec::<f32>::new();
+    let mut encoder = opus::Encoder
+        ::new(config.sample_rate.0.into(), opus::Channels::Mono, opus::Application::LowDelay)
+        .unwrap();
     #[allow(irrefutable_let_patterns)]
     while let sample = consumer.pop() {
         if sample.is_none() {
@@ -226,7 +205,6 @@ pub(crate) async fn stream_input(
         data_stream.push(sample.unwrap());
 
         if data_stream.len() == (BUFFER_SIZE as usize) {
-            let now = std::time::Instant::now();
             let dsc = data_stream.clone();
             data_stream = Vec::<f32>::new();
 
@@ -252,10 +230,10 @@ pub(crate) async fn stream_input(
             let raw = ron::to_string(&af).unwrap();
             let d = raw.as_bytes();
 
-            let mut len = d.to_vec().len().to_be_bytes().to_vec();
-            len.extend_from_slice(&d.to_vec());
+            let compressed = zstd::encode_all(&d[0..d.len()], 9).unwrap();
+            let mut len = compressed.len().to_be_bytes().to_vec();
+            len.extend_from_slice(&compressed);
 
-            println!("Per Packet Encryption Time: {}", now.elapsed().as_micros());
             let mut nsstream = TcpStream::connect("127.0.0.1:8444").unwrap();
             nsstream.write(&len).unwrap();
             nsstream.flush().unwrap();

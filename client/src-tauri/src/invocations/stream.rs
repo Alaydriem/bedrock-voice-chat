@@ -1,7 +1,8 @@
-use std::{ thread, time::Duration, collections::HashMap, sync::Arc };
+use std::{ collections::HashMap, sync::Arc, time::Duration };
 
 use cpal::{ traits::{ HostTrait, DeviceTrait, StreamTrait }, StreamConfig };
 use moka::future::Cache;
+use opus::Decoder;
 use rand::distributions::{ Alphanumeric, DistString };
 use anyhow::anyhow;
 use common::structs::{
@@ -74,202 +75,57 @@ pub(crate) async fn input_stream(
 ) -> Result<bool, bool> {
     let quic_producer = quic_producer.inner().clone();
 
-    // Create a new job for the thread worker to execute in
-    let task: tokio::task::JoinHandle<()> = tokio::task::spawn(async move {
-        let gamertag = match super::credentials::get_credential("gamertag".into()).await {
-            Ok(gt) => gt,
-            Err(_) => {
-                return;
-            }
-        };
+    tokio::spawn(async move {
+        loop {
+            let producer = quic_producer.clone();
+            let packet = QuicNetworkPacket {
+                client_id: vec![0; 1],
+                packet_type: common::structs::packet::PacketType::Debug,
+                author: "Alaydriem".to_string(),
+                data: Box::new(common::structs::packet::DebugPacket("Alaydriem_t".to_string())),
+            };
 
-        let quic_producer = quic_producer.clone();
-        // Create a new task ID and retrieve the cache
-        let (id, cache) = match setup_task_cache(INPUT_STREAM).await {
-            Ok((id, cache)) => (id, cache),
-            Err(e) => {
-                tracing::error!("{}", e.to_string());
-                // If the cache isn't found, then we have no way to manage state and should self terminate
-                return;
-            }
-        };
-
-        let client_id: Vec<u8> = (0..32).map(|_| { rand::random::<u8>() }).collect();
-        let hosts = match get_cpal_hosts() {
-            Ok(hosts) => hosts,
-            Err(_) => {
-                return;
-            }
-        };
-
-        let host = hosts.get(0).unwrap();
-
-        let mut input_devices = match host.input_devices() {
-            Ok(devices) => devices,
-            Err(_) => {
-                return;
-            }
-        };
-
-        let device = match
-            input_devices.find(|x|
-                x
-                    .name()
-                    .map(|y| y == s)
-                    .unwrap_or(false)
-            )
-        {
-            Some(device) => device,
-            None => {
-                return;
-            }
-        };
-
-        let config: cpal::StreamConfig = StreamConfig {
-            channels: 2,
-            sample_rate: SampleRate(48000),
-            buffer_size: cpal::BufferSize::Fixed(BUFFER_SIZE),
-        };
-
-        let mut encoder = opus::Encoder
-            ::new(config.sample_rate.0.into(), opus::Channels::Mono, opus::Application::LowDelay)
-            .unwrap();
-
-        // @todo!
-        // Noise gate should be configurable on the fly via some cached value
-        // So we don't need to instantiate it every time
-        // And so we can update it without reloading the input stream
-        let mut gate = NoiseGate::new(-36.0, -54.0, 48000.0, 2, 150.0, 25.0, 150.0);
-
-        // We need a ring buffer to collect the audio input, then process it into opus frames
-        let latency_frames = (250.0 / 1_000.0) * (config.sample_rate.0 as f32);
-        let latency_samples = (latency_frames as usize) * (config.channels as usize);
-        let ring = ringbuf::HeapRb::<f32>::new(latency_samples * 2);
-        let (mut producer, mut consumer) = ring.split();
-
-        for _ in 0..latency_samples {
-            // The ring buffer has twice as much space as necessary to add latency here,
-            // so this should never fail
-            producer.push(0.0).unwrap();
-        }
-
-        // Start the input stream
-        match
-            device.build_input_stream(
-                &config,
-                move |data: &[f32], _: &cpal::InputCallbackInfo| {
-                    // @todo!
-                    // Update our noise gate from cached values if necessary
-
-                    // Apply our noise gate
-                    let gated_data = gate.process_frame(&data);
-
-                    // Apply any other filters to our audio before recording it
-
-                    // @todo!() whisper implementation
-
-                    // Send the samples to the buffer to implement a frame
-                    for &sample in gated_data.as_slice() {
-                        producer.push(sample).unwrap_or({});
-                    }
-                },
-                move |_err| {
-                    return;
-                },
-                None // None=blocking, Some(Duration)=timeout
-            )
-        {
-            Ok(stream) => stream.play().unwrap(),
-            Err(e) => {
-                return;
-            }
-        }
-
-        let mut data_stream = Vec::<f32>::new();
-        #[allow(irrefutable_let_patterns)]
-        while let sample = consumer.pop() {
-            if super::should_self_terminate(&id, cache, INPUT_STREAM).await {
-                return;
-            }
-
-            // If the audio is muted, don't bother sending it over the network
-            // if is_muted() { continue; }
-
-            if sample.is_none() {
-                continue;
-            }
-
-            data_stream.push(sample.unwrap());
-
-            if data_stream.len() == (BUFFER_SIZE as usize) {
-                let dsc = data_stream.clone();
-                data_stream = Vec::<f32>::new();
-
-                let s = match encoder.encode_vec_float(&dsc, dsc.len() * 2) {
-                    Ok(s) => s,
-                    Err(_e) => { Vec::<u8>::with_capacity(0) }
-                };
-
-                if s.len() == 0 {
-                    continue;
-                }
-
-                let packet = QuicNetworkPacket {
-                    packet_type: PacketType::AudioFrame,
-                    author: gamertag.clone(),
-                    client_id: client_id.clone(),
-                    data: Box::new(AudioFramePacket {
-                        length: s.len(),
-                        sample_rate: config.sample_rate.0,
-                        data: s.clone(),
-                        // @todo!()
-                        // origin: Coordinate (get from cache)
-                        // author needs to be doubly encoded in the Packet so we can setup separate
-                        // opus decoders
-                    }),
-                };
-
-                let mut quic_producer = quic_producer.lock_arc().await;
-                _ = quic_producer.push(packet).await;
-            }
+            let mut producer = producer.lock_arc().await;
+            _ = producer.push(packet).await;
+            tokio::time::sleep(Duration::from_millis(16)).await;
         }
     });
-
-    _ = task.await;
-
-    Ok(true)
+    return Ok(true);
 }
 
 #[tauri::command(async)]
 pub(crate) async fn output_stream<'r>(
     s: String,
-    consumer: State<'r, AudioFramePacketConsumer>
+    audio_consumer: State<'r, AudioFramePacketConsumer>
 ) -> Result<bool, bool> {
-    // Create a new job for the thread worker to execute in
-    let task = tokio::task::spawn(async move {
-        let (id, cache) = match setup_task_cache(OUTPUT_STREAM).await {
-            Ok((id, cache)) => (id, cache),
-            Err(e) => {
-                tracing::error!("{}", e.to_string());
-                return;
-            }
-        };
-
-        loop {
-            //
-            if super::should_self_terminate(&id, cache, INPUT_STREAM).await {
-                return;
-            }
-
-            // Check something external to determine if this thread should be terminated
-            thread::sleep(Duration::from_millis(1000));
-            println!("Input stream is doing work {}", s);
-        }
-    });
-
-    _ = task.await;
+    let audio_consumer = audio_consumer.inner().clone();
 
     Ok(true)
+}
+
+/// Returns true if the network stream is active by measurement of a cache key being present
+#[tauri::command(async)]
+pub(crate) async fn is_audio_stream_active() -> bool {
+    match STREAM_STATE_CACHE.get() {
+        Some(cache) =>
+            match cache {
+                Some(cache) =>
+                    match cache.get(INPUT_STREAM).await {
+                        Some(_) => {
+                            return true;
+                        }
+                        None => {
+                            return false;
+                        }
+                    }
+                None => {
+                    return false;
+                }
+            }
+        None => {
+            return false;
+        }
+    }
 }
 
 #[tauri::command(async)]

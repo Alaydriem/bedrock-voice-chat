@@ -56,10 +56,19 @@ export default class Login {
                   code: code,
                 })
                   .then((data) => data as LoginResponse)
-                  .then((data) => {
-                    console.log(data);
-                    // We can pull data from keychain as necessary
-                    window.location.href = "dashboard.html";
+                  .then((_data) => {
+                    // Set the host credentials
+                    let url = new URL("https://" + inpt.value);
+                    invoke("set_credential", {
+                      key: "host",
+                      value: url.hostname,
+                    }).then(() => {
+                      // Start the network stream
+                      invoke("network_stream");
+
+                      // Redirect to the dashboard
+                      window.location.href = "dashboard.html";
+                    });
                   })
                   .catch((error) => {
                     console.log(error);

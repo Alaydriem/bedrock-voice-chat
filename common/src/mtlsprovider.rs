@@ -73,6 +73,21 @@ impl MtlsProvider {
             my_private_key: rustls::PrivateKey(private_key),
         })
     }
+
+    pub async fn new_from_string(
+        ca_cert_pem: String,
+        cert_pem: String,
+        key_pem: String
+    ) -> Result<Self, rustls::Error> {
+        let root_store = into_root_store_bare(ca_cert_pem).await?;
+        let cert_chain = into_certificate_bare(cert_pem).await?;
+        let private_key = into_private_key_bare(key_pem).await?;
+        Ok(MtlsProvider {
+            root_store,
+            my_cert_chain: cert_chain.into_iter().map(rustls::Certificate).collect(),
+            my_private_key: rustls::PrivateKey(private_key),
+        })
+    }
 }
 
 /// Converts a path into a Certificate vec
@@ -92,9 +107,26 @@ async fn into_certificate(path: &Path) -> Result<Vec<Vec<u8>>, rustls::Error> {
     Ok(certs)
 }
 
+async fn into_certificate_bare(data: String) -> Result<Vec<Vec<u8>>, rustls::Error> {
+    let buf = data.as_bytes().to_vec();
+    let mut cursor = Cursor::new(buf);
+    let certs = rustls_pemfile
+        ::certs(&mut cursor)
+        .map(|certs| certs.into_iter().collect())
+        .map_err(|_| rustls::Error::General("Could not read certificate".to_string()))?;
+    Ok(certs)
+}
+
 /// Converts a path into a RootCertStore
 async fn into_root_store(path: &Path) -> Result<RootCertStore, rustls::Error> {
     let ca_certs = into_certificate(path).await?;
+    let mut cert_store = RootCertStore::empty();
+    cert_store.add_parsable_certificates(ca_certs.as_slice());
+    Ok(cert_store)
+}
+
+async fn into_root_store_bare(data: String) -> Result<RootCertStore, rustls::Error> {
+    let ca_certs = into_certificate_bare(data).await?;
     let mut cert_store = RootCertStore::empty();
     cert_store.add_parsable_certificates(ca_certs.as_slice());
     Ok(cert_store)
@@ -109,6 +141,30 @@ async fn into_private_key(path: &Path) -> Result<Vec<u8>, rustls::Error> {
     f
         .read_to_end(&mut buf).await
         .map_err(|e| rustls::Error::General(format!("Failed to read file: {}", e)))?;
+    let mut cursor = Cursor::new(buf);
+
+    cursor.set_position(0);
+
+    match rustls_pemfile::pkcs8_private_keys(&mut cursor) {
+        Ok(keys) if keys.is_empty() => {}
+        Ok(mut keys) if keys.len() == 1 => {
+            return Ok(rustls::PrivateKey(keys.pop().unwrap()).0);
+        }
+        Ok(keys) => {
+            return Err(
+                rustls::Error::General(
+                    format!("Unexpected number of keys: {} (only 1 supported)", keys.len())
+                )
+            );
+        }
+        // try the next parser
+        Err(_) => {}
+    }
+    Err(rustls::Error::General("could not load any valid private keys".to_string()))
+}
+
+async fn into_private_key_bare(data: String) -> Result<Vec<u8>, rustls::Error> {
+    let buf = data.as_bytes().to_vec();
     let mut cursor = Cursor::new(buf);
 
     cursor.set_position(0);

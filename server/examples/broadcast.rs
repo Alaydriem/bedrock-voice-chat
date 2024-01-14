@@ -1,6 +1,9 @@
 use std::{ error::Error, net::SocketAddr };
 use bytes::Bytes;
-use common::{ mtlsprovider::MtlsProvider, structs::packet::{ QuicNetworkPacket, PacketType } };
+use common::{
+    mtlsprovider::MtlsProvider,
+    structs::packet::{ QuicNetworkPacket, PacketType, QUICK_NETWORK_PACKET_HEADER },
+};
 use s2n_quic::{ client::Connect, Client };
 use std::path::Path;
 
@@ -48,7 +51,7 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
         tokio::spawn(async move {
             // Inbound packets may be split across multiple receive() calls, so we need to rejoin them
             // Packets may arrive in a different order we sent them, but the packet itself should arrive serially in receive() calls
-            let magic_header: Vec<u8> = vec![251, 33, 51, 0, 27];
+            let magic_header: Vec<u8> = QUICK_NETWORK_PACKET_HEADER.to_vec();
             let mut packet = Vec::<u8>::new();
 
             loop {
@@ -57,6 +60,7 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
                     Ok((count, is_open)) => {
                         // If the connection closes, then we can terminate the reader loop
                         if !is_open {
+                            tracing::info!("Stream closed.");
                             break;
                         }
 
@@ -99,7 +103,9 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
                                 Ok(packet) => {
                                     println!("Got data packet in loop");
                                     match packet.packet_type {
-                                        PacketType::AudioFrame => {}
+                                        PacketType::AudioFrame => {
+                                            println!("Got Audio Frame");
+                                        }
                                         PacketType::Positions => {
                                             let data = packet.data
                                                 .as_any()
@@ -112,7 +118,7 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
                                                 .as_any()
                                                 .downcast_ref::<common::structs::packet::DebugPacket>()
                                                 .unwrap();
-                                            println!("{:?}", data);
+                                            dbg!("{:?}", data);
                                         }
                                     }
                                 }
@@ -161,7 +167,7 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
                     }
                 }
 
-                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
             }
 
             println!("Sending loop died");

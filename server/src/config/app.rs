@@ -11,6 +11,7 @@ pub struct ApplicationConfig {
     pub redis: ApplicationConfigRedis,
     pub server: ApplicationConfigServer,
     pub log: ApplicationConfigLogger,
+    pub voice: ApplicationConfigVoice,
 }
 
 /// Database configuration for MySQL/MariaDB
@@ -48,6 +49,17 @@ pub struct ApplicationConfigServer {
     pub public_addr: String,
     pub tls: ApplicationConfigServerTLS,
     pub minecraft: ApplicationConfigMinecraft,
+}
+
+/// Voice specific settings
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ApplicationConfigVoice {
+    #[serde(default)]
+    pub broadcast_range: f32,
+    #[serde(default)]
+    pub crouch_distance_multiplier: f32,
+    #[serde(default)]
+    pub whisper_distance_multiplier: f32,
 }
 
 /// TLS Configuration for server
@@ -108,6 +120,11 @@ impl Default for ApplicationConfig {
                     client_id: String::from(""),
                     client_secret: String::from(""),
                 },
+            },
+            voice: ApplicationConfigVoice {
+                broadcast_range: 32.0,
+                crouch_distance_multiplier: 1.0,
+                whisper_distance_multiplier: 0.5,
             },
             log: ApplicationConfigLogger {
                 level: String::from("info"),
