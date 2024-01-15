@@ -1,19 +1,26 @@
-use std::{ collections::HashMap, sync::Arc, time::Duration };
+use std::{
+    collections::HashMap,
+    sync::Arc,
+    time::Duration,
+    mem::MaybeUninit,
+    net::TcpStream,
+    io::{ Write, Read },
+};
 
-use cpal::{ traits::{ HostTrait, DeviceTrait, StreamTrait }, StreamConfig };
+use cpal::{ traits::{ HostTrait, DeviceTrait, StreamTrait }, StreamConfig, Device };
 use moka::future::Cache;
-use opus::Decoder;
+use opus::{ Encoder, Decoder };
 use rand::distributions::{ Alphanumeric, DistString };
 use anyhow::anyhow;
 use common::structs::{
     config::StreamType,
     audio::{ AudioDevice, AudioDeviceType },
-    packet::AudioFramePacket,
-    packet::PacketType,
-    packet::QuicNetworkPacket,
+    packet::{ AudioFramePacket, PacketType, QuicNetworkPacket },
 };
+
 use async_mutex::Mutex;
 use async_once_cell::OnceCell;
+use ringbuf::{ SharedRb, Producer };
 use tauri::State;
 
 use cpal::SampleRate;
@@ -70,32 +77,131 @@ const OUTPUT_STREAM: &str = "output_stream";
 /// Then sends it to the QuicNetwork handler to be sent across the network.
 #[tauri::command(async)]
 pub(crate) async fn input_stream(
-    s: String,
+    device: String,
     quic_producer: State<'_, QuicNetworkPacketProducer>
 ) -> Result<bool, bool> {
     let quic_producer = quic_producer.inner().clone();
 
+    let device = match get_device(device, AudioDeviceType::InputDevice, None).await {
+        Ok(device) => device,
+        Err(e) => {
+            tracing::error!("{}", e.to_string());
+            return Err(false);
+        }
+    };
+
     tokio::spawn(async move {
-        loop {
-            let producer = quic_producer.clone();
-            let packet = QuicNetworkPacket {
-                client_id: vec![0; 1],
-                packet_type: common::structs::packet::PacketType::Debug,
-                author: "Alaydriem".to_string(),
-                data: Box::new(common::structs::packet::DebugPacket("Alaydriem_t".to_string())),
+        _ = stream_input(&device).await;
+    });
+
+    return Ok(true);
+}
+pub(crate) async fn stream_input(device: &cpal::Device) -> Result<(), anyhow::Error> {
+    // Input should be a mono channel
+    let config: cpal::StreamConfig = StreamConfig {
+        channels: 2,
+        sample_rate: SampleRate(48000),
+        buffer_size: cpal::BufferSize::Fixed(BUFFER_SIZE),
+    };
+
+    println!("{}", device.name().unwrap());
+
+    let latency_frames = (250.0 / 1_000.0) * (config.sample_rate.0 as f32);
+    let latency_samples = (latency_frames as usize) * (config.channels as usize);
+    let ring = ringbuf::HeapRb::<f32>::new(latency_samples * 2);
+    let (mut producer, mut consumer) = ring.split();
+
+    for _ in 0..latency_samples {
+        // The ring buffer has twice as much space as necessary to add latency here,
+        // so this should never fail
+        producer.push(0.0).unwrap();
+    }
+
+    // Noise Gate Thresholds
+    let mut gate = NoiseGate::new(-36.0, -54.0, 48000.0, 2, 150.0, 25.0, 150.0);
+
+    let stream = match
+        device.build_input_stream(
+            &config,
+            move |data: &[f32], _: &cpal::InputCallbackInfo| {
+                //println!("{}", data.len());
+                let gated_data = gate.process_frame(&data);
+                for &sample in gated_data.as_slice() {
+                    producer.push(sample).unwrap_or({});
+                }
+            },
+            move |_| {},
+            None // None=blocking, Some(Duration)=timeout
+        )
+    {
+        Ok(stream) => stream,
+        Err(e) => {
+            return Err(anyhow!("{}", e.to_string()));
+        }
+    };
+
+    stream.play().unwrap();
+
+    let mut data_stream = Vec::<f32>::new();
+    let mut encoder = opus::Encoder
+        ::new(config.sample_rate.0.into(), opus::Channels::Mono, opus::Application::LowDelay)
+        .unwrap();
+
+    #[allow(irrefutable_let_patterns)]
+    while let sample = consumer.pop() {
+        if sample.is_none() {
+            continue;
+        }
+        data_stream.push(sample.unwrap());
+
+        if data_stream.len() == (BUFFER_SIZE as usize) {
+            let dsc = data_stream.clone();
+            data_stream = Vec::<f32>::new();
+
+            let s = match encoder.encode_vec_float(&dsc, dsc.len() * 2) {
+                Ok(s) => s,
+                Err(e) => {
+                    println!("{}", e.to_string());
+                    Vec::<u8>::with_capacity(0)
+                }
             };
 
-            let mut producer = producer.lock_arc().await;
-            _ = producer.push(packet).await;
-            tokio::time::sleep(Duration::from_millis(16)).await;
+            if s.len() == 0 {
+                continue;
+            }
+
+            // We need to syncronously move data _out_ of this without using a tcp socket
+            let packet = QuicNetworkPacket {
+                client_id: vec![0; 0],
+                author: "".to_string(),
+                packet_type: PacketType::AudioFrame,
+                data: Box::new(AudioFramePacket {
+                    length: s.len(),
+                    data: s.clone(),
+                    sample_rate: config.sample_rate.0,
+                    author: "".to_string(),
+                    coordinate: None,
+                }),
+            };
+
+            let raw = ron::to_string(&packet).unwrap();
+            let d = raw.as_bytes();
+
+            let mut len = d.to_vec().len().to_be_bytes().to_vec();
+            len.extend_from_slice(&d.to_vec());
+
+            let mut nsstream = TcpStream::connect("127.0.0.1:8444").unwrap();
+            nsstream.write(&len).unwrap();
+            nsstream.flush().unwrap();
         }
-    });
-    return Ok(true);
+    }
+
+    return Ok(());
 }
 
 #[tauri::command(async)]
 pub(crate) async fn output_stream<'r>(
-    s: String,
+    device: String,
     audio_consumer: State<'r, AudioFramePacketConsumer>
 ) -> Result<bool, bool> {
     let audio_consumer = audio_consumer.inner().clone();
@@ -296,4 +402,52 @@ pub(crate) async fn get_devices() -> Result<HashMap<String, Vec<AudioDevice>>, b
     }
 
     return Ok(devices);
+}
+
+/// Returns the device by name, type, and by host preference, if it exists.
+async fn get_device(
+    device: String,
+    st: AudioDeviceType,
+    prefered_host: Option<String>
+) -> Result<Device, anyhow::Error> {
+    let hosts = match get_cpal_hosts() {
+        Ok(hosts) => hosts,
+        Err(e) => {
+            return Err(anyhow!(e.to_string()));
+        }
+    };
+
+    let host = hosts.get(0).unwrap();
+
+    let devices_list = match st {
+        AudioDeviceType::InputDevice => host.input_devices(),
+        AudioDeviceType::OutputDevice => host.output_devices(),
+    };
+
+    let mut devices = match devices_list {
+        Ok(devices) => devices,
+        Err(e) => {
+            return Err(anyhow!(e.to_string()));
+        }
+    };
+
+    let device = match device.as_str() {
+        "default" => host.default_input_device().unwrap(),
+        _ =>
+            match
+                devices.find(|x|
+                    x
+                        .name()
+                        .map(|y| y == device)
+                        .unwrap_or(false)
+                )
+            {
+                Some(device) => device,
+                None => {
+                    return Err(anyhow!("Device {} was not found", device));
+                }
+            }
+    };
+
+    return Ok(device);
 }

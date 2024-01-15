@@ -36,8 +36,8 @@ export default class Dashboard {
       if (!result) {
         // Start the audio streams if they aren't active
         // We'll use the default audio interface if there's none in the cache
-        invoke("input_stream", { s: "default" });
-        invoke("output_stream", { s: "default" });
+        invoke("input_stream", { device: "default" });
+        invoke("output_stream", { device: "default" });
       }
     });
 

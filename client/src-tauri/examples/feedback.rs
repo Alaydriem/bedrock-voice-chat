@@ -77,7 +77,7 @@ pub(crate) async fn stream_output(device: &cpal::Device) -> Result<(), anyhow::E
                     };
                 }
             },
-            move |err| {
+            move |_| {
                 // react to errors here.
             },
             None // None=blocking, Some(Duration)=timeout
@@ -176,12 +176,13 @@ pub(crate) async fn stream_input(device: &cpal::Device) -> Result<(), anyhow::Er
         device.build_input_stream(
             &config,
             move |data: &[f32], _: &cpal::InputCallbackInfo| {
+                println!("{}", data.len());
                 let gated_data = gate.process_frame(&data);
                 for &sample in gated_data.as_slice() {
                     producer.push(sample).unwrap_or({});
                 }
             },
-            move |err| {},
+            move |_| {},
             None // None=blocking, Some(Duration)=timeout
         )
     {

@@ -1,5 +1,6 @@
 use crate::config::ApplicationConfig;
 use common::structs::packet::{ PacketType, QUICK_NETWORK_PACKET_HEADER };
+use rocket::futures::StreamExt;
 use tokio::task::JoinHandle;
 use s2n_quic::Server;
 use std::collections::hash_map::RandomState;
@@ -16,7 +17,7 @@ use anyhow::anyhow;
 const MAIN_RINGBUFFER_CAPACITY: usize = 1000000;
 
 /// The site each connection ringbuffer can hold
-const CONNECTION_RINGERBUFFER_CAPACITY: usize = 100000;
+const CONNECTION_RINGERBUFFER_CAPACITY: usize = 1000000;
 
 /// Player position data
 pub(crate) static PLAYER_POSITION_CACHE: OnceCell<
@@ -77,7 +78,6 @@ async fn server(
         >::new(main_producer)
     );
 
-    let main_producer_mux_for_deadqueue = main_producer_mux.clone();
     let main_consumer_mux = Arc::new(
         Mutex::<
             async_ringbuf::AsyncConsumer<
@@ -94,6 +94,8 @@ async fn server(
             >
         >::new(main_consumer)
     );
+
+    let main_producer_mux_for_deadqueue = main_producer_mux.clone();
 
     let mutex_map = Arc::new(
         Mutex::new(
@@ -229,28 +231,29 @@ async fn server(
                                                 packet_length.unwrap().try_into().unwrap()
                                             );
 
+                                            // If the current packet starts with the magic header and we have enough bytes, drain it
                                             if
                                                 packet_header.eq(&magic_header) &&
-                                                packet.len() == packet_len + 13
+                                                packet.len() >= packet_len + 13
                                             {
-                                                let packet_to_process = packet.clone();
-                                                let packet_to_process = packet_to_process.get(
-                                                    13..packet.len()
-                                                );
+                                                let packet_copy = packet.clone();
+                                                let packet_to_process = packet_copy
+                                                    .get(0..packet_len + 13)
+                                                    .unwrap()
+                                                    .to_vec();
 
-                                                packet = Vec::<u8>::new();
+                                                packet = packet
+                                                    .get(packet_len + 13..packet.len())
+                                                    .unwrap()
+                                                    .to_vec();
 
-                                                if packet_to_process.is_none() {
-                                                    tracing::error!(
-                                                        "RON serialized packet data length mismatch after verifier."
-                                                    );
-                                                    continue;
-                                                }
+                                                // Strip the header and frame length
+                                                let packet_to_process = packet_to_process
+                                                    .get(13..packet_to_process.len())
+                                                    .unwrap();
 
                                                 match
-                                                    QuicNetworkPacket::from_vec(
-                                                        packet_to_process.unwrap()
-                                                    )
+                                                    QuicNetworkPacket::from_vec(&packet_to_process)
                                                 {
                                                     Ok(packet) => {
                                                         let mut client_id = client_id.lock().await;

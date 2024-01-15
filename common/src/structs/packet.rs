@@ -5,7 +5,7 @@ use std::any::Any;
 use crate::Coordinate;
 
 /// A network packet to be sent via QUIC
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct QuicNetworkPacket {
     pub packet_type: PacketType,
     pub author: String,
@@ -31,8 +31,7 @@ impl QuicNetworkPacket {
                 return Ok(header);
             }
             Err(e) => {
-                tracing::error!("{}", e.to_string());
-                return Err(anyhow!("Could not parse packet."));
+                return Err(anyhow!("Could not parse packet. {}", e.to_string()));
             }
         }
     }
@@ -46,16 +45,16 @@ impl QuicNetworkPacket {
                         return Ok(packet);
                     }
                     Err(e) => {
-                        println!("{}", e.to_string());
                         return Err(anyhow!("{}", e.to_string()));
                     }
                 }
             Err(e) => {
-                tracing::error!(
-                    "Unable to deserialize RON packet. Possible packet length issue? {}",
-                    e.to_string()
+                return Err(
+                    anyhow!(
+                        "Unable to deserialize RON packet. Possible packet length issue? {}",
+                        e.to_string()
+                    )
                 );
-                return Err(anyhow!("{}", e.to_string()));
             }
         };
     }
@@ -71,7 +70,7 @@ pub enum PacketType {
 }
 
 #[typetag::serde]
-pub trait PacketTypeTrait: Send + Sync + DynClone {
+pub trait PacketTypeTrait: Send + Sync + DynClone + std::fmt::Debug {
     fn as_any(&self) -> &dyn Any;
     fn broadcast(&self) -> bool;
 }

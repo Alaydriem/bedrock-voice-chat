@@ -158,15 +158,6 @@ async fn server() -> Result<(), Box<dyn Error>> {
                                         while let packet = consumer.pop().await {
                                             match packet {
                                                 Some(packet) => {
-                                                    let client_id = client_id.lock().await;
-                                                    match *client_id {
-                                                        Some(client_id) => {
-                                                            if client_id.eq(&packet.client_id) {
-                                                                continue;
-                                                            }
-                                                        }
-                                                        None => {}
-                                                    }
                                                     match ron::to_string(&packet) {
                                                         Ok::<String, _>(rs) => {
                                                             let reader = rs.as_bytes().to_vec();

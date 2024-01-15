@@ -4,8 +4,16 @@ use common::{
     mtlsprovider::MtlsProvider,
 };
 
+use std::{
+    collections::HashMap,
+    sync::Arc,
+    time::Duration,
+    mem::MaybeUninit,
+    net::TcpStream,
+    io::{ Write, Read },
+};
+
 use bytes::Bytes;
-use std::{ collections::HashMap, sync::Arc };
 use std::net::SocketAddr;
 use moka::future::Cache;
 use async_once_cell::OnceCell;
@@ -60,7 +68,6 @@ const SENDER: &str = "send_stream";
 
 #[tauri::command(async)]
 pub(crate) async fn network_stream(
-    consumer: State<'_, QuicNetworkPacketConsumer>,
     audio_producer: State<'_, AudioFramePacketProducer>
 ) -> Result<bool, bool> {
     // Stop any existing streams
@@ -115,139 +122,148 @@ pub(crate) async fn network_stream(
     // Self assigned consistent packet_id to identify this stream to the quic server
     let client_id: Vec<u8> = (0..32).map(|_| { rand::random::<u8>() }).collect();
 
-    let consumer = consumer.inner().clone();
     tokio::spawn(async move {
-        tracing::info!("Started send stream.");
-        let cache = cache.clone();
         let id = send_id.clone();
+        let nsstream = std::net::TcpListener::bind("127.0.0.1:8444").unwrap();
 
-        let mut consumer = consumer.clone().lock_arc().await;
+        let packet = QuicNetworkPacket {
+            client_id: client_id.clone(),
+            packet_type: common::structs::packet::PacketType::Debug,
+            author: gamertag.clone(),
+            data: Box::new(common::structs::packet::DebugPacket(gamertag.clone())),
+        };
 
-        loop {
+        match packet.to_vec() {
+            Ok(reader) => {
+                let result = send_stream.send(reader.into()).await;
+            }
+            Err(e) => {
+                println!("{}", e.to_string());
+            }
+        }
+
+        for s in nsstream.incoming() {
             if super::should_self_terminate(&id, &cache, SENDER).await {
                 break;
             }
 
-            match consumer.pop().await {
-                Some(mut packet) => {
-                    packet.client_id = client_id.clone();
-                    match packet.to_vec() {
-                        Ok(reader) => {
-                            let result = send_stream.send(reader.into()).await;
-                            if result.is_err() {
-                                break;
-                            }
+            match s {
+                Ok(mut stream) => {
+                    let mut size_buffer = [0u8; 8];
+                    match stream.peek(&mut size_buffer) {
+                        Ok(_) => {
+                            let packet_len = usize::from_be_bytes(
+                                size_buffer[0..8].try_into().unwrap()
+                            );
+                            // The buffer for ron is the packet length
+                            let mut buffer = vec![0; packet_len + 8];
+                            stream.read(&mut buffer).unwrap();
+
+                            let data = std::str::from_utf8(&buffer[8..buffer.len()]).unwrap();
+
+                            match ron::from_str::<QuicNetworkPacket>(data) {
+                                Ok(mut packet) => {
+                                    packet.client_id = client_id.clone();
+                                    packet.author = gamertag.clone();
+                                    match packet.to_vec() {
+                                        Ok(reader) => {
+                                            let result = send_stream.send(reader.into()).await;
+                                            let result = send_stream.flush().await;
+                                            if result.is_err() {
+                                                break;
+                                            }
+                                            tokio::time::sleep(Duration::from_millis(10)).await;
+                                        }
+                                        Err(e) => {
+                                            tracing::info!("{}", e.to_string());
+                                        }
+                                    }
+                                }
+                                Err(_) => {}
+                            };
                         }
-                        Err(e) => {
-                            tracing::info!("{}", e.to_string());
-                        }
+                        Err(_) => {}
                     }
                 }
-                None => {
-                    tracing::info!("Packet not got");
-                }
-            };
+                Err(_) => {}
+            }
         }
-        tracing::info!("Send stream ended.");
     });
 
     // Recv stream
     let recv_id = id.clone();
     let audio_producer = audio_producer.inner().clone();
     tokio::spawn(async move {
-        tracing::info!("Started Recv stream");
         let cache = cache.clone();
         let id = recv_id.clone();
 
         let magic_header: Vec<u8> = QUICK_NETWORK_PACKET_HEADER.to_vec();
         let mut packet = Vec::<u8>::new();
-
-        loop {
+        while let Ok(Some(data)) = receive_stream.receive().await {
             if super::should_self_terminate(&id, &cache, SENDER).await {
                 break;
             }
 
-            let mut chunks = [Bytes::new()];
-            match receive_stream.receive_vectored(&mut chunks).await {
-                Ok((count, is_open)) => {
-                    // If the connection closes, then we can terminate the reader loop
-                    if !is_open {
-                        break;
-                    }
+            packet.append(&mut data.to_vec());
 
-                    for chunk in &chunks[..count] {
-                        packet.append(&mut chunk.to_vec());
-                    }
+            let packet_header = packet.get(0..5);
 
-                    let packet_header = packet.get(0..5);
+            let packet_header = match packet_header {
+                Some(header) => header.to_vec(),
+                None => {
+                    continue;
+                }
+            };
 
-                    let packet_header = match packet_header {
-                        Some(header) => header.to_vec(),
-                        None => {
-                            continue;
+            let packet_length = packet.get(5..13);
+            if packet_length.is_none() {
+                continue;
+            }
+
+            let packet_len = usize::from_be_bytes(packet_length.unwrap().try_into().unwrap());
+
+            // If the current packet starts with the magic header and we have enough bytes, drain it
+            if packet_header.eq(&magic_header) && packet.len() >= packet_len + 13 {
+                let packet_copy = packet.clone();
+                let packet_to_process = packet_copy
+                    .get(0..packet_len + 13)
+                    .unwrap()
+                    .to_vec();
+
+                packet = packet
+                    .get(packet_len + 13..packet.len())
+                    .unwrap()
+                    .to_vec();
+
+                // Strip the header and frame length
+                let packet_to_process = packet_to_process.get(13..packet_to_process.len()).unwrap();
+
+                match QuicNetworkPacket::from_vec(&packet_to_process) {
+                    Ok(packet) => {
+                        match packet.packet_type {
+                            // Audio frames should be pushed into the audio_producer mux
+                            // To be handled by the output stream
+                            PacketType::AudioFrame => {
+                                let data = packet.data
+                                    .as_any()
+                                    .downcast_ref::<common::structs::packet::AudioFramePacket>()
+                                    .unwrap();
+
+                                let audio_producer = audio_producer.clone();
+                                let mut audio_producer = audio_producer.lock_arc().await;
+                                _ = audio_producer.push(data.to_owned()).await;
+                            }
+                            PacketType::Positions => {}
+                            PacketType::Debug => {}
                         }
-                    };
-
-                    let packet_length = packet.get(5..13);
-                    if packet_length.is_none() {
+                    }
+                    Err(e) => {
+                        tracing::error!(
+                            "Unable to deserialize RON packet. Possible packet length issue? {}",
+                            e.to_string()
+                        );
                         continue;
                     }
-
-                    let packet_len = usize::from_be_bytes(
-                        packet_length.unwrap().try_into().unwrap()
-                    );
-
-                    if packet_header.eq(&magic_header) && packet.len() == packet_len + 13 {
-                        let packet_to_process = packet.clone();
-                        let packet_to_process = packet_to_process.get(13..packet.len());
-
-                        packet = Vec::<u8>::new();
-
-                        if packet_to_process.is_none() {
-                            tracing::error!(
-                                "RON serialized packet data length mismatch after verifier."
-                            );
-                            continue;
-                        }
-
-                        // Decide how to handle each packet from the network
-                        match QuicNetworkPacket::from_vec(packet_to_process.unwrap()) {
-                            Ok(packet) => {
-                                match packet.packet_type {
-                                    // Audio frames should be pushed into the audio_producer mux
-                                    // To be handled by the output stream
-                                    PacketType::AudioFrame => {
-                                        tracing::info!("Received audio frame packet");
-                                        let data = packet.data
-                                            .as_any()
-                                            .downcast_ref::<common::structs::packet::AudioFramePacket>()
-                                            .unwrap();
-
-                                        let audio_producer = audio_producer.clone();
-                                        let mut audio_producer = audio_producer.lock_arc().await;
-                                        _ = audio_producer.push(data.to_owned()).await;
-                                    }
-                                    PacketType::Positions => {
-                                        //tracing::info!("Received Player Position Packet");
-                                    }
-                                    PacketType::Debug => {
-                                        tracing::info!("Received DEBUG packet");
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                tracing::error!(
-                                    "Unable to deserialize RON packet. Possible packet length issue? {}",
-                                    e.to_string()
-                                );
-                                continue;
-                            }
-                        };
-                    }
-                    // Otherwise we need to collect more data.
-                }
-                Err(_) => {
-                    return;
                 }
             }
         }
