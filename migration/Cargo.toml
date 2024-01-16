@@ -4,6 +4,13 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 
+[profile.release]
+opt-level = 3
+strip = true
+debug = false
+codegen-units = 1
+lto = true
+
 [lib]
 name = "migration"
 path = "src/lib.rs"
@@ -11,5 +18,14 @@ path = "src/lib.rs"
 [dependencies]
 common = { path = "./../common" }
 async-std = { version = "^1", features = ["attributes", "tokio1"] }
-sea-orm = { version = "^0.12", features = [ "sqlx-mysql", "runtime-tokio-rustls", "macros", "sqlx-sqlite"] }
-sea-orm-migration = { version = "^0.12", features = ["sqlx-mysql",  "runtime-tokio-rustls", "sqlx-sqlite"] }
+sea-orm = { version = "^0.12", features = [
+    "sqlx-mysql",
+    "runtime-tokio-rustls",
+    "macros",
+    "sqlx-sqlite",
+] }
+sea-orm-migration = { version = "^0.12", features = [
+    "sqlx-mysql",
+    "runtime-tokio-rustls",
+    "sqlx-sqlite",
+] }

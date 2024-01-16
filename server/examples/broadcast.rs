@@ -151,10 +151,8 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
                 };
                 match packet.to_vec() {
                     Ok(reader) => {
-                        let result = send_stream.send(reader.into()).await;
-                        if result.is_err() {
-                            break;
-                        }
+                        _ = send_stream.send(reader.into()).await;
+                        _ = send_stream.flush().await;
                     }
                     Err(e) => {
                         println!("{}", e.to_string());

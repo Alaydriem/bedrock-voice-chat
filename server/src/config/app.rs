@@ -1,3 +1,4 @@
+use common::ncryptflib::randombytes_buf;
 use rocket::{ data::{ Limits, ToByteUnit }, figment::Figment };
 
 use anyhow::anyhow;
@@ -206,6 +207,7 @@ impl ApplicationConfig {
             .merge(("port", &self.server.port))
             .merge(("address", &self.server.listen))
             .merge(("limits", Limits::new().limit("json", (10).megabytes())))
+            .merge(("secret_key", randombytes_buf(32)))
             .merge(("tls.certs", &self.server.tls.certificate))
             .merge(("tls.key", &self.server.tls.key))
             .merge(("tls.mutual.ca_certs", format!("{}/ca.crt", &self.server.tls.certs_path)))

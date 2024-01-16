@@ -18,10 +18,10 @@ pub(crate) fn get_reqwest_client() -> Client {
         .danger_accept_invalid_certs(false);
 
     // In debug builds, allow invalid or bad certificates for testing
-    #[cfg(debug_assertions)]
-    {
-        builder = builder.danger_accept_invalid_certs(true);
-    }
+    //#[cfg(debug_assertions)]
+    // {
+    builder = builder.danger_accept_invalid_certs(true);
+    // }
 
     return builder.build().unwrap();
 }

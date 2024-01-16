@@ -65,7 +65,6 @@ impl QuicNetworkPacket {
 pub enum PacketType {
     AudioFrame,
     Positions,
-    #[cfg(debug_assertions)]
     Debug,
 }
 

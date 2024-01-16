@@ -1,6 +1,5 @@
 use crate::config::ApplicationConfig;
 use common::structs::packet::{ PacketType, QUICK_NETWORK_PACKET_HEADER };
-use rocket::futures::StreamExt;
 use tokio::task::JoinHandle;
 use s2n_quic::Server;
 use std::collections::hash_map::RandomState;
@@ -14,16 +13,62 @@ use moka::future::Cache;
 use async_once_cell::OnceCell;
 use anyhow::anyhow;
 /// The size our main ringbuffer can hold
-const MAIN_RINGBUFFER_CAPACITY: usize = 1000000;
+const MAIN_RINGBUFFER_CAPACITY: usize = 100000;
 
 /// The site each connection ringbuffer can hold
-const CONNECTION_RINGERBUFFER_CAPACITY: usize = 1000000;
+const CONNECTION_RINGERBUFFER_CAPACITY: usize = 100000;
 
 /// Player position data
 pub(crate) static PLAYER_POSITION_CACHE: OnceCell<
     Option<Arc<Cache<String, common::Player, RandomState>>>
 > = OnceCell::new();
 
+type AsyncProducerBuffer = async_ringbuf::AsyncProducer<
+    QuicNetworkPacket,
+    Arc<
+        async_ringbuf::AsyncRb<
+            QuicNetworkPacket,
+            ringbuf::SharedRb<QuicNetworkPacket, Vec<std::mem::MaybeUninit<QuicNetworkPacket>>>
+        >
+    >
+>;
+
+type AsyncConsumerBuffer = async_ringbuf::AsyncConsumer<
+    QuicNetworkPacket,
+    Arc<
+        async_ringbuf::AsyncRb<
+            QuicNetworkPacket,
+            ringbuf::SharedRb<QuicNetworkPacket, Vec<std::mem::MaybeUninit<QuicNetworkPacket>>>
+        >
+    >
+>;
+
+type MutexMapProducer = Arc<
+    Mutex<
+        async_ringbuf::AsyncProducer<
+            QuicNetworkPacket,
+            Arc<
+                async_ringbuf::AsyncRb<
+                    QuicNetworkPacket,
+                    ringbuf::SharedRb<
+                        QuicNetworkPacket,
+                        Vec<std::mem::MaybeUninit<QuicNetworkPacket>>
+                    >
+                >
+            >
+        >
+    >
+>;
+
+type MutexMapConsumer = async_ringbuf::AsyncConsumer<
+    QuicNetworkPacket,
+    Arc<
+        async_ringbuf::AsyncRb<
+            QuicNetworkPacket,
+            ringbuf::SharedRb<QuicNetworkPacket, Vec<std::mem::MaybeUninit<QuicNetworkPacket>>>
+        >
+    >
+>;
 pub(crate) fn get_task(
     config: &ApplicationConfig,
     queue: Arc<deadqueue::limited::Queue<QuicNetworkPacket>>
@@ -61,66 +106,23 @@ async fn server(
 
     let (main_producer, main_consumer) = ring.split();
 
-    let main_producer_mux = Arc::new(
-        Mutex::<
-            async_ringbuf::AsyncProducer<
-                QuicNetworkPacket,
-                Arc<
-                    async_ringbuf::AsyncRb<
-                        QuicNetworkPacket,
-                        ringbuf::SharedRb<
-                            QuicNetworkPacket,
-                            Vec<std::mem::MaybeUninit<QuicNetworkPacket>>
-                        >
-                    >
-                >
-            >
-        >::new(main_producer)
-    );
+    let cache = match get_cache().await {
+        Ok(cache) => cache,
+        Err(_) => {
+            tracing::error!(
+                "A cache was constructed but didn't survive. This shouldn't happen. Restart bvc server."
+            );
+            let result: Result<(), Box<dyn Error>> = Ok(());
+            return result;
+        }
+    };
 
-    let main_consumer_mux = Arc::new(
-        Mutex::<
-            async_ringbuf::AsyncConsumer<
-                QuicNetworkPacket,
-                Arc<
-                    async_ringbuf::AsyncRb<
-                        QuicNetworkPacket,
-                        ringbuf::SharedRb<
-                            QuicNetworkPacket,
-                            Vec<std::mem::MaybeUninit<QuicNetworkPacket>>
-                        >
-                    >
-                >
-            >
-        >::new(main_consumer)
-    );
+    let cache_c = cache.clone();
 
+    let main_producer_mux = Arc::new(Mutex::<AsyncProducerBuffer>::new(main_producer));
+    let main_consumer_mux = Arc::new(Mutex::<AsyncConsumerBuffer>::new(main_consumer));
     let main_producer_mux_for_deadqueue = main_producer_mux.clone();
-
-    let mutex_map = Arc::new(
-        Mutex::new(
-            HashMap::<
-                u64,
-                Arc<
-                    Mutex<
-                        async_ringbuf::AsyncProducer<
-                            QuicNetworkPacket,
-                            Arc<
-                                async_ringbuf::AsyncRb<
-                                    QuicNetworkPacket,
-                                    ringbuf::SharedRb<
-                                        QuicNetworkPacket,
-                                        Vec<std::mem::MaybeUninit<QuicNetworkPacket>>
-                                    >
-                                >
-                            >
-                        >
-                    >
-                >
-            >::new()
-        )
-    );
-
+    let mutex_map = Arc::new(Mutex::new(HashMap::<u64, MutexMapProducer>::new()));
     let processor_mutex_map = mutex_map.clone();
 
     // Setups mTLS for the connection
@@ -151,11 +153,13 @@ async fn server(
     // This is our main thread for the QUIC server
     tasks.push(
         tokio::spawn(async move {
+            let cache = cache.clone();
             tracing::info!("Started QUIC listening server.");
             let mut connection_id: Option<u64> = None;
 
             while let Some(mut connection) = server.accept().await {
                 connection_id = Some(connection.id());
+                let cache = cache.clone();
                 let main_producer_mux = main_producer_mux.clone();
 
                 // Create the mutex map when the stream is created
@@ -167,27 +171,13 @@ async fn server(
 
                 let (producer, consumer) = ring.split();
 
-                let actual_consumer = Arc::new(
-                    Mutex::<
-                        async_ringbuf::AsyncConsumer<
-                            QuicNetworkPacket,
-                            Arc<
-                                async_ringbuf::AsyncRb<
-                                    QuicNetworkPacket,
-                                    ringbuf::SharedRb<
-                                        QuicNetworkPacket,
-                                        Vec<std::mem::MaybeUninit<QuicNetworkPacket>>
-                                    >
-                                >
-                            >
-                        >
-                    >::new(consumer)
-                );
+                let actual_consumer = Arc::new(Mutex::<MutexMapConsumer>::new(consumer));
 
                 mutex_map.insert(connection.id(), Arc::new(Mutex::new(producer)));
 
                 // Each connection sits in it's own thread
                 tokio::spawn(async move {
+                    let cache = cache.clone();
                     let main_producer_mux = main_producer_mux.clone();
 
                     match connection.accept_bidirectional_stream().await {
@@ -241,6 +231,7 @@ async fn server(
                                                     .get(0..packet_len + 13)
                                                     .unwrap()
                                                     .to_vec();
+                                                drop(packet_copy);
 
                                                 packet = packet
                                                     .get(packet_len + 13..packet.len())
@@ -286,6 +277,7 @@ async fn server(
                                     // Sending Stream
                                     let consumer = actual_consumer.clone();
                                     tokio::spawn(async move {
+                                        let cache = cache.clone();
                                         let consumer = consumer.clone();
                                         let mut consumer = consumer.lock_arc().await;
                                         let client_id = send_client_id.clone();
@@ -308,28 +300,21 @@ async fn server(
                                                             match data.coordinate {
                                                                 Some(_) => {}
                                                                 None =>
-                                                                    match get_cache().await {
-                                                                        Ok(cache) =>
-                                                                            match
-                                                                                cache.get(
-                                                                                    &data.author
-                                                                                ).await
-                                                                            {
-                                                                                Some(position) => {
-                                                                                    let mut data =
-                                                                                        data.to_owned();
-                                                                                    data.coordinate =
-                                                                                        Some(
-                                                                                            position.coordinates
-                                                                                        );
-                                                                                    packet.data =
-                                                                                        Box::new(
-                                                                                            data
-                                                                                        );
-                                                                                }
-                                                                                None => {}
-                                                                            }
-                                                                        Err(_) => {}
+                                                                    match
+                                                                        cache.get(
+                                                                            &data.author
+                                                                        ).await
+                                                                    {
+                                                                        Some(position) => {
+                                                                            let mut data =
+                                                                                data.to_owned();
+                                                                            data.coordinate = Some(
+                                                                                position.coordinates
+                                                                            );
+                                                                            packet.data =
+                                                                                Box::new(data);
+                                                                        }
+                                                                        None => {}
                                                                     }
                                                             };
                                                         }
@@ -346,6 +331,7 @@ async fn server(
                                                                 _ = send_stream.send(
                                                                     rs.into()
                                                                 ).await;
+                                                                _ = send_stream.flush().await;
                                                             }
                                                             Err(e) => {
                                                                 tracing::error!(
@@ -368,7 +354,6 @@ async fn server(
                 });
             }
 
-            println!("Connection loop ended.");
             // If the main loop ends, then the connection was dropped
             // And we need to clean up the mutex_map table so we aren't keeping connection_ids that have been previously dropped
             match connection_id {
@@ -407,43 +392,38 @@ async fn server(
 
     tasks.push(
         tokio::spawn(async move {
+            let cache = cache_c.clone();
             let main_producer_mux = main_producer_mux_for_deadqueue.clone();
             let queue = queue.clone();
 
-            match get_cache().await {
-                Ok(cache) => {
-                    // Iterate over each packet that we recieve
-                    #[allow(irrefutable_let_patterns)]
-                    while let packet = queue.pop().await {
-                        let pkc = packet.clone();
+            #[allow(irrefutable_let_patterns)]
+            while let packet = queue.pop().await {
+                let pkc = packet.clone();
 
-                        // Packet specific handling
-                        match pkc.packet_type {
-                            PacketType::AudioFrame => {}
-                            PacketType::Debug => {}
-                            PacketType::Positions => {
-                                let data = pkc.data
-                                    .as_any()
-                                    .downcast_ref::<common::structs::packet::PlayerDataPacket>();
+                // Packet specific handling
+                match pkc.packet_type {
+                    PacketType::AudioFrame => {}
+                    PacketType::Debug => {}
+                    PacketType::Positions => {
+                        let data = pkc.data
+                            .as_any()
+                            .downcast_ref::<common::structs::packet::PlayerDataPacket>();
 
-                                match data {
-                                    Some(data) => {
-                                        for player in data.players.clone() {
-                                            cache.insert(player.name.clone(), player.clone()).await;
-                                        }
-                                    }
-                                    None => {}
+                        match data {
+                            Some(data) => {
+                                for player in data.players.clone() {
+                                    cache.insert(player.name.clone(), player.clone()).await;
                                 }
                             }
+                            None => {}
                         }
-
-                        // Push all packets into the main mux if they're received.
-                        let mut main_producer_mux = main_producer_mux.lock_arc().await;
-                        _ = main_producer_mux.push(packet).await;
                     }
                 }
-                Err(_) => {}
-            };
+
+                // Push all packets into the main mux if they're received.
+                let mut main_producer_mux = main_producer_mux.lock_arc().await;
+                _ = main_producer_mux.push(packet).await;
+            }
         })
     );
 
