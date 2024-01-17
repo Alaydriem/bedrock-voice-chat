@@ -149,7 +149,6 @@ pub(crate) async fn network_stream(
                 Ok(reader) => {
                     _ = send_stream.send(reader.into()).await;
                     _ = send_stream.flush().await;
-                    tokio::time::sleep(Duration::from_millis(10)).await;
                 }
                 Err(e) => {
                     tracing::info!("{}", e.to_string());
