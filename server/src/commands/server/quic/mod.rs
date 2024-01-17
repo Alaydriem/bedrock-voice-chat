@@ -213,12 +213,10 @@ pub(crate) async fn get_task(
                                             packet_header.eq(&magic_header) &&
                                             packet.len() >= packet_len + 13
                                         {
-                                            let packet_copy = packet.clone();
-                                            let packet_to_process = packet_copy
+                                            let packet_to_process = packet
                                                 .get(0..packet_len + 13)
                                                 .unwrap()
                                                 .to_vec();
-                                            drop(packet_copy);
 
                                             packet = packet
                                                 .get(packet_len + 13..packet.len())

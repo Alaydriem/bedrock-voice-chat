@@ -134,7 +134,7 @@ pub(crate) async fn network_stream(
                 _ = send_stream.flush().await;
             }
             Err(e) => {
-                println!("{}", e.to_string());
+                tracing::error!("{}", e.to_string());
             }
         }
 

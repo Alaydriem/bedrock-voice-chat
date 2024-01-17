@@ -1,4 +1,4 @@
-use std::{ error::Error, net::SocketAddr, time::Instant };
+use std::{ error::Error, net::SocketAddr, time::{ Instant, Duration } };
 use common::{
     mtlsprovider::MtlsProvider,
     structs::packet::{ QuicNetworkPacket, PacketType, QUICK_NETWORK_PACKET_HEADER },
@@ -52,6 +52,7 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
             let mut packet = Vec::<u8>::new();
             let now: Instant = Instant::now();
             let mut packet_len_total: usize = 0;
+
             while let Ok(Some(data)) = receive_stream.receive().await {
                 packet_len_total = packet_len_total + data.to_vec().len();
                 packet.append(&mut data.to_vec());
@@ -92,7 +93,6 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
 
                     match QuicNetworkPacket::from_vec(&packet_to_process) {
                         Ok(packet) => {
-                            println!("Received {} in {:?}", packet_len_total, now.elapsed());
                             match packet.packet_type {
                                 PacketType::AudioFrame => {}
                                 PacketType::Positions => {}
