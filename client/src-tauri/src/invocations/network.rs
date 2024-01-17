@@ -1,58 +1,30 @@
 use async_mutex::Mutex;
 use common::{
-    structs::packet::{ QuicNetworkPacket, PacketType, QUICK_NETWORK_PACKET_HEADER },
     mtlsprovider::MtlsProvider,
+    structs::packet::{
+        AudioFramePacket, DebugPacket, PacketType, QuicNetworkPacket, QUICK_NETWORK_PACKET_HEADER,
+    },
 };
 
-use std::{ collections::HashMap, sync::Arc, time::Duration };
+use std::{collections::HashMap, sync::Arc};
 
-use std::net::SocketAddr;
-use moka::future::Cache;
-use async_once_cell::OnceCell;
-use rand::distributions::{ Alphanumeric, DistString };
 use anyhow::anyhow;
-use s2n_quic::{ client::Connect, Client, stream::{ SendStream, ReceiveStream } };
+use async_once_cell::OnceCell;
+use moka::future::Cache;
+use rand::distributions::{Alphanumeric, DistString};
+use s2n_quic::{
+    client::Connect,
+    stream::{ReceiveStream, SendStream},
+    Client,
+};
+use std::net::SocketAddr;
 
 use tauri::State;
 
 use super::stream::AudioFramePacketProducer;
 
-pub(crate) type QuicNetworkPacketConsumer = Arc<
-    Mutex<
-        async_ringbuf::AsyncConsumer<
-            QuicNetworkPacket,
-            Arc<
-                async_ringbuf::AsyncRb<
-                    QuicNetworkPacket,
-                    ringbuf::SharedRb<
-                        QuicNetworkPacket,
-                        Vec<std::mem::MaybeUninit<QuicNetworkPacket>>
-                    >
-                >
-            >
-        >
-    >
->;
-
-pub(crate) type QuicNetworkPacketProducer = Arc<
-    Mutex<
-        async_ringbuf::AsyncProducer<
-            QuicNetworkPacket,
-            Arc<
-                async_ringbuf::AsyncRb<
-                    QuicNetworkPacket,
-                    ringbuf::SharedRb<
-                        QuicNetworkPacket,
-                        Vec<std::mem::MaybeUninit<QuicNetworkPacket>>
-                    >
-                >
-            >
-        >
-    >
->;
-
 pub(crate) static NETWORK_STATE_CACHE: OnceCell<
-    Option<Arc<Cache<String, String, std::collections::hash_map::RandomState>>>
+    Option<Arc<Cache<String, String, std::collections::hash_map::RandomState>>>,
 > = OnceCell::new();
 
 const SENDER: &str = "send_stream";
@@ -61,7 +33,7 @@ const SENDER: &str = "send_stream";
 #[tauri::command(async)]
 pub(crate) async fn network_stream(
     audio_producer: State<'_, AudioFramePacketProducer>,
-    rx: State<'_, Arc<Mutex<tauri::async_runtime::Receiver<QuicNetworkPacket>>>>
+    rx: State<'_, Arc<Mutex<tauri::async_runtime::Receiver<QuicNetworkPacket>>>>,
 ) -> Result<bool, bool> {
     // Stop any existing streams
     stop_network_stream().await;
@@ -115,7 +87,7 @@ pub(crate) async fn network_stream(
     };
 
     // Self assigned consistent packet_id to identify this stream to the quic server
-    let client_id: Vec<u8> = (0..32).map(|_| { rand::random::<u8>() }).collect();
+    let client_id: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
     tokio::spawn(async move {
         let rx = rx.clone();
         let mut rx = rx.lock_arc().await;
@@ -125,7 +97,9 @@ pub(crate) async fn network_stream(
             client_id: client_id.clone(),
             packet_type: common::structs::packet::PacketType::Debug,
             author: gamertag.clone(),
-            data: Box::new(common::structs::packet::DebugPacket(gamertag.clone())),
+            data: common::structs::packet::QuicNetworkPacketData::Debug(DebugPacket(
+                gamertag.clone(),
+            )),
         };
 
         match packet.to_vec() {
@@ -192,15 +166,9 @@ pub(crate) async fn network_stream(
             // If the current packet starts with the magic header and we have enough bytes, drain it
             if packet_header.eq(&magic_header) && packet.len() >= packet_len + 13 {
                 let packet_copy = packet.clone();
-                let packet_to_process = packet_copy
-                    .get(0..packet_len + 13)
-                    .unwrap()
-                    .to_vec();
+                let packet_to_process = packet_copy.get(0..packet_len + 13).unwrap().to_vec();
 
-                packet = packet
-                    .get(packet_len + 13..packet.len())
-                    .unwrap()
-                    .to_vec();
+                packet = packet.get(packet_len + 13..packet.len()).unwrap().to_vec();
 
                 // Strip the header and frame length
                 let packet_to_process = packet_to_process.get(13..packet_to_process.len()).unwrap();
@@ -211,16 +179,19 @@ pub(crate) async fn network_stream(
                             // Audio frames should be pushed into the audio_producer mux
                             // To be handled by the output stream
                             PacketType::AudioFrame => {
-                                let data = packet.data
-                                    .as_any()
-                                    .downcast_ref::<common::structs::packet::AudioFramePacket>()
-                                    .unwrap();
+                                let data = packet.get_data();
+                                let data: Result<AudioFramePacket, ()> = data.try_into();
 
-                                let audio_producer = audio_producer.clone();
-                                let mut audio_producer = audio_producer.lock_arc().await;
-                                _ = audio_producer.push(data.to_owned()).await;
+                                match data {
+                                    Ok(data) => {
+                                        let audio_producer = audio_producer.clone();
+                                        let mut audio_producer = audio_producer.lock_arc().await;
+                                        _ = audio_producer.push(data);
+                                    }
+                                    Err(_) => {}
+                                }
                             }
-                            PacketType::Positions => {}
+                            PacketType::PlayerData => {}
                             PacketType::Debug => {}
                         }
                     }
@@ -243,21 +214,19 @@ pub(crate) async fn network_stream(
 pub(crate) async fn is_network_stream_active() -> bool {
     let cache_key = SENDER;
     match NETWORK_STATE_CACHE.get() {
-        Some(cache) =>
-            match cache {
-                Some(cache) =>
-                    match cache.get(cache_key).await {
-                        Some(_) => {
-                            return true;
-                        }
-                        None => {
-                            return false;
-                        }
-                    }
+        Some(cache) => match cache {
+            Some(cache) => match cache.get(cache_key).await {
+                Some(_) => {
+                    return true;
+                }
                 None => {
                     return false;
                 }
+            },
+            None => {
+                return false;
             }
+        },
         None => {
             return false;
         }
@@ -274,20 +243,18 @@ pub(crate) async fn stop_network_stream() -> bool {
     let cache_key = SENDER;
 
     match NETWORK_STATE_CACHE.get() {
-        Some(cache) =>
-            match cache {
-                Some(cache) => {
-                    let jobs: HashMap<String, i8> = HashMap::<String, i8>::new();
-                    cache.insert(
-                        cache_key.to_string(),
-                        serde_json::to_string(&jobs).unwrap()
-                    ).await;
-                    return true;
-                }
-                None => {
-                    return false;
-                }
+        Some(cache) => match cache {
+            Some(cache) => {
+                let jobs: HashMap<String, i8> = HashMap::<String, i8>::new();
+                cache
+                    .insert(cache_key.to_string(), serde_json::to_string(&jobs).unwrap())
+                    .await;
+                return true;
             }
+            None => {
+                return false;
+            }
+        },
         None => {
             return false;
         }
@@ -302,28 +269,26 @@ pub(crate) async fn stop_network_stream() -> bool {
 /// When this thread launches, we consider all other threads invalid, and burn the entire cache
 /// If for some reason we can't access the cache, then this thread self terminates
 async fn setup_task_cache(
-    cache_key: &str
+    cache_key: &str,
 ) -> Result<(String, &Arc<Cache<String, String>>), anyhow::Error> {
     // Self assign an ID for this job
     let id = Alphanumeric.sample_string(&mut rand::thread_rng(), 24);
 
     match NETWORK_STATE_CACHE.get() {
-        Some(cache) =>
-            match cache {
-                Some(cache) => {
-                    let mut jobs: HashMap<String, i8> = HashMap::<String, i8>::new();
-                    jobs.insert(id.clone(), 1);
+        Some(cache) => match cache {
+            Some(cache) => {
+                let mut jobs: HashMap<String, i8> = HashMap::<String, i8>::new();
+                jobs.insert(id.clone(), 1);
 
-                    cache.insert(
-                        cache_key.to_string(),
-                        serde_json::to_string(&jobs).unwrap()
-                    ).await;
-                    return Ok((id, cache));
-                }
-                None => {
-                    return Err(anyhow!("Cache wasn't found."));
-                }
+                cache
+                    .insert(cache_key.to_string(), serde_json::to_string(&jobs).unwrap())
+                    .await;
+                return Ok((id, cache));
             }
+            None => {
+                return Err(anyhow!("Cache wasn't found."));
+            }
+        },
         None => {
             return Err(anyhow!("Cache doesn't exist."));
         }
@@ -362,29 +327,26 @@ async fn get_mtls_provider() -> Result<MtlsProvider, anyhow::Error> {
 // Generates the QUIC client
 async fn get_quic_client(provider: MtlsProvider) -> Result<Client, anyhow::Error> {
     match Client::builder().with_tls(provider) {
-        Ok(builder) =>
-            match builder.with_io("0.0.0.0:0") {
-                Ok(builder) =>
-                    match builder.start() {
-                        Ok(client) => Ok(client),
-                        Err(_) => Err(anyhow!("Could not construct builder")),
-                    }
+        Ok(builder) => match builder.with_io("0.0.0.0:0") {
+            Ok(builder) => match builder.start() {
+                Ok(client) => Ok(client),
                 Err(_) => Err(anyhow!("Could not construct builder")),
-            }
+            },
+            Err(_) => Err(anyhow!("Could not construct builder")),
+        },
         Err(_) => Err(anyhow!("Could not construct builder")),
     }
 }
 
 /// Returns the split quic stream
 async fn get_stream(client: Client) -> Result<(SendStream, ReceiveStream), anyhow::Error> {
-    let quic_connect_string = match
-        super::credentials::get_credential("quic_connect_string".to_string()).await
-    {
-        Ok(c) => c,
-        Err(_) => {
-            return Err(anyhow!("Could not retrieve credential quic_connect_string"));
-        }
-    };
+    let quic_connect_string =
+        match super::credentials::get_credential("quic_connect_string".to_string()).await {
+            Ok(c) => c,
+            Err(_) => {
+                return Err(anyhow!("Could not retrieve credential quic_connect_string"));
+            }
+        };
 
     let host = match super::credentials::get_credential("host".to_string()).await {
         Ok(c) => c,

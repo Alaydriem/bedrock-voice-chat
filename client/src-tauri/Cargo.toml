@@ -44,7 +44,6 @@ tracing-subscriber = { version = "^0.3" }
 tracing-appender = { version = "^0.2" }
 faccess = { version = "^0.2" }
 keytar = { version = "^0.1" }
-ringbuf = "^0.3"
 parking_lot = { version = "^0.12" }
 cpal = { git = "https://github.com/RustAudio/cpal.git", features = [
     "asio",
@@ -56,19 +55,15 @@ s2n-quic = { version = "^1.32", features = [
     "provider-tls-rustls",
     "provider-event-tracing",
 ] }
-
 bytes = { version = "^1.5" }
-
 async-mutex = { version = "^1.4" }
 async-once-cell = { version = "^0.5" }
 moka = { version = "^0.12", features = ["future", "sync"] }
 rand = { version = "^0.8" }
 opus = { version = "^0.3" }
 ron = { version = "^0.8" }
-zstd = { version = "0.12.4", features = ["bindgen"] }
-nnnoiseless = "0.5.1"
-audio-gate = "0.1.1"
-async-ringbuf = "0.1.3"
+audio-gate = { version = "^0.1" }
+rtrb = { version = "^0.3" }
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem

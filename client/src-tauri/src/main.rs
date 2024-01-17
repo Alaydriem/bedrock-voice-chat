@@ -2,20 +2,19 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod invocations;
-use std::path::Path;
-use std::sync::Arc;
+use async_mutex::Mutex;
 use common::structs::packet::AudioFramePacket;
 use common::structs::packet::QuicNetworkPacket;
 use faccess::PathExt;
+use rtrb::{Consumer, Producer, RingBuffer};
+use std::path::Path;
+use std::sync::Arc;
 use tracing::info;
 use tracing::Level;
-use tracing_appender::non_blocking::{ NonBlocking, WorkerGuard };
+use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
 use tracing_subscriber::fmt::SubscriberBuilder;
 
-use async_mutex::Mutex;
-
-use crate::invocations::network::{ QuicNetworkPacketConsumer, QuicNetworkPacketProducer };
-use crate::invocations::stream::{ AudioFramePacketProducer, AudioFramePacketConsumer };
+use crate::invocations::stream::{AudioFramePacketConsumer, AudioFramePacketProducer};
 
 use tokio::sync::mpsc::channel;
 
@@ -67,56 +66,57 @@ async fn main() {
     info!("Logger established!");
 
     // Audio cache for managing audio stream state
-    crate::invocations::stream::STREAM_STATE_CACHE.get_or_init(async {
-        return Some(Arc::new(moka::sync::Cache::builder().max_capacity(100).build()));
-    }).await;
+    crate::invocations::stream::STREAM_STATE_CACHE
+        .get_or_init(async {
+            return Some(Arc::new(
+                moka::sync::Cache::builder().max_capacity(100).build(),
+            ));
+        })
+        .await;
 
     // Network cache for managing network stream state
-    crate::invocations::network::NETWORK_STATE_CACHE.get_or_init(async {
-        return Some(Arc::new(moka::future::Cache::builder().max_capacity(100).build()));
-    }).await;
+    crate::invocations::network::NETWORK_STATE_CACHE
+        .get_or_init(async {
+            return Some(Arc::new(
+                moka::future::Cache::builder().max_capacity(100).build(),
+            ));
+        })
+        .await;
 
     // The network consumer, sends audio packets to the audio producer, which is then consumed by the underlying stream
-    let ring = async_ringbuf::AsyncHeapRb::<AudioFramePacket>::new(100000);
-    let (ap, ac) = ring.split();
-    let audio_producer: AudioFramePacketProducer = Arc::new(Mutex::new(ap));
-    let audio_consumer: AudioFramePacketConsumer = Arc::new(Mutex::new(ac));
+    let (ap, ac) = RingBuffer::<AudioFramePacket>::new(100000);
+    let audio_producer = Arc::new(Mutex::new(ap));
+    let audio_consumer = Arc::new(Mutex::new(ac));
 
     let (quic_tx, quic_rx) = channel::<QuicNetworkPacket>(10000);
 
-    let _tauri = tauri::Builder
-        ::default()
+    let _tauri = tauri::Builder::default()
         .manage(quic_tx)
         .manage(Arc::new(Mutex::new(quic_rx)))
         .manage(audio_producer)
         .manage(audio_consumer)
-        .invoke_handler(
-            tauri::generate_handler![
-                // Authentication
-                invocations::login::check_api_status,
-                invocations::login::microsoft_auth,
-                invocations::login::microsoft_auth_listener,
-                invocations::login::microsoft_auth_login,
-                invocations::login::logout,
-
-                // Credential Management
-                invocations::credentials::get_credential,
-                invocations::credentials::set_credential,
-                invocations::credentials::del_credential,
-
-                // Quic
-                invocations::network::stop_network_stream,
-                invocations::network::network_stream,
-                invocations::network::is_network_stream_active,
-
-                // Audio
-                invocations::stream::input_stream,
-                invocations::stream::output_stream,
-                invocations::stream::stop_stream,
-                invocations::stream::get_devices,
-                invocations::stream::is_audio_stream_active
-            ]
-        )
+        .invoke_handler(tauri::generate_handler![
+            // Authentication
+            invocations::login::check_api_status,
+            invocations::login::microsoft_auth,
+            invocations::login::microsoft_auth_listener,
+            invocations::login::microsoft_auth_login,
+            invocations::login::logout,
+            // Credential Management
+            invocations::credentials::get_credential,
+            invocations::credentials::set_credential,
+            invocations::credentials::del_credential,
+            // Quic
+            invocations::network::stop_network_stream,
+            invocations::network::network_stream,
+            invocations::network::is_network_stream_active,
+            // Audio
+            invocations::stream::input_stream,
+            invocations::stream::output_stream,
+            invocations::stream::stop_stream,
+            invocations::stream::get_devices,
+            invocations::stream::is_audio_stream_active
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

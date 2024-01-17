@@ -442,16 +442,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "async-ringbuf"
-version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c5a853851d9a416e4674abf8f47bac16e8c7f0a4f9a143accf3fbd13bdbf1f7"
-dependencies = [
- "futures",
- "ringbuf",
-]
-
-[[package]]
 name = "async-std"
 version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -629,7 +619,6 @@ dependencies = [
  "anyhow",
  "async-mutex",
  "async-once-cell 0.5.3",
- "async-ringbuf",
  "async-stream",
  "async-trait",
  "base64 0.13.1",
@@ -647,11 +636,11 @@ dependencies = [
  "rand 0.8.5",
  "rcgen",
  "reqwest",
- "ringbuf",
  "rocket",
  "rocket_db_pools",
  "rocket_dyn_templates",
  "ron",
+ "rtrb",
  "rustls-pemfile",
  "s2n-quic",
  "sea-orm",
@@ -3636,15 +3625,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ringbuf"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79abed428d1fd2a128201cec72c5f6938e2da607c6f3745f769fabea399d950a"
-dependencies = [
- "crossbeam-utils",
-]
-
-[[package]]
 name = "rkyv"
 version = "0.7.43"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3831,6 +3811,15 @@ dependencies = [
  "spki",
  "subtle",
  "zeroize",
+]
+
+[[package]]
+name = "rtrb"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "636b228b5adb32add7f0e41e5084d38aa66fb0f942e8a91751c1e90023288fbe"
+dependencies = [
+ "crossbeam-utils",
 ]
 
 [[package]]

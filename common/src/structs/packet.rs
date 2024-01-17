@@ -1,8 +1,23 @@
-use anyhow::anyhow;
-use serde::{ Serialize, Deserialize };
-use dyn_clone::DynClone;
-use std::any::Any;
+use std::{any::Any, fmt::Debug};
+
 use crate::Coordinate;
+use anyhow::anyhow;
+use serde::{Deserialize, Serialize};
+
+/// The packet type
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub enum PacketType {
+    AudioFrame,
+    PlayerData,
+    Debug,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub enum QuicNetworkPacketData {
+    AudioFrame(AudioFramePacket),
+    PlayerData(PlayerDataPacket),
+    Debug(DebugPacket),
+}
 
 /// A network packet to be sent via QUIC
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -10,7 +25,7 @@ pub struct QuicNetworkPacket {
     pub packet_type: PacketType,
     pub author: String,
     pub client_id: Vec<u8>,
-    pub data: Box<dyn PacketTypeTrait>,
+    pub data: QuicNetworkPacketData,
 }
 
 /// Magic header
@@ -39,42 +54,48 @@ impl QuicNetworkPacket {
     /// Convers a vec back into a raw packet
     pub fn from_vec(data: &[u8]) -> Result<Self, anyhow::Error> {
         match std::str::from_utf8(data) {
-            Ok(ds) =>
-                match ron::from_str::<QuicNetworkPacket>(ds) {
-                    Ok(packet) => {
-                        return Ok(packet);
-                    }
-                    Err(e) => {
-                        return Err(anyhow!("{}", e.to_string()));
-                    }
+            Ok(ds) => match ron::from_str::<QuicNetworkPacket>(&ds) {
+                Ok(packet) => return Ok(packet),
+                Err(e) => {
+                    return Err(anyhow!("{}", e.to_string()));
                 }
+            },
             Err(e) => {
-                return Err(
-                    anyhow!(
-                        "Unable to deserialize RON packet. Possible packet length issue? {}",
-                        e.to_string()
-                    )
-                );
+                return Err(anyhow!(
+                    "Unable to deserialize RON packet. Possible packet length issue? {}",
+                    e.to_string()
+                ));
             }
-        };
+        }
+    }
+
+    /// Whether or not a packet should be broadcasted
+    pub fn broadcast(&self) -> bool {
+        match self.packet_type {
+            PacketType::AudioFrame => false,
+            PacketType::Debug => true,
+            PacketType::PlayerData => true,
+        }
+    }
+
+    pub fn get_data(&self) -> QuicNetworkPacketData {
+        let data = &self.data as &dyn Any;
+        match self.packet_type {
+            PacketType::AudioFrame => {
+                let ds = data.downcast_ref::<AudioFramePacket>().unwrap();
+                return QuicNetworkPacketData::AudioFrame(ds.clone());
+            }
+            PacketType::Debug => {
+                let ds = data.downcast_ref::<DebugPacket>().unwrap();
+                return QuicNetworkPacketData::Debug(ds.clone());
+            }
+            PacketType::PlayerData => {
+                let ds = data.downcast_ref::<PlayerDataPacket>().unwrap();
+                return QuicNetworkPacketData::PlayerData(ds.clone());
+            }
+        }
     }
 }
-
-/// The packet type
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub enum PacketType {
-    AudioFrame,
-    Positions,
-    Debug,
-}
-
-#[typetag::serde]
-pub trait PacketTypeTrait: Send + Sync + DynClone + std::fmt::Debug {
-    fn as_any(&self) -> &dyn Any;
-    fn broadcast(&self) -> bool;
-}
-
-dyn_clone::clone_trait_object!(PacketTypeTrait);
 
 /// A single, Opus encoded audio frame
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -86,14 +107,14 @@ pub struct AudioFramePacket {
     pub coordinate: Option<Coordinate>,
 }
 
-#[typetag::serde]
-impl PacketTypeTrait for AudioFramePacket {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
+impl TryFrom<QuicNetworkPacketData> for AudioFramePacket {
+    type Error = ();
 
-    fn broadcast(&self) -> bool {
-        return false;
+    fn try_from(value: QuicNetworkPacketData) -> Result<Self, Self::Error> {
+        match value {
+            QuicNetworkPacketData::AudioFrame(c) => Ok(c),
+            _ => Err(()),
+        }
     }
 }
 
@@ -103,41 +124,27 @@ pub struct PlayerDataPacket {
     pub players: Vec<crate::Player>,
 }
 
-#[typetag::serde]
-impl PacketTypeTrait for PlayerDataPacket {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
+impl TryFrom<QuicNetworkPacketData> for PlayerDataPacket {
+    type Error = ();
 
-    fn broadcast(&self) -> bool {
-        return true;
+    fn try_from(value: QuicNetworkPacketData) -> Result<Self, Self::Error> {
+        match value {
+            QuicNetworkPacketData::PlayerData(c) => Ok(c),
+            _ => Err(()),
+        }
     }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DebugPacket(pub String);
 
-#[typetag::serde]
-impl PacketTypeTrait for DebugPacket {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
+impl TryFrom<QuicNetworkPacketData> for DebugPacket {
+    type Error = ();
 
-    fn broadcast(&self) -> bool {
-        return false;
-    }
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct ConnectPacket(pub String);
-
-#[typetag::serde]
-impl PacketTypeTrait for ConnectPacket {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn broadcast(&self) -> bool {
-        return false;
+    fn try_from(value: QuicNetworkPacketData) -> Result<Self, Self::Error> {
+        match value {
+            QuicNetworkPacketData::Debug(c) => Ok(c),
+            _ => Err(()),
+        }
     }
 }

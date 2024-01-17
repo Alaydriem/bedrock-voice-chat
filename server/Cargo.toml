@@ -63,19 +63,17 @@ s2n-quic = { version = "^1.32", features = [
     "provider-tls-rustls",
     "provider-event-tracing",
 ] }
-ringbuf = { version = "^0.3" }
 bytes = { version = "^1.5" }
 parking_lot = { version = "^0.12" }
 async-mutex = { version = "^1.4" }
-async-ringbuf = { version = "^0.1" }
 rand = { version = "^0.8" }
 ron = { version = "^0.8" }
 rcgen = { version = "0.12.0", features = ["x509-parser"] }
 rustls-pemfile = { version = "^1.0" }
 deadqueue = { version = "^0.2" }
 async-once-cell = { version = "^0.5" }
-
 moka = { version = "^0.12", features = ["future", "async-lock", "async-trait"] }
+rtrb = { version = "^0.3" }
 
 [build-dependencies]
 built = { version = "^0.5", features = ["git2", "chrono", "semver"] }
