@@ -17,6 +17,8 @@ use async_mutex::Mutex;
 use crate::invocations::network::{ QuicNetworkPacketConsumer, QuicNetworkPacketProducer };
 use crate::invocations::stream::{ AudioFramePacketProducer, AudioFramePacketConsumer };
 
+use tokio::sync::mpsc::channel;
+
 #[tokio::main]
 async fn main() {
     tauri::async_runtime::set(tokio::runtime::Handle::current());
@@ -66,7 +68,7 @@ async fn main() {
 
     // Audio cache for managing audio stream state
     crate::invocations::stream::STREAM_STATE_CACHE.get_or_init(async {
-        return Some(Arc::new(moka::future::Cache::builder().max_capacity(100).build()));
+        return Some(Arc::new(moka::sync::Cache::builder().max_capacity(100).build()));
     }).await;
 
     // Network cache for managing network stream state
@@ -74,22 +76,18 @@ async fn main() {
         return Some(Arc::new(moka::future::Cache::builder().max_capacity(100).build()));
     }).await;
 
-    // Create a async ringbuffer for handling QUIC network connections
-    let ring = async_ringbuf::AsyncHeapRb::<QuicNetworkPacket>::new(1000000);
-    let (qp, qc) = ring.split();
-    let quic_producer: QuicNetworkPacketProducer = Arc::new(Mutex::new(qp));
-    let quic_consumer: QuicNetworkPacketConsumer = Arc::new(Mutex::new(qc));
-
     // The network consumer, sends audio packets to the audio producer, which is then consumed by the underlying stream
-    let ring = async_ringbuf::AsyncHeapRb::<AudioFramePacket>::new(1000000);
+    let ring = async_ringbuf::AsyncHeapRb::<AudioFramePacket>::new(100000);
     let (ap, ac) = ring.split();
     let audio_producer: AudioFramePacketProducer = Arc::new(Mutex::new(ap));
     let audio_consumer: AudioFramePacketConsumer = Arc::new(Mutex::new(ac));
 
+    let (quic_tx, quic_rx) = channel::<QuicNetworkPacket>(10000);
+
     let _tauri = tauri::Builder
         ::default()
-        .manage(quic_producer)
-        .manage(quic_consumer)
+        .manage(quic_tx)
+        .manage(Arc::new(Mutex::new(quic_rx)))
         .manage(audio_producer)
         .manage(audio_consumer)
         .invoke_handler(

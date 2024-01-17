@@ -4,16 +4,8 @@ use common::{
     mtlsprovider::MtlsProvider,
 };
 
-use std::{
-    collections::HashMap,
-    sync::Arc,
-    time::Duration,
-    mem::MaybeUninit,
-    net::TcpStream,
-    io::{ Write, Read },
-};
+use std::{ collections::HashMap, sync::Arc, time::Duration };
 
-use bytes::Bytes;
 use std::net::SocketAddr;
 use moka::future::Cache;
 use async_once_cell::OnceCell;
@@ -68,10 +60,13 @@ const SENDER: &str = "send_stream";
 
 #[tauri::command(async)]
 pub(crate) async fn network_stream(
-    audio_producer: State<'_, AudioFramePacketProducer>
+    audio_producer: State<'_, AudioFramePacketProducer>,
+    rx: State<'_, Arc<Mutex<tauri::async_runtime::Receiver<QuicNetworkPacket>>>>
 ) -> Result<bool, bool> {
     // Stop any existing streams
     stop_network_stream().await;
+
+    let rx = rx.inner().clone();
 
     // Create a new job for the thread worker to execute in
     let (id, cache) = match setup_task_cache(SENDER).await {
@@ -121,10 +116,10 @@ pub(crate) async fn network_stream(
 
     // Self assigned consistent packet_id to identify this stream to the quic server
     let client_id: Vec<u8> = (0..32).map(|_| { rand::random::<u8>() }).collect();
-
     tokio::spawn(async move {
+        let rx = rx.clone();
+        let mut rx = rx.lock_arc().await;
         let id = send_id.clone();
-        let nsstream = std::net::TcpListener::bind("127.0.0.1:8444").unwrap();
 
         let packet = QuicNetworkPacket {
             client_id: client_id.clone(),
@@ -143,50 +138,22 @@ pub(crate) async fn network_stream(
             }
         }
 
-        for s in nsstream.incoming() {
+        while let Some(mut packet) = rx.recv().await {
             if super::should_self_terminate(&id, &cache, SENDER).await {
                 break;
             }
 
-            match s {
-                Ok(mut stream) => {
-                    let mut size_buffer = [0u8; 8];
-                    match stream.peek(&mut size_buffer) {
-                        Ok(_) => {
-                            let packet_len = usize::from_be_bytes(
-                                size_buffer[0..8].try_into().unwrap()
-                            );
-                            // The buffer for ron is the packet length
-                            let mut buffer = vec![0; packet_len + 8];
-                            stream.read(&mut buffer).unwrap();
-
-                            let data = std::str::from_utf8(&buffer[8..buffer.len()]).unwrap();
-
-                            match ron::from_str::<QuicNetworkPacket>(data) {
-                                Ok(mut packet) => {
-                                    packet.client_id = client_id.clone();
-                                    packet.author = gamertag.clone();
-                                    match packet.to_vec() {
-                                        Ok(reader) => {
-                                            let result = send_stream.send(reader.into()).await;
-                                            let result = send_stream.flush().await;
-                                            if result.is_err() {
-                                                break;
-                                            }
-                                            tokio::time::sleep(Duration::from_millis(10)).await;
-                                        }
-                                        Err(e) => {
-                                            tracing::info!("{}", e.to_string());
-                                        }
-                                    }
-                                }
-                                Err(_) => {}
-                            };
-                        }
-                        Err(_) => {}
-                    }
+            packet.client_id = client_id.clone();
+            packet.author = gamertag.clone();
+            match packet.to_vec() {
+                Ok(reader) => {
+                    _ = send_stream.send(reader.into()).await;
+                    _ = send_stream.flush().await;
+                    tokio::time::sleep(Duration::from_millis(10)).await;
                 }
-                Err(_) => {}
+                Err(e) => {
+                    tracing::info!("{}", e.to_string());
+                }
             }
         }
     });

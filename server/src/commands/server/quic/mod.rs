@@ -4,7 +4,7 @@ use tokio::task::JoinHandle;
 use s2n_quic::Server;
 use std::collections::hash_map::RandomState;
 use std::time::Duration;
-use std::{ error::Error, path::Path };
+use std::path::Path;
 use std::sync::Arc;
 use std::collections::HashMap;
 use async_mutex::Mutex;
@@ -69,37 +69,26 @@ type MutexMapConsumer = async_ringbuf::AsyncConsumer<
         >
     >
 >;
-pub(crate) fn get_task(
+pub(crate) async fn get_task(
     config: &ApplicationConfig,
     queue: Arc<deadqueue::limited::Queue<QuicNetworkPacket>>
-) -> JoinHandle<()> {
+) -> Result<Vec<JoinHandle<()>>, anyhow::Error> {
     let app_config = config.clone();
 
-    return tokio::task::spawn(async move {
-        // Instantiate the player position cache
-        // Player positions are valid for 5 minutes before they are evicted
-        PLAYER_POSITION_CACHE.get_or_init(async {
-            return Some(
-                Arc::new(
-                    moka::future::Cache
-                        ::builder()
-                        .time_to_live(Duration::from_secs(300))
-                        .max_capacity(100)
-                        .build()
-                )
-            );
-        }).await;
+    // Instantiate the player position cache
+    // Player positions are valid for 5 minutes before they are evicted
+    PLAYER_POSITION_CACHE.get_or_init(async {
+        return Some(
+            Arc::new(
+                moka::future::Cache
+                    ::builder()
+                    .time_to_live(Duration::from_secs(300))
+                    .max_capacity(100)
+                    .build()
+            )
+        );
+    }).await;
 
-        // Start the server
-        _ = server(&app_config.clone(), queue.clone()).await;
-    });
-}
-
-/// A generic QUIC server to handle QuickNetworkPacket<PacketTypeTrait> packets
-async fn server(
-    app_config: &ApplicationConfig,
-    queue: Arc<deadqueue::limited::Queue<QuicNetworkPacket>>
-) -> Result<(), Box<dyn Error>> {
     // This is our main ring buffer. Incoming packets from any client are added to it
     // Then a separate thread pushes them to all connected clients, which is a separate ringbuffer
     let ring = async_ringbuf::AsyncHeapRb::<QuicNetworkPacket>::new(MAIN_RINGBUFFER_CAPACITY);
@@ -108,12 +97,11 @@ async fn server(
 
     let cache = match get_cache().await {
         Ok(cache) => cache,
-        Err(_) => {
+        Err(e) => {
             tracing::error!(
                 "A cache was constructed but didn't survive. This shouldn't happen. Restart bvc server."
             );
-            let result: Result<(), Box<dyn Error>> = Ok(());
-            return result;
+            return Err(e);
         }
     };
 
@@ -176,182 +164,163 @@ async fn server(
                 mutex_map.insert(connection.id(), Arc::new(Mutex::new(producer)));
 
                 // Each connection sits in it's own thread
-                tokio::spawn(async move {
-                    let cache = cache.clone();
-                    let main_producer_mux = main_producer_mux.clone();
+                let cache = cache.clone();
+                let main_producer_mux = main_producer_mux.clone();
 
-                    match connection.accept_bidirectional_stream().await {
-                        Ok(stream) =>
-                            match stream {
-                                Some(stream) => {
-                                    let (mut receive_stream, mut send_stream) = stream.split();
+                match connection.accept_bidirectional_stream().await {
+                    Ok(stream) =>
+                        match stream {
+                            Some(stream) => {
+                                let (mut receive_stream, mut send_stream) = stream.split();
 
-                                    // When a client connects, store the author property on the QuicNetworkPacket for this stream
-                                    // This enables us to identify packets directed to us.
-                                    let cid: Option<Vec<u8>> = None;
-                                    let client_id = Arc::new(Mutex::new(cid));
-                                    let send_client_id = client_id.clone();
+                                // When a client connects, store the author property on the QuicNetworkPacket for this stream
+                                // This enables us to identify packets directed to us.
+                                let cid: Option<Vec<u8>> = None;
+                                let client_id = Arc::new(Mutex::new(cid));
+                                let send_client_id = client_id.clone();
 
-                                    // Receiving Stream
-                                    tokio::spawn(async move {
-                                        let main_producer_mux = main_producer_mux.clone();
+                                // Receiving Stream
+                                tokio::spawn(async move {
+                                    let main_producer_mux = main_producer_mux.clone();
 
-                                        let magic_header: Vec<u8> =
-                                            QUICK_NETWORK_PACKET_HEADER.to_vec();
-                                        let mut packet = Vec::<u8>::new();
+                                    let magic_header: Vec<u8> =
+                                        QUICK_NETWORK_PACKET_HEADER.to_vec();
+                                    let mut packet = Vec::<u8>::new();
 
-                                        while let Ok(Some(data)) = receive_stream.receive().await {
-                                            packet.append(&mut data.to_vec());
+                                    while let Ok(Some(data)) = receive_stream.receive().await {
+                                        packet.append(&mut data.to_vec());
 
-                                            let packet_header = packet.get(0..5);
+                                        let packet_header = packet.get(0..5);
 
-                                            let packet_header = match packet_header {
-                                                Some(header) => header.to_vec(),
-                                                None => {
+                                        let packet_header = match packet_header {
+                                            Some(header) => header.to_vec(),
+                                            None => {
+                                                continue;
+                                            }
+                                        };
+
+                                        let packet_length = packet.get(5..13);
+                                        if packet_length.is_none() {
+                                            continue;
+                                        }
+
+                                        let packet_len = usize::from_be_bytes(
+                                            packet_length.unwrap().try_into().unwrap()
+                                        );
+
+                                        // If the current packet starts with the magic header and we have enough bytes, drain it
+                                        if
+                                            packet_header.eq(&magic_header) &&
+                                            packet.len() >= packet_len + 13
+                                        {
+                                            let packet_copy = packet.clone();
+                                            let packet_to_process = packet_copy
+                                                .get(0..packet_len + 13)
+                                                .unwrap()
+                                                .to_vec();
+                                            drop(packet_copy);
+
+                                            packet = packet
+                                                .get(packet_len + 13..packet.len())
+                                                .unwrap()
+                                                .to_vec();
+
+                                            // Strip the header and frame length
+                                            let packet_to_process = packet_to_process
+                                                .get(13..packet_to_process.len())
+                                                .unwrap();
+
+                                            match QuicNetworkPacket::from_vec(&packet_to_process) {
+                                                Ok(packet) => {
+                                                    let mut client_id = client_id.lock().await;
+                                                    let author = packet.client_id.clone();
+
+                                                    if client_id.is_none() {
+                                                        *client_id = Some(author.clone());
+                                                        tracing::debug!("{:?} Connected", author);
+                                                    }
+
+                                                    let mut main_producer_mux =
+                                                        main_producer_mux.lock_arc().await;
+                                                    _ = main_producer_mux.push(packet).await;
+                                                }
+                                                Err(e) => {
+                                                    tracing::error!(
+                                                        "Unable to deserialize RON packet. Possible packet length issue? {}",
+                                                        e.to_string()
+                                                    );
                                                     continue;
                                                 }
                                             };
-
-                                            let packet_length = packet.get(5..13);
-                                            if packet_length.is_none() {
-                                                continue;
-                                            }
-
-                                            let packet_len = usize::from_be_bytes(
-                                                packet_length.unwrap().try_into().unwrap()
-                                            );
-
-                                            // If the current packet starts with the magic header and we have enough bytes, drain it
-                                            if
-                                                packet_header.eq(&magic_header) &&
-                                                packet.len() >= packet_len + 13
-                                            {
-                                                let packet_copy = packet.clone();
-                                                let packet_to_process = packet_copy
-                                                    .get(0..packet_len + 13)
-                                                    .unwrap()
-                                                    .to_vec();
-                                                drop(packet_copy);
-
-                                                packet = packet
-                                                    .get(packet_len + 13..packet.len())
-                                                    .unwrap()
-                                                    .to_vec();
-
-                                                // Strip the header and frame length
-                                                let packet_to_process = packet_to_process
-                                                    .get(13..packet_to_process.len())
-                                                    .unwrap();
-
-                                                match
-                                                    QuicNetworkPacket::from_vec(&packet_to_process)
-                                                {
-                                                    Ok(packet) => {
-                                                        let mut client_id = client_id.lock().await;
-                                                        let author = packet.client_id.clone();
-
-                                                        if client_id.is_none() {
-                                                            *client_id = Some(author.clone());
-                                                            tracing::debug!(
-                                                                "{:?} Connected",
-                                                                author
-                                                            );
-                                                        }
-
-                                                        let mut main_producer_mux =
-                                                            main_producer_mux.lock_arc().await;
-                                                        _ = main_producer_mux.push(packet).await;
-                                                    }
-                                                    Err(e) => {
-                                                        tracing::error!(
-                                                            "Unable to deserialize RON packet. Possible packet length issue? {}",
-                                                            e.to_string()
-                                                        );
-                                                        continue;
-                                                    }
-                                                };
-                                            }
                                         }
-                                    });
+                                    }
+                                });
 
-                                    // Sending Stream
-                                    let consumer = actual_consumer.clone();
-                                    tokio::spawn(async move {
-                                        let cache = cache.clone();
-                                        let consumer = consumer.clone();
-                                        let mut consumer = consumer.lock_arc().await;
-                                        let client_id = send_client_id.clone();
+                                // Sending Stream
+                                let consumer = actual_consumer.clone();
+                                tokio::spawn(async move {
+                                    let cache = cache.clone();
+                                    let consumer = consumer.clone();
+                                    let mut consumer = consumer.lock_arc().await;
+                                    let client_id = send_client_id.clone();
 
-                                        #[allow(irrefutable_let_patterns)]
-                                        while let packet = consumer.pop().await {
-                                            match packet {
-                                                Some(mut packet) => {
-                                                    let author = Some(packet.client_id.clone());
-                                                    let client_id = client_id.lock().await;
+                                    #[allow(irrefutable_let_patterns)]
+                                    while let packet = consumer.pop().await {
+                                        match packet {
+                                            Some(mut packet) => {
+                                                let author = Some(packet.client_id.clone());
+                                                let client_id = client_id.lock().await;
 
-                                                    match packet.packet_type {
-                                                        PacketType::AudioFrame => {
-                                                            let data = packet.data
-                                                                .as_any()
-                                                                .downcast_ref::<common::structs::packet::AudioFramePacket>()
-                                                                .unwrap();
+                                                match packet.packet_type {
+                                                    PacketType::AudioFrame => {
+                                                        let data = packet.data
+                                                            .as_any()
+                                                            .downcast_ref::<common::structs::packet::AudioFramePacket>()
+                                                            .unwrap();
 
-                                                            // If we don't have coordinates on this audio frame, add them from the cache
-                                                            match data.coordinate {
-                                                                Some(_) => {}
-                                                                None =>
-                                                                    match
-                                                                        cache.get(
-                                                                            &data.author
-                                                                        ).await
-                                                                    {
-                                                                        Some(position) => {
-                                                                            let mut data =
-                                                                                data.to_owned();
-                                                                            data.coordinate = Some(
-                                                                                position.coordinates
-                                                                            );
-                                                                            packet.data =
-                                                                                Box::new(data);
-                                                                        }
-                                                                        None => {}
+                                                        // If we don't have coordinates on this audio frame, add them from the cache
+                                                        match data.coordinate {
+                                                            Some(_) => {}
+                                                            None =>
+                                                                match cache.get(&data.author).await {
+                                                                    Some(position) => {
+                                                                        let mut data =
+                                                                            data.to_owned();
+                                                                        data.coordinate = Some(
+                                                                            position.coordinates
+                                                                        );
+                                                                        packet.data =
+                                                                            Box::new(data);
                                                                     }
-                                                            };
-                                                        }
-                                                        _ => {}
-                                                    }
-
-                                                    // Send the packet to the player if it's a broadcast packet, or if it wasn't originated by them
-                                                    if
-                                                        packet.data.broadcast() ||
-                                                        client_id.ne(&author)
-                                                    {
-                                                        match packet.to_vec() {
-                                                            Ok(rs) => {
-                                                                _ = send_stream.send(
-                                                                    rs.into()
-                                                                ).await;
-                                                                _ = send_stream.flush().await;
-                                                            }
-                                                            Err(e) => {
-                                                                tracing::error!(
-                                                                    "{:?}",
-                                                                    e.to_string()
-                                                                );
-                                                            }
+                                                                    None => {}
+                                                                }
                                                         };
                                                     }
+                                                    _ => {}
                                                 }
-                                                None => {}
+
+                                                // Send the packet to the player if it's a broadcast packet, or if it wasn't originated by them
+                                                if packet.data.broadcast() || client_id.ne(&author) {
+                                                    match packet.to_vec() {
+                                                        Ok(rs) => {
+                                                            _ = send_stream.send(rs.into()).await;
+                                                            _ = send_stream.flush().await;
+                                                        }
+                                                        Err(e) => {
+                                                            tracing::error!("{:?}", e.to_string());
+                                                        }
+                                                    };
+                                                }
                                             }
+                                            None => {}
                                         }
-                                    });
-                                }
-                                None => {}
+                                    }
+                                });
                             }
-                        Err(_) => {}
-                    }
-                });
+                            None => {}
+                        }
+                    Err(_) => {}
+                }
             }
 
             // If the main loop ends, then the connection was dropped
@@ -427,10 +396,7 @@ async fn server(
         })
     );
 
-    for task in tasks {
-        _ = task.await;
-    }
-    Ok(())
+    return Ok(tasks);
 }
 
 /// Returns the cache object without if match branching nonsense

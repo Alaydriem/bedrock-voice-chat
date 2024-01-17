@@ -1,15 +1,7 @@
-use std::{
-    collections::HashMap,
-    sync::Arc,
-    time::Duration,
-    mem::MaybeUninit,
-    net::TcpStream,
-    io::{ Write, Read },
-};
+use std::{ collections::HashMap, sync::Arc };
 
 use cpal::{ traits::{ HostTrait, DeviceTrait, StreamTrait }, StreamConfig, Device };
-use moka::future::Cache;
-use opus::{ Encoder, Decoder };
+use moka::sync::Cache;
 use rand::distributions::{ Alphanumeric, DistString };
 use anyhow::anyhow;
 use common::structs::{
@@ -20,13 +12,10 @@ use common::structs::{
 
 use async_mutex::Mutex;
 use async_once_cell::OnceCell;
-use ringbuf::{ SharedRb, Producer };
 use tauri::State;
 
 use cpal::SampleRate;
 use audio_gate::NoiseGate;
-
-use super::network::QuicNetworkPacketProducer;
 
 const BUFFER_SIZE: u32 = 960;
 
@@ -78,9 +67,20 @@ const OUTPUT_STREAM: &str = "output_stream";
 #[tauri::command(async)]
 pub(crate) async fn input_stream(
     device: String,
-    quic_producer: State<'_, QuicNetworkPacketProducer>
+    tx: State<'_, tauri::async_runtime::Sender<QuicNetworkPacket>>
 ) -> Result<bool, bool> {
-    let quic_producer = quic_producer.inner().clone();
+    // Stop existing input streams
+    stop_stream(StreamType::InputStream).await;
+
+    let (id, cache) = match setup_task_cache(INPUT_STREAM).await {
+        Ok((id, cache)) => (id, cache),
+        Err(e) => {
+            tracing::error!("{}", e.to_string());
+            return Err(false);
+        }
+    };
+
+    let tx = tx.inner().clone();
 
     let device = match get_device(device, AudioDeviceType::InputDevice, None).await {
         Ok(device) => device,
@@ -90,19 +90,13 @@ pub(crate) async fn input_stream(
         }
     };
 
-    tokio::spawn(async move {
-        _ = stream_input(&device).await;
-    });
-
-    return Ok(true);
-}
-pub(crate) async fn stream_input(device: &cpal::Device) -> Result<(), anyhow::Error> {
     // Input should be a mono channel
     let config: cpal::StreamConfig = StreamConfig {
         channels: 2,
         sample_rate: SampleRate(48000),
         buffer_size: cpal::BufferSize::Fixed(BUFFER_SIZE),
     };
+    let config_c = config.clone();
 
     println!("{}", device.name().unwrap());
 
@@ -117,14 +111,12 @@ pub(crate) async fn stream_input(device: &cpal::Device) -> Result<(), anyhow::Er
         producer.push(0.0).unwrap();
     }
 
-    // Noise Gate Thresholds
     let mut gate = NoiseGate::new(-36.0, -54.0, 48000.0, 2, 150.0, 25.0, 150.0);
 
     let stream = match
         device.build_input_stream(
-            &config,
+            &config_c,
             move |data: &[f32], _: &cpal::InputCallbackInfo| {
-                //println!("{}", data.len());
                 let gated_data = gate.process_frame(&data);
                 for &sample in gated_data.as_slice() {
                     producer.push(sample).unwrap_or({});
@@ -136,12 +128,14 @@ pub(crate) async fn stream_input(device: &cpal::Device) -> Result<(), anyhow::Er
     {
         Ok(stream) => stream,
         Err(e) => {
-            return Err(anyhow!("{}", e.to_string()));
+            tracing::error!("Failed to build audio stream {}", e.to_string());
+            return Err(false);
         }
     };
 
     stream.play().unwrap();
 
+    let tx = tx.clone();
     let mut data_stream = Vec::<f32>::new();
     let mut encoder = opus::Encoder
         ::new(config.sample_rate.0.into(), opus::Channels::Mono, opus::Application::LowDelay)
@@ -149,9 +143,16 @@ pub(crate) async fn stream_input(device: &cpal::Device) -> Result<(), anyhow::Er
 
     #[allow(irrefutable_let_patterns)]
     while let sample = consumer.pop() {
+        let id = id.clone();
+
+        if super::should_self_terminate_sync(&id, &cache.clone(), INPUT_STREAM) {
+            break;
+        }
+
         if sample.is_none() {
             continue;
         }
+
         data_stream.push(sample.unwrap());
 
         if data_stream.len() == (BUFFER_SIZE as usize) {
@@ -183,20 +184,19 @@ pub(crate) async fn stream_input(device: &cpal::Device) -> Result<(), anyhow::Er
                     coordinate: None,
                 }),
             };
-
-            let raw = ron::to_string(&packet).unwrap();
-            let d = raw.as_bytes();
-
-            let mut len = d.to_vec().len().to_be_bytes().to_vec();
-            len.extend_from_slice(&d.to_vec());
-
-            let mut nsstream = TcpStream::connect("127.0.0.1:8444").unwrap();
-            nsstream.write(&len).unwrap();
-            nsstream.flush().unwrap();
+            let tx = tx.clone();
+            tokio::spawn(async move {
+                let tx = tx.clone();
+                _ = tx.send(packet).await;
+                drop(tx);
+            });
         }
     }
 
-    return Ok(());
+    stream.pause().unwrap();
+    drop(stream);
+
+    return Ok(true);
 }
 
 #[tauri::command(async)]
@@ -216,7 +216,7 @@ pub(crate) async fn is_audio_stream_active() -> bool {
         Some(cache) =>
             match cache {
                 Some(cache) =>
-                    match cache.get(INPUT_STREAM).await {
+                    match cache.get(INPUT_STREAM) {
                         Some(_) => {
                             return true;
                         }
@@ -246,10 +246,7 @@ pub(crate) async fn stop_stream(st: StreamType) -> bool {
             match cache {
                 Some(cache) => {
                     let jobs: HashMap<String, i8> = HashMap::<String, i8>::new();
-                    cache.insert(
-                        cache_key.to_string(),
-                        serde_json::to_string(&jobs).unwrap()
-                    ).await;
+                    cache.insert(cache_key.to_string(), serde_json::to_string(&jobs).unwrap());
                     return true;
                 }
                 None => {
@@ -282,10 +279,7 @@ async fn setup_task_cache(
                     let mut jobs: HashMap<String, i8> = HashMap::<String, i8>::new();
                     jobs.insert(id.clone(), 1);
 
-                    cache.insert(
-                        cache_key.to_string(),
-                        serde_json::to_string(&jobs).unwrap()
-                    ).await;
+                    cache.insert(cache_key.to_string(), serde_json::to_string(&jobs).unwrap());
                     return Ok((id, cache));
                 }
                 None => {

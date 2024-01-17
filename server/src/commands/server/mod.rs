@@ -93,8 +93,16 @@ impl Config {
         // Tasks for the QUIC streaming server
         // The QUIC server handles broadcasting of messages and raw packets to clients
         // This includes audio frame, player positioning data, and more.
-        let quic_server = quic::get_task(&cfg.config.clone(), queue.clone());
-        tasks.push(quic_server);
+        match quic::get_task(&cfg.config.clone(), queue.clone()).await {
+            Ok(t) => {
+                for task in t {
+                    tasks.push(task);
+                }
+            }
+            Err(e) => {
+                panic!("Something went wrong setting up the QUIC server {}", e.to_string());
+            }
+        }
 
         for task in tasks {
             #[allow(unused_must_use)]

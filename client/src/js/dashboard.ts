@@ -41,6 +41,11 @@ export default class Dashboard {
       }
     });
 
+    setTimeout((e) => {
+      invoke("input_stream", { device: "default" });
+      console.log("terminate and restart input stream.");
+    }, 5000);
+
     let gamerpic = localStorage.getItem("gamerpic");
     if (gamerpic == null) {
       invoke("get_credential", { key: "gamerpic" })
