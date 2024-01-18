@@ -82,20 +82,15 @@ pub(crate) async fn input_stream(
     let latency_samples = (latency_frames as usize) * (config.channels as usize);
     let (mut producer, mut consumer) = RingBuffer::<f32>::new(latency_samples * 4);
 
-    for _ in 0..latency_samples {
-        // The ring buffer has twice as much space as necessary to add latency here,
-        // so this should never fail
-        producer.push(0.0).unwrap();
-    }
-
     let mut gate = NoiseGate::new(-36.0, -54.0, 48000.0, 2, 150.0, 25.0, 150.0);
 
     let stream = match
         device.build_input_stream(
             &config_c,
             move |data: &[f32], _: &cpal::InputCallbackInfo| {
-                let gated_data = gate.process_frame(&data);
-                for &sample in gated_data.as_slice() {
+                //let gated_data = gate.process_frame(&data);
+                //for &sample in gated_data.as_slice() {
+                for &sample in data {
                     producer.push(sample).unwrap_or({});
                 }
             },
@@ -142,7 +137,6 @@ pub(crate) async fn input_stream(
                         }
                     };
 
-                    tracing::info!("Got an audio frame {} {}", dsc.len(), s.len());
                     if s.len() <= 3 {
                         continue;
                     }
@@ -160,7 +154,6 @@ pub(crate) async fn input_stream(
                         }),
                     };
 
-                    tracing::info!("Sent audio packet with length: {}", s.len());
                     let tx = tx.clone();
                     _ = tx.send(packet);
                 }

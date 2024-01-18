@@ -83,6 +83,8 @@ impl QuicNetworkPacket {
         }
     }
 
+    /// Returns the underlying data frame.
+    /// @todo!() this is failing unexpectedly
     pub fn get_data(&self) -> Option<QuicNetworkPacketData> {
         let data = &self.data as &dyn Any;
         match self.packet_type {

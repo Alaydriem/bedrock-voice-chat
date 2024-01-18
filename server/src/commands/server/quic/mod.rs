@@ -295,10 +295,18 @@ pub(crate) async fn get_task(
                                                                                     None => {}
                                                                                 }
                                                                         }
-                                                                    Err(_) => {}
+                                                                    Err(_) => {
+                                                                        tracing::error!(
+                                                                            "Could not downcast_ref AudioFrame."
+                                                                        );
+                                                                    }
                                                                 }
                                                             }
-                                                            None => {}
+                                                            None => {
+                                                                tracing::info!(
+                                                                    "could not downcast ref audio frame."
+                                                                );
+                                                            }
                                                         }
                                                     }
                                                     _ => {}

@@ -191,12 +191,10 @@ pub(crate) async fn network_stream(
 
                 match QuicNetworkPacket::from_vec(&packet_to_process) {
                     Ok(packet) => {
-                        tracing::info!("Received Network Packet: {:?}", packet.packet_type);
                         match packet.packet_type {
                             // Audio frames should be pushed into the audio_producer mux
                             // To be handled by the output stream
                             PacketType::AudioFrame => {
-                                tracing::info!("received audio packet frame.");
                                 tracing::info!("{:?}", packet);
                                 match packet.get_data() {
                                     Some(data) => {
