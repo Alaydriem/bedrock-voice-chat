@@ -4,24 +4,19 @@ use async_mutex::Mutex;
 use async_once_cell::OnceCell;
 use common::mtlsprovider::MtlsProvider;
 use common::structs::packet::{
-    AudioFramePacket,
-    DebugPacket,
-    PacketType,
-    PlayerDataPacket,
-    QuicNetworkPacket,
-    QuicNetworkPacketData,
+    AudioFramePacket, PacketType, PlayerDataPacket, QuicNetworkPacket, QuicNetworkPacketData,
     QUICK_NETWORK_PACKET_HEADER,
 };
+use kanal::{AsyncReceiver, AsyncSender};
 use moka::future::Cache;
 use s2n_quic::Server;
 use std::collections::hash_map::RandomState;
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::sync::atomic::{ AtomicBool, Ordering };
 use std::time::Duration;
 use tokio::task::JoinHandle;
-use kanal::{ AsyncSender, AsyncReceiver };
 
 /// The size our main ringbuffer can hold
 const MAIN_RINGBUFFER_CAPACITY: usize = 10000;
@@ -31,34 +26,33 @@ const CONNECTION_RINGERBUFFER_CAPACITY: usize = 10000;
 
 /// Player position data
 pub(crate) static PLAYER_POSITION_CACHE: OnceCell<
-    Option<Arc<Cache<String, common::Player, RandomState>>>
+    Option<Arc<Cache<String, common::Player, RandomState>>>,
 > = OnceCell::new();
 
 type AsyncProducerBuffer = AsyncSender<QuicNetworkPacket>;
 type AsyncConsumerBuffer = AsyncReceiver<QuicNetworkPacket>;
 type MutexMapProducer = Arc<Mutex<AsyncSender<QuicNetworkPacket>>>;
-type MutexMapConsumer = Arc<Mutex<AsyncReceiver<QuicNetworkPacket>>>;
+//type MutexMapConsumer = Arc<Mutex<AsyncReceiver<QuicNetworkPacket>>>;
 
 pub(crate) async fn get_task(
     config: &ApplicationConfig,
-    queue: Arc<deadqueue::limited::Queue<QuicNetworkPacket>>
+    queue: Arc<deadqueue::limited::Queue<QuicNetworkPacket>>,
 ) -> Result<Vec<JoinHandle<()>>, anyhow::Error> {
     let shutdown = Arc::new(AtomicBool::new(false));
     let app_config = config.clone();
 
     // Instantiate the player position cache
     // Player positions are valid for 5 minutes before they are evicted
-    PLAYER_POSITION_CACHE.get_or_init(async {
-        return Some(
-            Arc::new(
-                moka::future::Cache
-                    ::builder()
+    PLAYER_POSITION_CACHE
+        .get_or_init(async {
+            return Some(Arc::new(
+                moka::future::Cache::builder()
                     .time_to_live(Duration::from_secs(300))
                     .max_capacity(100)
-                    .build()
-            )
-        );
-    }).await;
+                    .build(),
+            ));
+        })
+        .await;
 
     // This is our main ring buffer. Incoming packets from any client are added to it
     // Then a separate thread pushes them to all connected clients, which is a separate ringbuffer
@@ -94,11 +88,14 @@ pub(crate) async fn get_task(
 
     let io_connection_str: &str = &format!(
         "{}:{}",
-        &app_config.server.listen,
-        &app_config.server.quic_port
+        &app_config.server.listen, &app_config.server.quic_port
     );
 
-    tracing::info!("Starting QUIC server with CA: {} on {}", &cert_path, io_connection_str);
+    tracing::info!(
+        "Starting QUIC server with CA: {} on {}",
+        &cert_path,
+        io_connection_str
+    );
     // Initialize the server
     let mut server = Server::builder()
         .with_event(s2n_quic::provider::event::tracing::Subscriber::default())?
@@ -264,6 +261,7 @@ pub(crate) async fn get_task(
                                                     PacketType::AudioFrame => {
                                                         match packet.get_data() {
                                                             Some(data) => {
+                                                                let data = data.to_owned();
                                                                 let data: Result<
                                                                     AudioFramePacket,
                                                                     ()
@@ -325,7 +323,7 @@ pub(crate) async fn get_task(
                                                     };
                                                 }
                                             }
-                                            Err(e) => {}
+                                            Err(_) => {}
                                         }
                                     }
 
@@ -355,89 +353,82 @@ pub(crate) async fn get_task(
 
     // Iterate through the main consumer mutex and broadcast it to all active connections
     let t2_shutdown = shutdown.clone();
-    tasks.push(
-        tokio::spawn(async move {
-            let shutdown = t2_shutdown.clone();
-            let main_consumer_mux = main_consumer_mux.lock_arc().await;
-            let mutex_map = processor_mutex_map.clone();
+    tasks.push(tokio::spawn(async move {
+        let shutdown = t2_shutdown.clone();
+        let main_consumer_mux = main_consumer_mux.lock_arc().await;
+        let mutex_map = processor_mutex_map.clone();
 
-            // Extract the data from the main mux, then push it into everyone elses private mux
-            #[allow(irrefutable_let_patterns)]
-            while let packet = main_consumer_mux.recv().await {
-                if shutdown.load(Ordering::Relaxed) {
-                    tracing::info!("Broadcast QUIC thread was ended.");
-                    break;
-                }
-                match packet {
-                    Ok(packet) => {
-                        let mutex_map = mutex_map.lock_arc().await;
-                        for (_, producer) in mutex_map.clone().into_iter() {
-                            let producer = producer.lock_arc().await;
-                            _ = producer.send(packet.clone()).await;
-                        }
-                    }
-                    Err(_) => {}
-                }
+        // Extract the data from the main mux, then push it into everyone elses private mux
+        #[allow(irrefutable_let_patterns)]
+        while let packet = main_consumer_mux.recv().await {
+            if shutdown.load(Ordering::Relaxed) {
+                tracing::info!("Broadcast QUIC thread was ended.");
+                break;
             }
-        })
-    );
+            match packet {
+                Ok(packet) => {
+                    let mutex_map = mutex_map.lock_arc().await;
+                    for (_, producer) in mutex_map.clone().into_iter() {
+                        let producer = producer.lock_arc().await;
+                        _ = producer.send(packet.clone()).await;
+                    }
+                }
+                Err(_) => {}
+            }
+        }
+    }));
 
     let t3_shutdown = shutdown.clone();
-    tasks.push(
-        tokio::spawn(async move {
-            let shutdown = t3_shutdown.clone();
-            let cache = cache_c.clone();
-            let main_producer_mux = main_producer_mux_for_deadqueue.clone();
-            let queue = queue.clone();
+    tasks.push(tokio::spawn(async move {
+        let shutdown = t3_shutdown.clone();
+        let cache = cache_c.clone();
+        let main_producer_mux = main_producer_mux_for_deadqueue.clone();
+        let queue = queue.clone();
 
-            #[allow(irrefutable_let_patterns)]
-            while let packet = queue.pop().await {
-                if shutdown.load(Ordering::Relaxed) {
-                    tracing::info!("Webhook QUIC thread ended.");
-                    break;
-                }
+        #[allow(irrefutable_let_patterns)]
+        while let packet = queue.pop().await {
+            if shutdown.load(Ordering::Relaxed) {
+                tracing::info!("Webhook QUIC thread ended.");
+                break;
+            }
 
-                let pkc = packet.clone();
+            let pkc = packet.clone();
 
-                // Packet specific handling
-                match pkc.packet_type {
-                    PacketType::AudioFrame => {}
-                    PacketType::Debug => {}
-                    PacketType::PlayerData => {
-                        match packet.get_data() {
-                            Some(data) => {
-                                let data: Result<PlayerDataPacket, ()> = data.try_into();
-                                match data {
-                                    Ok(data) => {
-                                        for player in data.players.clone() {
-                                            cache.insert(player.name.clone(), player.clone()).await;
-                                        }
-                                    }
-                                    Err(_) => {}
+            // Packet specific handling
+            match pkc.packet_type {
+                PacketType::AudioFrame => {}
+                PacketType::Debug => {}
+                PacketType::PlayerData => match packet.get_data() {
+                    Some(data) => {
+                        let data = data.to_owned();
+                        let data: Result<PlayerDataPacket, ()> = data.try_into();
+                        match data {
+                            Ok(data) => {
+                                for player in data.players.clone() {
+                                    cache.insert(player.name.clone(), player.clone()).await;
                                 }
                             }
-                            None => {}
+                            Err(_) => {}
                         }
                     }
-                }
-
-                // Push all packets into the main mux if they're received.
-                let main_producer_mux = main_producer_mux.lock_arc().await;
-                _ = main_producer_mux.send(packet).await;
+                    None => {}
+                },
             }
-        })
-    );
+
+            // Push all packets into the main mux if they're received.
+            let main_producer_mux = main_producer_mux.lock_arc().await;
+            _ = main_producer_mux.send(packet).await;
+        }
+    }));
 
     let shutdown_monitor = shutdown.clone();
-    tasks.push(
-        tokio::spawn(async move {
-            tracing::info!("Listening for CTRL+C");
-            let shutdown = shutdown_monitor.clone();
-            _ = tokio::signal::ctrl_c().await;
-            shutdown.store(true, Ordering::Relaxed);
-            tracing::info!("Shutdown signal received, signaling QUIC threads to terminate.");
-        })
-    );
+    tasks.push(tokio::spawn(async move {
+        tracing::info!("Listening for CTRL+C");
+        let shutdown = shutdown_monitor.clone();
+        _ = tokio::signal::ctrl_c().await;
+        shutdown.store(true, Ordering::Relaxed);
+        tracing::info!("Shutdown signal received, signaling QUIC threads to terminate.");
+    }));
 
     return Ok(tasks);
 }
@@ -445,11 +436,10 @@ pub(crate) async fn get_task(
 /// Returns the cache object without if match branching nonsense
 async fn get_cache() -> Result<Arc<Cache<String, common::Player>>, anyhow::Error> {
     match PLAYER_POSITION_CACHE.get() {
-        Some(cache) =>
-            match cache {
-                Some(cache) => Ok(cache.clone()),
-                None => Err(anyhow!("Cache not found.")),
-            }
+        Some(cache) => match cache {
+            Some(cache) => Ok(cache.clone()),
+            None => Err(anyhow!("Cache not found.")),
+        },
 
         None => Err(anyhow!("Cache not found")),
     }
