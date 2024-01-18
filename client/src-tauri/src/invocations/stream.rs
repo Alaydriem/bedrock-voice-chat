@@ -1,34 +1,30 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{ collections::HashMap, sync::Arc };
 
 use anyhow::anyhow;
 use common::structs::{
-    audio::{AudioDevice, AudioDeviceType},
+    audio::{ AudioDevice, AudioDeviceType },
     config::StreamType,
-    packet::{AudioFramePacket, PacketType, QuicNetworkPacket, QuicNetworkPacketData},
+    packet::{ AudioFramePacket, PacketType, QuicNetworkPacket, QuicNetworkPacketData },
 };
-use cpal::{
-    traits::{DeviceTrait, HostTrait, StreamTrait},
-    Device, StreamConfig,
-};
+use cpal::{ traits::{ DeviceTrait, HostTrait, StreamTrait }, Device, StreamConfig };
 use moka::sync::Cache;
-use rand::distributions::{Alphanumeric, DistString};
+use rand::distributions::{ Alphanumeric, DistString };
 
-use async_mutex::Mutex;
 use async_once_cell::OnceCell;
-use rtrb::{Consumer, Producer, RingBuffer};
+use rtrb::RingBuffer;
 use tauri::State;
-
+use kanal::{ Sender, Receiver };
 use audio_gate::NoiseGate;
 use cpal::SampleRate;
 
 const BUFFER_SIZE: u32 = 960;
 
-pub(crate) type AudioFramePacketConsumer = Arc<Mutex<Consumer<AudioFramePacket>>>;
+//pub(crate) type AudioFramePacketConsumer = Arc<Mutex<AsyncReceiver<AudioFramePacket>>>;
 
-pub(crate) type AudioFramePacketProducer = Arc<Mutex<Producer<AudioFramePacket>>>;
+//pub(crate) type AudioFramePacketProducer = Arc<Mutex<AsyncSender<AudioFramePacket>>>;
 
 pub(crate) static STREAM_STATE_CACHE: OnceCell<
-    Option<Arc<Cache<String, String, std::collections::hash_map::RandomState>>>,
+    Option<Arc<Cache<String, String, std::collections::hash_map::RandomState>>>
 > = OnceCell::new();
 
 const INPUT_STREAM: &str = "input_stream";
@@ -41,7 +37,7 @@ const OUTPUT_STREAM: &str = "output_stream";
 #[tauri::command(async)]
 pub(crate) async fn input_stream(
     device: String,
-    tx: State<'_, tauri::async_runtime::Sender<QuicNetworkPacket>>,
+    tx: State<'_, Arc<Sender<QuicNetworkPacket>>>
 ) -> Result<bool, bool> {
     // Stop existing input streams
     stop_stream(StreamType::InputStream).await;
@@ -54,9 +50,150 @@ pub(crate) async fn input_stream(
         }
     };
 
+    let gamertag = match super::credentials::get_credential("gamertag".into()).await {
+        Ok(gt) => gt,
+        Err(_) => {
+            return Err(false);
+        }
+    };
+
     let tx = tx.inner().clone();
 
     let device = match get_device(device, AudioDeviceType::InputDevice, None).await {
+        Ok(device) => device,
+        Err(e) => {
+            tracing::error!("{}", e.to_string());
+            return Err(false);
+        }
+    };
+
+    // Input should be a mono channel
+    let config: cpal::StreamConfig = StreamConfig {
+        channels: 2,
+        sample_rate: SampleRate(48000),
+        buffer_size: cpal::BufferSize::Fixed(BUFFER_SIZE),
+    };
+
+    let config_c = config.clone();
+
+    println!("{}", device.name().unwrap());
+
+    let latency_frames = (250.0 / 1_000.0) * (config.sample_rate.0 as f32);
+    let latency_samples = (latency_frames as usize) * (config.channels as usize);
+    let (mut producer, mut consumer) = RingBuffer::<f32>::new(latency_samples * 4);
+
+    for _ in 0..latency_samples {
+        // The ring buffer has twice as much space as necessary to add latency here,
+        // so this should never fail
+        producer.push(0.0).unwrap();
+    }
+
+    let mut gate = NoiseGate::new(-36.0, -54.0, 48000.0, 2, 150.0, 25.0, 150.0);
+
+    let stream = match
+        device.build_input_stream(
+            &config_c,
+            move |data: &[f32], _: &cpal::InputCallbackInfo| {
+                let gated_data = gate.process_frame(&data);
+                for &sample in gated_data.as_slice() {
+                    producer.push(sample).unwrap_or({});
+                }
+            },
+            move |_| {},
+            None // None=blocking, Some(Duration)=timeout
+        )
+    {
+        Ok(stream) => stream,
+        Err(e) => {
+            tracing::error!("Failed to build input audio stream {}", e.to_string());
+            return Err(false);
+        }
+    };
+
+    stream.play().unwrap();
+
+    let tx = tx.clone();
+    let mut data_stream = Vec::<f32>::new();
+    let mut encoder = opus::Encoder
+        ::new(48000, opus::Channels::Mono, opus::Application::LowDelay)
+        .unwrap();
+
+    #[allow(irrefutable_let_patterns)]
+    while let sample = consumer.pop() {
+        match sample {
+            Ok(sample) => {
+                let id = id.clone();
+
+                if super::should_self_terminate_sync(&id, &cache.clone(), INPUT_STREAM) {
+                    break;
+                }
+
+                data_stream.push(sample);
+
+                if data_stream.len() == (BUFFER_SIZE as usize) {
+                    let dsc = data_stream.clone();
+                    data_stream = Vec::<f32>::new();
+
+                    let s = match encoder.encode_vec_float(&dsc, dsc.len() * 2) {
+                        Ok(s) => s,
+                        Err(e) => {
+                            tracing::error!("{}", e.to_string());
+                            Vec::<u8>::with_capacity(0)
+                        }
+                    };
+
+                    tracing::info!("Got an audio frame {} {}", dsc.len(), s.len());
+                    if s.len() <= 3 {
+                        continue;
+                    }
+
+                    let packet = QuicNetworkPacket {
+                        client_id: vec![0; 0],
+                        author: gamertag.clone(),
+                        packet_type: PacketType::AudioFrame,
+                        data: QuicNetworkPacketData::AudioFrame(AudioFramePacket {
+                            length: s.len(),
+                            data: s.clone(),
+                            sample_rate: config.sample_rate.0,
+                            author: gamertag.clone(),
+                            coordinate: None,
+                        }),
+                    };
+
+                    tracing::info!("Sent audio packet with length: {}", s.len());
+                    let tx = tx.clone();
+                    _ = tx.send(packet);
+                }
+            }
+            Err(_) => {}
+        }
+    }
+
+    stream.pause().unwrap();
+    drop(stream);
+
+    return Ok(true);
+}
+
+#[tauri::command(async)]
+pub(crate) async fn output_stream<'r>(
+    device: String,
+    rx: State<'r, kanal::Receiver<AudioFramePacket>>
+) -> Result<bool, bool> {
+    // Stop existing input streams
+    stop_stream(StreamType::InputStream).await;
+
+    let (id, cache) = match setup_task_cache(OUTPUT_STREAM).await {
+        Ok((id, cache)) => (id, cache),
+        Err(e) => {
+            tracing::error!("{}", e.to_string());
+            return Err(false);
+        }
+    };
+
+    let rx = rx.inner().clone();
+
+    let device = match get_device(device, AudioDeviceType::OutputDevice, None).await {
         Ok(device) => device,
         Err(e) => {
             tracing::error!("{}", e.to_string());
@@ -84,102 +221,73 @@ pub(crate) async fn input_stream(
         producer.push(0.0).unwrap();
     }
 
-    let mut gate = NoiseGate::new(-36.0, -54.0, 48000.0, 2, 150.0, 25.0, 150.0);
+    let stream = match
+        device.build_output_stream(
+            &config_c,
+            move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
+                // react to stream events and read or write stream data here.
 
-    let stream = match device.build_input_stream(
-        &config_c,
-        move |data: &[f32], _: &cpal::InputCallbackInfo| {
-            let gated_data = gate.process_frame(&data);
-            for &sample in gated_data.as_slice() {
-                producer.push(sample).unwrap_or({});
-            }
-        },
-        move |_| {},
-        None, // None=blocking, Some(Duration)=timeout
-    ) {
+                // Attenuate volume based on distance
+                // Attenuate based on mute
+                // Attenuate based on user volume settings
+                // Ambisonic 3D audio
+
+                for sample in data {
+                    *sample = match consumer.pop() {
+                        Ok(s) => s,
+                        Err(_) => { 0.0 }
+                    };
+                }
+            },
+            move |_| {
+                // react to errors here.
+            },
+            None // None=blocking, Some(Duration)=timeout
+        )
+    {
         Ok(stream) => stream,
         Err(e) => {
-            tracing::error!("Failed to build audio stream {}", e.to_string());
+            tracing::info!("Failed to build output audio stream {}", e.to_string());
             return Err(false);
         }
     };
 
     stream.play().unwrap();
 
-    let tx = tx.clone();
-    let mut data_stream = Vec::<f32>::new();
-    let mut encoder = opus::Encoder::new(
-        config.sample_rate.0.into(),
-        opus::Channels::Mono,
-        opus::Application::LowDelay,
-    )
-    .unwrap();
+    let rx = rx.clone();
+    let mut decoder = opus::Decoder::new(48000, opus::Channels::Mono).unwrap();
 
     #[allow(irrefutable_let_patterns)]
-    while let sample = consumer.pop() {
-        match sample {
-            Ok(sample) => {
+    while let frame = rx.recv() {
+        match frame {
+            Ok(frame) => {
+                tracing::info!("Received audio frame.");
                 let id = id.clone();
 
-                if super::should_self_terminate_sync(&id, &cache.clone(), INPUT_STREAM) {
+                if super::should_self_terminate_sync(&id, &cache.clone(), OUTPUT_STREAM) {
                     break;
                 }
 
-                data_stream.push(sample);
-
-                if data_stream.len() == (BUFFER_SIZE as usize) {
-                    let dsc = data_stream.clone();
-                    data_stream = Vec::<f32>::new();
-
-                    let s = match encoder.encode_vec_float(&dsc, dsc.len() * 2) {
-                        Ok(s) => s,
-                        Err(e) => {
-                            println!("{}", e.to_string());
-                            Vec::<u8>::with_capacity(0)
-                        }
-                    };
-
-                    if s.len() == 0 {
-                        continue;
+                let mut out = vec![0.0; BUFFER_SIZE as usize];
+                let out_len = match decoder.decode_float(&frame.data, &mut out, false) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        tracing::error!("{}", e.to_string());
+                        0
                     }
+                };
 
-                    // We need to syncronously move data _out_ of this without using a tcp socket
-                    let packet = QuicNetworkPacket {
-                        client_id: vec![0; 0],
-                        author: "".to_string(),
-                        packet_type: PacketType::AudioFrame,
-                        data: QuicNetworkPacketData::AudioFrame(AudioFramePacket {
-                            length: s.len(),
-                            data: s.clone(),
-                            sample_rate: config.sample_rate.0,
-                            author: "".to_string(),
-                            coordinate: None,
-                        }),
-                    };
-                    let tx = tx.clone();
-                    tokio::spawn(async move {
-                        let tx = tx.clone();
-                        _ = tx.send(packet).await;
-                        drop(tx);
-                    });
+                out.truncate(out_len);
+
+                if out.len() > 0 {
+                    for sample in &out {
+                        producer.push(sample.to_owned()).unwrap_or({});
+                    }
                 }
             }
             Err(_) => {}
-        };
+        }
     }
-
-    stream.pause().unwrap();
-    drop(stream);
-
-    return Ok(true);
-}
-
-#[tauri::command(async)]
-pub(crate) async fn output_stream<'r>(
-    device: String,
-    audio_consumer: State<'r, AudioFramePacketConsumer>,
-) -> Result<bool, bool> {
-    let audio_consumer = audio_consumer.inner().clone();
 
     Ok(true)
 }
@@ -188,19 +296,21 @@ pub(crate) async fn output_stream<'r>(
 #[tauri::command(async)]
 pub(crate) async fn is_audio_stream_active() -> bool {
     match STREAM_STATE_CACHE.get() {
-        Some(cache) => match cache {
-            Some(cache) => match cache.get(INPUT_STREAM) {
-                Some(_) => {
-                    return true;
-                }
+        Some(cache) =>
+            match cache {
+                Some(cache) =>
+                    match cache.get(INPUT_STREAM) {
+                        Some(_) => {
+                            return true;
+                        }
+                        None => {
+                            return false;
+                        }
+                    }
                 None => {
                     return false;
                 }
-            },
-            None => {
-                return false;
             }
-        },
         None => {
             return false;
         }
@@ -215,16 +325,17 @@ pub(crate) async fn stop_stream(st: StreamType) -> bool {
     };
 
     match STREAM_STATE_CACHE.get() {
-        Some(cache) => match cache {
-            Some(cache) => {
-                let jobs: HashMap<String, i8> = HashMap::<String, i8>::new();
-                cache.insert(cache_key.to_string(), serde_json::to_string(&jobs).unwrap());
-                return true;
+        Some(cache) =>
+            match cache {
+                Some(cache) => {
+                    let jobs: HashMap<String, i8> = HashMap::<String, i8>::new();
+                    cache.insert(cache_key.to_string(), serde_json::to_string(&jobs).unwrap());
+                    return true;
+                }
+                None => {
+                    return false;
+                }
             }
-            None => {
-                return false;
-            }
-        },
         None => {
             return false;
         }
@@ -239,24 +350,25 @@ pub(crate) async fn stop_stream(st: StreamType) -> bool {
 /// When this thread launches, we consider all other threads invalid, and burn the entire cache
 /// If for some reason we can't access the cache, then this thread self terminates
 async fn setup_task_cache(
-    cache_key: &str,
+    cache_key: &str
 ) -> Result<(String, &Arc<Cache<String, String>>), anyhow::Error> {
     // Self assign an ID for this job
     let id = Alphanumeric.sample_string(&mut rand::thread_rng(), 24);
 
     match STREAM_STATE_CACHE.get() {
-        Some(cache) => match cache {
-            Some(cache) => {
-                let mut jobs: HashMap<String, i8> = HashMap::<String, i8>::new();
-                jobs.insert(id.clone(), 1);
+        Some(cache) =>
+            match cache {
+                Some(cache) => {
+                    let mut jobs: HashMap<String, i8> = HashMap::<String, i8>::new();
+                    jobs.insert(id.clone(), 1);
 
-                cache.insert(cache_key.to_string(), serde_json::to_string(&jobs).unwrap());
-                return Ok((id, cache));
+                    cache.insert(cache_key.to_string(), serde_json::to_string(&jobs).unwrap());
+                    return Ok((id, cache));
+                }
+                None => {
+                    return Err(anyhow!("Cache wasn't found."));
+                }
             }
-            None => {
-                return Err(anyhow!("Cache wasn't found."));
-            }
-        },
         None => {
             return Err(anyhow!("Cache doesn't exist."));
         }
@@ -373,7 +485,7 @@ pub(crate) async fn get_devices() -> Result<HashMap<String, Vec<AudioDevice>>, b
 async fn get_device(
     device: String,
     st: AudioDeviceType,
-    prefered_host: Option<String>,
+    _prefered_host: Option<String>
 ) -> Result<Device, anyhow::Error> {
     let hosts = match get_cpal_hosts() {
         Ok(hosts) => hosts,
@@ -397,13 +509,25 @@ async fn get_device(
     };
 
     let device = match device.as_str() {
-        "default" => host.default_input_device().unwrap(),
-        _ => match devices.find(|x| x.name().map(|y| y == device).unwrap_or(false)) {
-            Some(device) => device,
-            None => {
-                return Err(anyhow!("Device {} was not found", device));
+        "default" =>
+            match st {
+                AudioDeviceType::InputDevice => host.default_input_device().unwrap(),
+                AudioDeviceType::OutputDevice => host.default_output_device().unwrap(),
             }
-        },
+        _ =>
+            match
+                devices.find(|x|
+                    x
+                        .name()
+                        .map(|y| y == device)
+                        .unwrap_or(false)
+                )
+            {
+                Some(device) => device,
+                None => {
+                    return Err(anyhow!("Device {} was not found", device));
+                }
+            }
     };
 
     return Ok(device);

@@ -1,8 +1,8 @@
-use std::{any::Any, fmt::Debug};
+use std::{ any::Any, fmt::Debug };
 
 use crate::Coordinate;
 use anyhow::anyhow;
-use serde::{Deserialize, Serialize};
+use serde::{ Deserialize, Serialize };
 
 /// The packet type
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -54,17 +54,22 @@ impl QuicNetworkPacket {
     /// Convers a vec back into a raw packet
     pub fn from_vec(data: &[u8]) -> Result<Self, anyhow::Error> {
         match std::str::from_utf8(data) {
-            Ok(ds) => match ron::from_str::<QuicNetworkPacket>(&ds) {
-                Ok(packet) => return Ok(packet),
-                Err(e) => {
-                    return Err(anyhow!("{}", e.to_string()));
+            Ok(ds) =>
+                match ron::from_str::<QuicNetworkPacket>(&ds) {
+                    Ok(packet) => {
+                        return Ok(packet);
+                    }
+                    Err(e) => {
+                        return Err(anyhow!("{}", e.to_string()));
+                    }
                 }
-            },
             Err(e) => {
-                return Err(anyhow!(
-                    "Unable to deserialize RON packet. Possible packet length issue? {}",
-                    e.to_string()
-                ));
+                return Err(
+                    anyhow!(
+                        "Unable to deserialize RON packet. Possible packet length issue? {}",
+                        e.to_string()
+                    )
+                );
             }
         }
     }
@@ -72,26 +77,32 @@ impl QuicNetworkPacket {
     /// Whether or not a packet should be broadcasted
     pub fn broadcast(&self) -> bool {
         match self.packet_type {
-            PacketType::AudioFrame => false,
+            PacketType::AudioFrame => true,
             PacketType::Debug => true,
             PacketType::PlayerData => true,
         }
     }
 
-    pub fn get_data(&self) -> QuicNetworkPacketData {
+    pub fn get_data(&self) -> Option<QuicNetworkPacketData> {
         let data = &self.data as &dyn Any;
         match self.packet_type {
             PacketType::AudioFrame => {
-                let ds = data.downcast_ref::<AudioFramePacket>().unwrap();
-                return QuicNetworkPacketData::AudioFrame(ds.clone());
+                return match data.downcast_ref::<AudioFramePacket>() {
+                    Some(object) => Some(QuicNetworkPacketData::AudioFrame(object.clone())),
+                    None => None,
+                };
             }
             PacketType::Debug => {
-                let ds = data.downcast_ref::<DebugPacket>().unwrap();
-                return QuicNetworkPacketData::Debug(ds.clone());
+                return match data.downcast_ref::<DebugPacket>() {
+                    Some(object) => Some(QuicNetworkPacketData::Debug(object.clone())),
+                    None => None,
+                };
             }
             PacketType::PlayerData => {
-                let ds = data.downcast_ref::<PlayerDataPacket>().unwrap();
-                return QuicNetworkPacketData::PlayerData(ds.clone());
+                return match data.downcast_ref::<PlayerDataPacket>() {
+                    Some(object) => Some(QuicNetworkPacketData::PlayerData(object.clone())),
+                    None => None,
+                };
             }
         }
     }
