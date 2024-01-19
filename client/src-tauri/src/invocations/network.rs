@@ -9,7 +9,7 @@ use common::{
     },
 };
 
-use std::{ collections::HashMap, sync::Arc };
+use std::{ collections::HashMap, sync::Arc, time::Duration };
 
 use anyhow::anyhow;
 use async_once_cell::OnceCell;
@@ -29,7 +29,8 @@ const SENDER: &str = "send_stream";
 #[tauri::command(async)]
 pub(crate) async fn network_stream(
     audio_producer: State<'_, Arc<kanal::Sender<AudioFramePacket>>>,
-    rx: State<'_, Arc<kanal::Receiver<QuicNetworkPacket>>>
+    rx: State<'_, Arc<kanal::Receiver<QuicNetworkPacket>>>,
+    tx: State<'_, Arc<kanal::Sender<QuicNetworkPacket>>>
 ) -> Result<bool, bool> {
     // Stop any existing streams
     stop_network_stream().await;

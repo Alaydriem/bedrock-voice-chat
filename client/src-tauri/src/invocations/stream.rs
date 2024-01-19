@@ -1,22 +1,25 @@
-use std::{ collections::HashMap, sync::Arc };
+use std::{ collections::HashMap, sync::Arc, time::Duration };
 
 use anyhow::anyhow;
+use async_mutex::Mutex;
 use common::structs::{
     audio::{ AudioDevice, AudioDeviceType },
     config::StreamType,
     packet::{ AudioFramePacket, PacketType, QuicNetworkPacket, QuicNetworkPacketData },
 };
-use cpal::{ traits::{ DeviceTrait, HostTrait, StreamTrait }, Device, StreamConfig };
+use cpal::{ traits::{ DeviceTrait, HostTrait, StreamTrait }, BufferSize, Device };
 use moka::sync::Cache;
+use opus::Bitrate;
 use rand::distributions::{ Alphanumeric, DistString };
 
 use async_once_cell::OnceCell;
 use audio_gate::NoiseGate;
-use cpal::SampleRate;
 use kanal::Sender;
+use rodio::OutputStream;
 use rtrb::RingBuffer;
 use tauri::State;
 
+use std::sync::mpsc;
 const BUFFER_SIZE: u32 = 960;
 
 //pub(crate) type AudioFramePacketConsumer = Arc<Mutex<AsyncReceiver<AudioFramePacket>>>;
@@ -39,9 +42,17 @@ pub(crate) async fn input_stream(
     device: String,
     tx: State<'_, Arc<Sender<QuicNetworkPacket>>>
 ) -> Result<bool, bool> {
+    let tx = tx.inner().clone();
+
     // Stop existing input streams
     stop_stream(StreamType::InputStream).await;
 
+    // We're using a mpsc channel to transfer signals from the thread that passes message to the network stream
+    // and the underlying stream itself
+    let (mpsc_tx, mpsc_rx) = mpsc::channel();
+
+    // A local Moka cache stores a self-assigned ID we store in this thread
+    // If the thread needs to be canceled, we simply remove it and the loop checks if it's present or not.
     let (id, cache) = match setup_task_cache(INPUT_STREAM).await {
         Ok((id, cache)) => (id, cache),
         Err(e) => {
@@ -57,8 +68,7 @@ pub(crate) async fn input_stream(
         }
     };
 
-    let tx = tx.inner().clone();
-
+    // The audio device we want to use.
     let device = match get_device(device, AudioDeviceType::InputDevice, None).await {
         Ok(device) => device,
         Err(e) => {
@@ -67,104 +77,173 @@ pub(crate) async fn input_stream(
         }
     };
 
-    // Input should be a mono channel
-    let config: cpal::StreamConfig = StreamConfig {
-        channels: 2,
-        sample_rate: SampleRate(48000),
-        buffer_size: cpal::BufferSize::Fixed(BUFFER_SIZE),
-    };
-
-    let config_c = config.clone();
-
-    println!("{}", device.name().unwrap());
-
-    let latency_frames = (250.0 / 1_000.0) * (config.sample_rate.0 as f32);
-    let latency_samples = (latency_frames as usize) * (config.channels as usize);
-    let (mut producer, mut consumer) = RingBuffer::<f32>::new(latency_samples * 4);
-
-    let mut gate = NoiseGate::new(-36.0, -54.0, 48000.0, 2, 150.0, 25.0, 150.0);
-
-    let stream = match
-        device.build_input_stream(
-            &config_c,
-            move |data: &[f32], _: &cpal::InputCallbackInfo| {
-                let gated_data = gate.process_frame(&data);
-                for &sample in gated_data.as_slice() {
-                    //for &sample in data {
-                    producer.push(sample).unwrap_or({});
-                }
-            },
-            move |_| {},
-            None // None=blocking, Some(Duration)=timeout
-        )
-    {
-        Ok(stream) => stream,
+    let config: cpal::StreamConfig = match device.default_input_config() {
+        Ok(config) => {
+            let mut config: cpal::StreamConfig = config.into();
+            config.buffer_size = BufferSize::Fixed(BUFFER_SIZE);
+            config
+        }
         Err(e) => {
-            tracing::error!("Failed to build input audio stream {}", e.to_string());
+            tracing::error!("{}", e.to_string());
             return Err(false);
         }
     };
 
-    stream.play().unwrap();
+    let config_c = config.clone();
 
-    let tx = tx.clone();
-    let mut data_stream = Vec::<f32>::new();
-    let mut encoder = opus::Encoder
-        ::new(48000, opus::Channels::Mono, opus::Application::Voip)
-        .unwrap();
+    tracing::info!("Listening with: {}", device.name().unwrap());
 
-    #[allow(irrefutable_let_patterns)]
-    while let sample = consumer.pop() {
-        match sample {
-            Ok(sample) => {
-                let id = id.clone();
+    // This is our main ringbuffer that transfer data from our audio input thread to our network packeter.
+    let latency_frames = (300.0 / 1_000.0) * (config.sample_rate.0 as f32);
+    let latency_samples = (latency_frames as usize) * (config.channels as usize);
+    let (mut producer, consumer) = RingBuffer::<Vec<f32>>::new(latency_samples * 4);
 
-                if super::should_self_terminate_sync(&id, &cache.clone(), INPUT_STREAM) {
-                    break;
-                }
+    // Our main listener thread on the CPAL device
+    // This will run indefinitely until it receives a mscp signal from the writer.
+    tokio::spawn(async move {
+        let mut gate = NoiseGate::new(
+            -36.0,
+            -56.0,
+            config.sample_rate.0 as f32,
+            config.channels.into(),
+            150.0,
+            5.0,
+            150.0
+        );
 
-                data_stream.push(sample);
+        let stream = match
+            device.build_input_stream(
+                &config_c,
+                move |data: &[f32], _: &cpal::InputCallbackInfo| {
+                    // Gate
+                    let gated_data = gate.process_frame(&data);
+                    // Suppression
+                    // Makeup Gain
+                    // Compresor
+                    // Limiter
 
-                if data_stream.len() == (BUFFER_SIZE as usize) {
-                    let dsc = data_stream.clone();
-                    data_stream = Vec::<f32>::new();
-
-                    let s = match encoder.encode_vec_float(&dsc, dsc.len() * 2) {
-                        Ok(s) => s,
-                        Err(e) => {
-                            tracing::error!("{}", e.to_string());
-                            Vec::<u8>::with_capacity(0)
+                    match producer.push(gated_data) {
+                        Ok(_) => {}
+                        Err(_) => {
+                            tracing::error!("Failed to push packet into buffer.");
                         }
-                    };
+                    }
+                },
+                move |_| {},
+                None // None=blocking, Some(Duration)=timeout
+            )
+        {
+            Ok(stream) => stream,
+            Err(e) => {
+                tracing::error!("Failed to build input audio stream {}", e.to_string());
+                return;
+            }
+        };
 
-                    if s.len() <= 3 {
-                        continue;
+        stream.play().unwrap();
+
+        loop {
+            // This should only fire once, recv() should hold the thread open
+            let message: &'static str = mpsc_rx.recv().unwrap();
+            if message.eq("terminate") {
+                stream.pause().unwrap();
+                break;
+            }
+        }
+
+        drop(stream);
+    });
+
+    // This is our processing thread for our audio frames
+    // Each frame is packaged into an opus frame, then sent to the network.rs to be submitted to the server
+    let tx = tx.clone();
+    let consumer = Arc::new(Mutex::new(consumer));
+    tokio::spawn(async move {
+        let sample_rate: u32 = config.sample_rate.0.into();
+        let id = id.clone();
+        let mut data_stream = Vec::<f32>::new();
+        let mut encoder = opus::Encoder
+            ::new(sample_rate, opus::Channels::Mono, opus::Application::Voip)
+            .unwrap();
+
+        _ = encoder.set_bitrate(Bitrate::Bits(32_000));
+        tracing::info!("Opus Encoder Bitrate: {:?}", encoder.get_bitrate().ok());
+
+        let consumer = consumer.clone();
+        let mut consumer = consumer.lock_arc().await;
+        loop {
+            let sample = consumer.pop();
+            match sample {
+                Ok(mut sample) => {
+                    let id = id.clone();
+
+                    if super::should_self_terminate_sync(&id, &cache.clone(), INPUT_STREAM) {
+                        mpsc_tx.send("terminate").unwrap();
+                        break;
                     }
 
-                    let packet = QuicNetworkPacket {
-                        client_id: vec![0; 0],
-                        author: gamertag.clone(),
-                        packet_type: PacketType::AudioFrame,
-                        data: QuicNetworkPacketData::AudioFrame(AudioFramePacket {
-                            length: s.len(),
-                            data: s.clone(),
-                            sample_rate: config.sample_rate.0,
+                    data_stream.append(&mut sample);
+
+                    // This should practically only ever fire once
+                    // So this code is largely redundant.
+                    // @todo!() measure if this is even necessary
+                    if data_stream.len() >= (BUFFER_SIZE as usize) {
+                        let sample_to_process: Vec<f32> = data_stream
+                            .get(0..960)
+                            .unwrap()
+                            .to_vec();
+
+                        let mut remaining_data = data_stream
+                            .get(960..data_stream.len())
+                            .unwrap()
+                            .to_vec()
+                            .into_boxed_slice()
+                            .to_vec();
+                        data_stream = vec![0.0; 0];
+                        data_stream.append(&mut remaining_data);
+                        data_stream.shrink_to(data_stream.len());
+                        data_stream.truncate(data_stream.len());
+
+                        let s = match
+                            encoder.encode_vec_float(
+                                &sample_to_process,
+                                sample_to_process.len() * 4
+                            )
+                        {
+                            Ok(s) => s,
+                            Err(e) => {
+                                tracing::error!("{}", e.to_string());
+                                Vec::<u8>::with_capacity(0)
+                            }
+                        };
+
+                        if s.len() <= 3 {
+                            continue;
+                        }
+
+                        let packet = QuicNetworkPacket {
+                            client_id: vec![0; 0],
                             author: gamertag.clone(),
-                            coordinate: None,
-                        }),
-                    };
+                            packet_type: PacketType::AudioFrame,
+                            data: QuicNetworkPacketData::AudioFrame(AudioFramePacket {
+                                length: s.len(),
+                                data: s.clone(),
+                                sample_rate: config.sample_rate.0,
+                                author: gamertag.clone(),
+                                coordinate: None,
+                            }),
+                        };
 
-                    let tx = tx.clone();
-                    _ = tx.send(packet);
+                        let tx = tx.clone();
+                        _ = tx.send(packet);
+                    }
                 }
+                Err(_e) => {}
             }
-            Err(_) => {}
         }
-    }
+    });
 
-    stream.pause().unwrap();
-    drop(stream);
-
+    // Calling this from the client will result in an immediate return, but the threads will remain active.
     return Ok(true);
 }
 
@@ -175,6 +254,8 @@ pub(crate) async fn output_stream<'r>(
 ) -> Result<bool, bool> {
     // Stop existing input streams
     stop_stream(StreamType::InputStream).await;
+
+    let (mpsc_tx, mpsc_rx) = mpsc::channel();
 
     let (id, cache) = match setup_task_cache(OUTPUT_STREAM).await {
         Ok((id, cache)) => (id, cache),
@@ -194,17 +275,23 @@ pub(crate) async fn output_stream<'r>(
         }
     };
 
-    // Input should be a mono channel
-    let config: cpal::StreamConfig = StreamConfig {
-        channels: 2,
-        sample_rate: SampleRate(48000),
-        buffer_size: cpal::BufferSize::Fixed(BUFFER_SIZE),
+    let config: cpal::StreamConfig = match device.default_output_config() {
+        Ok(config) => {
+            let mut config: cpal::StreamConfig = config.into();
+            config.buffer_size = BufferSize::Fixed(BUFFER_SIZE);
+            config
+        }
+        Err(e) => {
+            tracing::error!("{}", e.to_string());
+            return Err(false);
+        }
     };
+
     let config_c = config.clone();
 
-    println!("{}", device.name().unwrap());
+    tracing::info!("Outputting to: {}", device.name().unwrap());
 
-    let latency_frames = (250.0 / 1_000.0) * (config.sample_rate.0 as f32);
+    let latency_frames = (300.0 / 1_000.0) * (config.sample_rate.0 as f32);
     let latency_samples = (latency_frames as usize) * (config.channels as usize);
     let (mut producer, mut consumer) = RingBuffer::<f32>::new(latency_samples * 4);
 
@@ -214,72 +301,93 @@ pub(crate) async fn output_stream<'r>(
         producer.push(0.0).unwrap();
     }
 
-    let stream = match
-        device.build_output_stream(
-            &config_c,
-            move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
-                // react to stream events and read or write stream data here.
+    tokio::spawn(async move {
+        let device: rodio::cpal::Device = device as rodio::cpal::Device;
 
-                // Attenuate volume based on distance
-                // Attenuate based on mute
-                // Attenuate based on user volume settings
-                // Ambisonic 3D audio
+        let stream: rodio::cpal::Stream = match
+            device.build_output_stream(
+                &config_c,
+                move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
+                    // react to stream events and read or write stream data here.
 
-                for sample in data {
-                    *sample = match consumer.pop() {
-                        Ok(s) => s,
-                        Err(_) => 0.0,
-                    };
-                }
-            },
-            move |_| {
-                // react to errors here.
-            },
-            None // None=blocking, Some(Duration)=timeout
-        )
-    {
-        Ok(stream) => stream,
-        Err(e) => {
-            tracing::info!("Failed to build output audio stream {}", e.to_string());
-            return Err(false);
+                    // Attenuate volume based on distance
+                    // Attenuate based on mute
+                    // Attenuate based on user volume settings
+                    // Ambisonic 3D audio
+
+                    for sample in data {
+                        *sample = match consumer.pop() {
+                            Ok(s) => s,
+                            Err(_) => 0.0,
+                        };
+                    }
+                },
+                move |_| {
+                    // react to errors here.
+                },
+                None // None=blocking, Some(Duration)=timeout
+            )
+        {
+            Ok(stream) => stream,
+            Err(e) => {
+                tracing::info!("Failed to build output audio stream {}", e.to_string());
+                return;
+            }
+        };
+
+        stream.play().unwrap();
+        loop {
+            // This should only fire once, recv() should hold the thread open
+            let message: &'static str = mpsc_rx.recv().unwrap();
+            if message.eq("terminate") {
+                stream.pause().unwrap();
+                break;
+            }
         }
-    };
-
-    stream.play().unwrap();
+        drop(stream);
+    });
 
     let rx = rx.clone();
-    let mut decoder = opus::Decoder::new(48000, opus::Channels::Mono).unwrap();
+    let producer = Arc::new(Mutex::new(producer));
+    tokio::spawn(async move {
+        let sample_rate: u32 = config.sample_rate.0.into();
+        let mut decoder = opus::Decoder::new(sample_rate, opus::Channels::Mono).unwrap();
 
-    #[allow(irrefutable_let_patterns)]
-    while let frame = rx.recv() {
-        match frame {
-            Ok(frame) => {
-                let id = id.clone();
+        #[allow(irrefutable_let_patterns)]
+        while let frame = rx.recv() {
+            match frame {
+                Ok(frame) => {
+                    let id = id.clone();
 
-                if super::should_self_terminate_sync(&id, &cache.clone(), OUTPUT_STREAM) {
-                    break;
-                }
-
-                let mut out = vec![0.0; BUFFER_SIZE as usize];
-                let out_len = match decoder.decode_float(&frame.data, &mut out, false) {
-                    Ok(s) => s,
-                    Err(e) => {
-                        tracing::error!("{}", e.to_string());
-                        0
+                    if super::should_self_terminate_sync(&id, &cache.clone(), OUTPUT_STREAM) {
+                        _ = mpsc_tx.send("terminate");
+                        break;
                     }
-                };
 
-                out.truncate(out_len);
+                    let mut out = vec![0.0; BUFFER_SIZE as usize];
+                    let out_len = match decoder.decode_float(&frame.data, &mut out, false) {
+                        Ok(s) => s,
+                        Err(e) => {
+                            tracing::error!("{}", e.to_string());
+                            0
+                        }
+                    };
 
-                if out.len() > 0 {
-                    for sample in &out {
-                        producer.push(sample.to_owned()).unwrap_or({});
+                    out.truncate(out_len);
+
+                    if out.len() > 0 {
+                        let producer = producer.clone();
+                        let mut producer = producer.lock_arc().await;
+                        for sample in &out {
+                            producer.push(sample.to_owned()).unwrap_or({});
+                        }
+                        drop(producer);
                     }
                 }
+                Err(_) => {}
             }
-            Err(_) => {}
         }
-    }
+    });
 
     Ok(true)
 }
