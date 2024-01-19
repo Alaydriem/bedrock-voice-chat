@@ -2,7 +2,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod invocations;
-use common::structs::packet::AudioFramePacket;
 use common::structs::packet::QuicNetworkPacket;
 use faccess::PathExt;
 use std::path::Path;
@@ -11,6 +10,8 @@ use tracing::info;
 use tracing::Level;
 use tracing_appender::non_blocking::{ NonBlocking, WorkerGuard };
 use tracing_subscriber::fmt::SubscriberBuilder;
+
+use crate::invocations::stream::AudioFramePacketContainer;
 
 #[tokio::main]
 async fn main() {
@@ -69,7 +70,7 @@ async fn main() {
         return Some(Arc::new(moka::future::Cache::builder().max_capacity(100).build()));
     }).await;
 
-    let (ap, ac) = kanal::bounded::<AudioFramePacket>(10000);
+    let (ap, ac) = kanal::bounded::<AudioFramePacketContainer>(10000);
     let (quic_tx, quic_rx) = kanal::bounded::<QuicNetworkPacket>(10000);
 
     let _tauri = tauri::Builder

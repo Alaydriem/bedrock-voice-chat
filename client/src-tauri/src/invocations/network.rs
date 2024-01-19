@@ -9,7 +9,7 @@ use common::{
     },
 };
 
-use std::{ collections::HashMap, sync::Arc, time::Duration };
+use std::{ collections::HashMap, sync::Arc };
 
 use anyhow::anyhow;
 use async_once_cell::OnceCell;
@@ -18,6 +18,8 @@ use rand::distributions::{ Alphanumeric, DistString };
 use s2n_quic::{ client::Connect, stream::{ ReceiveStream, SendStream }, Client };
 use std::net::SocketAddr;
 use tauri::State;
+
+use super::stream::AudioFramePacketContainer;
 
 pub(crate) static NETWORK_STATE_CACHE: OnceCell<
     Option<Arc<Cache<String, String, std::collections::hash_map::RandomState>>>
@@ -28,9 +30,8 @@ const SENDER: &str = "send_stream";
 
 #[tauri::command(async)]
 pub(crate) async fn network_stream(
-    audio_producer: State<'_, Arc<kanal::Sender<AudioFramePacket>>>,
-    rx: State<'_, Arc<kanal::Receiver<QuicNetworkPacket>>>,
-    tx: State<'_, Arc<kanal::Sender<QuicNetworkPacket>>>
+    audio_producer: State<'_, Arc<kanal::Sender<AudioFramePacketContainer>>>,
+    rx: State<'_, Arc<kanal::Receiver<QuicNetworkPacket>>>
 ) -> Result<bool, bool> {
     // Stop any existing streams
     stop_network_stream().await;
@@ -113,6 +114,7 @@ pub(crate) async fn network_stream(
             match packet {
                 Ok(mut packet) => {
                     if super::should_self_terminate(&id, &cache, SENDER).await {
+                        tracing::info!("Quic Send Stream ended.");
                         break;
                     }
 
@@ -146,6 +148,7 @@ pub(crate) async fn network_stream(
         let mut packet = Vec::<u8>::new();
         while let Ok(Some(data)) = receive_stream.receive().await {
             if super::should_self_terminate(&id, &cache, SENDER).await {
+                tracing::info!("Quic Receive Stream ended.");
                 break;
             }
 
@@ -199,11 +202,13 @@ pub(crate) async fn network_stream(
                                         let data = data.to_owned();
                                         let data: Result<AudioFramePacket, ()> = data.try_into();
 
-                                        // If we don't have coordinates on this audio frame, add them from the cache
                                         match data {
                                             Ok(data) => {
-                                                let audio_producer = audio_producer.clone();
-                                                _ = audio_producer.send(data);
+                                                let frame = AudioFramePacketContainer {
+                                                    client_id: packet.client_id,
+                                                    frame: data,
+                                                };
+                                                _ = audio_producer.send(frame);
                                             }
                                             Err(_) => {
                                                 tracing::error!(

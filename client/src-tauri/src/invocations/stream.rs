@@ -22,6 +22,18 @@ use tauri::State;
 use std::sync::mpsc;
 const BUFFER_SIZE: u32 = 960;
 
+/// Container that stores the client_id and the underlying AudioFrame so we can map decoders to the correct stream
+pub(crate) struct AudioFramePacketContainer {
+    pub client_id: Vec<u8>,
+    pub frame: AudioFramePacket,
+}
+
+/// Container that stores the client ID and the raw PCM data
+pub(crate) struct RawAudioFramePacket {
+    pub client_id: Vec<u8>,
+    pub pcm: Vec<f32>,
+}
+
 //pub(crate) type AudioFramePacketConsumer = Arc<Mutex<AsyncReceiver<AudioFramePacket>>>;
 
 //pub(crate) type AudioFramePacketProducer = Arc<Mutex<AsyncSender<AudioFramePacket>>>;
@@ -250,7 +262,7 @@ pub(crate) async fn input_stream(
 #[tauri::command(async)]
 pub(crate) async fn output_stream<'r>(
     device: String,
-    rx: State<'r, Arc<kanal::Receiver<AudioFramePacket>>>
+    rx: State<'r, Arc<kanal::Receiver<AudioFramePacketContainer>>>
 ) -> Result<bool, bool> {
     // Stop existing input streams
     stop_stream(StreamType::InputStream).await;
@@ -304,6 +316,22 @@ pub(crate) async fn output_stream<'r>(
     tokio::spawn(async move {
         let device: rodio::cpal::Device = device as rodio::cpal::Device;
 
+        /*
+        let config = rodio::cpal::SupportedStreamConfig::new(
+            config_c.channels as u16,
+            SampleRate(config.sample_rate.0.into()),
+            SupportedBufferSize::Range { min: BUFFER_SIZE, max: BUFFER_SIZE },
+            SampleFormat::F32
+        );
+
+        let (stream, handle) = match OutputStream::try_from_device_config(&device, config) {
+            Ok((s, h)) => (s, h),
+            Err(e) => {
+                tracing::error!("Failed to construct output audio stream: {}", e.to_string());
+                return;
+            }
+        };
+         */
         let stream: rodio::cpal::Stream = match
             device.build_output_stream(
                 &config_c,
@@ -351,12 +379,29 @@ pub(crate) async fn output_stream<'r>(
     let producer = Arc::new(Mutex::new(producer));
     tokio::spawn(async move {
         let sample_rate: u32 = config.sample_rate.0.into();
-        let mut decoder = opus::Decoder::new(sample_rate, opus::Channels::Mono).unwrap();
 
+        let mut decoders = HashMap::<Vec<u8>, Arc<Mutex<opus::Decoder>>>::new();
         #[allow(irrefutable_let_patterns)]
         while let frame = rx.recv() {
             match frame {
                 Ok(frame) => {
+                    // Each opus stream has it's own encoder/decoder for state management
+                    // We can retain this in a simple hashmap
+                    // @todo!(): The HashMap size is unbound on the client.
+                    // Until the client restarts this could be a bottlecheck for memory
+                    let decoder = match decoders.get(&frame.client_id) {
+                        Some(decoder) => decoder.to_owned(),
+                        None => {
+                            let decoder = opus::Decoder
+                                ::new(sample_rate, opus::Channels::Mono)
+                                .unwrap();
+                            let decoder = Arc::new(Mutex::new(decoder));
+                            decoders.insert(frame.client_id, decoder.clone());
+                            decoder
+                        }
+                    };
+
+                    let mut decoder = decoder.lock_arc().await;
                     let id = id.clone();
 
                     if super::should_self_terminate_sync(&id, &cache.clone(), OUTPUT_STREAM) {
@@ -365,7 +410,7 @@ pub(crate) async fn output_stream<'r>(
                     }
 
                     let mut out = vec![0.0; BUFFER_SIZE as usize];
-                    let out_len = match decoder.decode_float(&frame.data, &mut out, false) {
+                    let out_len = match decoder.decode_float(&frame.frame.data, &mut out, false) {
                         Ok(s) => s,
                         Err(e) => {
                             tracing::error!("{}", e.to_string());
