@@ -1,6 +1,6 @@
 use crate::Coordinate;
 use anyhow::anyhow;
-use serde::{Deserialize, Serialize};
+use serde::{ Deserialize, Serialize };
 
 /// The packet type
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -52,19 +52,22 @@ impl QuicNetworkPacket {
     /// Convers a vec back into a raw packet
     pub fn from_vec(data: &[u8]) -> Result<Self, anyhow::Error> {
         match std::str::from_utf8(data) {
-            Ok(ds) => match ron::from_str::<QuicNetworkPacket>(&ds) {
-                Ok(packet) => {
-                    return Ok(packet);
+            Ok(ds) =>
+                match ron::from_str::<QuicNetworkPacket>(&ds) {
+                    Ok(packet) => {
+                        return Ok(packet);
+                    }
+                    Err(e) => {
+                        return Err(anyhow!("{}", e.to_string()));
+                    }
                 }
-                Err(e) => {
-                    return Err(anyhow!("{}", e.to_string()));
-                }
-            },
             Err(e) => {
-                return Err(anyhow!(
-                    "Unable to deserialize RON packet. Possible packet length issue? {}",
-                    e.to_string()
-                ));
+                return Err(
+                    anyhow!(
+                        "Unable to deserialize RON packet. Possible packet length issue? {}",
+                        e.to_string()
+                    )
+                );
             }
         }
     }
@@ -79,7 +82,6 @@ impl QuicNetworkPacket {
     }
 
     /// Returns the underlying data frame.
-    /// @todo!() this is failing unexpectedly
     pub fn get_data(&self) -> Option<&QuicNetworkPacketData> {
         Some(&self.data)
     }

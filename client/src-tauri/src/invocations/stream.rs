@@ -1,17 +1,14 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{ collections::HashMap, sync::Arc };
 
 use anyhow::anyhow;
 use common::structs::{
-    audio::{AudioDevice, AudioDeviceType},
+    audio::{ AudioDevice, AudioDeviceType },
     config::StreamType,
-    packet::{AudioFramePacket, PacketType, QuicNetworkPacket, QuicNetworkPacketData},
+    packet::{ AudioFramePacket, PacketType, QuicNetworkPacket, QuicNetworkPacketData },
 };
-use cpal::{
-    traits::{DeviceTrait, HostTrait, StreamTrait},
-    Device, StreamConfig,
-};
+use cpal::{ traits::{ DeviceTrait, HostTrait, StreamTrait }, Device, StreamConfig };
 use moka::sync::Cache;
-use rand::distributions::{Alphanumeric, DistString};
+use rand::distributions::{ Alphanumeric, DistString };
 
 use async_once_cell::OnceCell;
 use audio_gate::NoiseGate;
@@ -27,7 +24,7 @@ const BUFFER_SIZE: u32 = 960;
 //pub(crate) type AudioFramePacketProducer = Arc<Mutex<AsyncSender<AudioFramePacket>>>;
 
 pub(crate) static STREAM_STATE_CACHE: OnceCell<
-    Option<Arc<Cache<String, String, std::collections::hash_map::RandomState>>>,
+    Option<Arc<Cache<String, String, std::collections::hash_map::RandomState>>>
 > = OnceCell::new();
 
 const INPUT_STREAM: &str = "input_stream";
@@ -40,7 +37,7 @@ const OUTPUT_STREAM: &str = "output_stream";
 #[tauri::command(async)]
 pub(crate) async fn input_stream(
     device: String,
-    tx: State<'_, Arc<Sender<QuicNetworkPacket>>>,
+    tx: State<'_, Arc<Sender<QuicNetworkPacket>>>
 ) -> Result<bool, bool> {
     // Stop existing input streams
     stop_stream(StreamType::InputStream).await;
@@ -87,18 +84,20 @@ pub(crate) async fn input_stream(
 
     let mut gate = NoiseGate::new(-36.0, -54.0, 48000.0, 2, 150.0, 25.0, 150.0);
 
-    let stream = match device.build_input_stream(
-        &config_c,
-        move |data: &[f32], _: &cpal::InputCallbackInfo| {
-            let gated_data = gate.process_frame(&data);
-            for &sample in gated_data.as_slice() {
-                //for &sample in data {
-                producer.push(sample).unwrap_or({});
-            }
-        },
-        move |_| {},
-        None, // None=blocking, Some(Duration)=timeout
-    ) {
+    let stream = match
+        device.build_input_stream(
+            &config_c,
+            move |data: &[f32], _: &cpal::InputCallbackInfo| {
+                let gated_data = gate.process_frame(&data);
+                for &sample in gated_data.as_slice() {
+                    //for &sample in data {
+                    producer.push(sample).unwrap_or({});
+                }
+            },
+            move |_| {},
+            None // None=blocking, Some(Duration)=timeout
+        )
+    {
         Ok(stream) => stream,
         Err(e) => {
             tracing::error!("Failed to build input audio stream {}", e.to_string());
@@ -110,8 +109,9 @@ pub(crate) async fn input_stream(
 
     let tx = tx.clone();
     let mut data_stream = Vec::<f32>::new();
-    let mut encoder =
-        opus::Encoder::new(48000, opus::Channels::Mono, opus::Application::LowDelay).unwrap();
+    let mut encoder = opus::Encoder
+        ::new(48000, opus::Channels::Mono, opus::Application::Voip)
+        .unwrap();
 
     #[allow(irrefutable_let_patterns)]
     while let sample = consumer.pop() {
@@ -171,7 +171,7 @@ pub(crate) async fn input_stream(
 #[tauri::command(async)]
 pub(crate) async fn output_stream<'r>(
     device: String,
-    rx: State<'r, kanal::Receiver<AudioFramePacket>>,
+    rx: State<'r, Arc<kanal::Receiver<AudioFramePacket>>>
 ) -> Result<bool, bool> {
     // Stop existing input streams
     stop_stream(StreamType::InputStream).await;
@@ -214,28 +214,30 @@ pub(crate) async fn output_stream<'r>(
         producer.push(0.0).unwrap();
     }
 
-    let stream = match device.build_output_stream(
-        &config_c,
-        move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
-            // react to stream events and read or write stream data here.
+    let stream = match
+        device.build_output_stream(
+            &config_c,
+            move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
+                // react to stream events and read or write stream data here.
 
-            // Attenuate volume based on distance
-            // Attenuate based on mute
-            // Attenuate based on user volume settings
-            // Ambisonic 3D audio
+                // Attenuate volume based on distance
+                // Attenuate based on mute
+                // Attenuate based on user volume settings
+                // Ambisonic 3D audio
 
-            for sample in data {
-                *sample = match consumer.pop() {
-                    Ok(s) => s,
-                    Err(_) => 0.0,
-                };
-            }
-        },
-        move |_| {
-            // react to errors here.
-        },
-        None, // None=blocking, Some(Duration)=timeout
-    ) {
+                for sample in data {
+                    *sample = match consumer.pop() {
+                        Ok(s) => s,
+                        Err(_) => 0.0,
+                    };
+                }
+            },
+            move |_| {
+                // react to errors here.
+            },
+            None // None=blocking, Some(Duration)=timeout
+        )
+    {
         Ok(stream) => stream,
         Err(e) => {
             tracing::info!("Failed to build output audio stream {}", e.to_string());
@@ -252,7 +254,6 @@ pub(crate) async fn output_stream<'r>(
     while let frame = rx.recv() {
         match frame {
             Ok(frame) => {
-                tracing::info!("Received audio frame.");
                 let id = id.clone();
 
                 if super::should_self_terminate_sync(&id, &cache.clone(), OUTPUT_STREAM) {
@@ -287,19 +288,21 @@ pub(crate) async fn output_stream<'r>(
 #[tauri::command(async)]
 pub(crate) async fn is_audio_stream_active() -> bool {
     match STREAM_STATE_CACHE.get() {
-        Some(cache) => match cache {
-            Some(cache) => match cache.get(INPUT_STREAM) {
-                Some(_) => {
-                    return true;
-                }
+        Some(cache) =>
+            match cache {
+                Some(cache) =>
+                    match cache.get(INPUT_STREAM) {
+                        Some(_) => {
+                            return true;
+                        }
+                        None => {
+                            return false;
+                        }
+                    }
                 None => {
                     return false;
                 }
-            },
-            None => {
-                return false;
             }
-        },
         None => {
             return false;
         }
@@ -314,16 +317,17 @@ pub(crate) async fn stop_stream(st: StreamType) -> bool {
     };
 
     match STREAM_STATE_CACHE.get() {
-        Some(cache) => match cache {
-            Some(cache) => {
-                let jobs: HashMap<String, i8> = HashMap::<String, i8>::new();
-                cache.insert(cache_key.to_string(), serde_json::to_string(&jobs).unwrap());
-                return true;
+        Some(cache) =>
+            match cache {
+                Some(cache) => {
+                    let jobs: HashMap<String, i8> = HashMap::<String, i8>::new();
+                    cache.insert(cache_key.to_string(), serde_json::to_string(&jobs).unwrap());
+                    return true;
+                }
+                None => {
+                    return false;
+                }
             }
-            None => {
-                return false;
-            }
-        },
         None => {
             return false;
         }
@@ -338,24 +342,25 @@ pub(crate) async fn stop_stream(st: StreamType) -> bool {
 /// When this thread launches, we consider all other threads invalid, and burn the entire cache
 /// If for some reason we can't access the cache, then this thread self terminates
 async fn setup_task_cache(
-    cache_key: &str,
+    cache_key: &str
 ) -> Result<(String, &Arc<Cache<String, String>>), anyhow::Error> {
     // Self assign an ID for this job
     let id = Alphanumeric.sample_string(&mut rand::thread_rng(), 24);
 
     match STREAM_STATE_CACHE.get() {
-        Some(cache) => match cache {
-            Some(cache) => {
-                let mut jobs: HashMap<String, i8> = HashMap::<String, i8>::new();
-                jobs.insert(id.clone(), 1);
+        Some(cache) =>
+            match cache {
+                Some(cache) => {
+                    let mut jobs: HashMap<String, i8> = HashMap::<String, i8>::new();
+                    jobs.insert(id.clone(), 1);
 
-                cache.insert(cache_key.to_string(), serde_json::to_string(&jobs).unwrap());
-                return Ok((id, cache));
+                    cache.insert(cache_key.to_string(), serde_json::to_string(&jobs).unwrap());
+                    return Ok((id, cache));
+                }
+                None => {
+                    return Err(anyhow!("Cache wasn't found."));
+                }
             }
-            None => {
-                return Err(anyhow!("Cache wasn't found."));
-            }
-        },
         None => {
             return Err(anyhow!("Cache doesn't exist."));
         }
@@ -472,7 +477,7 @@ pub(crate) async fn get_devices() -> Result<HashMap<String, Vec<AudioDevice>>, b
 async fn get_device(
     device: String,
     st: AudioDeviceType,
-    _prefered_host: Option<String>,
+    _prefered_host: Option<String>
 ) -> Result<Device, anyhow::Error> {
     let hosts = match get_cpal_hosts() {
         Ok(hosts) => hosts,
@@ -496,16 +501,25 @@ async fn get_device(
     };
 
     let device = match device.as_str() {
-        "default" => match st {
-            AudioDeviceType::InputDevice => host.default_input_device().unwrap(),
-            AudioDeviceType::OutputDevice => host.default_output_device().unwrap(),
-        },
-        _ => match devices.find(|x| x.name().map(|y| y == device).unwrap_or(false)) {
-            Some(device) => device,
-            None => {
-                return Err(anyhow!("Device {} was not found", device));
+        "default" =>
+            match st {
+                AudioDeviceType::InputDevice => host.default_input_device().unwrap(),
+                AudioDeviceType::OutputDevice => host.default_output_device().unwrap(),
             }
-        },
+        _ =>
+            match
+                devices.find(|x|
+                    x
+                        .name()
+                        .map(|y| y == device)
+                        .unwrap_or(false)
+                )
+            {
+                Some(device) => device,
+                None => {
+                    return Err(anyhow!("Device {} was not found", device));
+                }
+            }
     };
 
     return Ok(device);
