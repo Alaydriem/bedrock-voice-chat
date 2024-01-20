@@ -1,4 +1,4 @@
-use std::{ collections::HashMap, sync::Arc, time::Duration };
+use std::{ collections::HashMap, sync::{ atomic::{ AtomicBool, Ordering }, Arc }, time::Duration };
 
 use anyhow::anyhow;
 use async_mutex::Mutex;
@@ -7,7 +7,21 @@ use common::structs::{
     config::StreamType,
     packet::{ AudioFramePacket, PacketType, QuicNetworkPacket, QuicNetworkPacketData },
 };
-use cpal::{ traits::{ DeviceTrait, HostTrait, StreamTrait }, BufferSize, Device };
+use rodio::{
+    buffer::SamplesBuffer,
+    cpal::{
+        traits::{ DeviceTrait, HostTrait, StreamTrait },
+        BufferSize,
+        Device,
+        SupportedBufferSize,
+        SampleRate,
+        SampleFormat,
+    },
+    OutputStream,
+    OutputStreamHandle,
+    Sink,
+    Source,
+};
 use moka::sync::Cache;
 use opus::Bitrate;
 use rand::distributions::{ Alphanumeric, DistString };
@@ -15,7 +29,6 @@ use rand::distributions::{ Alphanumeric, DistString };
 use async_once_cell::OnceCell;
 use audio_gate::NoiseGate;
 use kanal::Sender;
-use rodio::OutputStream;
 use rtrb::RingBuffer;
 use tauri::State;
 
@@ -106,7 +119,7 @@ pub(crate) async fn input_stream(
     tracing::info!("Listening with: {}", device.name().unwrap());
 
     // This is our main ringbuffer that transfer data from our audio input thread to our network packeter.
-    let latency_frames = (300.0 / 1_000.0) * (config.sample_rate.0 as f32);
+    let latency_frames = (250.0 / 1_000.0) * (config.sample_rate.0 as f32);
     let latency_samples = (latency_frames as usize) * (config.channels as usize);
     let (mut producer, consumer) = RingBuffer::<Vec<f32>>::new(latency_samples * 4);
 
@@ -303,20 +316,15 @@ pub(crate) async fn output_stream<'r>(
 
     tracing::info!("Outputting to: {}", device.name().unwrap());
 
-    let latency_frames = (300.0 / 1_000.0) * (config.sample_rate.0 as f32);
+    let latency_frames = (250.0 / 1_000.0) * (config.sample_rate.0 as f32);
     let latency_samples = (latency_frames as usize) * (config.channels as usize);
-    let (mut producer, mut consumer) = RingBuffer::<f32>::new(latency_samples * 4);
-
-    for _ in 0..latency_samples {
-        // The ring buffer has twice as much space as necessary to add latency here,
-        // so this should never fail
-        producer.push(0.0).unwrap();
-    }
+    let (producer, mut consumer) = RingBuffer::<RawAudioFramePacket>::new(latency_samples * 4);
 
     tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(20)).await;
+
         let device: rodio::cpal::Device = device as rodio::cpal::Device;
 
-        /*
         let config = rodio::cpal::SupportedStreamConfig::new(
             config_c.channels as u16,
             SampleRate(config.sample_rate.0.into()),
@@ -331,48 +339,45 @@ pub(crate) async fn output_stream<'r>(
                 return;
             }
         };
-         */
-        let stream: rodio::cpal::Stream = match
-            device.build_output_stream(
-                &config_c,
-                move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
-                    // react to stream events and read or write stream data here.
 
-                    // Attenuate volume based on distance
-                    // Attenuate based on mute
-                    // Attenuate based on user volume settings
-                    // Ambisonic 3D audio
-
-                    for sample in data {
-                        *sample = match consumer.pop() {
-                            Ok(s) => s,
-                            Err(_) => 0.0,
-                        };
-                    }
-                },
-                move |_| {
-                    // react to errors here.
-                },
-                None // None=blocking, Some(Duration)=timeout
-            )
-        {
-            Ok(stream) => stream,
-            Err(e) => {
-                tracing::info!("Failed to build output audio stream {}", e.to_string());
-                return;
-            }
-        };
-
-        stream.play().unwrap();
-        loop {
-            // This should only fire once, recv() should hold the thread open
+        let shutdown = Arc::new(std::sync::Mutex::new(AtomicBool::new(false)));
+        let shutdown_thread = shutdown.clone();
+        // This is our shutdown monitor, if we get a request via mspc, when can set our atomic bool variable to true
+        // Which will signal the loop to end, and will end the stream
+        tokio::spawn(async move {
+            let shutdown = shutdown_thread.clone();
+            let shutdown = shutdown.lock().unwrap();
             let message: &'static str = mpsc_rx.recv().unwrap();
             if message.eq("terminate") {
-                stream.pause().unwrap();
+                shutdown.store(true, Ordering::Relaxed);
+                tracing::info!("Output stream ended");
+            }
+        });
+
+        //let mut sinks = HashMap::<Vec<u8>, Arc<Mutex<Sink>>>::new();
+        let sink = Sink::try_new(&handle).unwrap();
+        loop {
+            let shutdown = shutdown.clone();
+            let mut shutdown = shutdown.lock().unwrap();
+
+            if shutdown.get_mut().to_owned() {
                 break;
             }
+
+            match consumer.pop() {
+                Ok(frame) => {
+                    let pcm = frame.pcm;
+                    let source = SamplesBuffer::new(
+                        config_c.channels,
+                        config_c.sample_rate.0.into(),
+                        pcm
+                    );
+                    sink.append(source);
+                }
+                Err(_) => {}
+            }
         }
-        drop(stream);
+        tracing::info!("Output stream ended.");
     });
 
     let rx = rx.clone();
@@ -385,18 +390,19 @@ pub(crate) async fn output_stream<'r>(
         while let frame = rx.recv() {
             match frame {
                 Ok(frame) => {
+                    let client_id = frame.client_id;
                     // Each opus stream has it's own encoder/decoder for state management
                     // We can retain this in a simple hashmap
                     // @todo!(): The HashMap size is unbound on the client.
                     // Until the client restarts this could be a bottlecheck for memory
-                    let decoder = match decoders.get(&frame.client_id) {
+                    let decoder = match decoders.get(&client_id) {
                         Some(decoder) => decoder.to_owned(),
                         None => {
                             let decoder = opus::Decoder
                                 ::new(sample_rate, opus::Channels::Mono)
                                 .unwrap();
                             let decoder = Arc::new(Mutex::new(decoder));
-                            decoders.insert(frame.client_id, decoder.clone());
+                            decoders.insert(client_id.clone(), decoder.clone());
                             decoder
                         }
                     };
@@ -423,9 +429,10 @@ pub(crate) async fn output_stream<'r>(
                     if out.len() > 0 {
                         let producer = producer.clone();
                         let mut producer = producer.lock_arc().await;
-                        for sample in &out {
-                            producer.push(sample.to_owned()).unwrap_or({});
-                        }
+                        _ = producer.push(RawAudioFramePacket {
+                            client_id,
+                            pcm: out,
+                        });
                         drop(producer);
                     }
                 }
