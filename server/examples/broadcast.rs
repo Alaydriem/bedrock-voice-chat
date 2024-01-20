@@ -5,6 +5,7 @@ use common::{
 use s2n_quic::{ client::Connect, Client };
 use std::path::Path;
 use std::{ error::Error, net::SocketAddr };
+use rodio::Source;
 
 #[tokio::main]
 async fn main() {
@@ -93,7 +94,6 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
 
                     match QuicNetworkPacket::from_vec(&packet_to_process) {
                         Ok(packet) => {
-                            println!("Received packet: {:?}", packet.packet_type);
                             match packet.packet_type {
                                 PacketType::AudioFrame => {}
                                 PacketType::PlayerData => {}
@@ -118,15 +118,28 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
         tokio::spawn(async move {
             let client_id: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
 
+            let source = rodio::source::SineWave
+                ::new(440.0)
+                .take_duration(std::time::Duration::from_secs_f32(0.02))
+                .amplify(0.2);
+
+            let s: Vec<f32> = source.collect();
+
+            let mut encoder = opus::Encoder
+                ::new(48000, opus::Channels::Mono, opus::Application::Voip)
+                .unwrap();
+            _ = encoder.set_bitrate(opus::Bitrate::Bits(32_000));
+
             loop {
+                let s = encoder.encode_vec_float(&s, s.len() * 4).unwrap();
                 let packet = QuicNetworkPacket {
                     client_id: client_id.clone(),
                     packet_type: common::structs::packet::PacketType::AudioFrame,
                     author: id.clone(),
                     data: common::structs::packet::QuicNetworkPacketData::AudioFrame(
                         common::structs::packet::AudioFramePacket {
-                            length: 281,
-                            data: vec![255; 281],
+                            length: s.len(),
+                            data: s.clone(),
                             sample_rate: 48000,
                             author: id.clone(),
                             coordinate: None,
@@ -146,26 +159,7 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
                         println!("{}", e.to_string());
                     }
                 }
-
-                let packet = QuicNetworkPacket {
-                    client_id: client_id.clone(),
-                    packet_type: common::structs::packet::PacketType::Debug,
-                    author: id.clone(),
-                    data: common::structs::packet::QuicNetworkPacketData::Debug(
-                        DebugPacket(id.clone())
-                    ),
-                };
-                match packet.to_vec() {
-                    Ok(reader) => {
-                        _ = send_stream.send(reader.into()).await;
-                        _ = send_stream.flush().await;
-                    }
-                    Err(e) => {
-                        println!("{}", e.to_string());
-                    }
-                }
-
-                tokio::time::sleep(std::time::Duration::from_nanos(500)).await;
+                tokio::time::sleep(std::time::Duration::from_millis(60)).await;
             }
 
             println!("Sending loop died");

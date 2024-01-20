@@ -17,6 +17,7 @@ use rodio::{
         SampleRate,
         SampleFormat,
     },
+    source::SineWave,
     OutputStream,
     OutputStreamHandle,
     Sink,
@@ -354,8 +355,7 @@ pub(crate) async fn output_stream<'r>(
             }
         });
 
-        //let mut sinks = HashMap::<Vec<u8>, Arc<Mutex<Sink>>>::new();
-        let sink = Sink::try_new(&handle).unwrap();
+        let mut sinks = HashMap::<Vec<u8>, Arc<Sink>>::new();
         loop {
             let shutdown = shutdown.clone();
             let mut shutdown = shutdown.lock().unwrap();
@@ -366,6 +366,17 @@ pub(crate) async fn output_stream<'r>(
 
             match consumer.pop() {
                 Ok(frame) => {
+                    let client_id = frame.client_id;
+                    let sink = match sinks.get(&client_id) {
+                        Some(sink) => sink.to_owned(),
+                        None => {
+                            let sink = Sink::try_new(&handle).unwrap();
+                            let sink = Arc::new(sink);
+                            sinks.insert(client_id, sink.clone());
+                            sink
+                        }
+                    };
+
                     let pcm = frame.pcm;
                     let source = SamplesBuffer::new(
                         config_c.channels,

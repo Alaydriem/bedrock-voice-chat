@@ -78,6 +78,10 @@ kanal = "0.1.0-pre8"
 [build-dependencies]
 built = { version = "^0.5", features = ["git2", "chrono", "semver"] }
 
+[dev-dependencies]
+opus = "0.3.0"
+rodio = "0.17.3"
+
 [package.metadata.deb]
 maintainer = "Charles R. Portwood II <charlesportwoodii@erianna.com>"
 copyright = "2022 - Present, Charles R. Portwood II <charlesportwoodii@erianna.com>"
