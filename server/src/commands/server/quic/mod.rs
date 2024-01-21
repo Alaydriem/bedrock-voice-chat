@@ -98,13 +98,18 @@ pub(crate) async fn get_task(
         .with_io(io_connection_str)?
         .start()?;
 
-    // Store incoming audio frames into a ringbuffer to pop them off later
-    let producer_collection = Arc::new(Mutex::new(HashMap::<u64, MutexMapProducer>::new()));
+    let producer_collection = Arc::new(
+        Mutex::new(HashMap::<u64, Arc<Mutex<MutexMapProducer>>>::new())
+    );
     let consumer_collection = Arc::new(Mutex::new(HashMap::<u64, MutexMapConsumer>::new()));
     let monitor_consumer_collection = consumer_collection.clone();
 
-    let sender_collection = Arc::new(Mutex::new(HashMap::<u64, AsyncProducerBuffer>::new()));
-    let receiver_collection = Arc::new(Mutex::new(HashMap::<u64, AsyncConsumerBuffer>::new()));
+    let sender_collection = Arc::new(
+        Mutex::new(HashMap::<u64, Arc<Mutex<AsyncProducerBuffer>>>::new())
+    );
+    let receiver_collection = Arc::new(
+        Mutex::new(HashMap::<u64, Arc<Mutex<AsyncConsumerBuffer>>>::new())
+    );
     let monitor_sender_collection = sender_collection.clone();
 
     let mut tasks = Vec::new();
@@ -120,17 +125,18 @@ pub(crate) async fn get_task(
             let shutdown = outer_thread_shutdown.clone();
             let cache = cache.clone();
             tracing::info!("Started QUIC listening server.");
-            let mut connection_id: Option<u64> = None;
 
             while let Some(mut connection) = server.accept().await {
+                // Maintain the connection
+                _ = connection.keep_alive(true);
                 let sender_collection = sender_collection.clone();
                 let receiver_collection = receiver_collection.clone();
                 let producer_collection = producer_collection.clone();
                 let consumer_collection = consumer_collection.clone();
+                let cache = cache.clone();
 
                 let shutdown = shutdown.clone();
-                connection_id = Some(connection.id());
-                let raw_connection_id = connection_id.unwrap();
+                let raw_connection_id = connection.id();
 
                 let (sender, receiver) =
                     kanal::bounded_async::<QuicNetworkPacketCollection>(MAIN_RINGBUFFER_CAPACITY);
@@ -138,13 +144,11 @@ pub(crate) async fn get_task(
                 _ = sender_collection
                     .clone()
                     .lock_arc().await
-                    .clone()
-                    .insert(raw_connection_id, sender);
-                _ = receiver_collection
+                    .insert(raw_connection_id, Arc::new(Mutex::new(sender)));
+                receiver_collection
                     .clone()
                     .lock_arc().await
-                    .clone()
-                    .insert(raw_connection_id, receiver);
+                    .insert(raw_connection_id, Arc::new(Mutex::new(receiver)));
 
                 let (producer, consumer) = RingBuffer::<QuicNetworkPacket>::new(
                     CONNECTION_RINGERBUFFER_CAPACITY
@@ -153,182 +157,284 @@ pub(crate) async fn get_task(
                 _ = producer_collection
                     .clone()
                     .lock_arc().await
-                    .insert(raw_connection_id, producer);
+                    .insert(raw_connection_id, Arc::new(Mutex::new(producer)));
                 _ = consumer_collection
                     .clone()
                     .lock_arc().await
                     .insert(raw_connection_id, consumer);
 
-                let stream_cache = cache.clone();
+                tokio::spawn(async move {
+                    let receiver_collection = receiver_collection.clone();
+                    let producer_collection = producer_collection.clone();
+                    let sender_collection = sender_collection.clone();
+                    let consumer_collection = consumer_collection.clone();
+                    let cache = cache.clone();
+                    let stream_cache = cache.clone();
 
-                match connection.accept_bidirectional_stream().await {
-                    Ok(stream) =>
-                        match stream {
-                            Some(stream) => {
-                                let (mut receive_stream, mut send_stream) = stream.split();
+                    match connection.accept_bidirectional_stream().await {
+                        Ok(stream) =>
+                            match stream {
+                                Some(stream) => {
+                                    let (mut receive_stream, mut send_stream) = stream.split();
 
-                                // When a client connects, store the author property on the QuicNetworkPacket for this stream
-                                // This enables us to identify packets directed to us.
-                                let cid: Option<Vec<u8>> = None;
-                                let client_id = Arc::new(Mutex::new(cid));
+                                    // When a client connects, store the author property on the QuicNetworkPacket for this stream
+                                    // This enables us to identify packets directed to us.
+                                    let cid: Option<Vec<u8>> = None;
+                                    let client_id = Arc::new(Mutex::new(cid));
 
-                                // Receiving Stream
-                                let receiver_shutdown = shutdown.clone();
-                                let receiver_cache = stream_cache.clone();
-                                tokio::spawn(async move {
-                                    let producer_collection = producer_collection.clone();
-                                    let producer = producer_collection.lock_arc().await;
+                                    let receiver_shutdown = shutdown.clone();
+                                    let receiver_cache = stream_cache.clone();
 
-                                    let shutdown = receiver_shutdown.clone();
-                                    let magic_header: Vec<u8> =
-                                        QUICK_NETWORK_PACKET_HEADER.to_vec();
-                                    let mut packet = Vec::<u8>::new();
+                                    let mut tasks = Vec::new();
 
-                                    while let Ok(Some(data)) = receive_stream.receive().await {
-                                        if shutdown.load(Ordering::Relaxed) {
-                                            _ = receive_stream.stop_sending((204u8).into());
-                                            tracing::info!("Receiving stream was ended.");
-                                            break;
-                                        }
+                                    let disconnected = Arc::new(AtomicBool::new(false));
+                                    let receiver_disconnected = disconnected.clone();
+                                    let sender_disconnected = disconnected.clone();
 
-                                        packet.append(&mut data.to_vec());
+                                    let outer_receiver_collection = receiver_collection.clone();
+                                    let outer_producer_collection = producer_collection.clone();
+                                    let outer_sender_collection = sender_collection.clone();
+                                    let outer_consumer_collection = consumer_collection.clone();
 
-                                        let packet_header = packet.get(0..5);
-
-                                        let packet_header = match packet_header {
-                                            Some(header) => header.to_vec(),
-                                            None => {
-                                                continue;
-                                            }
-                                        };
-
-                                        let packet_length = packet.get(5..13);
-                                        if packet_length.is_none() {
-                                            continue;
-                                        }
-
-                                        let packet_len = usize::from_be_bytes(
-                                            packet_length.unwrap().try_into().unwrap()
-                                        );
-
-                                        // If the current packet starts with the magic header and we have enough bytes, drain it
-                                        if
-                                            packet_header.eq(&magic_header) &&
-                                            packet.len() >= packet_len + 13
-                                        {
-                                            let packet_to_process = packet
-                                                .get(0..packet_len + 13)
+                                    // Receiving Stream
+                                    tasks.push(
+                                        tokio::spawn(async move {
+                                            let disconnected = receiver_disconnected.clone();
+                                            let producer_collection = producer_collection.clone();
+                                            let mut producer = producer_collection
+                                                .lock_arc().await
+                                                .get(&raw_connection_id)
                                                 .unwrap()
-                                                .to_vec();
+                                                .lock_arc().await;
 
-                                            let mut remaining_data = packet
-                                                .get(packet_len + 13..packet.len())
-                                                .unwrap()
-                                                .to_vec()
-                                                .into_boxed_slice()
-                                                .to_vec();
-                                            packet = vec![0; 0];
-                                            packet.append(&mut remaining_data);
-                                            packet.shrink_to(packet.len());
-                                            packet.truncate(packet.len());
+                                            let shutdown = receiver_shutdown.clone();
+                                            let magic_header: Vec<u8> =
+                                                QUICK_NETWORK_PACKET_HEADER.to_vec();
+                                            let mut packet = Vec::<u8>::new();
 
-                                            // Strip the header and frame length
-                                            let packet_to_process = packet_to_process
-                                                .get(13..packet_to_process.len())
-                                                .unwrap();
-
-                                            match QuicNetworkPacket::from_vec(&packet_to_process) {
-                                                Ok(mut packet) => {
-                                                    let mut client_id = client_id.lock().await;
-                                                    let author = packet.client_id.clone();
-
-                                                    if client_id.is_none() {
-                                                        *client_id = Some(author.clone());
-                                                        tracing::info!("{:?} Connected", author);
-                                                    }
-
-                                                    let packet =
-                                                        update_packet_with_player_coordinates(
-                                                            packet.borrow_mut(),
-                                                            receiver_cache.clone()
-                                                        ).await;
-
-                                                    match producer.get(&raw_connection_id) {
-                                                        Some(mut producer) => {
-                                                            producer.borrow_mut().push(packet);
-                                                        }
-                                                        None => {}
-                                                    }
-                                                    tracing::info!("Received a QuicNetworkPacket.");
-                                                }
-                                                Err(e) => {
-                                                    tracing::error!(
-                                                        "Unable to deserialize RON packet. Possible packet length issue? {}",
-                                                        e.to_string()
+                                            while
+                                                let Ok(Some(data)) = receive_stream.receive().await
+                                            {
+                                                if
+                                                    shutdown.load(Ordering::Relaxed) ||
+                                                    disconnected.load(Ordering::Relaxed)
+                                                {
+                                                    _ = receive_stream.stop_sending((204u8).into());
+                                                    tracing::info!(
+                                                        "Receiving stream signaled to end."
                                                     );
+                                                    break;
+                                                }
+
+                                                packet.append(&mut data.to_vec());
+
+                                                let packet_header = packet.get(0..5);
+
+                                                let packet_header = match packet_header {
+                                                    Some(header) => header.to_vec(),
+                                                    None => {
+                                                        continue;
+                                                    }
+                                                };
+
+                                                let packet_length = packet.get(5..13);
+                                                if packet_length.is_none() {
                                                     continue;
                                                 }
-                                            };
-                                        }
-                                    }
-                                });
 
-                                // Sending Stream
-                                let sender_shutdown = shutdown.clone();
-                                tokio::spawn(async move {
-                                    let shutdown = sender_shutdown.clone();
-                                    let receiver_collection = receiver_collection.clone();
-                                    let receiver_collection = receiver_collection.lock_arc().await;
+                                                let packet_len = usize::from_be_bytes(
+                                                    packet_length.unwrap().try_into().unwrap()
+                                                );
 
-                                    let rc_copy = receiver_collection.clone();
-                                    drop(receiver_collection);
-                                    let consumer = match rc_copy.get(&raw_connection_id) {
-                                        Some(consumer) => consumer.clone(),
-                                        None => {
-                                            tracing::error!("Missing consumer from shell?");
-                                            _ = send_stream.finish();
-                                            return;
-                                        }
-                                    };
+                                                // If the current packet starts with the magic header and we have enough bytes, drain it
+                                                if
+                                                    packet_header.eq(&magic_header) &&
+                                                    packet.len() >= packet_len + 13
+                                                {
+                                                    let packet_to_process = packet
+                                                        .get(0..packet_len + 13)
+                                                        .unwrap()
+                                                        .to_vec();
 
-                                    #[allow(irrefutable_let_patterns)]
-                                    while let packet = consumer.recv().await {
-                                        if shutdown.load(Ordering::Relaxed) {
-                                            tracing::info!("Sending stream was cancelled.");
-                                            _ = send_stream.finish();
-                                            break;
-                                        }
+                                                    let mut remaining_data = packet
+                                                        .get(packet_len + 13..packet.len())
+                                                        .unwrap()
+                                                        .to_vec()
+                                                        .into_boxed_slice()
+                                                        .to_vec();
+                                                    packet = vec![0; 0];
+                                                    packet.append(&mut remaining_data);
+                                                    packet.shrink_to(packet.len());
+                                                    packet.truncate(packet.len());
 
-                                        match packet {
-                                            Ok(packet) =>
-                                                match packet.to_vec() {
-                                                    Ok(rs) => {
-                                                        tracing::info!(
-                                                            "Sending packet: {}",
-                                                            packet.frames.len()
-                                                        );
-                                                        _ = send_stream.send(rs.into()).await;
-                                                        _ = send_stream.flush().await;
-                                                    }
-                                                    Err(e) => {
-                                                        tracing::error!("{:?}", e.to_string());
-                                                    }
+                                                    // Strip the header and frame length
+                                                    let packet_to_process = packet_to_process
+                                                        .get(13..packet_to_process.len())
+                                                        .unwrap();
+
+                                                    match
+                                                        QuicNetworkPacket::from_vec(
+                                                            &packet_to_process
+                                                        )
+                                                    {
+                                                        Ok(mut packet) => {
+                                                            let mut client_id =
+                                                                client_id.lock().await;
+                                                            let author = packet.client_id.clone();
+
+                                                            if client_id.is_none() {
+                                                                *client_id = Some(author.clone());
+                                                                tracing::info!(
+                                                                    "{:?} Connected",
+                                                                    author
+                                                                );
+                                                            }
+
+                                                            let pt = packet.packet_type.clone();
+
+                                                            if pt.eq(&PacketType::AudioFrame) {
+                                                                let packet =
+                                                                    update_packet_with_player_coordinates(
+                                                                        packet.borrow_mut(),
+                                                                        receiver_cache.clone()
+                                                                    ).await;
+
+                                                                _ = producer.push(packet);
+                                                            }
+                                                        }
+                                                        Err(e) => {
+                                                            tracing::error!(
+                                                                "Unable to deserialize RON packet. Possible packet length issue? {}",
+                                                                e.to_string()
+                                                            );
+                                                            continue;
+                                                        }
+                                                    };
                                                 }
-                                            Err(_) => {}
-                                        }
+                                            }
+
+                                            disconnected.store(true, Ordering::Relaxed);
+                                            let sender = sender_collection
+                                                .clone()
+                                                .lock_arc().await
+                                                .clone()
+                                                .get(&raw_connection_id)
+                                                .unwrap()
+                                                .lock_arc().await;
+
+                                            // Send an empty packet to the sending thread which'll trigger the thread to shutdown
+                                            _ = sender.send(QuicNetworkPacketCollection {
+                                                frames: Vec::new(),
+                                                positions: PlayerDataPacket {
+                                                    players: Vec::new(),
+                                                },
+                                            }).await;
+                                            tracing::info!(
+                                                "Receving stream for {} ended.",
+                                                &raw_connection_id
+                                            );
+
+                                            return;
+                                        })
+                                    );
+
+                                    // Sending Stream
+                                    let sender_shutdown = shutdown.clone();
+                                    tasks.push(
+                                        tokio::spawn(async move {
+                                            let disconnected = sender_disconnected.clone();
+                                            let shutdown = sender_shutdown.clone();
+                                            let receiver = receiver_collection
+                                                .clone()
+                                                .lock_arc().await
+                                                .get(&raw_connection_id)
+                                                .unwrap()
+                                                .lock_arc().await;
+
+                                            #[allow(irrefutable_let_patterns)]
+                                            while let packet = receiver.recv().await {
+                                                if shutdown.load(Ordering::Relaxed) {
+                                                    tracing::info!("Sending stream was cancelled.");
+                                                    // Ensure the receiving stream gets the disconnect signal
+                                                    _ = disconnected.store(true, Ordering::Relaxed);
+                                                    _ = send_stream.finish();
+                                                    break;
+                                                }
+
+                                                if disconnected.load(Ordering::Relaxed) {
+                                                    tracing::info!(
+                                                        "Sending stream received shutdown signal from recv stream."
+                                                    );
+                                                    break;
+                                                }
+
+                                                match packet {
+                                                    Ok(packet) =>
+                                                        match packet.to_vec() {
+                                                            Ok(rs) => {
+                                                                _ = send_stream.send(
+                                                                    rs.into()
+                                                                ).await;
+                                                                _ = send_stream.flush().await;
+                                                            }
+                                                            Err(e) => {
+                                                                tracing::error!(
+                                                                    "{:?}",
+                                                                    e.to_string()
+                                                                );
+                                                            }
+                                                        }
+                                                    Err(_) => {}
+                                                }
+                                            }
+
+                                            tracing::info!(
+                                                "Sending stream for {} ended.",
+                                                &raw_connection_id
+                                            );
+
+                                            return;
+                                        })
+                                    );
+
+                                    // Await the tasks to finish
+                                    for task in tasks {
+                                        _ = task.await;
                                     }
 
-                                    tracing::info!("Sending stream died.");
-                                });
+                                    // When the connection closes, remove the references in the hashmap so it doesn't grow indefinitely.
+                                    tracing::info!("Connection {} closed.", &raw_connection_id);
+                                    _ = outer_sender_collection
+                                        .clone()
+                                        .lock_arc().await
+                                        .remove(&raw_connection_id);
+                                    _ = outer_receiver_collection
+                                        .clone()
+                                        .lock_arc().await
+                                        .remove(&raw_connection_id);
+
+                                    _ = outer_producer_collection
+                                        .clone()
+                                        .lock_arc().await
+                                        .remove(&raw_connection_id);
+                                    _ = outer_consumer_collection
+                                        .clone()
+                                        .lock_arc().await
+                                        .remove(&raw_connection_id);
+                                    connection.close((99u32).into());
+                                }
+                                None => {
+                                    tracing::info!("Bidirectional stream failed to open?");
+                                }
                             }
-                            None => {
-                                tracing::info!("Bidirectional stream failed to open?");
-                            }
+                        Err(e) => {
+                            tracing::error!(
+                                "Could not accept bidirectional stream: {:?}",
+                                e.to_string()
+                            );
                         }
-                    Err(e) => {
-                        tracing::error!("{:?}", e.to_string());
                     }
-                }
+                });
             }
         })
     );
@@ -343,19 +449,32 @@ pub(crate) async fn get_task(
             let sender_collection = monitor_sender_collection.clone();
 
             loop {
+                // If our monitoring thread receives the shutdown signal we need to trigger the sending streams to cancel the receiving stream, which will in turn singla the receiving stream.
+                // This is a failsafe incase the stream is receiving data, but the client isn't sending data (is muted);
                 if shutdown.load(Ordering::Relaxed) {
-                    tracing::info!("Monitor stream was cancelled.");
+                    tracing::info!("QUIC aggregation and broadcast thread signaled to terminate.");
+                    let collection = QuicNetworkPacketCollection {
+                        frames: Vec::new(),
+                        positions: PlayerDataPacket {
+                            players: Vec::new(),
+                        },
+                    };
+                    let mut sender_collection = sender_collection.lock_arc().await.clone();
+                    for (_, sender) in sender_collection.iter_mut() {
+                        let sender = sender.lock_arc().await;
+                        _ = sender.send(collection.clone()).await;
+                    }
+                    drop(sender_collection);
                     break;
                 }
-                let consumer_collection = consumer_collection.clone();
-                let mut consumer_collection = consumer_collection.lock_arc().await;
+
+                let mut consumer_collection = consumer_collection.clone().lock_arc().await;
 
                 // This is our collection of frames from all current producers (streams, clients)
                 let mut frames = Vec::<QuicNetworkPacket>::new();
 
                 // Iterate through each consumer, and get the first audio packet
-                for (id, consumer) in consumer_collection.iter_mut() {
-                    tracing::info!("Connection ID Recv: {}", id);
+                for (_, consumer) in consumer_collection.iter_mut() {
                     match consumer.pop() {
                         Ok(packet) =>
                             match packet.packet_type {
@@ -384,18 +503,20 @@ pub(crate) async fn get_task(
                     };
 
                     // Send this collection to every client
-                    let sender_collection = sender_collection.lock_arc().await;
-                    let mut scc = sender_collection.clone();
-                    drop(sender_collection);
-                    for (_, sender) in scc.iter_mut() {
+                    let mut sender_collection = sender_collection.lock_arc().await.clone();
+                    for (_, sender) in sender_collection.iter_mut() {
+                        let sender = sender.lock_arc().await;
                         _ = sender.send(collection.clone()).await;
                     }
+                    drop(sender_collection);
                 }
 
-                _ = tokio::time::sleep(Duration::from_millis(20)).await;
+                // This is just to park the thread and release any outstanding locks
+                // @todo!() We need to test this with an actual audio stream.
+                _ = tokio::time::sleep(Duration::from_millis(0)).await;
             }
 
-            tracing::info!("Looping thread ended.");
+            return;
         })
     );
 
@@ -437,6 +558,8 @@ pub(crate) async fn get_task(
                     _ => {}
                 }
             }
+
+            return;
         })
     );
 
@@ -450,6 +573,8 @@ pub(crate) async fn get_task(
             _ = tokio::signal::ctrl_c().await;
             shutdown.store(true, Ordering::Relaxed);
             tracing::info!("Shutdown signal received, signaling QUIC threads to terminate.");
+
+            return;
         })
     );
 

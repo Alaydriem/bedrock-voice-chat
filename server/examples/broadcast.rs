@@ -60,7 +60,6 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
             let mut packet_len_total: usize = 0;
 
             while let Ok(Some(data)) = receive_stream.receive().await {
-                println!("Received data.");
                 packet_len_total = packet_len_total + data.to_vec().len();
                 packet.append(&mut data.to_vec());
 
@@ -100,7 +99,7 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
 
                     match QuicNetworkPacketCollection::from_vec(&packet_to_process) {
                         Ok(packet) => {
-                            tracing::info!("Got back {} packets.", packet.frames.len());
+                            println!("Got back {} packets.", packet.frames.len());
                         }
                         Err(e) => {
                             tracing::error!(
@@ -157,8 +156,6 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
                         println!("{}", e.to_string());
                     }
                 }
-
-                _ = tokio::time::sleep(Duration::from_millis(20)).await;
             }
         })
     );

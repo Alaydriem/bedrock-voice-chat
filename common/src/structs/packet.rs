@@ -3,7 +3,7 @@ use anyhow::anyhow;
 use serde::{ Deserialize, Serialize };
 
 /// The packet type
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
 pub enum PacketType {
     AudioFrame,
     PlayerData,
