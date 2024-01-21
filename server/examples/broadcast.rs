@@ -1,11 +1,17 @@
 use common::{
     mtlsprovider::MtlsProvider,
-    structs::packet::{ DebugPacket, PacketType, QuicNetworkPacket, QUICK_NETWORK_PACKET_HEADER },
+    structs::packet::{
+        DebugPacket,
+        PacketType,
+        QuicNetworkPacket,
+        QuicNetworkPacketCollection,
+        QUICK_NETWORK_PACKET_HEADER,
+    },
 };
 use s2n_quic::{ client::Connect, Client };
-use std::path::Path;
+use std::{ path::Path, time::Duration };
 use std::{ error::Error, net::SocketAddr };
-use rodio::Source;
+use rodio::{ source::SineWave, Source };
 
 #[tokio::main]
 async fn main() {
@@ -54,7 +60,7 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
             let mut packet_len_total: usize = 0;
 
             while let Ok(Some(data)) = receive_stream.receive().await {
-                tracing::info!("Received data.");
+                println!("Received data.");
                 packet_len_total = packet_len_total + data.to_vec().len();
                 packet.append(&mut data.to_vec());
 
@@ -92,13 +98,9 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
                         .get(13..packet_to_process.len())
                         .unwrap();
 
-                    match QuicNetworkPacket::from_vec(&packet_to_process) {
+                    match QuicNetworkPacketCollection::from_vec(&packet_to_process) {
                         Ok(packet) => {
-                            match packet.packet_type {
-                                PacketType::AudioFrame => {}
-                                PacketType::PlayerData => {}
-                                PacketType::Debug => {}
-                            }
+                            tracing::info!("Got back {} packets.", packet.frames.len());
                         }
                         Err(e) => {
                             tracing::error!(
@@ -118,19 +120,18 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
         tokio::spawn(async move {
             let client_id: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
 
-            let source = rodio::source::SineWave
-                ::new(440.0)
-                .take_duration(std::time::Duration::from_secs_f32(0.02))
-                .amplify(0.2);
-
-            let s: Vec<f32> = source.collect();
-
-            let mut encoder = opus::Encoder
-                ::new(48000, opus::Channels::Mono, opus::Application::Voip)
-                .unwrap();
-            _ = encoder.set_bitrate(opus::Bitrate::Bits(32_000));
-
             loop {
+                let source = SineWave::new(440.0)
+                    .take_duration(Duration::from_secs_f32(0.02))
+                    .amplify(0.2);
+
+                let s: Vec<f32> = source.collect();
+
+                let mut encoder = opus::Encoder
+                    ::new(48000, opus::Channels::Mono, opus::Application::Voip)
+                    .unwrap();
+                _ = encoder.set_bitrate(opus::Bitrate::Bits(32_000));
+
                 let s = encoder.encode_vec_float(&s, s.len() * 4).unwrap();
                 let packet = QuicNetworkPacket {
                     client_id: client_id.clone(),
@@ -149,20 +150,16 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
 
                 match packet.to_vec() {
                     Ok(reader) => {
-                        let result = send_stream.send(reader.into()).await;
+                        _ = send_stream.send(reader.into()).await;
                         _ = send_stream.flush().await;
-                        if result.is_err() {
-                            break;
-                        }
                     }
                     Err(e) => {
                         println!("{}", e.to_string());
                     }
                 }
-                tokio::time::sleep(std::time::Duration::from_millis(60)).await;
-            }
 
-            println!("Sending loop died");
+                _ = tokio::time::sleep(Duration::from_millis(20)).await;
+            }
         })
     );
 

@@ -11,6 +11,12 @@ pub enum PacketType {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct QuicNetworkPacketCollection {
+    pub frames: Vec<QuicNetworkPacket>,
+    pub positions: PlayerDataPacket,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum QuicNetworkPacketData {
     AudioFrame(AudioFramePacket),
     PlayerData(PlayerDataPacket),
@@ -28,6 +34,50 @@ pub struct QuicNetworkPacket {
 
 /// Magic header
 pub const QUICK_NETWORK_PACKET_HEADER: &[u8; 5] = &[251, 33, 51, 0, 27];
+
+impl QuicNetworkPacketCollection {
+    /// Converts the packet into a parseable string
+    pub fn to_vec(&self) -> Result<Vec<u8>, anyhow::Error> {
+        match ron::to_string(&self) {
+            Ok(rs) => {
+                let mut header: Vec<u8> = QUICK_NETWORK_PACKET_HEADER.to_vec();
+                let mut len = rs.as_bytes().len().to_be_bytes().to_vec();
+                let mut data = rs.as_bytes().to_vec();
+
+                header.append(&mut len);
+                header.append(&mut data);
+
+                return Ok(header);
+            }
+            Err(e) => {
+                return Err(anyhow!("Could not parse packet. {}", e.to_string()));
+            }
+        }
+    }
+
+    /// Convers a vec back into a raw packet
+    pub fn from_vec(data: &[u8]) -> Result<Self, anyhow::Error> {
+        match std::str::from_utf8(data) {
+            Ok(ds) =>
+                match ron::from_str::<QuicNetworkPacketCollection>(&ds) {
+                    Ok(packet) => {
+                        return Ok(packet);
+                    }
+                    Err(e) => {
+                        return Err(anyhow!("{}", e.to_string()));
+                    }
+                }
+            Err(e) => {
+                return Err(
+                    anyhow!(
+                        "Unable to deserialize RON packet. Possible packet length issue? {}",
+                        e.to_string()
+                    )
+                );
+            }
+        }
+    }
+}
 
 impl QuicNetworkPacket {
     /// Converts the packet into a parseable string

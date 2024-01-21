@@ -355,6 +355,7 @@ pub(crate) async fn output_stream<'r>(
             }
         });
 
+        // This needs to be moka::Cache so keys aren't retained forever
         let mut sinks = HashMap::<Vec<u8>, Arc<Sink>>::new();
         loop {
             let shutdown = shutdown.clone();

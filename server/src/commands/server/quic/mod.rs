@@ -8,20 +8,22 @@ use common::structs::packet::{
     PacketType,
     PlayerDataPacket,
     QuicNetworkPacket,
+    QuicNetworkPacketCollection,
     QuicNetworkPacketData,
     QUICK_NETWORK_PACKET_HEADER,
 };
 use kanal::{ AsyncReceiver, AsyncSender };
 use moka::future::Cache;
 use s2n_quic::Server;
+use std::borrow::BorrowMut;
 use std::collections::hash_map::RandomState;
-use std::collections::HashMap;
+use scc::HashMap;
 use std::path::Path;
 use std::sync::atomic::{ AtomicBool, Ordering };
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::task::JoinHandle;
-
+use rtrb::{ RingBuffer, Producer, Consumer };
 /// The size our main ringbuffer can hold
 const MAIN_RINGBUFFER_CAPACITY: usize = 10000;
 
@@ -33,10 +35,10 @@ pub(crate) static PLAYER_POSITION_CACHE: OnceCell<
     Option<Arc<Cache<String, common::Player, RandomState>>>
 > = OnceCell::new();
 
-type AsyncProducerBuffer = AsyncSender<QuicNetworkPacket>;
-type AsyncConsumerBuffer = AsyncReceiver<QuicNetworkPacket>;
-type MutexMapProducer = Arc<Mutex<AsyncSender<QuicNetworkPacket>>>;
-//type MutexMapConsumer = Arc<Mutex<AsyncReceiver<QuicNetworkPacket>>>;
+type AsyncProducerBuffer = AsyncSender<QuicNetworkPacketCollection>;
+type AsyncConsumerBuffer = AsyncReceiver<QuicNetworkPacketCollection>;
+type MutexMapProducer = Producer<QuicNetworkPacket>;
+type MutexMapConsumer = Consumer<QuicNetworkPacket>;
 
 pub(crate) async fn get_task(
     config: &ApplicationConfig,
@@ -59,11 +61,6 @@ pub(crate) async fn get_task(
         );
     }).await;
 
-    // This is our main ring buffer. Incoming packets from any client are added to it
-    // Then a separate thread pushes them to all connected clients, which is a separate ringbuffer
-    let (main_producer, main_consumer) =
-        kanal::bounded_async::<QuicNetworkPacket>(MAIN_RINGBUFFER_CAPACITY);
-
     let cache = match get_cache().await {
         Ok(cache) => cache,
         Err(e) => {
@@ -75,12 +72,7 @@ pub(crate) async fn get_task(
     };
 
     let cache_c = cache.clone();
-
-    let main_producer_mux = Arc::new(Mutex::<AsyncProducerBuffer>::new(main_producer));
-    let main_consumer_mux = Arc::new(Mutex::<AsyncConsumerBuffer>::new(main_consumer));
-    let main_producer_mux_for_deadqueue = main_producer_mux.clone();
-    let mutex_map = Arc::new(Mutex::new(HashMap::<u64, MutexMapProducer>::new()));
-    let processor_mutex_map = mutex_map.clone();
+    let monitor_cache = cache.clone();
 
     // Setups mTLS for the connection
     let cert_path = format!("{}/ca.crt", &app_config.server.tls.certs_path.clone());
@@ -98,6 +90,7 @@ pub(crate) async fn get_task(
     );
 
     tracing::info!("Starting QUIC server with CA: {} on {}", &cert_path, io_connection_str);
+
     // Initialize the server
     let mut server = Server::builder()
         .with_event(s2n_quic::provider::event::tracing::Subscriber::default())?
@@ -105,36 +98,68 @@ pub(crate) async fn get_task(
         .with_io(io_connection_str)?
         .start()?;
 
-    let mut tasks = Vec::new();
+    // Store incoming audio frames into a ringbuffer to pop them off later
+    let producer_collection = Arc::new(Mutex::new(HashMap::<u64, MutexMapProducer>::new()));
+    let consumer_collection = Arc::new(Mutex::new(HashMap::<u64, MutexMapConsumer>::new()));
+    let monitor_consumer_collection = consumer_collection.clone();
 
+    let sender_collection = Arc::new(Mutex::new(HashMap::<u64, AsyncProducerBuffer>::new()));
+    let receiver_collection = Arc::new(Mutex::new(HashMap::<u64, AsyncConsumerBuffer>::new()));
+    let monitor_sender_collection = sender_collection.clone();
+
+    let mut tasks = Vec::new();
     let outer_thread_shutdown = shutdown.clone();
     // This is our main thread for the QUIC server
     tasks.push(
         tokio::spawn(async move {
+            let producer_collection = producer_collection.clone();
+            let consumer_collection = consumer_collection.clone();
+            let sender_collection = sender_collection.clone();
+            let receiver_collection = receiver_collection.clone();
+
             let shutdown = outer_thread_shutdown.clone();
             let cache = cache.clone();
             tracing::info!("Started QUIC listening server.");
             let mut connection_id: Option<u64> = None;
 
             while let Some(mut connection) = server.accept().await {
+                let sender_collection = sender_collection.clone();
+                let receiver_collection = receiver_collection.clone();
+                let producer_collection = producer_collection.clone();
+                let consumer_collection = consumer_collection.clone();
+
+                let shutdown = shutdown.clone();
                 connection_id = Some(connection.id());
-                let cache = cache.clone();
-                let main_producer_mux = main_producer_mux.clone();
+                let raw_connection_id = connection_id.unwrap();
 
-                // Create the mutex map when the stream is created
-                let mut mutex_map = mutex_map.lock_arc().await;
+                let (sender, receiver) =
+                    kanal::bounded_async::<QuicNetworkPacketCollection>(MAIN_RINGBUFFER_CAPACITY);
 
-                let (producer, consumer) = kanal::bounded_async::<QuicNetworkPacket>(
+                _ = sender_collection
+                    .clone()
+                    .lock_arc().await
+                    .clone()
+                    .insert_async(raw_connection_id, sender);
+                _ = receiver_collection
+                    .clone()
+                    .lock_arc().await
+                    .clone()
+                    .insert_async(raw_connection_id, receiver);
+
+                let (producer, consumer) = RingBuffer::<QuicNetworkPacket>::new(
                     CONNECTION_RINGERBUFFER_CAPACITY
                 );
 
-                let actual_consumer = Arc::new(Mutex::new(consumer));
+                _ = producer_collection
+                    .clone()
+                    .lock_arc().await
+                    .insert_async(raw_connection_id, producer);
+                _ = consumer_collection
+                    .clone()
+                    .lock_arc().await
+                    .insert_async(raw_connection_id, consumer);
 
-                mutex_map.insert(connection.id(), Arc::new(Mutex::new(producer)));
-
-                // Each connection sits in it's own thread
-                let cache = cache.clone();
-                let main_producer_mux = main_producer_mux.clone();
+                let stream_cache = cache.clone();
 
                 match connection.accept_bidirectional_stream().await {
                     Ok(stream) =>
@@ -146,14 +171,16 @@ pub(crate) async fn get_task(
                                 // This enables us to identify packets directed to us.
                                 let cid: Option<Vec<u8>> = None;
                                 let client_id = Arc::new(Mutex::new(cid));
-                                let send_client_id = client_id.clone();
 
                                 // Receiving Stream
-                                let i1_shutdown = shutdown.clone();
+                                let receiver_shutdown = shutdown.clone();
+                                let receiver_cache = stream_cache.clone();
                                 tokio::spawn(async move {
-                                    let shutdown = i1_shutdown.clone();
-                                    let main_producer_mux = main_producer_mux.clone();
+                                    let producer_collection = producer_collection.clone();
+                                    let mut producer = producer_collection.lock_arc().await;
+                                    let mut producer = producer.get(&raw_connection_id).unwrap();
 
+                                    let shutdown = receiver_shutdown.clone();
                                     let magic_header: Vec<u8> =
                                         QUICK_NETWORK_PACKET_HEADER.to_vec();
                                     let mut packet = Vec::<u8>::new();
@@ -164,6 +191,7 @@ pub(crate) async fn get_task(
                                             tracing::info!("Receiving stream was ended.");
                                             break;
                                         }
+
                                         packet.append(&mut data.to_vec());
 
                                         let packet_header = packet.get(0..5);
@@ -211,18 +239,23 @@ pub(crate) async fn get_task(
                                                 .unwrap();
 
                                             match QuicNetworkPacket::from_vec(&packet_to_process) {
-                                                Ok(packet) => {
+                                                Ok(mut packet) => {
                                                     let mut client_id = client_id.lock().await;
                                                     let author = packet.client_id.clone();
 
                                                     if client_id.is_none() {
                                                         *client_id = Some(author.clone());
-                                                        tracing::debug!("{:?} Connected", author);
+                                                        tracing::info!("{:?} Connected", author);
                                                     }
 
-                                                    let main_producer_mux =
-                                                        main_producer_mux.lock_arc().await;
-                                                    _ = main_producer_mux.send(packet).await;
+                                                    let packet =
+                                                        update_packet_with_player_coordinates(
+                                                            packet.borrow_mut(),
+                                                            receiver_cache.clone()
+                                                        ).await;
+
+                                                    _ = producer.push(packet);
+                                                    tracing::info!("Received a QuicNetworkPacket.");
                                                 }
                                                 Err(e) => {
                                                     tracing::error!(
@@ -237,94 +270,46 @@ pub(crate) async fn get_task(
                                 });
 
                                 // Sending Stream
-                                let consumer = actual_consumer.clone();
-                                let i2_shutdown = shutdown.clone();
+                                let sender_shutdown = shutdown.clone();
                                 tokio::spawn(async move {
-                                    let shutdown = i2_shutdown.clone();
-                                    let cache = cache.clone();
-                                    let consumer = consumer.clone();
-                                    let consumer = consumer.lock_arc().await;
-                                    let client_id = send_client_id.clone();
+                                    let shutdown = sender_shutdown.clone();
+                                    let receiver_collection = receiver_collection.clone();
+                                    let receiver_collection = receiver_collection.lock_arc().await;
+
+                                    let rc_copy = receiver_collection.clone();
+                                    drop(receiver_collection);
+                                    let consumer = match rc_copy.get(&raw_connection_id) {
+                                        Some(consumer) => consumer.clone(),
+                                        None => {
+                                            tracing::error!("Missing consumer from shell?");
+                                            _ = send_stream.finish();
+                                            return;
+                                        }
+                                    };
 
                                     #[allow(irrefutable_let_patterns)]
                                     while let packet = consumer.recv().await {
                                         if shutdown.load(Ordering::Relaxed) {
-                                            // Flush and finish any data currently in the buffer then close the stream
-                                            _ = send_stream.close().await;
-                                            tracing::info!("Sending stream was ended.");
+                                            tracing::info!("Sending stream was cancelled.");
+                                            _ = send_stream.finish();
                                             break;
                                         }
+
                                         match packet {
-                                            Ok(mut packet) => {
-                                                let author = Some(packet.client_id.clone());
-                                                let client_id = client_id.lock().await;
-
-                                                match packet.packet_type {
-                                                    PacketType::AudioFrame => {
-                                                        match packet.get_data() {
-                                                            Some(data) => {
-                                                                let data = data.to_owned();
-                                                                let data: Result<
-                                                                    AudioFramePacket,
-                                                                    ()
-                                                                > = data.try_into();
-
-                                                                // If we don't have coordinates on this audio frame, add them from the cache
-                                                                match data {
-                                                                    Ok(mut data) =>
-                                                                        match data.coordinate {
-                                                                            Some(_) => {}
-                                                                            None =>
-                                                                                match
-                                                                                    cache.get(
-                                                                                        &data.author
-                                                                                    ).await
-                                                                                {
-                                                                                    Some(
-                                                                                        position,
-                                                                                    ) => {
-                                                                                        data.coordinate =
-                                                                                            Some(
-                                                                                                position.coordinates
-                                                                                            );
-                                                                                        packet.data =
-                                                                                            QuicNetworkPacketData::AudioFrame(
-                                                                                                data
-                                                                                            );
-                                                                                    }
-                                                                                    None => {}
-                                                                                }
-                                                                        }
-                                                                    Err(_) => {
-                                                                        tracing::error!(
-                                                                            "Could not downcast_ref AudioFrame."
-                                                                        );
-                                                                    }
-                                                                }
-                                                            }
-                                                            None => {
-                                                                tracing::info!(
-                                                                    "could not downcast ref audio frame."
-                                                                );
-                                                            }
-                                                        }
+                                            Ok(packet) =>
+                                                match packet.to_vec() {
+                                                    Ok(rs) => {
+                                                        tracing::info!(
+                                                            "Sending packet: {}",
+                                                            packet.frames.len()
+                                                        );
+                                                        _ = send_stream.send(rs.into()).await;
+                                                        _ = send_stream.flush().await;
                                                     }
-                                                    _ => {}
+                                                    Err(e) => {
+                                                        tracing::error!("{:?}", e.to_string());
+                                                    }
                                                 }
-
-                                                // Send the packet to the player if it's a broadcast packet, or if it wasn't originated by them
-                                                if packet.broadcast() || client_id.ne(&author) {
-                                                    match packet.to_vec() {
-                                                        Ok(rs) => {
-                                                            _ = send_stream.send(rs.into()).await;
-                                                            _ = send_stream.flush().await;
-                                                        }
-                                                        Err(e) => {
-                                                            tracing::error!("{:?}", e.to_string());
-                                                        }
-                                                    };
-                                                }
-                                            }
                                             Err(_) => {}
                                         }
                                     }
@@ -332,62 +317,90 @@ pub(crate) async fn get_task(
                                     tracing::info!("Sending stream died.");
                                 });
                             }
-                            None => {}
+                            None => {
+                                tracing::info!("Bidirectional stream failed to open?");
+                            }
                         }
                     Err(e) => {
                         tracing::error!("{:?}", e.to_string());
                     }
                 }
             }
-
-            // If the main loop ends, then the connection was dropped
-            // And we need to clean up the mutex_map table so we aren't keeping connection_ids that have been previously dropped
-            match connection_id {
-                Some(connection_id) => {
-                    let mut mutex_map = mutex_map.lock().await;
-                    mutex_map.remove(&connection_id);
-                    tracing::info!("Connection {} dropped", connection_id);
-                }
-                None => {}
-            }
         })
     );
 
     // Iterate through the main consumer mutex and broadcast it to all active connections
-    let t2_shutdown = shutdown.clone();
+    let monitor_shutdown = shutdown.clone();
+    let monitor_cache = monitor_cache.clone();
     tasks.push(
         tokio::spawn(async move {
-            let shutdown = t2_shutdown.clone();
-            let main_consumer_mux = main_consumer_mux.lock_arc().await;
-            let mutex_map = processor_mutex_map.clone();
+            let shutdown = monitor_shutdown.clone();
+            let consumer_collection = monitor_consumer_collection.clone();
+            let sender_collection = monitor_sender_collection.clone();
 
-            // Extract the data from the main mux, then push it into everyone elses private mux
-            #[allow(irrefutable_let_patterns)]
-            while let packet = main_consumer_mux.recv().await {
+            loop {
                 if shutdown.load(Ordering::Relaxed) {
-                    tracing::info!("Broadcast QUIC thread was ended.");
+                    tracing::info!("Monitor stream was cancelled.");
                     break;
                 }
-                match packet {
-                    Ok(packet) => {
-                        let mutex_map = mutex_map.lock_arc().await;
-                        for (_, producer) in mutex_map.clone().into_iter() {
-                            let producer = producer.lock_arc().await;
-                            _ = producer.send(packet.clone()).await;
-                        }
+                let consumer_collection = consumer_collection.clone();
+                let mut consumer_collection = consumer_collection.lock_arc().await;
+
+                // This is our collection of frames from all current producers (streams, clients)
+                let mut frames = Vec::<QuicNetworkPacket>::new();
+
+                // Iterate through each consumer, and get the first audio packet
+                for (id, consumer) in consumer_collection.iter_mut() {
+                    tracing::info!("Connection ID Recv: {}", id);
+                    match consumer.pop() {
+                        Ok(packet) =>
+                            match packet.packet_type {
+                                PacketType::AudioFrame => frames.push(packet),
+                                _ => {}
+                            }
+                        Err(_) => {}
                     }
-                    Err(_) => {}
                 }
+                drop(consumer_collection);
+
+                // Regenerate the PlayerPositionPacket from the cache
+                let positions: Vec<common::Player> = monitor_cache
+                    .iter()
+                    .map(|(_, p)| p)
+                    .collect();
+
+                // If we don't have anything to generate, don't send it to the client
+                if frames.len() != 0 {
+                    // Create a QuicNetworkPacketCollection
+                    // This contains all player's active position, and the most recent audio frame
+                    // The client needs to interleave all the frames together to produce a final 20ms of audio to send to the output device
+                    let collection = QuicNetworkPacketCollection {
+                        frames,
+                        positions: PlayerDataPacket { players: positions },
+                    };
+
+                    // Send this collection to every client
+                    let sender_collection = sender_collection.lock_arc().await;
+                    let mut scc = sender_collection.clone();
+                    drop(sender_collection);
+                    for (_, sender) in scc.iter_mut() {
+                        _ = sender.send(collection.clone()).await;
+                    }
+                }
+
+                _ = tokio::time::sleep(Duration::from_millis(20)).await;
             }
+
+            tracing::info!("Looping thread ended.");
         })
     );
 
+    // Provides an interface that webhook calls can push data into this QUIC server for processing.
     let t3_shutdown = shutdown.clone();
     tasks.push(
         tokio::spawn(async move {
             let shutdown = t3_shutdown.clone();
             let cache = cache_c.clone();
-            let main_producer_mux = main_producer_mux_for_deadqueue.clone();
             let queue = queue.clone();
 
             #[allow(irrefutable_let_patterns)]
@@ -401,8 +414,6 @@ pub(crate) async fn get_task(
 
                 // Packet specific handling
                 match pkc.packet_type {
-                    PacketType::AudioFrame => {}
-                    PacketType::Debug => {}
                     PacketType::PlayerData =>
                         match packet.get_data() {
                             Some(data) => {
@@ -419,15 +430,14 @@ pub(crate) async fn get_task(
                             }
                             None => {}
                         }
+                    _ => {}
                 }
-
-                // Push all packets into the main mux if they're received.
-                let main_producer_mux = main_producer_mux.lock_arc().await;
-                _ = main_producer_mux.send(packet).await;
             }
         })
     );
 
+    // Monitor for CTRL-C Signals to notify inbound threads that they should shutdown
+    // This currently requires the theads to be active, otherwise they won't terminate
     let shutdown_monitor = shutdown.clone();
     tasks.push(
         tokio::spawn(async move {
@@ -453,4 +463,46 @@ async fn get_cache() -> Result<Arc<Cache<String, common::Player>>, anyhow::Error
 
         None => Err(anyhow!("Cache not found")),
     }
+}
+
+/// Updates an audio packet with the player coordinates at the time of rendering, if it exists
+async fn update_packet_with_player_coordinates(
+    packet: &mut QuicNetworkPacket,
+    cache: Arc<Cache<String, common::Player>>
+) -> QuicNetworkPacket {
+    match packet.packet_type {
+        PacketType::AudioFrame => {
+            match packet.get_data() {
+                Some(data) => {
+                    let data = data.to_owned();
+                    let data: Result<AudioFramePacket, ()> = data.try_into();
+
+                    // If we don't have coordinates on this audio frame, add them from the cache
+                    match data {
+                        Ok(mut data) =>
+                            match data.coordinate {
+                                Some(_) => {}
+                                None =>
+                                    match cache.get(&data.author).await {
+                                        Some(position) => {
+                                            data.coordinate = Some(position.coordinates);
+                                            packet.data = QuicNetworkPacketData::AudioFrame(data);
+                                        }
+                                        None => {}
+                                    }
+                            }
+                        Err(_) => {
+                            tracing::error!("Could not downcast_ref AudioFrame.");
+                        }
+                    }
+                }
+                None => {
+                    tracing::info!("could not downcast ref audio frame.");
+                }
+            }
+        }
+        _ => {}
+    }
+
+    packet.to_owned()
 }
