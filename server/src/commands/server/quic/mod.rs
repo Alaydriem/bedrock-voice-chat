@@ -17,7 +17,7 @@ use moka::future::Cache;
 use s2n_quic::Server;
 use std::borrow::BorrowMut;
 use std::collections::hash_map::RandomState;
-use scc::HashMap;
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::atomic::{ AtomicBool, Ordering };
 use std::sync::Arc;
@@ -139,12 +139,12 @@ pub(crate) async fn get_task(
                     .clone()
                     .lock_arc().await
                     .clone()
-                    .insert_async(raw_connection_id, sender);
+                    .insert(raw_connection_id, sender);
                 _ = receiver_collection
                     .clone()
                     .lock_arc().await
                     .clone()
-                    .insert_async(raw_connection_id, receiver);
+                    .insert(raw_connection_id, receiver);
 
                 let (producer, consumer) = RingBuffer::<QuicNetworkPacket>::new(
                     CONNECTION_RINGERBUFFER_CAPACITY
@@ -153,11 +153,11 @@ pub(crate) async fn get_task(
                 _ = producer_collection
                     .clone()
                     .lock_arc().await
-                    .insert_async(raw_connection_id, producer);
+                    .insert(raw_connection_id, producer);
                 _ = consumer_collection
                     .clone()
                     .lock_arc().await
-                    .insert_async(raw_connection_id, consumer);
+                    .insert(raw_connection_id, consumer);
 
                 let stream_cache = cache.clone();
 
@@ -177,8 +177,7 @@ pub(crate) async fn get_task(
                                 let receiver_cache = stream_cache.clone();
                                 tokio::spawn(async move {
                                     let producer_collection = producer_collection.clone();
-                                    let mut producer = producer_collection.lock_arc().await;
-                                    let mut producer = producer.get(&raw_connection_id).unwrap();
+                                    let producer = producer_collection.lock_arc().await;
 
                                     let shutdown = receiver_shutdown.clone();
                                     let magic_header: Vec<u8> =
@@ -254,7 +253,12 @@ pub(crate) async fn get_task(
                                                             receiver_cache.clone()
                                                         ).await;
 
-                                                    _ = producer.push(packet);
+                                                    match producer.get(&raw_connection_id) {
+                                                        Some(mut producer) => {
+                                                            producer.borrow_mut().push(packet);
+                                                        }
+                                                        None => {}
+                                                    }
                                                     tracing::info!("Received a QuicNetworkPacket.");
                                                 }
                                                 Err(e) => {
