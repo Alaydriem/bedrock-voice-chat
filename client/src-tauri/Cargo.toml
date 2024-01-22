@@ -64,8 +64,8 @@ opus = { version = "^0.3" }
 ron = { version = "^0.8" }
 audio-gate = { version = "^0.1" }
 rtrb = { version = "^0.3" }
-kanal = "0.1.0-pre8"
-rodio = "0.17.3"
+rodio = { version = "^0.17" }
+flume = { version = "^0.11" }
 
 [patch.crates-io]
 cpal = { git = "https://github.com/RustAudio/cpal.git", features = [

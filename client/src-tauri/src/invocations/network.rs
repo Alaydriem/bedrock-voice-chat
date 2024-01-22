@@ -1,10 +1,9 @@
 use common::{
     mtlsprovider::MtlsProvider,
     structs::packet::{
-        AudioFramePacket,
         DebugPacket,
-        PacketType,
         QuicNetworkPacket,
+        QuicNetworkPacketCollection,
         QUICK_NETWORK_PACKET_HEADER,
     },
 };
@@ -19,7 +18,7 @@ use s2n_quic::{ client::Connect, stream::{ ReceiveStream, SendStream }, Client }
 use std::net::SocketAddr;
 use tauri::State;
 
-use super::stream::AudioFramePacketContainer;
+use flume::{ Sender, Receiver };
 
 pub(crate) static NETWORK_STATE_CACHE: OnceCell<
     Option<Arc<Cache<String, String, std::collections::hash_map::RandomState>>>
@@ -30,8 +29,8 @@ const SENDER: &str = "send_stream";
 
 #[tauri::command(async)]
 pub(crate) async fn network_stream(
-    audio_producer: State<'_, Arc<kanal::Sender<AudioFramePacketContainer>>>,
-    rx: State<'_, Arc<kanal::Receiver<QuicNetworkPacket>>>
+    audio_producer: State<'_, Arc<Sender<QuicNetworkPacketCollection>>>,
+    rx: State<'_, Arc<Receiver<QuicNetworkPacket>>>
 ) -> Result<bool, bool> {
     // Stop any existing streams
     stop_network_stream().await;
@@ -86,6 +85,8 @@ pub(crate) async fn network_stream(
 
     // Self assigned consistent packet_id to identify this stream to the quic server
     let client_id: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
+
+    // Receiver from Audio Stream Input
     tokio::spawn(async move {
         let rx = rx.clone();
         let id = send_id.clone();
@@ -109,6 +110,7 @@ pub(crate) async fn network_stream(
             }
         }
 
+        tracing::info!("Sent Debug Packet.");
         #[allow(irrefutable_let_patterns)]
         while let packet = rx.recv() {
             match packet {
@@ -135,6 +137,8 @@ pub(crate) async fn network_stream(
                 }
             }
         }
+
+        return;
     });
 
     // Recv stream
@@ -147,11 +151,6 @@ pub(crate) async fn network_stream(
         let magic_header: Vec<u8> = QUICK_NETWORK_PACKET_HEADER.to_vec();
         let mut packet = Vec::<u8>::new();
         while let Ok(Some(data)) = receive_stream.receive().await {
-            if super::should_self_terminate(&id, &cache, SENDER).await {
-                tracing::info!("Quic Receive Stream ended.");
-                break;
-            }
-
             packet.append(&mut data.to_vec());
 
             let packet_header = packet.get(0..5);
@@ -172,59 +171,23 @@ pub(crate) async fn network_stream(
 
             // If the current packet starts with the magic header and we have enough bytes, drain it
             if packet_header.eq(&magic_header) && packet.len() >= packet_len + 13 {
-                let packet_to_process = packet
+                let packet_copy = packet.clone();
+                let packet_to_process = packet_copy
                     .get(0..packet_len + 13)
                     .unwrap()
                     .to_vec();
 
-                let mut remaining_data = packet
+                packet = packet
                     .get(packet_len + 13..packet.len())
                     .unwrap()
-                    .to_vec()
-                    .into_boxed_slice()
                     .to_vec();
-                packet = vec![0; 0];
-                packet.append(&mut remaining_data);
-                packet.shrink_to(packet.len());
-                packet.truncate(packet.len());
 
                 // Strip the header and frame length
                 let packet_to_process = packet_to_process.get(13..packet_to_process.len()).unwrap();
 
-                match QuicNetworkPacket::from_vec(&packet_to_process) {
+                match QuicNetworkPacketCollection::from_vec(&packet_to_process) {
                     Ok(packet) => {
-                        match packet.packet_type {
-                            // Audio frames should be pushed into the audio_producer mux
-                            // To be handled by the output stream
-                            PacketType::AudioFrame => {
-                                match packet.get_data() {
-                                    Some(data) => {
-                                        let data = data.to_owned();
-                                        let data: Result<AudioFramePacket, ()> = data.try_into();
-
-                                        match data {
-                                            Ok(data) => {
-                                                let frame = AudioFramePacketContainer {
-                                                    client_id: packet.client_id,
-                                                    frame: data,
-                                                };
-                                                _ = audio_producer.send(frame);
-                                            }
-                                            Err(_) => {
-                                                tracing::error!(
-                                                    "Could not decode AudioFramePacket"
-                                                );
-                                            }
-                                        }
-                                    }
-                                    None => {
-                                        tracing::error!("Packet didn't have the right data?");
-                                    }
-                                };
-                            }
-                            PacketType::PlayerData => {}
-                            PacketType::Debug => {}
-                        }
+                        _ = audio_producer.send(packet);
                     }
                     Err(e) => {
                         tracing::error!(
@@ -233,7 +196,7 @@ pub(crate) async fn network_stream(
                         );
                         continue;
                     }
-                }
+                };
             }
         }
     });

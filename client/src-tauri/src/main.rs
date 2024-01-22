@@ -3,6 +3,7 @@
 
 mod invocations;
 use common::structs::packet::QuicNetworkPacket;
+use common::structs::packet::QuicNetworkPacketCollection;
 use faccess::PathExt;
 use std::path::Path;
 use std::sync::Arc;
@@ -10,8 +11,6 @@ use tracing::info;
 use tracing::Level;
 use tracing_appender::non_blocking::{ NonBlocking, WorkerGuard };
 use tracing_subscriber::fmt::SubscriberBuilder;
-
-use crate::invocations::stream::AudioFramePacketContainer;
 
 #[tokio::main]
 async fn main() {
@@ -70,15 +69,16 @@ async fn main() {
         return Some(Arc::new(moka::future::Cache::builder().max_capacity(100).build()));
     }).await;
 
-    let (ap, ac) = kanal::bounded::<AudioFramePacketContainer>(10000);
-    let (quic_tx, quic_rx) = kanal::bounded::<QuicNetworkPacket>(10000);
+    let (audio_producer, audio_consumer) = flume::bounded::<QuicNetworkPacketCollection>(10000);
+
+    let (quic_tx, quic_rx) = flume::bounded::<QuicNetworkPacket>(10000);
 
     let _tauri = tauri::Builder
         ::default()
         .manage(Arc::new(quic_tx))
         .manage(Arc::new(quic_rx))
-        .manage(Arc::new(ap))
-        .manage(Arc::new(ac))
+        .manage(Arc::new(audio_producer))
+        .manage(Arc::new(audio_consumer))
         .invoke_handler(
             tauri::generate_handler![
                 // Authentication
@@ -96,8 +96,8 @@ async fn main() {
                 invocations::network::network_stream,
                 invocations::network::is_network_stream_active,
                 // Audio
-                invocations::stream::input_stream,
-                invocations::stream::output_stream,
+                invocations::stream::input::input_stream,
+                invocations::stream::output::output_stream,
                 invocations::stream::stop_stream,
                 invocations::stream::get_devices,
                 invocations::stream::is_audio_stream_active

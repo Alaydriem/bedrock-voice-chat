@@ -122,7 +122,7 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
             loop {
                 let source = SineWave::new(440.0)
                     .take_duration(Duration::from_secs_f32(0.02))
-                    .amplify(0.2);
+                    .amplify(0.01);
 
                 let s: Vec<f32> = source.collect();
 
@@ -156,6 +156,7 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
                         println!("{}", e.to_string());
                     }
                 }
+                tokio::time::sleep(Duration::from_millis(20));
             }
         })
     );

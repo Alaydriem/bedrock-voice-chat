@@ -12,7 +12,7 @@ use common::structs::packet::{
     QuicNetworkPacketData,
     QUICK_NETWORK_PACKET_HEADER,
 };
-use kanal::{ AsyncReceiver, AsyncSender };
+use flume::{ Sender, Receiver };
 use moka::future::Cache;
 use s2n_quic::Server;
 use std::borrow::BorrowMut;
@@ -35,8 +35,8 @@ pub(crate) static PLAYER_POSITION_CACHE: OnceCell<
     Option<Arc<Cache<String, common::Player, RandomState>>>
 > = OnceCell::new();
 
-type AsyncProducerBuffer = AsyncSender<QuicNetworkPacketCollection>;
-type AsyncConsumerBuffer = AsyncReceiver<QuicNetworkPacketCollection>;
+type AsyncProducerBuffer = Sender<QuicNetworkPacketCollection>;
+type AsyncConsumerBuffer = Receiver<QuicNetworkPacketCollection>;
 type MutexMapProducer = Producer<QuicNetworkPacket>;
 type MutexMapConsumer = Consumer<QuicNetworkPacket>;
 
@@ -101,7 +101,9 @@ pub(crate) async fn get_task(
     let producer_collection = Arc::new(
         Mutex::new(HashMap::<u64, Arc<Mutex<MutexMapProducer>>>::new())
     );
-    let consumer_collection = Arc::new(Mutex::new(HashMap::<u64, MutexMapConsumer>::new()));
+    let consumer_collection = Arc::new(
+        Mutex::new(HashMap::<u64, Arc<Mutex<MutexMapConsumer>>>::new())
+    );
     let monitor_consumer_collection = consumer_collection.clone();
 
     let sender_collection = Arc::new(
@@ -139,7 +141,7 @@ pub(crate) async fn get_task(
                 let raw_connection_id = connection.id();
 
                 let (sender, receiver) =
-                    kanal::bounded_async::<QuicNetworkPacketCollection>(MAIN_RINGBUFFER_CAPACITY);
+                    flume::bounded::<QuicNetworkPacketCollection>(MAIN_RINGBUFFER_CAPACITY);
 
                 _ = sender_collection
                     .clone()
@@ -161,7 +163,7 @@ pub(crate) async fn get_task(
                 _ = consumer_collection
                     .clone()
                     .lock_arc().await
-                    .insert(raw_connection_id, consumer);
+                    .insert(raw_connection_id, Arc::new(Mutex::new(consumer)));
 
                 tokio::spawn(async move {
                     let receiver_collection = receiver_collection.clone();
@@ -201,11 +203,6 @@ pub(crate) async fn get_task(
                                         tokio::spawn(async move {
                                             let disconnected = receiver_disconnected.clone();
                                             let producer_collection = producer_collection.clone();
-                                            let mut producer = producer_collection
-                                                .lock_arc().await
-                                                .get(&raw_connection_id)
-                                                .unwrap()
-                                                .lock_arc().await;
 
                                             let shutdown = receiver_shutdown.clone();
                                             let magic_header: Vec<u8> =
@@ -285,8 +282,9 @@ pub(crate) async fn get_task(
                                                             if client_id.is_none() {
                                                                 *client_id = Some(author.clone());
                                                                 tracing::info!(
-                                                                    "{:?} Connected",
-                                                                    author
+                                                                    "{:?} Connected {}",
+                                                                    author,
+                                                                    &raw_connection_id
                                                                 );
                                                             }
 
@@ -298,6 +296,13 @@ pub(crate) async fn get_task(
                                                                         packet.borrow_mut(),
                                                                         receiver_cache.clone()
                                                                     ).await;
+
+                                                                let mut producer =
+                                                                    producer_collection
+                                                                        .lock_arc().await
+                                                                        .get(&raw_connection_id)
+                                                                        .unwrap()
+                                                                        .lock_arc().await;
 
                                                                 _ = producer.push(packet);
                                                             }
@@ -328,7 +333,7 @@ pub(crate) async fn get_task(
                                                 positions: PlayerDataPacket {
                                                     players: Vec::new(),
                                                 },
-                                            }).await;
+                                            });
                                             tracing::info!(
                                                 "Receving stream for {} ended.",
                                                 &raw_connection_id
@@ -352,7 +357,7 @@ pub(crate) async fn get_task(
                                                 .lock_arc().await;
 
                                             #[allow(irrefutable_let_patterns)]
-                                            while let packet = receiver.recv().await {
+                                            while let packet = receiver.recv() {
                                                 if shutdown.load(Ordering::Relaxed) {
                                                     tracing::info!("Sending stream was cancelled.");
                                                     // Ensure the receiving stream gets the disconnect signal
@@ -369,7 +374,8 @@ pub(crate) async fn get_task(
                                                 }
 
                                                 match packet {
-                                                    Ok(packet) =>
+                                                    Ok(packet) => {
+                                                        // @todo!(): Remove the clients audio from the stream
                                                         match packet.to_vec() {
                                                             Ok(rs) => {
                                                                 _ = send_stream.send(
@@ -384,6 +390,7 @@ pub(crate) async fn get_task(
                                                                 );
                                                             }
                                                         }
+                                                    }
                                                     Err(_) => {}
                                                 }
                                             }
@@ -462,7 +469,7 @@ pub(crate) async fn get_task(
                     let mut sender_collection = sender_collection.lock_arc().await.clone();
                     for (_, sender) in sender_collection.iter_mut() {
                         let sender = sender.lock_arc().await;
-                        _ = sender.send(collection.clone()).await;
+                        _ = sender.send(collection.clone());
                     }
                     drop(sender_collection);
                     break;
@@ -475,7 +482,8 @@ pub(crate) async fn get_task(
 
                 // Iterate through each consumer, and get the first audio packet
                 for (_, consumer) in consumer_collection.iter_mut() {
-                    match consumer.pop() {
+                    let result = consumer.lock_arc().await.pop();
+                    match result {
                         Ok(packet) =>
                             match packet.packet_type {
                                 PacketType::AudioFrame => frames.push(packet),
@@ -505,15 +513,11 @@ pub(crate) async fn get_task(
                     // Send this collection to every client
                     let mut sender_collection = sender_collection.lock_arc().await.clone();
                     for (_, sender) in sender_collection.iter_mut() {
-                        let sender = sender.lock_arc().await;
-                        _ = sender.send(collection.clone()).await;
+                        let sender = sender.lock_arc().await.clone();
+                        _ = sender.send(collection.clone());
                     }
                     drop(sender_collection);
                 }
-
-                // This is just to park the thread and release any outstanding locks
-                // @todo!() We need to test this with an actual audio stream.
-                _ = tokio::time::sleep(Duration::from_millis(0)).await;
             }
 
             return;
