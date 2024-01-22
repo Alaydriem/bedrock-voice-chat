@@ -156,7 +156,7 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
                         println!("{}", e.to_string());
                     }
                 }
-                tokio::time::sleep(Duration::from_millis(20));
+                _ = tokio::time::sleep(Duration::from_millis(20)).await;
             }
         })
     );

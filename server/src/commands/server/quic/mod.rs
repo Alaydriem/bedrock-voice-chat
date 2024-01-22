@@ -140,8 +140,7 @@ pub(crate) async fn get_task(
                 let shutdown = shutdown.clone();
                 let raw_connection_id = connection.id();
 
-                let (sender, receiver) =
-                    flume::bounded::<QuicNetworkPacketCollection>(MAIN_RINGBUFFER_CAPACITY);
+                let (sender, receiver) = flume::unbounded::<QuicNetworkPacketCollection>();
 
                 _ = sender_collection
                     .clone()
@@ -354,10 +353,12 @@ pub(crate) async fn get_task(
                                                 .lock_arc().await
                                                 .get(&raw_connection_id)
                                                 .unwrap()
-                                                .lock_arc().await;
+                                                .lock_arc().await
+                                                .clone();
 
                                             #[allow(irrefutable_let_patterns)]
                                             while let packet = receiver.recv() {
+                                                tracing::info!("received packet.");
                                                 if shutdown.load(Ordering::Relaxed) {
                                                     tracing::info!("Sending stream was cancelled.");
                                                     // Ensure the receiving stream gets the disconnect signal
@@ -391,7 +392,9 @@ pub(crate) async fn get_task(
                                                             }
                                                         }
                                                     }
-                                                    Err(_) => {}
+                                                    Err(e) => {
+                                                        tracing::error!("{}", e.to_string());
+                                                    }
                                                 }
                                             }
 

@@ -107,7 +107,6 @@ pub(crate) async fn output_stream<'r>(
 
         #[allow(irrefutable_let_patterns)]
         while let frames = consumer.recv() {
-            let now = std::time::Instant::now();
             let shutdown = shutdown.clone();
             let mut shutdown = shutdown.lock().unwrap();
 
@@ -156,10 +155,8 @@ pub(crate) async fn output_stream<'r>(
         let sample_rate: u32 = config.sample_rate.0.into();
 
         let mut decoders = HashMap::<Vec<u8>, Arc<Mutex<opus::Decoder>>>::new();
-        let now = std::time::Instant::now();
         #[allow(irrefutable_let_patterns)]
         while let packet = rx.recv() {
-            tracing::info!("Received a network packet in {}", now.elapsed().as_millis());
             match packet {
                 Ok(packet) => {
                     let mut frames = Vec::new();
