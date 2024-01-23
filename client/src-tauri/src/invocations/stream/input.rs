@@ -154,7 +154,7 @@ pub(crate) async fn input_stream(
             }
         };
 
-        _ = encoder.set_bitrate(Bitrate::Bits(32_000));
+        _ = encoder.set_bitrate(Bitrate::Bits(64_000));
         tracing::info!("Opus Encoder Bitrate: {:?}", encoder.get_bitrate().ok());
 
         let consumer = consumer.clone();

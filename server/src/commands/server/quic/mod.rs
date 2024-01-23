@@ -12,7 +12,6 @@ use common::structs::packet::{
     QuicNetworkPacketData,
     QUICK_NETWORK_PACKET_HEADER,
 };
-use flume::{ Sender, Receiver };
 use moka::future::Cache;
 use s2n_quic::Server;
 use std::borrow::BorrowMut;
@@ -23,22 +22,18 @@ use std::sync::atomic::{ AtomicBool, Ordering };
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::task::JoinHandle;
-use rtrb::{ RingBuffer, Producer, Consumer };
-/// The size our main ringbuffer can hold
-const MAIN_RINGBUFFER_CAPACITY: usize = 10000;
 
-/// The site each connection ringbuffer can hold
-const CONNECTION_RINGERBUFFER_CAPACITY: usize = 10000;
+use deadqueue::limited::Queue;
+
+const QUEUE_CAPACITY: usize = 10000;
 
 /// Player position data
 pub(crate) static PLAYER_POSITION_CACHE: OnceCell<
     Option<Arc<Cache<String, common::Player, RandomState>>>
 > = OnceCell::new();
 
-type AsyncProducerBuffer = Sender<QuicNetworkPacketCollection>;
-type AsyncConsumerBuffer = Receiver<QuicNetworkPacketCollection>;
-type MutexMapProducer = Producer<QuicNetworkPacket>;
-type MutexMapConsumer = Consumer<QuicNetworkPacket>;
+type QuicNetworkPacketCollectionQueue = Queue<QuicNetworkPacketCollection>;
+type QuicNetworkPacketQueue = Queue<QuicNetworkPacket>;
 
 pub(crate) async fn get_task(
     config: &ApplicationConfig,
@@ -98,31 +93,21 @@ pub(crate) async fn get_task(
         .with_io(io_connection_str)?
         .start()?;
 
-    let producer_collection = Arc::new(
-        Mutex::new(HashMap::<u64, Arc<Mutex<MutexMapProducer>>>::new())
+    let ingress_queue = Arc::new(Mutex::new(HashMap::<u64, Arc<QuicNetworkPacketQueue>>::new()));
+    let egress_queue = Arc::new(
+        Mutex::new(HashMap::<u64, Arc<QuicNetworkPacketCollectionQueue>>::new())
     );
-    let consumer_collection = Arc::new(
-        Mutex::new(HashMap::<u64, Arc<Mutex<MutexMapConsumer>>>::new())
-    );
-    let monitor_consumer_collection = consumer_collection.clone();
 
-    let sender_collection = Arc::new(
-        Mutex::new(HashMap::<u64, Arc<Mutex<AsyncProducerBuffer>>>::new())
-    );
-    let receiver_collection = Arc::new(
-        Mutex::new(HashMap::<u64, Arc<Mutex<AsyncConsumerBuffer>>>::new())
-    );
-    let monitor_sender_collection = sender_collection.clone();
+    let ingress_queue_monitor = ingress_queue.clone();
+    let egress_queue_monitor = egress_queue.clone();
 
     let mut tasks = Vec::new();
     let outer_thread_shutdown = shutdown.clone();
     // This is our main thread for the QUIC server
     tasks.push(
         tokio::spawn(async move {
-            let producer_collection = producer_collection.clone();
-            let consumer_collection = consumer_collection.clone();
-            let sender_collection = sender_collection.clone();
-            let receiver_collection = receiver_collection.clone();
+            let ingress_queue = ingress_queue.clone();
+            let egress_queue = egress_queue.clone();
 
             let shutdown = outer_thread_shutdown.clone();
             let cache = cache.clone();
@@ -131,44 +116,22 @@ pub(crate) async fn get_task(
             while let Some(mut connection) = server.accept().await {
                 // Maintain the connection
                 _ = connection.keep_alive(true);
-                let sender_collection = sender_collection.clone();
-                let receiver_collection = receiver_collection.clone();
-                let producer_collection = producer_collection.clone();
-                let consumer_collection = consumer_collection.clone();
+                let ingress_queue = ingress_queue.clone();
+                let egress_queue = egress_queue.clone();
                 let cache = cache.clone();
 
                 let shutdown = shutdown.clone();
                 let raw_connection_id = connection.id();
 
-                let (sender, receiver) = flume::unbounded::<QuicNetworkPacketCollection>();
+                let iq = Arc::new(QuicNetworkPacketQueue::new(QUEUE_CAPACITY));
+                let eq = Arc::new(QuicNetworkPacketCollectionQueue::new(QUEUE_CAPACITY));
 
-                _ = sender_collection
-                    .clone()
-                    .lock_arc().await
-                    .insert(raw_connection_id, Arc::new(Mutex::new(sender)));
-                receiver_collection
-                    .clone()
-                    .lock_arc().await
-                    .insert(raw_connection_id, Arc::new(Mutex::new(receiver)));
-
-                let (producer, consumer) = RingBuffer::<QuicNetworkPacket>::new(
-                    CONNECTION_RINGERBUFFER_CAPACITY
-                );
-
-                _ = producer_collection
-                    .clone()
-                    .lock_arc().await
-                    .insert(raw_connection_id, Arc::new(Mutex::new(producer)));
-                _ = consumer_collection
-                    .clone()
-                    .lock_arc().await
-                    .insert(raw_connection_id, Arc::new(Mutex::new(consumer)));
+                _ = ingress_queue.clone().lock_arc().await.insert(raw_connection_id, iq.clone());
+                _ = egress_queue.clone().lock_arc().await.insert(raw_connection_id, eq.clone());
 
                 tokio::spawn(async move {
-                    let receiver_collection = receiver_collection.clone();
-                    let producer_collection = producer_collection.clone();
-                    let sender_collection = sender_collection.clone();
-                    let consumer_collection = consumer_collection.clone();
+                    let iq = iq.clone();
+                    let eq = eq.clone();
                     let cache = cache.clone();
                     let stream_cache = cache.clone();
 
@@ -192,16 +155,19 @@ pub(crate) async fn get_task(
                                     let receiver_disconnected = disconnected.clone();
                                     let sender_disconnected = disconnected.clone();
 
-                                    let outer_receiver_collection = receiver_collection.clone();
-                                    let outer_producer_collection = producer_collection.clone();
-                                    let outer_sender_collection = sender_collection.clone();
-                                    let outer_consumer_collection = consumer_collection.clone();
+                                    let iq = iq.clone();
+                                    let eq = eq.clone();
+                                    let recv_eq = eq.clone();
+
+                                    let ingress_queue = ingress_queue.clone();
+                                    let egress_queue = egress_queue.clone();
 
                                     // Receiving Stream
                                     tasks.push(
                                         tokio::spawn(async move {
+                                            let iq = iq.clone();
+                                            let eq = eq.clone();
                                             let disconnected = receiver_disconnected.clone();
-                                            let producer_collection = producer_collection.clone();
 
                                             let shutdown = receiver_shutdown.clone();
                                             let magic_header: Vec<u8> =
@@ -296,14 +262,7 @@ pub(crate) async fn get_task(
                                                                         receiver_cache.clone()
                                                                     ).await;
 
-                                                                let mut producer =
-                                                                    producer_collection
-                                                                        .lock_arc().await
-                                                                        .get(&raw_connection_id)
-                                                                        .unwrap()
-                                                                        .lock_arc().await;
-
-                                                                _ = producer.push(packet);
+                                                                iq.push(packet).await;
                                                             }
                                                         }
                                                         Err(e) => {
@@ -318,21 +277,12 @@ pub(crate) async fn get_task(
                                             }
 
                                             disconnected.store(true, Ordering::Relaxed);
-                                            let sender = sender_collection
-                                                .clone()
-                                                .lock_arc().await
-                                                .clone()
-                                                .get(&raw_connection_id)
-                                                .unwrap()
-                                                .lock_arc().await;
-
-                                            // Send an empty packet to the sending thread which'll trigger the thread to shutdown
-                                            _ = sender.send(QuicNetworkPacketCollection {
+                                            eq.push(QuicNetworkPacketCollection {
                                                 frames: Vec::new(),
                                                 positions: PlayerDataPacket {
                                                     players: Vec::new(),
                                                 },
-                                            });
+                                            }).await;
                                             tracing::info!(
                                                 "Receving stream for {} ended.",
                                                 &raw_connection_id
@@ -346,19 +296,12 @@ pub(crate) async fn get_task(
                                     let sender_shutdown = shutdown.clone();
                                     tasks.push(
                                         tokio::spawn(async move {
+                                            let eq = recv_eq.clone();
                                             let disconnected = sender_disconnected.clone();
                                             let shutdown = sender_shutdown.clone();
-                                            let receiver = receiver_collection
-                                                .clone()
-                                                .lock_arc().await
-                                                .get(&raw_connection_id)
-                                                .unwrap()
-                                                .lock_arc().await
-                                                .clone();
 
                                             #[allow(irrefutable_let_patterns)]
-                                            while let packet = receiver.recv() {
-                                                tracing::info!("received packet.");
+                                            while let packet = eq.pop().await {
                                                 if shutdown.load(Ordering::Relaxed) {
                                                     tracing::info!("Sending stream was cancelled.");
                                                     // Ensure the receiving stream gets the disconnect signal
@@ -374,28 +317,15 @@ pub(crate) async fn get_task(
                                                     break;
                                                 }
 
-                                                match packet {
-                                                    Ok(packet) => {
-                                                        // @todo!(): Remove the clients audio from the stream
-                                                        match packet.to_vec() {
-                                                            Ok(rs) => {
-                                                                _ = send_stream.send(
-                                                                    rs.into()
-                                                                ).await;
-                                                                _ = send_stream.flush().await;
-                                                            }
-                                                            Err(e) => {
-                                                                tracing::error!(
-                                                                    "{:?}",
-                                                                    e.to_string()
-                                                                );
-                                                            }
-                                                        }
+                                                match packet.to_vec() {
+                                                    Ok(rs) => {
+                                                        _ = send_stream.send(rs.into()).await;
+                                                        _ = send_stream.flush().await;
                                                     }
                                                     Err(e) => {
-                                                        tracing::error!("{}", e.to_string());
+                                                        tracing::error!("{:?}", e.to_string());
                                                     }
-                                                }
+                                                };
                                             }
 
                                             tracing::info!(
@@ -414,23 +344,8 @@ pub(crate) async fn get_task(
 
                                     // When the connection closes, remove the references in the hashmap so it doesn't grow indefinitely.
                                     tracing::info!("Connection {} closed.", &raw_connection_id);
-                                    _ = outer_sender_collection
-                                        .clone()
-                                        .lock_arc().await
-                                        .remove(&raw_connection_id);
-                                    _ = outer_receiver_collection
-                                        .clone()
-                                        .lock_arc().await
-                                        .remove(&raw_connection_id);
-
-                                    _ = outer_producer_collection
-                                        .clone()
-                                        .lock_arc().await
-                                        .remove(&raw_connection_id);
-                                    _ = outer_consumer_collection
-                                        .clone()
-                                        .lock_arc().await
-                                        .remove(&raw_connection_id);
+                                    _ = ingress_queue.lock_arc().await.remove(&raw_connection_id);
+                                    _ = egress_queue.lock_arc().await.remove(&raw_connection_id);
                                     connection.close((99u32).into());
                                 }
                                 None => {
@@ -455,8 +370,9 @@ pub(crate) async fn get_task(
     tasks.push(
         tokio::spawn(async move {
             let shutdown = monitor_shutdown.clone();
-            let consumer_collection = monitor_consumer_collection.clone();
-            let sender_collection = monitor_sender_collection.clone();
+
+            let ingress_queue = ingress_queue_monitor.clone();
+            let egress_queue = egress_queue_monitor.clone();
 
             loop {
                 // If our monitoring thread receives the shutdown signal we need to trigger the sending streams to cancel the receiving stream, which will in turn singla the receiving stream.
@@ -469,33 +385,32 @@ pub(crate) async fn get_task(
                             players: Vec::new(),
                         },
                     };
-                    let mut sender_collection = sender_collection.lock_arc().await.clone();
-                    for (_, sender) in sender_collection.iter_mut() {
-                        let sender = sender.lock_arc().await;
-                        _ = sender.send(collection.clone());
+                    let mut lock = egress_queue.lock_arc().await.clone();
+                    for (_, sender) in lock.iter_mut() {
+                        _ = sender.push(collection.clone()).await;
                     }
-                    drop(sender_collection);
+                    drop(lock);
                     break;
                 }
-
-                let mut consumer_collection = consumer_collection.clone().lock_arc().await;
 
                 // This is our collection of frames from all current producers (streams, clients)
                 let mut frames = Vec::<QuicNetworkPacket>::new();
 
                 // Iterate through each consumer, and get the first audio packet
-                for (_, consumer) in consumer_collection.iter_mut() {
-                    let result = consumer.lock_arc().await.pop();
-                    match result {
-                        Ok(packet) =>
+                let mut lock = ingress_queue.lock_arc().await.clone();
+                for (_, consumer) in lock.iter_mut() {
+                    if
+                        let Err(_) = tokio::time::timeout(Duration::from_nanos(2000), async {
+                            let packet = consumer.pop().await;
                             match packet.packet_type {
                                 PacketType::AudioFrame => frames.push(packet),
                                 _ => {}
                             }
-                        Err(_) => {}
+                        }).await
+                    {
                     }
                 }
-                drop(consumer_collection);
+                drop(lock);
 
                 // Regenerate the PlayerPositionPacket from the cache
                 let positions: Vec<common::Player> = monitor_cache
@@ -514,12 +429,11 @@ pub(crate) async fn get_task(
                     };
 
                     // Send this collection to every client
-                    let mut sender_collection = sender_collection.lock_arc().await.clone();
-                    for (_, sender) in sender_collection.iter_mut() {
-                        let sender = sender.lock_arc().await.clone();
-                        _ = sender.send(collection.clone());
+                    let mut lock = egress_queue.lock_arc().await.clone();
+                    for (_, sender) in lock.iter_mut() {
+                        _ = sender.push(collection.clone()).await;
                     }
-                    drop(sender_collection);
+                    drop(lock);
                 }
             }
 

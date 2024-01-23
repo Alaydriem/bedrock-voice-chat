@@ -9,8 +9,10 @@ use common::structs::{
 use rodio::{
     buffer::SamplesBuffer,
     cpal::{ traits::DeviceTrait, BufferSize, SupportedBufferSize, SampleRate, SampleFormat },
+    source::SineWave,
     OutputStream,
     Sink,
+    Source,
 };
 
 use flume::Receiver;
@@ -126,6 +128,7 @@ pub(crate) async fn output_stream<'r>(
                         );
 
                         // Attenuate the SampleBuffer
+                        let pcm = pcm.amplify(2.0);
                         // Check if the client is muted, and mute them (skip this block entirely)
                         // 3D Audio & Attenuate
                         // Attenuate based on individual audio setting

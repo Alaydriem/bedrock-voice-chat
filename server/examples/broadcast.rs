@@ -129,7 +129,7 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
                 let mut encoder = opus::Encoder
                     ::new(48000, opus::Channels::Mono, opus::Application::Voip)
                     .unwrap();
-                _ = encoder.set_bitrate(opus::Bitrate::Bits(32_000));
+                _ = encoder.set_bitrate(opus::Bitrate::Bits(64_000));
 
                 let s = encoder.encode_vec_float(&s, s.len() * 4).unwrap();
                 let packet = QuicNetworkPacket {
