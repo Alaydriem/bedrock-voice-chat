@@ -2,8 +2,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod invocations;
-use common::structs::packet::QuicNetworkPacket;
-use common::structs::packet::QuicNetworkPacketCollection;
 use faccess::PathExt;
 use std::path::Path;
 use std::sync::Arc;
@@ -11,6 +9,8 @@ use tracing::info;
 use tracing::Level;
 use tracing_appender::non_blocking::{ NonBlocking, WorkerGuard };
 use tracing_subscriber::fmt::SubscriberBuilder;
+
+use crate::invocations::{ StreamPacket, network::NetworkPacket };
 
 #[tokio::main]
 async fn main() {
@@ -69,9 +69,9 @@ async fn main() {
         return Some(Arc::new(moka::future::Cache::builder().max_capacity(100).build()));
     }).await;
 
-    let (audio_producer, audio_consumer) = flume::bounded::<QuicNetworkPacketCollection>(10000);
+    let (audio_producer, audio_consumer) = flume::bounded::<StreamPacket>(10000);
 
-    let (quic_tx, quic_rx) = flume::bounded::<QuicNetworkPacket>(10000);
+    let (quic_tx, quic_rx) = flume::bounded::<NetworkPacket>(10000);
 
     let _tauri = tauri::Builder
         ::default()

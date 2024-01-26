@@ -5,6 +5,7 @@ use common::structs::{
     config::StreamType,
     packet::{ AudioFramePacket, PacketType, QuicNetworkPacket, QuicNetworkPacketData },
 };
+use crate::invocations::network::NetworkPacket;
 use rodio::cpal::{ BufferSize, traits::{ DeviceTrait, StreamTrait } };
 use opus::Bitrate;
 use audio_gate::NoiseGate;
@@ -21,7 +22,7 @@ use std::sync::mpsc;
 #[tauri::command(async)]
 pub(crate) async fn input_stream(
     device: String,
-    tx: State<'_, Arc<Sender<QuicNetworkPacket>>>
+    tx: State<'_, Arc<Sender<NetworkPacket>>>
 ) -> Result<bool, bool> {
     let tx = tx.inner().clone();
 
@@ -197,7 +198,6 @@ pub(crate) async fn input_stream(
                         data_stream.append(&mut remaining_data);
                         data_stream.shrink_to(data_stream.len());
                         data_stream.truncate(data_stream.len());
-
                         let s = match
                             encoder.encode_vec_float(
                                 &sample_to_process,

@@ -13,14 +13,9 @@ pub(crate) mod output;
 
 const BUFFER_SIZE: u32 = 960;
 
-/// Container for opus decoded audio frames
-pub(crate) struct RawAudioFramePacketCollection {
-    pub frames: Vec<RawAudioFramePacket>,
-}
-
 /// Individual opus decoded audio packets
 pub(crate) struct RawAudioFramePacket {
-    pub client_id: Vec<u8>,
+    pub client_id: String,
     pub pcm: Vec<f32>,
 }
 

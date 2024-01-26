@@ -1,12 +1,6 @@
 use common::{
     mtlsprovider::MtlsProvider,
-    structs::packet::{
-        DebugPacket,
-        PacketType,
-        QuicNetworkPacket,
-        QuicNetworkPacketCollection,
-        QUICK_NETWORK_PACKET_HEADER,
-    },
+    structs::packet::{ DebugPacket, PacketType, QuicNetworkPacket, QUICK_NETWORK_PACKET_HEADER },
 };
 use s2n_quic::{ client::Connect, Client };
 use std::{ path::Path, time::Duration };
@@ -97,9 +91,9 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
                         .get(13..packet_to_process.len())
                         .unwrap();
 
-                    match QuicNetworkPacketCollection::from_vec(&packet_to_process) {
+                    match QuicNetworkPacket::from_vec(&packet_to_process) {
                         Ok(packet) => {
-                            println!("Got back {} packets.", packet.frames.len());
+                            println!("Got back {:?}, {:?}", packet.packet_type, packet.author);
                         }
                         Err(e) => {
                             tracing::error!(
@@ -119,19 +113,19 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
         tokio::spawn(async move {
             let client_id: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
 
-            loop {
-                let source = SineWave::new(440.0)
-                    .take_duration(Duration::from_secs_f32(0.02))
-                    .amplify(0.01);
+            let source = SineWave::new(440.0)
+                .take_duration(Duration::from_secs_f32(3.0))
+                .amplify(0.01);
 
-                let s: Vec<f32> = source.collect();
+            let s: Vec<f32> = source.collect();
 
+            for sample in s.chunks(960) {
                 let mut encoder = opus::Encoder
                     ::new(48000, opus::Channels::Mono, opus::Application::Voip)
                     .unwrap();
                 _ = encoder.set_bitrate(opus::Bitrate::Bits(64_000));
 
-                let s = encoder.encode_vec_float(&s, s.len() * 4).unwrap();
+                let s = encoder.encode_vec_float(sample, s.len() * 4).unwrap();
                 let packet = QuicNetworkPacket {
                     client_id: client_id.clone(),
                     packet_type: common::structs::packet::PacketType::AudioFrame,
@@ -156,8 +150,9 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
                         println!("{}", e.to_string());
                     }
                 }
-                _ = tokio::time::sleep(Duration::from_millis(10)).await;
             }
+
+            println!("Finished send audio file.");
         })
     );
 

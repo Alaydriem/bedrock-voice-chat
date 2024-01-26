@@ -1,31 +1,28 @@
 use std::{ collections::HashMap, sync::{ atomic::{ AtomicBool, Ordering }, Arc }, time::Duration };
 
 use async_mutex::Mutex;
-use common::structs::{
-    audio::AudioDeviceType,
-    config::StreamType,
-    packet::{ AudioFramePacket, QuicNetworkPacketCollection },
-};
+use common::structs::{ audio::AudioDeviceType, config::StreamType, packet::AudioFramePacket };
 use rodio::{
     buffer::SamplesBuffer,
     cpal::{ traits::DeviceTrait, BufferSize, SupportedBufferSize, SampleRate, SampleFormat },
-    source::SineWave,
     OutputStream,
     Sink,
     Source,
 };
 
+use crate::invocations::StreamPacket;
+
 use flume::Receiver;
 use tauri::State;
 
-use super::{ RawAudioFramePacket, RawAudioFramePacketCollection };
+use super::RawAudioFramePacket;
 
 use std::sync::mpsc;
 
 #[tauri::command(async)]
 pub(crate) async fn output_stream<'r>(
     device: String,
-    rx: State<'r, Arc<Receiver<QuicNetworkPacketCollection>>>
+    rx: State<'r, Arc<Receiver<StreamPacket>>>
 ) -> Result<bool, bool> {
     // Stop existing input streams
     super::stop_stream(StreamType::OutputStream).await;
@@ -69,7 +66,7 @@ pub(crate) async fn output_stream<'r>(
     let latency_frames = (250.0 / 1_000.0) * (config.sample_rate.0 as f32);
     let latency_samples = (latency_frames as usize) * (config.channels as usize);
 
-    let (producer, consumer) = flume::bounded::<RawAudioFramePacketCollection>(latency_samples * 4);
+    let (producer, consumer) = flume::bounded::<RawAudioFramePacket>(latency_samples * 4);
 
     tokio::spawn(async move {
         tokio::time::sleep(Duration::from_millis(20)).await;
@@ -105,10 +102,9 @@ pub(crate) async fn output_stream<'r>(
             }
         });
 
-        let sink = Sink::try_new(&handle).unwrap();
-
+        let mut sinks = HashMap::<String, Arc<Sink>>::new();
         #[allow(irrefutable_let_patterns)]
-        while let frames = consumer.recv() {
+        while let frame = consumer.recv() {
             let shutdown = shutdown.clone();
             let mut shutdown = shutdown.lock().unwrap();
 
@@ -116,34 +112,43 @@ pub(crate) async fn output_stream<'r>(
                 break;
             }
 
-            match frames {
-                Ok(frames) => {
-                    let mut interweaved_frame = Vec::<f32>::new();
-                    for frame in frames.frames {
-                        let _client_id = frame.client_id;
-                        let mut pcm = SamplesBuffer::new(
-                            config_c.channels,
-                            config_c.sample_rate.0.into(),
-                            frame.pcm.clone()
-                        );
+            match frame {
+                Ok(frame) => {
+                    let client_id = frame.client_id;
+                    let sink = match sinks.get(&client_id) {
+                        Some(sink) => sink,
+                        None =>
+                            match Sink::try_new(&handle) {
+                                Ok(sink) => {
+                                    let sink = Arc::new(sink);
+                                    sinks.insert(client_id.clone(), sink.clone());
 
-                        // Attenuate the SampleBuffer
-                        let pcm = pcm.amplify(2.0);
-                        // Check if the client is muted, and mute them (skip this block entirely)
-                        // 3D Audio & Attenuate
-                        // Attenuate based on individual audio setting
+                                    sinks.get(&client_id).unwrap()
+                                }
+                                Err(_) => {
+                                    continue;
+                                }
+                            }
+                    };
 
-                        let attenuated_pcm: Vec<f32> = pcm.collect();
-                        interweaved_frame = super::interweave(
-                            interweaved_frame.as_mut(),
-                            attenuated_pcm.as_ref()
-                        );
-                    }
+                    let mut pcm = SamplesBuffer::new(
+                        config_c.channels,
+                        config_c.sample_rate.0.into(),
+                        frame.pcm.clone()
+                    );
+
+                    // Attenuate the SampleBuffer
+                    let pcm = pcm.amplify(2.0);
+                    // Check if the client is muted, and mute them (skip this block entirely)
+                    // 3D Audio & Attenuate
+                    // Attenuate based on individual audio setting
+
+                    let attenuated_pcm: Vec<f32> = pcm.collect();
 
                     let source = SamplesBuffer::new(
                         config_c.channels,
                         config_c.sample_rate.0.into(),
-                        interweaved_frame.clone()
+                        attenuated_pcm.clone()
                     );
                     sink.append(source);
                 }
@@ -157,74 +162,66 @@ pub(crate) async fn output_stream<'r>(
     tokio::spawn(async move {
         let sample_rate: u32 = config.sample_rate.0.into();
 
-        let mut decoders = HashMap::<Vec<u8>, Arc<Mutex<opus::Decoder>>>::new();
+        let mut decoders = HashMap::<String, Arc<Mutex<opus::Decoder>>>::new();
         #[allow(irrefutable_let_patterns)]
         while let packet = rx.recv() {
             match packet {
                 Ok(packet) => {
-                    let mut frames = Vec::new();
-                    for frame in packet.frames {
-                        let client_id = frame.client_id;
-                        // Each opus stream has it's own encoder/decoder for state management
-                        // We can retain this in a simple hashmap
-                        // @todo!(): The HashMap size is unbound on the client.
-                        // Until the client restarts this could be a bottlecheck for memory
-                        let decoder = match decoders.get(&client_id) {
-                            Some(decoder) => decoder.to_owned(),
-                            None => {
-                                let decoder = opus::Decoder
-                                    ::new(sample_rate, opus::Channels::Mono)
-                                    .unwrap();
-                                let decoder = Arc::new(Mutex::new(decoder));
-                                decoders.insert(client_id.clone(), decoder.clone());
-                                decoder
-                            }
-                        };
+                    let data: Result<AudioFramePacket, ()> = packet.to_owned().try_into();
 
-                        let mut decoder = decoder.lock_arc().await;
-                        let id = id.clone();
-
-                        if
-                            super::super::should_self_terminate_sync(
-                                &id,
-                                &cache.clone(),
-                                super::OUTPUT_STREAM
-                            )
-                        {
-                            _ = mpsc_tx.send("terminate");
-                            break;
-                        }
-
-                        let data: Result<AudioFramePacket, ()> = frame.data.to_owned().try_into();
-                        match data {
-                            Ok(data) => {
-                                let mut out = vec![0.0; super::BUFFER_SIZE as usize];
-                                let out_len = match
-                                    decoder.decode_float(&data.data, &mut out, false)
-                                {
-                                    Ok(s) => s,
-                                    Err(e) => {
-                                        tracing::error!("{}", e.to_string());
-                                        0
-                                    }
-                                };
-
-                                out.truncate(out_len);
-
-                                if out.len() > 0 {
-                                    frames.push(RawAudioFramePacket {
-                                        client_id,
-                                        pcm: out,
-                                    });
+                    match data {
+                        Ok(data) => {
+                            let client_id = data.author;
+                            // Each opus stream has it's own encoder/decoder for state management
+                            // We can retain this in a simple hashmap
+                            // @todo!(): The HashMap size is unbound on the client.
+                            // Until the client restarts this could be a bottlecheck for memory
+                            let decoder = match decoders.get(&client_id) {
+                                Some(decoder) => decoder.to_owned(),
+                                None => {
+                                    let decoder = opus::Decoder
+                                        ::new(sample_rate, opus::Channels::Mono)
+                                        .unwrap();
+                                    let decoder = Arc::new(Mutex::new(decoder));
+                                    decoders.insert(client_id.clone(), decoder.clone());
+                                    decoder
                                 }
-                            }
-                            Err(_) => {}
-                        }
-                    }
+                            };
 
-                    _ = producer.send(RawAudioFramePacketCollection {
-                        frames,
-                    });
+                            let mut decoder = decoder.lock_arc().await;
+                            let id = id.clone();
+
+                            if
+                                super::super::should_self_terminate_sync(
+                                    &id,
+                                    &cache.clone(),
+                                    super::OUTPUT_STREAM
+                                )
+                            {
+                                _ = mpsc_tx.send("terminate");
+                                break;
+                            }
+
+                            let mut out = vec![0.0; super::BUFFER_SIZE as usize];
+                            let out_len = match decoder.decode_float(&data.data, &mut out, false) {
+                                Ok(s) => s,
+                                Err(e) => {
+                                    tracing::error!("{}", e.to_string());
+                                    0
+                                }
+                            };
+
+                            out.truncate(out_len);
+
+                            if out.len() > 0 {
+                                _ = producer.send(RawAudioFramePacket {
+                                    client_id,
+                                    pcm: out,
+                                });
+                            }
+                        }
+                        Err(_) => {}
+                    }
                 }
                 Err(_) => {}
             }

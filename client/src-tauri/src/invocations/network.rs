@@ -1,11 +1,6 @@
 use common::{
     mtlsprovider::MtlsProvider,
-    structs::packet::{
-        DebugPacket,
-        QuicNetworkPacket,
-        QuicNetworkPacketCollection,
-        QUICK_NETWORK_PACKET_HEADER,
-    },
+    structs::packet::{ DebugPacket, QuicNetworkPacket, QUICK_NETWORK_PACKET_HEADER },
 };
 
 use std::{ collections::HashMap, sync::Arc };
@@ -20,6 +15,9 @@ use tauri::State;
 
 use flume::{ Sender, Receiver };
 
+pub(crate) type NetworkPacket = QuicNetworkPacket;
+
+use crate::invocations::StreamPacket;
 pub(crate) static NETWORK_STATE_CACHE: OnceCell<
     Option<Arc<Cache<String, String, std::collections::hash_map::RandomState>>>
 > = OnceCell::new();
@@ -29,8 +27,8 @@ const SENDER: &str = "send_stream";
 
 #[tauri::command(async)]
 pub(crate) async fn network_stream(
-    audio_producer: State<'_, Arc<Sender<QuicNetworkPacketCollection>>>,
-    rx: State<'_, Arc<Receiver<QuicNetworkPacket>>>
+    audio_producer: State<'_, Arc<Sender<StreamPacket>>>,
+    rx: State<'_, Arc<Receiver<NetworkPacket>>>
 ) -> Result<bool, bool> {
     // Stop any existing streams
     stop_network_stream().await;
@@ -142,12 +140,8 @@ pub(crate) async fn network_stream(
     });
 
     // Recv stream
-    let recv_id = id.clone();
     let audio_producer = audio_producer.inner().clone();
     tokio::spawn(async move {
-        let cache = cache.clone();
-        let id = recv_id.clone();
-
         let magic_header: Vec<u8> = QUICK_NETWORK_PACKET_HEADER.to_vec();
         let mut packet = Vec::<u8>::new();
         while let Ok(Some(data)) = receive_stream.receive().await {
@@ -185,9 +179,9 @@ pub(crate) async fn network_stream(
                 // Strip the header and frame length
                 let packet_to_process = packet_to_process.get(13..packet_to_process.len()).unwrap();
 
-                match QuicNetworkPacketCollection::from_vec(&packet_to_process) {
+                match QuicNetworkPacket::from_vec(&packet_to_process) {
                     Ok(packet) => {
-                        _ = audio_producer.send(packet);
+                        _ = audio_producer.send(packet.data);
                     }
                     Err(e) => {
                         tracing::error!(

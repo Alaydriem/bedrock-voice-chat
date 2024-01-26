@@ -3,11 +3,13 @@ pub(crate) mod login;
 pub(crate) mod stream;
 pub(crate) mod network;
 
+use common::structs::packet::QuicNetworkPacketData;
 use reqwest::Client;
 use std::time::Duration;
 use std::sync::Arc;
 use std::collections::HashMap;
 
+pub(crate) type StreamPacket = QuicNetworkPacketData;
 /// Returns an Reqwest Client configured to talk to BVC API
 pub(crate) fn get_reqwest_client() -> Client {
     let mut builder = reqwest::Client
