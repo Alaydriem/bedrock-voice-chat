@@ -401,10 +401,12 @@ pub(crate) async fn get_task(
                 for (_, consumer) in lock.iter_mut() {
                     if
                         let Err(_) = tokio::time::timeout(Duration::from_nanos(2000), async {
-                            let packet = consumer.pop().await;
-                            match packet.packet_type {
-                                PacketType::AudioFrame => frames.push(packet),
-                                _ => {}
+                            if !consumer.is_empty() {
+                                let packet = consumer.pop().await;
+                                match packet.packet_type {
+                                    PacketType::AudioFrame => frames.push(packet),
+                                    _ => {}
+                                }
                             }
                         }).await
                     {
