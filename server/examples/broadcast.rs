@@ -55,6 +55,7 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
     // spawn a task that copies responses from the server to stdout
     tasks.push(
         tokio::spawn(async move {
+            let mut count = 0;
             let magic_header: Vec<u8> = QUICK_NETWORK_PACKET_HEADER.to_vec();
             let mut packet = Vec::<u8>::new();
             let mut packet_len_total: usize = 0;
@@ -119,16 +120,20 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
         tokio::spawn(async move {
             let client_id: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
 
+            let mut count = 0;
+
+            let mut encoder = opus::Encoder
+                ::new(48000, opus::Channels::Mono, opus::Application::Voip)
+                .unwrap();
+
+            let source = SineWave::new(440.0)
+                .take_duration(Duration::from_secs_f32(0.02))
+                .amplify(0.01);
+
             loop {
-                let source = SineWave::new(440.0)
-                    .take_duration(Duration::from_secs_f32(0.02))
-                    .amplify(0.01);
-
+                let source = source.clone();
+                let now = std::time::Instant::now();
                 let s: Vec<f32> = source.collect();
-
-                let mut encoder = opus::Encoder
-                    ::new(48000, opus::Channels::Mono, opus::Application::Voip)
-                    .unwrap();
                 _ = encoder.set_bitrate(opus::Bitrate::Bits(64_000));
 
                 let s = encoder.encode_vec_float(&s, s.len() * 4).unwrap();
@@ -151,12 +156,12 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
                     Ok(reader) => {
                         _ = send_stream.send(reader.into()).await;
                         _ = send_stream.flush().await;
+                        count = count + 1;
                     }
                     Err(e) => {
                         println!("{}", e.to_string());
                     }
                 }
-                _ = tokio::time::sleep(Duration::from_millis(10)).await;
             }
         })
     );

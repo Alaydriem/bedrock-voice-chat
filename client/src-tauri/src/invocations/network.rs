@@ -8,7 +8,7 @@ use common::{
     },
 };
 
-use std::{ collections::HashMap, sync::Arc };
+use std::{ collections::HashMap, sync::Arc, time::Duration };
 
 use anyhow::anyhow;
 use async_once_cell::OnceCell;
@@ -111,6 +111,8 @@ pub(crate) async fn network_stream(
         }
 
         tracing::info!("Sent Debug Packet.");
+        _ = tokio::time::sleep(Duration::from_millis(20)).await;
+        let mut count = 0;
         #[allow(irrefutable_let_patterns)]
         while let packet = rx.recv() {
             match packet {

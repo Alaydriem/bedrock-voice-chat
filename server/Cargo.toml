@@ -72,6 +72,10 @@ rustls-pemfile = { version = "^1.0" }
 deadqueue = { version = "^0.2" }
 async-once-cell = { version = "^0.5" }
 moka = { version = "^0.12", features = ["future", "async-lock", "async-trait"] }
+ringbuf = "0.3.3"
+rtrb = "0.3.0"
+kanal = "0.1.0-pre8"
+flume = "0.11.0"
 
 [build-dependencies]
 built = { version = "^0.5", features = ["git2", "chrono", "semver"] }
