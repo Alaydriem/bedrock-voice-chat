@@ -58,6 +58,7 @@ tracing-subscriber = { version = "^0.3" }
 tracing-appender = { version = "^0.2" }
 base64 = { version = "^0.13" }
 faccess = { version = "^0.2" }
+streamfly = { git = "https://github.com/alaydriem/streamfly" }
 s2n-quic = { version = "^1.32", features = [
     "provider-address-token-default",
     "provider-tls-rustls",
@@ -71,11 +72,13 @@ rcgen = { version = "0.12.0", features = ["x509-parser"] }
 rustls-pemfile = { version = "^1.0" }
 deadqueue = { version = "^0.2" }
 async-once-cell = { version = "^0.5" }
-moka = { version = "^0.12", features = ["future", "async-lock", "async-trait"] }
-ringbuf = "0.3.3"
-rtrb = "0.3.0"
-kanal = "0.1.0-pre8"
-flume = "0.11.0"
+moka = { version = "^0.12", features = [
+    "future",
+    "async-lock",
+    "async-trait",
+    "sync",
+] }
+async-channel = "2.1.1"
 
 [build-dependencies]
 built = { version = "^0.5", features = ["git2", "chrono", "semver"] }

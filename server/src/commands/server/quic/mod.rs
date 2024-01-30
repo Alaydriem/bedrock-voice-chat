@@ -23,7 +23,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::task::JoinHandle;
 
-use kanal::{ bounded_async, AsyncSender, AsyncReceiver };
+use async_channel::{ unbounded, Receiver, Sender };
 const QUEUE_CAPACITY: usize = 100000;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -34,8 +34,8 @@ enum MessageEventType {
 
 #[derive(Debug, Clone)]
 enum MessageEventData {
-    Sender(AsyncSender<QuicNetworkPacketCollection>),
-    Receiver(AsyncReceiver<QuicNetworkPacket>),
+    Sender(Sender<QuicNetworkPacketCollection>),
+    Receiver(Receiver<QuicNetworkPacket>),
 }
 
 #[derive(Debug, Clone)]
@@ -110,7 +110,7 @@ pub(crate) async fn get_task(
 
     let mut tasks = Vec::new();
     let outer_thread_shutdown = shutdown.clone();
-    let (broadcast, recv_broadcast) = bounded_async::<MessageEvent>(100);
+    let (broadcast, recv_broadcast) = unbounded::<MessageEvent>();
 
     let broadcast: Arc<_> = Arc::new(broadcast);
     // This is our main thread for the QUIC server
@@ -130,9 +130,8 @@ pub(crate) async fn get_task(
                 let shutdown = shutdown.clone();
                 let raw_connection_id = connection.id();
 
-                let (producer, consumer) = bounded_async::<QuicNetworkPacket>(QUEUE_CAPACITY);
-                let (sender, receiver) =
-                    bounded_async::<QuicNetworkPacketCollection>(QUEUE_CAPACITY);
+                let (producer, consumer) = unbounded::<QuicNetworkPacket>();
+                let (sender, receiver) = unbounded::<QuicNetworkPacketCollection>();
 
                 // send consumer and receiver to monitor thread
                 _ = broadcast.try_send(MessageEvent {
@@ -314,7 +313,7 @@ pub(crate) async fn get_task(
                                             let shutdown = sender_shutdown.clone();
 
                                             #[allow(irrefutable_let_patterns)]
-                                            while let Ok(packet) = receiver.try_recv() {
+                                            while let Ok(packet) = receiver.recv().await {
                                                 if
                                                     shutdown.load(Ordering::Relaxed) ||
                                                     disconnected.load(Ordering::Relaxed)
@@ -325,13 +324,6 @@ pub(crate) async fn get_task(
                                                     _ = send_stream.finish();
                                                     break;
                                                 }
-
-                                                let packet = match packet {
-                                                    Some(packet) => packet,
-                                                    None => {
-                                                        continue;
-                                                    }
-                                                };
 
                                                 match packet.to_vec() {
                                                     Ok(rs) => {
@@ -391,38 +383,31 @@ pub(crate) async fn get_task(
         tokio::spawn(async move {
             let shutdown = monitor_shutdown.clone();
 
-            let mut consumers: HashMap<u64, AsyncReceiver<QuicNetworkPacket>> = HashMap::new();
-            let mut senders: HashMap<
-                u64,
-                AsyncSender<QuicNetworkPacketCollection>
-            > = HashMap::new();
+            let mut consumers: HashMap<u64, Receiver<QuicNetworkPacket>> = HashMap::new();
+            let mut senders: HashMap<u64, Sender<QuicNetworkPacketCollection>> = HashMap::new();
 
             loop {
                 match recv_broadcast.try_recv() {
-                    Ok(event) =>
-                        match event {
-                            Some(event) => {
-                                let event: MessageEvent = event;
-                                match event.event_type {
-                                    MessageEventType::Add => {
-                                        let thing = event.thing.unwrap();
-                                        match thing {
-                                            MessageEventData::Sender(sender) => {
-                                                senders.insert(event.connection_id, sender);
-                                            }
-                                            MessageEventData::Receiver(consumer) => {
-                                                consumers.insert(event.connection_id, consumer);
-                                            }
-                                        }
+                    Ok(event) => {
+                        let event: MessageEvent = event;
+                        match event.event_type {
+                            MessageEventType::Add => {
+                                let thing = event.thing.unwrap();
+                                match thing {
+                                    MessageEventData::Sender(sender) => {
+                                        senders.insert(event.connection_id, sender);
                                     }
-                                    MessageEventType::Remove => {
-                                        consumers.remove(&event.connection_id);
-                                        senders.remove(&event.connection_id);
+                                    MessageEventData::Receiver(consumer) => {
+                                        consumers.insert(event.connection_id, consumer);
                                     }
                                 }
                             }
-                            None => {}
+                            MessageEventType::Remove => {
+                                consumers.remove(&event.connection_id);
+                                senders.remove(&event.connection_id);
+                            }
                         }
+                    }
                     Err(_) => {}
                 }
 
@@ -438,7 +423,9 @@ pub(crate) async fn get_task(
                     // Send a empty packet to all receiving streams so they process the shutdown signal incase there isn't incoming data
                     // Then remove the item from the collections, and drop the sender
                     for (id, sender) in senders.iter() {
-                        _ = sender.try_send(collection.clone());
+                        if sender.send(collection.clone()).await.is_err() {
+                            sender.close();
+                        }
                     }
                     break;
                 }
@@ -447,13 +434,20 @@ pub(crate) async fn get_task(
                 let mut frames = Vec::<QuicNetworkPacket>::new();
 
                 for (id, consumer) in consumers.iter() {
+                    if consumer.is_closed() {
+                        continue;
+                    }
                     // 1. Awaiting the stream awaits this thread,
                     //  // If there's no data in the buffer
                     //  // Or if the client disconnected but it hasn't been detected yet.
                     // 2. as_sync().recv() doesn't parallelize
                     // I need a spsc that await doesn't hold, it just returns immediately
                     // Is QUIC simply too slow?
-                    match consumer.recv().await {
+                    let packet = consumer.recv().await;
+                    if packet.is_err() {
+                        consumer.close();
+                    }
+                    match packet {
                         Ok(frame) => {
                             match frame.packet_type {
                                 PacketType::AudioFrame => frames.push(frame),
@@ -482,7 +476,9 @@ pub(crate) async fn get_task(
 
                     // Send this collection to every client
                     for (id, sender) in senders.iter() {
-                        _ = sender.send(collection.clone()).await;
+                        if sender.send(collection.clone()).await.is_err() {
+                            sender.close();
+                        }
                     }
                 }
             }

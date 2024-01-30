@@ -8,6 +8,8 @@ use cpal::SampleRate;
 use cpal::StreamConfig;
 use serde::{ Deserialize, Serialize };
 use audio_gate::NoiseGate;
+use simple_moving_average::SingleSumSMA;
+use simple_moving_average::SMA;
 
 const BUFFER_SIZE: u32 = 960;
 #[derive(Debug, Deserialize, Serialize)]
@@ -50,7 +52,7 @@ pub(crate) async fn stream_output(device: &cpal::Device) -> Result<(), anyhow::E
 
     let nsstream = std::net::TcpListener::bind("0.0.0.0:8444").unwrap();
     let c = config;
-    let latency_frames = (50.0 / 1_000.0) * (c.sample_rate.0 as f32);
+    let latency_frames = (250.0 / 1_000.0) * (c.sample_rate.0 as f32);
     let latency_samples = (latency_frames as usize) * (c.channels as usize);
     let ring = ringbuf::HeapRb::<f32>::new(latency_samples * 2);
     let (mut producer, mut consumer) = ring.split();
@@ -176,7 +178,6 @@ pub(crate) async fn stream_input(device: &cpal::Device) -> Result<(), anyhow::Er
         device.build_input_stream(
             &config,
             move |data: &[f32], _: &cpal::InputCallbackInfo| {
-                println!("{}", data.len());
                 let gated_data = gate.process_frame(&data);
                 for &sample in gated_data.as_slice() {
                     producer.push(sample).unwrap_or({});
@@ -198,17 +199,20 @@ pub(crate) async fn stream_input(device: &cpal::Device) -> Result<(), anyhow::Er
     let mut encoder = opus::Encoder
         ::new(config.sample_rate.0.into(), opus::Channels::Mono, opus::Application::LowDelay)
         .unwrap();
+    let mut now = std::time::Instant::now();
+    let mut count = 0;
+    let mut ma = SingleSumSMA::<_, _, 10>::from_zero(std::time::Duration::ZERO);
     #[allow(irrefutable_let_patterns)]
     while let sample = consumer.pop() {
         if sample.is_none() {
             continue;
         }
+        count = count + 1;
         data_stream.push(sample.unwrap());
 
         if data_stream.len() == (BUFFER_SIZE as usize) {
             let dsc = data_stream.clone();
             data_stream = Vec::<f32>::new();
-
             let s = match encoder.encode_vec_float(&dsc, dsc.len() * 2) {
                 Ok(s) => s,
                 Err(e) => {
@@ -238,6 +242,11 @@ pub(crate) async fn stream_input(device: &cpal::Device) -> Result<(), anyhow::Er
             let mut nsstream = TcpStream::connect("127.0.0.1:8444").unwrap();
             nsstream.write(&len).unwrap();
             nsstream.flush().unwrap();
+
+            ma.add_sample(now.elapsed());
+            println!("Processed 1s of audio in {:?}\x1B[2J\x1B[1;1H", ma.get_average());
+            count = 0;
+            now = std::time::Instant::now();
         }
     }
     println!("exiting input");
