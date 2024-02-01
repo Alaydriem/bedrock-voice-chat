@@ -60,7 +60,37 @@ impl QuicNetworkPacketCollection {
                     match header.to_vec().eq(&QUICK_NETWORK_PACKET_HEADER) {
                         true => {}
                         false => {
-                            break;
+                            // If the first 5 bytes exist, but they aren't the magic packet header, then we've lost packets
+                            // To prevent packet loss from causing a memory leak, we need to advance the pointer in the packet to the position of the next instance of the magic header.
+
+                            match
+                                packet
+                                    .windows(QUICK_NETWORK_PACKET_HEADER.len())
+                                    .position(|window| window == QUICK_NETWORK_PACKET_HEADER)
+                            {
+                                Some(position) => {
+                                    // Reset the packet to the starting point of the magic packet header
+                                    *packet = packet
+                                        .get(position..packet.len())
+                                        .unwrap()
+                                        .to_vec();
+
+                                    packet.shrink_to(packet.len());
+                                    packet.truncate(packet.len());
+
+                                    // Try to continue
+                                    continue;
+                                }
+                                None => {
+                                    // If this happens we have a bunch of random data without a magic packet.
+                                    // We should reset the buffer because we can't do anything with this
+                                    *packet = Vec::new();
+
+                                    packet.shrink_to(packet.len());
+                                    packet.truncate(packet.len());
+                                    break;
+                                }
+                            }
                         }
                     }
                 None => {
@@ -170,7 +200,37 @@ impl QuicNetworkPacket {
                     match header.to_vec().eq(&QUICK_NETWORK_PACKET_HEADER) {
                         true => {}
                         false => {
-                            break;
+                            // If the first 5 bytes exist, but they aren't the magic packet header, then we've lost packets
+                            // To prevent packet loss from causing a memory leak, we need to advance the pointer in the packet to the position of the next instance of the magic header.
+
+                            match
+                                packet
+                                    .windows(QUICK_NETWORK_PACKET_HEADER.len())
+                                    .position(|window| window == QUICK_NETWORK_PACKET_HEADER)
+                            {
+                                Some(position) => {
+                                    // Reset the packet to the starting point of the magic packet header
+                                    *packet = packet
+                                        .get(position..packet.len())
+                                        .unwrap()
+                                        .to_vec();
+
+                                    packet.shrink_to(packet.len());
+                                    packet.truncate(packet.len());
+
+                                    // Try to continue
+                                    continue;
+                                }
+                                None => {
+                                    // If this happens we have a bunch of random data without a magic packet.
+                                    // We should reset the buffer because we can't do anything with this
+                                    *packet = Vec::new();
+
+                                    packet.shrink_to(packet.len());
+                                    packet.truncate(packet.len());
+                                    break;
+                                }
+                            }
                         }
                     }
                 None => {
@@ -202,7 +262,7 @@ impl QuicNetworkPacket {
 
                 match Self::from_vec(&packet_to_process[13..]) {
                     Ok(p) => packets.push(p),
-                    Err(e) => {
+                    Err(_) => {
                         continue;
                     }
                 };

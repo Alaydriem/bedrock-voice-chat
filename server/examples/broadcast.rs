@@ -63,13 +63,12 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
 
                 match QuicNetworkPacketCollection::from_stream(&mut packet) {
                     Ok(packets) => {
-                        let mut remaining_data = packet.clone();
-                        packet = vec![0; 0];
-                        packet.append(&mut remaining_data);
-                        packet.shrink_to(packet.len());
-                        packet.truncate(packet.len());
                         for p in packets {
-                            println!("Received {} packets back", p.frames.len());
+                            let sourced_from = p.frames
+                                .iter()
+                                .map(|f| f.author.clone())
+                                .collect::<String>();
+                            println!("Got a frame collection back from {:?}", sourced_from);
                         }
                     }
                     Err(_) => {}
@@ -81,6 +80,13 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
 
     tasks.push(
         tokio::spawn(async move {
+            // Windows has a sleep resolution time of ~15.6ms, which is much longer than the 5-9ms it takes to generate a "real" packet
+            // This simulates the slow generation without generating packets in us time.
+            windows_targets::link!("winmm.dll" "system" fn timeBeginPeriod(uperiod: u32) -> u32);
+            unsafe {
+                timeBeginPeriod(1);
+            }
+
             let client_id: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
 
             let mut count = 0;
@@ -124,6 +130,7 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
                         println!("{}", e.to_string());
                     }
                 }
+                tokio::time::sleep(Duration::from_millis(1)).await;
             }
         })
     );

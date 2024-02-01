@@ -699,6 +699,7 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+ "windows-targets 0.52.0",
 ]
 
 [[package]]
