@@ -9,6 +9,7 @@ use common::{
     },
 };
 use s2n_quic::{ client::Connect, Client };
+use tokio::io::AsyncWriteExt;
 use std::{ path::Path, time::Duration };
 use std::{ error::Error, net::SocketAddr };
 use rodio::{ source::SineWave, Source };
@@ -55,62 +56,24 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
     // spawn a task that copies responses from the server to stdout
     tasks.push(
         tokio::spawn(async move {
-            let mut count = 0;
-            let magic_header: Vec<u8> = QUICK_NETWORK_PACKET_HEADER.to_vec();
             let mut packet = Vec::<u8>::new();
-            let mut packet_len_total: usize = 0;
 
             while let Ok(Some(data)) = receive_stream.receive().await {
-                packet_len_total = packet_len_total + data.to_vec().len();
                 packet.append(&mut data.to_vec());
 
-                let packet_header = packet.get(0..5);
-
-                let packet_header = match packet_header {
-                    Some(header) => header.to_vec(),
-                    None => {
-                        continue;
+                match QuicNetworkPacketCollection::from_stream(&mut packet) {
+                    Ok(packets) => {
+                        let mut remaining_data = packet.clone();
+                        packet = vec![0; 0];
+                        packet.append(&mut remaining_data);
+                        packet.shrink_to(packet.len());
+                        packet.truncate(packet.len());
+                        for p in packets {
+                            println!("Received {} packets back", p.frames.len());
+                        }
                     }
+                    Err(_) => {}
                 };
-
-                let packet_length = packet.get(5..13);
-                if packet_length.is_none() {
-                    continue;
-                }
-
-                let packet_len = usize::from_be_bytes(packet_length.unwrap().try_into().unwrap());
-
-                // If the current packet starts with the magic header and we have enough bytes, drain it
-                if packet_header.eq(&magic_header) && packet.len() >= packet_len + 13 {
-                    let packet_copy = packet.clone();
-                    let packet_to_process = packet_copy
-                        .get(0..packet_len + 13)
-                        .unwrap()
-                        .to_vec();
-
-                    packet = packet
-                        .get(packet_len + 13..packet.len())
-                        .unwrap()
-                        .to_vec();
-
-                    // Strip the header and frame length
-                    let packet_to_process = packet_to_process
-                        .get(13..packet_to_process.len())
-                        .unwrap();
-
-                    match QuicNetworkPacketCollection::from_vec(&packet_to_process) {
-                        Ok(packet) => {
-                            println!("Got back {} packets.", packet.frames.len());
-                        }
-                        Err(e) => {
-                            tracing::error!(
-                                "Unable to deserialize RON packet. Possible packet length issue? {}",
-                                e.to_string()
-                            );
-                            continue;
-                        }
-                    };
-                }
             }
             println!("Recieving loop died");
         })
@@ -153,9 +116,8 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
                 };
 
                 match packet.to_vec() {
-                    Ok(reader) => {
-                        _ = send_stream.send(reader.into()).await;
-                        _ = send_stream.flush().await;
+                    Ok(rs) => {
+                        let r = send_stream.write_all(&rs).await;
                         count = count + 1;
                     }
                     Err(e) => {

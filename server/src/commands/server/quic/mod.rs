@@ -10,10 +10,10 @@ use common::structs::packet::{
     QuicNetworkPacket,
     QuicNetworkPacketCollection,
     QuicNetworkPacketData,
-    QUICK_NETWORK_PACKET_HEADER,
 };
 use moka::future::Cache;
 use s2n_quic::Server;
+use tokio::io::AsyncWriteExt;
 use std::borrow::BorrowMut;
 use std::collections::hash_map::RandomState;
 use std::collections::HashMap;
@@ -23,7 +23,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::task::JoinHandle;
 
-use async_channel::{ unbounded, Receiver, Sender };
+use flume::{ bounded, Sender, Receiver };
 const QUEUE_CAPACITY: usize = 100000;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -35,6 +35,7 @@ enum MessageEventType {
 #[derive(Debug, Clone)]
 enum MessageEventData {
     Sender(Sender<QuicNetworkPacketCollection>),
+    Producer(Sender<QuicNetworkPacket>),
     Receiver(Receiver<QuicNetworkPacket>),
 }
 
@@ -110,7 +111,7 @@ pub(crate) async fn get_task(
 
     let mut tasks = Vec::new();
     let outer_thread_shutdown = shutdown.clone();
-    let (broadcast, recv_broadcast) = unbounded::<MessageEvent>();
+    let (broadcast, recv_broadcast) = bounded::<MessageEvent>(100);
 
     let broadcast: Arc<_> = Arc::new(broadcast);
     // This is our main thread for the QUIC server
@@ -130,25 +131,6 @@ pub(crate) async fn get_task(
                 let shutdown = shutdown.clone();
                 let raw_connection_id = connection.id();
 
-                let (producer, consumer) = unbounded::<QuicNetworkPacket>();
-                let (sender, receiver) = unbounded::<QuicNetworkPacketCollection>();
-
-                // send consumer and receiver to monitor thread
-                _ = broadcast.try_send(MessageEvent {
-                    connection_id: raw_connection_id,
-                    event_type: MessageEventType::Add,
-                    thing: Some(MessageEventData::Sender(sender)),
-                });
-
-                _ = broadcast.try_send(MessageEvent {
-                    connection_id: raw_connection_id,
-                    event_type: MessageEventType::Add,
-                    thing: Some(MessageEventData::Receiver(consumer)),
-                });
-
-                let producer = Arc::new(producer);
-                let receiver = Arc::new(receiver);
-
                 tokio::spawn(async move {
                     let cache = cache.clone();
                     let stream_cache = cache.clone();
@@ -157,6 +139,26 @@ pub(crate) async fn get_task(
                         Ok(stream) =>
                             match stream {
                                 Some(stream) => {
+                                    let (producer, consumer) =
+                                        bounded::<QuicNetworkPacket>(QUEUE_CAPACITY);
+                                    let (sender, receiver) =
+                                        bounded::<QuicNetworkPacketCollection>(QUEUE_CAPACITY);
+
+                                    // send consumer and receiver to monitor thread
+                                    _ = broadcast.try_send(MessageEvent {
+                                        connection_id: raw_connection_id,
+                                        event_type: MessageEventType::Add,
+                                        thing: Some(MessageEventData::Sender(sender.clone())),
+                                    });
+                                    drop(sender);
+
+                                    _ = broadcast.try_send(MessageEvent {
+                                        connection_id: raw_connection_id,
+                                        event_type: MessageEventType::Add,
+                                        thing: Some(MessageEventData::Receiver(consumer.clone())),
+                                    });
+                                    drop(consumer);
+
                                     let (mut receive_stream, mut send_stream) = stream.split();
 
                                     // When a client connects, store the author property on the QuicNetworkPacket for this stream
@@ -181,9 +183,9 @@ pub(crate) async fn get_task(
                                             let disconnected = receiver_disconnected.clone();
 
                                             let shutdown = receiver_shutdown.clone();
-                                            let magic_header: Vec<u8> =
-                                                QUICK_NETWORK_PACKET_HEADER.to_vec();
                                             let mut packet = Vec::<u8>::new();
+
+                                            tracing::info!("Started receive stream.");
 
                                             while
                                                 let Ok(Some(data)) = receive_stream.receive().await
@@ -201,59 +203,12 @@ pub(crate) async fn get_task(
 
                                                 packet.append(&mut data.to_vec());
 
-                                                let packet_header = packet.get(0..5);
-
-                                                let packet_header = match packet_header {
-                                                    Some(header) => header.to_vec(),
-                                                    None => {
-                                                        continue;
-                                                    }
-                                                };
-
-                                                let packet_length = packet.get(5..13);
-                                                if packet_length.is_none() {
-                                                    continue;
-                                                }
-
-                                                let packet_len = usize::from_be_bytes(
-                                                    packet_length.unwrap().try_into().unwrap()
-                                                );
-
-                                                // If the current packet starts with the magic header and we have enough bytes, drain it
-                                                if
-                                                    packet_header.eq(&magic_header) &&
-                                                    packet.len() >= packet_len + 13
-                                                {
-                                                    let packet_to_process = packet
-                                                        .get(0..packet_len + 13)
-                                                        .unwrap()
-                                                        .to_vec();
-
-                                                    let mut remaining_data = packet
-                                                        .get(packet_len + 13..packet.len())
-                                                        .unwrap()
-                                                        .to_vec()
-                                                        .into_boxed_slice()
-                                                        .to_vec();
-                                                    packet = vec![0; 0];
-                                                    packet.append(&mut remaining_data);
-                                                    packet.shrink_to(packet.len());
-                                                    packet.truncate(packet.len());
-
-                                                    // Strip the header and frame length
-                                                    let packet_to_process = packet_to_process
-                                                        .get(13..packet_to_process.len())
-                                                        .unwrap();
-
-                                                    match
-                                                        QuicNetworkPacket::from_vec(
-                                                            &packet_to_process
-                                                        )
-                                                    {
-                                                        Ok(mut packet) => {
+                                                match QuicNetworkPacket::from_stream(&mut packet) {
+                                                    Ok(packets) => {
+                                                        for mut p in packets {
                                                             let mut client_id =
                                                                 client_id.lock().await;
-                                                            let author = packet.client_id.clone();
+                                                            let author = p.client_id.clone();
 
                                                             if client_id.is_none() {
                                                                 *client_id = Some(author.clone());
@@ -264,29 +219,26 @@ pub(crate) async fn get_task(
                                                                 );
                                                             }
 
-                                                            let pt = packet.packet_type.clone();
+                                                            let pt = p.packet_type.clone();
 
                                                             if pt.eq(&PacketType::AudioFrame) {
-                                                                let packet =
+                                                                let p2 =
                                                                     update_packet_with_player_coordinates(
-                                                                        packet.borrow_mut(),
+                                                                        &mut p,
                                                                         receiver_cache.clone()
                                                                     ).await;
 
-                                                                _ = producer.send(packet).await;
+                                                                _ = producer.send_async(p2).await;
                                                             }
                                                         }
-                                                        Err(e) => {
-                                                            tracing::error!(
-                                                                "Unable to deserialize RON packet. Possible packet length issue? {}",
-                                                                e.to_string()
-                                                            );
-                                                            continue;
-                                                        }
-                                                    };
-                                                }
+                                                    }
+                                                    Err(_) => {
+                                                        continue;
+                                                    }
+                                                };
                                             }
 
+                                            drop(producer);
                                             disconnected.store(true, Ordering::Relaxed);
 
                                             // Send notice to other threads to stop using them
@@ -313,12 +265,28 @@ pub(crate) async fn get_task(
                                             let shutdown = sender_shutdown.clone();
 
                                             #[allow(irrefutable_let_patterns)]
-                                            while let Ok(packet) = receiver.recv().await {
+                                            loop {
+                                                if receiver.is_disconnected() {
+                                                    tracing::info!("receiver disconnected.");
+                                                    break;
+                                                }
+
+                                                let packet = match receiver.recv_async().await {
+                                                    Ok(packet) => packet,
+                                                    Err(_) => {
+                                                        tracing::info!(
+                                                            "Didn't get back a collection?"
+                                                        );
+                                                        continue;
+                                                    }
+                                                };
+
                                                 if
                                                     shutdown.load(Ordering::Relaxed) ||
                                                     disconnected.load(Ordering::Relaxed)
                                                 {
                                                     tracing::info!("Sending stream was cancelled.");
+                                                    drop(receiver);
                                                     // Ensure the receiving stream gets the disconnect signal
                                                     _ = disconnected.store(true, Ordering::Relaxed);
                                                     _ = send_stream.finish();
@@ -327,8 +295,7 @@ pub(crate) async fn get_task(
 
                                                 match packet.to_vec() {
                                                     Ok(rs) => {
-                                                        _ = send_stream.send(rs.into()).await;
-                                                        _ = send_stream.flush().await;
+                                                        _ = send_stream.write_all(&rs).await;
                                                     }
                                                     Err(e) => {
                                                         tracing::error!("{:?}", e.to_string());
@@ -400,6 +367,9 @@ pub(crate) async fn get_task(
                                     MessageEventData::Receiver(consumer) => {
                                         consumers.insert(event.connection_id, consumer);
                                     }
+                                    _ => {
+                                        continue;
+                                    }
                                 }
                             }
                             MessageEventType::Remove => {
@@ -423,9 +393,7 @@ pub(crate) async fn get_task(
                     // Send a empty packet to all receiving streams so they process the shutdown signal incase there isn't incoming data
                     // Then remove the item from the collections, and drop the sender
                     for (id, sender) in senders.iter() {
-                        if sender.send(collection.clone()).await.is_err() {
-                            sender.close();
-                        }
+                        _ = sender.send_async(collection.clone()).await;
                     }
                     break;
                 }
@@ -434,20 +402,21 @@ pub(crate) async fn get_task(
                 let mut frames = Vec::<QuicNetworkPacket>::new();
 
                 for (id, consumer) in consumers.iter() {
-                    if consumer.is_closed() {
+                    if
+                        consumer.is_disconnected() ||
+                        consumer.sender_count() == 0 ||
+                        consumer.is_empty()
+                    {
                         continue;
                     }
+
                     // 1. Awaiting the stream awaits this thread,
                     //  // If there's no data in the buffer
                     //  // Or if the client disconnected but it hasn't been detected yet.
                     // 2. as_sync().recv() doesn't parallelize
                     // I need a spsc that await doesn't hold, it just returns immediately
                     // Is QUIC simply too slow?
-                    let packet = consumer.recv().await;
-                    if packet.is_err() {
-                        consumer.close();
-                    }
-                    match packet {
+                    match consumer.recv_async().await {
                         Ok(frame) => {
                             match frame.packet_type {
                                 PacketType::AudioFrame => frames.push(frame),
@@ -476,9 +445,10 @@ pub(crate) async fn get_task(
 
                     // Send this collection to every client
                     for (id, sender) in senders.iter() {
-                        if sender.send(collection.clone()).await.is_err() {
-                            sender.close();
+                        if sender.is_disconnected() || sender.receiver_count() == 0 {
+                            continue;
                         }
+                        _ = sender.send_async(collection.clone()).await;
                     }
                 }
             }

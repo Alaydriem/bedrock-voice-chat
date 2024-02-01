@@ -79,6 +79,7 @@ moka = { version = "^0.12", features = [
     "sync",
 ] }
 async-channel = "2.1.1"
+flume = "0.11.0"
 
 [build-dependencies]
 built = { version = "^0.5", features = ["git2", "chrono", "semver"] }

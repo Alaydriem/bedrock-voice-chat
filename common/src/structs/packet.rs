@@ -36,6 +36,74 @@ pub struct QuicNetworkPacket {
 pub const QUICK_NETWORK_PACKET_HEADER: &[u8; 5] = &[251, 33, 51, 0, 27];
 
 impl QuicNetworkPacketCollection {
+    /// write_all() returns a stream of data that isn't cleanly deliniated by packets
+    /// And flush() may be called at any time.
+    /// This takes a reference to an existing Vec<u8>, from a receive_stream() and
+    /// returns all the QuicNetworkPackets that were sent.
+    /// The packet is mutated in place with any partial data
+    pub fn from_stream(
+        packet: &mut Vec<u8>
+    ) -> Result<Vec<QuicNetworkPacketCollection>, anyhow::Error> {
+        let mut packets = Vec::<QuicNetworkPacketCollection>::new();
+
+        // If we didn't get anything we can return immediately
+        if packet.len() == 0 {
+            return Ok(packets);
+        }
+
+        loop {
+            // The first 5 bytes of the packet should always be the magic header we use to indicate a new packet has started
+            // If these bytes don't match the magic header, then rip them off the packet and try again
+            // If we don't get any bytes from this then the packet is malformed, and we need more data
+            match packet.get(0..5) {
+                Some(header) =>
+                    match header.to_vec().eq(&QUICK_NETWORK_PACKET_HEADER) {
+                        true => {}
+                        false => {
+                            break;
+                        }
+                    }
+                None => {
+                    break;
+                }
+            }
+
+            // The next 8 bytes should be the packet length
+            let length = match packet.get(5..13) {
+                Some(bytes) => usize::from_be_bytes(bytes.try_into().unwrap()),
+                None => {
+                    break;
+                }
+            };
+
+            if packet.len() >= length + 13 {
+                let packet_to_process = packet
+                    .get(0..length + 13)
+                    .unwrap()
+                    .to_vec();
+
+                *packet = packet
+                    .get(13 + length..packet.len())
+                    .unwrap()
+                    .to_vec();
+
+                packet.shrink_to(packet.len());
+                packet.truncate(packet.len());
+
+                match Self::from_vec(&packet_to_process[13..]) {
+                    Ok(p) => packets.push(p),
+                    Err(_) => {
+                        continue;
+                    }
+                };
+            } else {
+                break;
+            }
+        }
+
+        return Ok(packets);
+    }
+
     /// Converts the packet into a parseable string
     pub fn to_vec(&self) -> Result<Vec<u8>, anyhow::Error> {
         match ron::to_string(&self) {
@@ -80,6 +148,72 @@ impl QuicNetworkPacketCollection {
 }
 
 impl QuicNetworkPacket {
+    /// write_all() returns a stream of data that isn't cleanly deliniated by packets
+    /// And flush() may be called at any time.
+    /// This takes a reference to an existing Vec<u8>, from a receive_stream() and
+    /// returns all the QuicNetworkPackets that were sent.
+    /// The packet is mutated in place with any partial data
+    pub fn from_stream(packet: &mut Vec<u8>) -> Result<Vec<QuicNetworkPacket>, anyhow::Error> {
+        let mut packets = Vec::<QuicNetworkPacket>::new();
+
+        // If we didn't get anything we can return immediately
+        if packet.len() == 0 {
+            return Ok(packets);
+        }
+
+        loop {
+            // The first 5 bytes of the packet should always be the magic header we use to indicate a new packet has started
+            // If these bytes don't match the magic header, then rip them off the packet and try again
+            // If we don't get any bytes from this then the packet is malformed, and we need more data
+            match packet.get(0..5) {
+                Some(header) =>
+                    match header.to_vec().eq(&QUICK_NETWORK_PACKET_HEADER) {
+                        true => {}
+                        false => {
+                            break;
+                        }
+                    }
+                None => {
+                    break;
+                }
+            }
+
+            // The next 8 bytes should be the packet length
+            let length = match packet.get(5..13) {
+                Some(bytes) => usize::from_be_bytes(bytes.try_into().unwrap()),
+                None => {
+                    break;
+                }
+            };
+
+            if packet.len() >= length + 13 {
+                let packet_to_process = packet
+                    .get(0..length + 13)
+                    .unwrap()
+                    .to_vec();
+
+                *packet = packet
+                    .get(13 + length..packet.len())
+                    .unwrap()
+                    .to_vec();
+
+                packet.shrink_to(packet.len());
+                packet.truncate(packet.len());
+
+                match Self::from_vec(&packet_to_process[13..]) {
+                    Ok(p) => packets.push(p),
+                    Err(e) => {
+                        continue;
+                    }
+                };
+            } else {
+                break;
+            }
+        }
+
+        return Ok(packets);
+    }
+
     /// Converts the packet into a parseable string
     pub fn to_vec(&self) -> Result<Vec<u8>, anyhow::Error> {
         match ron::to_string(&self) {
