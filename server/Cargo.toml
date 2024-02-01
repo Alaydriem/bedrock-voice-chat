@@ -58,12 +58,8 @@ tracing-subscriber = { version = "^0.3" }
 tracing-appender = { version = "^0.2" }
 base64 = { version = "^0.13" }
 faccess = { version = "^0.2" }
-streamfly = { git = "https://github.com/alaydriem/streamfly" }
-s2n-quic = { version = "^1.32", features = [
-    "provider-address-token-default",
-    "provider-tls-rustls",
-    "provider-event-tracing",
-] }
+streamfly = { path = "../../streamfly" }
+
 bytes = { version = "^1.5" }
 async-mutex = { version = "^1.4" }
 rand = { version = "^0.8" }
@@ -78,8 +74,7 @@ moka = { version = "^0.12", features = [
     "async-trait",
     "sync",
 ] }
-async-channel = "2.1.1"
-flume = "0.11.0"
+futures = { version = "^0.3" }
 
 [build-dependencies]
 built = { version = "^0.5", features = ["git2", "chrono", "semver"] }

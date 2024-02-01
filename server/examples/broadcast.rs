@@ -1,19 +1,13 @@
 use common::{
-    mtlsprovider::MtlsProvider,
-    structs::packet::{
-        DebugPacket,
-        PacketType,
-        QuicNetworkPacket,
-        QuicNetworkPacketCollection,
-        QUICK_NETWORK_PACKET_HEADER,
-    },
+    structs::packet::{ DebugPacket, PacketType, QuicNetworkPacket, QuicNetworkPacketCollection },
 };
-use s2n_quic::{ client::Connect, Client };
+use streamfly::{ certificate::MtlsProvider, new_client };
 use tokio::io::AsyncWriteExt;
 use std::{ path::Path, time::Duration };
 use std::{ error::Error, net::SocketAddr };
 use rodio::{ source::SineWave, Source };
 
+const CHANNEL: &str = "BVC_BROADCAST_EXAMPLE_CLIENT";
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -22,54 +16,38 @@ async fn main() {
 }
 
 async fn client(id: String) -> Result<(), Box<dyn Error>> {
+    let mut tasks = Vec::new();
+
     let ca_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../certificates/ca.crt");
     let cert_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test.crt");
     let key_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test.key");
-
     let ca = Path::new(ca_path);
     let cert = Path::new(cert_path);
     let key = Path::new(key_path);
+    let provider = MtlsProvider::new(ca, cert, key).await;
 
-    let provider = MtlsProvider::new(ca, cert, key).await?;
-
-    let client = Client::builder().with_tls(provider)?.with_io("0.0.0.0:0")?.start()?;
-
-    println!("I am client: {}", id);
-    let addr: SocketAddr = "127.0.0.1:3001".parse()?;
-    let connect = Connect::new(addr).with_server_name("localhost");
-    let mut connection = client.connect(connect).await?;
-
-    // ensure the connection doesn't time out with inactivity
-    connection.keep_alive(true)?;
-
-    // open a new stream and split the receiving and sending sides
-    let stream = connection.open_bidirectional_stream().await?;
-    _ = stream.connection().keep_alive(true);
-
-    let (mut receive_stream, mut send_stream) = stream.split();
-
-    _ = receive_stream.connection().keep_alive(true);
-    _ = send_stream.connection().keep_alive(true);
-
-    let mut tasks = Vec::new();
+    let mut client = new_client(
+        "127.0.0.1:3001".parse().unwrap(),
+        "localhost",
+        provider.unwrap()
+    ).await.unwrap();
 
     // spawn a task that copies responses from the server to stdout
     tasks.push(
         tokio::spawn(async move {
             let mut packet = Vec::<u8>::new();
 
-            while let Ok(Some(data)) = receive_stream.receive().await {
+            let rx = client.subscribe(CHANNEL).await.unwrap();
+
+            let (_, mut reader) = rx.recv().await.unwrap();
+            while let Ok(Some(data)) = reader.receive().await {
+                println!("Got data back.");
                 packet.append(&mut data.to_vec());
 
-                match QuicNetworkPacketCollection::from_stream(&mut packet) {
+                match QuicNetworkPacket::from_stream(&mut packet) {
                     Ok(packets) => {
-                        let mut remaining_data = packet.clone();
-                        packet = vec![0; 0];
-                        packet.append(&mut remaining_data);
-                        packet.shrink_to(packet.len());
-                        packet.truncate(packet.len());
                         for p in packets {
-                            println!("Received {} packets back", p.frames.len());
+                            println!("Got packet from {}", p.author);
                         }
                     }
                     Err(_) => {}
@@ -79,11 +57,17 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
         })
     );
 
+    let provider = MtlsProvider::new(ca, cert, key).await;
+    let mut client = new_client(
+        "127.0.0.1:3001".parse().unwrap(),
+        "localhost",
+        provider.unwrap()
+    ).await.unwrap();
+
     tasks.push(
         tokio::spawn(async move {
+            let id = id.clone();
             let client_id: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
-
-            let mut count = 0;
 
             let mut encoder = opus::Encoder
                 ::new(48000, opus::Channels::Mono, opus::Application::Voip)
@@ -93,9 +77,10 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
                 .take_duration(Duration::from_secs_f32(0.02))
                 .amplify(0.01);
 
+            let (_, mut writer) = client.open_stream(CHANNEL).await.unwrap();
+
             loop {
                 let source = source.clone();
-                let now = std::time::Instant::now();
                 let s: Vec<f32> = source.collect();
                 _ = encoder.set_bitrate(opus::Bitrate::Bits(64_000));
 
@@ -117,8 +102,7 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
 
                 match packet.to_vec() {
                     Ok(rs) => {
-                        let r = send_stream.write_all(&rs).await;
-                        count = count + 1;
+                        _ = writer.write_all(&rs).await;
                     }
                     Err(e) => {
                         println!("{}", e.to_string());
