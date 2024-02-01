@@ -66,7 +66,7 @@ pub(crate) async fn get_task(
 
     let mut tasks = Vec::new();
 
-    match serve(io_connection_str, provider).await {
+    match serve(io_connection_str, provider, mutator).await {
         Ok(listener) => tasks.push(listener),
         Err(e) => {
             return Err(anyhow!("Unable to start pub/sub QUIC listener {}", e.to_string()));
@@ -130,7 +130,6 @@ pub(crate) async fn get_task(
 /// Mutates the incoming QuicNetworkPackets to append the player location to them, if they exist
 fn mutator(mut data: &mut Vec<u8>) -> BoxFuture<'static, Result<Bytes, ()>> {
     let dc = data.clone();
-    return future::ready(Ok(dc.try_into().unwrap())).boxed();
     let cache = match get_cache() {
         Ok(cache) => cache,
         Err(_) => {
