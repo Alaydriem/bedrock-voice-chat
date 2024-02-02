@@ -348,6 +348,13 @@ pub(crate) async fn get_task(
     let monitor_cache = monitor_cache.clone();
     tasks.push(
         tokio::spawn(async move {
+            if cfg!(windows) {
+                windows_targets::link!("winmm.dll" "system" fn timeBeginPeriod(uperiod: u32) -> u32);
+                unsafe {
+                    timeBeginPeriod(1);
+                }
+            }
+
             let shutdown = monitor_shutdown.clone();
 
             let mut consumers: HashMap<u64, Receiver<QuicNetworkPacket>> = HashMap::new();
@@ -416,15 +423,17 @@ pub(crate) async fn get_task(
                     // 2. as_sync().recv() doesn't parallelize
                     // I need a spsc that await doesn't hold, it just returns immediately
                     // Is QUIC simply too slow?
-                    match consumer.recv_async().await {
-                        Ok(frame) => {
-                            match frame.packet_type {
-                                PacketType::AudioFrame => frames.push(frame),
-                                _ => {}
+                    _ = tokio::time::timeout(Duration::from_millis(1), async {
+                        match consumer.recv_async().await {
+                            Ok(frame) => {
+                                match frame.packet_type {
+                                    PacketType::AudioFrame => frames.push(frame),
+                                    _ => {}
+                                }
                             }
+                            Err(_) => {}
                         }
-                        Err(_) => {}
-                    }
+                    }).await;
                 }
 
                 // Regenerate the PlayerPositionPacket from the cache
