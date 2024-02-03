@@ -675,6 +675,7 @@ dependencies = [
  "entity",
  "faccess",
  "flume",
+ "glam",
  "hcl-rs",
  "migration",
  "moka",
@@ -694,6 +695,7 @@ dependencies = [
  "sea-orm-rocket",
  "serde",
  "serde_json",
+ "shuteye",
  "streamfly",
  "tokio",
  "tracing",
@@ -2045,6 +2047,12 @@ dependencies = [
  "log",
  "url",
 ]
+
+[[package]]
+name = "glam"
+version = "0.25.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "151665d9be52f9bb40fc7966565d39666f2d1e69233571b71b87791c7e0528b3"
 
 [[package]]
 name = "glob"
@@ -4863,6 +4871,15 @@ name = "shlex"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a7cee0529a6d40f580e7a5e6c495c8fbfe21b7b52795ed4bb5e62cdf92bc6380"
+
+[[package]]
+name = "shuteye"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ca27229f5eb21ea854a551c24b268c824949a01c41652b6d423c141539252cf"
+dependencies = [
+ "libc",
+]
 
 [[package]]
 name = "signal-hook-registry"

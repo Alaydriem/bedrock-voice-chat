@@ -68,7 +68,9 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
                                 .iter()
                                 .map(|f| f.author.clone())
                                 .collect::<String>();
-                            println!("Got a frame collection back from {:?}", sourced_from);
+                            if sourced_from.len() != 0 {
+                                println!("Got a frame collection back from {:?}", sourced_from);
+                            }
                         }
                     }
                     Err(_) => {}

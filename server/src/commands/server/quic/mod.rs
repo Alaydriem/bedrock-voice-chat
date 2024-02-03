@@ -14,7 +14,6 @@ use common::structs::packet::{
 use moka::future::Cache;
 use s2n_quic::Server;
 use tokio::io::AsyncWriteExt;
-use std::borrow::BorrowMut;
 use std::collections::hash_map::RandomState;
 use std::collections::HashMap;
 use std::path::Path;
@@ -35,7 +34,6 @@ enum MessageEventType {
 #[derive(Debug, Clone)]
 enum MessageEventData {
     Sender(Sender<QuicNetworkPacketCollection>),
-    Producer(Sender<QuicNetworkPacket>),
     Receiver(Receiver<QuicNetworkPacket>),
 }
 
@@ -164,7 +162,12 @@ pub(crate) async fn get_task(
                                     // When a client connects, store the author property on the QuicNetworkPacket for this stream
                                     // This enables us to identify packets directed to us.
                                     let cid: Option<Vec<u8>> = None;
-                                    let client_id = Arc::new(Mutex::new(cid));
+                                    let cid_author: Option<String> = None;
+                                    let recv_client_id = Arc::new(Mutex::new(cid));
+                                    let send_client_id = recv_client_id.clone();
+
+                                    let recv_cid_author = Arc::new(Mutex::new(cid_author));
+                                    let send_cid_author = recv_cid_author.clone();
 
                                     let receiver_shutdown = shutdown.clone();
                                     let receiver_cache = stream_cache.clone();
@@ -207,13 +210,23 @@ pub(crate) async fn get_task(
                                                     Ok(packets) => {
                                                         for mut p in packets {
                                                             let mut client_id =
-                                                                client_id.lock().await;
+                                                                recv_client_id.lock_arc().await;
                                                             let author = p.client_id.clone();
+
+                                                            let mut cid_author =
+                                                                recv_cid_author.lock_arc().await;
+                                                            let real_author = p.author.clone();
+                                                            if cid_author.is_none() {
+                                                                *cid_author = Some(
+                                                                    real_author.clone()
+                                                                );
+                                                            }
 
                                                             if client_id.is_none() {
                                                                 *client_id = Some(author.clone());
                                                                 tracing::info!(
-                                                                    "{:?} Connected {}",
+                                                                    "[{}] Connected [{:?}] {}",
+                                                                    real_author,
                                                                     author,
                                                                     &raw_connection_id
                                                                 );
@@ -264,6 +277,10 @@ pub(crate) async fn get_task(
                                             let disconnected = sender_disconnected.clone();
                                             let shutdown = sender_shutdown.clone();
 
+                                            let cache = cache.clone();
+
+                                            let mut client_id: Option<Vec<u8>> = None;
+                                            let mut author: Option<String> = None;
                                             #[allow(irrefutable_let_patterns)]
                                             loop {
                                                 if receiver.is_disconnected() {
@@ -271,8 +288,8 @@ pub(crate) async fn get_task(
                                                     break;
                                                 }
 
-                                                let packet = match receiver.recv_async().await {
-                                                    Ok(packet) => packet,
+                                                let mut packets = match receiver.recv_async().await {
+                                                    Ok(packets) => packets,
                                                     Err(_) => {
                                                         tracing::info!(
                                                             "Didn't get back a collection?"
@@ -293,7 +310,126 @@ pub(crate) async fn get_task(
                                                     break;
                                                 }
 
-                                                match packet.to_vec() {
+                                                if client_id.is_none() {
+                                                    client_id = match
+                                                        send_client_id.lock_arc().await.clone()
+                                                    {
+                                                        Some(item) => Some(item),
+                                                        None => None,
+                                                    };
+                                                }
+
+                                                if author.is_none() {
+                                                    author = match
+                                                        send_cid_author.lock_arc().await.clone()
+                                                    {
+                                                        Some(item) => Some(item),
+                                                        None => None,
+                                                    };
+                                                }
+
+                                                let mut packets_to_send =
+                                                    QuicNetworkPacketCollection {
+                                                        frames: Vec::new(),
+                                                        positions: packets.positions.clone(),
+                                                    };
+
+                                                // Remove packets from the final broadcast message
+                                                for packet in packets.frames.iter_mut() {
+                                                    // Don't send packets back to the original broadcaster
+                                                    match client_id.clone() {
+                                                        Some(client_id) => {
+                                                            if packet.client_id.eq(&client_id) {
+                                                                continue;
+                                                            }
+                                                        }
+                                                        None => {}
+                                                    }
+
+                                                    let is_in_group_or_in_range: bool = match
+                                                        packet.clone().get_data()
+                                                    {
+                                                        Some(data) => {
+                                                            match data.to_owned().try_into() {
+                                                                Ok(data) => {
+                                                                    let data: AudioFramePacket =
+                                                                        data;
+
+                                                                    // Add the packet if the player is in the same group
+
+                                                                    // Add the packet if the player is within the server defined audio range
+                                                                    match author.clone() {
+                                                                        Some(author) => {
+                                                                            match
+                                                                                cache.get(
+                                                                                    &author
+                                                                                ).await
+                                                                            {
+                                                                                Some(position) => {
+                                                                                    let c1 =
+                                                                                        position.coordinates;
+                                                                                    match
+                                                                                        data.coordinate
+                                                                                    {
+                                                                                        Some(
+                                                                                            c2,
+                                                                                        ) => {
+                                                                                            // Calcuate 3d spatial distance
+                                                                                            // If it's <= 32 (which is anywhere in a 16 x 16 x 16 space), they are within a hearing distance
+                                                                                            let distance =
+                                                                                                (
+                                                                                                    (
+                                                                                                        c1.x -
+                                                                                                        c2.x
+                                                                                                    ).powf(
+                                                                                                        2.9
+                                                                                                    ) +
+                                                                                                    (
+                                                                                                        c1.y -
+                                                                                                        c2.y
+                                                                                                    ).powf(
+                                                                                                        2.0
+                                                                                                    ) +
+                                                                                                    (
+                                                                                                        c1.z -
+                                                                                                        c2.z
+                                                                                                    ).powf(
+                                                                                                        2.0
+                                                                                                    )
+                                                                                                ).sqrt();
+
+                                                                                            if
+                                                                                                distance <=
+                                                                                                32.0 // @todo!() Let this be configurable
+                                                                                            {
+                                                                                                true
+                                                                                            } else {
+                                                                                                false
+                                                                                            }
+                                                                                        }
+                                                                                        None => {
+                                                                                            false
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                                None => false,
+                                                                            }
+                                                                        }
+                                                                        None => false,
+                                                                    }
+                                                                }
+                                                                Err(_) => false,
+                                                            }
+                                                        }
+                                                        None => false,
+                                                    };
+
+                                                    if is_in_group_or_in_range {
+                                                        packets_to_send.frames.push(packet.clone());
+                                                    }
+                                                }
+
+                                                match packets_to_send.to_vec() {
                                                     Ok(rs) => {
                                                         _ = send_stream.write_all(&rs).await;
                                                     }
@@ -374,9 +510,6 @@ pub(crate) async fn get_task(
                                     MessageEventData::Receiver(consumer) => {
                                         consumers.insert(event.connection_id, consumer);
                                     }
-                                    _ => {
-                                        continue;
-                                    }
                                 }
                             }
                             MessageEventType::Remove => {
@@ -399,7 +532,7 @@ pub(crate) async fn get_task(
 
                     // Send a empty packet to all receiving streams so they process the shutdown signal incase there isn't incoming data
                     // Then remove the item from the collections, and drop the sender
-                    for (id, sender) in senders.iter() {
+                    for (_, sender) in senders.iter() {
                         _ = sender.send_async(collection.clone()).await;
                     }
                     break;
@@ -408,7 +541,7 @@ pub(crate) async fn get_task(
                 // This is our collection of frames from all current producers (streams, clients)
                 let mut frames = Vec::<QuicNetworkPacket>::new();
 
-                for (id, consumer) in consumers.iter() {
+                for (_, consumer) in consumers.iter() {
                     if
                         consumer.is_disconnected() ||
                         consumer.sender_count() == 0 ||
@@ -417,23 +550,39 @@ pub(crate) async fn get_task(
                         continue;
                     }
 
-                    // 1. Awaiting the stream awaits this thread,
-                    //  // If there's no data in the buffer
-                    //  // Or if the client disconnected but it hasn't been detected yet.
-                    // 2. as_sync().recv() doesn't parallelize
-                    // I need a spsc that await doesn't hold, it just returns immediately
-                    // Is QUIC simply too slow?
-                    _ = tokio::time::timeout(Duration::from_millis(1), async {
-                        match consumer.recv_async().await {
-                            Ok(frame) => {
-                                match frame.packet_type {
-                                    PacketType::AudioFrame => frames.push(frame),
-                                    _ => {}
+                    if cfg!(windows) {
+                        _ = tokio::time::timeout(Duration::from_millis(1), async {
+                            match consumer.recv_async().await {
+                                Ok(frame) => {
+                                    match frame.packet_type {
+                                        PacketType::AudioFrame => frames.push(frame),
+                                        _ => {}
+                                    }
                                 }
+                                Err(_) => {}
                             }
-                            Err(_) => {}
-                        }
-                    }).await;
+                        }).await;
+                    }
+
+                    // Linux we want nanosleep percisions
+                    if cfg!(linux) {
+                        tokio::select!(
+                            _ = async {
+                                match consumer.recv_async().await {
+                                    Ok(frame) => {
+                                        match frame.packet_type {
+                                            PacketType::AudioFrame => frames.push(frame),
+                                            _ => {}
+                                        }
+                                    }
+                                    Err(_) => {}
+                                }
+                            } => {},
+                            _ = async {
+                                shuteye::sleep(Duration::from_millis(1));
+                            } => {}
+                        );
+                    }
                 }
 
                 // Regenerate the PlayerPositionPacket from the cache
@@ -453,7 +602,7 @@ pub(crate) async fn get_task(
                     };
 
                     // Send this collection to every client
-                    for (id, sender) in senders.iter() {
+                    for (_, sender) in senders.iter() {
                         if sender.is_disconnected() || sender.receiver_count() == 0 {
                             continue;
                         }
