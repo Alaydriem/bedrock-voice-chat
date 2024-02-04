@@ -1,5 +1,6 @@
 use crate::{ rs::routes, config::ApplicationConfig };
 use common::{ ncryptflib as ncryptf, pool::{ redis::RedisDb, seaorm::AppDb } };
+use moka::future::Cache;
 use rocket::{ self, routes };
 use rocket_db_pools;
 use sea_orm_rocket::Database;
@@ -11,7 +12,8 @@ use common::structs::packet::QuicNetworkPacket;
 
 pub(crate) fn get_task(
     config: &ApplicationConfig,
-    queue: Arc<deadqueue::limited::Queue<QuicNetworkPacket>>
+    queue: Arc<deadqueue::limited::Queue<QuicNetworkPacket>>,
+    channel_cache: Arc<async_mutex::Mutex<Cache<String, common::structs::channel::Channel>>>
 ) -> JoinHandle<()> {
     let app_config = config.to_owned();
     return tokio::task::spawn(async move {
@@ -22,6 +24,7 @@ pub(crate) fn get_task(
                     ::custom(figment)
                     .manage(app_config.server.clone())
                     .manage(queue.clone())
+                    .manage(channel_cache.clone())
                     .attach(AppDb::init())
                     .attach(RedisDb::init())
                     .attach(rocket::fairing::AdHoc::try_on_ignite("Migrations", migrate))
@@ -41,6 +44,15 @@ pub(crate) fn get_task(
                             //routes::ncryptf::token_info_route,
                             //routes::ncryptf::token_revoke_route,
                             //routes::ncryptf::token_refresh_route
+                        ]
+                    )
+                    .mount(
+                        "/api/channel",
+                        routes![
+                            routes::api::channel_create,
+                            routes::api::channel_delete,
+                            routes::api::channel_event,
+                            routes::api::channel_list
                         ]
                     );
 

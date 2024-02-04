@@ -182,7 +182,7 @@ checksum = "96d30a06541fbafbc7f82ed10c06164cfbd2c401138f6addd8404629c4b16711"
 [[package]]
 name = "asio-sys"
 version = "0.2.1"
-source = "git+https://github.com/RustAudio/cpal.git#5a96f6e7f0989a4ca3d4342a2c0cc755c7f93f0f"
+source = "git+https://github.com/RustAudio/cpal.git#49c11969998dc9f41e44a2fd5e95ae70b92bd7a3"
 dependencies = [
  "bindgen 0.69.2",
  "cc",
@@ -1002,6 +1002,7 @@ dependencies = [
  "blake3",
  "dyn-clone",
  "erased-serde",
+ "nanoid",
  "ncryptf-rs",
  "rand 0.8.5",
  "rcgen",
@@ -1130,7 +1131,7 @@ dependencies = [
 [[package]]
 name = "cpal"
 version = "0.15.2"
-source = "git+https://github.com/RustAudio/cpal.git#5a96f6e7f0989a4ca3d4342a2c0cc755c7f93f0f"
+source = "git+https://github.com/RustAudio/cpal.git#49c11969998dc9f41e44a2fd5e95ae70b92bd7a3"
 dependencies = [
  "alsa",
  "asio-sys",
@@ -3297,6 +3298,15 @@ dependencies = [
  "tokio",
  "tokio-util",
  "version_check",
+]
+
+[[package]]
+name = "nanoid"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3ffa00dec017b5b1a8b7cf5e2c008bfda1aa7e0697ac1508b491fdf2622fb4d8"
+dependencies = [
+ "rand 0.8.5",
 ]
 
 [[package]]

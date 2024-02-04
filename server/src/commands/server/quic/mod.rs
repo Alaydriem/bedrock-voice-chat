@@ -51,7 +51,8 @@ pub(crate) static PLAYER_POSITION_CACHE: OnceCell<
 
 pub(crate) async fn get_task(
     config: &ApplicationConfig,
-    queue: Arc<deadqueue::limited::Queue<QuicNetworkPacket>>
+    queue: Arc<deadqueue::limited::Queue<QuicNetworkPacket>>,
+    channel_cache: Arc<Mutex<Cache<String, common::structs::channel::Channel>>>
 ) -> Result<Vec<JoinHandle<()>>, anyhow::Error> {
     let shutdown = Arc::new(AtomicBool::new(false));
     let app_config = config.clone();
@@ -354,7 +355,6 @@ pub(crate) async fn get_task(
                                                                 Ok(data) => {
                                                                     let data: AudioFramePacket =
                                                                         data;
-
                                                                     // Add the packet if the player is in the same group
 
                                                                     // Add the packet if the player is within the server defined audio range

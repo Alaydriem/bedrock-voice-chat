@@ -24,7 +24,7 @@ use std::sync::Arc;
 use tracing_appender::non_blocking::{ NonBlocking, WorkerGuard };
 use tracing_subscriber::fmt::SubscriberBuilder;
 use tracing::info;
-
+use common::structs::channel::Channel;
 mod web;
 mod quic;
 
@@ -76,6 +76,16 @@ impl Config {
             }
         }
 
+        // State cache for recording groups a player is in.
+        let channel_cache = Arc::new(
+            async_mutex::Mutex::new(
+                moka::future::Cache::<String, common::structs::channel::Channel>
+                    ::builder()
+                    .max_capacity(100)
+                    .build()
+            )
+        );
+
         // The deadqueue is our primary way of sending messages to the QUIC stream to broadcast to clients
         // without needing to setup a new stream.
         // The QUIC server polls this queue and is configured to handle inbound packets and advertise them
@@ -87,13 +97,13 @@ impl Config {
         // Task for Rocket https API
         // The API handles player positioning data from the game/source, and various non-streaming events
         // such as channel creation, or anything else that may require a "broadcast".
-        let rocket_task = web::get_task(&cfg.config.clone(), queue.clone());
+        let rocket_task = web::get_task(&cfg.config.clone(), queue.clone(), channel_cache.clone());
         tasks.push(rocket_task);
 
         // Tasks for the QUIC streaming server
         // The QUIC server handles broadcasting of messages and raw packets to clients
         // This includes audio frame, player positioning data, and more.
-        match quic::get_task(&cfg.config.clone(), queue.clone()).await {
+        match quic::get_task(&cfg.config.clone(), queue.clone(), channel_cache.clone()).await {
             Ok(t) => {
                 for task in t {
                     tasks.push(task);

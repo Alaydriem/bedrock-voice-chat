@@ -83,6 +83,7 @@ flume = "0.11.0"
 windows-targets = "0.52.0"
 shuteye = "0.3.3"
 glam = "0.25.0"
+nanoid = "0.4.0"
 
 [build-dependencies]
 built = { version = "^0.5", features = ["git2", "chrono", "semver"] }
