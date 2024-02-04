@@ -2,11 +2,14 @@ use crate::Coordinate;
 use anyhow::anyhow;
 use serde::{ Deserialize, Serialize };
 
+use super::channel::ChannelEvents;
+
 /// The packet type
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
 pub enum PacketType {
     AudioFrame,
     PlayerData,
+    ChannelEvent,
     Debug,
 }
 
@@ -20,6 +23,7 @@ pub struct QuicNetworkPacketCollection {
 pub enum QuicNetworkPacketData {
     AudioFrame(AudioFramePacket),
     PlayerData(PlayerDataPacket),
+    ChannelEvent(ChannelEventPacket),
     Debug(DebugPacket),
 }
 
@@ -319,9 +323,10 @@ impl QuicNetworkPacket {
     /// Whether or not a packet should be broadcasted
     pub fn broadcast(&self) -> bool {
         match self.packet_type {
-            PacketType::AudioFrame => true,
+            PacketType::AudioFrame => false,
             PacketType::Debug => true,
             PacketType::PlayerData => true,
+            PacketType::ChannelEvent => true,
         }
     }
 
@@ -400,6 +405,7 @@ impl TryFrom<QuicNetworkPacketData> for PlayerDataPacket {
     }
 }
 
+/// Debug Packet
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DebugPacket(pub String);
 
@@ -409,6 +415,24 @@ impl TryFrom<QuicNetworkPacketData> for DebugPacket {
     fn try_from(value: QuicNetworkPacketData) -> Result<Self, Self::Error> {
         match value {
             QuicNetworkPacketData::Debug(c) => Ok(c),
+            _ => Err(()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ChannelEventPacket {
+    pub event: ChannelEvents,
+    pub name: String,
+    pub channel: String,
+}
+
+impl TryFrom<QuicNetworkPacketData> for ChannelEventPacket {
+    type Error = ();
+
+    fn try_from(value: QuicNetworkPacketData) -> Result<Self, Self::Error> {
+        match value {
+            QuicNetworkPacketData::ChannelEvent(c) => Ok(c),
             _ => Err(()),
         }
     }

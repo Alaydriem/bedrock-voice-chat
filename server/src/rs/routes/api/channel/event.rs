@@ -1,4 +1,7 @@
-use common::structs::channel::{ ChannelEvents::{ Join, Leave }, ChannelEvent };
+use common::structs::{
+    channel::{ ChannelEvent, ChannelEvents::{ Join, Leave } },
+    packet::{ ChannelEventPacket, PacketType, QuicNetworkPacket, QuicNetworkPacketData },
+};
 use rocket::{ response::status, mtls::Certificate, http::Status, State, serde::json::Json };
 
 use moka::future::Cache;
@@ -10,7 +13,8 @@ pub async fn channel_event<'r>(
     channel_cache: &State<
         Arc<async_mutex::Mutex<Cache<String, common::structs::channel::Channel>>>
     >,
-    id: String,
+    id: &str,
+    queue: &State<Arc<deadqueue::limited::Queue<QuicNetworkPacket>>>,
     event: Json<ChannelEvent>
 ) -> status::Custom<Option<Json<bool>>> {
     let user = match identity.subject().common_name() {
@@ -23,7 +27,7 @@ pub async fn channel_event<'r>(
     let event = event.0;
 
     let lock = channel_cache.lock_arc().await;
-    let mut channel = match lock.get(&id).await {
+    let mut channel = match lock.get(id).await {
         Some(channel) => channel,
         None => {
             return status::Custom(Status::BadRequest, Some(Json(false)));
@@ -32,17 +36,28 @@ pub async fn channel_event<'r>(
 
     match event.event {
         Join => {
-            _ = channel.add_player(user);
+            _ = channel.add_player(user.clone());
         }
         Leave => {
-            _ = channel.remove_player(user);
+            _ = channel.remove_player(user.clone());
         }
     }
 
-    println!("{:?}", &channel);
-
-    _ = lock.insert(id, channel).await;
+    _ = lock.insert(id.to_string(), channel).await;
     drop(lock);
+
+    let packet = QuicNetworkPacket {
+        client_id: vec![0u8; 0],
+        author: user.clone(),
+        packet_type: PacketType::ChannelEvent,
+        data: QuicNetworkPacketData::ChannelEvent(ChannelEventPacket {
+            event: event.event,
+            name: user,
+            channel: id.to_string(),
+        }),
+    };
+
+    _ = queue.push(packet).await;
 
     return status::Custom(Status::Ok, Some(Json(true)));
 }

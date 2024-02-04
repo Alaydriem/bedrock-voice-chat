@@ -3,8 +3,10 @@ use anyhow::anyhow;
 use async_mutex::Mutex;
 use async_once_cell::OnceCell;
 use common::mtlsprovider::MtlsProvider;
+use common::structs::channel::ChannelEvents;
 use common::structs::packet::{
     AudioFramePacket,
+    ChannelEventPacket,
     PacketType,
     PlayerDataPacket,
     QuicNetworkPacket,
@@ -52,10 +54,18 @@ pub(crate) static PLAYER_POSITION_CACHE: OnceCell<
 pub(crate) async fn get_task(
     config: &ApplicationConfig,
     queue: Arc<deadqueue::limited::Queue<QuicNetworkPacket>>,
-    channel_cache: Arc<Mutex<Cache<String, common::structs::channel::Channel>>>
+    _channel_cache: Arc<Mutex<Cache<String, common::structs::channel::Channel>>>
 ) -> Result<Vec<JoinHandle<()>>, anyhow::Error> {
     let shutdown = Arc::new(AtomicBool::new(false));
     let app_config = config.clone();
+
+    let player_channel_cache = Arc::new(
+        async_mutex::Mutex::new(
+            moka::future::Cache::<String, String>::builder().max_capacity(100).build()
+        )
+    );
+
+    let monitor_player_channel_cache = player_channel_cache.clone();
 
     // Instantiate the player position cache
     // Player positions are valid for 5 minutes before they are evicted
@@ -113,15 +123,18 @@ pub(crate) async fn get_task(
     let (broadcast, recv_broadcast) = bounded::<MessageEvent>(100);
 
     let broadcast: Arc<_> = Arc::new(broadcast);
+
     // This is our main thread for the QUIC server
     tasks.push(
         tokio::spawn(async move {
+            let player_channel_cache = player_channel_cache.clone();
             let broadcast = broadcast.clone();
             let shutdown = outer_thread_shutdown.clone();
             let cache = cache.clone();
             tracing::info!("Started QUIC listening server.");
 
             while let Some(mut connection) = server.accept().await {
+                let player_channel_cache = player_channel_cache.clone();
                 let broadcast = broadcast.clone();
                 // Maintain the connection
                 _ = connection.keep_alive(true);
@@ -131,6 +144,7 @@ pub(crate) async fn get_task(
                 let raw_connection_id = connection.id();
 
                 tokio::spawn(async move {
+                    let player_channel_cache = player_channel_cache.clone();
                     let cache = cache.clone();
                     let stream_cache = cache.clone();
 
@@ -277,13 +291,14 @@ pub(crate) async fn get_task(
                                         tokio::spawn(async move {
                                             let disconnected = sender_disconnected.clone();
                                             let shutdown = sender_shutdown.clone();
-
+                                            let player_channel_cache = player_channel_cache.clone();
                                             let cache = cache.clone();
 
                                             let mut client_id: Option<Vec<u8>> = None;
                                             let mut author: Option<String> = None;
-                                            #[allow(irrefutable_let_patterns)]
                                             loop {
+                                                let player_channel_cache =
+                                                    player_channel_cache.clone();
                                                 if receiver.is_disconnected() {
                                                     tracing::info!("receiver disconnected.");
                                                     break;
@@ -355,64 +370,88 @@ pub(crate) async fn get_task(
                                                                 Ok(data) => {
                                                                     let data: AudioFramePacket =
                                                                         data;
-                                                                    // Add the packet if the player is in the same group
-
-                                                                    // Add the packet if the player is within the server defined audio range
                                                                     match author.clone() {
                                                                         Some(author) => {
-                                                                            match
-                                                                                cache.get(
+                                                                            // Add the packet if the player is in the same group
+                                                                            let player_channels =
+                                                                                player_channel_cache
+                                                                                    .lock_arc().await
+                                                                                    .clone();
+                                                                            let this_player =
+                                                                                player_channels.get(
                                                                                     &author
-                                                                                ).await
+                                                                                ).await;
+                                                                            let packet_author =
+                                                                                player_channels.get(
+                                                                                    &data.author
+                                                                                ).await;
+
+                                                                            match
+                                                                                this_player.eq(
+                                                                                    &packet_author
+                                                                                )
                                                                             {
-                                                                                Some(position) => {
-                                                                                    let c1 =
-                                                                                        position.coordinates;
+                                                                                true => true,
+
+                                                                                // Add the packet if the player is within the server defined audio range
+                                                                                false =>
                                                                                     match
-                                                                                        data.coordinate
+                                                                                        cache.get(
+                                                                                            &author
+                                                                                        ).await
                                                                                     {
                                                                                         Some(
-                                                                                            c2,
+                                                                                            position,
                                                                                         ) => {
-                                                                                            // Calcuate 3d spatial distance
-                                                                                            // If it's <= 32 (which is anywhere in a 16 x 16 x 16 space), they are within a hearing distance
-                                                                                            let distance =
-                                                                                                (
-                                                                                                    (
-                                                                                                        c1.x -
-                                                                                                        c2.x
-                                                                                                    ).powf(
-                                                                                                        2.9
-                                                                                                    ) +
-                                                                                                    (
-                                                                                                        c1.y -
-                                                                                                        c2.y
-                                                                                                    ).powf(
-                                                                                                        2.0
-                                                                                                    ) +
-                                                                                                    (
-                                                                                                        c1.z -
-                                                                                                        c2.z
-                                                                                                    ).powf(
-                                                                                                        2.0
-                                                                                                    )
-                                                                                                ).sqrt();
-
-                                                                                            if
-                                                                                                distance <=
-                                                                                                32.0 // @todo!() Let this be configurable
+                                                                                            let c1 =
+                                                                                                position.coordinates;
+                                                                                            match
+                                                                                                data.coordinate
                                                                                             {
-                                                                                                true
-                                                                                            } else {
-                                                                                                false
+                                                                                                Some(
+                                                                                                    c2,
+                                                                                                ) => {
+                                                                                                    // Calcuate 3d spatial distance
+                                                                                                    // If it's <= 32 (which is anywhere in a 16 x 16 x 16 space), they are within a hearing distance
+                                                                                                    let distance =
+                                                                                                        (
+                                                                                                            (
+                                                                                                                c1.x -
+                                                                                                                c2.x
+                                                                                                            ).powf(
+                                                                                                                2.9
+                                                                                                            ) +
+                                                                                                            (
+                                                                                                                c1.y -
+                                                                                                                c2.y
+                                                                                                            ).powf(
+                                                                                                                2.0
+                                                                                                            ) +
+                                                                                                            (
+                                                                                                                c1.z -
+                                                                                                                c2.z
+                                                                                                            ).powf(
+                                                                                                                2.0
+                                                                                                            )
+                                                                                                        ).sqrt();
+
+                                                                                                    if
+                                                                                                        distance <=
+                                                                                                        32.0 // @todo!() Let this be configurable
+                                                                                                    {
+                                                                                                        true
+                                                                                                    } else {
+                                                                                                        false
+                                                                                                    }
+                                                                                                }
+                                                                                                None => {
+                                                                                                    false
+                                                                                                }
                                                                                             }
                                                                                         }
-                                                                                        None => {
-                                                                                            false
-                                                                                        }
+                                                                                        None =>
+                                                                                            false,
                                                                                     }
-                                                                                }
-                                                                                None => false,
                                                                             }
                                                                         }
                                                                         None => false,
@@ -619,6 +658,7 @@ pub(crate) async fn get_task(
     let t3_shutdown = shutdown.clone();
     tasks.push(
         tokio::spawn(async move {
+            let player_channel_cache = monitor_player_channel_cache.clone();
             let shutdown = t3_shutdown.clone();
             let cache = cache_c.clone();
             let queue = queue.clone();
@@ -634,6 +674,7 @@ pub(crate) async fn get_task(
 
                 // Packet specific handling
                 match pkc.packet_type {
+                    // Add the player position packet to the cache
                     PacketType::PlayerData =>
                         match packet.get_data() {
                             Some(data) => {
@@ -650,6 +691,40 @@ pub(crate) async fn get_task(
                             }
                             None => {}
                         }
+                    // Store the player channel if one is set
+                    PacketType::ChannelEvent => {
+                        match packet.get_data() {
+                            Some(data) => {
+                                let data = data.to_owned();
+                                let data: Result<ChannelEventPacket, ()> = data.try_into();
+
+                                match data {
+                                    Ok(data) => {
+                                        tracing::info!(
+                                            "[{}] {:?} {}",
+                                            data.name,
+                                            data.event,
+                                            data.channel
+                                        );
+                                        match data.event {
+                                            ChannelEvents::Join => {
+                                                _ = player_channel_cache
+                                                    .lock_arc().await
+                                                    .insert(data.name, data.channel).await;
+                                            }
+                                            ChannelEvents::Leave => {
+                                                _ = player_channel_cache
+                                                    .lock_arc().await
+                                                    .remove(&data.name).await;
+                                            }
+                                        }
+                                    }
+                                    Err(_) => {}
+                                }
+                            }
+                            None => {}
+                        };
+                    }
                     _ => {}
                 }
             }

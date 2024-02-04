@@ -1,6 +1,6 @@
 use std::{ path::Path, time::Duration };
 
-use common::{ request::CreateChannelRequest, structs::channel::{ ChannelEvent, ChannelEvents } };
+use common::{ structs::channel::{ ChannelEvent, ChannelEvents } };
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 

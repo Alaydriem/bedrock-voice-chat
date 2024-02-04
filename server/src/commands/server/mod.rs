@@ -24,7 +24,6 @@ use std::sync::Arc;
 use tracing_appender::non_blocking::{ NonBlocking, WorkerGuard };
 use tracing_subscriber::fmt::SubscriberBuilder;
 use tracing::info;
-use common::structs::channel::Channel;
 mod web;
 mod quic;
 
