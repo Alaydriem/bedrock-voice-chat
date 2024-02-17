@@ -110,12 +110,14 @@ async fn client(id: String, source_file: String) -> Result<(), Box<dyn Error>> {
 
             for mut chunk in ss.chunks(480) {
                 if chunk.len() != 480 {
+                    break;
                 }
                 let s = encoder.encode_vec(chunk, chunk.len() * 4).unwrap();
                 let packet = QuicNetworkPacket {
                     client_id: client_id.clone(),
                     packet_type: common::structs::packet::PacketType::AudioFrame,
                     author: id.clone(),
+                    in_group: None,
                     data: common::structs::packet::QuicNetworkPacketData::AudioFrame(
                         common::structs::packet::AudioFramePacket {
                             length: s.len(),
@@ -136,6 +138,8 @@ async fn client(id: String, source_file: String) -> Result<(), Box<dyn Error>> {
                     }
                 }
             }
+
+            _ = send_stream.close().await;
         })
     );
 

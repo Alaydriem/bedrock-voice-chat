@@ -18,6 +18,7 @@ pub async fn channel_list<'r>(
     id: Option<String>
 ) -> status::Custom<Json<Vec<Channel>>> {
     let mut channels: Vec<Channel> = Vec::new();
+    tracing::info!("{:?}", id.clone());
     for (i, channel) in channel_cache.lock_arc().await.clone().iter() {
         match id.clone() {
             Some(id) =>

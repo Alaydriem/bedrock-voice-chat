@@ -218,6 +218,7 @@ pub(crate) async fn input_stream(
                         let packet = QuicNetworkPacket {
                             client_id: vec![0; 0],
                             author: gamertag.clone(),
+                            in_group: None,
                             packet_type: PacketType::AudioFrame,
                             data: QuicNetworkPacketData::AudioFrame(AudioFramePacket {
                                 length: s.len(),

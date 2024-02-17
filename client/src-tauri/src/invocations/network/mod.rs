@@ -21,6 +21,9 @@ use tauri::State;
 
 use flume::{ Sender, Receiver };
 
+pub mod client;
+pub mod api;
+
 pub(crate) static NETWORK_STATE_CACHE: OnceCell<
     Option<Arc<Cache<String, String, std::collections::hash_map::RandomState>>>
 > = OnceCell::new();
@@ -96,6 +99,7 @@ pub(crate) async fn network_stream(
             client_id: client_id.clone(),
             packet_type: common::structs::packet::PacketType::Debug,
             author: gamertag.clone(),
+            in_group: None,
             data: common::structs::packet::QuicNetworkPacketData::Debug(
                 DebugPacket(gamertag.clone())
             ),

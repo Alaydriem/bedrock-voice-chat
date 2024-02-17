@@ -34,6 +34,7 @@ pub struct QuicNetworkPacket {
     pub author: String,
     pub client_id: Vec<u8>,
     pub data: QuicNetworkPacketData,
+    pub in_group: Option<bool>,
 }
 
 /// Magic header
@@ -346,6 +347,7 @@ mod tests {
             packet_type: PacketType::AudioFrame,
             author: "User".to_string(),
             client_id: vec![24; 0],
+            in_group: None,
             data: QuicNetworkPacketData::AudioFrame(AudioFramePacket {
                 length: 240,
                 sample_rate: 48000,

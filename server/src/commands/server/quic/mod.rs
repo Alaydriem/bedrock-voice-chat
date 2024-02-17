@@ -243,7 +243,7 @@ pub(crate) async fn get_task(
                                                                     &author
                                                                 );
                                                                 tracing::info!(
-                                                                    "[{}] Connected [{:?}] {}",
+                                                                    "[{}] Connected [{}] {}",
                                                                     real_author,
                                                                     identifier,
                                                                     &raw_connection_id
@@ -354,7 +354,7 @@ pub(crate) async fn get_task(
                                                     };
 
                                                 // Remove packets from the final broadcast message
-                                                for packet in packets.frames.iter_mut() {
+                                                for mut packet in packets.frames.iter_mut() {
                                                     // Don't send packets back to the original broadcaster
                                                     match client_id.clone() {
                                                         Some(client_id) => {
@@ -394,7 +394,11 @@ pub(crate) async fn get_task(
                                                                                     &packet_author
                                                                                 )
                                                                             {
-                                                                                true => true,
+                                                                                true => {
+                                                                                    packet.in_group =
+                                                                                        Some(true);
+                                                                                    true
+                                                                                }
 
                                                                                 // Add the packet if the player is within the server defined audio range
                                                                                 false =>
@@ -414,8 +418,7 @@ pub(crate) async fn get_task(
                                                                                                 Some(
                                                                                                     c2,
                                                                                                 ) => {
-                                                                                                    // Calcuate 3d spatial distance
-                                                                                                    // If it's <= 54 (which is anywhere in a 48 x 48 x 48 space), they are within a hearing distance
+                                                                                                    // Calcuate 3d spatial distance based upon the configured broadcast range
                                                                                                     let distance =
                                                                                                         (
                                                                                                             (
@@ -440,7 +443,8 @@ pub(crate) async fn get_task(
 
                                                                                                     if
                                                                                                         distance <=
-                                                                                                        54.0 // @todo!() Let this be configurable
+                                                                                                        (3.0_f32).sqrt() *
+                                                                                                            app_config.voice.broadcast_range
                                                                                                     {
                                                                                                         true
                                                                                                     } else {

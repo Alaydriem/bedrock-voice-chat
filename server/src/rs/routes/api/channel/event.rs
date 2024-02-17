@@ -50,6 +50,7 @@ pub async fn channel_event<'r>(
         client_id: vec![0u8; 0],
         author: user.clone(),
         packet_type: PacketType::ChannelEvent,
+        in_group: None,
         data: QuicNetworkPacketData::ChannelEvent(ChannelEventPacket {
             event: event.event,
             name: user,
