@@ -58,7 +58,7 @@ s2n-quic = { version = "^1.32", features = [
 ] }
 bytes = { version = "^1.5" }
 async-mutex = { version = "^1.4" }
-async-once-cell = { version = "^0.5" }
+async-once-cell = "0.5.3"
 moka = { version = "^0.12", features = ["future", "sync"] }
 rand = { version = "^0.8" }
 opus = { version = "^0.3" }

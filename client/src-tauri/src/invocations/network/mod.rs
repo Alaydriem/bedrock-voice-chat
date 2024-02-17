@@ -1,15 +1,10 @@
 use common::{
     mtlsprovider::MtlsProvider,
-    structs::packet::{
-        DebugPacket,
-        QuicNetworkPacket,
-        QuicNetworkPacketCollection,
-        QUICK_NETWORK_PACKET_HEADER,
-    },
+    structs::packet::{ DebugPacket, QuicNetworkPacket, QuicNetworkPacketCollection },
 };
 use tokio::io::AsyncWriteExt;
 
-use std::{ collections::HashMap, sync::Arc, time::Duration };
+use std::{ collections::HashMap, sync::Arc };
 
 use anyhow::anyhow;
 use async_once_cell::OnceCell;
@@ -147,8 +142,8 @@ pub(crate) async fn network_stream(
     let recv_id = id.clone();
     let audio_producer = audio_producer.inner().clone();
     tokio::spawn(async move {
-        let cache = cache.clone();
-        let id = recv_id.clone();
+        //let cache = cache.clone();
+        //let id = recv_id.clone();
 
         let mut packet = Vec::<u8>::new();
         tracing::info!("Listening stream started.");

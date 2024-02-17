@@ -16,7 +16,9 @@ const BUFFER_SIZE: u32 = 960;
 /// Individual opus decoded audio packets
 pub(crate) struct RawAudioFramePacket {
     pub client_id: Vec<u8>,
+    pub author: String,
     pub pcm: Vec<f32>,
+    pub in_group: Option<bool>,
 }
 
 pub(crate) static STREAM_STATE_CACHE: OnceCell<

@@ -1,11 +1,6 @@
-use crate::invocations::network::client::Client;
-use crate::invocations::credentials::get_credential;
-use crate::invocations::login::get_base_endpoint;
+use crate::invocations::{ network::client::Client, credentials::get_credential };
 use reqwest::header::{ HeaderMap, HeaderValue };
-use common::{
-    request::CreateChannelRequest,
-    structs::channel::{ Channel, ChannelEvent, ChannelEvents },
-};
+use common::{ structs::channel::{ Channel, ChannelEvent, ChannelEvents } };
 use anyhow::anyhow;
 
 const CHANNEL_ENDPOINT: &'static str = "/api/channel/";

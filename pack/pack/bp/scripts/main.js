@@ -39,7 +39,7 @@ system.runInterval(async (e) => {
       name: player.name,
       dimension: player.dimension.id.replace("minecraft:", ""),
       coordinates: player.location,
-      deafen: player.isInWater || player.isSneaking,
+      deafen: player.isSneaking,
     };
     data.push(p);
   });
