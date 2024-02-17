@@ -14,6 +14,10 @@ use tracing_subscriber::fmt::SubscriberBuilder;
 
 #[tokio::main]
 async fn main() {
+    windows_targets::link!("winmm.dll" "system" fn timeBeginPeriod(uperiod: u32) -> u32);
+    unsafe {
+        timeBeginPeriod(1);
+    }
     tauri::async_runtime::set(tokio::runtime::Handle::current());
 
     let log_level: tracing::Level;

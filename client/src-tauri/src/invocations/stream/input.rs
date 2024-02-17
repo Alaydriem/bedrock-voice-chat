@@ -229,7 +229,7 @@ pub(crate) async fn input_stream(
                         };
 
                         let tx = tx.clone();
-                        _ = tx.send(packet);
+                        _ = tx.send_async(packet).await;
                     }
                 }
                 Err(_e) => {}

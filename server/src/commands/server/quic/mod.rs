@@ -239,10 +239,13 @@ pub(crate) async fn get_task(
 
                                                             if client_id.is_none() {
                                                                 *client_id = Some(author.clone());
+                                                                let identifier = hex::encode(
+                                                                    &author
+                                                                );
                                                                 tracing::info!(
                                                                     "[{}] Connected [{:?}] {}",
                                                                     real_author,
-                                                                    author,
+                                                                    identifier,
                                                                     &raw_connection_id
                                                                 );
                                                             }
@@ -412,14 +415,14 @@ pub(crate) async fn get_task(
                                                                                                     c2,
                                                                                                 ) => {
                                                                                                     // Calcuate 3d spatial distance
-                                                                                                    // If it's <= 32 (which is anywhere in a 16 x 16 x 16 space), they are within a hearing distance
+                                                                                                    // If it's <= 54 (which is anywhere in a 48 x 48 x 48 space), they are within a hearing distance
                                                                                                     let distance =
                                                                                                         (
                                                                                                             (
                                                                                                                 c1.x -
                                                                                                                 c2.x
                                                                                                             ).powf(
-                                                                                                                2.9
+                                                                                                                2.0
                                                                                                             ) +
                                                                                                             (
                                                                                                                 c1.y -
@@ -437,7 +440,7 @@ pub(crate) async fn get_task(
 
                                                                                                     if
                                                                                                         distance <=
-                                                                                                        32.0 // @todo!() Let this be configurable
+                                                                                                        54.0 // @todo!() Let this be configurable
                                                                                                     {
                                                                                                         true
                                                                                                     } else {

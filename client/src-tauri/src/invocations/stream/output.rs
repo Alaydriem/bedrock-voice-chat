@@ -18,7 +18,7 @@ use rodio::{
 use flume::Receiver;
 use tauri::State;
 
-use super::{ RawAudioFramePacket, RawAudioFramePacketCollection };
+use super::RawAudioFramePacket;
 
 use std::sync::mpsc;
 
@@ -69,11 +69,9 @@ pub(crate) async fn output_stream<'r>(
     let latency_frames = (250.0 / 1_000.0) * (config.sample_rate.0 as f32);
     let latency_samples = (latency_frames as usize) * (config.channels as usize);
 
-    let (producer, consumer) = flume::bounded::<RawAudioFramePacketCollection>(latency_samples * 4);
+    let (producer, consumer) = flume::bounded::<RawAudioFramePacket>(latency_samples * 4);
 
     tokio::spawn(async move {
-        tokio::time::sleep(Duration::from_millis(20)).await;
-
         let device: rodio::cpal::Device = device as rodio::cpal::Device;
 
         let config = rodio::cpal::SupportedStreamConfig::new(
@@ -105,10 +103,10 @@ pub(crate) async fn output_stream<'r>(
             }
         });
 
-        let sink = Sink::try_new(&handle).unwrap();
+        let mut sinks = HashMap::<Vec<u8>, Sink>::new();
 
         #[allow(irrefutable_let_patterns)]
-        while let frames = consumer.recv() {
+        while let frame = consumer.recv() {
             let shutdown = shutdown.clone();
             let mut shutdown = shutdown.lock().unwrap();
 
@@ -116,36 +114,26 @@ pub(crate) async fn output_stream<'r>(
                 break;
             }
 
-            match frames {
-                Ok(frames) => {
-                    let mut interweaved_frame = Vec::<f32>::new();
-                    for frame in frames.frames {
-                        let _client_id = frame.client_id;
-                        let mut pcm = SamplesBuffer::new(
-                            config_c.channels,
-                            config_c.sample_rate.0.into(),
-                            frame.pcm.clone()
-                        );
+            match frame {
+                Ok(frame) => {
+                    let client_id = frame.client_id;
+                    let sink = match sinks.get(&client_id.clone()) {
+                        Some(sink) => sink,
+                        None => {
+                            let sink = Sink::try_new(&handle).unwrap();
+                            _ = sinks.insert(client_id.clone(), sink);
 
-                        // Attenuate the SampleBuffer
-                        let pcm = pcm.amplify(2.0);
-                        // Check if the client is muted, and mute them (skip this block entirely)
-                        // 3D Audio & Attenuate
-                        // Attenuate based on individual audio setting
+                            sinks.get(&client_id.clone()).unwrap()
+                        }
+                    };
 
-                        let attenuated_pcm: Vec<f32> = pcm.collect();
-                        interweaved_frame = super::interweave(
-                            interweaved_frame.as_mut(),
-                            attenuated_pcm.as_ref()
-                        );
-                    }
-
-                    let source = SamplesBuffer::new(
+                    let mut pcm = SamplesBuffer::new(
                         config_c.channels,
                         config_c.sample_rate.0.into(),
-                        interweaved_frame.clone()
+                        frame.pcm.clone()
                     );
-                    sink.append(source);
+
+                    sink.append(pcm);
                 }
                 Err(_) => {}
             }
@@ -159,10 +147,9 @@ pub(crate) async fn output_stream<'r>(
 
         let mut decoders = HashMap::<Vec<u8>, Arc<Mutex<opus::Decoder>>>::new();
         #[allow(irrefutable_let_patterns)]
-        while let packet = rx.recv() {
+        while let packet = rx.recv_async().await {
             match packet {
                 Ok(packet) => {
-                    let mut frames = Vec::new();
                     for frame in packet.frames {
                         let client_id = frame.client_id;
                         // Each opus stream has it's own encoder/decoder for state management
@@ -212,7 +199,7 @@ pub(crate) async fn output_stream<'r>(
                                 out.truncate(out_len);
 
                                 if out.len() > 0 {
-                                    frames.push(RawAudioFramePacket {
+                                    _ = producer.send(RawAudioFramePacket {
                                         client_id,
                                         pcm: out,
                                     });
@@ -221,10 +208,6 @@ pub(crate) async fn output_stream<'r>(
                             Err(_) => {}
                         }
                     }
-
-                    _ = producer.send(RawAudioFramePacketCollection {
-                        frames,
-                    });
                 }
                 Err(_) => {}
             }

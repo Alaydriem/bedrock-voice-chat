@@ -7,6 +7,7 @@ use common::{
         QUICK_NETWORK_PACKET_HEADER,
     },
 };
+use tokio::io::AsyncWriteExt;
 
 use std::{ collections::HashMap, sync::Arc, time::Duration };
 
@@ -102,19 +103,15 @@ pub(crate) async fn network_stream(
 
         match packet.to_vec() {
             Ok(reader) => {
-                _ = send_stream.send(reader.into()).await;
-                _ = send_stream.flush().await;
+                _ = send_stream.write_all(&reader).await;
             }
             Err(e) => {
                 tracing::error!("{}", e.to_string());
             }
         }
 
-        tracing::info!("Sent Debug Packet.");
-        _ = tokio::time::sleep(Duration::from_millis(20)).await;
-        let mut count = 0;
         #[allow(irrefutable_let_patterns)]
-        while let packet = rx.recv() {
+        while let packet = rx.recv_async().await {
             match packet {
                 Ok(mut packet) => {
                     if super::should_self_terminate(&id, &cache, SENDER).await {
@@ -126,11 +123,10 @@ pub(crate) async fn network_stream(
                     packet.author = gamertag.clone();
                     match packet.to_vec() {
                         Ok(reader) => {
-                            _ = send_stream.send(reader.into()).await;
-                            _ = send_stream.flush().await;
+                            _ = send_stream.write_all(&reader).await;
                         }
                         Err(e) => {
-                            tracing::info!("{}", e.to_string());
+                            tracing::error!("{}", e.to_string());
                         }
                     }
                 }
@@ -150,56 +146,19 @@ pub(crate) async fn network_stream(
         let cache = cache.clone();
         let id = recv_id.clone();
 
-        let magic_header: Vec<u8> = QUICK_NETWORK_PACKET_HEADER.to_vec();
         let mut packet = Vec::<u8>::new();
+        tracing::info!("Listening stream started.");
         while let Ok(Some(data)) = receive_stream.receive().await {
             packet.append(&mut data.to_vec());
 
-            let packet_header = packet.get(0..5);
-
-            let packet_header = match packet_header {
-                Some(header) => header.to_vec(),
-                None => {
-                    continue;
+            match QuicNetworkPacketCollection::from_stream(&mut packet) {
+                Ok(packets) => {
+                    for p in packets {
+                        _ = audio_producer.send_async(p).await;
+                    }
                 }
+                Err(_) => {}
             };
-
-            let packet_length = packet.get(5..13);
-            if packet_length.is_none() {
-                continue;
-            }
-
-            let packet_len = usize::from_be_bytes(packet_length.unwrap().try_into().unwrap());
-
-            // If the current packet starts with the magic header and we have enough bytes, drain it
-            if packet_header.eq(&magic_header) && packet.len() >= packet_len + 13 {
-                let packet_copy = packet.clone();
-                let packet_to_process = packet_copy
-                    .get(0..packet_len + 13)
-                    .unwrap()
-                    .to_vec();
-
-                packet = packet
-                    .get(packet_len + 13..packet.len())
-                    .unwrap()
-                    .to_vec();
-
-                // Strip the header and frame length
-                let packet_to_process = packet_to_process.get(13..packet_to_process.len()).unwrap();
-
-                match QuicNetworkPacketCollection::from_vec(&packet_to_process) {
-                    Ok(packet) => {
-                        _ = audio_producer.send(packet);
-                    }
-                    Err(e) => {
-                        tracing::error!(
-                            "Unable to deserialize RON packet. Possible packet length issue? {}",
-                            e.to_string()
-                        );
-                        continue;
-                    }
-                };
-            }
         }
     });
     Ok(true)

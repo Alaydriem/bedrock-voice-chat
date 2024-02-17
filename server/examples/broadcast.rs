@@ -10,18 +10,21 @@ use common::{
 };
 use s2n_quic::{ client::Connect, Client };
 use tokio::io::AsyncWriteExt;
-use std::{ path::Path, time::Duration };
+use std::{ fs::File, io::BufReader, path::Path, time::Duration };
 use std::{ error::Error, net::SocketAddr };
-use rodio::{ source::SineWave, Source };
+use rodio::{ Decoder, OutputStream, source::Source };
 
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = std::env::args().collect();
-    let result = client(args[1].to_string().parse::<String>().unwrap()).await;
+    let result = client(
+        args[1].to_string().parse::<String>().unwrap(),
+        args[2].to_string().parse::<String>().unwrap()
+    ).await;
     println!("{:?}", result);
 }
 
-async fn client(id: String) -> Result<(), Box<dyn Error>> {
+async fn client(id: String, source_file: String) -> Result<(), Box<dyn Error>> {
     let ca_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../certificates/ca.crt");
     let cert_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test.crt");
     let key_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test.key");
@@ -54,6 +57,7 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
     let mut tasks = Vec::new();
 
     // spawn a task that copies responses from the server to stdout
+    /*
     tasks.push(
         tokio::spawn(async move {
             let mut packet = Vec::<u8>::new();
@@ -79,6 +83,7 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
             println!("Recieving loop died");
         })
     );
+    */
 
     tasks.push(
         tokio::spawn(async move {
@@ -91,23 +96,22 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
 
             let client_id: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
 
-            let mut count = 0;
-
             let mut encoder = opus::Encoder
                 ::new(48000, opus::Channels::Mono, opus::Application::Voip)
                 .unwrap();
 
-            let source = SineWave::new(440.0)
-                .take_duration(Duration::from_secs_f32(0.02))
-                .amplify(0.01);
+            _ = encoder.set_bitrate(opus::Bitrate::Bits(64_000));
 
-            loop {
-                let source = source.clone();
-                let now = std::time::Instant::now();
-                let s: Vec<f32> = source.collect();
-                _ = encoder.set_bitrate(opus::Bitrate::Bits(64_000));
+            println!("Starting new stream event.");
+            let file = BufReader::new(File::open(source_file.clone()).unwrap());
+            let source = Decoder::new(file).unwrap();
+            let now = std::time::Instant::now();
+            let ss: Vec<i16> = source.collect();
 
-                let s = encoder.encode_vec_float(&s, s.len() * 4).unwrap();
+            for mut chunk in ss.chunks(480) {
+                if chunk.len() != 480 {
+                }
+                let s = encoder.encode_vec(chunk, chunk.len() * 4).unwrap();
                 let packet = QuicNetworkPacket {
                     client_id: client_id.clone(),
                     packet_type: common::structs::packet::PacketType::AudioFrame,
@@ -126,13 +130,11 @@ async fn client(id: String) -> Result<(), Box<dyn Error>> {
                 match packet.to_vec() {
                     Ok(rs) => {
                         let r = send_stream.write_all(&rs).await;
-                        count = count + 1;
                     }
                     Err(e) => {
                         println!("{}", e.to_string());
                     }
                 }
-                tokio::time::sleep(Duration::from_millis(9)).await;
             }
         })
     );
