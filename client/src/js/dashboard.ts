@@ -9,7 +9,7 @@ import Tab from "./components/tab";
 import { StreamType } from "./bindings/StreamType";
 import { AudioDevice } from "./bindings/AudioDevice";
 import { AudioDeviceType } from "./bindings/AudioDeviceType";
-
+import { Channel } from "./bindings/Channel";
 export default class Dashboard {
   constructor() {
     const page = document.querySelector("#dashboard-page");
@@ -96,6 +96,22 @@ export default class Dashboard {
         window.location.href = el.getAttribute("href") as string;
       });
     });
+
+    // Create new group button
+    const createNewGroupBtn = document.querySelector("#create-new-group-btn");
+    createNewGroupBtn?.addEventListener(
+      "click",
+      this.create_new_group.bind(this),
+    );
+
+    const groupsBottomToolbarLink = document.querySelector(
+      "#groups-bottom-toolbar-link",
+    );
+    groupsBottomToolbarLink?.addEventListener(
+      "click",
+      this.update_groups_sidebar.bind(this),
+    );
+
     const mainEl = document.querySelector("main.chat-app");
     const historySlide = document.querySelector(
       "#history-slide",
@@ -121,5 +137,63 @@ export default class Dashboard {
     });
 
     new Tab("#tab-media");
+  }
+
+  async update_groups_sidebar(e) {
+    e.preventDefault();
+
+    let me = this;
+    invoke("get_channels")
+      .then(async (data) => data as Array<Channel>)
+      .then((data) => {
+        document.querySelectorAll("#group-id")?.forEach((chan) => {
+          chan.remove();
+        });
+
+        data.forEach((d) => {
+          me.add_channel(d);
+        });
+      })
+      .catch((error) => {
+        console.log(error);
+      });
+  }
+
+  async create_new_group() {
+    let group_name = document.querySelector("#new-group-name-inpt");
+
+    let group_name_text = group_name?.value;
+    if (group_name_text == "") {
+      return;
+    }
+
+    let me = this;
+    invoke("create_channel", { name: group_name_text })
+      .then((data) => data as Channel)
+      .then((data) => {
+        me.add_channel(data);
+      })
+      .catch((error) => {
+        console.log(error);
+        console.log("failed to create group");
+      });
+  }
+
+  add_channel(data: Channel) {
+    const groupTemplate = document.querySelector(
+      "template#group-chat-template",
+    );
+    const groupTemplateContent = groupTemplate?.content.cloneNode(true);
+
+    groupTemplateContent
+      .querySelector("#group-id")
+      .setAttribute("channel-id", data.id);
+
+    groupTemplateContent.querySelector("#group-owner").innerHTML = data.creator;
+    groupTemplateContent.querySelector("#group-name").innerHTML = data.name;
+    groupTemplateContent.querySelector("#group-member-count").innerHTML =
+      data.players.length;
+
+    document.querySelector("#group-list")?.append(groupTemplateContent);
   }
 }

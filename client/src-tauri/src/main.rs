@@ -104,7 +104,13 @@ async fn main() {
                 invocations::stream::output::output_stream,
                 invocations::stream::stop_stream,
                 invocations::stream::get_devices,
-                invocations::stream::is_audio_stream_active
+                invocations::stream::is_audio_stream_active,
+                // API Calls
+                invocations::network::api::channel::join_channel,
+                invocations::network::api::channel::leave_channel,
+                invocations::network::api::channel::create_channel,
+                invocations::network::api::channel::delete_channel,
+                invocations::network::api::channel::get_channels
             ]
         )
         .run(tauri::generate_context!())
