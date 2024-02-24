@@ -69,6 +69,7 @@ rodio = { version = "^0.17" }
 flume = { version = "^0.11" }
 
 windows-targets = "0.52.0"
+url = "2.5.0"
 
 [patch.crates-io]
 cpal = { git = "https://github.com/RustAudio/cpal.git", features = [

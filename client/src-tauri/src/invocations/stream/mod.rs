@@ -15,7 +15,6 @@ const BUFFER_SIZE: u32 = 960;
 
 /// Individual opus decoded audio packets
 pub(crate) struct RawAudioFramePacket {
-    pub client_id: Vec<u8>,
     pub author: String,
     pub pcm: Vec<f32>,
     pub in_group: Option<bool>,
@@ -267,16 +266,4 @@ async fn get_device(
     };
 
     return Ok(device);
-}
-
-fn interweave(interweaved: &Vec<f32>, pcm: &Vec<f32>) -> Vec<f32> {
-    let mut new_frame = Vec::<f32>::new();
-    for (i, _) in pcm.into_iter().enumerate() {
-        match interweaved.get(i) {
-            Some(sample) => new_frame.push(sample + pcm[i]),
-            None => new_frame.push(pcm[i]),
-        }
-    }
-
-    return new_frame;
 }

@@ -1,18 +1,9 @@
-use common::{
-    mtlsprovider::MtlsProvider,
-    structs::packet::{
-        DebugPacket,
-        PacketType,
-        QuicNetworkPacket,
-        QuicNetworkPacketCollection,
-        QUICK_NETWORK_PACKET_HEADER,
-    },
-};
+use common::{ mtlsprovider::MtlsProvider, structs::packet::QuicNetworkPacket };
 use s2n_quic::{ client::Connect, Client };
 use tokio::io::AsyncWriteExt;
-use std::{ fs::File, io::BufReader, path::Path, time::Duration };
+use std::{ fs::File, io::BufReader, path::Path };
 use std::{ error::Error, net::SocketAddr };
-use rodio::{ Decoder, OutputStream, source::Source };
+use rodio::Decoder;
 
 #[tokio::main]
 async fn main() {
@@ -105,11 +96,10 @@ async fn client(id: String, source_file: String) -> Result<(), Box<dyn Error>> {
             println!("Starting new stream event.");
             let file = BufReader::new(File::open(source_file.clone()).unwrap());
             let source = Decoder::new(file).unwrap();
-            let now = std::time::Instant::now();
             let ss: Vec<i16> = source.collect();
 
-            for mut chunk in ss.chunks(480) {
-                if chunk.len() != 480 {
+            for chunk in ss.chunks(480) {
+                if chunk.len() < 480 {
                     break;
                 }
                 let s = encoder.encode_vec(chunk, chunk.len() * 4).unwrap();
@@ -131,7 +121,7 @@ async fn client(id: String, source_file: String) -> Result<(), Box<dyn Error>> {
 
                 match packet.to_vec() {
                     Ok(rs) => {
-                        let r = send_stream.write_all(&rs).await;
+                        _ = send_stream.write_all(&rs).await;
                     }
                     Err(e) => {
                         println!("{}", e.to_string());

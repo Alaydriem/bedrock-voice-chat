@@ -53,7 +53,7 @@ pub(crate) async fn output_stream<'r>(
         );
     }).await;
 
-    let this_player = match get_credential("gamertag".to_string()).await {
+    let this_player = match get_credential("gamertag") {
         Ok(s) => s,
         Err(_) => {
             tracing::error!("Keychain missing player information, cannot continue.");
@@ -199,7 +199,7 @@ pub(crate) async fn output_stream<'r>(
                     );
 
                     let speaker = player_cache.get(&author);
-                    let listener = player_cache.get(&this_player);
+                    let listener = player_cache.get(&this_player.to_string());
 
                     // 3d spatial audio attenuation
                     match should_3d_audio {
@@ -326,7 +326,6 @@ pub(crate) async fn output_stream<'r>(
 
                                 if out.len() > 0 {
                                     _ = producer.send(RawAudioFramePacket {
-                                        client_id,
                                         author: data.author,
                                         pcm: out,
                                         in_group: frame.in_group,

@@ -57,18 +57,11 @@ export default class Login {
                 })
                   .then((data) => data as LoginResponse)
                   .then((_data) => {
-                    // Set the host credentials
-                    let url = new URL("https://" + inpt.value);
-                    invoke("set_credential", {
-                      key: "host",
-                      value: url.hostname,
-                    }).then(() => {
-                      // Start the network stream
-                      invoke("network_stream");
+                    // Start the network stream
+                    invoke("network_stream");
 
-                      // Redirect to the dashboard
-                      window.location.href = "dashboard.html";
-                    });
+                    // Redirect to the dashboard
+                    window.location.href = "dashboard.html";
                   })
                   .catch((error) => {
                     console.log(error);

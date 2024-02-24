@@ -65,15 +65,15 @@ async fn server() -> Result<(), Box<dyn Error>> {
     );
     let processor_mutex_map = mutex_map.clone();
 
-    let ca_cert_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/cert.pem");
+    //let ca_cert_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/cert.pem");
     let cert_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/cert.pem");
     let key_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/key.pem");
 
-    let CA = Path::new(ca_cert_path);
-    let CERT = Path::new(cert_path);
-    let KEY = Path::new(key_path);
+    //let ca = Path::new(ca_cert_path);
+    let cert = Path::new(cert_path);
+    let key = Path::new(key_path);
 
-    let provider = MtlsProvider::new(CERT, CERT, KEY).await?;
+    let provider = MtlsProvider::new(cert, cert, key).await?;
 
     let kp = KeyPair::from_pem(&fs::read_to_string(key_path).unwrap()).unwrap();
     let cp = CertificateParams::from_ca_cert_pem(
@@ -121,7 +121,7 @@ async fn server() -> Result<(), Box<dyn Error>> {
                                     let cid: Option<i32> = None;
                                     let client_id = Arc::new(Mutex::new(cid));
                                     let rec_client_id = client_id.clone();
-                                    let send_client_id = client_id.clone();
+
                                     // Receiving Stream
                                     tokio::spawn(async move {
                                         let main_producer_mux = main_producer_mux.clone();
@@ -152,7 +152,6 @@ async fn server() -> Result<(), Box<dyn Error>> {
                                     tokio::spawn(async move {
                                         let consumer = consumer.clone();
                                         let mut consumer = consumer.lock_arc().await;
-                                        let client_id = send_client_id.clone();
 
                                         #[allow(irrefutable_let_patterns)]
                                         while let packet = consumer.pop().await {

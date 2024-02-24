@@ -42,7 +42,7 @@ pub(crate) async fn input_stream(
         }
     };
 
-    let gamertag = match crate::invocations::credentials::get_credential("gamertag".into()).await {
+    let gamertag = match crate::invocations::credentials::get_credential("gamertag") {
         Ok(gt) => gt,
         Err(_) => {
             return Err(false);
@@ -217,14 +217,14 @@ pub(crate) async fn input_stream(
 
                         let packet = QuicNetworkPacket {
                             client_id: vec![0; 0],
-                            author: gamertag.clone(),
+                            author: gamertag.to_string(),
                             in_group: None,
                             packet_type: PacketType::AudioFrame,
                             data: QuicNetworkPacketData::AudioFrame(AudioFramePacket {
                                 length: s.len(),
                                 data: s.clone(),
                                 sample_rate: config.sample_rate.0,
-                                author: gamertag.clone(),
+                                author: gamertag.to_string(),
                                 coordinate: None,
                             }),
                         };

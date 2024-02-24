@@ -1,9 +1,6 @@
-use std::{ path::Path, time::Duration };
+use std::time::Duration;
 
-use tokio::fs::File;
-use tokio::io::AsyncReadExt;
-
-use reqwest::{ header::{ HeaderMap, HeaderValue }, Certificate, Client as ReqwestClient, Identity };
+use reqwest::{ Certificate, Client as ReqwestClient, Identity };
 use anyhow::anyhow;
 
 /// The HTTP Client for calling the API
@@ -17,23 +14,21 @@ pub(crate) struct Client {
 impl Client {
     /// Creates a new client
     pub(crate) async fn new() -> Result<Self, anyhow::Error> {
-        let ca = match crate::invocations::credentials::get_credential("ca".to_string()).await {
+        let ca = match crate::invocations::credentials::get_credential("ca") {
             Ok(ca) => ca,
             Err(_) => {
                 return Err(anyhow!("Missing credentials."));
             }
         };
 
-        let key = match crate::invocations::credentials::get_credential("key".to_string()).await {
+        let key = match crate::invocations::credentials::get_credential("key") {
             Ok(ca) => ca,
             Err(_) => {
                 return Err(anyhow!("Missing credentials."));
             }
         };
 
-        let certificate = match
-            crate::invocations::credentials::get_credential("certificate".to_string()).await
-        {
+        let certificate = match crate::invocations::credentials::get_credential("certificate") {
             Ok(ca) => ca,
             Err(_) => {
                 return Err(anyhow!("Missing credentials."));
@@ -43,14 +38,14 @@ impl Client {
         let pem = format!("{}\n{}", certificate, key);
 
         Ok(Self {
-            ca_cert: ca,
+            ca_cert: ca.to_string(),
             pem: pem,
         })
     }
 
     /// Get's the CA Bytes from the pem
     async fn get_ca_bytes(&self) -> Result<Certificate, anyhow::Error> {
-        let mut buf = self.ca_cert.as_bytes();
+        let buf = self.ca_cert.as_bytes();
 
         match reqwest::Certificate::from_pem(&buf) {
             Ok(cert) => Ok(cert),
@@ -60,7 +55,7 @@ impl Client {
 
     /// Gets the identity bytes from the pem
     async fn get_identity_bytes(&self) -> Result<Identity, anyhow::Error> {
-        let mut buf = self.pem.as_bytes();
+        let buf = self.pem.as_bytes();
 
         match reqwest::Identity::from_pem(&buf) {
             Ok(cert) => Ok(cert),

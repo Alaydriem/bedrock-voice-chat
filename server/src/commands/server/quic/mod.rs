@@ -263,12 +263,15 @@ pub(crate) async fn get_task(
                                                             }
                                                         }
                                                     }
-                                                    Err(_) => {
+                                                    Err(e) => {
+                                                        tracing::error!("{:?}", e.to_string());
                                                         continue;
                                                     }
                                                 };
                                             }
 
+                                            // Loop until the producer is emptied of data and all data has been processed
+                                            while !producer.is_empty() {}
                                             drop(producer);
                                             disconnected.store(true, Ordering::Relaxed);
 
@@ -354,7 +357,7 @@ pub(crate) async fn get_task(
                                                     };
 
                                                 // Remove packets from the final broadcast message
-                                                for mut packet in packets.frames.iter_mut() {
+                                                for packet in packets.frames.iter_mut() {
                                                     // Don't send packets back to the original broadcaster
                                                     match client_id.clone() {
                                                         Some(client_id) => {
@@ -561,6 +564,7 @@ pub(crate) async fn get_task(
                             MessageEventType::Remove => {
                                 consumers.remove(&event.connection_id);
                                 senders.remove(&event.connection_id);
+                                tracing::info!("remove from receivers");
                             }
                         }
                     }

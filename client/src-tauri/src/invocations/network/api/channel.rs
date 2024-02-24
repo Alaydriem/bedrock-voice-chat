@@ -1,6 +1,6 @@
 use crate::invocations::{ network::client::Client, credentials::get_credential };
 use reqwest::header::{ HeaderMap, HeaderValue };
-use common::{ structs::channel::{ Channel, ChannelEvent, ChannelEvents } };
+use common::structs::channel::{ Channel, ChannelEvent, ChannelEvents };
 use anyhow::anyhow;
 
 const CHANNEL_ENDPOINT: &'static str = "/api/channel/";
@@ -170,9 +170,9 @@ pub(crate) async fn create_channel(name: String) -> Result<Channel, bool> {
                         }
                         Err(_) => { Err(false) }
                     }
-                Err(e) => { Err(false) }
+                Err(_) => { Err(false) }
             }
-        Err(e) => {
+        Err(_) => {
             return Err(false);
         }
     }
@@ -218,7 +218,7 @@ pub(crate) async fn delete_channel(id: String) -> Result<bool, bool> {
 
 /// Returns the host
 async fn get_host() -> Result<String, anyhow::Error> {
-    match get_credential("host".to_string()).await {
+    match get_credential("host") {
         Ok(host) => Ok(format!("{}:3000", host)),
         Err(_) => { Err(anyhow!("Missing host endpoint.")) }
     }

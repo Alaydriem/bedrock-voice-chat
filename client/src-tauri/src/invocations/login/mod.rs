@@ -8,7 +8,11 @@ use common::structs::config::MicrosoftAuthCodeAndUrlResponse;
 
 use crate::invocations::get_reqwest_client;
 
-use super::{ credentials::del_credential, stream::stop_stream, network::stop_network_stream };
+use super::{
+    credentials::{ del_credential_raw, get_credential_raw },
+    network::stop_network_stream,
+    stream::stop_stream,
+};
 const CONFIG_ENDPOINT: &'static str = "/api/config";
 const AUTH_ENDPOINT: &'static str = "/api/auth";
 const NCRYPTF_EK_ENDPOINT: &'static str = "/ncryptf/ek";
@@ -112,7 +116,7 @@ pub(crate) async fn microsoft_auth_login(
         HeaderValue::from_str(&base64::encode(kp.get_public_key())).unwrap()
     );
 
-    match client.post(endpoint).headers(headers).json(&payload).send().await {
+    match client.post(endpoint.clone()).headers(headers).json(&payload).send().await {
         Ok(response) => {
             match response.status() {
                 StatusCode::OK => {
@@ -132,57 +136,37 @@ pub(crate) async fn microsoft_auth_login(
                                                     let kp = data.clone().keypair;
                                                     let sk = data.clone().signature;
 
-                                                    // Store data in CredentialVault
-                                                    crate::invocations::credentials::set_credential(
-                                                        "gamertag".to_string(),
-                                                        data.clone().gamertag
-                                                    ).await;
+                                                    let url = url::Url::parse(
+                                                        endpoint.clone().as_str()
+                                                    );
+                                                    let actual_host = format!(
+                                                        "{}",
+                                                        url.unwrap().host().unwrap()
+                                                    );
+                                                    crate::invocations::credentials::set_credential_raw(
+                                                        "current_server",
+                                                        actual_host.clone().as_str()
+                                                    );
+
+                                                    crate::invocations::credentials::update_server_list(
+                                                        actual_host.clone().as_str()
+                                                    );
 
                                                     crate::invocations::credentials::set_credential(
-                                                        "gamerpic".to_string(),
-                                                        data.clone().gamerpic
-                                                    ).await;
-
-                                                    crate::invocations::credentials::set_credential(
-                                                        "key_pk".to_string(),
-                                                        base64::encode(kp.pk)
-                                                    ).await;
-
-                                                    crate::invocations::credentials::set_credential(
-                                                        "key_sk".to_string(),
-                                                        base64::encode(kp.sk)
-                                                    ).await;
-
-                                                    crate::invocations::credentials::set_credential(
-                                                        "sig_pk".to_string(),
-                                                        base64::encode(sk.pk)
-                                                    ).await;
-
-                                                    crate::invocations::credentials::set_credential(
-                                                        "sig_sk".to_string(),
-                                                        base64::encode(sk.sk)
-                                                    ).await;
-
-                                                    crate::invocations::credentials::set_credential(
-                                                        "certificate".to_string(),
-                                                        data.clone().certificate
-                                                    ).await;
-
-                                                    crate::invocations::credentials::set_credential(
-                                                        "key".to_string(),
-                                                        data.clone().certificate_key
-                                                    ).await;
-
-                                                    crate::invocations::credentials::set_credential(
-                                                        "ca".to_string(),
-                                                        data.clone().certificate_ca
-                                                    ).await;
-
-                                                    crate::invocations::credentials::set_credential(
-                                                        "quic_connect_string".to_string(),
-                                                        data.clone().quic_connect_string
-                                                    ).await;
-
+                                                        serde_json::json!({
+                                                            "gamertag": data.clone().gamertag,
+                                                            "gamerpic": data.clone().gamerpic,
+                                                            "key_pk": base64::encode(kp.pk),
+                                                            "key_sk": base64::encode(kp.sk),
+                                                            "sig_pk": base64::encode(sk.pk),
+                                                            "sig_sk": base64::encode(sk.sk),
+                                                            "certificate": data.clone().certificate,
+                                                            "key": data.clone().certificate_key,
+                                                            "ca": data.clone().certificate_ca,
+                                                            "quic_connect_string": data.clone().quic_connect_string,
+                                                            "host": actual_host.clone()
+                                                        })
+                                                    );
                                                     // Only return the gamertag and gamerpic, the rest we don't want to expose to the frontend
                                                     data.keypair =
                                                         common::structs::config::Keypair {
@@ -194,6 +178,8 @@ pub(crate) async fn microsoft_auth_login(
                                                             pk: Vec::<u8>::new(),
                                                             sk: Vec::<u8>::new(),
                                                         };
+
+                                                    tracing::info!("{:?}", actual_host);
                                                     Ok(data)
                                                 }
                                                 None => Err(false),
@@ -234,21 +220,10 @@ pub async fn logout() {
 
     stop_network_stream().await;
 
-    // Delete the credential store keys
-    let keys = vec![
-        "gamertag",
-        "gamerpic",
-        "key_pk",
-        "key_sk",
-        "sig_pk",
-        "sig_sk",
-        "certificate",
-        "key",
-        "ca",
-        "quic_connect_string",
-        "host"
-    ];
-    for key in keys {
-        del_credential(key.to_string()).await;
-    }
+    match get_credential_raw("current_server") {
+        Ok(creds) => del_credential_raw(creds.as_str()),
+        Err(_) => {
+            return;
+        }
+    };
 }

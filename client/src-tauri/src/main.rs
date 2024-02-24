@@ -94,7 +94,6 @@ async fn main() {
                 // Credential Management
                 invocations::credentials::get_credential,
                 invocations::credentials::set_credential,
-                invocations::credentials::del_credential,
                 // Quic
                 invocations::network::stop_network_stream,
                 invocations::network::network_stream,

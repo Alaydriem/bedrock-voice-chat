@@ -75,7 +75,7 @@ pub(crate) async fn network_stream(
     // Sending Stream
     let send_id = id.clone();
 
-    let gamertag = match super::credentials::get_credential("gamertag".into()).await {
+    let gamertag = match super::credentials::get_credential("gamertag") {
         Ok(gt) => gt,
         Err(_) => {
             return Err(false);
@@ -93,10 +93,10 @@ pub(crate) async fn network_stream(
         let packet = QuicNetworkPacket {
             client_id: client_id.clone(),
             packet_type: common::structs::packet::PacketType::Debug,
-            author: gamertag.clone(),
+            author: gamertag.to_string(),
             in_group: None,
             data: common::structs::packet::QuicNetworkPacketData::Debug(
-                DebugPacket(gamertag.clone())
+                DebugPacket(gamertag.to_string())
             ),
         };
 
@@ -119,7 +119,7 @@ pub(crate) async fn network_stream(
                     }
 
                     packet.client_id = client_id.clone();
-                    packet.author = gamertag.clone();
+                    packet.author = gamertag.to_string();
                     match packet.to_vec() {
                         Ok(reader) => {
                             _ = send_stream.write_all(&reader).await;
@@ -139,7 +139,6 @@ pub(crate) async fn network_stream(
     });
 
     // Recv stream
-    let recv_id = id.clone();
     let audio_producer = audio_producer.inner().clone();
     tokio::spawn(async move {
         //let cache = cache.clone();
@@ -257,28 +256,34 @@ async fn setup_task_cache(
 
 /// Returns the mTLS provider
 async fn get_mtls_provider() -> Result<MtlsProvider, anyhow::Error> {
-    let certificate = match super::credentials::get_credential("certificate".to_string()).await {
+    let certificate = match super::credentials::get_credential("certificate") {
         Ok(c) => c,
         Err(_) => {
             return Err(anyhow!("Could not retrieve credential cert"));
         }
     };
 
-    let key = match super::credentials::get_credential("key".to_string()).await {
+    let key = match super::credentials::get_credential("key") {
         Ok(c) => c,
         Err(_) => {
             return Err(anyhow!("Could not retrieve credential key"));
         }
     };
 
-    let ca = match super::credentials::get_credential("ca".to_string()).await {
+    let ca = match super::credentials::get_credential("ca") {
         Ok(c) => c,
         Err(_) => {
             return Err(anyhow!("Could not retrieve credential ca"));
         }
     };
 
-    match MtlsProvider::new_from_string(ca, certificate, key).await {
+    match
+        MtlsProvider::new_from_string(
+            ca.to_string(),
+            certificate.to_string(),
+            key.to_string()
+        ).await
+    {
         Ok(provider) => Ok(provider),
         Err(e) => Err(anyhow!("{}", e.to_string())),
     }
@@ -302,16 +307,14 @@ async fn get_quic_client(provider: MtlsProvider) -> Result<Client, anyhow::Error
 
 /// Returns the split quic stream
 async fn get_stream(client: Client) -> Result<(SendStream, ReceiveStream), anyhow::Error> {
-    let quic_connect_string = match
-        super::credentials::get_credential("quic_connect_string".to_string()).await
-    {
+    let quic_connect_string = match super::credentials::get_credential("quic_connect_string") {
         Ok(c) => c,
         Err(_) => {
             return Err(anyhow!("Could not retrieve credential quic_connect_string"));
         }
     };
 
-    let host = match super::credentials::get_credential("host".to_string()).await {
+    let host = match super::credentials::get_credential("host") {
         Ok(c) => c,
         Err(_) => {
             return Err(anyhow!("Could not retrieve credential host"));
@@ -327,7 +330,7 @@ async fn get_stream(client: Client) -> Result<(SendStream, ReceiveStream), anyho
         }
     };
 
-    let connect = Connect::new(addr).with_server_name(host);
+    let connect = Connect::new(addr).with_server_name(host.to_string());
     let mut connection = match client.connect(connect).await {
         Ok(conn) => conn,
         Err(_) => {
