@@ -16,7 +16,7 @@ extern crate rocket;
 pub use rocket::time::OffsetDateTime as RocketOffsetDateTime;
 pub use rocket::time::Duration as RocketDuration;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum Dimension {
     #[serde(rename = "overworld")]
     Overworld,

@@ -160,11 +160,7 @@ pub(crate) async fn output_stream<'r>(
                 Ok(frame) => {
                     let author = frame.author;
                     let should_3d_audio = match frame.in_group {
-                        Some(in_group) =>
-                            match in_group {
-                                true => false,
-                                false => true,
-                            }
+                        Some(in_group) => !in_group,
                         None => true,
                     };
                     let sink = match sinks.get(&author.clone()) {
@@ -216,7 +212,7 @@ pub(crate) async fn output_stream<'r>(
                                 let s = speaker.coordinates;
                                 let l = listener.coordinates;
                                 spatial_sink.set_emitter_position([s.x, s.y, s.z]);
-                                spatial_sink.set_left_ear_position([l.x, l.y, l.z]);
+                                spatial_sink.set_left_ear_position([l.x + 0.0001, l.y, l.z]);
                                 spatial_sink.set_right_ear_position([l.x, l.y, l.z]);
 
                                 let distance = (

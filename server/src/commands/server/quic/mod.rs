@@ -131,9 +131,11 @@ pub(crate) async fn get_task(
             let broadcast = broadcast.clone();
             let shutdown = outer_thread_shutdown.clone();
             let cache = cache.clone();
+            let app_config = app_config.clone();
             tracing::info!("Started QUIC listening server.");
 
             while let Some(mut connection) = server.accept().await {
+                let app_config = app_config.clone();
                 let player_channel_cache = player_channel_cache.clone();
                 let broadcast = broadcast.clone();
                 // Maintain the connection
@@ -368,110 +370,13 @@ pub(crate) async fn get_task(
                                                         None => {}
                                                     }
 
-                                                    let is_in_group_or_in_range: bool = match
-                                                        packet.clone().get_data()
-                                                    {
-                                                        Some(data) => {
-                                                            match data.to_owned().try_into() {
-                                                                Ok(data) => {
-                                                                    let data: AudioFramePacket =
-                                                                        data;
-                                                                    match author.clone() {
-                                                                        Some(author) => {
-                                                                            // Add the packet if the player is in the same group
-                                                                            let player_channels =
-                                                                                player_channel_cache
-                                                                                    .lock_arc().await
-                                                                                    .clone();
-                                                                            let this_player =
-                                                                                player_channels.get(
-                                                                                    &author
-                                                                                ).await;
-                                                                            let packet_author =
-                                                                                player_channels.get(
-                                                                                    &data.author
-                                                                                ).await;
-
-                                                                            match
-                                                                                this_player.eq(
-                                                                                    &packet_author
-                                                                                )
-                                                                            {
-                                                                                true => {
-                                                                                    packet.in_group =
-                                                                                        Some(true);
-                                                                                    true
-                                                                                }
-
-                                                                                // Add the packet if the player is within the server defined audio range
-                                                                                false =>
-                                                                                    match
-                                                                                        cache.get(
-                                                                                            &author
-                                                                                        ).await
-                                                                                    {
-                                                                                        Some(
-                                                                                            position,
-                                                                                        ) => {
-                                                                                            let c1 =
-                                                                                                position.coordinates;
-                                                                                            match
-                                                                                                data.coordinate
-                                                                                            {
-                                                                                                Some(
-                                                                                                    c2,
-                                                                                                ) => {
-                                                                                                    // Calcuate 3d spatial distance based upon the configured broadcast range
-                                                                                                    let distance =
-                                                                                                        (
-                                                                                                            (
-                                                                                                                c1.x -
-                                                                                                                c2.x
-                                                                                                            ).powf(
-                                                                                                                2.0
-                                                                                                            ) +
-                                                                                                            (
-                                                                                                                c1.y -
-                                                                                                                c2.y
-                                                                                                            ).powf(
-                                                                                                                2.0
-                                                                                                            ) +
-                                                                                                            (
-                                                                                                                c1.z -
-                                                                                                                c2.z
-                                                                                                            ).powf(
-                                                                                                                2.0
-                                                                                                            )
-                                                                                                        ).sqrt();
-
-                                                                                                    if
-                                                                                                        distance <=
-                                                                                                        (3.0_f32).sqrt() *
-                                                                                                            app_config.voice.broadcast_range
-                                                                                                    {
-                                                                                                        true
-                                                                                                    } else {
-                                                                                                        false
-                                                                                                    }
-                                                                                                }
-                                                                                                None => {
-                                                                                                    false
-                                                                                                }
-                                                                                            }
-                                                                                        }
-                                                                                        None =>
-                                                                                            false,
-                                                                                    }
-                                                                            }
-                                                                        }
-                                                                        None => false,
-                                                                    }
-                                                                }
-                                                                Err(_) => false,
-                                                            }
-                                                        }
-                                                        None => false,
-                                                    };
+                                                    let is_in_group_or_in_range: bool =
+                                                        can_hear_audio(
+                                                            packet,
+                                                            author.clone(),
+                                                            player_channel_cache.clone(),
+                                                            app_config.clone()
+                                                        ).await;
 
                                                     if is_in_group_or_in_range {
                                                         packets_to_send.frames.push(packet.clone());
@@ -815,4 +720,100 @@ async fn update_packet_with_player_coordinates(
     }
 
     packet.to_owned()
+}
+
+/// Returns true if the player in the author frame should be able to hear the packet
+/// This is based on if the player is in the same channel as the user or if they are within broadcast range
+/// This is done to cut down on the server => client bandwidth
+async fn can_hear_audio(
+    packet: &mut QuicNetworkPacket,
+    author: Option<String>,
+    player_channel_cache: Arc<Mutex<Cache<String, String>>>,
+    app_config: ApplicationConfig
+) -> bool {
+    let cache = match get_cache().await {
+        Ok(cache) => cache,
+        Err(_) => {
+            tracing::error!(
+                "A cache was constructed but didn't survive. This shouldn't happen. Restart bvc server."
+            );
+            return false;
+        }
+    };
+
+    match packet.clone().get_data() {
+        Some(data) => {
+            match data.to_owned().try_into() {
+                Ok(data) => {
+                    let data: AudioFramePacket = data;
+                    match author.clone() {
+                        Some(author) => {
+                            // Add the packet if the player is in the same group
+                            let player_channels = player_channel_cache.lock_arc().await.clone();
+                            let this_player = player_channels.get(&author).await;
+                            let packet_author = player_channels.get(&data.author).await;
+
+                            // If the two players are in the same channel
+                            // Individual user matching is done by the client_id, which is unique per connection
+                            // The server filters out identical connections
+                            // But a player may receive their own audio from a different source if they are the emitter
+                            match
+                                this_player.is_some() &&
+                                packet_author.is_some() &&
+                                this_player.eq(&packet_author)
+                            {
+                                true => {
+                                    packet.in_group = Some(true);
+                                    true
+                                }
+
+                                // Add the packet if the player is within the server defined audio range
+                                false =>
+                                    match cache.get(&author).await {
+                                        Some(position) => {
+                                            let c1 = position.coordinates;
+
+                                            let data_author_dimension = cache.get(
+                                                &data.author
+                                            ).await;
+
+                                            match data.coordinate {
+                                                Some(c2) => {
+                                                    // Calcuate 3d spatial distance based upon the configured broadcast range
+                                                    let distance = (
+                                                        (c1.x - c2.x).powf(2.0) +
+                                                        (c1.y - c2.y).powf(2.0) +
+                                                        (c1.z - c2.z).powf(2.0)
+                                                    ).sqrt();
+
+                                                    // Distance calculation only applies within the same dimension, and based upon the player matched coordinates.
+                                                    if
+                                                        data_author_dimension.is_some() &&
+                                                        data_author_dimension
+                                                            .unwrap()
+                                                            .dimension.eq(&position.dimension) &&
+                                                        distance <=
+                                                            (3.0_f32).sqrt() *
+                                                                app_config.voice.broadcast_range
+                                                    {
+                                                        true
+                                                    } else {
+                                                        false
+                                                    }
+                                                }
+                                                None => { false }
+                                            }
+                                        }
+                                        None => false,
+                                    }
+                            }
+                        }
+                        None => false,
+                    }
+                }
+                Err(_) => false,
+            }
+        }
+        None => false,
+    }
 }

@@ -79,6 +79,9 @@ export default class Dashboard {
       });
     }
 
+    // Show the server list
+    this.show_servers();
+
     // Handle de-authentication
     let logoutButton = document.querySelector("#logout-button");
     logoutButton?.addEventListener("click", () => {
@@ -195,5 +198,26 @@ export default class Dashboard {
       data.players.length;
 
     document.querySelector("#group-list")?.append(groupTemplateContent);
+  }
+
+  show_servers() {
+    invoke("get_credential_raw", { key: "server_list" })
+      .then((servers) => servers as String)
+      .then((servers) => JSON.parse(servers))
+      .then((servers) => {
+        const serverTemplate = document.querySelector("template#server-list");
+        const serverListSection = document.querySelector(
+          "#server-list-section",
+        );
+        for (const server of servers) {
+          const serverTemplateContent =
+            serverTemplate?.content?.cloneNode(true);
+
+          let href = serverTemplateContent.querySelector("a");
+          href.setAttribute("data-server-conn-string", server);
+
+          serverListSection?.append(serverTemplateContent);
+        }
+      });
   }
 }

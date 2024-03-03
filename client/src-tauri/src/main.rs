@@ -93,6 +93,7 @@ async fn main() {
                 invocations::login::logout,
                 // Credential Management
                 invocations::credentials::get_credential,
+                invocations::credentials::get_credential_raw,
                 invocations::credentials::set_credential,
                 // Quic
                 invocations::network::stop_network_stream,

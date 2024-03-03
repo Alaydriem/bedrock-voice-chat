@@ -140,8 +140,9 @@ pub(crate) async fn microsoft_auth_login(
                                                         endpoint.clone().as_str()
                                                     );
                                                     let actual_host = format!(
-                                                        "{}",
-                                                        url.unwrap().host().unwrap()
+                                                        "{}:{}",
+                                                        url.clone().unwrap().host().unwrap(),
+                                                        url.clone().unwrap().port().unwrap()
                                                     );
                                                     crate::invocations::credentials::set_credential_raw(
                                                         "current_server",
