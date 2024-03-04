@@ -40,7 +40,7 @@ async fn client(id: String, source_file: String) -> Result<(), Box<dyn Error>> {
     let stream = connection.open_bidirectional_stream().await?;
     _ = stream.connection().keep_alive(true);
 
-    let (mut receive_stream, mut send_stream) = stream.split();
+    let (receive_stream, mut send_stream) = stream.split();
 
     _ = receive_stream.connection().keep_alive(true);
     _ = send_stream.connection().keep_alive(true);

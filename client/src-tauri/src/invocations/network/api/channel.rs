@@ -219,7 +219,7 @@ pub(crate) async fn delete_channel(id: String) -> Result<bool, bool> {
 /// Returns the host
 async fn get_host() -> Result<String, anyhow::Error> {
     match get_credential("host") {
-        Ok(host) => Ok(format!("{}:3000", host)),
+        Ok(host) => Ok(format!("{}", host)),
         Err(_) => { Err(anyhow!("Missing host endpoint.")) }
     }
 }

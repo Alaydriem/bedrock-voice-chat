@@ -9,7 +9,7 @@ use common::structs::config::MicrosoftAuthCodeAndUrlResponse;
 use crate::invocations::get_reqwest_client;
 
 use super::{
-    credentials::{ del_credential_raw, get_credential_raw },
+    credentials::{ del_credential_raw, get_credential_raw, set_credential_raw, update_server_list },
     network::stop_network_stream,
     stream::stop_stream,
 };
@@ -222,7 +222,29 @@ pub async fn logout() {
     stop_network_stream().await;
 
     match get_credential_raw("current_server") {
-        Ok(creds) => del_credential_raw(creds.as_str()),
+        Ok(creds) => {
+            update_server_list(creds.as_str());
+            del_credential_raw(creds.as_str());
+            del_credential_raw("current_server");
+
+            // Pick the first server in the list and set it to the active one
+            match get_credential_raw("server_list") {
+                Ok(c) =>
+                    match serde_json::from_str::<Vec<String>>(&c) {
+                        Ok(servers) => {
+                            if servers.len() > 0 {
+                                set_credential_raw("current_server", &servers[0]);
+                            }
+                        }
+                        Err(_) => {
+                            return;
+                        }
+                    }
+                Err(_) => {
+                    return;
+                }
+            };
+        }
         Err(_) => {
             return;
         }

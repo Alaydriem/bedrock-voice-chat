@@ -686,6 +686,7 @@ dependencies = [
  "opus",
  "rand 0.8.5",
  "rcgen",
+ "redcon",
  "reqwest",
  "ringbuf",
  "rocket",
@@ -3806,6 +3807,12 @@ dependencies = [
  "x509-parser 0.15.1",
  "yasna",
 ]
+
+[[package]]
+name = "redcon"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1858cf83e63a6524904758e164b2b9a3c29ffc2105f0f7a6e70860241d5eda7"
 
 [[package]]
 name = "redis"

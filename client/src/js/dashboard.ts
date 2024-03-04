@@ -81,7 +81,6 @@ export default class Dashboard {
 
     // Show the server list
     this.show_servers();
-
     // Handle de-authentication
     let logoutButton = document.querySelector("#logout-button");
     logoutButton?.addEventListener("click", () => {
@@ -107,13 +106,14 @@ export default class Dashboard {
       this.create_new_group.bind(this),
     );
 
-    const groupsBottomToolbarLink = document.querySelector(
-      "#groups-bottom-toolbar-link",
+    const groupsBottomToolbarLink = <HTMLElement>(
+      document.querySelector("#groups-bottom-toolbar-link")
     );
     groupsBottomToolbarLink?.addEventListener(
       "click",
       this.update_groups_sidebar.bind(this),
     );
+    groupsBottomToolbarLink?.click();
 
     const mainEl = document.querySelector("main.chat-app");
     const historySlide = document.querySelector(
@@ -163,7 +163,9 @@ export default class Dashboard {
   }
 
   async create_new_group() {
-    let group_name = document.querySelector("#new-group-name-inpt");
+    let group_name = <HTMLInputElement>(
+      document.querySelector("#new-group-name-inpt")
+    );
 
     let group_name_text = group_name?.value;
     if (group_name_text == "") {
@@ -183,8 +185,8 @@ export default class Dashboard {
   }
 
   add_channel(data: Channel) {
-    const groupTemplate = document.querySelector(
-      "template#group-chat-template",
+    const groupTemplate = <HTMLElement>(
+      document.querySelector("template#group-chat-template")
     );
     const groupTemplateContent = groupTemplate?.content.cloneNode(true);
 
@@ -202,10 +204,12 @@ export default class Dashboard {
 
   show_servers() {
     invoke("get_credential_raw", { key: "server_list" })
-      .then((servers) => servers as String)
+      .then((servers) => servers as string)
       .then((servers) => JSON.parse(servers))
       .then((servers) => {
-        const serverTemplate = document.querySelector("template#server-list");
+        const serverTemplate = <HTMLElement>(
+          document.querySelector("template#server-list")
+        );
         const serverListSection = document.querySelector(
           "#server-list-section",
         );

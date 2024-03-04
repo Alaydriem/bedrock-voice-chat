@@ -1,9 +1,10 @@
 import Main from "./main";
 import Login from "./login";
 import Dashboard from "./dashboard";
+import Settings from "./settings";
 
 import Swiper from "swiper/bundle";
-import Sortable from 'sortablejs';
+import Sortable from "sortablejs";
 import ApexCharts from "apexcharts";
 import * as Gridjs from "gridjs";
 import Popper from "./components/popper";
@@ -24,23 +25,23 @@ import * as tooltip from "./components/tooltip";
 
 declare global {
   interface Window {
-    App: Application,
-    Swiper: Swiper,
-    Sortable: Sortable,
-    ApexCharts: ApexCharts,
-    Gridjs: Gridjs,
-    Popper: Popper,
-    $breakpoint: any,
-    $darkmode: any,
-    $monochromemode: any,
-    $notification: any,
-    $clipboard: any,
-    helpers: any,
-    Modal: Modal,
-    Drawer: Drawer,
-    Tab: Tab,
-    Accordion: Accordion,
-    SimpleBar: SimpleBar
+    App: Application;
+    Swiper: Swiper;
+    Sortable: Sortable;
+    ApexCharts: ApexCharts;
+    Gridjs: Gridjs;
+    Popper: Popper;
+    $breakpoint: any;
+    $darkmode: any;
+    $monochromemode: any;
+    $notification: any;
+    $clipboard: any;
+    helpers: any;
+    Modal: Modal;
+    Drawer: Drawer;
+    Tab: Tab;
+    Accordion: Accordion;
+    SimpleBar: SimpleBar;
   }
 }
 
@@ -49,6 +50,7 @@ export default class Application extends Main {
     super();
     new Login();
     new Dashboard();
+    new Settings();
   }
 }
 

@@ -9,7 +9,7 @@
       content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0"
     />
 
-    <title>Lineone - Chat App</title>
+    <title>Bedrock Voice Chat - Settings</title>
     <link rel="icon" type="image/png" href="images/favicon.png" />
 
     <!-- CSS Assets -->
@@ -35,7 +35,7 @@
   </head>
 
   <body
-    id="dashboard-page"
+    id="settings-page"
     class="is-header-blur is-sidebar-open has-min-sidebar dark"
   >
     <!-- App preloader-->
@@ -50,7 +50,15 @@
       id="root"
       class="min-h-100vh cloak flex grow bg-slate-50 dark:bg-navy-900"
     >
-      Settings page
+      <form id="audio-settings-form">
+        <label>Device Settings</label>
+        <select id="input">
+          <option value="default">Default</option>
+        </select>
+        <select id="output">
+          <option value="default">Default</option>
+        </select>
+      </form>
     </div>
   </body>
 </html>

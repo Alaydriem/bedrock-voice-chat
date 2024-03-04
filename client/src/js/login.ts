@@ -13,11 +13,13 @@ export default class Login {
 
     if (page != null) {
       // If we have credentials for a user, push them to the dashboard
-      invoke("get_credential", { key: "gamertag" })
+      invoke("get_credential_raw", { key: "current_server" })
         .then((_result) => {
+          console.log(_result);
           window.location.href = "dashboard.html";
         })
-        .catch(() => {
+        .catch((e) => {
+          console.error(e);
           // Make the main page visible
           page?.querySelector("#root")?.classList.remove("invisible");
           this.form = document.querySelector("#login-form");

@@ -3,6 +3,7 @@ use common::{
     structs::packet::{ DebugPacket, QuicNetworkPacket, QuicNetworkPacketCollection },
 };
 use tokio::io::AsyncWriteExt;
+use url::Url;
 
 use std::{ collections::HashMap, sync::Arc };
 
@@ -321,7 +322,8 @@ async fn get_stream(client: Client) -> Result<(SendStream, ReceiveStream), anyho
         }
     };
 
-    let connection_string = format!("{}:{}", host, quic_connect_string);
+    let host = Url::parse(&format!("https://{}", host)).unwrap();
+    let connection_string = format!("{}:{}", host.host().unwrap().to_string(), quic_connect_string);
     tracing::info!("{}", connection_string);
     let addr: SocketAddr = match connection_string.parse() {
         Ok(addr) => addr,
@@ -329,8 +331,9 @@ async fn get_stream(client: Client) -> Result<(SendStream, ReceiveStream), anyho
             return Err(anyhow!("Could not create socket address"));
         }
     };
+    tracing::info!("{} {:?}", connection_string, addr);
 
-    let connect = Connect::new(addr).with_server_name(host.to_string());
+    let connect = Connect::new(addr).with_server_name(host.host().unwrap().to_string());
     let mut connection = match client.connect(connect).await {
         Ok(conn) => conn,
         Err(_) => {
