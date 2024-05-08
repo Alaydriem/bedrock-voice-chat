@@ -30,7 +30,8 @@ pub fn sign_cert_with_ca(
         ExtendedKeyUsagePurpose::ServerAuth
     ];
     params.not_before = OffsetDateTime::now_utc().checked_sub(Duration::days(3)).unwrap();
-    params.not_after = OffsetDateTime::now_utc() + Duration::days(60);
+    // @todo this should not be 9999 days...
+    params.not_after = OffsetDateTime::now_utc() + Duration::days(9999);
 
     params.subject_alt_names = vec![
         SanType::DnsName(dn_name.to_string()),

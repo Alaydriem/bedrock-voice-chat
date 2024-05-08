@@ -314,7 +314,8 @@ pub(crate) async fn get_task(
 
                                                 let mut packets = match receiver.recv_async().await {
                                                     Ok(packets) => packets,
-                                                    Err(_) => {
+                                                    Err(e) => {
+                                                        tracing::error!("{:?}", e);
                                                         tracing::info!(
                                                             "Didn't get back a collection?"
                                                         );

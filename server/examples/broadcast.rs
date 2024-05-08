@@ -1,3 +1,4 @@
+use common::Coordinate;
 use common::{ mtlsprovider::MtlsProvider, structs::packet::QuicNetworkPacket };
 use s2n_quic::{ client::Connect, Client };
 use tokio::io::AsyncWriteExt;
@@ -107,14 +108,14 @@ async fn client(id: String, source_file: String) -> Result<(), Box<dyn Error>> {
                     client_id: client_id.clone(),
                     packet_type: common::structs::packet::PacketType::AudioFrame,
                     author: id.clone(),
-                    in_group: None,
+                    in_group: Some(true),
                     data: common::structs::packet::QuicNetworkPacketData::AudioFrame(
                         common::structs::packet::AudioFramePacket {
                             length: s.len(),
                             data: s.clone(),
                             sample_rate: 48000,
                             author: id.clone(),
-                            coordinate: None,
+                            coordinate: Some(Coordinate { x: 5.0, y: 70.0, z: 5.5 }),
                         }
                     ),
                 };

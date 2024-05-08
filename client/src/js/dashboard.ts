@@ -143,7 +143,9 @@ export default class Dashboard {
   }
 
   async update_groups_sidebar(e) {
-    e.preventDefault();
+    if (e !== null) {
+      e.preventDefault();
+    }
 
     let me = this;
     invoke("get_channels")
@@ -155,6 +157,25 @@ export default class Dashboard {
 
         data.forEach((d) => {
           me.add_channel(d);
+        });
+
+        let channels = document.querySelectorAll("#group-id");
+        let allIds = [];
+        channels.forEach((channel) => {
+          allIds.push(channel.getAttribute("channel-id"));
+        });
+
+        channels.forEach((channel) => {
+          let id = channel?.getAttribute("channel-id");
+          channel.addEventListener("click", async (e) => {
+            for (const idd of allIds) {
+              if (idd != id) {
+                this.leave_channel(idd);
+              }
+            }
+
+            this.join_channel(id);
+          });
         });
       })
       .catch((error) => {
@@ -175,8 +196,9 @@ export default class Dashboard {
     let me = this;
     invoke("create_channel", { name: group_name_text })
       .then((data) => data as Channel)
-      .then((data) => {
-        me.add_channel(data);
+      .then(async (data) => {
+        await me.add_channel(data);
+        await this.update_groups_sidebar(null);
       })
       .catch((error) => {
         console.log(error);
@@ -184,7 +206,7 @@ export default class Dashboard {
       });
   }
 
-  add_channel(data: Channel) {
+  async add_channel(data: Channel) {
     const groupTemplate = <HTMLElement>(
       document.querySelector("template#group-chat-template")
     );
@@ -202,11 +224,72 @@ export default class Dashboard {
     document.querySelector("#group-list")?.append(groupTemplateContent);
   }
 
+  async join_channel(id: String) {
+    invoke("join_channel", { id: id }).then(async () => {
+      console.log("Join: " + id);
+      let body = document.querySelector("#dashboard-content-section");
+      body.innerHTML = "";
+
+      let classes = "btn font-medium text-white".split(" ");
+      let leaveBtn = document.createElement("button");
+      classes.forEach((c) => {
+        leaveBtn.classList.add(c);
+      });
+      leaveBtn.classList.add("bg-warning");
+
+      leaveBtn.innerHTML = "Leave Group";
+      leaveBtn.setAttribute("group-id", id);
+
+      let destroyBtn = document.createElement("button");
+      classes.forEach((c) => {
+        destroyBtn.classList.add(c);
+      });
+      destroyBtn.classList.add("bg-error");
+      destroyBtn.innerHTML = "Destroy Group";
+      destroyBtn.setAttribute("group-id", id);
+
+      leaveBtn.addEventListener("click", (e) => {
+        let eventId = e.srcElement.getAttribute("group-id");
+        this.leave_channel(eventId);
+      });
+
+      destroyBtn.addEventListener("click", (e) => {
+        let eventId = e.srcElement.getAttribute("group-id");
+        this.destroy_channel(eventId);
+      });
+
+      body?.appendChild(leaveBtn);
+      body?.appendChild(destroyBtn);
+
+      await this.update_groups_sidebar(null);
+    });
+  }
+
+  leave_channel(id) {
+    invoke("leave_channel", { id: id }).then(async () => {
+      await this.update_groups_sidebar(null);
+      let body = document.querySelector("#dashboard-content-section");
+      body.innerHTML = "";
+    });
+  }
+
+  destroy_channel(id) {
+    invoke("delete_channel", { id: id }).then(async () => {
+      await this.update_groups_sidebar(null);
+      let body = document.querySelector("#dashboard-content-section");
+      body.innerHTML = "";
+    });
+  }
+
   show_servers() {
     invoke("get_credential_raw", { key: "server_list" })
       .then((servers) => servers as string)
       .then((servers) => JSON.parse(servers))
       .then((servers) => {
+        let serverList = document.querySelectorAll("#server-list-section a");
+        serverList.forEach((el) => {
+          el.remove();
+        });
         const serverTemplate = <HTMLElement>(
           document.querySelector("template#server-list")
         );

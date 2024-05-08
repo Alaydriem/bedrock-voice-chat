@@ -156,7 +156,9 @@ pub(crate) async fn network_stream(
                         _ = audio_producer.send_async(p).await;
                     }
                 }
-                Err(_) => {}
+                Err(e) => {
+                    tracing::error!("{}", e.to_string());
+                }
             };
         }
     });

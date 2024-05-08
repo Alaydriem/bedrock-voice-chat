@@ -19,8 +19,8 @@ async fn main() {
 
 async fn client(id: i32) -> Result<(), Box<dyn Error>> {
     let ca_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/cert.pem");
-    let cert_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/Alaydriem.pem");
-    let key_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/Alaydriem.key");
+    let cert_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test.crt");
+    let key_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test.key");
 
     let CA = Path::new(ca_path);
     let CERT = Path::new(cert_path);
