@@ -2,6 +2,8 @@ use common::Coordinate;
 use common::{ mtlsprovider::MtlsProvider, structs::packet::QuicNetworkPacket };
 use s2n_quic::{ client::Connect, Client };
 use tokio::io::AsyncWriteExt;
+use tokio::time::sleep;
+use std::time::Duration;
 use std::{ fs::File, io::BufReader, path::Path };
 use std::{ error::Error, net::SocketAddr };
 use rodio::Decoder;
@@ -99,10 +101,12 @@ async fn client(id: String, source_file: String) -> Result<(), Box<dyn Error>> {
             let source = Decoder::new(file).unwrap();
             let ss: Vec<i16> = source.collect();
 
+            let mut total_chunks = 0;
             for chunk in ss.chunks(480) {
                 if chunk.len() < 480 {
                     break;
                 }
+                total_chunks = total_chunks + 480;
                 let s = encoder.encode_vec(chunk, chunk.len() * 4).unwrap();
                 let packet = QuicNetworkPacket {
                     client_id: client_id.clone(),
@@ -123,6 +127,9 @@ async fn client(id: String, source_file: String) -> Result<(), Box<dyn Error>> {
                 match packet.to_vec() {
                     Ok(rs) => {
                         _ = send_stream.write_all(&rs).await;
+                        if total_chunks % 48000 == 0 {
+                            sleep(Duration::from_millis(350)).await;
+                        }
                     }
                     Err(e) => {
                         println!("{}", e.to_string());

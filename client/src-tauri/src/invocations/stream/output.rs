@@ -25,6 +25,7 @@ use anyhow::anyhow;
 use flume::Receiver;
 use tauri::State;
 use async_once_cell::OnceCell;
+use hound::WavWriter;
 
 use crate::invocations::credentials::get_credential;
 
@@ -147,6 +148,12 @@ pub(crate) async fn output_stream<'r>(
         let mut spatial_sinks = HashMap::<String, SpatialSink>::new();
         let mut sinks = HashMap::<String, Sink>::new();
 
+        let spec = hound::WavSpec {
+            channels: 2,
+            sample_rate: 48000,
+            bits_per_sample: 32,
+            sample_format: hound::SampleFormat::Int,
+        };
         #[allow(irrefutable_let_patterns)]
         while let frame = consumer.recv() {
             let shutdown = shutdown.clone();

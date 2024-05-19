@@ -502,6 +502,7 @@ dependencies = [
  "deadqueue",
  "faccess",
  "flume",
+ "hound",
  "keytar",
  "moka",
  "opus",
