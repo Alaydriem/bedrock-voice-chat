@@ -43,10 +43,10 @@ export default class Settings {
         }
       });
 
-    input_select?.addEventListener("change", (e) => {
+    input_select?.addEventListener("change", () => {
       invoke("input_stream", { device: input_select?.value });
     });
-    output_select?.addEventListener("change", (e) => {
+    output_select?.addEventListener("change", () => {
       invoke("output_stream", { device: output_select?.value });
     });
   }

@@ -224,7 +224,7 @@ export default class Dashboard {
     document.querySelector("#group-list")?.append(groupTemplateContent);
   }
 
-  async join_channel(id: String) {
+  async join_channel(id: string) {
     invoke("join_channel", { id: id }).then(async () => {
       console.log("Join: " + id);
       let body = document.querySelector("#dashboard-content-section");
@@ -249,12 +249,14 @@ export default class Dashboard {
       destroyBtn.setAttribute("group-id", id);
 
       leaveBtn.addEventListener("click", (e) => {
-        let eventId = e.srcElement.getAttribute("group-id");
+        let target = e.target as HTMLElement;
+        let eventId = target.getAttribute("group-id");
         this.leave_channel(eventId);
       });
 
       destroyBtn.addEventListener("click", (e) => {
-        let eventId = e.srcElement.getAttribute("group-id");
+        let target = e.target as HTMLElement;
+        let eventId = target.getAttribute("group-id");
         this.destroy_channel(eventId);
       });
 
@@ -265,7 +267,7 @@ export default class Dashboard {
     });
   }
 
-  leave_channel(id) {
+  leave_channel(id: string) {
     invoke("leave_channel", { id: id }).then(async () => {
       await this.update_groups_sidebar(null);
       let body = document.querySelector("#dashboard-content-section");
@@ -273,7 +275,7 @@ export default class Dashboard {
     });
   }
 
-  destroy_channel(id) {
+  destroy_channel(id: string) {
     invoke("delete_channel", { id: id }).then(async () => {
       await this.update_groups_sidebar(null);
       let body = document.querySelector("#dashboard-content-section");
