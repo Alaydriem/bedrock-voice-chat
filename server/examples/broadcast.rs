@@ -19,9 +19,9 @@ async fn main() {
 }
 
 async fn client(id: String, source_file: String) -> Result<(), Box<dyn Error>> {
-    let ca_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../certificates/ca.crt");
-    let cert_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test.crt");
-    let key_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test.key");
+    let ca_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test_certs/ca.crt");
+    let cert_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test_certs/test.crt");
+    let key_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test_certs/test.key");
 
     let ca = Path::new(ca_path);
     let cert = Path::new(cert_path);
@@ -32,8 +32,8 @@ async fn client(id: String, source_file: String) -> Result<(), Box<dyn Error>> {
     let client = Client::builder().with_tls(provider)?.with_io("0.0.0.0:0")?.start()?;
 
     println!("I am client: {}", id);
-    let addr: SocketAddr = "127.0.0.1:3001".parse()?;
-    let connect = Connect::new(addr).with_server_name("localhost");
+    let addr: SocketAddr = "23.119.132.52:3001".parse()?;
+    let connect = Connect::new(addr).with_server_name("bvc-test.alaydriem.com");
     let mut connection = client.connect(connect).await?;
 
     // ensure the connection doesn't time out with inactivity
@@ -104,6 +104,7 @@ async fn client(id: String, source_file: String) -> Result<(), Box<dyn Error>> {
             let mut total_chunks = 0;
             for chunk in ss.chunks(480) {
                 if chunk.len() < 480 {
+                    println!("Unexpected chunk end");
                     break;
                 }
                 total_chunks = total_chunks + 480;
@@ -126,9 +127,9 @@ async fn client(id: String, source_file: String) -> Result<(), Box<dyn Error>> {
 
                 match packet.to_vec() {
                     Ok(rs) => {
-                        _ = send_stream.write_all(&rs).await;
-                        if total_chunks % 48000 == 0 {
-                            sleep(Duration::from_millis(350)).await;
+                        let result = send_stream.write_all(&rs).await;
+                        if total_chunks % (48000 * 2) == 0 {
+                            sleep(Duration::from_millis(550)).await;
                         }
                     }
                     Err(e) => {
@@ -137,7 +138,8 @@ async fn client(id: String, source_file: String) -> Result<(), Box<dyn Error>> {
                 }
             }
 
-            _ = send_stream.close().await;
+            let r = send_stream.close().await;
+            println!("Close Stream {:?}", r);
         })
     );
 

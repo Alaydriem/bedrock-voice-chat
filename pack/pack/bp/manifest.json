@@ -31,7 +31,7 @@
       "module_name": "@minecraft/server-ui"
     },
     {
-      "version": "1.7.0-beta",
+      "version": "1.11.0-beta",
       "module_name": "@minecraft/server"
     },
     {

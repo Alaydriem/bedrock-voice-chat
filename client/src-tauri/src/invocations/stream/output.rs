@@ -32,6 +32,7 @@ use super::RawAudioFramePacket;
 
 use std::sync::mpsc;
 
+use tracing::info;
 pub(crate) static PLAYER_POSITION_CACHE: OnceCell<
     Option<Arc<Cache<String, Player, RandomState>>>
 > = OnceCell::new();
@@ -269,6 +270,7 @@ pub(crate) async fn output_stream<'r>(
             match packet {
                 Ok(packet) => {
                     for player in packet.positions.players {
+                        let p = player.clone();
                         player_cache.insert(player.name.clone(), player);
                     }
 

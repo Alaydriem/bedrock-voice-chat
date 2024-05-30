@@ -165,8 +165,10 @@ impl Config {
 
         let mut cp = CertificateParams::new(vec!["127.0.0.1".to_string(), "localhost".to_string()]);
 
+        // @todo: This needs to pull in the FQDN or IP from the server.
         cp.subject_alt_names = vec![
             SanType::DnsName(String::from("localhost")),
+            SanType::DnsName(String::from("bvc-test.alaydriem.com")),
             SanType::IpAddress(std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1))),
             SanType::IpAddress(std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0))),
             SanType::IpAddress(

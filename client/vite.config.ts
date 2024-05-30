@@ -35,6 +35,18 @@ export default defineConfig({
     minify: !process.env.TAURI_DEBUG ? "esbuild" : false,
     // produce sourcemaps for debug builds
     sourcemap: !!process.env.TAURI_DEBUG,
+    rollupOptions: {
+      input: {
+        main: "index.html",
+        dashboard: "dashboard.html",
+        settings: "settings.html",
+      },
+    },
   },
-  plugins: [viteRequire(/* options */)],
+  plugins: [
+    viteRequire(/* options */),
+    viteStaticCopy({
+      targets: [{ src: "src/images/**", dest: "src/images" }],
+    }),
+  ],
 });

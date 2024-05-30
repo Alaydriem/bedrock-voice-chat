@@ -506,39 +506,17 @@ pub(crate) async fn get_task(
                         continue;
                     }
 
-                    if cfg!(windows) {
-                        _ = tokio::time::timeout(Duration::from_millis(1), async {
-                            match consumer.recv_async().await {
-                                Ok(frame) => {
-                                    match frame.packet_type {
-                                        PacketType::AudioFrame => frames.push(frame),
-                                        _ => {}
-                                    }
+                    _ = tokio::time::timeout(Duration::from_millis(1), async {
+                        match consumer.recv_async().await {
+                            Ok(frame) => {
+                                match frame.packet_type {
+                                    PacketType::AudioFrame => frames.push(frame),
+                                    _ => {}
                                 }
-                                Err(_) => {}
                             }
-                        }).await;
-                    }
-
-                    // Linux we want nanosleep percisions
-                    if cfg!(linux) {
-                        tokio::select!(
-                            _ = async {
-                                match consumer.recv_async().await {
-                                    Ok(frame) => {
-                                        match frame.packet_type {
-                                            PacketType::AudioFrame => frames.push(frame),
-                                            _ => {}
-                                        }
-                                    }
-                                    Err(_) => {}
-                                }
-                            } => {},
-                            _ = async {
-                                shuteye::sleep(Duration::from_millis(1));
-                            } => {}
-                        );
-                    }
+                            Err(_) => {}
+                        }
+                    }).await;
                 }
 
                 // Regenerate the PlayerPositionPacket from the cache

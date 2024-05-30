@@ -44,7 +44,7 @@ system.runInterval(async (e) => {
     data.push(p);
   });
 
-  let request = new HttpRequest(bvc_server + "/api/position");
+  let request = new HttpRequest(bvc_server + "/api/mc");
   request.setBody(JSON.stringify(data));
   request.setMethod(HttpRequestMethod.Post);
   request.setHeaders([

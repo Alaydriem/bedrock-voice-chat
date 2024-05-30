@@ -5,7 +5,7 @@ use common::{
 use tokio::io::AsyncWriteExt;
 use url::Url;
 
-use std::{ collections::HashMap, sync::Arc };
+use std::{ collections::HashMap, net::ToSocketAddrs, sync::Arc };
 
 use anyhow::anyhow;
 use async_once_cell::OnceCell;
@@ -327,18 +327,20 @@ async fn get_stream(client: Client) -> Result<(SendStream, ReceiveStream), anyho
     let host = Url::parse(&format!("https://{}", host)).unwrap();
     let connection_string = format!("{}:{}", host.host().unwrap().to_string(), quic_connect_string);
     tracing::info!("{}", connection_string);
-    let addr: SocketAddr = match connection_string.parse() {
-        Ok(addr) => addr,
-        Err(_) => {
+    let addr: SocketAddr = match connection_string.to_socket_addrs() {
+        Ok(mut addr) => addr.next().unwrap(),
+        Err(e) => {
+            tracing::info!("{:?}", e);
             return Err(anyhow!("Could not create socket address"));
         }
     };
-    tracing::info!("{} {:?}", connection_string, addr);
+    tracing::info!("{} {:?} {:?}", connection_string, addr, host.host().unwrap().to_string());
 
     let connect = Connect::new(addr).with_server_name(host.host().unwrap().to_string());
     let mut connection = match client.connect(connect).await {
         Ok(conn) => conn,
-        Err(_) => {
+        Err(e) => {
+            tracing::info!("{:?}", e);
             return Err(anyhow!("Could not create connection"));
         }
     };

@@ -9,7 +9,7 @@ const CHANNEL_ENDPOINT: &'static str = "/api/channel/";
 pub(crate) async fn join_channel(id: String) -> Result<bool, bool> {
     let host = match get_host().await {
         Ok(host) => host,
-        Err(_) => {
+        Err(e) => {
             return Err(false);
         }
     };
@@ -39,10 +39,13 @@ pub(crate) async fn join_channel(id: String) -> Result<bool, bool> {
                         true => Ok(true),
                         false => Err(false),
                     }
-                Err(_) => Err(false),
+                Err(e) => {
+                    tracing::error!("{:?}", e);
+                    Err(false)
+                }
             }
         Err(e) => {
-            tracing::error!("{}", e.to_string());
+            tracing::error!("{:?}", e);
             return Err(false);
         }
     }
@@ -82,10 +85,13 @@ pub(crate) async fn leave_channel(id: String) -> Result<bool, bool> {
                         true => Ok(true),
                         false => Err(false),
                     }
-                Err(_) => Err(false),
+                Err(e) => {
+                    tracing::error!("{:?}", e);
+                    Err(false)
+                }
             }
         Err(e) => {
-            tracing::error!("{}", e.to_string());
+            tracing::error!("{:?}", e);
             return Err(false);
         }
     }
@@ -123,10 +129,13 @@ pub(crate) async fn get_channels(id: Option<String>) -> Result<Vec<Channel>, boo
                     tracing::info!("{:?}", result);
                     Ok(result)
                 }
-                Err(_) => { Err(false) }
+                Err(e) => {
+                    tracing::error!("{:?}", e);
+                    Err(false)
+                }
             }
         Err(e) => {
-            tracing::error!("{}", e.to_string());
+            tracing::error!("{:?}", e);
             return Err(false);
         }
     }
@@ -136,7 +145,8 @@ pub(crate) async fn get_channels(id: Option<String>) -> Result<Vec<Channel>, boo
 pub(crate) async fn create_channel(name: String) -> Result<Channel, bool> {
     let host = match get_host().await {
         Ok(host) => host,
-        Err(_) => {
+        Err(e) => {
+            tracing::error!("{:?}", e);
             return Err(false);
         }
     };
@@ -144,7 +154,8 @@ pub(crate) async fn create_channel(name: String) -> Result<Channel, bool> {
     let base_uri = format!("https://{}{}", host, CHANNEL_ENDPOINT);
     let mut client = match get_client().await {
         Ok(client) => client.post(base_uri),
-        Err(_) => {
+        Err(e) => {
+            tracing::error!("{:?}", e);
             return Err(false);
         }
     };
@@ -168,11 +179,18 @@ pub(crate) async fn create_channel(name: String) -> Result<Channel, bool> {
 
                             Err(false)
                         }
-                        Err(_) => { Err(false) }
+                        Err(e) => {
+                            tracing::error!("{:?}", e);
+                            Err(false)
+                        }
                     }
-                Err(_) => { Err(false) }
+                Err(e) => {
+                    tracing::error!("{:?}", e);
+                    Err(false)
+                }
             }
-        Err(_) => {
+        Err(e) => {
+            tracing::error!("{:?}", e);
             return Err(false);
         }
     }
@@ -207,10 +225,13 @@ pub(crate) async fn delete_channel(id: String) -> Result<bool, bool> {
                         true => Ok(true),
                         false => Err(false),
                     }
-                Err(_) => Err(false),
+                Err(e) => {
+                    tracing::error!("{:?}", e);
+                    Err(false)
+                }
             }
         Err(e) => {
-            tracing::error!("{}", e.to_string());
+            tracing::error!("{:?}", e);
             return Err(false);
         }
     }
