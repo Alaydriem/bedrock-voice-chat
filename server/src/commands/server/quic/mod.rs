@@ -544,8 +544,6 @@ pub(crate) async fn get_task(
                     }
                 }
             }
-
-            return;
         })
     );
 

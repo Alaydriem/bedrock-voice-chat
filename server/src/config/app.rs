@@ -170,9 +170,9 @@ impl ApplicationConfig {
     /// Returns the appropriate log level for Rocket.rs
     pub fn get_rocket_log_level<'a>(&'a self) -> rocket::config::LogLevel {
         match self.log.level.as_str() {
-            "info" => rocket::config::LogLevel::Normal,
             "trace" => rocket::config::LogLevel::Debug,
             "debug" => rocket::config::LogLevel::Normal,
+            "info" => rocket::config::LogLevel::Critical,
             "error" => rocket::config::LogLevel::Critical,
             "warn" => rocket::config::LogLevel::Critical,
             _ => rocket::config::LogLevel::Off,

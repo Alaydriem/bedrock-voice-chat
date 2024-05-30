@@ -56,12 +56,22 @@ impl Config {
             }
         }
 
+        let env_filter = match cfg.config.get_tracing_log_level() {
+            tracing::Level::INFO => "info,hyper=off,rustls=off,rocket::server=off",
+            tracing::Level::DEBUG => "info",
+            tracing::Level::TRACE => "debug",
+            tracing::Level::ERROR => "error,hyper=off,rustls=off,rocket::server=off",
+            tracing::Level::WARN => "warn,,hyper=off,rustls=off,rocket::server=off",
+            _ => "info",
+        };
+
         subscriber
             .with_writer(non_blocking)
             .with_max_level(cfg.config.get_tracing_log_level())
             .with_level(true)
-            .with_line_number(&cfg.config.log.level == "debug" || &cfg.config.log.level == "trace")
-            .with_file(&cfg.config.log.level == "debug" || &cfg.config.log.level == "trace")
+            .with_line_number(&cfg.config.log.level == "trace")
+            .with_file(&cfg.config.log.level == "trace")
+            .with_env_filter(env_filter)
             .compact()
             .init();
 
