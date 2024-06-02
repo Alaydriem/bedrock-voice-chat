@@ -103,12 +103,14 @@ pub(crate) async fn network_stream(
 
         match packet.to_vec() {
             Ok(reader) => {
+                tracing::info!("Sent debug wakup packet to server to pre-initialize stream.");
                 _ = send_stream.write_all(&reader).await;
             }
             Err(e) => {
-                tracing::error!("{}", e.to_string());
+                tracing::error!("{:?}", e);
             }
         }
+        tracing::info!("Output Stream Started");
 
         #[allow(irrefutable_let_patterns)]
         while let packet = rx.recv_async().await {
@@ -136,6 +138,7 @@ pub(crate) async fn network_stream(
             }
         }
 
+        tracing::info!("Did this die?");
         return;
     });
 

@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{ sync::Arc, time::Duration };
 use async_mutex::Mutex;
 use common::structs::{
     audio::AudioDeviceType,
@@ -11,6 +11,7 @@ use audio_gate::NoiseGate;
 use flume::Sender;
 use rtrb::RingBuffer;
 use tauri::State;
+use tokio::time::sleep;
 
 use std::sync::mpsc;
 
@@ -77,7 +78,7 @@ pub(crate) async fn input_stream(
     // This is our main ringbuffer that transfer data from our audio input thread to our network packeter.
     let latency_frames = (250.0 / 1_000.0) * (config.sample_rate.0 as f32);
     let latency_samples = (latency_frames as usize) * (config.channels as usize);
-    let (mut producer, consumer) = RingBuffer::<Vec<f32>>::new(latency_samples * 4);
+    let (producer, consumer) = mpsc::channel();
 
     // Our main listener thread on the CPAL device
     // This will run indefinitely until it receives a mscp signal from the writer.
@@ -103,12 +104,7 @@ pub(crate) async fn input_stream(
                     // Compresor
                     // Limiter
 
-                    match producer.push(gated_data) {
-                        Ok(_) => {}
-                        Err(_) => {
-                            tracing::error!("Failed to push packet into buffer.");
-                        }
-                    }
+                    _ = producer.send(gated_data).unwrap();
                 },
                 move |_| {},
                 None // None=blocking, Some(Duration)=timeout
@@ -139,8 +135,12 @@ pub(crate) async fn input_stream(
     // This is our processing thread for our audio frames
     // Each frame is packaged into an opus frame, then sent to the network.rs to be submitted to the server
     let tx = tx.clone();
-    let consumer = Arc::new(Mutex::new(consumer));
     tokio::spawn(async move {
+        windows_targets::link!("winmm.dll" "system" fn timeBeginPeriod(uperiod: u32) -> u32);
+        unsafe {
+            timeBeginPeriod(1);
+        }
+
         let sample_rate: u32 = config.sample_rate.0.into();
         let id = id.clone();
         let mut data_stream = Vec::<f32>::new();
@@ -157,10 +157,8 @@ pub(crate) async fn input_stream(
         _ = encoder.set_bitrate(Bitrate::Bits(64_000));
         tracing::info!("Opus Encoder Bitrate: {:?}", encoder.get_bitrate().ok());
 
-        let consumer = consumer.clone();
-        let mut consumer = consumer.lock_arc().await;
         loop {
-            let sample = consumer.pop();
+            let sample = consumer.recv();
             match sample {
                 Ok(mut sample) => {
                     let id = id.clone();
@@ -231,9 +229,12 @@ pub(crate) async fn input_stream(
 
                         let tx = tx.clone();
                         _ = tx.send_async(packet).await;
+                        sleep(Duration::from_millis(1)).await;
                     }
                 }
-                Err(_e) => {}
+                Err(_e) => {
+                    tracing::error!("{:?}", _e);
+                }
             }
         }
         tracing::info!("Input audio buffer sender ended.");

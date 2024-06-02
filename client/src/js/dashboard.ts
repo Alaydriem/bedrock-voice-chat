@@ -86,6 +86,7 @@ export default class Dashboard {
     let logoutButton = document.querySelector("#logout-button");
     logoutButton?.addEventListener("click", () => {
       invoke("logout").then(() => {
+        localStorage.clear();
         window.location.href = "index.html";
       });
     });

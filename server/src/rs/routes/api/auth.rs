@@ -67,6 +67,7 @@ pub async fn authenticate(
         }
     };
 
+    tracing::info!("{:?}", gamertag.clone());
     let p = match
         player::Entity::find().filter(player::Column::Gamertag.eq(gamertag.clone())).one(conn).await
     {
@@ -80,6 +81,7 @@ pub async fn authenticate(
     let actual = match p {
         Some(p) => p,
         None => {
+            tracing::info!("{:?} didn't match", p);
             return JsonMessage::create(Status::Forbidden, None, None, None);
         }
     };
@@ -87,6 +89,7 @@ pub async fn authenticate(
     // Block banished users from logging in
     match actual.banished {
         true => {
+            tracing::info!("Banished");
             return JsonMessage::create(Status::Forbidden, None, None, None);
         }
         false => {}

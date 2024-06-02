@@ -100,7 +100,8 @@ pub(crate) async fn microsoft_auth_login(
     // We're going to setup an ncryptf client
     let ek = match get_ncryptf_ek(server).await {
         Ok(ek) => ek,
-        Err(_) => {
+        Err(e) => {
+            tracing::error!("{:?}", e);
             return Err(false);
         }
     };
@@ -180,7 +181,6 @@ pub(crate) async fn microsoft_auth_login(
                                                             sk: Vec::<u8>::new(),
                                                         };
 
-                                                    tracing::info!("{:?}", actual_host);
                                                     Ok(data)
                                                 }
                                                 None => Err(false),

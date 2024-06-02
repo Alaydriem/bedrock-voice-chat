@@ -201,9 +201,6 @@ pub(crate) async fn output_stream<'r>(
                     // 3d spatial audio attenuation
                     match should_3d_audio {
                         true => {
-                            // Volume slider attenuation
-                            // !todo();
-
                             // If we have coordinates for both the speaker, and the listener, then we can do 3D audio translation
                             if speaker.is_some() && listener.is_some() {
                                 // Directional Audio
@@ -232,9 +229,18 @@ pub(crate) async fn output_stream<'r>(
                                         }
                                     false => {
                                         // Otherwise, start volume dropoff at 25 blocks
-                                        if distance > 24.0 {
-                                            let diff = 55.0 - distance;
-                                            spatial_sink.set_volume(diff / 20.0);
+                                        if distance > 44.0 {
+                                            let dropoff = distance - 44.0;
+
+                                            // This provides a 10 block linear attenuation dropoff
+                                            // y = (⁻¹⁄₁₂)x + (¹⁴⁄₃)
+                                            let dropoff_attenuation = f32::max(
+                                                0.0,
+                                                (-1.0 / 12.0) * dropoff + 14.0 / 3.0
+                                            );
+                                            spatial_sink.set_volume(dropoff_attenuation);
+                                        } else {
+                                            spatial_sink.set_volume(1.0);
                                         }
                                         spatial_sink.append(pcm);
                                     }

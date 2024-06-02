@@ -66,12 +66,13 @@ export default class Login {
                     window.location.href = "dashboard.html";
                   })
                   .catch((error) => {
-                    console.log(error);
+                    console.error(error);
                     inpt.classList.add("border-error");
                     errorMessage.classList.remove("invisible");
                   });
               })
-              .catch((_error) => {
+              .catch((error) => {
+                console.error(error);
                 inpt.classList.add("border-error");
                 errorMessage.classList.remove("invisible");
               });
@@ -79,12 +80,14 @@ export default class Login {
             // Tauri WebviewWindow doesn't work
             await open(data.url);
           })
-          .catch((_error) => {
+          .catch((error) => {
+            console.error(error);
             inpt.classList.add("border-error");
             errorMessage.classList.remove("invisible");
           });
       })
-      .catch((_error) => {
+      .catch((error) => {
+        console.error(error);
         inpt.classList.add("border-error");
         errorMessage.classList.remove("invisible");
       });

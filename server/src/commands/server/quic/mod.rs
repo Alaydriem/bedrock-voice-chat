@@ -308,16 +308,22 @@ pub(crate) async fn get_task(
                                                 let player_channel_cache =
                                                     player_channel_cache.clone();
                                                 if receiver.is_disconnected() {
-                                                    tracing::info!("receiver disconnected.");
+                                                    tracing::info!(
+                                                        "{:?} {:?} Receiver disconnected.",
+                                                        client_id,
+                                                        author
+                                                    );
                                                     break;
                                                 }
 
                                                 let mut packets = match receiver.recv_async().await {
                                                     Ok(packets) => packets,
                                                     Err(e) => {
-                                                        tracing::error!("{:?}", e);
                                                         tracing::info!(
-                                                            "Didn't get back a collection?"
+                                                            "{:?} {:?} {:?}",
+                                                            client_id,
+                                                            author,
+                                                            e
                                                         );
                                                         continue;
                                                     }
@@ -491,7 +497,7 @@ pub(crate) async fn get_task(
                     for (_, sender) in senders.iter() {
                         _ = sender.send_async(collection.clone()).await;
                     }
-                    break;
+                    return;
                 }
 
                 // This is our collection of frames from all current producers (streams, clients)
@@ -560,7 +566,7 @@ pub(crate) async fn get_task(
             while let packet = queue.pop().await {
                 if shutdown.load(Ordering::Relaxed) {
                     tracing::info!("Webhook QUIC thread ended.");
-                    break;
+                    return;
                 }
 
                 let pkc = packet.clone();
