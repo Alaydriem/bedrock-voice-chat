@@ -62,8 +62,6 @@ s2n-quic = { version = "1", features = [
     "provider-address-token-default",
     "provider-event-tracing",
     "s2n-quic-rustls",
-    "s2n-quic-tls",
-    "s2n-quic-tls-default",
 ] }
 bytes = { version = "^1.6" }
 async-mutex = { version = "^1.4" }

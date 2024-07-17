@@ -2,7 +2,6 @@ use crate::config::ApplicationConfig;
 use anyhow::anyhow;
 use async_mutex::Mutex;
 use async_once_cell::OnceCell;
-use common::mtlsprovider::MtlsProvider;
 use common::structs::channel::ChannelEvents;
 use common::structs::packet::{
     AudioFramePacket,
@@ -14,10 +13,11 @@ use common::structs::packet::{
     QuicNetworkPacketData,
 };
 use moka::future::Cache;
+use rabbitmq_stream_client::types::Message;
+use rocket::futures::StreamExt;
 use s2n_quic::Server;
 use tokio::io::AsyncWriteExt;
 use std::collections::hash_map::RandomState;
-use std::collections::HashMap;
 use std::path::Path;
 use std::sync::atomic::{ AtomicBool, Ordering };
 use std::sync::Arc;
@@ -37,6 +37,14 @@ pub(crate) async fn get_task(
 ) -> Result<Vec<JoinHandle<()>>, anyhow::Error> {
     let shutdown = Arc::new(AtomicBool::new(false));
     let app_config = config.clone();
+
+    let player_channel_cache = Arc::new(
+        async_mutex::Mutex::new(
+            moka::future::Cache::<String, String>::builder().max_capacity(100).build()
+        )
+    );
+
+    let monitor_player_channel_cache = player_channel_cache.clone();
 
     // Instantiate the player position cache
     // Player positions are valid for 5 minutes before they are evicted
@@ -62,6 +70,8 @@ pub(crate) async fn get_task(
         }
     };
 
+    let cache_c = cache.clone();
+
     // Setups mTLS for the connection
     let cert_path = format!("{}/ca.crt", &app_config.server.tls.certs_path.clone());
     let key_path = format!("{}/ca.key", &app_config.server.tls.certs_path.clone());
@@ -80,33 +90,33 @@ pub(crate) async fn get_task(
     // Initialize the server
     let mut server = Server::builder()
         .with_event(s2n_quic::provider::event::tracing::Subscriber::default())?
-        .with_trusted_certificate(cert)?
-        .with_certificate(cert, key)?
-        .with_client_authentication()?
         .with_io(io_connection_str)?
         .start()?;
 
     let mut tasks = Vec::new();
     let outer_thread_shutdown = shutdown.clone();
 
-    let rabbitmq_environment = Environment::builder()
-        .host(&config.rabbitmq.host)
-        .port(config.rabbitmq.port as u16)
-        .build().await?;
+    let rabbitmq_environment = Arc::new(
+        Environment::builder()
+            .host(&config.rabbitmq.host)
+            .port(config.rabbitmq.port as u16)
+            .build().await?
+    );
 
-    let producer = rabbitmq_environment
-        .producer()
-        .name("bvc_audioframe_producer")
-        .build("audioframe_stream").await?;
     // This is our main thread for the QUIC server
     tasks.push(
         tokio::spawn(async move {
+            let rabbitmq_environment = rabbitmq_environment.clone();
             let shutdown = outer_thread_shutdown.clone();
             let cache = cache.clone();
             let app_config = app_config.clone();
+            let player_channel_cache = player_channel_cache.clone();
             tracing::info!("Started QUIC listening server.");
 
             while let Some(mut connection) = server.accept().await {
+                let rabbitmq_environment = rabbitmq_environment.clone();
+
+                let player_channel_cache = player_channel_cache.clone();
                 let app_config = app_config.clone();
                 // Maintain the connection
                 _ = connection.keep_alive(true);
@@ -117,13 +127,18 @@ pub(crate) async fn get_task(
 
                 tokio::spawn(async move {
                     let cache = cache.clone();
+                    let player_channel_cache = player_channel_cache.clone();
+                    let stream_cache = cache.clone();
 
+                    let rabbitmq_environment = rabbitmq_environment.clone();
                     match connection.accept_bidirectional_stream().await {
                         Ok(stream) =>
                             match stream {
                                 Some(stream) => {
                                     let (mut receive_stream, mut send_stream) = stream.split();
 
+                                    let rabbitmq_environment = rabbitmq_environment.clone();
+                                    let player_channel_cache = player_channel_cache.clone();
                                     // When a client connects, store the author property on the QuicNetworkPacket for this stream
                                     // This enables us to identify packets directed to us.
                                     let cid: Option<Vec<u8>> = None;
@@ -143,11 +158,22 @@ pub(crate) async fn get_task(
                                     let receiver_disconnected = disconnected.clone();
                                     let sender_disconnected = disconnected.clone();
 
-                                    let cancel_broadcast = broadcast.clone();
-
                                     // Receiving Stream
                                     tasks.push(
                                         tokio::spawn(async move {
+                                            let mut producer = match
+                                                rabbitmq_environment
+                                                    .clone()
+                                                    .producer()
+                                                    .name("bvc_audioframe_producer")
+                                                    .build("audioframe_stream").await
+                                            {
+                                                Ok(producer) => producer,
+                                                Err(e) => {
+                                                    tracing::error!("{}", e.to_string());
+                                                    return;
+                                                }
+                                            };
                                             let disconnected = receiver_disconnected.clone();
 
                                             let shutdown = receiver_shutdown.clone();
@@ -173,14 +199,16 @@ pub(crate) async fn get_task(
 
                                                 match QuicNetworkPacket::from_stream(&mut packet) {
                                                     Ok(packets) => {
-                                                        for mut p in packets {
+                                                        for mut raw_network_packet in packets {
                                                             let mut client_id =
                                                                 recv_client_id.lock_arc().await;
-                                                            let author = p.client_id.clone();
+                                                            let author =
+                                                                raw_network_packet.client_id.clone();
 
                                                             let mut cid_author =
                                                                 recv_cid_author.lock_arc().await;
-                                                            let real_author = p.author.clone();
+                                                            let real_author =
+                                                                raw_network_packet.author.clone();
                                                             if cid_author.is_none() {
                                                                 *cid_author = Some(
                                                                     real_author.clone()
@@ -200,17 +228,48 @@ pub(crate) async fn get_task(
                                                                 );
                                                             }
 
-                                                            let pt = p.packet_type.clone();
+                                                            let packet_type =
+                                                                raw_network_packet.packet_type.clone();
 
-                                                            if pt.eq(&PacketType::AudioFrame) {
-                                                                let p2 =
+                                                            if
+                                                                packet_type.eq(
+                                                                    &PacketType::AudioFrame
+                                                                )
+                                                            {
+                                                                let quic_network_packet =
                                                                     update_packet_with_player_coordinates(
-                                                                        &mut p,
+                                                                        &mut raw_network_packet,
                                                                         receiver_cache.clone()
                                                                     ).await;
 
-                                                                // Publish packet to RabbitMQ Stream
-                                                                // @todo
+                                                                match
+                                                                    ron::to_string(
+                                                                        &quic_network_packet
+                                                                    )
+                                                                {
+                                                                    Ok(message) =>
+                                                                        match
+                                                                            producer.send_with_confirm(
+                                                                                Message::builder()
+                                                                                    .body(message)
+                                                                                    .build()
+                                                                            ).await
+                                                                        {
+                                                                            Ok(_) => {}
+                                                                            Err(e) => {
+                                                                                tracing::error!(
+                                                                                    "Failed to publish audio frame to stream {}",
+                                                                                    e.to_string()
+                                                                                );
+                                                                            }
+                                                                        }
+                                                                    Err(e) => {
+                                                                        tracing::error!(
+                                                                            "{}",
+                                                                            e.to_string()
+                                                                        );
+                                                                    }
+                                                                };
                                                             }
                                                         }
                                                     }
@@ -221,6 +280,12 @@ pub(crate) async fn get_task(
                                                 };
                                             }
 
+                                            match producer.close().await {
+                                                Ok(_) => {}
+                                                Err(e) => {
+                                                    tracing::error!("{}", e.to_string());
+                                                }
+                                            }
                                             disconnected.store(true, Ordering::Relaxed);
 
                                             tracing::info!(
@@ -238,34 +303,46 @@ pub(crate) async fn get_task(
                                         tokio::spawn(async move {
                                             let disconnected = sender_disconnected.clone();
                                             let shutdown = sender_shutdown.clone();
-                                            let player_channel_cache = player_channel_cache.clone();
                                             let cache = cache.clone();
 
                                             let mut client_id: Option<Vec<u8>> = None;
                                             let mut author: Option<String> = None;
 
-                                            // Subscribe to Stream
-                                            loop {
-                                                let player_channel_cache =
-                                                    player_channel_cache.clone();
-                                                if receiver.is_disconnected() {
-                                                    tracing::info!(
-                                                        "{:?} {:?} Receiver disconnected.",
-                                                        client_id,
-                                                        author
-                                                    );
-                                                    break;
+                                            let rabbitmq_environment = Environment::builder()
+                                                .build().await
+                                                .unwrap();
+                                            let mut consumer = match
+                                                rabbitmq_environment
+                                                    .clone()
+                                                    .consumer()
+                                                    .build("audioframe_stream").await
+                                            {
+                                                Ok(consumer) => consumer,
+                                                Err(e) => {
+                                                    tracing::error!("{}", e.to_string());
+                                                    return;
                                                 }
+                                            };
+                                            let handle = consumer.handle();
 
-                                                let mut packets = match receiver.recv_async().await {
-                                                    Ok(packets) => packets,
+                                            while let Some(delivery) = consumer.next().await {
+                                                let mut quic_network_packet = match delivery {
+                                                    Ok(delivery) =>
+                                                        delivery
+                                                            .message()
+                                                            .data()
+                                                            .map(|data|
+                                                                ron
+                                                                    ::from_str::<QuicNetworkPacket>(
+                                                                        &String::from_utf8_lossy(
+                                                                            data
+                                                                        )
+                                                                    )
+                                                                    .unwrap()
+                                                            )
+                                                            .unwrap(),
                                                     Err(e) => {
-                                                        tracing::info!(
-                                                            "{:?} {:?} {:?}",
-                                                            client_id,
-                                                            author,
-                                                            e
-                                                        );
+                                                        tracing::error!("{}", e.to_string());
                                                         continue;
                                                     }
                                                 };
@@ -275,7 +352,6 @@ pub(crate) async fn get_task(
                                                     disconnected.load(Ordering::Relaxed)
                                                 {
                                                     tracing::info!("Sending stream was cancelled.");
-                                                    drop(receiver);
                                                     // Ensure the receiving stream gets the disconnect signal
                                                     _ = disconnected.store(true, Ordering::Relaxed);
                                                     _ = send_stream.finish();
@@ -300,45 +376,49 @@ pub(crate) async fn get_task(
                                                     };
                                                 }
 
-                                                let mut packets_to_send =
-                                                    QuicNetworkPacketCollection {
-                                                        frames: Vec::new(),
-                                                        positions: packets.positions.clone(),
-                                                    };
-
-                                                // Remove packets from the final broadcast message
-                                                for packet in packets.frames.iter_mut() {
-                                                    // Don't send packets back to the original broadcaster
-                                                    match client_id.clone() {
-                                                        Some(client_id) => {
-                                                            if packet.client_id.eq(&client_id) {
-                                                                continue;
-                                                            }
+                                                match client_id.clone() {
+                                                    Some(client_id) => {
+                                                        if
+                                                            quic_network_packet.client_id.eq(
+                                                                &client_id
+                                                            )
+                                                        {
+                                                            continue;
                                                         }
-                                                        None => {}
                                                     }
-
-                                                    let is_in_group_or_in_range: bool =
-                                                        can_hear_audio(
-                                                            packet,
-                                                            author.clone(),
-                                                            player_channel_cache.clone(),
-                                                            app_config.clone()
-                                                        ).await;
-
-                                                    if is_in_group_or_in_range {
-                                                        packets_to_send.frames.push(packet.clone());
-                                                    }
+                                                    None => {}
                                                 }
 
-                                                match packets_to_send.to_vec() {
-                                                    Ok(rs) => {
-                                                        _ = send_stream.write_all(&rs).await;
+                                                match client_id.clone() {
+                                                    Some(client_id) => {
+                                                        if
+                                                            quic_network_packet.client_id.eq(
+                                                                &client_id
+                                                            )
+                                                        {
+                                                            continue;
+                                                        }
                                                     }
-                                                    Err(e) => {
-                                                        tracing::error!("{:?}", e.to_string());
-                                                    }
-                                                };
+                                                    None => {}
+                                                }
+
+                                                let is_in_group_or_in_range: bool = can_hear_audio(
+                                                    &mut quic_network_packet,
+                                                    author.clone(),
+                                                    player_channel_cache.clone(),
+                                                    app_config.clone()
+                                                ).await;
+
+                                                if is_in_group_or_in_range {
+                                                    match quic_network_packet.to_vec() {
+                                                        Ok(rs) => {
+                                                            _ = send_stream.write_all(&rs).await;
+                                                        }
+                                                        Err(e) => {
+                                                            tracing::error!("{:?}", e.to_string());
+                                                        }
+                                                    };
+                                                }
                                             }
 
                                             tracing::info!(
@@ -377,12 +457,14 @@ pub(crate) async fn get_task(
 
     // Provides an interface that webhook calls can push data into this QUIC server for processing.
     let t3_shutdown = shutdown.clone();
+    let monitor_player_channel_cache = monitor_player_channel_cache.clone();
     tasks.push(
         tokio::spawn(async move {
-            let player_channel_cache = monitor_player_channel_cache.clone();
             let shutdown = t3_shutdown.clone();
-            let cache = cache_c.clone();
             let queue = queue.clone();
+            let cache = cache_c.clone();
+
+            let player_channel_cache = monitor_player_channel_cache.clone();
 
             #[allow(irrefutable_let_patterns)]
             while let packet = queue.pop().await {
@@ -412,7 +494,6 @@ pub(crate) async fn get_task(
                             }
                             None => {}
                         }
-                    // Store the player channel if one is set
                     PacketType::ChannelEvent => {
                         match packet.get_data() {
                             Some(data) => {
