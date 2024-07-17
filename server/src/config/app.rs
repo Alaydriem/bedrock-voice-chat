@@ -10,6 +10,7 @@ use tracing::Level;
 pub struct ApplicationConfig {
     pub database: ApplicationConfigDatabase,
     pub redis: ApplicationConfigRedis,
+    pub rabbitmq: ApplicationConfigRabbitMq,
     pub server: ApplicationConfigServer,
     pub log: ApplicationConfigLogger,
     pub voice: ApplicationConfigVoice,
@@ -35,6 +36,15 @@ pub struct ApplicationConfigRedis {
     pub host: String,
     #[serde(default)]
     pub port: u32,
+}
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ApplicationConfigRabbitMq {
+    #[serde(default)]
+    pub host: String,
+    #[serde(default)]
+    pub port: u32,
+    #[serde(default)]
+    pub certificate: String,
 }
 
 /// Common server configuration
@@ -71,6 +81,8 @@ pub struct ApplicationConfigServerTLS {
     #[serde(default)]
     pub so_reuse_port: bool,
     pub certs_path: String,
+    pub names: Vec<String>,
+    pub ips: Vec<String>,
 }
 
 /// Minecraft Configuration
@@ -97,6 +109,11 @@ impl Default for ApplicationConfig {
                 host: String::from("127.0.0.1"),
                 port: 6379,
             },
+            rabbitmq: ApplicationConfigRabbitMq {
+                host: String::from("127.0.0.1"),
+                port: 5672,
+                certificate: String::from(""),
+            },
             database: ApplicationConfigDatabase {
                 scheme: String::from("sqlite3"),
                 database: String::from("/etc/bvc/bvc.sqlite3"),
@@ -115,6 +132,8 @@ impl Default for ApplicationConfig {
                     key: String::from("/etc/bvc/server.key"),
                     so_reuse_port: false,
                     certs_path: String::from("/etc/bvc/certificates"),
+                    names: vec!["localhost".to_string()],
+                    ips: vec!["127.0.0.1".to_string()],
                 },
                 minecraft: ApplicationConfigMinecraft {
                     access_token: String::from(""),
@@ -237,6 +256,7 @@ impl ApplicationConfig {
                     max_connections: 1024,
                     connect_timeout: 3,
                     idle_timeout: None,
+                    extensions: None,
                 },
             ));
 

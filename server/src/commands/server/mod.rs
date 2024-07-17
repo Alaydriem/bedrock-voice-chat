@@ -3,13 +3,10 @@ use crate::commands::Config as StateConfig;
 use clap::Parser;
 use common::structs::packet::QuicNetworkPacket;
 use rcgen::{
-    Certificate,
     CertificateParams,
     DistinguishedName,
     IsCa,
     KeyPair,
-    PKCS_ED25519,
-    SanType,
     ExtendedKeyUsagePurpose,
     KeyUsagePurpose,
 };
@@ -158,8 +155,7 @@ impl Config {
         }
 
         // Create the root CA certificate if it doesn't already exist.
-
-        let root_kp = match KeyPair::generate(&PKCS_ED25519) {
+        let root_kp = match KeyPair::generate() {
             Ok(r) => r,
             Err(_) => {
                 return Err(
@@ -173,40 +169,34 @@ impl Config {
         let mut distinguished_name = DistinguishedName::new();
         distinguished_name.push(rcgen::DnType::CommonName, "Bedrock Voice Chat");
 
-        let mut cp = CertificateParams::new(vec!["127.0.0.1".to_string(), "localhost".to_string()]);
+        let mut san_names = config.config.server.tls.names.clone();
+        san_names.append(&mut config.config.server.tls.ips.clone());
+        let root_certificate = match CertificateParams::new(san_names) {
+            Ok(mut ca_params) => {
+                ca_params.is_ca = IsCa::NoCa;
+                ca_params.not_before = OffsetDateTime::now_utc()
+                    .checked_sub(Duration::days(3))
+                    .unwrap();
+                ca_params.distinguished_name = distinguished_name;
+                ca_params.use_authority_key_identifier_extension = true;
 
-        // @todo: This needs to pull in the FQDN or IP from the server.
-        cp.subject_alt_names = vec![
-            SanType::DnsName(String::from("localhost")),
-            SanType::DnsName(String::from("bvc-test.alaydriem.com")),
-            SanType::IpAddress(std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1))),
-            SanType::IpAddress(std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0))),
-            SanType::IpAddress(
-                std::net::IpAddr::V6(std::net::Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1))
-            )
-        ];
-        cp.alg = &PKCS_ED25519;
-        cp.is_ca = IsCa::NoCa;
-        cp.not_before = OffsetDateTime::now_utc().checked_sub(Duration::days(3)).unwrap();
-        cp.distinguished_name = distinguished_name;
-        cp.key_pair = Some(root_kp);
-        cp.use_authority_key_identifier_extension = true;
+                ca_params.key_usages = vec![KeyUsagePurpose::KeyCertSign];
+                ca_params.extended_key_usages = vec![
+                    ExtendedKeyUsagePurpose::ClientAuth,
+                    ExtendedKeyUsagePurpose::ServerAuth
+                ];
 
-        cp.key_usages = vec![KeyUsagePurpose::KeyCertSign];
-        cp.extended_key_usages = vec![
-            ExtendedKeyUsagePurpose::ClientAuth,
-            ExtendedKeyUsagePurpose::ServerAuth
-        ];
-        let root_certificate = match Certificate::from_params(cp) {
-            Ok(c) => c,
-            Err(_) =>
+                ca_params.self_signed(&root_kp)?
+            }
+            Err(e) => {
                 panic!(
                     "Unable to generate root certificates. Check the certs_path configuration variable to ensure the path is writable"
-                ),
+                )
+            }
         };
 
-        let cert = root_certificate.serialize_pem_with_signer(&root_certificate).unwrap();
-        let key = root_certificate.get_key_pair().serialize_pem();
+        let cert = root_certificate.pem();
+        let key = root_kp.serialize_pem();
 
         let mut key_file = File::create(root_ca_path_str).unwrap();
         key_file.write_all(cert.as_bytes()).unwrap();

@@ -228,6 +228,7 @@ pub(crate) async fn output_stream<'r>(
                                             false => {}
                                         }
                                     false => {
+                                        spatial_sink.set_volume(1.0);
                                         // Otherwise, start volume dropoff at 25 blocks
                                         if distance > 44.0 {
                                             let dropoff = distance - 44.0;
@@ -237,6 +238,12 @@ pub(crate) async fn output_stream<'r>(
                                             let dropoff_attenuation = f32::max(
                                                 0.0,
                                                 (-1.0 / 12.0) * dropoff + 14.0 / 3.0
+                                            );
+                                            tracing::info!(
+                                                "Dropoff Attenuation: {} {} {}",
+                                                distance,
+                                                dropoff,
+                                                dropoff_attenuation
                                             );
                                             spatial_sink.set_volume(dropoff_attenuation);
                                         } else {

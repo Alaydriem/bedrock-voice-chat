@@ -41,8 +41,8 @@ pub async fn position(
     queue: &State<Arc<deadqueue::limited::Queue<QuicNetworkPacket>>>
 ) -> Status {
     let conn = db.into_inner();
-    let root_certificate = match get_root_ca(config.tls.certs_path.clone()) {
-        Ok(root_certificate) => root_certificate,
+    let (root_certificate, keypair) = match get_root_ca(config.tls.certs_path.clone()) {
+        Ok((root_certificate, keypair)) => (root_certificate, keypair),
         Err(e) => {
             tracing::error!("{}", e.to_string());
             return Status::Ok;
@@ -69,7 +69,9 @@ pub async fn position(
                         sgv.append(&mut signature.get_public_key());
                         sgv.append(&mut signature.get_secret_key());
 
-                        let (cert, key) = match sign_cert_with_ca(&root_certificate, &player_name) {
+                        let (cert, key) = match
+                            sign_cert_with_ca(&root_certificate, &keypair, &player_name)
+                        {
                             Ok((cert, key)) => (cert, key),
                             Err(e) => {
                                 tracing::error!("{}", e.to_string());
@@ -82,8 +84,8 @@ pub async fn position(
                             id: ActiveValue::NotSet,
                             gamertag: ActiveValue::Set(Some(player_name.clone())),
                             gamerpic: ActiveValue::Set(None),
-                            certificate: ActiveValue::Set(cert),
-                            certificate_key: ActiveValue::Set(key),
+                            certificate: ActiveValue::Set(cert.pem()),
+                            certificate_key: ActiveValue::Set(key.serialize_pem()),
                             banished: ActiveValue::Set(false),
                             keypair: ActiveValue::Set(kpv),
                             signature: ActiveValue::Set(sgv),

@@ -9,7 +9,6 @@ pub mod certificates;
 pub mod consts;
 pub mod structs;
 pub mod request;
-pub mod mtlsprovider;
 
 extern crate rocket;
 

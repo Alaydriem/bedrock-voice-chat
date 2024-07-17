@@ -23,28 +23,7 @@ use std::sync::atomic::{ AtomicBool, Ordering };
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::task::JoinHandle;
-
-use flume::{ bounded, Sender, Receiver };
-const QUEUE_CAPACITY: usize = 100000;
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-enum MessageEventType {
-    Add,
-    Remove,
-}
-
-#[derive(Debug, Clone)]
-enum MessageEventData {
-    Sender(Sender<QuicNetworkPacketCollection>),
-    Receiver(Receiver<QuicNetworkPacket>),
-}
-
-#[derive(Debug, Clone)]
-struct MessageEvent {
-    pub connection_id: u64,
-    pub event_type: MessageEventType,
-    pub thing: Option<MessageEventData>,
-}
+use rabbitmq_stream_client::Environment;
 
 /// Player position data
 pub(crate) static PLAYER_POSITION_CACHE: OnceCell<
@@ -58,14 +37,6 @@ pub(crate) async fn get_task(
 ) -> Result<Vec<JoinHandle<()>>, anyhow::Error> {
     let shutdown = Arc::new(AtomicBool::new(false));
     let app_config = config.clone();
-
-    let player_channel_cache = Arc::new(
-        async_mutex::Mutex::new(
-            moka::future::Cache::<String, String>::builder().max_capacity(100).build()
-        )
-    );
-
-    let monitor_player_channel_cache = player_channel_cache.clone();
 
     // Instantiate the player position cache
     // Player positions are valid for 5 minutes before they are evicted
@@ -91,17 +62,12 @@ pub(crate) async fn get_task(
         }
     };
 
-    let cache_c = cache.clone();
-    let monitor_cache = cache.clone();
-
     // Setups mTLS for the connection
     let cert_path = format!("{}/ca.crt", &app_config.server.tls.certs_path.clone());
     let key_path = format!("{}/ca.key", &app_config.server.tls.certs_path.clone());
 
     let cert = Path::new(&cert_path);
     let key = Path::new(&key_path);
-
-    let provider = MtlsProvider::new(cert, cert, key).await?;
 
     let io_connection_str: &str = &format!(
         "{}:{}",
@@ -114,21 +80,27 @@ pub(crate) async fn get_task(
     // Initialize the server
     let mut server = Server::builder()
         .with_event(s2n_quic::provider::event::tracing::Subscriber::default())?
-        .with_tls(provider)?
+        .with_trusted_certificate(cert)?
+        .with_certificate(cert, key)?
+        .with_client_authentication()?
         .with_io(io_connection_str)?
         .start()?;
 
     let mut tasks = Vec::new();
     let outer_thread_shutdown = shutdown.clone();
-    let (broadcast, recv_broadcast) = bounded::<MessageEvent>(100);
 
-    let broadcast: Arc<_> = Arc::new(broadcast);
+    let rabbitmq_environment = Environment::builder()
+        .host(&config.rabbitmq.host)
+        .port(config.rabbitmq.port as u16)
+        .build().await?;
 
+    let producer = rabbitmq_environment
+        .producer()
+        .name("bvc_audioframe_producer")
+        .build("audioframe_stream").await?;
     // This is our main thread for the QUIC server
     tasks.push(
         tokio::spawn(async move {
-            let player_channel_cache = player_channel_cache.clone();
-            let broadcast = broadcast.clone();
             let shutdown = outer_thread_shutdown.clone();
             let cache = cache.clone();
             let app_config = app_config.clone();
@@ -136,8 +108,6 @@ pub(crate) async fn get_task(
 
             while let Some(mut connection) = server.accept().await {
                 let app_config = app_config.clone();
-                let player_channel_cache = player_channel_cache.clone();
-                let broadcast = broadcast.clone();
                 // Maintain the connection
                 _ = connection.keep_alive(true);
                 let cache = cache.clone();
@@ -146,34 +116,12 @@ pub(crate) async fn get_task(
                 let raw_connection_id = connection.id();
 
                 tokio::spawn(async move {
-                    let player_channel_cache = player_channel_cache.clone();
                     let cache = cache.clone();
-                    let stream_cache = cache.clone();
 
                     match connection.accept_bidirectional_stream().await {
                         Ok(stream) =>
                             match stream {
                                 Some(stream) => {
-                                    let (producer, consumer) =
-                                        bounded::<QuicNetworkPacket>(QUEUE_CAPACITY);
-                                    let (sender, receiver) =
-                                        bounded::<QuicNetworkPacketCollection>(QUEUE_CAPACITY);
-
-                                    // send consumer and receiver to monitor thread
-                                    _ = broadcast.try_send(MessageEvent {
-                                        connection_id: raw_connection_id,
-                                        event_type: MessageEventType::Add,
-                                        thing: Some(MessageEventData::Sender(sender.clone())),
-                                    });
-                                    drop(sender);
-
-                                    _ = broadcast.try_send(MessageEvent {
-                                        connection_id: raw_connection_id,
-                                        event_type: MessageEventType::Add,
-                                        thing: Some(MessageEventData::Receiver(consumer.clone())),
-                                    });
-                                    drop(consumer);
-
                                     let (mut receive_stream, mut send_stream) = stream.split();
 
                                     // When a client connects, store the author property on the QuicNetworkPacket for this stream
@@ -261,7 +209,8 @@ pub(crate) async fn get_task(
                                                                         receiver_cache.clone()
                                                                     ).await;
 
-                                                                _ = producer.send_async(p2).await;
+                                                                // Publish packet to RabbitMQ Stream
+                                                                // @todo
                                                             }
                                                         }
                                                     }
@@ -272,17 +221,7 @@ pub(crate) async fn get_task(
                                                 };
                                             }
 
-                                            // Loop until the producer is emptied of data and all data has been processed
-                                            while !producer.is_empty() {}
-                                            drop(producer);
                                             disconnected.store(true, Ordering::Relaxed);
-
-                                            // Send notice to other threads to stop using them
-                                            _ = broadcast.try_send(MessageEvent {
-                                                connection_id: raw_connection_id,
-                                                event_type: MessageEventType::Remove,
-                                                thing: None,
-                                            });
 
                                             tracing::info!(
                                                 "Receving stream for {} ended.",
@@ -304,6 +243,8 @@ pub(crate) async fn get_task(
 
                                             let mut client_id: Option<Vec<u8>> = None;
                                             let mut author: Option<String> = None;
+
+                                            // Subscribe to Stream
                                             loop {
                                                 let player_channel_cache =
                                                     player_channel_cache.clone();
@@ -416,12 +357,6 @@ pub(crate) async fn get_task(
 
                                     // When the connection closes, remove the references in the hashmap so it doesn't grow indefinitely.
                                     tracing::info!("Connection {} closed.", &raw_connection_id);
-                                    _ = cancel_broadcast.try_send(MessageEvent {
-                                        connection_id: raw_connection_id,
-                                        event_type: MessageEventType::Remove,
-                                        thing: None,
-                                    });
-
                                     connection.close((99u32).into());
                                 }
                                 None => {
@@ -436,119 +371,6 @@ pub(crate) async fn get_task(
                         }
                     }
                 });
-            }
-        })
-    );
-
-    // Iterate through the main consumer mutex and broadcast it to all active connections
-    let monitor_shutdown = shutdown.clone();
-    let monitor_cache = monitor_cache.clone();
-    tasks.push(
-        tokio::spawn(async move {
-            if cfg!(windows) {
-                windows_targets::link!("winmm.dll" "system" fn timeBeginPeriod(uperiod: u32) -> u32);
-                unsafe {
-                    timeBeginPeriod(1);
-                }
-            }
-
-            let shutdown = monitor_shutdown.clone();
-
-            let mut consumers: HashMap<u64, Receiver<QuicNetworkPacket>> = HashMap::new();
-            let mut senders: HashMap<u64, Sender<QuicNetworkPacketCollection>> = HashMap::new();
-
-            loop {
-                match recv_broadcast.try_recv() {
-                    Ok(event) => {
-                        let event: MessageEvent = event;
-                        match event.event_type {
-                            MessageEventType::Add => {
-                                let thing = event.thing.unwrap();
-                                match thing {
-                                    MessageEventData::Sender(sender) => {
-                                        senders.insert(event.connection_id, sender);
-                                    }
-                                    MessageEventData::Receiver(consumer) => {
-                                        consumers.insert(event.connection_id, consumer);
-                                    }
-                                }
-                            }
-                            MessageEventType::Remove => {
-                                consumers.remove(&event.connection_id);
-                                senders.remove(&event.connection_id);
-                                tracing::info!("remove from receivers");
-                            }
-                        }
-                    }
-                    Err(_) => {}
-                }
-
-                if shutdown.load(Ordering::Relaxed) {
-                    tracing::info!("QUIC aggregation and broadcast thread signaled to terminate.");
-                    let collection = QuicNetworkPacketCollection {
-                        frames: Vec::new(),
-                        positions: PlayerDataPacket {
-                            players: Vec::new(),
-                        },
-                    };
-
-                    // Send a empty packet to all receiving streams so they process the shutdown signal incase there isn't incoming data
-                    // Then remove the item from the collections, and drop the sender
-                    for (_, sender) in senders.iter() {
-                        _ = sender.send_async(collection.clone()).await;
-                    }
-                    return;
-                }
-
-                // This is our collection of frames from all current producers (streams, clients)
-                let mut frames = Vec::<QuicNetworkPacket>::new();
-
-                for (_, consumer) in consumers.iter() {
-                    if
-                        consumer.is_disconnected() ||
-                        consumer.sender_count() == 0 ||
-                        consumer.is_empty()
-                    {
-                        continue;
-                    }
-
-                    _ = tokio::time::timeout(Duration::from_millis(1), async {
-                        match consumer.recv_async().await {
-                            Ok(frame) => {
-                                match frame.packet_type {
-                                    PacketType::AudioFrame => frames.push(frame),
-                                    _ => {}
-                                }
-                            }
-                            Err(_) => {}
-                        }
-                    }).await;
-                }
-
-                // Regenerate the PlayerPositionPacket from the cache
-                let positions: Vec<common::Player> = monitor_cache
-                    .iter()
-                    .map(|(_, p)| p)
-                    .collect();
-
-                // If we don't have anything to generate, don't send it to the client
-                if frames.len() != 0 {
-                    // Create a QuicNetworkPacketCollection
-                    // This contains all player's active position, and the most recent audio frame
-                    // The client needs to interleave all the frames together to produce a final 20ms of audio to send to the output device
-                    let collection = QuicNetworkPacketCollection {
-                        frames,
-                        positions: PlayerDataPacket { players: positions },
-                    };
-
-                    // Send this collection to every client
-                    for (_, sender) in senders.iter() {
-                        if sender.is_disconnected() || sender.receiver_count() == 0 {
-                            continue;
-                        }
-                        _ = sender.send_async(collection.clone()).await;
-                    }
-                }
             }
         })
     );
