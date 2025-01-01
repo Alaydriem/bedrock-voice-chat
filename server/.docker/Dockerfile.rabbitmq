@@ -1,0 +1,6 @@
+FROM rabbitmq:4-management
+
+RUN rabbitmq-plugins enable --offline rabbitmq_stream
+EXPOSE 5672 15672 15674 4369 12345 5552
+
+CMD ["rabbitmq-server"]
