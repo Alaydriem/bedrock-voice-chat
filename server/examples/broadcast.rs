@@ -1,5 +1,6 @@
+use common::structs::packet::PacketOwner;
 use common::Coordinate;
-use common::{ mtlsprovider::MtlsProvider, structs::packet::QuicNetworkPacket };
+use common::structs::packet::QuicNetworkPacket;
 use s2n_quic::{ client::Connect, Client };
 use tokio::io::AsyncWriteExt;
 use tokio::time::sleep;
@@ -13,12 +14,23 @@ async fn main() {
     let args: Vec<String> = std::env::args().collect();
     let result = client(
         args[1].to_string().parse::<String>().unwrap(),
-        args[2].to_string().parse::<String>().unwrap()
+        args[2].to_string().parse::<String>().unwrap(),
+        args[3].to_string().parse::<String>().unwrap(),
+        args[4].to_string().parse::<String>().unwrap()
     ).await;
     println!("{:?}", result);
 }
 
-async fn client(id: String, source_file: String) -> Result<(), Box<dyn Error>> {
+async fn client(
+    id: String,
+    source_file: String,
+    socket_addr: String,
+    server_name: String
+) -> Result<(), Box<dyn Error>> {
+    _ = s2n_quic::provider::tls::rustls::rustls::crypto::aws_lc_rs
+        ::default_provider()
+        .install_default();
+
     let ca_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test_certs/ca.crt");
     let cert_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test_certs/test.crt");
     let key_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test_certs/test.key");
@@ -27,13 +39,13 @@ async fn client(id: String, source_file: String) -> Result<(), Box<dyn Error>> {
     let cert = Path::new(cert_path);
     let key = Path::new(key_path);
 
-    let provider = MtlsProvider::new(ca, cert, key).await?;
+    let provider = common::rustls::MtlsProvider::new(ca, cert, key).await?;
 
     let client = Client::builder().with_tls(provider)?.with_io("0.0.0.0:0")?.start()?;
 
     println!("I am client: {}", id);
-    let addr: SocketAddr = "23.119.132.52:3001".parse()?;
-    let connect = Connect::new(addr).with_server_name("bvc-test.alaydriem.com");
+    let addr: SocketAddr = socket_addr.parse()?;
+    let connect = Connect::new(addr).with_server_name(server_name);
     let mut connection = client.connect(connect).await?;
 
     // ensure the connection doesn't time out with inactivity
@@ -110,17 +122,18 @@ async fn client(id: String, source_file: String) -> Result<(), Box<dyn Error>> {
                 total_chunks = total_chunks + 480;
                 let s = encoder.encode_vec(chunk, chunk.len() * 4).unwrap();
                 let packet = QuicNetworkPacket {
-                    client_id: client_id.clone(),
+                    owner: PacketOwner {
+                        name: id.clone(),
+                        client_id: client_id.clone(),
+                    },
                     packet_type: common::structs::packet::PacketType::AudioFrame,
-                    author: id.clone(),
-                    in_group: Some(true),
                     data: common::structs::packet::QuicNetworkPacketData::AudioFrame(
                         common::structs::packet::AudioFramePacket {
                             length: s.len(),
                             data: s.clone(),
                             sample_rate: 48000,
-                            author: id.clone(),
                             coordinate: Some(Coordinate { x: 5.0, y: 70.0, z: 5.5 }),
+                            dimension: Some(common::Dimension::Overworld),
                         }
                     ),
                 };

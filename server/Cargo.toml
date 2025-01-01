@@ -3,7 +3,7 @@ name = "bedrock-voice-chat-server"
 authors = ["Charles R. Portwood II <charlesportwoodii@erianna.com>"]
 description = "Bedrock Voice Chat is a voice chat server for Minecraft Bedrock edition."
 repository = "https://github.com/alaydriem/bedrock-voice-chat"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2021"
 build = "build.rs"
 
@@ -58,10 +58,10 @@ tracing-subscriber = { version = "^0.3" }
 tracing-appender = { version = "^0.2" }
 base64 = { version = "^0.22" }
 faccess = { version = "^0.2" }
-s2n-quic = { version = "1", features = [
+s2n-quic = { version = "1", default-features = false, features = [
     "provider-address-token-default",
+    "provider-tls-rustls",
     "provider-event-tracing",
-    "s2n-quic-rustls",
 ] }
 bytes = { version = "^1.6" }
 async-mutex = { version = "^1.4" }

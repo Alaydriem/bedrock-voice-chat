@@ -9,6 +9,7 @@ pub mod certificates;
 pub mod consts;
 pub mod structs;
 pub mod request;
+pub mod rustls;
 
 extern crate rocket;
 

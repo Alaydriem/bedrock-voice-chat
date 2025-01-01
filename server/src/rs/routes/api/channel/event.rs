@@ -1,6 +1,12 @@
 use common::structs::{
     channel::{ ChannelEvent, ChannelEvents::{ Join, Leave } },
-    packet::{ ChannelEventPacket, PacketType, QuicNetworkPacket, QuicNetworkPacketData },
+    packet::{
+        ChannelEventPacket,
+        PacketOwner,
+        PacketType,
+        QuicNetworkPacket,
+        QuicNetworkPacketData,
+    },
 };
 use rocket::{ response::status, mtls::Certificate, http::Status, State, serde::json::Json };
 
@@ -47,10 +53,11 @@ pub async fn channel_event<'r>(
     drop(lock);
 
     let packet = QuicNetworkPacket {
-        client_id: vec![0u8; 0],
-        author: user.clone(),
+        owner: PacketOwner {
+            name: String::from("api"),
+            client_id: vec![0u8; 0],
+        },
         packet_type: PacketType::ChannelEvent,
-        in_group: None,
         data: QuicNetworkPacketData::ChannelEvent(ChannelEventPacket {
             event: event.event,
             name: user,

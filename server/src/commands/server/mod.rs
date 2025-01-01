@@ -58,8 +58,7 @@ impl Config {
             tracing::Level::DEBUG => "info",
             tracing::Level::TRACE => "debug",
             tracing::Level::ERROR => "error,hyper=off,rustls=off,rocket::server=off",
-            tracing::Level::WARN => "warn,,hyper=off,rustls=off,rocket::server=off",
-            _ => "info",
+            tracing::Level::WARN => "warn,hyper=off,rustls=off,rocket::server=off",
         };
 
         subscriber
@@ -188,7 +187,7 @@ impl Config {
 
                 ca_params.self_signed(&root_kp)?
             }
-            Err(e) => {
+            Err(_) => {
                 panic!(
                     "Unable to generate root certificates. Check the certs_path configuration variable to ensure the path is writable"
                 )

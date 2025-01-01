@@ -1,4 +1,5 @@
 use common::structs::packet::{
+    PacketOwner,
     PacketType,
     PlayerDataPacket,
     QuicNetworkPacket,
@@ -117,10 +118,11 @@ pub async fn position(
 
     // Broadcast the player position to QUIC
     let packet = QuicNetworkPacket {
-        client_id: vec![0u8; 0],
-        author: String::from("api"),
+        owner: PacketOwner {
+            name: String::from("api"),
+            client_id: vec![0u8; 0],
+        },
         packet_type: PacketType::PlayerData,
-        in_group: None,
         data: QuicNetworkPacketData::PlayerData(PlayerDataPacket {
             players: positions.0,
         }),

@@ -14,5 +14,8 @@ extern crate rocket;
 
 #[tokio::main]
 async fn main() {
+    _ = s2n_quic::provider::tls::rustls::rustls::crypto::aws_lc_rs
+        ::default_provider()
+        .install_default();
     let _app = commands::launch().await;
 }
