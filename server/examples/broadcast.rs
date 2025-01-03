@@ -1,9 +1,8 @@
-use common::structs::packet::PacketOwner;
+use common::structs::packet::PacketType;
 use common::Coordinate;
 use common::structs::packet::QuicNetworkPacket;
 use s2n_quic::{ client::Connect, Client };
 use tokio::io::AsyncWriteExt;
-use tokio::time::sleep;
 use std::time::Duration;
 use std::{ fs::File, io::BufReader, path::Path };
 use std::{ error::Error, net::SocketAddr };
@@ -55,7 +54,7 @@ async fn client(
     let stream = connection.open_bidirectional_stream().await?;
     _ = stream.connection().keep_alive(true);
 
-    let (receive_stream, mut send_stream) = stream.split();
+    let (mut receive_stream, mut send_stream) = stream.split();
 
     _ = receive_stream.connection().keep_alive(true);
     _ = send_stream.connection().keep_alive(true);
@@ -63,7 +62,7 @@ async fn client(
     let mut tasks = Vec::new();
 
     // spawn a task that copies responses from the server to stdout
-    /*
+
     tasks.push(
         tokio::spawn(async move {
             let mut packet = Vec::<u8>::new();
@@ -71,25 +70,25 @@ async fn client(
             while let Ok(Some(data)) = receive_stream.receive().await {
                 packet.append(&mut data.to_vec());
 
-                match QuicNetworkPacketCollection::from_stream(&mut packet) {
+                match QuicNetworkPacket::from_stream(&mut packet) {
                     Ok(packets) => {
-                        for p in packets {
-                            let sourced_from = p.frames
-                                .iter()
-                                .map(|f| f.author.clone())
-                                .collect::<String>();
-                            if sourced_from.len() != 0 {
-                                println!("Got a frame collection back from {:?}", sourced_from);
+                        for packet in packets {
+                            match packet.packet_type {
+                                PacketType::AudioFrame => {
+                                    println!("Got packet from: {}", packet.get_author());
+                                }
+                                _ => {}
                             }
                         }
                     }
-                    Err(_) => {}
+                    Err(e) => {
+                        println!("{:?}", e);
+                    }
                 };
             }
             println!("Recieving loop died");
         })
     );
-    */
 
     tasks.push(
         tokio::spawn(async move {
@@ -111,8 +110,14 @@ async fn client(
             println!("Starting new stream event.");
             let file = BufReader::new(File::open(source_file.clone()).unwrap());
             let source = Decoder::new(file).unwrap();
-            let ss: Vec<i16> = source.collect();
+            let mut ss: Vec<i16> = source.collect();
+            // Pad the source file to the expected length so the last chunk doesn't get cut off
+            let ss_expected_size = (((ss.len() / 480) as f32).ceil() * 480.0) as usize;
+            if ss.len() != ss_expected_size {
+                ss.resize(ss_expected_size, 0);
+            }
 
+            println!("{}", ss.len());
             let mut total_chunks = 0;
             for chunk in ss.chunks(480) {
                 if chunk.len() < 480 {
@@ -122,7 +127,7 @@ async fn client(
                 total_chunks = total_chunks + 480;
                 let s = encoder.encode_vec(chunk, chunk.len() * 4).unwrap();
                 let packet = QuicNetworkPacket {
-                    owner: PacketOwner {
+                    owner: common::structs::packet::PacketOwner {
                         name: id.clone(),
                         client_id: client_id.clone(),
                     },
@@ -140,9 +145,10 @@ async fn client(
 
                 match packet.to_vec() {
                     Ok(rs) => {
-                        let result = send_stream.write_all(&rs).await;
-                        if total_chunks % (48000 * 2) == 0 {
-                            sleep(Duration::from_millis(550)).await;
+                        _ = send_stream.write_all(&rs).await;
+                        // This should be 20ms of audio
+                        if total_chunks % 4800 == 0 {
+                            _ = tokio::time::sleep(Duration::from_millis(20)).await;
                         }
                     }
                     Err(e) => {

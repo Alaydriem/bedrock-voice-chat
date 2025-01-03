@@ -12,9 +12,6 @@ use common::structs::packet::{
     QuicNetworkPacket,
 };
 use moka::future::Cache;
-use rabbitmq_stream_client::error::StreamCreateError;
-use rabbitmq_stream_client::types::{ Message, OffsetSpecification, ResponseCode };
-use rocket::futures::StreamExt;
 use s2n_quic::Server;
 use tokio::io::AsyncWriteExt;
 use std::collections::hash_map::RandomState;
@@ -22,9 +19,9 @@ use std::sync::atomic::{ AtomicBool, Ordering };
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::task::JoinHandle;
-use rabbitmq_stream_client::Environment;
+use zeromq::{ Socket, SocketRecv, SocketSend };
 
-pub const AUDIO_STREAM_NAME: &str = "audio_stream";
+type MessageQueue = deadqueue::limited::Queue<QuicNetworkPacket>;
 
 /// Player position data
 pub(crate) static PLAYER_POSITION_CACHE: OnceCell<
@@ -45,6 +42,9 @@ pub(crate) async fn get_task(
         )
     );
 
+    let message_queue = Arc::new(MessageQueue::new(5000));
+    let recv_message_queue = message_queue.clone();
+
     let monitor_player_channel_cache = player_channel_cache.clone();
 
     // Instantiate the player position cache
@@ -55,7 +55,7 @@ pub(crate) async fn get_task(
                 moka::future::Cache
                     ::builder()
                     .time_to_live(Duration::from_secs(300))
-                    .max_capacity(100)
+                    .max_capacity(256)
                     .build()
             )
         );
@@ -97,54 +97,20 @@ pub(crate) async fn get_task(
     let mut tasks = Vec::new();
     let outer_thread_shutdown = shutdown.clone();
 
-    let rabbitmq_environment_raw = match
-        Environment::builder()
-            .heartbeat(5)
-            .host(&config.rabbitmq.host)
-            .port(config.rabbitmq.port as u16)
-            .build().await
-    {
-        Ok(environment) => environment,
-        Err(e) => {
-            tracing::error!("Failed to connect to RabbitMQ Stream: {}", e.to_string());
-            panic!("{:?}", e);
-        }
-    };
-    let rabbitmq_environment = Arc::new(rabbitmq_environment_raw);
-
-    let create_response = rabbitmq_environment
-        .stream_creator()
-        .max_age(Duration::from_secs(60))
-        .create(AUDIO_STREAM_NAME).await;
-
-    if let Err(e) = create_response {
-        if let StreamCreateError::Create { stream, status } = e {
-            match status {
-                // we can ignore this error because the stream already exists
-                ResponseCode::StreamAlreadyExists => {}
-                err => {
-                    tracing::error!("Error creating stream: {:?} {:?}", stream, err);
-                }
-            }
-        }
-    }
+    let broadcast_range = app_config.voice.broadcast_range;
 
     // This is our main thread for the QUIC server
     tasks.push(
         tokio::spawn(async move {
-            let rabbitmq_environment = rabbitmq_environment.clone();
+            let message_queue = message_queue.clone();
             let shutdown = outer_thread_shutdown.clone();
             let cache = cache.clone();
-            let app_config = app_config.clone();
             let player_channel_cache = player_channel_cache.clone();
             tracing::info!("Started QUIC listening server.");
 
             while let Some(mut connection) = server.accept().await {
-                let rabbitmq_environment = rabbitmq_environment.clone();
-
+                let message_queue = message_queue.clone();
                 let player_channel_cache = player_channel_cache.clone();
-                let app_config = app_config.clone();
-                // Maintain the connection
                 _ = connection.keep_alive(true);
                 let cache = cache.clone();
 
@@ -152,22 +118,19 @@ pub(crate) async fn get_task(
                 let raw_connection_id = connection.id();
 
                 tokio::spawn(async move {
+                    let message_queue = message_queue.clone();
                     let cache = cache.clone();
                     let player_channel_cache = player_channel_cache.clone();
                     let stream_cache = cache.clone();
-
-                    let rabbitmq_environment = rabbitmq_environment.clone();
                     match connection.accept_bidirectional_stream().await {
                         Ok(stream) =>
                             match stream {
                                 Some(stream) => {
                                     let (mut receive_stream, mut send_stream) = stream.split();
 
-                                    let rabbitmq_recv_environment = rabbitmq_environment.clone();
-                                    let rabbitmq_send_environment = rabbitmq_environment.clone();
-                                    let player_channel_cache = player_channel_cache.clone();
                                     let receiver_shutdown = shutdown.clone();
                                     let receiver_cache = stream_cache.clone();
+                                    let sender_cache = stream_cache.clone();
 
                                     let whoami: Option<PacketOwner> = None;
                                     let recv_whoami = Arc::new(Mutex::new(whoami));
@@ -179,24 +142,12 @@ pub(crate) async fn get_task(
                                     let receiver_disconnected = disconnected.clone();
                                     let sender_disconnected = disconnected.clone();
 
+                                    let message_queue = message_queue.clone();
+
                                     // Receiving Stream
                                     tasks.push(
                                         tokio::spawn(async move {
-                                            let producer = match
-                                                rabbitmq_recv_environment
-                                                    .clone()
-                                                    .producer()
-                                                    .build(AUDIO_STREAM_NAME).await
-                                            {
-                                                Ok(producer) => producer,
-                                                Err(e) => {
-                                                    tracing::error!(
-                                                        "Producer Create Error: {:?}",
-                                                        e
-                                                    );
-                                                    return;
-                                                }
-                                            };
+                                            let message_queue = message_queue.clone();
                                             let disconnected = receiver_disconnected.clone();
 
                                             let shutdown = receiver_shutdown.clone();
@@ -223,9 +174,14 @@ pub(crate) async fn get_task(
                                                 match QuicNetworkPacket::from_stream(&mut packet) {
                                                     Ok(packets) => {
                                                         for mut raw_network_packet in packets {
+                                                            // Determine the packet owner from the message
                                                             let mut owner =
                                                                 recv_whoami.lock_arc().await;
                                                             if owner.is_none() {
+                                                                tracing::info!(
+                                                                    "{} Connected to recv stream.",
+                                                                    raw_network_packet.owner.clone().name
+                                                                );
                                                                 *owner = Some(
                                                                     raw_network_packet.owner.clone()
                                                                 );
@@ -240,31 +196,13 @@ pub(crate) async fn get_task(
                                                                         receiver_cache.clone()
                                                                     ).await;
 
-                                                                    // Return back to string
-                                                                    match
-                                                                        raw_network_packet.to_string()
-                                                                    {
-                                                                        Ok(message) => {
-                                                                            // Push message to consumers
-                                                                            _ =
-                                                                                producer.send_with_confirm(
-                                                                                    Message::builder()
-                                                                                        .body(
-                                                                                            message
-                                                                                        )
-                                                                                        .build()
-                                                                                ).await;
-                                                                        }
-                                                                        Err(e) => {
-                                                                            tracing::error!(
-                                                                                "Send Error: {}",
-                                                                                e.to_string()
-                                                                            );
-                                                                        }
-                                                                    }
+                                                                    _ =
+                                                                        message_queue.push(
+                                                                            raw_network_packet
+                                                                        ).await;
                                                                 }
                                                                 _ => {}
-                                                            }
+                                                            };
                                                         }
                                                     }
                                                     Err(e) => {
@@ -278,15 +216,6 @@ pub(crate) async fn get_task(
                                                 };
                                             }
 
-                                            match producer.close().await {
-                                                Ok(_) => {}
-                                                Err(e) => {
-                                                    tracing::error!(
-                                                        "ProducerCloseError: {}",
-                                                        e.to_string()
-                                                    );
-                                                }
-                                            }
                                             disconnected.store(true, Ordering::Relaxed);
 
                                             tracing::info!(
@@ -304,50 +233,54 @@ pub(crate) async fn get_task(
                                         tokio::spawn(async move {
                                             let disconnected = sender_disconnected.clone();
                                             let shutdown = sender_shutdown.clone();
-                                            let cache = cache.clone();
 
                                             let mut owner: Option<PacketOwner> = None;
 
                                             let dt = Utc::now();
                                             let now: i64 = dt.timestamp();
-                                            let mut consumer = match
-                                                rabbitmq_send_environment
-                                                    .clone()
-                                                    .consumer()
-                                                    .offset(OffsetSpecification::Timestamp(now))
-                                                    .build(AUDIO_STREAM_NAME).await
-                                            {
-                                                Ok(consumer) => consumer,
-                                                Err(e) => {
-                                                    tracing::error!(
-                                                        "Recieving Stream: {}",
-                                                        e.to_string()
-                                                    );
-                                                    return;
-                                                }
-                                            };
 
-                                            while let Some(delivery) = consumer.next().await {
-                                                let quic_network_packet = match delivery {
-                                                    Ok(delivery) =>
-                                                        delivery
-                                                            .message()
-                                                            .data()
-                                                            .map(|data|
-                                                                ron
-                                                                    ::from_str::<QuicNetworkPacket>(
-                                                                        &String::from_utf8_lossy(
-                                                                            data
-                                                                        )
-                                                                    )
-                                                                    .unwrap()
-                                                            )
-                                                            .unwrap(),
-                                                    Err(e) => {
-                                                        tracing::error!(
-                                                            "Consumer Delivery Error: {}",
-                                                            e.to_string()
+                                            let mut owner_wait_time_counter = 0;
+                                            // Determine the owner before starting the consumer
+                                            while owner.is_none() {
+                                                owner = match send_whoami.lock_arc().await.clone() {
+                                                    Some(owner) => {
+                                                        let dt2 = Utc::now();
+                                                        let n2: i64 = dt2.timestamp();
+                                                        tracing::info!(
+                                                            "{} connected to sending stream after {} attempts {}",
+                                                            owner.name,
+                                                            owner_wait_time_counter,
+                                                            n2 - now
                                                         );
+                                                        Some(owner)
+                                                    }
+                                                    None => None,
+                                                };
+
+                                                // Wait before trying to get the owner again
+                                                if owner.is_none() {
+                                                    owner_wait_time_counter =
+                                                        owner_wait_time_counter + 1;
+                                                    _ = tokio::time::sleep(
+                                                        Duration::from_micros(5)
+                                                    );
+                                                }
+                                            }
+
+                                            let mut zeromq_socket = zeromq::SubSocket::new();
+                                            _ = zeromq_socket.connect("tcp://127.0.0.1:5556").await;
+                                            _ = zeromq_socket.subscribe("").await;
+
+                                            // Consume messags iteratively in a while loop
+                                            while let Ok(zmq_message) = zeromq_socket.recv().await {
+                                                let message: String = match
+                                                    String::from_utf8(
+                                                        zmq_message.get(0).unwrap().to_vec()
+                                                    )
+                                                {
+                                                    Ok(message) => message,
+                                                    Err(e) => {
+                                                        tracing::error!("{:?}", e);
                                                         continue;
                                                     }
                                                 };
@@ -363,45 +296,42 @@ pub(crate) async fn get_task(
                                                     break;
                                                 }
 
-                                                // Determine the owner
-                                                if owner.is_none() {
-                                                    owner = match
-                                                        send_whoami.lock_arc().await.clone()
-                                                    {
-                                                        Some(owner) => Some(owner),
-                                                        None => None,
-                                                    };
-                                                }
-
-                                                // If the owner is still not set, we can't calculate the data, give up
-                                                if owner.is_none() {
-                                                    continue;
-                                                }
-
-                                                if
-                                                    quic_network_packet.is_receivable(
-                                                        owner.clone().unwrap(),
-                                                        player_channel_cache.clone(),
-                                                        cache.clone(),
-                                                        app_config.clone().voice.broadcast_range
-                                                    ).await
-                                                {
-                                                    match quic_network_packet.to_vec() {
-                                                        Ok(rs) => {
-                                                            _ = send_stream.write_all(&rs).await;
+                                                match QuicNetworkPacket::from_string(message) {
+                                                    Some(packet) => {
+                                                        // Determine if the reciever can even receive the packet
+                                                        if
+                                                            !packet.is_receivable(
+                                                                owner.clone().unwrap(),
+                                                                player_channel_cache.clone(),
+                                                                sender_cache.clone(),
+                                                                broadcast_range
+                                                            ).await
+                                                        {
+                                                            continue;
                                                         }
-                                                        Err(e) => {
-                                                            tracing::error!(
-                                                                "Send Stream Write: {:?}",
-                                                                e.to_string()
-                                                            );
-                                                        }
-                                                    };
+
+                                                        match packet.to_vec() {
+                                                            Ok(rs) => {
+                                                                _ = send_stream.write_all(
+                                                                    &rs
+                                                                ).await;
+                                                            }
+                                                            Err(e) => {
+                                                                tracing::error!(
+                                                                    "Send Stream Write: {:?}",
+                                                                    e.to_string()
+                                                                );
+                                                            }
+                                                        };
+                                                    }
+                                                    None => {}
                                                 }
                                             }
 
+                                            _ = zeromq_socket.close().await;
                                             tracing::info!(
-                                                "Sending stream for {} ended.",
+                                                "Sending stream for {} [{}] ended.",
+                                                owner.clone().unwrap().name,
                                                 &raw_connection_id
                                             );
 
@@ -431,6 +361,45 @@ pub(crate) async fn get_task(
                     }
                 });
             }
+        })
+    );
+
+    let t4_shutdown = shutdown.clone();
+    // Shared ZeroMQ publisher thread
+    tasks.push(
+        tokio::spawn(async move {
+            let shutdown = t4_shutdown.clone();
+            let message_queue = recv_message_queue.clone();
+            let mut socket = zeromq::PubSocket::new();
+            match socket.bind("tcp://127.0.0.1:5556").await {
+                Ok(_) => {}
+                Err(e) => {
+                    tracing::error!("{:?}", e);
+                }
+            }
+
+            #[allow(irrefutable_let_patterns)]
+            while let packet = message_queue.pop().await {
+                if shutdown.load(Ordering::Relaxed) {
+                    tracing::info!("Relay QUIC thread ended.");
+                    break;
+                }
+
+                match packet.to_string() {
+                    Ok(message) =>
+                        match socket.send(message.into()).await {
+                            Ok(_) => {}
+                            Err(e) => {
+                                tracing::error!("failed to send message {:?}", e);
+                            }
+                        }
+                    Err(e) => {
+                        tracing::error!("Couldn't convert message {:?}", e);
+                    }
+                }
+            }
+
+            _ = socket.close().await;
         })
     );
 

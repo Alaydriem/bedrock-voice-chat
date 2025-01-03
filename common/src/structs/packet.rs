@@ -13,6 +13,7 @@ pub enum PacketType {
     AudioFrame,
     PlayerData,
     ChannelEvent,
+    Collection,
     Debug,
 }
 
@@ -27,6 +28,7 @@ pub enum QuicNetworkPacketData {
     AudioFrame(AudioFramePacket),
     PlayerData(PlayerDataPacket),
     ChannelEvent(ChannelEventPacket),
+    Collection(CollectionPacket),
     Debug(DebugPacket),
 }
 
@@ -192,6 +194,7 @@ impl QuicNetworkPacket {
             PacketType::Debug => true,
             PacketType::PlayerData => true,
             PacketType::ChannelEvent => true,
+            PacketType::Collection => false,
         }
     }
 
@@ -263,10 +266,23 @@ impl QuicNetworkPacket {
         }
     }
 
+    /// Converts a string to a QuicNetworkPacket, if possible
+    pub fn from_string(message: String) -> Option<QuicNetworkPacket> {
+        return match
+            ron::from_str::<QuicNetworkPacket>(&String::from_utf8_lossy(message.as_bytes()))
+        {
+            Ok(packet) => Some(packet),
+            Err(e) => {
+                tracing::error!("Could not decode QuicNetworkPacket from string {}", e.to_string());
+                None
+            }
+        };
+    }
+
     /// Determines if a given PacketOwner can receive this QuicNetworkPacket
     pub async fn is_receivable(
         &self,
-        owner: PacketOwner,
+        recipient: PacketOwner,
         channel_data: Arc<Mutex<Cache<String, String>>>,
         position_data: Arc<Cache<String, Player>>,
         range: f32
@@ -279,13 +295,13 @@ impl QuicNetworkPacket {
                             Ok(data) => {
                                 let data: AudioFramePacket = data;
 
-                                if self.get_author().eq(&owner.name) {
+                                if self.get_author().eq(&recipient.name) {
                                     return false;
                                 }
 
                                 let player_channels = channel_data.lock_arc().await.clone();
                                 let this_player = player_channels.get(&self.get_author()).await;
-                                let packet_author = player_channels.get(&owner.name).await;
+                                let packet_author = player_channels.get(&recipient.name).await;
 
                                 // If the players are both in the same group, then the audio packet may be received by the sender
                                 if
@@ -296,38 +312,44 @@ impl QuicNetworkPacket {
                                     return true;
                                 }
 
-                                // Get the packet owner's dimension, and coordinates, and check they are within range
-                                return match position_data.get(&owner.name).await {
-                                    Some(player) => {
-                                        let player_dimension = player.dimension;
-                                        let player_coordinates = player.coordinates;
+                                // Senders and recipients have different rules, recipiants _must_ exist, whereas senders can be an object or item with arbitrary data
+                                let actual_sender = position_data.get(&self.get_author()).await;
+                                let actual_recipient = position_data.get(&recipient.name).await;
 
-                                        let packet_dimension = data.dimension;
-                                        let packet_coordinates = data.coordinate;
+                                // Determine the sender coordinates and dimension first from the player object, then the packet data
+                                let (sender_dimension, sender_coordinates) = match actual_sender {
+                                    Some(sender) => (sender.dimension, sender.coordinates),
+                                    None => {
+                                        if data.dimension.is_none() || data.coordinate.is_none() {
+                                            return false;
+                                        }
 
-                                        return match
-                                            packet_dimension.is_some() &&
-                                            packet_coordinates.is_some()
-                                        {
-                                            true => {
-                                                let dimension = packet_dimension.unwrap();
-                                                let coordinates = packet_coordinates.unwrap();
+                                        (data.dimension.unwrap(), data.coordinate.unwrap())
+                                    }
+                                };
 
-                                                let distance = (
-                                                    (player_coordinates.x - coordinates.x).powf(
-                                                        2.0
-                                                    ) +
-                                                    (player_coordinates.y - coordinates.y).powf(
-                                                        2.0
-                                                    ) +
-                                                    (player_coordinates.z - coordinates.z).powf(2.0)
-                                                ).sqrt();
+                                return match actual_recipient {
+                                    Some(recipiant) => {
+                                        // if they aren't in the same dimension, then they can't hear each other
+                                        if !recipiant.dimension.eq(&sender_dimension) {
+                                            return false;
+                                        }
 
-                                                dimension.eq(&player_dimension) &&
-                                                    distance <= (3.0_f32).sqrt() * range
-                                            }
-                                            false => false,
-                                        };
+                                        // If they are in the same dimension, then calculate their distance to determine if they are in range
+                                        let distance = (
+                                            (recipiant.coordinates.x - sender_coordinates.x).powf(
+                                                2.0
+                                            ) +
+                                            (recipiant.coordinates.y - sender_coordinates.y).powf(
+                                                2.0
+                                            ) +
+                                            (recipiant.coordinates.z - sender_coordinates.z).powf(
+                                                2.0
+                                            )
+                                        ).sqrt();
+
+                                        // Return true of the players are within spatial range of the other player
+                                        distance <= (3.0_f32).sqrt() * range
                                     }
                                     None => false,
                                 };
@@ -339,7 +361,26 @@ impl QuicNetworkPacket {
                         }
                     None => false,
                 }
+            // If there are other packet types we want recipiants to receive, this should be updated
             _ => false,
+        }
+    }
+}
+
+// A collection of audio frames that occur simultaniously
+// The client is responsible for mixing and handling audio data
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct CollectionPacket {
+    pub data: Vec<QuicNetworkPacket>,
+}
+
+impl TryFrom<QuicNetworkPacketData> for CollectionPacket {
+    type Error = ();
+
+    fn try_from(value: QuicNetworkPacketData) -> Result<Self, Self::Error> {
+        match value {
+            QuicNetworkPacketData::Collection(c) => Ok(c),
+            _ => Err(()),
         }
     }
 }
