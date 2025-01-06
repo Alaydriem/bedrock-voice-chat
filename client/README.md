@@ -68,14 +68,18 @@ yarn tauri dev
 
 ### Android Building
 
-Android builds require libsodium-sys, and cross compilation of libsodium-sys for Android architectures, which in turn depends on a Unix-like system to build it.
-
 ```
 yarn tauri android dev
 ```
+
+> Windows Cross Compilation isn't currently possible due to Stronghold needing libsodium-sys-stable, and it not cross-compiling to Android. Generate your APKs on MacOS or Linux and install them natively on the device.
+> SODIUM_LIB_DIR to a static build will let this pass with `cargo build --target aarch64-linux-android --lib` on Windows,but it generates linkerflags errors `error: could not find native static library `libsodium`, perhaps an -L flag is missing?`.
+> For now, it's advised to do Android development on Linux, or MacOS since libsodium can successfully be cross-compiled there.
 
 ### iOS Building
 
 ```
 yarn tauri ios dev
 ```
+
+> You'll need to cross-compile and build this with a native XCode build
