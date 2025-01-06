@@ -3,15 +3,3 @@ services:
     image: redis:latest
     ports:
       - 6379:6379
-  rabbitmq:
-    build:
-      dockerfile: ./.docker/Dockerfile.rabbitmq
-    volumes:
-      - ./.docker/rabbitmq.conf:/etc/rabbitmq/conf.d/30-docker.conf
-    ports:
-      - 15672:15672
-      - 15674:15674
-      - 4369:4369
-      - 5552:5552
-      - 5672:5672
-      - 12345:12345

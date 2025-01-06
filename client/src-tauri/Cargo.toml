@@ -1,88 +1,42 @@
 [package]
-name = "bedrock-voice-chat"
-version = "0.0.0"
-description = "A Tauri App"
-authors = ["you"]
-license = ""
-repository = ""
+name = "bedrock-voice-chat-client"
+version = "0.1.0"
+description = "Bedrock Voice Chat Client"
+authors = ["Charles R. Portwood II"]
 edition = "2021"
 
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-[profile.release]
-opt-level = 3
-strip = true
-debug = false
-codegen-units = 1
-lto = true
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "bvc_client_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "1.5", features = [] }
+tauri-build = { version = "2", features = [] }
 
 [dependencies]
-common = { path = "./../../common" }
-tokio = { version = "^1.35", features = ["full"] }
-tauri = { version = "^1.5", features = [
-    "path-all",
-    "fs-all",
-    "shell-all",
-    "window-all",
-    "system-tray",
-    "tracing",
-] }
-anyhow = { version = "^1.0" }
+tauri = { version = "^2.2", features = [] }
 serde = { version = "^1", features = ["derive"] }
-serde_json = { version = "^1", features = ["raw_value"] }
-reqwest = { version = "^0.11", default-features = false, features = [
-    "json",
-    "rustls-tls",
-    "brotli",
-    "gzip",
-    "stream",
-] }
-tracing = { version = "^0.1" }
-tracing-subscriber = { version = "^0.3" }
-tracing-appender = { version = "^0.2" }
-faccess = { version = "^0.2" }
-keytar = { version = "^0.1" }
-parking_lot = { version = "^0.12" }
-cpal = { git = "https://github.com/RustAudio/cpal.git", features = [
-    "asio",
-    "asio-sys",
-] }
-deadqueue = { version = "^0.2" }
-s2n-quic = { version = "^1.32", features = [
-    "provider-address-token-default",
-    "provider-tls-rustls",
-    "provider-event-tracing",
-] }
-bytes = { version = "^1.5" }
-async-mutex = { version = "^1.4" }
-async-once-cell = "0.5.3"
-moka = { version = "^0.12", features = ["future", "sync"] }
-rand = { version = "^0.8" }
-opus = { version = "^0.3" }
-ron = { version = "^0.8" }
-audio-gate = { version = "^0.1" }
-rtrb = { version = "^0.3" }
-rodio = { version = "^0.17" }
-flume = { version = "^0.11" }
+serde_json = "^1"
 
-windows-targets = "0.52.0"
-url = "2.5.0"
-hound = "3.5.1"
+tauri-plugin-opener = "^2.0"
+tauri-plugin-deep-link = "^2.0"
+tauri-plugin-fs = "^2.0"
+tauri-plugin-http = "^2.0"
+tauri-plugin-store = "^2.0"
+tauri-plugin-notification = "^2.0"
+tauri-plugin-log = "^2.2"
+tauri-plugin-os = "^2.2"
+tauri-plugin-stronghold = "2"
 
-[patch.crates-io]
-cpal = { git = "https://github.com/RustAudio/cpal.git", features = [
-    "asio",
-    "asio-sys",
-] }
+# Desktop Targets
+[target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]
+tauri-plugin-single-instance = { version = "^2.2", features = ["deep-link"] }
+tauri-plugin-updater = "^2.0"
+tauri-plugin-process = "^2.2"
 
-[features]
-# this feature is used for production builds or when `devPath` points to the filesystem
-# DO NOT REMOVE!!
-custom-protocol = ["tauri/custom-protocol"]
-
-[dev-dependencies]
-ringbuf = "0.3.3"
-simple_moving_average = "1.0.1"
+# Mobile Targets
+#[target."cfg(any(target_os = \"android\", target_os = \"ios\"))".dependencies]

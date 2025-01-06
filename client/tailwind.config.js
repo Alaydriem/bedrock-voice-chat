@@ -40,15 +40,7 @@ const customColors = {
 };
 
 module.exports = {
-  content: [
-    "./src/*.{js,ts,jsx,tsx}",
-    "./src/**/*.{js,ts,jsx,tsx}",
-    "./../src/tauri-types.ts",
-    "./src/fonts/**/*.{ttf,woff2}",
-    "./src/images/**/*.{png,jpeg,jpg,svg}",
-    "./src/images/*.{png,jpeg,jpg,svg}",
-    "./*.html",
-  ],
+  content: ["./src/app.html", "./src/**/*.{svelte,js,ts,jsx,tsx}"],
   darkMode: "class",
   theme: {
     extend: {

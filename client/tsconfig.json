@@ -1,24 +1,23 @@
 {
+  "extends": "./.svelte-kit/tsconfig.json",
   "compilerOptions": {
-    "target": "ES2020",
-    "useDefineForClassFields": true,
     "module": "ESNext",
-    "allowJs": true,
-    "noImplicitAny": false,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
-    "skipLibCheck": true,
-    /* Bundler mode */
-    "moduleResolution": "bundler",
+    "target": "ES2024",
     "allowImportingTsExtensions": true,
+    "allowJs": true,
+    "checkJs": true,
+    "lib": ["ES2024", "ES2015", "DOM", "DOM.Iterable"],
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "isolatedModules": true,
-    "noEmit": true,
-    /* Linting */
+    "skipLibCheck": true,
+    "sourceMap": true,
     "strict": true,
-    "noUnusedLocals": false,
-    "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
-    "strictNullChecks": false
-  },
-  "include": ["src"]
+    "moduleResolution": "bundler"
+  }
+  // Path aliases are handled by https://kit.svelte.dev/docs/configuration#alias
+  // except $lib which is handled by https://kit.svelte.dev/docs/configuration#files
+  //
+  // If you want to overwrite includes/excludes, make sure to copy over the relevant includes/excludes
+  // from the referenced tsconfig.json - TypeScript does not merge them in
 }

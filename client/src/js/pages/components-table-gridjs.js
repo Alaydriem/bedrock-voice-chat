@@ -214,10 +214,10 @@ const onLoad = () => {
         sort: false,
         formatter: () =>
           Gridjs.html(`<div class="flex justify-center space-x-2">
-                          <button onclick="$notification({ text: 'Item remove action', variant: 'warning' })" class="btn h-8 w-8 p-0 text-info hover:bg-info/20 focus:bg-info/20 active:bg-info/25">
+                          <button onclick="$notification({ text: 'Item remove action', variant: 'warning' })" class="btn size-8 p-0 text-info hover:bg-info/20 focus:bg-info/20 active:bg-info/25">
                               <i class="fa fa-edit"></i>
                           </button>
-                          <button onclick="$notification({ text: 'Item edit action', variant: 'info' })" class="btn h-8 w-8 p-0 text-error hover:bg-error/20 focus:bg-error/20 active:bg-error/25">
+                          <button onclick="$notification({ text: 'Item edit action', variant: 'info' })" class="btn size-8 p-0 text-error hover:bg-error/20 focus:bg-error/20 active:bg-error/25">
                               <i class="fa fa-trash-alt"></i>
                           </button>
                       </div>`),

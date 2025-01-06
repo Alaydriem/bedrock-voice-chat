@@ -1,0 +1,75 @@
+[package]
+name = "bedrock-voice-chat"
+version = "0.0.1"
+description = "Bedrock Voice Chat Client"
+authors = ["you"]
+license = ""
+repository = ""
+edition = "2021"
+
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[profile.release]
+opt-level = 3
+strip = true
+debug = false
+codegen-units = 1
+lto = true
+
+[build-dependencies]
+tauri-build = { version = "^2.0", features = [] }
+
+[dependencies]
+common = { path = "./../../common" }
+tokio = { version = "^1.42", features = ["full"] }
+tauri = { version = "^2.2", features = ["rustls-tls", "tray-icon", "tracing"] }
+anyhow = { version = "^1.0" }
+serde = { version = "^1", features = ["derive"] }
+serde_json = { version = "^1", features = ["raw_value"] }
+reqwest = { version = "^0.12", default-features = false, features = [
+    "json",
+    "rustls-tls",
+    "brotli",
+    "gzip",
+    "stream",
+] }
+tracing = { version = "^0.1" }
+tracing-subscriber = { version = "^0.3" }
+tracing-appender = { version = "^0.2" }
+faccess = { version = "^0.2" }
+keytar = { version = "^0.1" }
+parking_lot = { version = "^0.12" }
+cpal = { git = "https://github.com/RustAudio/cpal.git", features = [
+    "asio",
+    "asio-sys",
+] }
+deadqueue = { version = "^0.2" }
+s2n-quic = { version = "^1.51", features = [
+    "provider-address-token-default",
+    "provider-tls-rustls",
+    "provider-event-tracing",
+] }
+bytes = { version = "^1.5" }
+async-mutex = { version = "^1.4" }
+async-once-cell = "^0.5"
+moka = { version = "^0.12", features = ["future", "sync"] }
+rand = { version = "^0.8" }
+opus = { version = "^0.3" }
+ron = { version = "^0.8" }
+audio-gate = { version = "^0.1" }
+rtrb = { version = "^0.3" }
+rodio = { version = "^0.20" }
+flume = { version = "^0.11" }
+
+windows-targets = "^0.52"
+url = "^2.5"
+hound = "^3.5"
+
+[features]
+# this feature is used for production builds or when `devPath` points to the filesystem
+# DO NOT REMOVE!!
+custom-protocol = ["tauri/custom-protocol"]
+
+[dev-dependencies]
+ringbuf = "^0.4"
+simple_moving_average = "^1.0"

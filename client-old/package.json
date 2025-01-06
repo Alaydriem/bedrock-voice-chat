@@ -1,0 +1,63 @@
+{
+  "name": "bedrock-voice-chat",
+  "version": "0.0.2",
+  "description": "Bedrock Voice Chat",
+  "license": "UNLICENSED",
+  "type": "module",
+  "scripts": {
+    "mix-start": "npm run prod && npm run hot",
+    "mix-dev": "vite",
+    "mix-watch": "mix watch",
+    "mix-watch-poll": "mix watch -- --watch-options-poll=1000",
+    "mix-hot": "mix watch --hot",
+    "mix-prod": "mix --production",
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "author": {
+    "name": "Charles R. Portwood II",
+    "email": "charlesportwoodii@erianna.com",
+    "url": "https://www.erianna.com"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.2.1",
+    "@types/node": "^22.10",
+    "@types/sortablejs": "^1.15",
+    "autoprefixer": "^10.4",
+    "postcss": "^8.4",
+    "postcss-import": "^16.1",
+    "postcss-nesting": "^13.0",
+    "prettier": "^3.4",
+    "prettier-plugin-tailwindcss": "^0.6",
+    "sass": "^1.83",
+    "source-map-loader": "^5.0",
+    "tailwindcss": "^3.4",
+    "typescript": "^5.7",
+    "vite": "^6.0",
+    "vite-require": "^0.2.3"
+  },
+  "dependencies": {
+    "@fortawesome/fontawesome-free": "^6.7",
+    "@popperjs/core": "^2.11.8",
+    "@tauri-apps/api": "^2.2",
+    "accordion-js": "^3.4",
+    "apexcharts": "^4.3",
+    "axios": "^1.7",
+    "bedrock-voice-chat": "file:",
+    "cleave.js": "^1.6.0",
+    "dayjs": "^1.11",
+    "filepond": "^4.32",
+    "filepond-plugin-image-preview": "^4.6",
+    "flatpickr": "^4.6.13",
+    "gridjs": "^6.2",
+    "quill": "^2.0",
+    "simplebar": "^6.3",
+    "sortablejs": "^1.15",
+    "swiper": "^11.2",
+    "tippy.js": "^6.3.7",
+    "toastify-js": "^1.12.0",
+    "tom-select": "^2.4"
+  }
+}
