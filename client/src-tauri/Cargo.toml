@@ -23,7 +23,7 @@ serde = { version = "^1", features = ["derive"] }
 serde_json = "^1"
 
 tauri-plugin-opener = "^2.0"
-tauri-plugin-deep-link = "^2.0"
+tauri-plugin-deep-link = { git = "https://github.com/charlesportwoodii/tauri-plugins-workspace", branch = "deep-link-app-scheme" }
 tauri-plugin-fs = "^2.0"
 tauri-plugin-http = "^2.0"
 tauri-plugin-store = "^2.0"
@@ -34,8 +34,8 @@ tauri-plugin-stronghold = "2"
 
 # Desktop Targets
 [target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]
-tauri-plugin-single-instance = { version = "^2.2", features = ["deep-link"] }
-tauri-plugin-updater = "^2.0"
+tauri-plugin-single-instance = { git = "https://github.com/charlesportwoodii/tauri-plugins-workspace", branch = "deep-link-app-scheme", features = ["deep-link"] }
+tauri-plugin-updater = "^2.3"
 tauri-plugin-process = "^2.2"
 
 # Mobile Targets
