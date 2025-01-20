@@ -5143,7 +5143,7 @@ dependencies = [
 [[package]]
 name = "tauri-plugin-deep-link"
 version = "2.2.0"
-source = "git+https://github.com/charlesportwoodii/tauri-plugins-workspace?branch=deep-link-app-scheme#1ac0f5f46324dc0f453e6f63c1d20a093a9e4467"
+source = "git+https://github.com/charlesportwoodii/tauri-plugins-workspace?branch=deep-link-app-scheme#3f39fc5689a8c7c18c22dbb3d5841c8cdec4af04"
 dependencies = [
  "dunce",
  "rust-ini",
@@ -5298,7 +5298,7 @@ dependencies = [
 [[package]]
 name = "tauri-plugin-single-instance"
 version = "2.2.1"
-source = "git+https://github.com/charlesportwoodii/tauri-plugins-workspace?branch=deep-link-app-scheme#1ac0f5f46324dc0f453e6f63c1d20a093a9e4467"
+source = "git+https://github.com/charlesportwoodii/tauri-plugins-workspace?branch=deep-link-app-scheme#3f39fc5689a8c7c18c22dbb3d5841c8cdec4af04"
 dependencies = [
  "serde",
  "serde_json",

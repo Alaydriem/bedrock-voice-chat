@@ -37,7 +37,7 @@
     "deep-link": {
       "mobile": [
         { "host": "bvc.alaydriem.com" },
-        { "scheme": "msauth.com.alaydriem.bvc.client", "pathPrefix": ["auth"] }
+        { "host": "", "scheme": "msauth.com.alaydriem.bvc.client", "pathPrefix": ["auth"] }
       ],
       "desktop": {
         "schemes": ["bedrock-voice-chat"]
