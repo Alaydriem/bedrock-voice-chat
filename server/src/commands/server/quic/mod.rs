@@ -5,11 +5,7 @@ use async_once_cell::OnceCell;
 use common::ncryptflib::rocket::Utc;
 use common::structs::channel::ChannelEvents;
 use common::structs::packet::{
-    ChannelEventPacket,
-    PacketOwner,
-    PacketType,
-    PlayerDataPacket,
-    QuicNetworkPacket,
+    ChannelEventPacket, DebugPacket, PacketOwner, PacketType, PlayerDataPacket, QuicNetworkPacket, QuicNetworkPacketData
 };
 use moka::future::Cache;
 use s2n_quic::Server;
@@ -34,6 +30,7 @@ pub(crate) async fn get_task(
     _channel_cache: Arc<Mutex<Cache<String, common::structs::channel::Channel>>>
 ) -> Result<Vec<JoinHandle<()>>, anyhow::Error> {
     let shutdown = Arc::new(AtomicBool::new(false));
+    let shutdown_config = config.clone();
     let app_config = config.clone();
 
     let player_channel_cache = Arc::new(
@@ -44,6 +41,7 @@ pub(crate) async fn get_task(
 
     let message_queue = Arc::new(MessageQueue::new(5000));
     let recv_message_queue = message_queue.clone();
+    let shutdown_message_queue = message_queue.clone();
 
     let monitor_player_channel_cache = player_channel_cache.clone();
 
@@ -109,6 +107,11 @@ pub(crate) async fn get_task(
             tracing::info!("Started QUIC listening server.");
 
             while let Some(mut connection) = server.accept().await {
+                if shutdown.load(Ordering::Relaxed) {
+                    tracing::info!("Webhook Connection Receiving Thread Ended");
+                    return;
+                }
+
                 let message_queue = message_queue.clone();
                 let player_channel_cache = player_channel_cache.clone();
                 _ = connection.keep_alive(true);
@@ -406,6 +409,8 @@ pub(crate) async fn get_task(
     // Provides an interface that webhook calls can push data into this QUIC server for processing.
     let t3_shutdown = shutdown.clone();
     let monitor_player_channel_cache = monitor_player_channel_cache.clone();
+    let shutdown_queue = queue.clone();
+
     tasks.push(
         tokio::spawn(async move {
             let shutdown = t3_shutdown.clone();
@@ -492,8 +497,53 @@ pub(crate) async fn get_task(
             let shutdown = shutdown_monitor.clone();
             _ = tokio::signal::ctrl_c().await;
             shutdown.store(true, Ordering::Relaxed);
-            tracing::info!("Shutdown signal received, signaling QUIC threads to terminate.");
 
+            let shutdown_packet = QuicNetworkPacket {
+                packet_type: PacketType::Debug,
+                owner: PacketOwner {
+                    name: "shutdown".into(),
+                    client_id: (0..32).map(|_| rand::random::<u8>()).collect() },
+                data: QuicNetworkPacketData::Debug(DebugPacket("Shutdown signal received.".into()))
+            };
+
+            // Push a message into the channel cache
+            shutdown_queue.push(shutdown_packet.clone()).await;
+
+            // Push a message into the message queue
+            shutdown_message_queue.push(shutdown_packet.clone()).await;
+
+            tracing::info!("Shutdown signal received, signaling QUIC threads to terminate. Waiting 3 seconds before force shutdown.");
+            
+            tokio::time::sleep(Duration::from_secs(3)).await;
+
+            // Shutdown the QUIC listener thread by spawning a fake connection then immediately dropping it
+            _ = s2n_quic::provider::tls::rustls::rustls::crypto::aws_lc_rs
+                ::default_provider()
+                .install_default();
+            let certs_path = shutdown_config.server.tls.certs_path.clone();
+            let ca = format!("{}/ca.crt", certs_path);
+            let key = format!("{}/ca.key", certs_path);
+            let p = common::rustls::MtlsProvider::new(
+                std::path::Path::new(&ca),
+                std::path::Path::new(&ca),
+                std::path::Path::new(&key)
+            ).await.unwrap();
+
+            let addr: std::net::SocketAddr = format!("127.0.0.1:{}", shutdown_config.server.quic_port).parse().unwrap();
+            let connect = s2n_quic::client::Connect::new(addr).with_server_name("localhost");
+            let client = s2n_quic::Client::builder().with_tls(p)
+                .unwrap()
+                .with_io("0.0.0.0:0")
+                .unwrap()
+                .start()
+                .unwrap();
+            
+            client.connect(connect)
+                .await
+                .unwrap()
+                .close(s2n_quic::application::Error::UNKNOWN.into());
+
+            tracing::info!("All quic threads are now forcefully shutting down.");
             return;
         })
     );

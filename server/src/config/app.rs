@@ -10,7 +10,6 @@ use tracing::Level;
 pub struct ApplicationConfig {
     pub database: ApplicationConfigDatabase,
     pub redis: ApplicationConfigRedis,
-    pub rabbitmq: ApplicationConfigRabbitMq,
     pub server: ApplicationConfigServer,
     pub log: ApplicationConfigLogger,
     pub voice: ApplicationConfigVoice,
@@ -37,15 +36,7 @@ pub struct ApplicationConfigRedis {
     #[serde(default)]
     pub port: u32,
 }
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ApplicationConfigRabbitMq {
-    #[serde(default)]
-    pub host: String,
-    #[serde(default)]
-    pub port: u32,
-    #[serde(default)]
-    pub certificate: String,
-}
+
 
 /// Common server configuration
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -109,11 +100,6 @@ impl Default for ApplicationConfig {
                 host: String::from("127.0.0.1"),
                 port: 6379,
             },
-            rabbitmq: ApplicationConfigRabbitMq {
-                host: String::from("127.0.0.1"),
-                port: 5672,
-                certificate: String::from(""),
-            },
             database: ApplicationConfigDatabase {
                 scheme: String::from("sqlite3"),
                 database: String::from("/etc/bvc/bvc.sqlite3"),
@@ -157,7 +143,7 @@ impl Default for ApplicationConfig {
 impl ApplicationConfig {
     fn get_dsn<'a>(&'a self) -> String {
         match self.database.scheme.as_str() {
-            "sqlite" => {
+            "sqlite" | "sqlite3" => {
                 let path = std::path::Path::new(&self.database.database);
                 if !path.exists() {
                     match std::fs::File::create(&self.database.database) {

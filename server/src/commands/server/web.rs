@@ -23,7 +23,6 @@ pub(crate) fn get_task(
                 let rocket = rocket
                     ::custom(figment)
                     .manage(app_config.server.clone())
-                    .manage(app_config.rabbitmq.clone())
                     .manage(queue.clone())
                     .manage(channel_cache.clone())
                     .attach(AppDb::init())

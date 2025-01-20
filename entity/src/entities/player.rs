@@ -76,8 +76,7 @@ impl Model {
 
     /// Returns the certificate params
     pub fn get_certificate_params(&self) -> Result<CertificateParams, anyhow::Error> {
-        let kp = rcgen::KeyPair::from_pem(&self.certificate_key)?;
-        let cp = CertificateParams::from_ca_cert_pem(&self.certificate, kp)?;
+        let cp = CertificateParams::from_ca_cert_pem(&self.certificate)?;
 
         return Ok(cp);
     }

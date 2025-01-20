@@ -10,6 +10,10 @@
     "store:default",
     "os:default",
     "log:default",
-    "stronghold:default"
+    "stronghold:default",
+    {
+      "identifier": "http:default",
+      "allow": [{ "url": "https://*" }]
+    }
   ]
 }

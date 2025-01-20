@@ -6,6 +6,11 @@
   onMount(() => {
     window.App = new Login();
     window.dispatchEvent(new CustomEvent("app:mounted"));
+
+    document.querySelector("#login-form")
+      ?.addEventListener("submit", (e) => {
+        window.App.login(e);
+      });
   });
 </script>
 
