@@ -12,8 +12,17 @@
     "log:default",
     "stronghold:default",
     {
+      "local": true,
+      "windows": ["*"],
       "identifier": "http:default",
-      "allow": [{ "url": "https://*" }]
+      "allow": [
+        {
+          "url": "https://**/*"
+        },
+        {
+          "url": "https://*:*"
+        }
+      ]
     }
   ]
 }

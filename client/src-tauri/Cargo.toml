@@ -31,6 +31,7 @@ tauri-plugin-notification = "^2.0"
 tauri-plugin-log = "^2.2"
 tauri-plugin-os = "^2.2"
 tauri-plugin-stronghold = "2"
+log = "^0.4"
 
 # Desktop Targets
 [target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]

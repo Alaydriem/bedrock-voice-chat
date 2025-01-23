@@ -658,6 +658,11 @@
   resolved "https://registry.yarnpkg.com/@types/estree/-/estree-1.0.6.tgz#628effeeae2064a1b4e79f78e81d87b7e5fc7b50"
   integrity sha512-AYnb1nQyY49te+VRAVgmzfcgjYS91mY5P0TKUDCLEM+gNnA+3T6rWITXRLYCpahpqSQbN5cE+gHpnPyXjHWxcw==
 
+"@types/sprintf-js@^1.1.4":
+  version "1.1.4"
+  resolved "https://registry.yarnpkg.com/@types/sprintf-js/-/sprintf-js-1.1.4.tgz#d27022638127111a79aab777d4d9292d1a11519a"
+  integrity sha512-aWK1reDYWxcjgcIIPmQi3u+OQDuYa9b+lr6eIsGWrekJ9vr1NSjr4Eab8oQ1iKuH1ltFHpXGyerAv1a3FMKxzQ==
+
 "@yr/monotone-cubic-spline@^1.0.3":
   version "1.0.3"
   resolved "https://registry.yarnpkg.com/@yr/monotone-cubic-spline/-/monotone-cubic-spline-1.0.3.tgz#7272d89f8e4f6fb7a1600c28c378cc18d3b577b9"
