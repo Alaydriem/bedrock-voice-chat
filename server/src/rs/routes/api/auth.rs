@@ -42,8 +42,9 @@ pub async fn authenticate(
         common::auth::xbl::server_authenticate_with_client_code(
             client_id,
             client_secret,
-            oauth2_transaction_code
-        ).await
+            oauth2_transaction_code,
+            payload.0.redirect_uri.clone().parse().unwrap()
+        ).await 
     {
         // We should only ever get a single user back, if we get none, or more than one then...
         // something not right
@@ -54,7 +55,6 @@ pub async fn authenticate(
                 _ => None,
             }
         Err(e) => {
-            tracing::error!("{}", e.to_string());
             None
         }
     };
@@ -67,7 +67,6 @@ pub async fn authenticate(
         }
     };
 
-    tracing::info!("{:?}", gamertag.clone());
     let p = match
         player::Entity::find().filter(player::Column::Gamertag.eq(gamertag.clone())).one(conn).await
     {

@@ -1,6 +1,6 @@
 [env]
 LIBCLANG_PATH = { value = "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\Llvm\\x64\\lib", relative = false }
-LIBCLANG_MACOS_PATH = { value = "/opt/homebrew/opt/llvm/lib", relative = false }
+LIBCLANG_MACOS_PATH = { value = "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib", relative = false }
 
 [build]
 rustflags = ["--cfg", "s2n_quic_unstable"]

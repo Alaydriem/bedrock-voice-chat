@@ -72,10 +72,40 @@ If you're running BVC Server on a separate host, your config may look like:
 }
 ```
 
-### BVC Server
+### Rust Components
 
-### BVC Windows 10 Client
+See each child directory for more detailed information for each component. A high level overview of the build process it outlined here.
 
-### BVC Android/iOS Client
+##### Windows 10 LongPath Support
 
+For Windows 10, make sure LongPathAware support is enabled, as rust's build system may create packages nested too deep for Windows to handle, which'll result in difficult to debug errors.
+
+```powershell
+ New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force
+```
+
+In general, `cargo build` will build the applications.
+#### BVC Server
+
+BVC Server can be built for both Windows and Linux targets. `cargo build` and `cargo run -- server --config-file ../config.hcl` to run the server from non-release builds
+
+#### Tauri Client
+
+A single, cross build Tauri client is provided in the `client` directory that cross-compiles for Windows 10, Android, and iOS targets.
+
+##### BVC Windows 10 Client
+
+yarn tauri dev
+
+##### BVC Android
+
+yarn tauri android dev --open
+
+##### BVC iOS
+
+yarn tauri ios dev --open
+
+##### MacOS & Linux
+While there's nothing currently restricting MacOS or Linux builds, there isn't really a use-case for them as Minecraft Bedrock runs on Windows and mobile devices only. Future support for these platforms may be considered as needed.
+-----
 [{"name":"Alaydriem","dimension":"minecraft:overworld","coordinates":{"x":0.5,"y":70,"z":0.5},"deafen":false}]

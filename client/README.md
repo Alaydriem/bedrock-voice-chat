@@ -56,6 +56,17 @@ BVC Client is still in early development, and therefore some features require cl
 - XCode
 - Visual Studio 202x
 
+Additionally, ensure that `LIBCLANG_PATH` is defined in your environment variables. Default starting values are:
+
+```
+# Windows 10 VS 2022 Community Edition
+LIBCLANG_PATH = { value = "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\Llvm\\x64\\lib", relative = false }
+
+# MacOS XCode ToolChain
+#LIBCLANG_PATH = { value = "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib", relative = false }
+
+```
+
 ## Building
 
 The Tauri app natively supports cross-compilation for all supported targets, however builds should be execute on Windows and cross-built to other platforms using remote deployment tools via Android Studio and XCode.
@@ -82,4 +93,4 @@ yarn tauri android dev
 yarn tauri ios dev
 ```
 
-> You'll need to cross-compile and build this with a native XCode build
+> You'll need to cross-compile and build this with a native XCode build. Additionally, you'll need a fully validate code signing certificate and a full apple developer account (paid) for entitlement support.

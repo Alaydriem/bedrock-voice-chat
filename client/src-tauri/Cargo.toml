@@ -5,6 +5,16 @@ description = "Bedrock Voice Chat Client"
 authors = ["Charles R. Portwood II"]
 edition = "2021"
 
+[registries.crates-io]
+protocol = "sparse"
+
+[profile.release]
+opt-level = 3
+strip = true
+debug = false
+codegen-units = 1
+lto = true
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
@@ -15,23 +25,39 @@ name = "bvc_client_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "^2", features = [] }
 
 [dependencies]
-tauri = { version = "^2.2", features = [] }
+common = { path = "./../../common" }
+tokio = { version = "^1", features = ["full"] }
+
 serde = { version = "^1", features = ["derive"] }
 serde_json = "^1"
-
-tauri-plugin-opener = "^2.0"
-tauri-plugin-deep-link = { git = "https://github.com/charlesportwoodii/tauri-plugins-workspace", branch = "deep-link-app-scheme" }
-tauri-plugin-fs = "^2.0"
-tauri-plugin-http = "^2.0"
-tauri-plugin-store = "^2.0"
-tauri-plugin-notification = "^2.0"
-tauri-plugin-log = "^2.2"
-tauri-plugin-os = "^2.2"
-tauri-plugin-stronghold = "2"
+rust-argon2 = { version = "^2.1", optional = true }
 log = "^0.4"
+anyhow = { version = "^1" }
+blake2 = { version = "^0.10" }
+s2n-quic = { version = "^1.52.0", default-features = false, features = [
+    "provider-address-token-default",
+    "provider-tls-rustls",
+    "provider-event-tracing",
+] }
+
+cpal = { git = "https://github.com/RustAudio/cpal.git", features = [
+    "asio",
+    "asio-sys",
+] }
+
+tauri = { version = "^2", features = ["rustls-tls"] }
+tauri-plugin-opener = "^2"
+tauri-plugin-deep-link = { git = "https://github.com/charlesportwoodii/tauri-plugins-workspace", branch = "deep-link-app-scheme" }
+tauri-plugin-fs = "^2"
+tauri-plugin-http = "^2"
+tauri-plugin-store = "^2"
+tauri-plugin-notification = "^2"
+tauri-plugin-log = "^2"
+tauri-plugin-os = "^2"
+tauri-plugin-stronghold = "^2"
 
 # Desktop Targets
 [target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]

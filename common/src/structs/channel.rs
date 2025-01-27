@@ -3,7 +3,7 @@ use serde::{ Serialize, Deserialize };
 use ts_rs::TS;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, TS)]
-#[ts(export, export_to = "./../client/src/js/bindings/")]
+#[ts(export, export_to = "./../../client/src/js/bindings/")]
 pub struct Channel {
     id: String,
     pub name: String,
@@ -49,14 +49,14 @@ impl Channel {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, TS)]
-#[ts(export, export_to = "./../client/src/js/bindings/")]
+#[ts(export, export_to = "./../../client/src/js/bindings/")]
 pub enum ChannelEvents {
     Join,
     Leave,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, TS)]
-#[ts(export, export_to = "./../client/src/js/bindings/")]
+#[ts(export, export_to = "./../../client/src/js/bindings/")]
 pub struct ChannelEvent {
     pub event: ChannelEvents,
 }

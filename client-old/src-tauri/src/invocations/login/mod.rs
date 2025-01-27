@@ -37,58 +37,6 @@ pub(crate) async fn get_ncryptf_ek(
     Ok(ek)
 }
 
-/// Checks the API and ensures that we can connect to it.
-#[tauri::command(async)]
-pub(crate) async fn check_api_status(server: String) -> Result<ApiConfig, bool> {
-    let (client, endpoint) = get_base_endpoint(server, CONFIG_ENDPOINT.to_string());
-
-    match client.get(endpoint).send().await {
-        Ok(response) =>
-            match response.status() {
-                StatusCode::OK =>
-                    match response.json::<common::structs::config::ApiConfig>().await {
-                        Ok(data) => {
-                            tracing::info!("Client connected to Server!");
-                            // At a later point, we might want to check certain elements
-                            return Ok(data);
-                        }
-                        Err(_) => {
-                            return Err(false);
-                        }
-                    }
-                _ => {
-                    return Err(false);
-                }
-            }
-        Err(_) => {
-            return Err(false);
-        }
-    }
-}
-
-#[tauri::command(async)]
-pub(crate) async fn microsoft_auth(cid: String) -> Result<MicrosoftAuthCodeAndUrlResponse, bool> {
-    tracing::info!("Starting Authentication Step 1 with Client ID: {}", cid);
-    match common::auth::xbl::client_authenticate_step_1(cid).await {
-        Ok((url, state)) => Ok(MicrosoftAuthCodeAndUrlResponse { url, state }),
-        Err(e) => {
-            tracing::error!("{}", e.to_string());
-            return Err(false);
-        }
-    }
-}
-
-#[tauri::command(async)]
-pub(crate) async fn microsoft_auth_listener(state: String) -> Result<String, bool> {
-    match common::auth::xbl::client_authenticate_step_2(state).await {
-        Ok(code) => Ok(code),
-        Err(e) => {
-            tracing::error!("{}", e.to_string());
-            Err(false)
-        }
-    }
-}
-
 #[tauri::command(async)]
 pub(crate) async fn microsoft_auth_login(
     server: String,

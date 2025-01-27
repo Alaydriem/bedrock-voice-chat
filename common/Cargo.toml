@@ -11,6 +11,14 @@ debug = false
 codegen-units = 1
 lto = true
 
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "common"
+crate-type = ["staticlib", "cdylib", "rlib"]
+path = "./src/lib.rs"
+
 [dependencies]
 nanoid = { version = "^0.4" }
 ncryptf-rs = { version = "^0.3", features = ["rocket", "client"] }
@@ -53,7 +61,7 @@ moka = { version = "^0.12", features = [
     "async-trait",
     "sync",
 ] }
-s2n-quic = { version = "1", default-features = false, features = [
+s2n-quic = { version = "^1.52.0", default-features = false, features = [
     "provider-address-token-default",
     "provider-tls-rustls",
     "provider-event-tracing",

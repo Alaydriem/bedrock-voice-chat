@@ -1,5 +1,3 @@
-import { onOpenUrl } from '@tauri-apps/plugin-deep-link';
-
 /**
  * Collapse/Accordion Library
  * @see https://github.com/michu2k/Accordion
@@ -137,10 +135,6 @@ const TABLE_SEARCH_CLASS = "table-search-wrapper";
 const TABLE_SEARCH_INPUT_CLASS = "table-search-input";
 const TABLE_SEARCH_TOGGLE_CLASS = "table-search-toggle";
 
-await onOpenUrl(async (urls) => {
-  await Main.openDeepLink(urls);
-});
-
 export default class Main {
   _html = document.documentElement;
   _body = document.body;
@@ -167,7 +161,7 @@ export default class Main {
   }
 
   /**
-   * @param {string[]} urls
+   * @param {string} urls
    */
   static async openDeepLink(urls) {
     window.App.openDeepLink(urls);

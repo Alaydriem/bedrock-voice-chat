@@ -3,7 +3,7 @@ use ts_rs::TS;
 use serde::{ Deserialize, Serialize };
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export, export_to = "./../client/src/js/bindings/")]
+#[ts(export, export_to = "./../../client/src/js/bindings/")]
 pub struct ApiConfig {
     pub status: String,
     pub client_id: String,
@@ -11,14 +11,15 @@ pub struct ApiConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 
-#[ts(export, export_to = "./../client/src/js/bindings/")]
+#[ts(export, export_to = "./../../client/src/js/bindings/")]
 pub struct LoginRequest {
     pub code: String,
+    pub redirect_uri: String
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 
-#[ts(export, export_to = "./../client/src/js/bindings/")]
+#[ts(export, export_to = "./../../client/src/js/bindings/")]
 pub struct Keypair {
     pub pk: Vec<u8>,
     pub sk: Vec<u8>,
@@ -26,7 +27,7 @@ pub struct Keypair {
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 
-#[ts(export, export_to = "./../client/src/js/bindings/")]
+#[ts(export, export_to = "./../../client/src/js/bindings/")]
 pub struct LoginResponse {
     pub gamerpic: String,
     pub gamertag: String,
@@ -40,14 +41,14 @@ pub struct LoginResponse {
 
 #[derive(Clone, Serialize, Deserialize, TS)]
 
-#[ts(export, export_to = "./../client/src/js/bindings/")]
+#[ts(export, export_to = "./../../client/src/js/bindings/")]
 pub enum StreamType {
     InputStream,
     OutputStream,
 }
 
 #[derive(Debug, Serialize, Deserialize, TS)]
-#[ts(export, export_to = "./../client/src/js/bindings/")]
+#[ts(export, export_to = "./../../client/src/js/bindings/")]
 pub struct MicrosoftAuthCodeAndUrlResponse {
     pub url: String,
     pub state: String,
