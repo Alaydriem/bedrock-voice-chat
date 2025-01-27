@@ -143,16 +143,11 @@ export default class Login extends Main {
       const password = await secretStore.get<{ value: string }>("stronghold_password");
       if (password?.value) {
         const stronghold = await Hold.new("servers", password.value);
-        info("got stronghold");
         if (authStateEndpoint?.value) {
-          info("Insert to Stronghold");
           // Insert and save data, commit, set the current server, then redirect to the dashboard
           await stronghold.insert(authStateEndpoint.value, JSON.stringify(response));
-          info("commit to Stronghold");
           await stronghold.commit();
-          info("closing stronghold");
           await store.set("current_server", { value: authStateEndpoint.value });
-          warn("Redirecting to dashboard");
           window.location.href = "/dashboard";
         } else {
           throw new Error("authStateEndpoint is undefined");
