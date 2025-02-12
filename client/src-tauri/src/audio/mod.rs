@@ -1,1 +1,4 @@
-pub mod commands;
+pub(crate) mod device;
+
+#[cfg(test)]
+mod tests;

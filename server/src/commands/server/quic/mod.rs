@@ -419,6 +419,14 @@ pub(crate) async fn get_task(
 
             let player_channel_cache = monitor_player_channel_cache.clone();
 
+            let mut socket = zeromq::PubSocket::new();
+            match socket.bind("tcp://127.0.0.1:5556").await {
+                Ok(_) => {}
+                Err(e) => {
+                    tracing::error!("{:?}", e);
+                }
+            }
+            
             #[allow(irrefutable_let_patterns)]
             while let packet = queue.pop().await {
                 if shutdown.load(Ordering::Relaxed) {
@@ -427,6 +435,24 @@ pub(crate) async fn get_task(
                 }
 
                 let pkc = packet.clone();
+
+                match pkc.to_string() {
+                    Ok(message) =>
+                        // Push the player position data to all active players.
+                        // This provides players with both positional information,
+                        // And acts as a pulse-clock to force events to be processed
+                        // on the clients
+                        match socket.send(message.into()).await {
+                            Ok(_) => {}
+                            Err(e) => {
+                                tracing::error!("failed to send message {:?}", e);
+                            }
+                        }
+                
+                    Err(e) => {
+                        tracing::error!("Couldn't convert message {:?}", e);
+                    }
+                };
 
                 // Packet specific handling
                 match pkc.packet_type {

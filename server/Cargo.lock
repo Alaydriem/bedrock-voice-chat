@@ -1094,6 +1094,7 @@ dependencies = [
  "rocket",
  "rocket_db_pools",
  "rocket_dyn_templates",
+ "rodio",
  "ron",
  "rustls-pemfile 2.2.0",
  "s2n-quic",

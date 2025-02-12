@@ -1,3 +1,3 @@
 mod login;
 mod ncryptf;
-pub mod commands;
+pub(crate) mod commands;

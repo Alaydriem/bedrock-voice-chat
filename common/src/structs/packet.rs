@@ -360,7 +360,9 @@ impl QuicNetworkPacket {
                             }
                         }
                     None => false,
-                }
+                },
+            // Player data should always be received
+            PacketType::PlayerData => true,
             // If there are other packet types we want recipiants to receive, this should be updated
             _ => false,
         }

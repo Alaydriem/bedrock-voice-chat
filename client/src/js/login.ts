@@ -43,7 +43,7 @@ export default class Login extends Main {
 
   // Construct with `Window.App = new Login()`
   constructor() {
-    super();
+    super(); 
   }
 
   // This is the main event handler for the form submission

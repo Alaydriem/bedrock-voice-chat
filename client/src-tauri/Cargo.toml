@@ -43,10 +43,12 @@ s2n-quic = { version = "^1.52.0", default-features = false, features = [
     "provider-event-tracing",
 ] }
 
-cpal = { git = "https://github.com/RustAudio/cpal.git", features = [
+cpal = { version = "^0.15", features = [
     "asio",
     "asio-sys",
 ] }
+
+rodio = { version = "^0.20" }
 
 tauri = { version = "^2", features = ["rustls-tls"] }
 tauri-plugin-opener = "^2"
@@ -62,8 +64,8 @@ tauri-plugin-stronghold = "^2"
 # Desktop Targets
 [target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]
 tauri-plugin-single-instance = { git = "https://github.com/charlesportwoodii/tauri-plugins-workspace", branch = "deep-link-app-scheme", features = ["deep-link"] }
-tauri-plugin-updater = "^2.3"
-tauri-plugin-process = "^2.2"
+tauri-plugin-updater = "^2"
+tauri-plugin-process = "^2"
 
 # Mobile Targets
 #[target."cfg(any(target_os = \"android\", target_os = \"ios\"))".dependencies]

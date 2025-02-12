@@ -10,7 +10,7 @@
     document.querySelector("#login-form")
       ?.addEventListener("submit", (e) => {
         window.App.login(e);
-      });
+    });
   });
 </script>
 

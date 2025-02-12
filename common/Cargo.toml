@@ -66,3 +66,5 @@ s2n-quic = { version = "^1.52.0", default-features = false, features = [
     "provider-tls-rustls",
     "provider-event-tracing",
 ] }
+
+rodio = { version = "^0.20" }
