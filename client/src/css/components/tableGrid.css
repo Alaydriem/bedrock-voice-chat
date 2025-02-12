@@ -7,7 +7,7 @@
 }
 
 th.gridjs-th .gridjs-th-content {
-  @apply float-left overflow-ellipsis overflow-hidden;
+  @apply float-left text-ellipsis overflow-hidden;
 }
 
 .gridjs-table .gridjs-th {
@@ -29,7 +29,7 @@ button.gridjs-sort {
 }
 
 th.gridjs-th-sort {
-  @apply cursor-pointer focus:outline-none;
+  @apply cursor-pointer focus:outline-hidden;
 }
 
 th.gridjs-th-sort .gridjs-th-content {
@@ -37,7 +37,7 @@ th.gridjs-th-sort .gridjs-th-content {
 }
 
 button.gridjs-sort {
-  @apply float-right m-0 mt-1 size-3 cursor-pointer border-none bg-no-repeat p-0 outline-none;
+  @apply float-right m-0 mt-1 size-3 cursor-pointer border-none bg-no-repeat p-0 outline-hidden;
 }
 
 button.gridjs-sort-neutral {
@@ -62,7 +62,7 @@ button.gridjs-sort-desc {
 }
 
 .gridjs-input.gridjs-search-input {
-  @apply appearance-none rounded-lg border border-slate-300 px-3 py-2 font-medium outline-none
+  @apply appearance-none rounded-lg border border-slate-300 px-3 py-2 font-medium outline-hidden
     dark:border-navy-450 dark:bg-navy-700 dark:text-navy-100;
 }
 

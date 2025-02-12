@@ -1,5 +1,5 @@
 <script lang="ts">
-    import Hold from "../../js/stronghold.ts";
+    import Hold from "../../js/app/stronghold.ts";
     import { Store } from '@tauri-apps/plugin-store';
     import { info, error, warn } from '@tauri-apps/plugin-log';
 

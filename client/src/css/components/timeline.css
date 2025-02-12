@@ -18,12 +18,12 @@
   @apply absolute inset-0 order-[-1] w-[var(--line)] translate-x-[calc((var(--size)/2)-(var(--line)/2))] content-[''];
 }
 
-.timeline .timeline-item:not(:last-child)::before {
-  @apply bg-slate-300 dark:bg-navy-400;
+.timeline .timeline-item:not(:last-child) {
+  @apply before:bg-slate-300 dark:before:bg-navy-400;
 }
 
-.timeline .timeline-item:last-child::before {
-  @apply bg-gradient-to-b from-slate-300 to-transparent dark:from-navy-400;
+.timeline .timeline-item:last-child {
+  @apply before:bg-gradient-to-b before:from-slate-300 before:to-transparent dark:before:from-navy-400;
 }
 
 .timeline .timeline-item:last-child {

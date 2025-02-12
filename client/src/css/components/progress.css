@@ -7,7 +7,7 @@
 }
 
 .progress .is-active::before {
-  @apply absolute inset-0 rounded bg-white content-[''];
+  @apply absolute inset-0 rounded-sm bg-white content-[''];
   animation: progress-active 2s cubic-bezier(0.55, 0.2, 0.3, 0.67) infinite;
 }
 

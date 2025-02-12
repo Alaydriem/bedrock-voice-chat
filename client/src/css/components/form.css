@@ -15,7 +15,7 @@
 .form-textarea,
 .form-select,
 .form-multiselect {
-  @apply appearance-none tracking-wide outline-none placeholder:font-light focus:outline-none;
+  @apply appearance-none tracking-wide outline-hidden placeholder:font-light focus:outline-hidden;
   contain: paint;
 }
 
@@ -24,7 +24,7 @@
   background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewbox='0 0 20 20'%3e%3cpath stroke='%235C6B8A' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
   background-position: right 0.5rem center;
   background-size: 1.5em 1.5em;
-  print-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
 .form-multiselect {
@@ -33,23 +33,23 @@
   background-repeat: unset;
   background-size: initial;
   padding-right: 0.75rem;
-  print-print-color-adjust: unset;
+  print-color-adjust: unset;
 }
 
 .form-checkbox,
 .form-radio,
 .form-switch {
-  @apply relative shrink-0 cursor-pointer select-none appearance-none overflow-hidden outline-none
-   focus:outline-none;
-  print-print-color-adjust: exact;
+  @apply relative shrink-0 cursor-pointer select-none appearance-none overflow-hidden outline-hidden
+   focus:outline-hidden;
+  print-color-adjust: exact;
 }
 
 .form-switch {
-  @apply [--thumb-border:2px] before:absolute focus-visible:ring
-  before:top-[var(--thumb-border)] before:left-[var(--thumb-border)]
-  before:h-[calc(100%-var(--thumb-border)*2)] 
-  before:w-[calc((100%/2)-(var(--thumb-border)*2))]
-  checked:before:translate-x-[calc(100%+(var(--thumb-border)*2))];
+  @apply [--thumb-border:2px] before:absolute before:top-[var(--thumb-border)]
+  before:left-[var(--thumb-border)] before:h-[calc(100%-var(--thumb-border)*2)]
+  before:w-[calc((100%/2)-(var(--thumb-border)*2))] 
+  checked:before:translate-x-[calc(100%+(var(--thumb-border)*2))]
+  focus-visible:ring;
 }
 
 .form-switch.is-outline {
@@ -84,8 +84,7 @@
 }
 
 .form-range {
-  @apply block w-full appearance-none bg-transparent outline-none 
-  [--range-thumb-size:1.125rem] [--range-track-h:0.375rem];
+  @apply block w-full appearance-none bg-transparent outline-hidden [--track-color:var(--color-slate-150)] dark:[--track-color:var(--color-navy-500)] [--range-thumb-size:1.125rem] [--range-track-h:0.375rem];
 }
 
 .form-range::-webkit-slider-thumb {
@@ -98,9 +97,10 @@
 }
 
 .form-range::-moz-range-track {
-  @apply h-[var(--range-track-h)] w-full rounded-full bg-slate-150 dark:bg-navy-500;
+  @apply h-[var(--range-track-h)] w-full rounded-full bg-(--track-color);
 }
 
 .form-range::-webkit-slider-runnable-track {
-  @apply h-[var(--range-track-h)] w-full rounded-full bg-slate-150 dark:bg-navy-500;
+  @apply h-[var(--range-track-h)] w-full rounded-full bg-(--track-color);
 }
+

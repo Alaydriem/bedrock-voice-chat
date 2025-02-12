@@ -1,6 +1,6 @@
 <script lang="ts">
   import "../../css/app.css";
-  import Login from "../../js/login.ts";
+  import Login from "../../js/app/login.ts";
   import { onMount } from 'svelte';
 
   onMount(() => {

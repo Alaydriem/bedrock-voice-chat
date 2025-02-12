@@ -69,3 +69,4 @@
 .tippy-box[data-theme~="light"] > .tippy-svg-arrow svg {
   @apply text-slate-150;
 }
+

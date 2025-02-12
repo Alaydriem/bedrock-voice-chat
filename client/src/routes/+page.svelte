@@ -1,6 +1,6 @@
 <script lang="ts">
     import "../css/app.css";
-    import Splash from "../js/splash.ts";
+    import Splash from "../js/app/splash.ts";
 
     import { onMount } from 'svelte';
 

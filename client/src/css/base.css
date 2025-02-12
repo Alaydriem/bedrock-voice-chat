@@ -4,13 +4,18 @@
   [--main-sidebar-width:4.5rem]
   [--sidebar-panel-width:230px]
   [--sidebar-panel-min-width:64px]
-  [--ease-in:0.4,0,1,1]
-  [--ease-out:0,0,0.2,1]
-  [--ease-in-out:0.4,0,0.2,1]
   md:[--margin-x:1.5rem]
   lg:[--main-sidebar-width:5rem]
   lg:[--sidebar-panel-width:240px]
   xl:[--margin-x:4rem];
+}
+
+*,
+::after,
+::before,
+::backdrop,
+::file-selector-button {
+  border-color: var(--color-gray-200, currentColor);
 }
 
 .has-min-sidebar {
@@ -30,7 +35,8 @@ html.dark {
   @apply [color-scheme:dark];
 }
 
-.cloak {
+[x-cloak],
+[data-x-cloak] {
   @apply !hidden;
 }
 
@@ -54,27 +60,27 @@ body.is-monochrome::before {
 }
 
 /* Sidebar Toggle Button */
-.sidebar-toggle span {
+.menu-toggle span {
   @apply h-[2px] w-5 translate-x-0 bg-current transition-all duration-[.25s] ease-in-out;
 }
 
-.sidebar-toggle span:nth-child(2) {
+.menu-toggle span:nth-child(2) {
   @apply w-3;
 }
 
-.is-sidebar-open .sidebar-toggle span {
+.menu-toggle.active span {
   @apply ml-2 w-[11px] -translate-x-2;
 }
 
-.is-sidebar-open .sidebar-toggle span:nth-child(1) {
+.menu-toggle.active span:nth-child(1) {
   @apply -rotate-45;
 }
 
-.is-sidebar-open .sidebar-toggle span:nth-child(2) {
+.menu-toggle.active span:nth-child(2) {
   @apply hidden;
 }
 
-.is-sidebar-open .sidebar-toggle span:nth-child(3) {
+.menu-toggle.active span:nth-child(3) {
   @apply rotate-45;
 }
 
@@ -88,7 +94,7 @@ body.is-monochrome::before {
 }
 
 .sidebar-panel {
-  @apply fixed top-0 left-0 z-30 h-full w-[calc(var(--main-sidebar-width)+var(--sidebar-panel-width))] -translate-x-full transform-gpu shadow-soft transition-transform delay-150 duration-[.25s] ease-in  dark:shadow-navy-900/60 md:delay-[unset];
+  @apply fixed top-0 left-0 z-30 h-full w-[calc(var(--main-sidebar-width)+var(--sidebar-panel-width))] -translate-x-full transform-gpu shadow-soft transition-transform delay-150 duration-[.25s] ease-in dark:shadow-navy-900/60 md:delay-[unset];
 }
 
 .is-sidebar-open .sidebar-panel {
@@ -109,7 +115,7 @@ nav.header {
 }
 
 nav.header:before {
-  @apply absolute -left-[calc((100vw-100%))] h-full w-[calc(100vw-100%)] bg-white content-[''] dark:bg-navy-750;
+  @apply absolute -left-[calc((100vw-100%))] h-full w-[calc(100vw-100%)] content-[''];
 }
 
 nav.header .header-container {
@@ -125,65 +131,11 @@ nav.header .header-container {
 }
 
 .is-header-blur nav.header .header-container {
-  @apply backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:supports-[backdrop-filter]:!bg-navy-750/80;
+  @apply backdrop-blur-sm bg-white dark:bg-navy-750 supports-[backdrop-filter]:bg-white/80 dark:supports-[backdrop-filter]:!bg-navy-750/80;
 }
 
-/* Not Sticky header */
 .is-header-not-sticky nav.header {
   @apply absolute;
-}
-
-/* Dark Mode Button */
-.darkmode-toggle svg {
-  @apply origin-top animate-[linear_darkmode-btn_200ms_forwards];
-}
-
-.darkmode-toggle svg.darkmode-moon {
-  @apply hidden dark:block;
-}
-
-.darkmode-toggle svg.darkmode-sun {
-  @apply block dark:hidden;
-}
-
-@keyframes darkmode-btn {
-  from {
-    transform: scale(0.75);
-  }
-  to {
-    transform: scale(1);
-  }
-}
-
-/* Mobile Searchbar */
-.mobile-searchbar {
-  @apply animate-[cubic-bezier(0,0,0.2,1)_mobile-searchbar_150ms_forwards];
-}
-
-.mobile-searchbar.animate\:leave {
-  @apply animate-[cubic-bezier(0,0,0.2,1)_mobile-searchbar-leave_150ms_forwards];
-}
-
-@keyframes mobile-searchbar {
-  from {
-    transform: scale(1.05);
-    opacity: 0;
-  }
-  to {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-@keyframes mobile-searchbar-leave {
-  from {
-    transform: scale(1);
-    opacity: 1;
-  }
-  to {
-    transform: scale(0.95);
-    opacity: 0;
-  }
 }
 
 /* Main content */
@@ -197,42 +149,6 @@ nav.header .header-container {
 
 .is-sidebar-open .main-content {
   @apply ease-out xl:ml-[calc(var(--main-sidebar-width)+var(--sidebar-panel-width))];
-}
-
-/* Right Sidebar */
-
-.right-sidebar .right-sidebar-overlay {
-  @apply animate-[cubic-bezier(0,0,0.2,1)_fade-in_200ms_forwards];
-}
-
-.right-sidebar .right-sidebar-overlay.animate\:leave {
-  @apply animate-[cubic-bezier(0.4,0,0.2,1)_fade-out_200ms_forwards];
-}
-
-.right-sidebar .right-sidebar-content {
-  @apply animate-[cubic-bezier(0,0,0.2,1)_right-sidebar-open_200ms_forwards];
-}
-
-.right-sidebar .right-sidebar-content.animate\:leave {
-  @apply animate-[cubic-bezier(0.4,0,0.2,1)_right-sidebar-close_200ms_forwards];
-}
-
-@keyframes right-sidebar-open {
-  from {
-    transform: translate3d(100%, 0, 0);
-  }
-  to {
-    transform: translate3d(0, 0, 0);
-  }
-}
-
-@keyframes right-sidebar-close {
-  from {
-    transform: translate3d(0, 0, 0);
-  }
-  to {
-    transform: translate3d(100%, 0, 0);
-  }
 }
 
 /* Sideblock styles */
@@ -279,11 +195,6 @@ nav.header .header-container {
   height: calc(var(--vh, 1vh) * 100);
 }
 
-.min-h-80vh {
-  min-height: 80vh;
-  min-height: calc(var(--vh, 1vh) * 80);
-}
-
 .min-h-100vh {
   min-height: 100vh;
   min-height: calc(var(--vh, 1vh) * 100);
@@ -296,7 +207,7 @@ nav.header .header-container {
 
 /* Demo inline code style */
 code.inline-code {
-  @apply rounded bg-slate-100 py-0.5 px-1 text-xs+ text-secondary dark:bg-navy-800 dark:text-secondary-light;
+  @apply rounded-sm bg-slate-100 py-0.5 px-1 text-xs-plus text-secondary dark:bg-navy-800 dark:text-secondary-light;
 }
 
 /* Scrollbar styles */
@@ -309,16 +220,42 @@ code.inline-code {
 }
 
 @supports selector(::-webkit-scrollbar) {
+  .scrollbar-sm {
+    @apply [--scrollbar-color:var(--color-slate-300)] dark:[--scrollbar-color:var(--color-navy-400)];
+  }
+
   .scrollbar-sm::-webkit-scrollbar {
     @apply size-1.5;
   }
 
   .scrollbar-sm:hover::-webkit-scrollbar-thumb,
   .scrollbar-sm:focus-within::-webkit-scrollbar-thumb {
-    @apply rounded-full bg-slate-300/80 dark:bg-navy-400;
+    @apply rounded-full  bg-(--scrollbar-color);
   }
 
   .scrollbar-sm::-webkit-scrollbar-thumb:hover {
-    @apply bg-slate-400 dark:bg-navy-300;
+    @apply bg-slate-400;
+  }
+}
+
+@keyframes fade-out {
+  0% {
+    opacity: 1;
+    visibility: visible;
+  }
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+    visibility: visible;
+  }
+  100% {
+    opacity: 1;
+    visibility: hidden;
   }
 }

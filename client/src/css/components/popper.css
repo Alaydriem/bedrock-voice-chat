@@ -1,5 +1,5 @@
 .popper-root {
-  @apply invisible z-[1000];
+  @apply invisible absolute z-[1000];
 }
 
 .popper-root.show {
@@ -7,13 +7,8 @@
 }
 
 .popper-root > .popper-box {
-  @apply opacity-0 duration-200 ease-out text-slate-500 dark:text-navy-200;
-  transition-property: transform, visibility, opacity;
-}
-
-.popper-root.show > .popper-box {
-  @apply opacity-100 ease-in;
-  transform: translate(0) !important;
+  @apply text-slate-500 opacity-0 duration-200 ease-out dark:text-navy-200;
+  transition-property: transform, visibility, opacity, translate;
 }
 
 .popper-root[data-popper-placement^="right"] > .popper-box {
@@ -66,4 +61,8 @@
   transform: rotate(-90deg);
   top: calc(50% - 5px);
   right: 13px;
+}
+
+.popper-root.show > .popper-box {
+  @apply opacity-100 ease-in translate-x-0 translate-y-0;
 }

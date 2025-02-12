@@ -1,7 +1,7 @@
 @import "tom-select/dist/css/tom-select.css";
 
 .ts-control {
-  @apply rounded-lg border-slate-300 px-3 py-2 font-inter font-medium outline-none
+  @apply rounded-lg border-slate-300 px-3 py-2 font-inter font-medium outline-hidden
     transition duration-300 ease-in-out hover:border-slate-400 dark:border-navy-450
     dark:bg-navy-700 dark:text-navy-100 dark:hover:border-navy-400;
 }
@@ -17,7 +17,7 @@
 }
 
 .ts-wrapper.multi .ts-control > div {
-  @apply rounded bg-slate-150 text-slate-800 dark:bg-navy-500 dark:text-navy-50;
+  @apply rounded-sm bg-slate-150 text-slate-800 dark:bg-navy-500 dark:text-navy-50;
 }
 
 .ts-dropdown {
@@ -45,7 +45,8 @@
 }
 
 .ts-control,
-.ts-wrapper.single.input-active .ts-control {
+.ts-wrapper.single.input-active .ts-control,
+.full .ts-control {
   @apply bg-transparent;
 }
 
@@ -55,5 +56,5 @@
   background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewbox='0 0 20 20'%3e%3cpath stroke='%235C6B8A' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
   background-position: right 0.5rem center;
   background-size: 1.5em 1.5em;
-  print-print-color-adjust: exact;
+  print-color-adjust: exact;
 }

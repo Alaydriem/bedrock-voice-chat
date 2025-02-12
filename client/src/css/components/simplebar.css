@@ -5,5 +5,5 @@
 }
 
 .simplebar-content-wrapper {
-  @apply outline-none;
+  @apply outline-hidden;
 }

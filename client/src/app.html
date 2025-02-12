@@ -23,13 +23,20 @@
     />
   </head>
 
-  <body data-sveltekit-preload-data="tap" class="is-header-blur">
+  <body
+    data-sveltekit-preload-data="tap" 
+    x-data
+    x-bind="$store.global.documentBody"
+    class="has-min-sidebar is-sidebar-open is-header-blur"
+  >
+    <!-- App preloader-->
     <div
       class="app-preloader fixed z-50 grid h-full w-full place-content-center bg-slate-50 dark:bg-navy-900"
     >
       <div class="app-preloader-inner relative inline-block size-48"></div>
     </div>
-
     <div style="display: contents">%sveltekit.body%</div>
   </body>
+
+  <div id="x-teleport-target"></div>
 </html>

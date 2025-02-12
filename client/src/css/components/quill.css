@@ -26,15 +26,13 @@
   @apply fill-current;
 }
 
-.ql-snow .ql-picker,
-.ql-snow .ql-fill,
-.ql-snow .ql-stroke.ql-fill,
-.ql-snow .ql-stroke {
+.ql-snow .ql-picker,.ql-snow .ql-fill,
+.ql-snow .ql-stroke.ql-fill,.ql-snow .ql-stroke {
   @apply text-slate-600 dark:text-navy-200;
 }
 
-.ql-editor {
-  @apply text-sm;
+.ql-editor{
+    @apply text-sm
 }
 
 .ql-editor.ql-blank::before {
