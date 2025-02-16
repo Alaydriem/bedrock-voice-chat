@@ -4,7 +4,7 @@ use common::structs::audio::{ AudioDevice, AudioDeviceType };
 use tauri::{AppHandle, Emitter, State};
 use std::collections::HashMap;
 
-use crate::{events::ChangeAudioDeviceEvent, structs::app_state::AppState};
+use crate::{events::{ChangeAudioDeviceEvent, StopAudioDeviceEvent}, structs::app_state::AppState};
 use log::error;
 
 /// Returns the active audio device for the given device type
@@ -20,7 +20,7 @@ pub(crate) fn get_audio_device(io: AudioDeviceType, state: State<'_, Mutex<AppSt
 }
 
 /// Changes the audio device for the selected audio device type
-/// This will emit a "change-audio-device" event
+/// This will emit a "stop-audio-device" event, followed by a "change-audio-device" event
 /// Which will result in the specific stream being stopped, and a new one being started
 #[tauri::command]
 pub(crate) fn change_audio_device(
@@ -32,9 +32,27 @@ pub(crate) fn change_audio_device(
     match state.lock() {
         Ok(mut state) => {
             state.change_audio_device(&device);
+            _ = app.emit("stop-audio-device", StopAudioDeviceEvent { device: device.io.clone() });
             _ = app.emit("change-audio-device", ChangeAudioDeviceEvent { device });
         },
-        Err(e) => error!("Failed to access AppState in `set-audio-device` {}", e)
+        Err(e) => error!("Failed to access AppState in `change-audio-device` {}", e)
+    };
+}
+
+/// Stops the audio stream for a given device
+/// This will trigger a "stop-audio-device" event
+#[tauri::command]
+pub(crate) fn stop_audio_device(
+    device: AudioDeviceType,
+    app: AppHandle,
+    state: State<'_, Mutex<AppState>>
+)
+{
+    match state.lock() {
+        Ok(_) => {
+            _ = app.emit("stop-audio-device", StopAudioDeviceEvent { device });
+        },
+        Err(e) => error!("Failed to access AppState in `stop-audio-device` {}", e)
     };
 }
 

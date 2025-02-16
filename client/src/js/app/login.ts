@@ -44,7 +44,7 @@ export default class Login extends App {
   constructor() {
     super();
   }
-
+  
   // This is the main event handler for the form submission
   async login(event: any) {
     let form = event.currentTarget;

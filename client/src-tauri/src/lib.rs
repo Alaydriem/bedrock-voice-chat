@@ -1,14 +1,23 @@
-use common::ncryptflib::rocket::base64;
+use audio::AudioPacket;
+use common::{ncryptflib::rocket::base64, structs::{audio::AudioDeviceType, packet::QuicNetworkPacket}};
+use network::NetworkPacket;
 use serde_json::json;
+use structs::app_state::{StreamStateType, StreamType};
 use tauri::path::BaseDirectory;
 use tauri_plugin_store::StoreExt;
 use blake2::{ Blake2s256, Digest };
 use log::{ info, error };
 use std::{
     fs::File,
-    sync::Mutex
+    sync::{Arc, Mutex}
 };
-use tauri::{ Event, Manager, Listener };
+use tauri::{ Event, Manager, Listener, Emitter };
+use flume::{
+    Receiver,
+    Sender
+};
+
+use audio::AudioStreamManager;
 
 mod auth;
 mod audio;
@@ -51,6 +60,7 @@ pub fn run() {
             // Audio Information
             crate::commands::audio::get_audio_device,
             crate::commands::audio::change_audio_device,
+            crate::commands::audio::stop_audio_device,
             crate::commands::audio::get_devices,
             // Stream Information
         ])
@@ -112,19 +122,28 @@ pub fn run() {
             let app_state = Mutex::new(structs::app_state::AppState::new(store.clone()));
             app.manage(app_state);
 
-            app.listen("change-audio-device", move| event: Event | {
-                if let Ok(payload) = serde_json::from_str::<events::ChangeAudioDeviceEvent>(&event.payload()) {
-                    info!("Changing audio device event {} {:?}", payload.device.io.to_string(), payload.device);
+            // This is our audio producer and consumer
+            // The producer is responsible for getting audio from the raw input device, then sending it to the consumer
+            // The consumer lives in the networking thread, consumes the audio, then sends it to the server
+            let (audio_producer, audio_consumer) = flume::bounded::<AudioPacket>(10000);
+            app.manage(Arc::new(audio_producer));
+            app.manage(Arc::new(audio_consumer));
 
-                    // Stop the current audio stream
+            // This is our network producer and consumer
+            // The producer retrieves data from the raw QUIC stream, then sends it to the consumer
+            // The consumer receives the data, then pushed it to the output device
+            let (quic_producer, quic_consumer) = flume::bounded::<NetworkPacket>(10000);
+            app.manage(Arc::new(quic_producer));
+            app.manage(Arc::new(quic_consumer));
 
-                    // Create a new audio stream for the new device
-                }
-            });
+            let audio_stream = AudioStreamManager::new(
+                handle.state::<Arc<Sender<NetworkPacket>>>().inner().clone(),
+                handle.state::<Arc<Receiver<AudioPacket>>>().inner().clone()
+            );
 
-            app.listen("change-network-stream", move | event: Event | {
-                // Terminates the current quic network stream (both input and output, and establishes a new one)
-            });
+            app.manage(Mutex::new(audio_stream));
+
+            crate::events::listeners::register(app);           
 
             Ok(())
         })

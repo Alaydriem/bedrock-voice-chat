@@ -7,7 +7,7 @@ use cpal::{
     SupportedStreamConfigRange,
     traits::{ DeviceTrait, HostTrait }
 };
-use log::{ info, error, warn };
+use log::{ error, warn };
 
 /// Returns a Vec of cpal hosts
 /// On Windows, this _should_ be ASIO and WASAPI

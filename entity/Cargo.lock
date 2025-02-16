@@ -173,6 +173,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "96d30a06541fbafbc7f82ed10c06164cfbd2c401138f6addd8404629c4b16711"
 
 [[package]]
+name = "asio-sys"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb111d0b927c4b860b42a8bd869b94f5f973b0395ed5892f1ab2be2dc6831ea8"
+dependencies = [
+ "bindgen 0.69.5",
+ "cc",
+ "num-derive",
+ "num-traits",
+ "parse_cfg",
+ "walkdir",
+]
+
+[[package]]
 name = "asn1-rs"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -917,6 +931,7 @@ dependencies = [
  "async-mutex",
  "async-trait",
  "blake3",
+ "cpal",
  "dyn-clone",
  "erased-serde",
  "moka",
@@ -1043,6 +1058,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "873dab07c8f743075e57f524c583985fbaf745602acbe916a01539364369a779"
 dependencies = [
  "alsa",
+ "asio-sys",
  "core-foundation-sys",
  "coreaudio-rs",
  "dasp_sample",
@@ -1052,6 +1068,7 @@ dependencies = [
  "mach2",
  "ndk",
  "ndk-context",
+ "num-traits",
  "oboe",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -3135,6 +3152,15 @@ dependencies = [
  "redox_syscall",
  "smallvec",
  "windows-targets 0.48.5",
+]
+
+[[package]]
+name = "parse_cfg"
+version = "4.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "905787a434a2c721408e7c9a252e85f3d93ca0f118a5283022636c0e05a7ea49"
+dependencies = [
+ "nom",
 ]
 
 [[package]]

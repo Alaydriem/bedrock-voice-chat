@@ -190,6 +190,20 @@ checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
 [[package]]
 name = "asio-sys"
 version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb111d0b927c4b860b42a8bd869b94f5f973b0395ed5892f1ab2be2dc6831ea8"
+dependencies = [
+ "bindgen 0.69.5",
+ "cc",
+ "num-derive",
+ "num-traits",
+ "parse_cfg",
+ "walkdir",
+]
+
+[[package]]
+name = "asio-sys"
+version = "0.2.2"
 source = "git+https://github.com/RustAudio/cpal.git#582e93c41d6073df5d5da871989c5fd581ea04b8"
 dependencies = [
  "bindgen 0.69.5",
@@ -1032,6 +1046,7 @@ dependencies = [
  "async-mutex",
  "async-trait",
  "blake3",
+ "cpal 0.15.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "dyn-clone",
  "erased-serde",
  "moka",
@@ -1188,6 +1203,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "873dab07c8f743075e57f524c583985fbaf745602acbe916a01539364369a779"
 dependencies = [
  "alsa",
+ "asio-sys 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "core-foundation-sys",
  "coreaudio-rs",
  "dasp_sample",
@@ -1197,6 +1213,7 @@ dependencies = [
  "mach2",
  "ndk 0.8.0",
  "ndk-context",
+ "num-traits",
  "oboe",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -1210,7 +1227,7 @@ version = "0.15.3"
 source = "git+https://github.com/RustAudio/cpal.git#582e93c41d6073df5d5da871989c5fd581ea04b8"
 dependencies = [
  "alsa",
- "asio-sys",
+ "asio-sys 0.2.2 (git+https://github.com/RustAudio/cpal.git)",
  "core-foundation-sys",
  "coreaudio-rs",
  "dasp_sample",

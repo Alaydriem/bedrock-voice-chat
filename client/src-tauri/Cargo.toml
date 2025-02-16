@@ -49,6 +49,14 @@ cpal = { version = "^0.15", features = [
 ] }
 
 rodio = { version = "^0.20" }
+bytes = { version = "^1.5" }
+async-mutex = { version = "^1.4" }
+async-once-cell = "^0.5"
+moka = { version = "^0.12", features = ["future", "sync"] }
+opus = { version = "^0.3" }
+ron = { version = "^0.8" }
+audio-gate = { version = "^0.1" }
+flume = { version = "^0.11" }
 
 tauri = { version = "^2", features = ["rustls-tls"] }
 tauri-plugin-opener = "^2"
@@ -60,6 +68,7 @@ tauri-plugin-notification = "^2"
 tauri-plugin-log = "^2"
 tauri-plugin-os = "^2"
 tauri-plugin-stronghold = "^2"
+spmc = "0.3.0"
 
 # Desktop Targets
 [target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]

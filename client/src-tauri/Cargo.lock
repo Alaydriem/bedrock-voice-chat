@@ -392,6 +392,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-once-cell"
+version = "0.5.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4288f83726785267c6f2ef073a3d83dc3f9b81464e9f99898240cced85fce35a"
+
+[[package]]
 name = "async-process"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -532,6 +538,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
 
 [[package]]
+name = "audio-gate"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a1b86b8edfb30b3ea56bd3f9a666324840b439270b41f571aaebed0ff674322"
+
+[[package]]
+name = "audiopus_sys"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62314a1546a2064e033665d658e88c620a62904be945f8147e6b16c3db9f8651"
+dependencies = [
+ "cmake",
+ "log",
+ "pkg-config",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -613,15 +636,24 @@ name = "bedrock-voice-chat-client"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-mutex",
+ "async-once-cell",
+ "audio-gate",
  "blake2",
+ "bytes",
  "common",
  "cpal",
+ "flume",
  "log",
+ "moka",
+ "opus",
  "rodio",
+ "ron",
  "rust-argon2 2.1.0",
  "s2n-quic",
  "serde",
  "serde_json",
+ "spmc",
  "tauri",
  "tauri-build",
  "tauri-plugin-deep-link",
@@ -1192,6 +1224,7 @@ dependencies = [
  "async-mutex",
  "async-trait",
  "blake3",
+ "cpal",
  "dyn-clone",
  "erased-serde",
  "moka",
@@ -2269,6 +2302,7 @@ checksum = "da0e4dd2a88388a1f4ccc7c9ce104604dab68d9f408dc34cd45823d5a9069095"
 dependencies = [
  "futures-core",
  "futures-sink",
+ "nanorand",
  "spin",
 ]
 
@@ -4178,6 +4212,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nanorand"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a51313c5820b0b02bd422f4b44776fbf47961755c74ce64afc73bfad10226c3"
+dependencies = [
+ "getrandom 0.2.15",
+]
+
+[[package]]
 name = "native-tls"
 version = "0.2.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4889,6 +4932,16 @@ name = "option-ext"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
+
+[[package]]
+name = "opus"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6526409b274a7e98e55ff59d96aafd38e6cd34d46b7dbbc32ce126dffcd75e8e"
+dependencies = [
+ "audiopus_sys",
+ "libc",
+]
 
 [[package]]
 name = "ordered-float"
@@ -7134,6 +7187,12 @@ dependencies = [
  "base64ct",
  "der",
 ]
+
+[[package]]
+name = "spmc"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "02a8428da277a8e3a15271d79943e80ccc2ef254e78813a166a08d65e4c3ece5"
 
 [[package]]
 name = "sqlx"

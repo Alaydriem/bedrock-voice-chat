@@ -67,4 +67,9 @@ s2n-quic = { version = "^1.52.0", default-features = false, features = [
     "provider-event-tracing",
 ] }
 
+cpal = { version = "^0.15", features = [
+    "asio",
+    "asio-sys",
+] }
+
 rodio = { version = "^0.20" }
