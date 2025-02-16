@@ -1,12 +1,12 @@
 use sea_orm::entity::prelude::*;
-use sea_orm::{ ActiveValue, ActiveModelBehavior };
+use sea_orm::{ActiveModelBehavior, ActiveValue};
 
 use common::ncryptflib as ncryptf;
 
 use rcgen::CertificateParams;
 
-use common::{ RocketOffsetDateTime as OffsetDateTime, RocketDuration as Duration };
 use anyhow::anyhow;
+use common::{RocketDuration as Duration, RocketOffsetDateTime as OffsetDateTime};
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
 #[sea_orm(table_name = "player")]
@@ -30,11 +30,11 @@ pub enum Relation {}
 #[async_trait::async_trait]
 impl ActiveModelBehavior for ActiveModel {
     async fn before_save<C>(mut self, _db: &C, _insert: bool) -> Result<Self, DbErr>
-        where C: ConnectionTrait
+    where
+        C: ConnectionTrait,
     {
-        self.updated_at = ActiveValue::Set(
-            common::ncryptflib::rocket::Utc::now().timestamp() as u32
-        );
+        self.updated_at =
+            ActiveValue::Set(common::ncryptflib::rocket::Utc::now().timestamp() as u32);
         Ok(self)
     }
 }
@@ -67,7 +67,11 @@ impl Model {
         let cp = self.get_certificate_params()?;
 
         // If the certificate is expiring in 15 days, renew it.
-        if cp.not_after <= OffsetDateTime::now_utc().checked_sub(Duration::days(-15)).unwrap() {
+        if cp.not_after
+            <= OffsetDateTime::now_utc()
+                .checked_sub(Duration::days(-15))
+                .unwrap()
+        {
             return Ok(true);
         }
 

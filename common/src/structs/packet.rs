@@ -1,11 +1,11 @@
-use crate::{ Coordinate, Dimension, Player };
-use anyhow::{ anyhow, Error };
-use serde::{ Deserialize, Serialize };
+use crate::{Coordinate, Dimension, Player};
+use anyhow::{anyhow, Error};
+use serde::{Deserialize, Serialize};
 
 use super::channel::ChannelEvents;
+use async_mutex::Mutex;
 use moka::future::Cache;
 use std::sync::Arc;
-use async_mutex::Mutex;
 
 /// The packet type
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
@@ -62,43 +62,38 @@ impl QuicNetworkPacket {
             // If these bytes don't match the magic header, then rip them off the packet and try again
             // If we don't get any bytes from this then the packet is malformed, and we need more data
             match packet.get(0..5) {
-                Some(header) =>
-                    match header.to_vec().eq(&QUICK_NETWORK_PACKET_HEADER) {
-                        true => {}
-                        false => {
-                            // If the first 5 bytes exist, but they aren't the magic packet header, then we've lost packets
-                            // To prevent packet loss from causing a memory leak, we need to advance the pointer in the packet to the position of the next instance of the magic header.
+                Some(header) => match header.to_vec().eq(&QUICK_NETWORK_PACKET_HEADER) {
+                    true => {}
+                    false => {
+                        // If the first 5 bytes exist, but they aren't the magic packet header, then we've lost packets
+                        // To prevent packet loss from causing a memory leak, we need to advance the pointer in the packet to the position of the next instance of the magic header.
 
-                            match
-                                packet
-                                    .windows(QUICK_NETWORK_PACKET_HEADER.len())
-                                    .position(|window| window == QUICK_NETWORK_PACKET_HEADER)
-                            {
-                                Some(position) => {
-                                    // Reset the packet to the starting point of the magic packet header
-                                    *packet = packet
-                                        .get(position..packet.len())
-                                        .unwrap()
-                                        .to_vec();
+                        match packet
+                            .windows(QUICK_NETWORK_PACKET_HEADER.len())
+                            .position(|window| window == QUICK_NETWORK_PACKET_HEADER)
+                        {
+                            Some(position) => {
+                                // Reset the packet to the starting point of the magic packet header
+                                *packet = packet.get(position..packet.len()).unwrap().to_vec();
 
-                                    packet.shrink_to(packet.len());
-                                    packet.truncate(packet.len());
+                                packet.shrink_to(packet.len());
+                                packet.truncate(packet.len());
 
-                                    // Try to continue
-                                    continue;
-                                }
-                                None => {
-                                    // If this happens we have a bunch of random data without a magic packet.
-                                    // We should reset the buffer because we can't do anything with this
-                                    *packet = Vec::new();
+                                // Try to continue
+                                continue;
+                            }
+                            None => {
+                                // If this happens we have a bunch of random data without a magic packet.
+                                // We should reset the buffer because we can't do anything with this
+                                *packet = Vec::new();
 
-                                    packet.shrink_to(packet.len());
-                                    packet.truncate(packet.len());
-                                    break;
-                                }
+                                packet.shrink_to(packet.len());
+                                packet.truncate(packet.len());
+                                break;
                             }
                         }
                     }
+                },
                 None => {
                     break;
                 }
@@ -113,15 +108,9 @@ impl QuicNetworkPacket {
             };
 
             if packet.len() >= length + 13 {
-                let packet_to_process = packet
-                    .get(0..length + 13)
-                    .unwrap()
-                    .to_vec();
+                let packet_to_process = packet.get(0..length + 13).unwrap().to_vec();
 
-                *packet = packet
-                    .get(13 + length..packet.len())
-                    .unwrap()
-                    .to_vec();
+                *packet = packet.get(13 + length..packet.len()).unwrap().to_vec();
 
                 packet.shrink_to(packet.len());
                 packet.truncate(packet.len());
@@ -162,22 +151,19 @@ impl QuicNetworkPacket {
     /// Convers a vec back into a raw packet
     pub fn from_vec(data: &[u8]) -> Result<Self, anyhow::Error> {
         match std::str::from_utf8(data) {
-            Ok(ds) =>
-                match ron::from_str::<QuicNetworkPacket>(&ds) {
-                    Ok(packet) => {
-                        return Ok(packet);
-                    }
-                    Err(e) => {
-                        return Err(anyhow!("{}", e.to_string()));
-                    }
+            Ok(ds) => match ron::from_str::<QuicNetworkPacket>(&ds) {
+                Ok(packet) => {
+                    return Ok(packet);
                 }
+                Err(e) => {
+                    return Err(anyhow!("{}", e.to_string()));
+                }
+            },
             Err(e) => {
-                return Err(
-                    anyhow!(
-                        "Unable to deserialize RON packet. Possible packet length issue? {}",
-                        e.to_string()
-                    )
-                );
+                return Err(anyhow!(
+                    "Unable to deserialize RON packet. Possible packet length issue? {}",
+                    e.to_string()
+                ));
             }
         }
     }
@@ -216,38 +202,33 @@ impl QuicNetworkPacket {
     // Updates the coordinates for a given packet with the player position data
     pub async fn update_coordinates(&mut self, player_data: Arc<Cache<String, Player>>) {
         match self.get_packet_type() {
-            PacketType::AudioFrame =>
-                match self.get_data() {
-                    Some(data) => {
-                        let data = data.to_owned();
-                        let data: Result<AudioFramePacket, ()> = data.try_into();
+            PacketType::AudioFrame => match self.get_data() {
+                Some(data) => {
+                    let data = data.to_owned();
+                    let data: Result<AudioFramePacket, ()> = data.try_into();
 
-                        match data {
-                            Ok(mut data) =>
-                                match data.coordinate {
-                                    Some(_) => {}
-                                    None =>
-                                        match player_data.get(&self.get_author()).await {
-                                            Some(position) => {
-                                                data.coordinate = Some(position.coordinates);
-                                                let audio_frame: QuicNetworkPacketData =
-                                                    QuicNetworkPacketData::AudioFrame(data);
-                                                self.data = audio_frame;
-                                            }
-                                            None => {}
-                                        }
+                    match data {
+                        Ok(mut data) => match data.coordinate {
+                            Some(_) => {}
+                            None => match player_data.get(&self.get_author()).await {
+                                Some(position) => {
+                                    data.coordinate = Some(position.coordinates);
+                                    let audio_frame: QuicNetworkPacketData =
+                                        QuicNetworkPacketData::AudioFrame(data);
+                                    self.data = audio_frame;
                                 }
-                            Err(_) => {
-                                tracing::error!(
-                                    "Could not downcast reference packet to audio frame"
-                                );
-                            }
+                                None => {}
+                            },
+                        },
+                        Err(_) => {
+                            tracing::error!("Could not downcast reference packet to audio frame");
                         }
                     }
-                    None => {
-                        tracing::error!("Could not downcast reference packet to audio frame");
-                    }
                 }
+                None => {
+                    tracing::error!("Could not downcast reference packet to audio frame");
+                }
+            },
             _ => {}
         }
     }
@@ -268,12 +249,15 @@ impl QuicNetworkPacket {
 
     /// Converts a string to a QuicNetworkPacket, if possible
     pub fn from_string(message: String) -> Option<QuicNetworkPacket> {
-        return match
-            ron::from_str::<QuicNetworkPacket>(&String::from_utf8_lossy(message.as_bytes()))
-        {
+        return match ron::from_str::<QuicNetworkPacket>(&String::from_utf8_lossy(
+            message.as_bytes(),
+        )) {
             Ok(packet) => Some(packet),
             Err(e) => {
-                tracing::error!("Could not decode QuicNetworkPacket from string {}", e.to_string());
+                tracing::error!(
+                    "Could not decode QuicNetworkPacket from string {}",
+                    e.to_string()
+                );
                 None
             }
         };
@@ -285,82 +269,73 @@ impl QuicNetworkPacket {
         recipient: PacketOwner,
         channel_data: Arc<Mutex<Cache<String, String>>>,
         position_data: Arc<Cache<String, Player>>,
-        range: f32
+        range: f32,
     ) -> bool {
         match self.get_packet_type() {
-            PacketType::AudioFrame =>
-                match self.get_data() {
-                    Some(data) =>
-                        match data.to_owned().try_into() {
-                            Ok(data) => {
-                                let data: AudioFramePacket = data;
+            PacketType::AudioFrame => match self.get_data() {
+                Some(data) => match data.to_owned().try_into() {
+                    Ok(data) => {
+                        let data: AudioFramePacket = data;
 
-                                if self.get_author().eq(&recipient.name) {
+                        if self.get_author().eq(&recipient.name) {
+                            return false;
+                        }
+
+                        let player_channels = channel_data.lock_arc().await.clone();
+                        let this_player = player_channels.get(&self.get_author()).await;
+                        let packet_author = player_channels.get(&recipient.name).await;
+
+                        // If the players are both in the same group, then the audio packet may be received by the sender
+                        if this_player.is_some()
+                            && packet_author.is_some()
+                            && this_player.eq(&packet_author)
+                        {
+                            return true;
+                        }
+
+                        // Senders and recipients have different rules, recipiants _must_ exist, whereas senders can be an object or item with arbitrary data
+                        let actual_sender = position_data.get(&self.get_author()).await;
+                        let actual_recipient = position_data.get(&recipient.name).await;
+
+                        // Determine the sender coordinates and dimension first from the player object, then the packet data
+                        let (sender_dimension, sender_coordinates) = match actual_sender {
+                            Some(sender) => (sender.dimension, sender.coordinates),
+                            None => {
+                                if data.dimension.is_none() || data.coordinate.is_none() {
                                     return false;
                                 }
 
-                                let player_channels = channel_data.lock_arc().await.clone();
-                                let this_player = player_channels.get(&self.get_author()).await;
-                                let packet_author = player_channels.get(&recipient.name).await;
+                                (data.dimension.unwrap(), data.coordinate.unwrap())
+                            }
+                        };
 
-                                // If the players are both in the same group, then the audio packet may be received by the sender
-                                if
-                                    this_player.is_some() &&
-                                    packet_author.is_some() &&
-                                    this_player.eq(&packet_author)
-                                {
-                                    return true;
+                        return match actual_recipient {
+                            Some(recipiant) => {
+                                // if they aren't in the same dimension, then they can't hear each other
+                                if !recipiant.dimension.eq(&sender_dimension) {
+                                    return false;
                                 }
 
-                                // Senders and recipients have different rules, recipiants _must_ exist, whereas senders can be an object or item with arbitrary data
-                                let actual_sender = position_data.get(&self.get_author()).await;
-                                let actual_recipient = position_data.get(&recipient.name).await;
+                                // If they are in the same dimension, then calculate their distance to determine if they are in range
+                                let distance = ((recipiant.coordinates.x - sender_coordinates.x)
+                                    .powf(2.0)
+                                    + (recipiant.coordinates.y - sender_coordinates.y).powf(2.0)
+                                    + (recipiant.coordinates.z - sender_coordinates.z).powf(2.0))
+                                .sqrt();
 
-                                // Determine the sender coordinates and dimension first from the player object, then the packet data
-                                let (sender_dimension, sender_coordinates) = match actual_sender {
-                                    Some(sender) => (sender.dimension, sender.coordinates),
-                                    None => {
-                                        if data.dimension.is_none() || data.coordinate.is_none() {
-                                            return false;
-                                        }
-
-                                        (data.dimension.unwrap(), data.coordinate.unwrap())
-                                    }
-                                };
-
-                                return match actual_recipient {
-                                    Some(recipiant) => {
-                                        // if they aren't in the same dimension, then they can't hear each other
-                                        if !recipiant.dimension.eq(&sender_dimension) {
-                                            return false;
-                                        }
-
-                                        // If they are in the same dimension, then calculate their distance to determine if they are in range
-                                        let distance = (
-                                            (recipiant.coordinates.x - sender_coordinates.x).powf(
-                                                2.0
-                                            ) +
-                                            (recipiant.coordinates.y - sender_coordinates.y).powf(
-                                                2.0
-                                            ) +
-                                            (recipiant.coordinates.z - sender_coordinates.z).powf(
-                                                2.0
-                                            )
-                                        ).sqrt();
-
-                                        // Return true of the players are within spatial range of the other player
-                                        distance <= (3.0_f32).sqrt() * range
-                                    }
-                                    None => false,
-                                };
+                                // Return true of the players are within spatial range of the other player
+                                distance <= (3.0_f32).sqrt() * range
                             }
-                            Err(_) => {
-                                tracing::error!("Failed to decode audio frame data");
-                                return false;
-                            }
-                        }
-                    None => false,
+                            None => false,
+                        };
+                    }
+                    Err(_) => {
+                        tracing::error!("Failed to decode audio frame data");
+                        return false;
+                    }
                 },
+                None => false,
+            },
             // Player data should always be received
             PacketType::PlayerData => true,
             // If there are other packet types we want recipiants to receive, this should be updated

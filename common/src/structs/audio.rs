@@ -1,18 +1,13 @@
-use rodio::{
-    DeviceTrait,
-    cpal::{
-        self,
-        ChannelCount,
-        HostId,
-        SampleFormat,
-        SampleRate,
-        SupportedStreamConfigRange,
-        traits::{ HostTrait }
-    }
-};
-use ts_rs::TS;
-use serde::{ Deserialize, Serialize };
 use anyhow::anyhow;
+use rodio::{
+    cpal::{
+        self, traits::HostTrait, ChannelCount, HostId, SampleFormat, SampleRate,
+        SupportedStreamConfigRange,
+    },
+    DeviceTrait,
+};
+use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 pub const BUFFER_SIZE: u32 = 960;
 
@@ -39,7 +34,7 @@ pub struct AudioDevice {
     pub name: String,
     pub host: String,
     pub stream_configs: Vec<StreamConfig>,
-    pub display_name: String
+    pub display_name: String,
 }
 
 impl AudioDevice {
@@ -48,32 +43,35 @@ impl AudioDevice {
         name: String,
         host: String,
         supported_stream_configs: Vec<SupportedStreamConfigRange>,
-        display_name: String
+        display_name: String,
     ) -> Self {
         Self {
             io,
             name,
             host,
             stream_configs: AudioDevice::to_stream_config(supported_stream_configs),
-            display_name
+            display_name,
         }
     }
 
     /// Converts cpal SupportedStreamConfigs into a Vec of Samples and Bitrates we are
     /// willing to support, 48kHz, and f32, i16, and i32 samples
-    pub fn to_stream_config(supported_stream_configs: Vec<SupportedStreamConfigRange>) -> Vec<StreamConfig> {
-        let mut stream_configs= Vec::<StreamConfig>::new();
+    pub fn to_stream_config(
+        supported_stream_configs: Vec<SupportedStreamConfigRange>,
+    ) -> Vec<StreamConfig> {
+        let mut stream_configs = Vec::<StreamConfig>::new();
 
         for c in supported_stream_configs {
             if c.max_sample_rate().eq(&SampleRate(48000))
-            && (
-                c.sample_format().eq(&rodio::cpal::SampleFormat::F32)
-                || c.sample_format().eq(&rodio::cpal::SampleFormat::I32)
-                || c.sample_format().eq(&rodio::cpal::SampleFormat::I16)
-            ) {
+                && (c.sample_format().eq(&rodio::cpal::SampleFormat::F32)
+                    || c.sample_format().eq(&rodio::cpal::SampleFormat::I32)
+                    || c.sample_format().eq(&rodio::cpal::SampleFormat::I16))
+            {
                 let (buffer_size_min, buffer_size_max) = match c.buffer_size() {
-                    rodio::cpal::SupportedBufferSize::Range { min, max } => (min.to_owned(), max.to_owned()),
-                    _ => (0, 0)
+                    rodio::cpal::SupportedBufferSize::Range { min, max } => {
+                        (min.to_owned(), max.to_owned())
+                    }
+                    _ => (0, 0),
                 };
 
                 stream_configs.push(StreamConfig {
@@ -83,10 +81,11 @@ impl AudioDevice {
                         SampleFormat::F32 => "f32",
                         SampleFormat::I16 => "i16",
                         SampleFormat::I32 => "i32",
-                        _ => "f32"
-                    }.to_string(),
+                        _ => "f32",
+                    }
+                    .to_string(),
                     buffer_size_min,
-                    buffer_size_max
+                    buffer_size_max,
                 });
             }
         }
@@ -97,13 +96,19 @@ impl AudioDevice {
     // Returns the first valid stream config for the device
     pub fn get_stream_config(&self) -> Result<cpal::SupportedStreamConfig, anyhow::Error> {
         match self.stream_configs.len() {
-            0 => Err(anyhow!("{} {} does not have any supported stream configs.", self.io.to_string(), self.display_name)),
+            0 => Err(anyhow!(
+                "{} {} does not have any supported stream configs.",
+                self.io.to_string(),
+                self.display_name
+            )),
             _ => {
-                let configs: Vec<rodio::cpal::SupportedStreamConfig> = self.stream_configs.clone()
+                let configs: Vec<rodio::cpal::SupportedStreamConfig> = self
+                    .stream_configs
+                    .clone()
                     .iter()
                     .map(|c| Into::<rodio::cpal::SupportedStreamConfig>::into(c.to_owned()))
                     .collect();
-                
+
                 Ok(configs.first().unwrap().clone())
             }
         }
@@ -114,23 +119,26 @@ impl AudioDevice {
 impl Into<Option<rodio::cpal::Device>> for AudioDevice {
     fn into(self) -> Option<rodio::cpal::Device> {
         let host: rodio::cpal::Host;
-        #[cfg(target_os = "windows")] {
+        #[cfg(target_os = "windows")]
+        {
             host = match self.host.as_str() {
                 "ASIO" => rodio::cpal::host_from_id(HostId::Asio).unwrap(),
                 "WASAPI" => rodio::cpal::host_from_id(HostId::Wasapi).unwrap(),
-                &_ => return None
+                &_ => return None,
             };
         }
 
-        #[cfg(target_os = "android")] {
+        #[cfg(target_os = "android")]
+        {
             host = match self.host.as_str() {
-               "Oboe" => rodio::cpal::host_from_id(HostId::Oboe).unwrap(),
+                "Oboe" => rodio::cpal::host_from_id(HostId::Oboe).unwrap(),
             };
         }
 
-        #[cfg(any(target_os = "macos", target_os = "ios"))] {
+        #[cfg(any(target_os = "macos", target_os = "ios"))]
+        {
             host = match self.host.as_str() {
-              "CoreAudio" => rodio::cpal::host_from_id(HostId::CoreAudio).unwrap(),
+                "CoreAudio" => rodio::cpal::host_from_id(HostId::CoreAudio).unwrap(),
             };
         }
 
@@ -141,18 +149,22 @@ impl Into<Option<rodio::cpal::Device>> for AudioDevice {
                 }
 
                 match host.input_devices() {
-                    Ok(mut devices) => devices.find(|x| x.name().map(|y| y == self.name).unwrap_or(false)),
-                    Err(_) => None
+                    Ok(mut devices) => {
+                        devices.find(|x| x.name().map(|y| y == self.name).unwrap_or(false))
+                    }
+                    Err(_) => None,
                 }
-            },
+            }
             AudioDeviceType::OutputDevice => {
                 if self.name == "default" {
                     return host.default_output_device();
                 }
 
                 match host.output_devices() {
-                    Ok(mut devices) => devices.find(|x| x.name().map(|y| y == self.name).unwrap_or(false)),
-                    Err(_) => None
+                    Ok(mut devices) => {
+                        devices.find(|x| x.name().map(|y| y == self.name).unwrap_or(false))
+                    }
+                    Err(_) => None,
                 }
             }
         }
@@ -166,7 +178,7 @@ pub struct StreamConfig {
     pub sample_rate: u32,
     pub sample_format: String,
     pub buffer_size_min: u32,
-    pub buffer_size_max: u32
+    pub buffer_size_max: u32,
 }
 
 /// Maps the Stream Config to a rodio::cpal::SupportedStreamConfigRange
@@ -176,13 +188,16 @@ impl Into<SupportedStreamConfigRange> for StreamConfig {
             self.channels as ChannelCount,
             SampleRate(self.sample_rate),
             SampleRate(self.sample_rate),
-            rodio::cpal::SupportedBufferSize::Range { min: self.buffer_size_min, max: self.buffer_size_max },
+            rodio::cpal::SupportedBufferSize::Range {
+                min: self.buffer_size_min,
+                max: self.buffer_size_max,
+            },
             match self.sample_format.as_str() {
                 "f32" => SampleFormat::F32,
                 "i32" => SampleFormat::I32,
                 "i16" => SampleFormat::I16,
-                _ => SampleFormat::F32 // default case
-            }
+                _ => SampleFormat::F32, // default case
+            },
         )
     }
 }
@@ -193,7 +208,7 @@ impl Into<rodio::cpal::StreamConfig> for StreamConfig {
         rodio::cpal::StreamConfig {
             channels: self.channels as ChannelCount,
             sample_rate: SampleRate(self.sample_rate),
-            buffer_size: rodio::cpal::BufferSize::Fixed(BUFFER_SIZE)
+            buffer_size: rodio::cpal::BufferSize::Fixed(BUFFER_SIZE),
         }
     }
 }
@@ -204,13 +219,16 @@ impl Into<rodio::cpal::SupportedStreamConfig> for StreamConfig {
         rodio::cpal::SupportedStreamConfig::new(
             self.channels as ChannelCount,
             SampleRate(self.sample_rate),
-            rodio::cpal::SupportedBufferSize::Range { min: self.buffer_size_min, max: self.buffer_size_max },
+            rodio::cpal::SupportedBufferSize::Range {
+                min: self.buffer_size_min,
+                max: self.buffer_size_max,
+            },
             match self.sample_format.as_str() {
                 "f32" => SampleFormat::F32,
                 "i32" => SampleFormat::I32,
                 "i16" => SampleFormat::I16,
-                _ => SampleFormat::F32 // default case
-            }
+                _ => SampleFormat::F32, // default case
+            },
         )
     }
 }

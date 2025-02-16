@@ -1,30 +1,25 @@
 use audio::AudioPacket;
-use common::{ncryptflib::rocket::base64, structs::{audio::AudioDeviceType, packet::QuicNetworkPacket}};
+use blake2::{Blake2s256, Digest};
+use common::ncryptflib::rocket::base64;
+use flume::{Receiver, Sender};
 use network::NetworkPacket;
 use serde_json::json;
-use structs::app_state::{StreamStateType, StreamType};
-use tauri::path::BaseDirectory;
-use tauri_plugin_store::StoreExt;
-use blake2::{ Blake2s256, Digest };
-use log::{ info, error };
 use std::{
     fs::File,
-    sync::{Arc, Mutex}
+    sync::{Arc, Mutex},
 };
-use tauri::{ Event, Manager, Listener, Emitter };
-use flume::{
-    Receiver,
-    Sender
-};
+use tauri::path::BaseDirectory;
+use tauri::Manager;
+use tauri_plugin_store::StoreExt;
 
 use audio::AudioStreamManager;
 
-mod auth;
 mod audio;
-mod network;
+mod auth;
 mod commands;
-mod structs;
 mod events;
+mod network;
+mod structs;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -35,12 +30,17 @@ pub fn run() {
     #[cfg(desktop)]
     {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            let _ = app.get_webview_window("main")
-            .expect("no main window")
-            .set_focus();
+            let _ = app
+                .get_webview_window("main")
+                .expect("no main window")
+                .set_focus();
         }));
 
-        builder = builder.plugin(tauri_plugin_log::Builder::new().level(log::LevelFilter::Info).build())
+        builder = builder.plugin(
+            tauri_plugin_log::Builder::new()
+                .level(log::LevelFilter::Info)
+                .build(),
+        )
     }
 
     builder
@@ -65,31 +65,37 @@ pub fn run() {
             // Stream Information
         ])
         .setup(|app| {
-            log::info!("BVC Variant {:?}",  crate::commands::env::get_variant());
+            log::info!("BVC Variant {:?}", crate::commands::env::get_variant());
             // Initialize Stronghold so we can use it to store secrets
             let secret_store = app.store("secrets.json")?;
             let stronghold_salt = match secret_store.get("stronghold_password") {
                 Some(salt) => match salt.get("value") {
                     Some(salt) => Some(salt.to_string()),
-                    None => None
+                    None => None,
                 },
-                None => None
+                None => None,
             };
 
             if stronghold_salt.is_none() {
                 let salt = common::ncryptflib::randombytes_buf(64);
                 let encoded_salt = base64::encode(salt);
-                secret_store.set("stronghold_password", json!({ "value": encoded_salt.clone() }));
+                secret_store.set(
+                    "stronghold_password",
+                    json!({ "value": encoded_salt.clone() }),
+                );
             }
 
             let handle = app.handle().clone();
 
-            handle.plugin(tauri_plugin_stronghold::Builder::new(|password| {
-                // This MUST be a 32 byte output
-                let mut hasher = Blake2s256::new();
-                hasher.update(password.as_bytes());
-                return hasher.finalize().to_vec();
-            }).build())?;
+            handle.plugin(
+                tauri_plugin_stronghold::Builder::new(|password| {
+                    // This MUST be a 32 byte output
+                    let mut hasher = Blake2s256::new();
+                    hasher.update(password.as_bytes());
+                    return hasher.finalize().to_vec();
+                })
+                .build(),
+            )?;
 
             // On Windows, and Linux, circumvent non-installed desktop application deep link
             // url handling by force registering them with the system
@@ -112,12 +118,21 @@ pub fn run() {
 
             let android_signature_hash: String;
             if cfg!(dev) {
-                android_signature_hash = data["android"]["signature_hash"]["test"].as_str().unwrap().to_string();
+                android_signature_hash = data["android"]["signature_hash"]["test"]
+                    .as_str()
+                    .unwrap()
+                    .to_string();
             } else {
-                android_signature_hash = data["android"]["signature_hash"]["live"].as_str().unwrap().to_string(); 
+                android_signature_hash = data["android"]["signature_hash"]["live"]
+                    .as_str()
+                    .unwrap()
+                    .to_string();
             }
 
-            store.set("android_signature_hash".to_string(), json!({ "value": android_signature_hash }));
+            store.set(
+                "android_signature_hash".to_string(),
+                json!({ "value": android_signature_hash }),
+            );
 
             let app_state = Mutex::new(structs::app_state::AppState::new(store.clone()));
             app.manage(app_state);
@@ -138,12 +153,12 @@ pub fn run() {
 
             let audio_stream = AudioStreamManager::new(
                 handle.state::<Arc<Sender<NetworkPacket>>>().inner().clone(),
-                handle.state::<Arc<Receiver<AudioPacket>>>().inner().clone()
+                handle.state::<Arc<Receiver<AudioPacket>>>().inner().clone(),
             );
 
             app.manage(Mutex::new(audio_stream));
 
-            crate::events::listeners::register(app);           
+            crate::events::listeners::register(app);
 
             Ok(())
         })

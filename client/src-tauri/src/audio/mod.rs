@@ -7,7 +7,7 @@ pub(crate) use stream::AudioStreamManager;
 
 #[derive(Debug, Clone)]
 pub(crate) struct AudioPacket {
-    pub data: QuicNetworkPacket
+    pub data: QuicNetworkPacket,
 }
 
 #[cfg(test)]

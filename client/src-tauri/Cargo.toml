@@ -47,6 +47,8 @@ cpal = { version = "^0.15", features = [
     "asio",
     "asio-sys",
 ] }
+spmc = { version = "^0.3" }
+rand = { version = "^0.9" }
 
 rodio = { version = "^0.20" }
 bytes = { version = "^1.5" }
@@ -68,7 +70,6 @@ tauri-plugin-notification = "^2"
 tauri-plugin-log = "^2"
 tauri-plugin-os = "^2"
 tauri-plugin-stronghold = "^2"
-spmc = "0.3.0"
 
 # Desktop Targets
 [target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]

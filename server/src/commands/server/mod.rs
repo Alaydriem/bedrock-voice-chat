@@ -1,28 +1,23 @@
 use crate::commands::Config as StateConfig;
 
+use anyhow::anyhow;
 use clap::Parser;
 use common::structs::packet::QuicNetworkPacket;
 use rcgen::{
-    CertificateParams,
-    DistinguishedName,
-    IsCa,
-    KeyPair,
-    ExtendedKeyUsagePurpose,
-    KeyUsagePurpose,
+    CertificateParams, DistinguishedName, ExtendedKeyUsagePurpose, IsCa, KeyPair, KeyUsagePurpose,
 };
-use rocket::time::OffsetDateTime;
 use rocket::time::Duration;
-use anyhow::anyhow;
+use rocket::time::OffsetDateTime;
 
 use faccess::PathExt;
 
-use std::{ fs::File, io::Write, path::Path, process::exit };
 use std::sync::Arc;
-use tracing_appender::non_blocking::{ NonBlocking, WorkerGuard };
-use tracing_subscriber::fmt::SubscriberBuilder;
+use std::{fs::File, io::Write, path::Path, process::exit};
 use tracing::info;
-mod web;
+use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
+use tracing_subscriber::fmt::SubscriberBuilder;
 mod quic;
+mod web;
 
 const DEADQUEUE_SIZE: usize = 10_000;
 /// Starts the BVC Server
@@ -82,20 +77,19 @@ impl Config {
         }
 
         // State cache for recording groups a player is in.
-        let channel_cache = Arc::new(
-            async_mutex::Mutex::new(
-                moka::future::Cache::<String, common::structs::channel::Channel>
-                    ::builder()
-                    .max_capacity(100)
-                    .build()
-            )
-        );
+        let channel_cache = Arc::new(async_mutex::Mutex::new(
+            moka::future::Cache::<String, common::structs::channel::Channel>::builder()
+                .max_capacity(100)
+                .build(),
+        ));
 
         // The deadqueue is our primary way of sending messages to the QUIC stream to broadcast to clients
         // without needing to setup a new stream.
         // The QUIC server polls this queue and is configured to handle inbound packets and advertise them
         // To the appropriate clients
-        let queue = Arc::new(deadqueue::limited::Queue::<QuicNetworkPacket>::new(DEADQUEUE_SIZE));
+        let queue = Arc::new(deadqueue::limited::Queue::<QuicNetworkPacket>::new(
+            DEADQUEUE_SIZE,
+        ));
 
         let mut tasks = Vec::new();
 
@@ -115,7 +109,10 @@ impl Config {
                 }
             }
             Err(e) => {
-                panic!("Something went wrong setting up the QUIC server {}", e.to_string());
+                panic!(
+                    "Something went wrong setting up the QUIC server {}",
+                    e.to_string()
+                );
             }
         }
 
@@ -146,9 +143,10 @@ impl Config {
             match std::fs::create_dir_all(cert_root_path) {
                 Ok(_) => {}
                 Err(_) => {
-                    return Err(
-                        anyhow!("Could not create directory {}", cert_root_path.to_string_lossy())
-                    );
+                    return Err(anyhow!(
+                        "Could not create directory {}",
+                        cert_root_path.to_string_lossy()
+                    ));
                 }
             }
         }
@@ -182,7 +180,7 @@ impl Config {
                 ca_params.key_usages = vec![KeyUsagePurpose::KeyCertSign];
                 ca_params.extended_key_usages = vec![
                     ExtendedKeyUsagePurpose::ClientAuth,
-                    ExtendedKeyUsagePurpose::ServerAuth
+                    ExtendedKeyUsagePurpose::ServerAuth,
                 ];
 
                 ca_params.self_signed(&root_kp)?

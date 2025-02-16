@@ -1,17 +1,15 @@
 use crate::{
-    events::{
-        listeners::listener_trait::ListenerTrait,
-        StopAudioDeviceEvent
-    },
-    structs::app_state::{ AppState, StreamStateType, StreamType }, AudioStreamManager
+    events::{listeners::listener_trait::ListenerTrait, StopAudioDeviceEvent},
+    structs::app_state::{AppState, StreamStateType, StreamType},
+    AudioStreamManager,
 };
 use common::structs::audio::AudioDeviceType;
 use log::info;
 use std::sync::Mutex;
-use tauri::{ App, Event, Manager, Listener };
+use tauri::{App, Event, Listener, Manager};
 
 pub(crate) struct StopAudioDeviceListener<'a> {
-    app: &'a mut App
+    app: &'a mut App,
 }
 
 impl<'a> StopAudioDeviceListener<'a> {
@@ -27,12 +25,12 @@ impl<'a> StopAudioDeviceListener<'a> {
 impl<'a> ListenerTrait for StopAudioDeviceListener<'a> {
     fn listener(&self) {
         let handle = self.app.handle().clone();
-        self.app.listen("stop-audio-device", move | event: Event | {
+        self.app.listen("stop-audio-device", move |event: Event| {
             if let Ok(payload) = serde_json::from_str::<StopAudioDeviceEvent>(&event.payload()) {
                 info!("Stopping Audio Device: {}", payload.device.to_string());
                 let app_state = handle.state::<Mutex<AppState>>();
                 let app_state = app_state.lock().unwrap();
-    
+
                 // Stop the current stream by removing it from the app state, stream state configuration
                 // The audio threads monitor this on a loop, so if the Arc value ever dissapears
                 // Then the thread knows to terminate
@@ -41,8 +39,8 @@ impl<'a> ListenerTrait for StopAudioDeviceListener<'a> {
                     StreamStateType::AudioStream,
                     Some(match payload.device {
                         AudioDeviceType::InputDevice => StreamType::InputStream,
-                        AudioDeviceType::OutputDevice => StreamType::OutputStream
-                    })
+                        AudioDeviceType::OutputDevice => StreamType::OutputStream,
+                    }),
                 );
                 drop(stream_state);
                 drop(app_state);

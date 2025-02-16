@@ -1,14 +1,13 @@
 use common::structs::{
-    channel::{ ChannelEvent, ChannelEvents::{ Join, Leave } },
+    channel::{
+        ChannelEvent,
+        ChannelEvents::{Join, Leave},
+    },
     packet::{
-        ChannelEventPacket,
-        PacketOwner,
-        PacketType,
-        QuicNetworkPacket,
-        QuicNetworkPacketData,
+        ChannelEventPacket, PacketOwner, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
     },
 };
-use rocket::{ response::status, mtls::Certificate, http::Status, State, serde::json::Json };
+use rocket::{http::Status, mtls::Certificate, response::status, serde::json::Json, State};
 
 use moka::future::Cache;
 use std::sync::Arc;
@@ -17,11 +16,11 @@ use std::sync::Arc;
 pub async fn channel_event<'r>(
     identity: Certificate<'r>,
     channel_cache: &State<
-        Arc<async_mutex::Mutex<Cache<String, common::structs::channel::Channel>>>
+        Arc<async_mutex::Mutex<Cache<String, common::structs::channel::Channel>>>,
     >,
     id: &str,
     queue: &State<Arc<deadqueue::limited::Queue<QuicNetworkPacket>>>,
-    event: Json<ChannelEvent>
+    event: Json<ChannelEvent>,
 ) -> status::Custom<Option<Json<bool>>> {
     let user = match identity.subject().common_name() {
         Some(user) => user.to_string(),

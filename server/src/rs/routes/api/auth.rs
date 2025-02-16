@@ -6,14 +6,17 @@ use common::{
     ncryptflib as ncryptf,
     //pool::redis::RedisDb,
     pool::seaorm::AppDb,
-    structs::{ config::{ LoginRequest, LoginResponse }, ncryptf_json::JsonMessage },
+    structs::{
+        config::{LoginRequest, LoginResponse},
+        ncryptf_json::JsonMessage,
+    },
 };
-use rocket::{ http::Status, serde::json::Json, State };
+use rocket::{http::Status, serde::json::Json, State};
 //use rocket_db_pools::Connection as RedisConnection;
 
-use sea_orm::{ ColumnTrait, EntityTrait, QueryFilter };
-use sea_orm_rocket::Connection as SeaOrmConnection;
 use entity::player;
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm_rocket::Connection as SeaOrmConnection;
 
 use crate::config::ApplicationConfigServer;
 #[allow(unused_imports)] // for rust-analyzer
@@ -29,7 +32,7 @@ pub async fn authenticate(
     // The player OAuth2 Code
     payload: Json<LoginRequest>,
     // The application state
-    config: &State<ApplicationConfigServer>
+    config: &State<ApplicationConfigServer>,
 ) -> ncryptf::rocket::JsonResponse<JsonMessage<LoginResponse>> {
     let conn = db.into_inner();
 
@@ -38,25 +41,22 @@ pub async fn authenticate(
     let client_id = config.minecraft.client_id.clone();
     let client_secret = config.minecraft.client_secret.clone();
 
-    let profile = match
-        common::auth::xbl::server_authenticate_with_client_code(
-            client_id,
-            client_secret,
-            oauth2_transaction_code,
-            payload.0.redirect_uri.clone().parse().unwrap()
-        ).await 
+    let profile = match common::auth::xbl::server_authenticate_with_client_code(
+        client_id,
+        client_secret,
+        oauth2_transaction_code,
+        payload.0.redirect_uri.clone().parse().unwrap(),
+    )
+    .await
     {
         // We should only ever get a single user back, if we get none, or more than one then...
         // something not right
-        Ok(params) =>
-            match params.profile_users.len() {
-                0 => None,
-                1 => Some(params),
-                _ => None,
-            }
-        Err(e) => {
-            None
-        }
+        Ok(params) => match params.profile_users.len() {
+            0 => None,
+            1 => Some(params),
+            _ => None,
+        },
+        Err(e) => None,
     };
 
     let (gamerpic, gamertag) = match get_gamertag_and_gamepic(profile) {
@@ -67,8 +67,10 @@ pub async fn authenticate(
         }
     };
 
-    let p = match
-        player::Entity::find().filter(player::Column::Gamertag.eq(gamertag.clone())).one(conn).await
+    let p = match player::Entity::find()
+        .filter(player::Column::Gamertag.eq(gamertag.clone()))
+        .one(conn)
+        .await
     {
         Ok(record) => record,
         Err(e) => {
@@ -110,9 +112,11 @@ pub async fn authenticate(
         },
         certificate: actual.certificate,
         certificate_key: actual.certificate_key,
-        certificate_ca: std::fs
-            ::read_to_string(Path::new(&format!("{}/ca.crt", config.tls.certs_path)))
-            .unwrap(),
+        certificate_ca: std::fs::read_to_string(Path::new(&format!(
+            "{}/ca.crt",
+            config.tls.certs_path
+        )))
+        .unwrap(),
         quic_connect_string: config.quic_port.to_string(),
     };
 
@@ -121,7 +125,7 @@ pub async fn authenticate(
 
 /// Extracts the gamerpicture and gamertag from the profile response
 fn get_gamertag_and_gamepic(
-    profile: Option<ProfileResponse>
+    profile: Option<ProfileResponse>,
 ) -> Result<(String, String), anyhow::Error> {
     match profile {
         Some(profile) => {
@@ -149,7 +153,9 @@ fn get_gamertag_and_gamepic(
             );
         }
         None => {
-            return Err(anyhow!("Authentication to Microsoft services was unsucccessful."));
+            return Err(anyhow!(
+                "Authentication to Microsoft services was unsucccessful."
+            ));
         }
     }
 }

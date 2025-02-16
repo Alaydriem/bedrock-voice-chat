@@ -1,8 +1,11 @@
 use common::ncryptflib::randombytes_buf;
-use rocket::{ data::{ Limits, ToByteUnit }, figment::Figment };
+use rocket::{
+    data::{Limits, ToByteUnit},
+    figment::Figment,
+};
 
 use anyhow::anyhow;
-use serde::{ Deserialize, Serialize };
+use serde::{Deserialize, Serialize};
 use tracing::Level;
 
 /// Application Configuration as described in homemaker.hcl configuration file
@@ -36,7 +39,6 @@ pub struct ApplicationConfigRedis {
     #[serde(default)]
     pub port: u32,
 }
-
 
 /// Common server configuration
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -159,15 +161,18 @@ impl ApplicationConfig {
 
                 format!("sqlite://{}", &self.database.database)
             }
-            "mysql" =>
-                format!(
-                    "mysql://{}:{}@{}:{}/{}",
-                    &self.database.username.clone().unwrap_or(String::from("")),
-                    &self.database.password.clone().unwrap_or(String::from("")),
-                    &self.database.host.clone().unwrap_or(String::from("127.0.0.1")),
-                    &self.database.port.unwrap_or(3306),
-                    &self.database.database
-                ),
+            "mysql" => format!(
+                "mysql://{}:{}@{}:{}/{}",
+                &self.database.username.clone().unwrap_or(String::from("")),
+                &self.database.password.clone().unwrap_or(String::from("")),
+                &self
+                    .database
+                    .host
+                    .clone()
+                    .unwrap_or(String::from("127.0.0.1")),
+                &self.database.port.unwrap_or(3306),
+                &self.database.database
+            ),
             _ => format!("sqlite://{}", "/etc/bvc/bvc.sqlite3"),
         }
     }
@@ -196,16 +201,14 @@ impl ApplicationConfig {
     }
 
     pub fn get_rocket_config<'a>(&'a self) -> Result<Figment, anyhow::Error> {
-        if
-            !std::path::Path::new(&self.server.tls.certificate).exists() ||
-            !std::path::Path::new(&self.server.tls.key).exists()
+        if !std::path::Path::new(&self.server.tls.certificate).exists()
+            || !std::path::Path::new(&self.server.tls.key).exists()
         {
             return Err(anyhow!("TLS certificate or private key is not valid"));
         }
 
         tracing::info!("Database: {}", self.get_dsn().to_string());
-        let figment = rocket::Config
-            ::figment()
+        let figment = rocket::Config::figment()
             .merge(("profile", rocket::figment::Profile::new("release")))
             .merge(("ident", false))
             .merge(("log_level", self.get_rocket_log_level()))
@@ -215,9 +218,15 @@ impl ApplicationConfig {
             .merge(("secret_key", randombytes_buf(32)))
             .merge(("tls.certs", &self.server.tls.certificate))
             .merge(("tls.key", &self.server.tls.key))
-            .merge(("tls.mutual.ca_certs", format!("{}/ca.crt", &self.server.tls.certs_path)))
+            .merge((
+                "tls.mutual.ca_certs",
+                format!("{}/ca.crt", &self.server.tls.certs_path),
+            ))
             .merge(("tls.mutual.mandatory", false))
-            .merge(("minecraft.access_token", &self.server.minecraft.access_token))
+            .merge((
+                "minecraft.access_token",
+                &self.server.minecraft.access_token,
+            ))
             .merge((
                 "databases.app",
                 sea_orm_rocket::Config {
@@ -234,9 +243,7 @@ impl ApplicationConfig {
                 rocket_db_pools::Config {
                     url: format!(
                         "redis://{}:{}/{}",
-                        self.redis.host,
-                        self.redis.port,
-                        self.redis.database
+                        self.redis.host, self.redis.port, self.redis.database
                     ),
                     min_connections: None,
                     max_connections: 1024,

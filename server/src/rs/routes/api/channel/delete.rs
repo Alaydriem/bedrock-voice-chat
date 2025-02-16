@@ -1,4 +1,4 @@
-use rocket::{ response::status, mtls::Certificate, http::Status, State, serde::json::Json };
+use rocket::{http::Status, mtls::Certificate, response::status, serde::json::Json, State};
 
 use moka::future::Cache;
 use std::sync::Arc;
@@ -8,9 +8,9 @@ use std::sync::Arc;
 pub async fn channel_delete<'r>(
     identity: Certificate<'r>,
     channel_cache: &State<
-        Arc<async_mutex::Mutex<Cache<String, common::structs::channel::Channel>>>
+        Arc<async_mutex::Mutex<Cache<String, common::structs::channel::Channel>>>,
     >,
-    id: String
+    id: String,
 ) -> status::Custom<Option<Json<bool>>> {
     let user = match identity.subject().common_name() {
         Some(user) => user.to_string(),
@@ -22,7 +22,8 @@ pub async fn channel_delete<'r>(
     let lock = channel_cache.lock_arc().await;
     match lock.get(&id).await {
         Some(channel) =>
-            // Only allow the channel to be deleted by it's creator
+        // Only allow the channel to be deleted by it's creator
+        {
             match channel.creator.eq(&user) {
                 true => {
                     lock.remove(&id).await;
@@ -32,6 +33,7 @@ pub async fn channel_delete<'r>(
                     return status::Custom(Status::Unauthorized, Some(Json(true)));
                 }
             }
+        }
         None => {
             return status::Custom(Status::NotFound, Some(Json(true)));
         }

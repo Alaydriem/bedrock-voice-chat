@@ -103,7 +103,6 @@ pub struct Profile {
     pub name: String,
 }
 
-
 /// Takes the OAuth2 state code from the client, and completes the OAuth2 transaction
 /// This is used on the server to get the player's identity and information and persist it in the state
 pub async fn server_authenticate_with_client_code(

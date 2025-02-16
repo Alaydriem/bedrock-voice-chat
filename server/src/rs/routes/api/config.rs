@@ -1,5 +1,5 @@
-use rocket::{ serde::json::Json, State };
 use common::structs::config::ApiConfig;
+use rocket::{serde::json::Json, State};
 
 use crate::config::ApplicationConfigServer;
 #[get("/config")]

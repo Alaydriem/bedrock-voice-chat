@@ -25,9 +25,12 @@ fn get_cpal_hosts() {
                 assert_eq!(1, hosts.len());
                 assert_eq!("Oboe", hosts.get(0).unwrap().id().name());
             }
-        },
+        }
         Err(e) => {
-            assert_eq!(e.to_string(), "Retrieving hosts did not return an error".to_string());
+            assert_eq!(
+                e.to_string(),
+                "Retrieving hosts did not return an error".to_string()
+            );
         }
     }
 }
@@ -44,9 +47,12 @@ fn get_devices() {
                     println!("[{}] {} {}", host, device.io.to_string(), device.name);
                 }
             }
-        },
+        }
         Err(e) => {
-            assert_eq!("".to_string(), "No devices available on online hosts".to_string());
+            assert_eq!(
+                "".to_string(),
+                "No devices available on online hosts".to_string()
+            );
         }
     }
 
@@ -63,12 +69,11 @@ fn get_devices() {
                             continue;
                         }
                     };
-                    
+
                     println!("[{}] {}", host.id().name(), name);
                 }
             }
-            Err(e) => {
-            }
+            Err(e) => {}
         }
     }
 }

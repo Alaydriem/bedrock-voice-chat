@@ -1,26 +1,26 @@
-use common::structs::audio::{ AudioDevice, AudioDeviceType, StreamConfig};
-use std::sync::{ Mutex, Arc };
-use tauri_plugin_store::Store;
-use tauri::Wry;
-use serde_json::json;
+use common::structs::audio::{AudioDevice, AudioDeviceType, StreamConfig};
 use cpal::traits::{DeviceTrait, HostTrait};
+use serde_json::json;
+use std::sync::{Arc, Mutex};
+use tauri::Wry;
+use tauri_plugin_store::Store;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum StreamStateType {
     QuicStream,
-    AudioStream
+    AudioStream,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum StreamType {
     InputStream,
-    OutputStream
+    OutputStream,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct StreamState {
     pub audio: Vec<StreamType>,
-    pub quic: Vec<StreamType>
+    pub quic: Vec<StreamType>,
 }
 
 impl StreamState {
@@ -30,7 +30,7 @@ impl StreamState {
                 StreamStateType::AudioStream => {
                     let index = self.audio.iter().position(|t| stream_type.eq(t)).unwrap();
                     self.audio.remove(index);
-                },
+                }
                 StreamStateType::QuicStream => {
                     let index = self.quic.iter().position(|t| stream_type.eq(t)).unwrap();
                     self.quic.remove(index);
@@ -38,8 +38,8 @@ impl StreamState {
             },
             None => match stream_state_type {
                 StreamStateType::AudioStream => self.audio = vec![],
-                StreamStateType::QuicStream => self.quic = vec![]
-            }
+                StreamStateType::QuicStream => self.quic = vec![],
+            },
         }
     }
 }
@@ -50,7 +50,7 @@ pub struct AppState {
     input_audio_device: AudioDevice,
     output_audio_device: AudioDevice,
     pub current_server: Option<String>,
-    pub stream_states: Arc<Mutex<StreamState>>
+    pub stream_states: Arc<Mutex<StreamState>>,
 }
 
 impl AppState {
@@ -58,27 +58,36 @@ impl AppState {
         Self {
             store: store.clone(),
             input_audio_device: AppState::setup_audio_device(AudioDeviceType::InputDevice, &store),
-            output_audio_device: AppState::setup_audio_device(AudioDeviceType::OutputDevice, &store),
+            output_audio_device: AppState::setup_audio_device(
+                AudioDeviceType::OutputDevice,
+                &store,
+            ),
             current_server: AppState::get_current_server(&store),
-            stream_states: Arc::new(Mutex::new(StreamState { audio: vec![], quic: vec![] }))
+            stream_states: Arc::new(Mutex::new(StreamState {
+                audio: vec![],
+                quic: vec![],
+            })),
         }
     }
 
     /// Event handler for changing the audio device
     pub fn change_audio_device(&mut self, io: &AudioDevice) {
         // Change the stored value
-        self.store.set(io.io.to_string(), json!({
-            "name": io.name,
-            "type": io.io.to_string(),
-            "config": io.stream_configs,
-            "host": io.host,
-            "display_name": io.display_name
-        }));
+        self.store.set(
+            io.io.to_string(),
+            json!({
+                "name": io.name,
+                "type": io.io.to_string(),
+                "config": io.stream_configs,
+                "host": io.host,
+                "display_name": io.display_name
+            }),
+        );
 
         // Update the current state
         match io.io {
             AudioDeviceType::InputDevice => self.input_audio_device = io.clone(),
-            AudioDeviceType::OutputDevice => self.output_audio_device = io.clone()
+            AudioDeviceType::OutputDevice => self.output_audio_device = io.clone(),
         }
     }
 
@@ -86,7 +95,7 @@ impl AppState {
     pub fn get_audio_device(&self, io: AudioDeviceType) -> AudioDevice {
         match io {
             AudioDeviceType::InputDevice => self.input_audio_device.clone(),
-            AudioDeviceType::OutputDevice => self.output_audio_device.clone()
+            AudioDeviceType::OutputDevice => self.output_audio_device.clone(),
         }
     }
 
@@ -97,23 +106,31 @@ impl AppState {
             Some(s) => (
                 s.get("name").unwrap().to_string(),
                 s.get("host").unwrap().to_string(),
-                serde_json::from_value::<Vec<StreamConfig>>(s.get("config").unwrap().clone()).unwrap(),
+                serde_json::from_value::<Vec<StreamConfig>>(s.get("config").unwrap().clone())
+                    .unwrap(),
                 match s.get("display_name") {
                     Some(name) => name.to_string(),
-                    None => s.get("name").unwrap().to_string()
-                }
-            )
-            ,
+                    None => s.get("name").unwrap().to_string(),
+                },
+            ),
             None => {
                 let default_host = cpal::default_host();
                 let default_device = match io {
                     AudioDeviceType::InputDevice => default_host.default_input_device().unwrap(),
-                    AudioDeviceType::OutputDevice => default_host.default_output_device().unwrap()
+                    AudioDeviceType::OutputDevice => default_host.default_output_device().unwrap(),
                 };
 
                 let default_configs = match io {
-                    AudioDeviceType::InputDevice => default_device.supported_input_configs().unwrap().map(|s| s).collect(),
-                    AudioDeviceType::OutputDevice => default_device.supported_output_configs().unwrap().map(|s| s).collect()
+                    AudioDeviceType::InputDevice => default_device
+                        .supported_input_configs()
+                        .unwrap()
+                        .map(|s| s)
+                        .collect(),
+                    AudioDeviceType::OutputDevice => default_device
+                        .supported_output_configs()
+                        .unwrap()
+                        .map(|s| s)
+                        .collect(),
                 };
 
                 let stream_config = AudioDevice::to_stream_config(default_configs);
@@ -122,7 +139,7 @@ impl AppState {
                     "default".to_string(),
                     default_host.id().name().to_string(),
                     stream_config,
-                    default_device.name().unwrap()
+                    default_device.name().unwrap(),
                 )
             }
         };
@@ -132,7 +149,7 @@ impl AppState {
             name,
             host,
             stream_configs,
-            display_name
+            display_name,
         }
     }
 
@@ -143,7 +160,7 @@ impl AppState {
     fn get_current_server(store: &Arc<Store<Wry>>) -> Option<String> {
         match store.get("current_server") {
             Some(s) => Some(s.get("value").unwrap().to_string()),
-            None => None
+            None => None,
         }
     }
 }

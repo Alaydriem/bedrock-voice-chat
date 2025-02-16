@@ -4,51 +4,77 @@ mod stream_trait;
 
 use common::structs::audio::AudioDevice;
 
-pub(crate) use stream_trait::StreamTrait;
 pub(crate) use input::InputStream;
 pub(crate) use output::OutputStream;
+pub(crate) use stream_trait::StreamTrait;
 
 #[derive(Debug, Clone)]
 pub(crate) enum AudioFrame {
     F32(AudioFrameData<f32>),
     I32(AudioFrameData<i32>),
-    I16(AudioFrameData<i16>)
+    I16(AudioFrameData<i16>),
+}
+
+impl AudioFrame {
+    pub fn f32(self) -> Option<AudioFrameData<f32>> {
+        if let AudioFrame::F32(f) = self {
+            return Some(f);
+        }
+
+        None
+    }
+
+    pub fn i32(self) -> Option<AudioFrameData<i32>> {
+        if let AudioFrame::I32(f) = self {
+            return Some(f);
+        }
+
+        None
+    }
+
+    pub fn i16(self) -> Option<AudioFrameData<i16>> {
+        if let AudioFrame::I16(f) = self {
+            return Some(f);
+        }
+
+        None
+    }
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct AudioFrameData<T> {
-    pcm: Vec<T>
+    pcm: Vec<T>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub(crate) enum IpcMessage {
-    Terminate
+    Terminate,
 }
 
 pub(crate) enum StreamTraitType {
     Input(InputStream),
-    Output(OutputStream)
+    Output(OutputStream),
 }
 
 impl StreamTrait for StreamTraitType {
     fn is_stopped(&mut self) -> bool {
         match self {
             Self::Input(stream) => stream.is_stopped(),
-            Self::Output(stream) => stream.is_stopped()
+            Self::Output(stream) => stream.is_stopped(),
         }
     }
 
     fn stop(&mut self) {
         match self {
             Self::Input(stream) => stream.stop(),
-            Self::Output(stream) => stream.stop()
+            Self::Output(stream) => stream.stop(),
         }
     }
 
     fn start(&mut self) -> Result<(), anyhow::Error> {
         match self {
             Self::Input(stream) => stream.start(),
-            Self::Output(stream) => stream.start()
+            Self::Output(stream) => stream.start(),
         }
     }
 }
@@ -57,7 +83,7 @@ impl StreamTraitType {
     pub fn get_device(&self) -> Option<AudioDevice> {
         match self {
             Self::Input(stream) => stream.device.clone(),
-            Self::Output(stream) => stream.device.clone()
+            Self::Output(stream) => stream.device.clone(),
         }
     }
 }

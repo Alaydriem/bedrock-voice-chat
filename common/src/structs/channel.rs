@@ -1,5 +1,5 @@
 use nanoid::nanoid;
-use serde::{ Serialize, Deserialize };
+use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, TS)]

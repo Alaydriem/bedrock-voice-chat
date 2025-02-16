@@ -1,10 +1,13 @@
-use std::sync::{atomic::{AtomicBool, Ordering}, Arc, Mutex, mpsc };
-use tokio::task::JoinHandle;
-use common::structs::audio::AudioDevice;
 use crate::AudioPacket;
+use common::structs::audio::AudioDevice;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    mpsc, Arc, Mutex,
+};
+use tokio::task::JoinHandle;
 
-use super::IpcMessage;
 use super::AudioFrame;
+use super::IpcMessage;
 
 pub(crate) struct OutputStream {
     pub device: Option<AudioDevice>,
@@ -14,7 +17,7 @@ pub(crate) struct OutputStream {
     pub producer: mpsc::Sender<AudioFrame>,
     pub consumer: mpsc::Receiver<AudioFrame>,
     pub shutdown: Arc<Mutex<AtomicBool>>,
-    jobs: Vec<JoinHandle<()>>
+    jobs: Vec<JoinHandle<()>>,
 }
 
 impl super::StreamTrait for OutputStream {
@@ -37,10 +40,7 @@ impl super::StreamTrait for OutputStream {
 }
 
 impl OutputStream {
-    pub fn new(
-        device: Option<AudioDevice>,
-        bus: Arc<flume::Receiver<AudioPacket>>
-    ) -> Self {
+    pub fn new(device: Option<AudioDevice>, bus: Arc<flume::Receiver<AudioPacket>>) -> Self {
         let (tx, rx) = spmc::channel();
         let (producer, consumer) = mpsc::channel();
         Self {
@@ -51,7 +51,7 @@ impl OutputStream {
             producer,
             consumer,
             shutdown: Arc::new(std::sync::Mutex::new(AtomicBool::new(false))),
-            jobs: vec![]
+            jobs: vec![],
         }
     }
 }

@@ -1,12 +1,15 @@
-use std::{ path::Path, time::Duration };
+use std::{path::Path, time::Duration};
 
-use common::{ structs::channel::{ ChannelEvent, ChannelEvents } };
+use common::structs::channel::{ChannelEvent, ChannelEvents};
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 
-use clap::Parser;
-use reqwest::{ header::{ HeaderMap, HeaderValue }, Certificate, Client, Identity };
 use anyhow::anyhow;
+use clap::Parser;
+use reqwest::{
+    header::{HeaderMap, HeaderValue},
+    Certificate, Client, Identity,
+};
 
 #[derive(Parser, Debug)]
 #[command(version, about = "mTLS Client", long_about = None)]
@@ -35,7 +38,12 @@ struct Opt {
 impl Opt {
     pub async fn get_ca_bytes(&self) -> Result<Certificate, anyhow::Error> {
         let mut buf = Vec::new();
-        File::open(Path::new(&self.ca_cert)).await.unwrap().read_to_end(&mut buf).await.unwrap();
+        File::open(Path::new(&self.ca_cert))
+            .await
+            .unwrap()
+            .read_to_end(&mut buf)
+            .await
+            .unwrap();
 
         match reqwest::Certificate::from_pem(&buf) {
             Ok(cert) => Ok(cert),
@@ -45,7 +53,12 @@ impl Opt {
 
     pub async fn get_identity_bytes(&self) -> Result<Identity, anyhow::Error> {
         let mut buf = Vec::new();
-        File::open(Path::new(&self.pem)).await.unwrap().read_to_end(&mut buf).await.unwrap();
+        File::open(Path::new(&self.pem))
+            .await
+            .unwrap()
+            .read_to_end(&mut buf)
+            .await
+            .unwrap();
 
         match reqwest::Identity::from_pem(&buf) {
             Ok(cert) => Ok(cert),
@@ -54,8 +67,7 @@ impl Opt {
     }
 
     pub async fn get_reqwest_client(&self) -> Client {
-        let mut builder = reqwest::Client
-            ::builder()
+        let mut builder = reqwest::Client::builder()
             .use_rustls_tls()
             .timeout(Duration::new(5, 0))
             .danger_accept_invalid_certs(false)
@@ -89,7 +101,11 @@ async fn main() -> anyhow::Result<()> {
     c = c.headers(headers);
     match opt.data.clone() {
         Some(data) => {
-            c = c.json(&(ChannelEvent { event: ChannelEvents::Leave }));
+            c = c.json(
+                &(ChannelEvent {
+                    event: ChannelEvents::Leave,
+                }),
+            );
         }
         None => {}
     }

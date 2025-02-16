@@ -1,8 +1,8 @@
 mod stream_manager;
 
+use crate::NetworkPacket;
 use anyhow::Error;
 use common::structs::audio::{AudioDevice, AudioDeviceType};
-use crate::NetworkPacket;
 use std::sync::Arc;
 
 use super::AudioPacket;
@@ -12,7 +12,7 @@ pub(crate) struct AudioStreamManager {
     producer: Arc<flume::Sender<NetworkPacket>>,
     consumer: Arc<flume::Receiver<AudioPacket>>,
     input: StreamTraitType,
-    output: StreamTraitType
+    output: StreamTraitType,
 }
 
 impl AudioStreamManager {
@@ -25,14 +25,11 @@ impl AudioStreamManager {
         Self {
             producer: producer.clone(),
             consumer: consumer.clone(),
-            input: StreamTraitType::Input(stream_manager::InputStream::new(
-                None,
-                producer.clone()
-            )),
+            input: StreamTraitType::Input(stream_manager::InputStream::new(None, producer.clone())),
             output: StreamTraitType::Output(stream_manager::OutputStream::new(
                 None,
-                consumer.clone()
-            ))
+                consumer.clone(),
+            )),
         }
     }
 
@@ -40,15 +37,15 @@ impl AudioStreamManager {
     pub fn init(&mut self, device: AudioDevice) {
         match device.io {
             AudioDeviceType::InputDevice => {
-                self.input =  StreamTraitType::Input(stream_manager::InputStream::new(
+                self.input = StreamTraitType::Input(stream_manager::InputStream::new(
                     Some(device),
-                    self.producer.clone()
+                    self.producer.clone(),
                 ));
             }
             AudioDeviceType::OutputDevice => {
                 self.output = StreamTraitType::Output(stream_manager::OutputStream::new(
                     Some(device),
-                    self.consumer.clone()
+                    self.consumer.clone(),
                 ));
             }
         }
@@ -64,13 +61,13 @@ impl AudioStreamManager {
             AudioDeviceType::InputDevice => {
                 self.input = StreamTraitType::Input(stream_manager::InputStream::new(
                     Some(self.input.get_device().unwrap()),
-                    self.producer.clone()
+                    self.producer.clone(),
                 ));
-            },
+            }
             AudioDeviceType::OutputDevice => {
                 self.output = StreamTraitType::Output(stream_manager::OutputStream::new(
                     Some(self.output.get_device().unwrap()),
-                    self.consumer.clone()
+                    self.consumer.clone(),
                 ));
             }
         };
@@ -83,13 +80,23 @@ impl AudioStreamManager {
         // Start the new device
         let _ = match device {
             AudioDeviceType::InputDevice => match self.input.is_stopped() {
-                true => return Err(anyhow::anyhow!(format!("{} audio stream is already running!", device.to_string()))),
-                false => self.input.start()
+                true => {
+                    return Err(anyhow::anyhow!(format!(
+                        "{} audio stream is already running!",
+                        device.to_string()
+                    )))
+                }
+                false => self.input.start(),
             },
             AudioDeviceType::OutputDevice => match self.output.is_stopped() {
-                true => return Err(anyhow::anyhow!(format!("{} audio stream is already running!", device.to_string()))),
-                false => self.output.start()
-            }
+                true => {
+                    return Err(anyhow::anyhow!(format!(
+                        "{} audio stream is already running!",
+                        device.to_string()
+                    )))
+                }
+                false => self.output.start(),
+            },
         };
 
         Ok(())
@@ -101,13 +108,23 @@ impl AudioStreamManager {
     pub fn stop(&mut self, device: &AudioDeviceType) -> Result<(), Error> {
         match device {
             AudioDeviceType::InputDevice => match self.input.is_stopped() {
-                true => return Err(anyhow::anyhow!(format!("{} audio stream is already stopped!", device.to_string()))),
-                false => self.input.stop()
+                true => {
+                    return Err(anyhow::anyhow!(format!(
+                        "{} audio stream is already stopped!",
+                        device.to_string()
+                    )))
+                }
+                false => self.input.stop(),
             },
             AudioDeviceType::OutputDevice => match self.output.is_stopped() {
-                true => return Err(anyhow::anyhow!(format!("{} audio stream is already stopped!", device.to_string()))),
-                false => self.output.stop()
-            }
+                true => {
+                    return Err(anyhow::anyhow!(format!(
+                        "{} audio stream is already stopped!",
+                        device.to_string()
+                    )))
+                }
+                false => self.output.stop(),
+            },
         };
 
         Ok(())

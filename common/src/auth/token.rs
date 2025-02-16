@@ -1,7 +1,7 @@
 #[allow(unused_imports)] // for rust-analyzer
 use rocket_db_pools::deadpool_redis::redis::AsyncCommands;
 use rocket_db_pools::deadpool_redis::Connection;
-use serde::{ Deserialize, Serialize };
+use serde::{Deserialize, Serialize};
 
 use tracing::error;
 const BVC_DEFAULT_ACCESS_TOKEN_LIFESPAN: u64 = 28800;
@@ -24,21 +24,22 @@ impl AccessToken {
     /// Create's a new token for the user and stores it in Redis
     pub async fn new(
         user_id: i32,
-        mut redis: Connection
+        mut redis: Connection,
     ) -> Result<Self, ncryptf::rocket::TokenError> {
         let token = ncryptf::Token::new(BVC_DEFAULT_ACCESS_TOKEN_LIFESPAN as i64);
         let at = Self { token, user_id };
 
         // Store the access token in redis
-        let (): () = match
-            redis.set_ex(
+        let (): () = match redis
+            .set_ex(
                 crate::redis::create_redis_key(
                     at.token.access_token.as_str(),
-                    crate::redis::ACCESS_TOKEN_KEY_SUFFIX
+                    crate::redis::ACCESS_TOKEN_KEY_SUFFIX,
                 ),
                 serde_json::to_string(&at).unwrap(),
-                BVC_DEFAULT_ACCESS_TOKEN_LIFESPAN
-            ).await
+                BVC_DEFAULT_ACCESS_TOKEN_LIFESPAN,
+            )
+            .await
         {
             Ok(result) => result,
             Err(error) => {
@@ -53,15 +54,16 @@ impl AccessToken {
         };
 
         // Store the refresh token in redis
-        let (): () = match
-            redis.set_ex(
+        let (): () = match redis
+            .set_ex(
                 crate::redis::create_redis_key(
                     at.token.refresh_token.as_str(),
-                    crate::redis::REFRESH_TOKEN_KEY_SUFFIX
+                    crate::redis::REFRESH_TOKEN_KEY_SUFFIX,
                 ),
                 serde_json::to_string(&rt).unwrap(),
-                BVC_DEFAULT_REFRESH_TOKEN_LIFESPAN
-            ).await
+                BVC_DEFAULT_REFRESH_TOKEN_LIFESPAN,
+            )
+            .await
         {
             Ok(result) => result,
             Err(error) => {

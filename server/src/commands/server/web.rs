@@ -1,27 +1,29 @@
-use crate::{ rs::routes, config::ApplicationConfig };
-use common::{ ncryptflib as ncryptf, pool::{ redis::RedisDb, seaorm::AppDb } };
+use crate::{config::ApplicationConfig, rs::routes};
+use common::structs::packet::QuicNetworkPacket;
+use common::{
+    ncryptflib as ncryptf,
+    pool::{redis::RedisDb, seaorm::AppDb},
+};
+use migration::{Migrator, MigratorTrait};
 use moka::future::Cache;
-use rocket::{ self, routes };
+use rocket::{self, routes};
 use rocket_db_pools;
 use sea_orm_rocket::Database;
-use tokio::task::JoinHandle;
 use std::process::exit;
-use migration::{ Migrator, MigratorTrait };
 use std::sync::Arc;
-use common::structs::packet::QuicNetworkPacket;
+use tokio::task::JoinHandle;
 
 pub(crate) fn get_task(
     config: &ApplicationConfig,
     queue: Arc<deadqueue::limited::Queue<QuicNetworkPacket>>,
-    channel_cache: Arc<async_mutex::Mutex<Cache<String, common::structs::channel::Channel>>>
+    channel_cache: Arc<async_mutex::Mutex<Cache<String, common::structs::channel::Channel>>>,
 ) -> JoinHandle<()> {
     let app_config = config.to_owned();
     return tokio::task::spawn(async move {
         ncryptf::ek_route!(RedisDb);
         match app_config.get_rocket_config() {
             Ok(figment) => {
-                let rocket = rocket
-                    ::custom(figment)
+                let rocket = rocket::custom(figment)
                     .manage(app_config.server.clone())
                     .manage(queue.clone())
                     .manage(channel_cache.clone())
@@ -35,16 +37,15 @@ pub(crate) fn get_task(
                             routes::api::get_config,
                             routes::api::position,
                             routes::api::pong
-                        ]
+                        ],
                     )
                     .mount(
                         "/ncryptf",
                         routes![
-                            ncryptf_ek_route
-                            //routes::ncryptf::token_info_route,
-                            //routes::ncryptf::token_revoke_route,
-                            //routes::ncryptf::token_refresh_route
-                        ]
+                            ncryptf_ek_route //routes::ncryptf::token_info_route,
+                                             //routes::ncryptf::token_revoke_route,
+                                             //routes::ncryptf::token_refresh_route
+                        ],
                     )
                     .mount(
                         "/api/channel",
@@ -53,7 +54,7 @@ pub(crate) fn get_task(
                             routes::api::channel_delete,
                             routes::api::channel_event,
                             routes::api::channel_list
-                        ]
+                        ],
                     );
 
                 if let Ok(ignite) = rocket.ignite().await {

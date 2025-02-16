@@ -1,12 +1,12 @@
 use common::structs::packet::PacketType;
-use common::Coordinate;
 use common::structs::packet::QuicNetworkPacket;
-use s2n_quic::{ client::Connect, Client };
-use tokio::io::AsyncWriteExt;
-use std::time::Duration;
-use std::{ fs::File, io::BufReader, path::Path };
-use std::{ error::Error, net::SocketAddr };
+use common::Coordinate;
 use rodio::Decoder;
+use s2n_quic::{client::Connect, Client};
+use std::time::Duration;
+use std::{error::Error, net::SocketAddr};
+use std::{fs::File, io::BufReader, path::Path};
+use tokio::io::AsyncWriteExt;
 
 #[tokio::main]
 async fn main() {
@@ -15,8 +15,9 @@ async fn main() {
         args[1].to_string().parse::<String>().unwrap(),
         args[2].to_string().parse::<String>().unwrap(),
         args[3].to_string().parse::<String>().unwrap(),
-        args[4].to_string().parse::<String>().unwrap()
-    ).await;
+        args[4].to_string().parse::<String>().unwrap(),
+    )
+    .await;
     println!("{:?}", result);
 }
 
@@ -24,10 +25,9 @@ async fn client(
     id: String,
     source_file: String,
     socket_addr: String,
-    server_name: String
+    server_name: String,
 ) -> Result<(), Box<dyn Error>> {
-    _ = s2n_quic::provider::tls::rustls::rustls::crypto::aws_lc_rs
-        ::default_provider()
+    _ = s2n_quic::provider::tls::rustls::rustls::crypto::aws_lc_rs::default_provider()
         .install_default();
 
     let ca_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test_certs/ca.crt");
@@ -40,7 +40,10 @@ async fn client(
 
     let provider = common::rustls::MtlsProvider::new(ca, cert, key).await?;
 
-    let client = Client::builder().with_tls(provider)?.with_io("0.0.0.0:0")?.start()?;
+    let client = Client::builder()
+        .with_tls(provider)?
+        .with_io("0.0.0.0:0")?
+        .start()?;
 
     println!("I am client: {}", id);
     let addr: SocketAddr = socket_addr.parse()?;
@@ -63,104 +66,103 @@ async fn client(
 
     // spawn a task that copies responses from the server to stdout
 
-    tasks.push(
-        tokio::spawn(async move {
-            let mut packet = Vec::<u8>::new();
+    tasks.push(tokio::spawn(async move {
+        let mut packet = Vec::<u8>::new();
 
-            while let Ok(Some(data)) = receive_stream.receive().await {
-                packet.append(&mut data.to_vec());
+        while let Ok(Some(data)) = receive_stream.receive().await {
+            packet.append(&mut data.to_vec());
 
-                match QuicNetworkPacket::from_stream(&mut packet) {
-                    Ok(packets) => {
-                        for packet in packets {
-                            match packet.packet_type {
-                                PacketType::AudioFrame => {
-                                    println!("Got packet from: {}", packet.get_author());
-                                }
-                                _ => {}
+            match QuicNetworkPacket::from_stream(&mut packet) {
+                Ok(packets) => {
+                    for packet in packets {
+                        match packet.packet_type {
+                            PacketType::AudioFrame => {
+                                println!("Got packet from: {}", packet.get_author());
                             }
+                            _ => {}
                         }
                     }
-                    Err(e) => {
-                        println!("{:?}", e);
-                    }
-                };
-            }
-            println!("Recieving loop died");
-        })
-    );
-
-    tasks.push(
-        tokio::spawn(async move {
-            // Windows has a sleep resolution time of ~15.6ms, which is much longer than the 5-9ms it takes to generate a "real" packet
-            // This simulates the slow generation without generating packets in us time.
-            windows_targets::link!("winmm.dll" "system" fn timeBeginPeriod(uperiod: u32) -> u32);
-            unsafe {
-                timeBeginPeriod(1);
-            }
-
-            let client_id: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
-
-            let mut encoder = opus::Encoder
-                ::new(48000, opus::Channels::Mono, opus::Application::Voip)
-                .unwrap();
-
-            _ = encoder.set_bitrate(opus::Bitrate::Bits(64_000));
-
-            println!("Starting new stream event.");
-            let file = BufReader::new(File::open(source_file.clone()).unwrap());
-            let source = Decoder::new(file).unwrap();
-            let mut ss: Vec<i16> = source.collect();
-            // Pad the source file to the expected length so the last chunk doesn't get cut off
-            let ss_expected_size = (((ss.len() / 480) as f32).ceil() * 480.0) as usize;
-            if ss.len() != ss_expected_size {
-                ss.resize(ss_expected_size, 0);
-            }
-
-            println!("{}", ss.len());
-            let mut total_chunks = 0;
-            for chunk in ss.chunks(480) {
-                if chunk.len() < 480 {
-                    println!("Unexpected chunk end");
-                    break;
                 }
-                total_chunks = total_chunks + 480;
-                let s = encoder.encode_vec(chunk, chunk.len() * 4).unwrap();
-                let packet = QuicNetworkPacket {
-                    owner: common::structs::packet::PacketOwner {
-                        name: id.clone(),
-                        client_id: client_id.clone(),
+                Err(e) => {
+                    println!("{:?}", e);
+                }
+            };
+        }
+        println!("Recieving loop died");
+    }));
+
+    tasks.push(tokio::spawn(async move {
+        // Windows has a sleep resolution time of ~15.6ms, which is much longer than the 5-9ms it takes to generate a "real" packet
+        // This simulates the slow generation without generating packets in us time.
+        windows_targets::link!("winmm.dll" "system" fn timeBeginPeriod(uperiod: u32) -> u32);
+        unsafe {
+            timeBeginPeriod(1);
+        }
+
+        let client_id: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
+
+        let mut encoder =
+            opus::Encoder::new(48000, opus::Channels::Mono, opus::Application::Voip).unwrap();
+
+        _ = encoder.set_bitrate(opus::Bitrate::Bits(64_000));
+
+        println!("Starting new stream event.");
+        let file = BufReader::new(File::open(source_file.clone()).unwrap());
+        let source = Decoder::new(file).unwrap();
+        let mut ss: Vec<i16> = source.collect();
+        // Pad the source file to the expected length so the last chunk doesn't get cut off
+        let ss_expected_size = (((ss.len() / 480) as f32).ceil() * 480.0) as usize;
+        if ss.len() != ss_expected_size {
+            ss.resize(ss_expected_size, 0);
+        }
+
+        println!("{}", ss.len());
+        let mut total_chunks = 0;
+        for chunk in ss.chunks(480) {
+            if chunk.len() < 480 {
+                println!("Unexpected chunk end");
+                break;
+            }
+            total_chunks = total_chunks + 480;
+            let s = encoder.encode_vec(chunk, chunk.len() * 4).unwrap();
+            let packet = QuicNetworkPacket {
+                owner: common::structs::packet::PacketOwner {
+                    name: id.clone(),
+                    client_id: client_id.clone(),
+                },
+                packet_type: common::structs::packet::PacketType::AudioFrame,
+                data: common::structs::packet::QuicNetworkPacketData::AudioFrame(
+                    common::structs::packet::AudioFramePacket {
+                        length: s.len(),
+                        data: s.clone(),
+                        sample_rate: 48000,
+                        coordinate: Some(Coordinate {
+                            x: 5.0,
+                            y: 70.0,
+                            z: 5.5,
+                        }),
+                        dimension: Some(common::Dimension::Overworld),
                     },
-                    packet_type: common::structs::packet::PacketType::AudioFrame,
-                    data: common::structs::packet::QuicNetworkPacketData::AudioFrame(
-                        common::structs::packet::AudioFramePacket {
-                            length: s.len(),
-                            data: s.clone(),
-                            sample_rate: 48000,
-                            coordinate: Some(Coordinate { x: 5.0, y: 70.0, z: 5.5 }),
-                            dimension: Some(common::Dimension::Overworld),
-                        }
-                    ),
-                };
+                ),
+            };
 
-                match packet.to_vec() {
-                    Ok(rs) => {
-                        _ = send_stream.write_all(&rs).await;
-                        // This should be 20ms of audio
-                        if total_chunks % 4800 == 0 {
-                            _ = tokio::time::sleep(Duration::from_millis(20)).await;
-                        }
-                    }
-                    Err(e) => {
-                        println!("{}", e.to_string());
+            match packet.to_vec() {
+                Ok(rs) => {
+                    _ = send_stream.write_all(&rs).await;
+                    // This should be 20ms of audio
+                    if total_chunks % 4800 == 0 {
+                        _ = tokio::time::sleep(Duration::from_millis(20)).await;
                     }
                 }
+                Err(e) => {
+                    println!("{}", e.to_string());
+                }
             }
+        }
 
-            let r = send_stream.close().await;
-            println!("Close Stream {:?}", r);
-        })
-    );
+        let r = send_stream.close().await;
+        println!("Close Stream {:?}", r);
+    }));
 
     for task in tasks {
         _ = task.await;

@@ -1,13 +1,12 @@
 use std::collections::HashMap;
 
 use anyhow::anyhow;
-use common::structs::audio::{ AudioDevice, AudioDeviceType };
+use common::structs::audio::{AudioDevice, AudioDeviceType};
 use cpal::{
-    HostId,
-    SupportedStreamConfigRange,
-    traits::{ DeviceTrait, HostTrait }
+    traits::{DeviceTrait, HostTrait},
+    HostId, SupportedStreamConfigRange,
 };
-use log::{ error, warn };
+use log::{error, warn};
 
 /// Returns a Vec of cpal hosts
 /// On Windows, this _should_ be ASIO and WASAPI
@@ -84,21 +83,30 @@ pub fn get_devices() -> Result<HashMap<String, Vec<AudioDevice>>, ()> {
                 for device in devices {
                     let stream_configs = match device.supported_input_configs() {
                         Ok(cfg) => cfg.map(|s| s).collect(),
-                        Err(_) => Vec::new()
+                        Err(_) => Vec::new(),
                     };
 
                     // We need a valid input
                     if stream_configs.len() == 0 {
                         continue;
                     }
-                    
-                    for audio_device in get_device_name(AudioDeviceType::InputDevice, &host, &device, stream_configs) {
+
+                    for audio_device in get_device_name(
+                        AudioDeviceType::InputDevice,
+                        &host,
+                        &device,
+                        stream_configs,
+                    ) {
                         device_map.push(audio_device);
                     }
                 }
             }
             Err(e) => {
-                warn!("Input devices for [{}] are not available. {}", host.id().name(), e.to_string());
+                warn!(
+                    "Input devices for [{}] are not available. {}",
+                    host.id().name(),
+                    e.to_string()
+                );
             }
         }
 
@@ -107,21 +115,30 @@ pub fn get_devices() -> Result<HashMap<String, Vec<AudioDevice>>, ()> {
                 for device in devices {
                     let stream_configs = match device.supported_output_configs() {
                         Ok(cfg) => cfg.map(|s| s).collect(),
-                        Err(_) => Vec::new()
+                        Err(_) => Vec::new(),
                     };
-    
+
                     // We need a valid input
                     if stream_configs.len() == 0 {
                         continue;
                     }
 
-                    for audio_device in get_device_name(AudioDeviceType::OutputDevice, &host, &device, stream_configs) {
+                    for audio_device in get_device_name(
+                        AudioDeviceType::OutputDevice,
+                        &host,
+                        &device,
+                        stream_configs,
+                    ) {
                         device_map.push(audio_device);
                     }
                 }
             }
             Err(e) => {
-                warn!("Otuput devices for [{}] are not available. {}", host.id().name(), e.to_string());
+                warn!(
+                    "Otuput devices for [{}] are not available. {}",
+                    host.id().name(),
+                    e.to_string()
+                );
             }
         }
 
@@ -131,15 +148,21 @@ pub fn get_devices() -> Result<HashMap<String, Vec<AudioDevice>>, ()> {
     return Ok(devices);
 }
 
-fn get_device_name(io: AudioDeviceType, host: &cpal::Host, device: &cpal::Device, stream_configs: Vec<SupportedStreamConfigRange>) -> Vec<AudioDevice> {
+fn get_device_name(
+    io: AudioDeviceType,
+    host: &cpal::Host,
+    device: &cpal::Device,
+    stream_configs: Vec<SupportedStreamConfigRange>,
+) -> Vec<AudioDevice> {
     let device_name = match device.name() {
         Ok(name) => name,
         Err(e) => {
             warn!("{}", e.to_string());
-            return vec![]
+            return vec![];
         }
     };
 
+    #[warn(unreachable_patterns)]
     match host.id() {
         // Each ASIO "channel" is _likely_ a different physical input / output on the device
         // We need to map a "friendly" display name for these since they the ASIO device is one _single_ device, rather than a listing
@@ -148,10 +171,11 @@ fn get_device_name(io: AudioDeviceType, host: &cpal::Host, device: &cpal::Device
             let mut devices = Vec::<AudioDevice>::new();
             // This filters out only the configs we're willing to support for the driver
             // This is super redundant, but get us an iterator we need
-            let supported_stream_configs: Vec<SupportedStreamConfigRange> = AudioDevice::to_stream_config(stream_configs)
-                .into_iter()
-                .map(|s| Into::<SupportedStreamConfigRange>::into(s))
-                .collect();
+            let supported_stream_configs: Vec<SupportedStreamConfigRange> =
+                AudioDevice::to_stream_config(stream_configs)
+                    .into_iter()
+                    .map(|s| Into::<SupportedStreamConfigRange>::into(s))
+                    .collect();
             for supported_config in supported_stream_configs {
                 devices.push(AudioDevice::new(
                     io.clone(),
@@ -163,24 +187,21 @@ fn get_device_name(io: AudioDeviceType, host: &cpal::Host, device: &cpal::Device
                         device_name.clone(),
                         match io {
                             AudioDeviceType::InputDevice => "Input",
-                            AudioDeviceType::OutputDevice => "Output"
+                            AudioDeviceType::OutputDevice => "Output",
                         },
                         supported_config.channels()
-                    )
+                    ),
                 ))
             }
 
             devices
-        },
-        HostId::Wasapi => vec![AudioDevice::new(
+        }
+        _ => vec![AudioDevice::new(
             io,
             device_name.clone(),
             host.id().name().to_string(),
             stream_configs,
-            device_name.clone()
+            device_name.clone(),
         )],
-        // HostId::Oboe
-        // HostId::CoreAudio
-        _ => vec![]
-    }   
+    }
 }

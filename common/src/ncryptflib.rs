@@ -1,4 +1,4 @@
 pub use ncryptf::{
-    auth, client, rocket, ek_route, randombytes_buf, Authorization, Keypair, NcryptfError, Request,
+    auth, client, ek_route, randombytes_buf, rocket, Authorization, Keypair, NcryptfError, Request,
     Response, Signature, Token,
 };

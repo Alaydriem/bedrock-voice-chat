@@ -5,39 +5,40 @@ use async_once_cell::OnceCell;
 use common::ncryptflib::rocket::Utc;
 use common::structs::channel::ChannelEvents;
 use common::structs::packet::{
-    ChannelEventPacket, DebugPacket, PacketOwner, PacketType, PlayerDataPacket, QuicNetworkPacket, QuicNetworkPacketData
+    ChannelEventPacket, DebugPacket, PacketOwner, PacketType, PlayerDataPacket, QuicNetworkPacket,
+    QuicNetworkPacketData,
 };
 use moka::future::Cache;
 use s2n_quic::Server;
-use tokio::io::AsyncWriteExt;
 use std::collections::hash_map::RandomState;
-use std::sync::atomic::{ AtomicBool, Ordering };
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::io::AsyncWriteExt;
 use tokio::task::JoinHandle;
-use zeromq::{ Socket, SocketRecv, SocketSend };
+use zeromq::{Socket, SocketRecv, SocketSend};
 
 type MessageQueue = deadqueue::limited::Queue<QuicNetworkPacket>;
 
 /// Player position data
 pub(crate) static PLAYER_POSITION_CACHE: OnceCell<
-    Option<Arc<Cache<String, common::Player, RandomState>>>
+    Option<Arc<Cache<String, common::Player, RandomState>>>,
 > = OnceCell::new();
 
 pub(crate) async fn get_task(
     config: &ApplicationConfig,
     queue: Arc<deadqueue::limited::Queue<QuicNetworkPacket>>,
-    _channel_cache: Arc<Mutex<Cache<String, common::structs::channel::Channel>>>
+    _channel_cache: Arc<Mutex<Cache<String, common::structs::channel::Channel>>>,
 ) -> Result<Vec<JoinHandle<()>>, anyhow::Error> {
     let shutdown = Arc::new(AtomicBool::new(false));
     let shutdown_config = config.clone();
     let app_config = config.clone();
 
-    let player_channel_cache = Arc::new(
-        async_mutex::Mutex::new(
-            moka::future::Cache::<String, String>::builder().max_capacity(100).build()
-        )
-    );
+    let player_channel_cache = Arc::new(async_mutex::Mutex::new(
+        moka::future::Cache::<String, String>::builder()
+            .max_capacity(100)
+            .build(),
+    ));
 
     let message_queue = Arc::new(MessageQueue::new(5000));
     let recv_message_queue = message_queue.clone();
@@ -47,17 +48,16 @@ pub(crate) async fn get_task(
 
     // Instantiate the player position cache
     // Player positions are valid for 5 minutes before they are evicted
-    PLAYER_POSITION_CACHE.get_or_init(async {
-        return Some(
-            Arc::new(
-                moka::future::Cache
-                    ::builder()
+    PLAYER_POSITION_CACHE
+        .get_or_init(async {
+            return Some(Arc::new(
+                moka::future::Cache::builder()
                     .time_to_live(Duration::from_secs(300))
                     .max_capacity(256)
-                    .build()
-            )
-        );
-    }).await;
+                    .build(),
+            ));
+        })
+        .await;
 
     let cache = match get_cache().await {
         Ok(cache) => cache,
@@ -77,11 +77,14 @@ pub(crate) async fn get_task(
 
     let io_connection_str: &str = &format!(
         "{}:{}",
-        &app_config.server.listen,
-        &app_config.server.quic_port
+        &app_config.server.listen, &app_config.server.quic_port
     );
 
-    tracing::info!("Starting QUIC server with CA: {} on {}", &cert_path, io_connection_str);
+    tracing::info!(
+        "Starting QUIC server with CA: {} on {}",
+        &cert_path,
+        io_connection_str
+    );
 
     let provider = common::rustls::MtlsProvider::new(&cert_path, &cert_path, &key_path).await?;
 
@@ -369,150 +372,150 @@ pub(crate) async fn get_task(
 
     let t4_shutdown = shutdown.clone();
     // Shared ZeroMQ publisher thread
-    tasks.push(
-        tokio::spawn(async move {
-            let shutdown = t4_shutdown.clone();
-            let message_queue = recv_message_queue.clone();
-            let mut socket = zeromq::PubSocket::new();
-            match socket.bind("tcp://127.0.0.1:5556").await {
-                Ok(_) => {}
-                Err(e) => {
-                    tracing::error!("{:?}", e);
-                }
+    tasks.push(tokio::spawn(async move {
+        let shutdown = t4_shutdown.clone();
+        let message_queue = recv_message_queue.clone();
+        let mut socket = zeromq::PubSocket::new();
+        match socket.bind("tcp://127.0.0.1:5556").await {
+            Ok(_) => {}
+            Err(e) => {
+                tracing::error!("{:?}", e);
+            }
+        }
+
+        #[allow(irrefutable_let_patterns)]
+        while let packet = message_queue.pop().await {
+            if shutdown.load(Ordering::Relaxed) {
+                tracing::info!("Relay QUIC thread ended.");
+                break;
             }
 
-            #[allow(irrefutable_let_patterns)]
-            while let packet = message_queue.pop().await {
-                if shutdown.load(Ordering::Relaxed) {
-                    tracing::info!("Relay QUIC thread ended.");
-                    break;
-                }
-
-                match packet.to_string() {
-                    Ok(message) =>
-                        match socket.send(message.into()).await {
-                            Ok(_) => {}
-                            Err(e) => {
-                                tracing::error!("failed to send message {:?}", e);
-                            }
-                        }
+            match packet.to_string() {
+                Ok(message) => match socket.send(message.into()).await {
+                    Ok(_) => {}
                     Err(e) => {
-                        tracing::error!("Couldn't convert message {:?}", e);
+                        tracing::error!("failed to send message {:?}", e);
                     }
+                },
+                Err(e) => {
+                    tracing::error!("Couldn't convert message {:?}", e);
                 }
             }
+        }
 
-            _ = socket.close().await;
-        })
-    );
+        _ = socket.close().await;
+    }));
 
     // Provides an interface that webhook calls can push data into this QUIC server for processing.
     let t3_shutdown = shutdown.clone();
     let monitor_player_channel_cache = monitor_player_channel_cache.clone();
     let shutdown_queue = queue.clone();
 
-    tasks.push(
-        tokio::spawn(async move {
-            let shutdown = t3_shutdown.clone();
-            let queue = queue.clone();
-            let cache = cache_c.clone();
+    tasks.push(tokio::spawn(async move {
+        let shutdown = t3_shutdown.clone();
+        let queue = queue.clone();
+        let cache = cache_c.clone();
 
-            let player_channel_cache = monitor_player_channel_cache.clone();
+        let player_channel_cache = monitor_player_channel_cache.clone();
 
-            let mut socket = zeromq::PubSocket::new();
-            match socket.bind("tcp://127.0.0.1:5556").await {
-                Ok(_) => {}
+        let mut socket = zeromq::PubSocket::new();
+        match socket.bind("tcp://127.0.0.1:5556").await {
+            Ok(_) => {}
+            Err(e) => {
+                tracing::error!("{:?}", e);
+            }
+        }
+
+        #[allow(irrefutable_let_patterns)]
+        while let packet = queue.pop().await {
+            if shutdown.load(Ordering::Relaxed) {
+                tracing::info!("Webhook QUIC thread ended.");
+                return;
+            }
+
+            let pkc = packet.clone();
+
+            match pkc.to_string() {
+                Ok(message) =>
+                // Push the player position data to all active players.
+                // This provides players with both positional information,
+                // And acts as a pulse-clock to force events to be processed
+                // on the clients
+                {
+                    match socket.send(message.into()).await {
+                        Ok(_) => {}
+                        Err(e) => {
+                            tracing::error!("failed to send message {:?}", e);
+                        }
+                    }
+                }
+
                 Err(e) => {
-                    tracing::error!("{:?}", e);
+                    tracing::error!("Couldn't convert message {:?}", e);
                 }
-            }
-            
-            #[allow(irrefutable_let_patterns)]
-            while let packet = queue.pop().await {
-                if shutdown.load(Ordering::Relaxed) {
-                    tracing::info!("Webhook QUIC thread ended.");
-                    return;
-                }
+            };
 
-                let pkc = packet.clone();
-
-                match pkc.to_string() {
-                    Ok(message) =>
-                        // Push the player position data to all active players.
-                        // This provides players with both positional information,
-                        // And acts as a pulse-clock to force events to be processed
-                        // on the clients
-                        match socket.send(message.into()).await {
-                            Ok(_) => {}
-                            Err(e) => {
-                                tracing::error!("failed to send message {:?}", e);
-                            }
-                        }
-                
-                    Err(e) => {
-                        tracing::error!("Couldn't convert message {:?}", e);
-                    }
-                };
-
-                // Packet specific handling
-                match pkc.packet_type {
-                    // Add the player position packet to the cache
-                    PacketType::PlayerData =>
-                        match packet.get_data() {
-                            Some(data) => {
-                                let data = data.to_owned();
-                                let data: Result<PlayerDataPacket, ()> = data.try_into();
-                                match data {
-                                    Ok(data) => {
-                                        for player in data.players.clone() {
-                                            cache.insert(player.name.clone(), player.clone()).await;
-                                        }
-                                    }
-                                    Err(_) => {}
+            // Packet specific handling
+            match pkc.packet_type {
+                // Add the player position packet to the cache
+                PacketType::PlayerData => match packet.get_data() {
+                    Some(data) => {
+                        let data = data.to_owned();
+                        let data: Result<PlayerDataPacket, ()> = data.try_into();
+                        match data {
+                            Ok(data) => {
+                                for player in data.players.clone() {
+                                    cache.insert(player.name.clone(), player.clone()).await;
                                 }
                             }
-                            None => {}
+                            Err(_) => {}
                         }
-                    PacketType::ChannelEvent => {
-                        match packet.get_data() {
-                            Some(data) => {
-                                let data = data.to_owned();
-                                let data: Result<ChannelEventPacket, ()> = data.try_into();
+                    }
+                    None => {}
+                },
+                PacketType::ChannelEvent => {
+                    match packet.get_data() {
+                        Some(data) => {
+                            let data = data.to_owned();
+                            let data: Result<ChannelEventPacket, ()> = data.try_into();
 
-                                match data {
-                                    Ok(data) => {
-                                        tracing::info!(
-                                            "[{}] {:?} {}",
-                                            data.name,
-                                            data.event,
-                                            data.channel
-                                        );
-                                        match data.event {
-                                            ChannelEvents::Join => {
-                                                _ = player_channel_cache
-                                                    .lock_arc().await
-                                                    .insert(data.name, data.channel).await;
-                                            }
-                                            ChannelEvents::Leave => {
-                                                _ = player_channel_cache
-                                                    .lock_arc().await
-                                                    .remove(&data.name).await;
-                                            }
+                            match data {
+                                Ok(data) => {
+                                    tracing::info!(
+                                        "[{}] {:?} {}",
+                                        data.name,
+                                        data.event,
+                                        data.channel
+                                    );
+                                    match data.event {
+                                        ChannelEvents::Join => {
+                                            _ = player_channel_cache
+                                                .lock_arc()
+                                                .await
+                                                .insert(data.name, data.channel)
+                                                .await;
+                                        }
+                                        ChannelEvents::Leave => {
+                                            _ = player_channel_cache
+                                                .lock_arc()
+                                                .await
+                                                .remove(&data.name)
+                                                .await;
                                         }
                                     }
-                                    Err(_) => {}
                                 }
+                                Err(_) => {}
                             }
-                            None => {}
-                        };
-                    }
-                    _ => {}
+                        }
+                        None => {}
+                    };
                 }
+                _ => {}
             }
+        }
 
-            return;
-        })
-    );
+        return;
+    }));
 
     // Monitor for CTRL-C Signals to notify inbound threads that they should shutdown
     // This currently requires the theads to be active, otherwise they won't terminate
@@ -539,7 +542,7 @@ pub(crate) async fn get_task(
             shutdown_message_queue.push(shutdown_packet.clone()).await;
 
             tracing::info!("Shutdown signal received, signaling QUIC threads to terminate. Waiting 3 seconds before force shutdown.");
-            
+
             tokio::time::sleep(Duration::from_secs(3)).await;
 
             // Shutdown the QUIC listener thread by spawning a fake connection then immediately dropping it
@@ -563,7 +566,7 @@ pub(crate) async fn get_task(
                 .unwrap()
                 .start()
                 .unwrap();
-            
+
             client.connect(connect)
                 .await
                 .unwrap()
@@ -580,11 +583,10 @@ pub(crate) async fn get_task(
 /// Returns the cache object without if match branching nonsense
 async fn get_cache() -> Result<Arc<Cache<String, common::Player>>, anyhow::Error> {
     match PLAYER_POSITION_CACHE.get() {
-        Some(cache) =>
-            match cache {
-                Some(cache) => Ok(cache.clone()),
-                None => Err(anyhow!("Cache not found.")),
-            }
+        Some(cache) => match cache {
+            Some(cache) => Ok(cache.clone()),
+            None => Err(anyhow!("Cache not found.")),
+        },
 
         None => Err(anyhow!("Cache not found")),
     }
