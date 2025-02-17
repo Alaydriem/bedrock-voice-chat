@@ -186,10 +186,10 @@ pub(crate) async fn get_task(
                                                             if owner.is_none() {
                                                                 tracing::info!(
                                                                     "{} Connected to recv stream.",
-                                                                    raw_network_packet.owner.clone().name
+                                                                    raw_network_packet.get_author()
                                                                 );
                                                                 *owner = Some(
-                                                                    raw_network_packet.owner.clone()
+                                                                    raw_network_packet.owner.clone().unwrap()
                                                                 );
                                                             }
 
@@ -529,9 +529,10 @@ pub(crate) async fn get_task(
 
             let shutdown_packet = QuicNetworkPacket {
                 packet_type: PacketType::Debug,
-                owner: PacketOwner {
+                owner: Some(PacketOwner {
                     name: "shutdown".into(),
-                    client_id: (0..32).map(|_| rand::random::<u8>()).collect() },
+                    client_id: (0..32).map(|_| rand::random::<u8>()).collect()
+                }),
                 data: QuicNetworkPacketData::Debug(DebugPacket("Shutdown signal received.".into()))
             };
 

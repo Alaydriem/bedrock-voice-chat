@@ -1,37 +1,35 @@
 use crate::AudioPacket;
 use common::structs::audio::AudioDevice;
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    mpsc, Arc, Mutex,
-};
+use std::{sync::Arc, thread::sleep, time::Duration};
 use tokio::task::JoinHandle;
 
-use super::AudioFrame;
-use super::IpcMessage;
+use crate::core::IpcMessage;
 
 pub(crate) struct OutputStream {
     pub device: Option<AudioDevice>,
     pub bus: Arc<flume::Receiver<AudioPacket>>,
     pub rx: spmc::Receiver<IpcMessage>,
     pub tx: spmc::Sender<IpcMessage>,
-    pub producer: mpsc::Sender<AudioFrame>,
-    pub consumer: mpsc::Receiver<AudioFrame>,
-    pub shutdown: Arc<Mutex<AtomicBool>>,
     jobs: Vec<JoinHandle<()>>,
 }
 
 impl super::StreamTrait for OutputStream {
     fn stop(&mut self) {
-        let shutdown = self.shutdown.clone();
-        let shutdown = shutdown.lock().unwrap();
-        shutdown.store(true, Ordering::Relaxed);
         _ = self.tx.send(IpcMessage::Terminate);
+
+        // Give the threads time to detect that they should gracefully shut down
+        _ = sleep(Duration::from_secs(1));
+
+        // Then hard terminate them
+        for job in &self.jobs {
+            job.abort();
+        }
+
+        self.jobs = vec![];
     }
 
     fn is_stopped(&mut self) -> bool {
-        let shutdown = self.shutdown.clone();
-        let mut shutdown = shutdown.lock().unwrap();
-        return shutdown.get_mut().to_owned();
+        self.jobs.len() == 0
     }
 
     fn start(&mut self) -> Result<(), anyhow::Error> {
@@ -42,15 +40,11 @@ impl super::StreamTrait for OutputStream {
 impl OutputStream {
     pub fn new(device: Option<AudioDevice>, bus: Arc<flume::Receiver<AudioPacket>>) -> Self {
         let (tx, rx) = spmc::channel();
-        let (producer, consumer) = mpsc::channel();
         Self {
             device,
             bus,
             rx,
             tx,
-            producer,
-            consumer,
-            shutdown: Arc::new(std::sync::Mutex::new(AtomicBool::new(false))),
             jobs: vec![],
         }
     }

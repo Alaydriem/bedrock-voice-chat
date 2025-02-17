@@ -1,8 +1,22 @@
-mod change_audio_device_event;
-mod change_network_stream_event;
-pub(crate) mod listeners;
-mod stop_audio_device_event;
+mod listener_trait;
 
-pub(crate) use change_audio_device_event::ChangeAudioDeviceEvent;
-pub(crate) use change_network_stream_event::ChangeNetworkStreamEvent;
-pub(crate) use stop_audio_device_event::StopAudioDeviceEvent;
+use tauri::App;
+
+pub(crate) use listener_trait::ListenerTrait;
+use crate::{
+    audio::listeners::{
+        ChangeAudioDeviceListener,
+        StopAudioDeviceListener
+    },
+    network::listeners::{
+        ChangeNetworkStreamListener,
+        StopNetworkStreamListener
+    }
+};
+
+pub(crate) fn register(app: &mut App) {
+    StopAudioDeviceListener::new(app).listen();
+    ChangeAudioDeviceListener::new(app).listen();
+    StopNetworkStreamListener::new(app).listen();
+    ChangeNetworkStreamListener::new(app).listen();
+}

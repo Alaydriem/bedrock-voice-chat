@@ -36,7 +36,7 @@ pub enum QuicNetworkPacketData {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct QuicNetworkPacket {
     pub packet_type: PacketType,
-    pub owner: PacketOwner,
+    pub owner: Option<PacketOwner>,
     pub data: QuicNetworkPacketData,
 }
 
@@ -186,12 +186,18 @@ impl QuicNetworkPacket {
 
     /// Returns the author
     pub fn get_author(&self) -> String {
-        return self.owner.name.clone();
+        match &self.owner {
+            Some(owner) => owner.name.clone(),
+            None => String::from("")
+        }
     }
 
     /// Returns the client id
     pub fn get_client_id(&self) -> Vec<u8> {
-        return self.owner.client_id.clone();
+        match &self.owner {
+            Some(owner) => owner.client_id.clone(),
+            None => vec![]
+        }
     }
 
     /// Returns the underlying data frame.

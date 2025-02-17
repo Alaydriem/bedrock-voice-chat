@@ -114,10 +114,10 @@ pub async fn position(
 
     // Broadcast the player position to QUIC
     let packet = QuicNetworkPacket {
-        owner: PacketOwner {
+        owner: Some(PacketOwner {
             name: String::from("api"),
             client_id: vec![0u8; 0],
-        },
+        }),
         packet_type: PacketType::PlayerData,
         data: QuicNetworkPacketData::PlayerData(PlayerDataPacket {
             players: positions.0,

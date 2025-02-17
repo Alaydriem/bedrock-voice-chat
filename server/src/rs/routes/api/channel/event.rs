@@ -52,10 +52,10 @@ pub async fn channel_event<'r>(
     drop(lock);
 
     let packet = QuicNetworkPacket {
-        owner: PacketOwner {
+        owner: Some(PacketOwner {
             name: String::from("api"),
             client_id: vec![0u8; 0],
-        },
+        }),
         packet_type: PacketType::ChannelEvent,
         data: QuicNetworkPacketData::ChannelEvent(ChannelEventPacket {
             event: event.event,

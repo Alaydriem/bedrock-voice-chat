@@ -1,13 +1,13 @@
 mod input;
 mod output;
-mod stream_trait;
 
 use common::structs::audio::AudioDevice;
 
 pub(crate) use input::InputStream;
 pub(crate) use output::OutputStream;
-pub(crate) use stream_trait::StreamTrait;
+pub(crate) use crate::core::StreamTrait;
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub(crate) enum AudioFrame {
     F32(AudioFrameData<f32>),
@@ -24,6 +24,7 @@ impl AudioFrame {
         None
     }
 
+    #[allow(unused)]
     pub fn i32(self) -> Option<AudioFrameData<i32>> {
         if let AudioFrame::I32(f) = self {
             return Some(f);
@@ -32,6 +33,7 @@ impl AudioFrame {
         None
     }
 
+    #[allow(unused)]
     pub fn i16(self) -> Option<AudioFrameData<i16>> {
         if let AudioFrame::I16(f) = self {
             return Some(f);
@@ -44,11 +46,6 @@ impl AudioFrame {
 #[derive(Debug, Clone)]
 pub(crate) struct AudioFrameData<T> {
     pcm: Vec<T>,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub(crate) enum IpcMessage {
-    Terminate,
 }
 
 pub(crate) enum StreamTraitType {

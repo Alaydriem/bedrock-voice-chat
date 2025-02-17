@@ -2,7 +2,7 @@ use anyhow::anyhow;
 use audio_gate::NoiseGate;
 use common::structs::{
     audio::{AudioDevice, BUFFER_SIZE},
-    packet::{AudioFramePacket, PacketOwner, QuicNetworkPacket, QuicNetworkPacketData},
+    packet::{AudioFramePacket, QuicNetworkPacket, QuicNetworkPacketData},
 };
 use log::{debug, error, info, warn};
 use opus::Bitrate;
@@ -10,37 +10,33 @@ use rodio::cpal::traits::StreamTrait;
 use rodio::DeviceTrait;
 use std::{
     sync::{
-        atomic::{AtomicBool, Ordering},
         mpsc::{self, Receiver, Sender},
-        Arc, Mutex,
+        Arc
     },
+    thread::sleep,
     time::Duration,
 };
-use tokio::{task::JoinHandle, time};
+use tokio::task::JoinHandle;
 
 use crate::{audio::stream::stream_manager::AudioFrameData, NetworkPacket};
 
 use super::AudioFrame;
-use super::IpcMessage;
+use crate::core::IpcMessage;
 
 pub(crate) struct InputStream {
     pub device: Option<AudioDevice>,
     pub bus: Arc<flume::Sender<NetworkPacket>>,
     pub rx: spmc::Receiver<IpcMessage>,
     pub tx: spmc::Sender<IpcMessage>,
-    pub shutdown: Arc<Mutex<AtomicBool>>,
     jobs: Vec<JoinHandle<()>>,
 }
 
 impl super::StreamTrait for InputStream {
     fn stop(&mut self) {
-        let shutdown = self.shutdown.clone();
-        let shutdown = shutdown.lock().unwrap();
-        shutdown.store(true, Ordering::Relaxed);
         _ = self.tx.send(IpcMessage::Terminate);
 
         // Give the threads time to detect that they should gracefully shut down
-        _ = time::sleep(Duration::from_secs(1));
+        _ = sleep(Duration::from_secs(1));
 
         // Then hard terminate them
         for job in &self.jobs {
@@ -51,15 +47,10 @@ impl super::StreamTrait for InputStream {
     }
 
     fn is_stopped(&mut self) -> bool {
-        let shutdown = self.shutdown.clone();
-        let mut shutdown = shutdown.lock().unwrap();
-        return shutdown.get_mut().to_owned();
+        self.jobs.len() == 0
     }
 
     fn start(&mut self) -> Result<(), anyhow::Error> {
-        // We need to fetch the player name from Stronghold // Store (???)
-        // How do we pull this in? Shouldn't it be initialized?
-
         let (producer, consumer) = mpsc::channel();
 
         // Start the audio input listener thread
@@ -86,7 +77,6 @@ impl InputStream {
             bus,
             rx,
             tx,
-            shutdown: Arc::new(std::sync::Mutex::new(AtomicBool::new(false))),
             jobs: vec![],
         }
     }
@@ -211,7 +201,6 @@ impl InputStream {
         Ok(())
     }
 
-    //
     fn sender(&mut self, consumer: Receiver<AudioFrame>) -> Result<(), anyhow::Error> {
         match self.device.clone() {
             Some(device) => match device.get_stream_config() {
@@ -244,7 +233,6 @@ impl InputStream {
                     let bus = self.bus.clone();
                     self.jobs.push(tokio::spawn(async move {
                         let rx = audio_output_rx.clone();
-                        let client_id: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
                         // This will only run when there is data to be received
                         // It's important that our parent calls abort() on the thread when it's time to shutdown
                         #[allow(irrefutable_let_patterns)]
@@ -301,14 +289,10 @@ impl InputStream {
                                             continue;
                                         }
 
-                                        let name = String::from("random_name");
                                         let packet = NetworkPacket {
                                             data: QuicNetworkPacket {
                                                 packet_type: common::structs::packet::PacketType::AudioFrame,
-                                                owner: PacketOwner {
-                                                    client_id: client_id.clone(),
-                                                    name: name.clone()
-                                                },
+                                                owner: None, // This will be populated on the network side
                                                 data: QuicNetworkPacketData::AudioFrame(AudioFramePacket {
                                                     length: s.len(),
                                                     data: s.clone(),

@@ -3,6 +3,7 @@ use common::ncryptflib::rocket::ExportableEncryptionKeyData;
 use std::time::Duration;
 use tauri_plugin_http::reqwest;
 
+#[allow(unused)]
 pub const CONFIG_ENDPOINT: &'static str = "/api/config";
 pub const AUTH_ENDPOINT: &'static str = "/api/auth";
 pub const NCRYPTF_EK_ENDPOINT: &'static str = "/ncryptf/ek";

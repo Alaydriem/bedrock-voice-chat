@@ -8,15 +8,18 @@ use std::{
     fs::File,
     sync::{Arc, Mutex},
 };
+use async_mutex::Mutex as AsyncMutex;
 use tauri::path::BaseDirectory;
 use tauri::Manager;
 use tauri_plugin_store::StoreExt;
 
 use audio::AudioStreamManager;
+use network::NetworkStreamManager;
 
 mod audio;
 mod auth;
 mod commands;
+mod core; 
 mod events;
 mod network;
 mod structs;
@@ -63,6 +66,8 @@ pub fn run() {
             crate::commands::audio::stop_audio_device,
             crate::commands::audio::get_devices,
             // Stream Information
+            crate::commands::network::stop_network_stream,
+            crate::commands::network::change_network_stream
         ])
         .setup(|app| {
             log::info!("BVC Variant {:?}", crate::commands::env::get_variant());
@@ -155,10 +160,19 @@ pub fn run() {
                 handle.state::<Arc<Sender<NetworkPacket>>>().inner().clone(),
                 handle.state::<Arc<Receiver<AudioPacket>>>().inner().clone(),
             );
-
             app.manage(Mutex::new(audio_stream));
 
-            crate::events::listeners::register(app);
+            // This is necessary to setup s2n_quic. It doesn't need to be called elsewhere
+            _ = s2n_quic::provider::tls::rustls::rustls::crypto::aws_lc_rs::default_provider()
+                .install_default();
+
+            let network_stream = NetworkStreamManager::new(
+                handle.state::<Arc<Sender<AudioPacket>>>().inner().clone(),
+                handle.state::<Arc<Receiver<NetworkPacket>>>().inner().clone(),
+            );
+            app.manage(AsyncMutex::new(network_stream));
+
+            crate::events::register(app);
 
             Ok(())
         })

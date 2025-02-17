@@ -53,12 +53,12 @@ rand = { version = "^0.9" }
 rodio = { version = "^0.20" }
 bytes = { version = "^1.5" }
 async-mutex = { version = "^1.4" }
-async-once-cell = "^0.5"
 moka = { version = "^0.12", features = ["future", "sync"] }
 opus = { version = "^0.3" }
 ron = { version = "^0.8" }
 audio-gate = { version = "^0.1" }
 flume = { version = "^0.11" }
+trust-dns-resolver = { version = "^0.23", features = ["tokio-runtime", "tokio-rustls", "rustls"] }
 
 tauri = { version = "^2", features = ["rustls-tls"] }
 tauri-plugin-opener = "^2"

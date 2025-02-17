@@ -1,9 +1,7 @@
 use crate::{
-    events::{
-        listeners::listener_trait::ListenerTrait, ChangeAudioDeviceEvent, StopAudioDeviceEvent,
-    },
-    structs::app_state::AppState,
-    AudioStreamManager,
+    audio::events::ChangeAudioDeviceEvent,
+    audio::events::StopAudioDeviceEvent,
+     events::ListenerTrait, structs::app_state::AppState, AudioStreamManager
 };
 use log::info;
 use std::sync::Mutex;

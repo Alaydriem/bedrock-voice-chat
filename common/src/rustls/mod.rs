@@ -77,6 +77,21 @@ impl MtlsProvider {
             my_private_key: private_key,
         })
     }
+
+    pub async fn new_from_vec(
+        ca_cert_pem: Vec<u8>,
+        my_cert_pem: Vec<u8>,
+        my_key_pem: Vec<u8>
+    ) -> Result<Self, RustlsError> {
+        let root_store = into_root_store_vec(ca_cert_pem.as_ref()).await?;
+        let cert_chain = into_certificate_vec(my_cert_pem.as_ref()).await?;
+        let private_key = into_private_key_vec(my_key_pem.as_ref()).await?;
+        Ok(MtlsProvider {
+            root_store,
+            my_cert_chain: cert_chain.into_iter().map(CertificateDer::from).collect(),
+            my_private_key: private_key,
+        })
+    }
 }
 
 async fn read_file(path: &Path) -> Result<Vec<u8>, RustlsError> {
@@ -90,14 +105,27 @@ async fn read_file(path: &Path) -> Result<Vec<u8>, RustlsError> {
     Ok(buf)
 }
 
-async fn into_certificate(path: &Path) -> Result<Vec<CertificateDer<'static>>, RustlsError> {
-    let buf = &read_file(path).await?;
+async fn into_certificate_vec(buf: &Vec<u8>) -> Result<Vec<CertificateDer<'static>>, RustlsError> {
     let mut cursor = Cursor::new(buf);
     rustls_pemfile::certs(&mut cursor)
         .map(|cert| {
             cert.map_err(|_| RustlsError::General("Could not read certificate".to_string()))
         })
         .collect()
+}
+
+async fn into_certificate(path: &Path) -> Result<Vec<CertificateDer<'static>>, RustlsError> {
+    let buf = &read_file(path).await?;
+    into_certificate_vec(buf).await
+}
+
+async fn into_root_store_vec(buf: &Vec<u8>) -> Result<RootCertStore, RustlsError> {
+    let ca_certs: Vec<CertificateDer<'static>> = into_certificate_vec(buf).await
+        .map(|certs| certs.into_iter().map(CertificateDer::from))?
+        .collect();
+    let mut cert_store = RootCertStore::empty();
+    cert_store.add_parsable_certificates(ca_certs);
+    Ok(cert_store)
 }
 
 async fn into_root_store(path: &Path) -> Result<RootCertStore, RustlsError> {
@@ -110,8 +138,7 @@ async fn into_root_store(path: &Path) -> Result<RootCertStore, RustlsError> {
     Ok(cert_store)
 }
 
-async fn into_private_key(path: &Path) -> Result<PrivateKeyDer<'static>, RustlsError> {
-    let buf = &read_file(path).await?;
+async fn into_private_key_vec(buf: &Vec<u8>) -> Result<PrivateKeyDer<'static>, RustlsError> {
     let mut cursor = Cursor::new(buf);
 
     macro_rules! parse_key {
@@ -153,4 +180,9 @@ async fn into_private_key(path: &Path) -> Result<PrivateKeyDer<'static>, RustlsE
     Err(RustlsError::General(
         "could not load any valid private keys".to_string(),
     ))
+}
+
+async fn into_private_key(path: &Path) -> Result<PrivateKeyDer<'static>, RustlsError> {
+    let buf = &read_file(path).await?;
+    into_private_key_vec(buf).await
 }

@@ -1,18 +1,17 @@
-use std::sync::Mutex;
-
 use common::structs::audio::{AudioDevice, AudioDeviceType};
+use std::sync::Mutex;
 use std::collections::HashMap;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::{
-    events::{ChangeAudioDeviceEvent, StopAudioDeviceEvent},
+    audio::events::{ChangeAudioDeviceEvent, StopAudioDeviceEvent},
     structs::app_state::AppState,
 };
 use log::error;
 
 /// Returns the active audio device for the given device type
 #[tauri::command]
-pub(crate) fn get_audio_device(
+pub(crate) async fn get_audio_device(
     io: AudioDeviceType,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<AudioDevice, ()> {
@@ -45,7 +44,7 @@ pub(crate) fn change_audio_device(
             );
             _ = app.emit("change-audio-device", ChangeAudioDeviceEvent { device });
         }
-        Err(e) => error!("Failed to access AppState in `change-audio-device` {}", e),
+        Err(e) => error!("Failed to access AppState in `change-audio-device` {:?}", e),
     };
 }
 
@@ -54,15 +53,9 @@ pub(crate) fn change_audio_device(
 #[tauri::command]
 pub(crate) fn stop_audio_device(
     device: AudioDeviceType,
-    app: AppHandle,
-    state: State<'_, Mutex<AppState>>,
+    app: AppHandle
 ) {
-    match state.lock() {
-        Ok(_) => {
-            _ = app.emit("stop-audio-device", StopAudioDeviceEvent { device });
-        }
-        Err(e) => error!("Failed to access AppState in `stop-audio-device` {}", e),
-    };
+    _ = app.emit("stop-audio-device", StopAudioDeviceEvent { device });
 }
 
 /// Returns a list of audio devices

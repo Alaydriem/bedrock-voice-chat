@@ -126,10 +126,10 @@ async fn client(
             total_chunks = total_chunks + 480;
             let s = encoder.encode_vec(chunk, chunk.len() * 4).unwrap();
             let packet = QuicNetworkPacket {
-                owner: common::structs::packet::PacketOwner {
+                owner: Some(common::structs::packet::PacketOwner {
                     name: id.clone(),
                     client_id: client_id.clone(),
-                },
+                }),
                 packet_type: common::structs::packet::PacketType::AudioFrame,
                 data: common::structs::packet::QuicNetworkPacketData::AudioFrame(
                     common::structs::packet::AudioFramePacket {

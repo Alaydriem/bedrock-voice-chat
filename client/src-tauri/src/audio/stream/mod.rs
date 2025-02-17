@@ -25,7 +25,10 @@ impl AudioStreamManager {
         Self {
             producer: producer.clone(),
             consumer: consumer.clone(),
-            input: StreamTraitType::Input(stream_manager::InputStream::new(None, producer.clone())),
+            input: StreamTraitType::Input(stream_manager::InputStream::new(
+                None,
+                producer.clone()
+            )),
             output: StreamTraitType::Output(stream_manager::OutputStream::new(
                 None,
                 consumer.clone(),
@@ -35,6 +38,9 @@ impl AudioStreamManager {
 
     /// Initializes a given input or output stream with a specific device, then starts it
     pub fn init(&mut self, device: AudioDevice) {
+        // Stop the current stream if we're re-initializing a new one so we don't
+        // have dangling thread pointers
+        _ = self.stop(&device.io);
         match device.io {
             AudioDeviceType::InputDevice => {
                 self.input = StreamTraitType::Input(stream_manager::InputStream::new(

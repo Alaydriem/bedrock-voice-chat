@@ -48,7 +48,7 @@ fn get_devices() {
                 }
             }
         }
-        Err(e) => {
+        Err(_) => {
             assert_eq!(
                 "".to_string(),
                 "No devices available on online hosts".to_string()
@@ -73,7 +73,7 @@ fn get_devices() {
                     println!("[{}] {}", host.id().name(), name);
                 }
             }
-            Err(e) => {}
+            Err(_) => {}
         }
     }
 }

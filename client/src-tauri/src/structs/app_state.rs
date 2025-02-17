@@ -1,48 +1,9 @@
 use common::structs::audio::{AudioDevice, AudioDeviceType, StreamConfig};
 use cpal::traits::{DeviceTrait, HostTrait};
 use serde_json::json;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tauri::Wry;
 use tauri_plugin_store::Store;
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum StreamStateType {
-    QuicStream,
-    AudioStream,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum StreamType {
-    InputStream,
-    OutputStream,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct StreamState {
-    pub audio: Vec<StreamType>,
-    pub quic: Vec<StreamType>,
-}
-
-impl StreamState {
-    pub fn stop(&mut self, stream_state_type: StreamStateType, stream_type: Option<StreamType>) {
-        match stream_type {
-            Some(stream_type) => match stream_state_type {
-                StreamStateType::AudioStream => {
-                    let index = self.audio.iter().position(|t| stream_type.eq(t)).unwrap();
-                    self.audio.remove(index);
-                }
-                StreamStateType::QuicStream => {
-                    let index = self.quic.iter().position(|t| stream_type.eq(t)).unwrap();
-                    self.quic.remove(index);
-                }
-            },
-            None => match stream_state_type {
-                StreamStateType::AudioStream => self.audio = vec![],
-                StreamStateType::QuicStream => self.quic = vec![],
-            },
-        }
-    }
-}
 
 #[derive(Clone)]
 pub struct AppState {
@@ -50,7 +11,6 @@ pub struct AppState {
     input_audio_device: AudioDevice,
     output_audio_device: AudioDevice,
     pub current_server: Option<String>,
-    pub stream_states: Arc<Mutex<StreamState>>,
 }
 
 impl AppState {
@@ -63,10 +23,6 @@ impl AppState {
                 &store,
             ),
             current_server: AppState::get_current_server(&store),
-            stream_states: Arc::new(Mutex::new(StreamState {
-                audio: vec![],
-                quic: vec![],
-            })),
         }
     }
 
