@@ -1,7 +1,7 @@
-use std::{net::SocketAddr, sync::Mutex};
+use std::net::SocketAddr;
 use common::structs::config::LoginResponse;
 use tauri::{AppHandle, Emitter, State};
-use async_mutex::Mutex as AsyncMutex;
+use tauri::async_runtime::Mutex;
 
 use crate::{
     network::events::{ChangeNetworkStreamEvent, StopNetworkStreamEvent},
@@ -22,30 +22,22 @@ pub(crate) async fn change_network_stream(
     server: String,
     data: LoginResponse,
     app: AppHandle,
-    state: State<'_, Mutex<AppState>>,
-    network_stream: State<'_, AsyncMutex<NetworkStreamManager>>
+    state: State<'_, tauri::async_runtime::Mutex<AppState>>,
+    network_stream: State<'_, tauri::async_runtime::Mutex<NetworkStreamManager>>
 ) -> Result<(), ()> {
     // Stop the network stream
     _ = app.emit("stop-network-stream", StopNetworkStreamEvent {});
 
-    let event = match state.lock() {
-        Ok(mut state) => {
-            // Update the current server
-            state.current_server = Some(server.clone());
-            // Change and restart the network stream
-            ChangeNetworkStreamEvent {
-                server: server.clone(),
-                socket: data.quic_connect_string,
-                name: data.gamertag,
-                ca_cert: data.certificate_ca,
-                cert: data.certificate,
-                key: data.certificate_key
-            }
-        },
-        Err(e) => {
-            error!("Failed to access AppState in `change-network-stream` {:?}", e);
-            return Err(());
-        }
+    let mut state = state.lock().await;
+    state.current_server = Some(server.clone());
+    // Change and restart the network stream
+    let event = ChangeNetworkStreamEvent {
+        server: server.clone(),
+        socket: data.quic_connect_string,
+        name: data.gamertag,
+        ca_cert: data.certificate_ca,
+        cert: data.certificate,
+        key: data.certificate_key
     };
 
     _ = app.emit("change-network-stream", event.clone());

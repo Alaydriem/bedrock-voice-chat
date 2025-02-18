@@ -6,9 +6,9 @@ use network::NetworkPacket;
 use serde_json::json;
 use std::{
     fs::File,
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
-use async_mutex::Mutex as AsyncMutex;
+use tauri::async_runtime::Mutex;
 use tauri::path::BaseDirectory;
 use tauri::Manager;
 use tauri_plugin_store::StoreExt;
@@ -140,7 +140,7 @@ pub fn run() {
                 json!({ "value": android_signature_hash }),
             );
 
-            let app_state = Mutex::new(structs::app_state::AppState::new(store.clone()));
+            let app_state = tauri::async_runtime::Mutex::new(structs::app_state::AppState::new(store.clone()));
             app.manage(app_state);
 
             // This is our audio producer and consumer
@@ -161,7 +161,7 @@ pub fn run() {
                 handle.state::<Arc<Sender<NetworkPacket>>>().inner().clone(),
                 handle.state::<Arc<Receiver<AudioPacket>>>().inner().clone(),
             );
-            app.manage(Mutex::new(audio_stream));
+            app.manage(tauri::async_runtime::Mutex::new(audio_stream));
 
             // This is necessary to setup s2n_quic. It doesn't need to be called elsewhere
             _ = s2n_quic::provider::tls::rustls::rustls::crypto::aws_lc_rs::default_provider()
@@ -171,7 +171,7 @@ pub fn run() {
                 handle.state::<Arc<Sender<AudioPacket>>>().inner().clone(),
                 handle.state::<Arc<Receiver<NetworkPacket>>>().inner().clone(),
             );
-            app.manage(AsyncMutex::new(network_stream));
+            app.manage(tauri::async_runtime::Mutex::new(network_stream));
 
             crate::events::register(app);
 

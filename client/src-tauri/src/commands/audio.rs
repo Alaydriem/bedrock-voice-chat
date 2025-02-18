@@ -32,69 +32,46 @@ pub(crate) async fn get_audio_device(
 pub(crate) async fn change_audio_device(
     device: AudioDevice,
     app: AppHandle,
-    state: State<'_, Mutex<AppState>>,
-    asm: State<'_, Mutex<AudioStreamManager>> // tauri::async_runtime::Mutex to fix lock issue
-) -> Result<bool, bool> {
-    match state.lock() {
-        Ok(mut state) => {
-            info!("prepare to stop");
-            _ = stop_audio_device(device.io.clone(), app.clone());
+    state: State<'_, tauri::async_runtime::Mutex<AppState>>,
+    asm: State<'_, tauri::async_runtime::Mutex<AudioStreamManager>> // tauri::async_runtime::Mutex to fix lock issue
+) -> Result<(), ()> {
+    let mut state = state.lock().await;
+    _ = stop_audio_device(device.io.clone(), app.clone());
+    _ = update_current_player(app.clone(), asm.clone());
+    state.change_audio_device(&device);
 
-            info!("prepare to update");
-            _ = update_current_player(app.clone(), asm.clone());
+    _ = app.emit("change-audio-device", ChangeAudioDeviceEvent { device: device.clone() });
+    let mut asm = asm.lock().await;
+    asm.init(device.clone());
+    _ = asm.restart(&device.clone().io).await;   
 
-            info!("prepare to change stored state");
-            state.change_audio_device(&device);
-
-            info!("emit event");
-
-            _ = app.emit("change-audio-device", ChangeAudioDeviceEvent { device });
-            match asm.lock() {
-                Ok(mut asm) => {
-                    asm.init(device.clone());
-                    _ = asm.restart(&device.io).await;
-                },
-                Err(e) => {
-                    error!("Failed to acquire lock on AudioStreamManager");
-                    return Err(false);
-                }
-            };            
-        }
-        Err(e) => {
-            error!("Failed to access AppState in `change-audio-device` {:?}", e);
-            return Err(false);
-        },
-    };
-
-    Ok(true)
+    Ok(())
 }
 
 // Maps the current player information to the Audio Output Stream
 #[tauri::command]
 pub(crate) async fn update_current_player(
     app: AppHandle,
-    asm: State<'_, Mutex<AudioStreamManager>>
+    asm: State<'_, tauri::async_runtime::Mutex<AudioStreamManager>>
 ) -> Result<(), ()>{
-    match asm.lock() {
-        Ok(mut asm) => match app.store("store.json") {
-            Ok(store) => match store.get("current_player"){
-                Some(value) => match value.get("value") {
-                    Some(value) => {
-                        let current_player = value.to_string();
-                        _ = asm.metadata(
-                            String::from("current_player"),
-                            current_player,
-                            &AudioDeviceType::OutputDevice
-                        );
-                    },
-                    None => return Err(())
+    let mut asm = asm.lock().await;
+    match app.store("store.json") {
+        Ok(store) => match store.get("current_player"){
+            Some(value) => match value.get("value") {
+                Some(value) => {
+                    let current_player = value.to_string();
+                    _ = asm.metadata(
+                        String::from("current_player"),
+                        current_player,
+                        &AudioDeviceType::OutputDevice
+                    );
                 },
                 None => return Err(())
-            },                    
-            Err(_) => return Err(())    
-        },
-        Err(_) => return Err(())
-    }
+            },
+            None => return Err(())
+        },                    
+        Err(_) => return Err(())    
+    };
 
     Ok(())
 }
