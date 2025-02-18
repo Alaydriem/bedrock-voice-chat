@@ -142,6 +142,7 @@ async fn client(
                             z: 5.5,
                         }),
                         dimension: Some(common::Dimension::Overworld),
+                        spatial: true
                     },
                 ),
             };

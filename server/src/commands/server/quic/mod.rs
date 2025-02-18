@@ -303,7 +303,7 @@ pub(crate) async fn get_task(
                                                 }
 
                                                 match QuicNetworkPacket::from_string(message) {
-                                                    Some(packet) => {
+                                                    Some(mut packet) => {
                                                         // Determine if the reciever can even receive the packet
                                                         if
                                                             !packet.is_receivable(

@@ -10,8 +10,7 @@ use rodio::cpal::traits::StreamTrait;
 use rodio::DeviceTrait;
 use std::{
     sync::{
-        mpsc::{self, Receiver, Sender},
-        Arc
+        atomic::{AtomicBool, Ordering}, mpsc::{self, Receiver, Sender}, Arc, Mutex
     },
     thread::sleep,
     time::Duration,
@@ -29,9 +28,16 @@ pub(crate) struct InputStream {
     pub rx: spmc::Receiver<IpcMessage>,
     pub tx: spmc::Sender<IpcMessage>,
     jobs: Vec<JoinHandle<()>>,
+    shutdown: Arc<Mutex<AtomicBool>>,
+    metadata: Arc<moka::sync::Cache<String, String>>
 }
 
 impl super::StreamTrait for InputStream {
+    fn metadata(&mut self, key: String, value: String) -> Result<(), anyhow::Error> {
+        self.metadata.insert(key, value);
+        Ok(())
+    }
+
     fn stop(&mut self) {
         _ = self.tx.send(IpcMessage::Terminate);
 
@@ -51,16 +57,35 @@ impl super::StreamTrait for InputStream {
     }
 
     fn start(&mut self) -> Result<(), anyhow::Error> {
+        info!("Audio InputStream started");
         let (producer, consumer) = mpsc::channel();
 
+        let rx = self.rx.clone();
+        let monitor_shutdown = self.shutdown.clone();
+        self.jobs.push(tokio::spawn(async move {
+            match monitor_shutdown.lock() {
+                Ok(shutdown) => match rx.recv() {
+                    Ok(result) => match result {
+                        IpcMessage::Terminate => shutdown.store(true, Ordering::Relaxed),
+                    },
+                    Err(e) => {
+                        warn!("{:?}", e);
+                    }
+                },
+                Err(e) => {
+                    warn!("{:?}", e);
+                }
+            };
+        }));
+
         // Start the audio input listener thread
-        match self.listener(producer) {
+        match self.listener(producer, self.shutdown.clone()) {
             Ok(_) => {}
             Err(e) => return Err(e),
         };
 
         // Send the PCM data to the network sender
-        match self.sender(consumer) {
+        match self.sender(consumer, self.shutdown.clone()) {
             Ok(_) => {}
             Err(e) => return Err(e),
         };
@@ -78,20 +103,24 @@ impl InputStream {
             rx,
             tx,
             jobs: vec![],
+            shutdown: Arc::new(std::sync::Mutex::new(AtomicBool::new(false))),
+            metadata: Arc::new(moka::sync::Cache::builder().build())
         }
     }
 
     // Produces raw PCM data and sends it to the network consumer
-    fn listener(&mut self, producer: Sender<AudioFrame>) -> Result<(), anyhow::Error> {
+    fn listener(
+        &mut self,
+        producer: Sender<AudioFrame>,
+        shutdown: Arc<Mutex<AtomicBool>>
+    ) -> Result<(), anyhow::Error> {
         match self.device.clone() {
             Some(device) => match device.get_stream_config() {
                 Ok(config) => {
                     let cpal_device: Option<rodio::cpal::Device> = device.clone().into();
-                    let audio_input_rx = self.rx.clone();
 
                     match cpal_device {
                         Some(cpal_device) => self.jobs.push(tokio::spawn(async move {
-                            let rx = audio_input_rx.clone();
                             let cpal_device = cpal_device.clone();
                             let device = device.clone();
                             let device_config = rodio::cpal::StreamConfig {
@@ -167,11 +196,13 @@ impl InputStream {
                                 Ok(stream) => {
                                     stream.play().unwrap();
                                     loop {
-                                        let message: IpcMessage = rx.recv().unwrap();
-                                        if message.eq(&IpcMessage::Terminate) {
-                                            info!("{} {} Received shutdown signal, stopping audio stream.", device.io.to_string(), device.display_name);
-                                            stream.pause().unwrap();
-                                            break;
+                                        match shutdown.lock() {
+                                            Ok(mut shutdown) => {
+                                                if shutdown.get_mut().to_owned() {
+                                                    break;
+                                                }
+                                            },
+                                            Err(_) => {}
                                         }
                                     }
 
@@ -201,11 +232,14 @@ impl InputStream {
         Ok(())
     }
 
-    fn sender(&mut self, consumer: Receiver<AudioFrame>) -> Result<(), anyhow::Error> {
+    fn sender(
+        &mut self,
+        consumer: Receiver<AudioFrame>,
+        shutdown: Arc<Mutex<AtomicBool>>
+    ) -> Result<(), anyhow::Error> {
         match self.device.clone() {
             Some(device) => match device.get_stream_config() {
                 Ok(config) => {
-                    let audio_output_rx = self.rx.clone();
                     let device_config = rodio::cpal::StreamConfig {
                         channels: config.channels(),
                         sample_rate: config.sample_rate(),
@@ -232,18 +266,19 @@ impl InputStream {
 
                     let bus = self.bus.clone();
                     self.jobs.push(tokio::spawn(async move {
-                        let rx = audio_output_rx.clone();
-                        // This will only run when there is data to be received
-                        // It's important that our parent calls abort() on the thread when it's time to shutdown
                         #[allow(irrefutable_let_patterns)]
                         while let sample = consumer.recv() {
-                            match sample {
-                                Ok(sample) => {
-                                    let message: IpcMessage = rx.recv().unwrap();
-                                    if message.eq(&IpcMessage::Terminate) {
-                                        info!("{} {} Received shutdown signal, stopping audio stream (broadcaster).", device.io.to_string(), device.display_name);
+                            match shutdown.lock() {
+                                Ok(mut shutdown) => {
+                                    if shutdown.get_mut().to_owned() {
                                         break;
                                     }
+                                },
+                                Err(_) => {}
+                            }
+                            
+                            match sample {
+                                Ok(sample) => {
 
                                     let mut raw_sample = match sample.f32() {
                                         Some(sample) => sample.pcm,
@@ -298,7 +333,8 @@ impl InputStream {
                                                     data: s.clone(),
                                                     sample_rate: device_config.sample_rate.0,
                                                     coordinate: None,
-                                                    dimension: None
+                                                    dimension: None,
+                                                    spatial: false // This will be mutated on the server
                                                 })
                                             }
                                         };

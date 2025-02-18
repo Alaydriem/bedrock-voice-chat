@@ -30,7 +30,6 @@ impl<'a> ListenerTrait for StopNetworkStreamListener<'a> {
                 let network_stream = handle.state::<Mutex<NetworkStreamManager>>();
                 let mut network_stream = network_stream.lock().unwrap();
                 _ = network_stream.stop();
-                drop(network_stream);
             }
         });
     }

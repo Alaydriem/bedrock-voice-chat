@@ -1,12 +1,12 @@
 use std::{
-    sync::Arc,
+    sync::{atomic::{AtomicBool, Ordering}, Arc, Mutex},
     thread::sleep,
     time::Duration,
 };
 use common::structs::packet::QuicNetworkPacket;
 use tokio::task::JoinHandle;
 use crate::{core::IpcMessage, AudioPacket};
-use log::{info, error};
+use log::{error, warn};
 
 /// The InputStream consumes audio packets from the server
 /// Then sends it to the AudioStreamManager::OutputStream
@@ -16,9 +16,16 @@ pub(crate) struct InputStream {
     pub tx: spmc::Sender<IpcMessage>,
     pub stream: Option<s2n_quic::stream::ReceiveStream>,
     jobs: Vec<JoinHandle<()>>,
+    shutdown: Arc<Mutex<AtomicBool>>,
+    metadata: Arc<moka::sync::Cache<String, String>>
 }
 
 impl super::StreamTrait for InputStream {
+    fn metadata(&mut self, key: String, value: String) -> Result<(), anyhow::Error> {
+        self.metadata.insert(key, value);
+        Ok(())
+    }
+
     fn stop(&mut self) {
         _ = self.tx.send(IpcMessage::Terminate);
 
@@ -42,14 +49,34 @@ impl super::StreamTrait for InputStream {
         let rx = self.rx.clone();
         let mut stream = self.stream.take().unwrap();
 
+        let monitor_shutdown = self.shutdown.clone();
+        self.jobs.push(tokio::spawn(async move {
+            match monitor_shutdown.lock() {
+                Ok(shutdown) => match rx.recv() {
+                    Ok(result) => match result {
+                        IpcMessage::Terminate => shutdown.store(true, Ordering::Relaxed),
+                    },
+                    Err(e) => {
+                        warn!("{:?}", e);
+                    }
+                },
+                Err(e) => {
+                    warn!("{:?}", e);
+                }
+            };
+        }));
+
+        let shutdown = self.shutdown.clone();
         self.jobs.push(tokio::spawn(async move {
             let mut packet = Vec::<u8>::new();
             while let Ok(Some(data)) = stream.receive().await {
-                // Shutdown the stream if we receive a signal
-                let message: IpcMessage = rx.recv().unwrap();
-                if message.eq(&IpcMessage::Terminate) {
-                    info!("Received shutdown signal, stopping network receiving stream.");
-                    break;
+                match shutdown.lock() {
+                    Ok(mut shutdown) => {
+                        if shutdown.get_mut().to_owned() {
+                            break;
+                        }
+                    },
+                    Err(_) => {}
                 }
 
                 // Process the packet, then send it to the AudioStreaManager::OutputStream
@@ -86,6 +113,8 @@ impl InputStream {
             tx,
             stream,
             jobs: vec![],
+            shutdown: Arc::new(std::sync::Mutex::new(AtomicBool::new(false))),
+            metadata: Arc::new(moka::sync::Cache::builder().build())
         }
     }
 }

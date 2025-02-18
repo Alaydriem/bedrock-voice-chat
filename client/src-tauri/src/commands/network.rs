@@ -10,7 +10,7 @@ use crate::{
 use log::{info, error};
 
 #[tauri::command]
-pub(crate) fn stop_network_stream(
+pub(crate) async fn stop_network_stream(
     app: AppHandle
 ) -> Result<(), ()> {
     _ = app.emit("stop-network-stream", StopNetworkStreamEvent {});

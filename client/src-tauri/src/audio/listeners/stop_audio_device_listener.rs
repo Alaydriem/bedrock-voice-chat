@@ -28,7 +28,6 @@ impl<'a> ListenerTrait for StopAudioDeviceListener<'a> {
                 let audio_stream = handle.state::<Mutex<AudioStreamManager>>();
                 let mut audio_stream = audio_stream.lock().unwrap();
                 _ = audio_stream.stop(&payload.device);
-                drop(audio_stream);
             }
         });
     }

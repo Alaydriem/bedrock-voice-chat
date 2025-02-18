@@ -1,5 +1,6 @@
 mod input;
 mod output;
+mod sink_manager;
 
 use common::structs::audio::AudioDevice;
 
@@ -73,6 +74,13 @@ impl StreamTrait for StreamTraitType {
             Self::Input(stream) => stream.start(),
             Self::Output(stream) => stream.start(),
         }
+    }
+
+    fn metadata(&mut self, key: String, value: String) -> Result<(), anyhow::Error> {
+        match self {
+            Self::Input(stream) => stream.metadata(key, value),
+            Self::Output(stream) => stream.metadata(key, value)
+        }        
     }
 }
 

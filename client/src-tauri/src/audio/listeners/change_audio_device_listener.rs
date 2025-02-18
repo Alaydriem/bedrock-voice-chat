@@ -1,11 +1,10 @@
 use crate::{
     audio::events::ChangeAudioDeviceEvent,
     audio::events::StopAudioDeviceEvent,
-     events::ListenerTrait, structs::app_state::AppState, AudioStreamManager
+     events::ListenerTrait
 };
 use log::info;
-use std::sync::Mutex;
-use tauri::{App, Emitter, Event, Listener, Manager};
+use tauri::{App, Emitter, Event, Listener};
 
 pub(crate) struct ChangeAudioDeviceListener<'a> {
     app: &'a mut App,
@@ -25,7 +24,9 @@ impl<'a> ListenerTrait for ChangeAudioDeviceListener<'a> {
     fn listener(&self) {
         let handle = self.app.handle().clone();
         self.app.listen("change-audio-device", move |event: Event| {
+            info!("event received {:?}", event.clone());
             if let Ok(payload) = serde_json::from_str::<ChangeAudioDeviceEvent>(&event.payload()) {
+                info!("event processed");
                 info!(
                     "Changing audio device event {} {:?}",
                     payload.device.io.to_string(),
@@ -38,18 +39,7 @@ impl<'a> ListenerTrait for ChangeAudioDeviceListener<'a> {
                     StopAudioDeviceEvent {
                         device: device_io.clone(),
                     },
-                );
-
-                let app_state = handle.state::<Mutex<AppState>>();
-                let app_state = app_state.lock().unwrap();
-
-                let audio_stream = handle.state::<Mutex<AudioStreamManager>>();
-                let mut audio_stream = audio_stream.lock().unwrap();
-                audio_stream.init(payload.device.clone());
-                _ = audio_stream.restart(&device_io);
-
-                drop(audio_stream);
-                drop(app_state);
+                );                
             }
         });
     }

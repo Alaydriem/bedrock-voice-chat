@@ -17,7 +17,10 @@ impl AppState {
     pub fn new(store: Arc<Store<Wry>>) -> Self {
         Self {
             store: store.clone(),
-            input_audio_device: AppState::setup_audio_device(AudioDeviceType::InputDevice, &store),
+            input_audio_device: AppState::setup_audio_device(
+                AudioDeviceType::InputDevice,
+                &store
+            ),
             output_audio_device: AppState::setup_audio_device(
                 AudioDeviceType::OutputDevice,
                 &store,

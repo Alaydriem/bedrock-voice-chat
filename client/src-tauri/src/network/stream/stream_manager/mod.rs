@@ -31,4 +31,11 @@ impl StreamTrait for StreamTraitType {
             Self::Output(stream) => stream.start(),
         }
     }
+
+    fn metadata(&mut self, key: String, value: String) -> Result<(), anyhow::Error> {
+        match self {
+            Self::Input(stream) => stream.metadata(key, value),
+            Self::Output(stream) => stream.metadata(key, value)
+        }        
+    }
 }

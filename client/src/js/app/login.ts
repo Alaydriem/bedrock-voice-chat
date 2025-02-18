@@ -118,6 +118,7 @@ export default class Login extends App {
 
     await store.delete("auth_state_token");
     await store.delete("auth_state_endpoint");
+    await store.save();
 
     // Verify that the state sent back from the server matches the one we generated
     if (state !== authStateToken?.value) {
@@ -147,6 +148,8 @@ export default class Login extends App {
           await stronghold.insert(authStateEndpoint.value, JSON.stringify(response));
           await stronghold.commit();
           await store.set("current_server", { value: authStateEndpoint.value });
+          await store.set("current_player", { value: response.gamertag });
+          await store.save();
           window.location.href = "/dashboard";
         } else {
           throw new Error("authStateEndpoint is undefined");
@@ -154,8 +157,6 @@ export default class Login extends App {
       } else {
         throw new Error("Unable to access stronghold password");
       }
-
-      //window.location.href = "/dashboard"
     }).catch((e) => {
       warn(e);
       serverUrl?.classList.add("border-error");

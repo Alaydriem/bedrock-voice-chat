@@ -1,5 +1,6 @@
 use crate::{Coordinate, Dimension, Player};
 use anyhow::{anyhow, Error};
+use base64::{engine::general_purpose, Engine as _};
 use serde::{Deserialize, Serialize};
 
 use super::channel::ChannelEvents;
@@ -187,7 +188,14 @@ impl QuicNetworkPacket {
     /// Returns the author
     pub fn get_author(&self) -> String {
         match &self.owner {
-            Some(owner) => owner.name.clone(),
+            Some(owner) => {
+                // If the owner name is empty, or comes from the API, then default to the client ID
+                if owner.name.eq(&"") || owner.name.eq(&"api") {
+                    return general_purpose::STANDARD.encode(&owner.client_id);
+                }
+
+                return owner.name.clone();
+            }
             None => String::from("")
         }
     }
@@ -219,6 +227,7 @@ impl QuicNetworkPacket {
                             None => match player_data.get(&self.get_author()).await {
                                 Some(position) => {
                                     data.coordinate = Some(position.coordinates);
+                                    data.dimension = Some(position.dimension);
                                     let audio_frame: QuicNetworkPacketData =
                                         QuicNetworkPacketData::AudioFrame(data);
                                     self.data = audio_frame;
@@ -271,7 +280,7 @@ impl QuicNetworkPacket {
 
     /// Determines if a given PacketOwner can receive this QuicNetworkPacket
     pub async fn is_receivable(
-        &self,
+        &mut self,
         recipient: PacketOwner,
         channel_data: Arc<Mutex<Cache<String, String>>>,
         position_data: Arc<Cache<String, Player>>,
@@ -281,7 +290,7 @@ impl QuicNetworkPacket {
             PacketType::AudioFrame => match self.get_data() {
                 Some(data) => match data.to_owned().try_into() {
                     Ok(data) => {
-                        let data: AudioFramePacket = data;
+                        let mut data: AudioFramePacket = data;
 
                         if self.get_author().eq(&recipient.name) {
                             return false;
@@ -296,6 +305,8 @@ impl QuicNetworkPacket {
                             && packet_author.is_some()
                             && this_player.eq(&packet_author)
                         {
+                            data.spatial = true;
+                            self.data = QuicNetworkPacketData::AudioFrame(data);
                             return true;
                         }
 
@@ -376,6 +387,7 @@ pub struct AudioFramePacket {
     pub data: Vec<u8>,
     pub coordinate: Option<Coordinate>,
     pub dimension: Option<Dimension>,
+    pub spatial: bool
 }
 
 impl TryFrom<QuicNetworkPacketData> for AudioFramePacket {

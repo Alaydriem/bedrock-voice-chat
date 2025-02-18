@@ -1,12 +1,14 @@
 use std::{
-    sync::Arc,
+    sync::{
+        atomic::{AtomicBool, Ordering}, Arc, Mutex
+    },
     thread::sleep,
     time::Duration,
 };
 use common::structs::packet::{DebugPacket, PacketOwner, QuicNetworkPacket};
 use tokio::{io::AsyncWriteExt, task::JoinHandle};
 use crate::{core::IpcMessage, NetworkPacket};
-use log::{info, error};
+use log::{error, warn};
 
 /// The OutputStream consumes PCM NetworkPackets from the AudioStreamManager::InputStream
 /// Then sends it to the server
@@ -17,9 +19,16 @@ pub(crate) struct OutputStream {
     pub packet_owner: Option<PacketOwner>,
     pub stream: Option<s2n_quic::stream::SendStream>,
     jobs: Vec<JoinHandle<()>>,
+    shutdown: Arc<Mutex<AtomicBool>>,
+    metadata: Arc<moka::sync::Cache<String, String>>
 }
 
 impl super::StreamTrait for OutputStream {
+    fn metadata(&mut self, key: String, value: String) -> Result<(), anyhow::Error> {
+        self.metadata.insert(key, value);
+        Ok(())
+    }
+
     fn stop(&mut self) {
         _ = self.tx.send(IpcMessage::Terminate);
 
@@ -43,6 +52,25 @@ impl super::StreamTrait for OutputStream {
         let rx = self.rx.clone();
         let mut stream = self.stream.take().unwrap();
         let packet_owner = self.packet_owner.clone();
+
+        let monitor_shutdown = self.shutdown.clone();
+        self.jobs.push(tokio::spawn(async move {
+            match monitor_shutdown.lock() {
+                Ok(shutdown) => match rx.recv() {
+                    Ok(result) => match result {
+                        IpcMessage::Terminate => shutdown.store(true, Ordering::Relaxed),
+                    },
+                    Err(e) => {
+                        warn!("{:?}", e);
+                    }
+                },
+                Err(e) => {
+                    warn!("{:?}", e);
+                }
+            };
+        }));
+
+        let shutdown = self.shutdown.clone();
         self.jobs.push(tokio::spawn(async move {
             // Send a DEBUG Packet to initialize the stream on the server
             let debug_packet = QuicNetworkPacket {
@@ -67,11 +95,13 @@ impl super::StreamTrait for OutputStream {
             while let packet = bus.recv_async().await {
                 match packet {
                     Ok(network_packet) => {
-                        // Shutdown the stream if we receive a signal
-                        let message: IpcMessage = rx.recv().unwrap();
-                        if message.eq(&IpcMessage::Terminate) {
-                            info!("Received shutdown signal, stopping network receiving stream.");
-                            break;
+                        match shutdown.lock() {
+                            Ok(mut shutdown) => {
+                                if shutdown.get_mut().to_owned() {
+                                    break;
+                                }
+                            },
+                            Err(_) => {}
                         }
 
                         let mut packet = network_packet.data;
@@ -114,6 +144,8 @@ impl OutputStream {
             packet_owner,
             stream,
             jobs: vec![],
+            shutdown: Arc::new(std::sync::Mutex::new(AtomicBool::new(false))),
+            metadata: Arc::new(moka::sync::Cache::builder().build())
         }
     }
 }

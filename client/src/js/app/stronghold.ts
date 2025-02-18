@@ -57,12 +57,12 @@ export default class Hold
     async get(key: string): Promise<string> {
         if (await Hold.is_dev()) {
             return new Promise((resolve, reject) => {
-                const result = localStorage.get(key);
+                const result = localStorage.getItem(key);
                 if (result === null) {
                     reject(`No data found for key: ${key}`);
                 }
 
-                return resolve(result);
+                return resolve(result as string);
             });
         };
 
