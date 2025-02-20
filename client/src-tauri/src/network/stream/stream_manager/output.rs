@@ -1,25 +1,17 @@
-use std::{
-    sync::{
-        atomic::{AtomicBool, Ordering}, Arc, Mutex
-    },
-    thread::sleep,
-    time::Duration,
-};
+use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
 use common::structs::packet::{DebugPacket, PacketOwner, QuicNetworkPacket};
-use tokio::{io::AsyncWriteExt, task::JoinHandle};
-use crate::{core::IpcMessage, NetworkPacket};
+use tokio::{io::AsyncWriteExt, task::AbortHandle};
+use crate::NetworkPacket;
 use log::{error, warn};
 
 /// The OutputStream consumes PCM NetworkPackets from the AudioStreamManager::InputStream
 /// Then sends it to the server
 pub(crate) struct OutputStream {
     pub bus: Arc<flume::Receiver<NetworkPacket>>,
-    pub rx: spmc::Receiver<IpcMessage>,
-    pub tx: spmc::Sender<IpcMessage>,
     pub packet_owner: Option<PacketOwner>,
     pub stream: Option<s2n_quic::stream::SendStream>,
-    jobs: Vec<JoinHandle<()>>,
-    shutdown: Arc<Mutex<AtomicBool>>,
+    jobs: Vec<AbortHandle>,
+    shutdown: Arc<AtomicBool>,
     metadata: Arc<moka::sync::Cache<String, String>>
 }
 
@@ -29,11 +21,8 @@ impl super::StreamTrait for OutputStream {
         Ok(())
     }
 
-    fn stop(&mut self) {
-        _ = self.tx.send(IpcMessage::Terminate);
-
-        // Give the threads time to detect that they should gracefully shut down
-        _ = sleep(Duration::from_secs(1));
+    async fn stop(&mut self) -> Result<(), anyhow::Error> {
+        _ = self.shutdown.store(true, Ordering::Relaxed);
 
         // Then hard terminate them
         for job in &self.jobs {
@@ -41,37 +30,21 @@ impl super::StreamTrait for OutputStream {
         }
 
         self.jobs = vec![];
+        Ok(())
     }
 
     fn is_stopped(&mut self) -> bool {
         self.jobs.len() == 0
     }
 
-    fn start(&mut self) -> Result<(), anyhow::Error> {
+    async fn start(&mut self) -> Result<(), anyhow::Error> {
+        let mut jobs = vec![];
         let bus = self.bus.clone();
-        let rx = self.rx.clone();
         let mut stream = self.stream.take().unwrap();
         let packet_owner = self.packet_owner.clone();
 
-        let monitor_shutdown = self.shutdown.clone();
-        self.jobs.push(tokio::spawn(async move {
-            match monitor_shutdown.lock() {
-                Ok(shutdown) => match rx.recv() {
-                    Ok(result) => match result {
-                        IpcMessage::Terminate => shutdown.store(true, Ordering::Relaxed),
-                    },
-                    Err(e) => {
-                        warn!("{:?}", e);
-                    }
-                },
-                Err(e) => {
-                    warn!("{:?}", e);
-                }
-            };
-        }));
-
         let shutdown = self.shutdown.clone();
-        self.jobs.push(tokio::spawn(async move {
+        jobs.push(tokio::spawn(async move {
             // Send a DEBUG Packet to initialize the stream on the server
             let debug_packet = QuicNetworkPacket {
                 packet_type: common::structs::packet::PacketType::Debug,
@@ -95,13 +68,9 @@ impl super::StreamTrait for OutputStream {
             while let packet = bus.recv_async().await {
                 match packet {
                     Ok(network_packet) => {
-                        match shutdown.lock() {
-                            Ok(mut shutdown) => {
-                                if shutdown.get_mut().to_owned() {
-                                    break;
-                                }
-                            },
-                            Err(_) => {}
+                        if shutdown.load(Ordering::Relaxed) {
+                            warn!("Network stream output handler stopped.");
+                            break;
                         }
 
                         let mut packet = network_packet.data;
@@ -126,6 +95,8 @@ impl super::StreamTrait for OutputStream {
             drop(stream);
         }));
 
+        self.jobs = jobs.iter().map(|handle| handle.abort_handle()).collect();
+
         Ok(())
     }
 }
@@ -136,15 +107,12 @@ impl OutputStream {
         packet_owner: Option<PacketOwner>,
         stream: Option<s2n_quic::stream::SendStream>,
     ) -> Self {
-        let (tx, rx) = spmc::channel();
         Self {
             bus: consumer.clone(),
-            rx,
-            tx,
             packet_owner,
             stream,
             jobs: vec![],
-            shutdown: Arc::new(std::sync::Mutex::new(AtomicBool::new(false))),
+            shutdown: Arc::new(AtomicBool::new(false)),
             metadata: Arc::new(moka::sync::Cache::builder().build())
         }
     }

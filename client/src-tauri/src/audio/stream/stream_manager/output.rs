@@ -6,7 +6,7 @@ use common::{
     }, Coordinate, Player
 };
 use base64::{engine::general_purpose, Engine as _};
-use log::{debug, info, error, warn};
+use log::{error, warn};
 use rodio::{
     buffer::SamplesBuffer, Sink, SpatialSink
 };
@@ -23,12 +23,11 @@ use std::{
         },
         Arc,
         Mutex
-    }, thread::sleep, time::Duration
+    }, time::Duration
 };
-use tokio::task::JoinHandle;
+use tokio::task::{AbortHandle, JoinHandle};
 use moka::sync::Cache;
 use anyhow::anyhow;
-use crate::core::IpcMessage;
 
 use super::sink_manager::SinkManager;
 
@@ -60,11 +59,9 @@ impl DecodedAudioFramePacket {
 pub(crate) struct OutputStream {
     pub device: Option<AudioDevice>,
     pub bus: Arc<flume::Receiver<AudioPacket>>,
-    pub rx: spmc::Receiver<IpcMessage>,
-    pub tx: spmc::Sender<IpcMessage>,
     players: Arc<Cache<String, Player>>,
-    jobs: Vec<JoinHandle<()>>,
-    shutdown: Arc<Mutex<AtomicBool>>,
+    jobs: Vec<AbortHandle>,
+    shutdown: Arc<AtomicBool>,
     metadata: Arc<moka::sync::Cache<String, String>>
 }
 
@@ -74,11 +71,8 @@ impl super::StreamTrait for OutputStream {
         Ok(())
     }
 
-    fn stop(&mut self) {
-        _ = self.tx.send(IpcMessage::Terminate);
-
-        // Give the threads time to detect that they should gracefully shut down
-        _ = sleep(Duration::from_secs(1));
+    async fn stop(&mut self) -> Result<(), anyhow::Error> {
+        _ = self.shutdown.store(true, Ordering::Relaxed);
 
         // Then hard terminate them
         for job in &self.jobs {
@@ -86,64 +80,54 @@ impl super::StreamTrait for OutputStream {
         }
 
         self.jobs = vec![];
+        Ok(())
     }
 
     fn is_stopped(&mut self) -> bool {
         self.jobs.len() == 0
     }
 
-    fn start(&mut self) -> Result<(), anyhow::Error> {
-        info!("Audio OutputStream started");
+    async fn start(&mut self) -> Result<(), anyhow::Error> {
+        let mut jobs = vec![];
         let (producer, consumer) = mpsc::channel();
 
-        let rx = self.rx.clone();
-        let monitor_shutdown = self.shutdown.clone();
-        self.jobs.push(tokio::spawn(async move {
-            match monitor_shutdown.lock() {
-                Ok(shutdown) => match rx.recv() {
-                    Ok(result) => match result {
-                        IpcMessage::Terminate => shutdown.store(true, Ordering::Relaxed),
-                    },
-                    Err(e) => {
-                        warn!("{:?}", e);
-                    }
-                },
-                Err(e) => {
-                    warn!("{:?}", e);
-                }
-            };
-        }));
-
-        // Listen to the network stream
-        match self.listener(producer, self.shutdown.clone()) {
-            Ok(_) => {}
-            Err(e) => return Err(e),
-        };
 
         // Playback the PCM data
         match self.playback(consumer, self.shutdown.clone()) {
-            Ok(_) => {}
-            Err(e) => return Err(e),
+            Ok(job) => jobs.push(job),
+            Err(e) => {
+                error!("input sender encountered an error: {:?}", e);
+                return Err(e);
+            }
         };
 
+        // Listen to the network stream
+        match self.listener(producer, self.shutdown.clone()) {
+            Ok(job) => jobs.push(job),
+            Err(e) => {
+                error!("input sender encountered an error: {:?}", e);
+                return Err(e);
+            }
+        };
+
+        self.jobs = jobs.iter().map(|handle| handle.abort_handle()).collect();
+        
         Ok(())
     }
 }
 
 impl OutputStream {
     pub fn new(device: Option<AudioDevice>, bus: Arc<flume::Receiver<AudioPacket>>) -> Self {
-        let (tx, rx) = spmc::channel();
         let player_data = Cache::builder()
             .time_to_idle(Duration::from_secs(15 * 60))
             .build();
+
         Self {
             device,
             bus,
-            rx,
-            tx,
             players: Arc::new(player_data),
             jobs: vec![],
-            shutdown: Arc::new(std::sync::Mutex::new(AtomicBool::new(false))),
+            shutdown: Arc::new(AtomicBool::new(false)),
             metadata: Arc::new(moka::sync::Cache::builder().build())
         }
     }
@@ -153,8 +137,8 @@ impl OutputStream {
     fn listener(
         &mut self,
         producer: Sender<DecodedAudioFramePacket>,
-        shutdown: Arc<Mutex<AtomicBool>>
-    ) -> Result<(), anyhow::Error> {
+        shutdown: Arc<AtomicBool>
+    ) -> Result<JoinHandle<()>, anyhow::Error> {
         match self.device.clone() {
             Some(device) => match device.get_stream_config() {
                 Ok(config) => {
@@ -167,7 +151,7 @@ impl OutputStream {
                     let bus = self.bus.clone();
                     let player_data = self.players.clone();
 
-                    self.jobs.push(tokio::spawn(async move {
+                    let handle = tokio::spawn(async move {
                         // Opus decoders are stored in a ttl-hashmap
                         // Opus streams maintain state between opus packets, so we need to re-use
                         // the same decode, per stream
@@ -179,13 +163,9 @@ impl OutputStream {
 
                         #[allow(irrefutable_let_patterns)]
                         while let packet = bus.recv_async().await {
-                            match shutdown.lock() {
-                                Ok(mut shutdown) => {
-                                    if shutdown.get_mut().to_owned() {
-                                        break;
-                                    }
-                                },
-                                Err(_) => {}
+                            if shutdown.load(Ordering::Relaxed) {
+                                warn!("Output listener handler stopped.");
+                                break;
                             }
 
                             match packet {
@@ -209,7 +189,9 @@ impl OutputStream {
                                 }
                             }
                         }
-                    }));
+                    });
+
+                    return Ok(handle);
                 },
                 Err(e) => return Err(e),
             },
@@ -219,159 +201,154 @@ impl OutputStream {
                 ))
             }
         };
-        
-        Ok(())    
     }
     
     /// Handles playback of the PCM Audio Stream to the output device
     fn playback(
         &mut self,
         consumer: Receiver<DecodedAudioFramePacket>,
-        shutdown: Arc<Mutex<AtomicBool>>
-    ) -> Result<(), anyhow::Error> {
+        shutdown: Arc<AtomicBool>
+    ) -> Result<JoinHandle<()>, anyhow::Error> {
         match self.device.clone() {
             Some(device) => match device.get_stream_config() {
                 Ok(config) => {
                     let metadata = self.metadata.clone();
                     let players = self.players.clone();
 
-                    self.jobs.push(tokio::spawn(async move {
-                        // Only allow a sink to be active for 15 minutes
-                        // This is a per _player_ sink, and ignores the client id.
-                        // Client IDs can be mapped back to Strings if the author is a "device"
-                        // All sinks are spatial, but some spatial sinks occur in the same space
-
-                        // Fetch the underlying cpal device and output stream handle
-                        let cpal_device: Option<rodio::cpal::Device> = device.into();
-                        if cpal_device.is_none() {
-                            error!("CPAL device is not defined. This shouldn't happen! Restart BVC?");
-                            return;
-                        }
-
-                        let (_stream, handle) = match rodio::OutputStream::try_from_device_config(
-                            &cpal_device.unwrap(),
-                            config
-                        ) {
-                            Ok((s, h)) => (s, h),
-                            Err(e) => {
-                                error!("Could not acquired Stream Handle to Output to Audio Stream. Try restarting the stream? {:?}", e);
-                                return;
-                            }
-                        };
-                        
-                        let mut sink_manager = SinkManager::new(&handle);
-
-                        // Iterate over the incoming PCM data
-                        #[allow(irrefutable_let_patterns)]
-                        while let packet = consumer.recv() {
-                            match shutdown.lock() {
-                                Ok(mut shutdown) => {
-                                    if shutdown.get_mut().to_owned() {
-                                        break;
-                                    }
-                                },
-                                Err(_) => {}
-                            }
-
-                            match packet {
-                                Ok(packet) => {
-                                    // Clients only hear audio that the server determins they can hear
-                                    // However the client needs to determine spacial audio, attenuation,
-                                    // deafening, and whether this is a group chat or not.
-                                    // Each audio frame needs to be sent to a player specific, SpatialSink
-
-                                    // Get the sink for the current player
-                                    let source = packet.get_author();
-
-                                    let current_player = match metadata.get("current_player") {
-                                        Some(player) => match players.get(&player) {
-                                            Some(player) => Some(player),
+                    let cpal_device: Option<rodio::cpal::Device> = device.clone().into();
+                    let handle = match cpal_device {
+                        Some(cpal_device) => tokio::spawn(async move {
+                            // Only allow a sink to be active for 15 minutes
+                            // This is a per _player_ sink, and ignores the client id.
+                            // Client IDs can be mapped back to Strings if the author is a "device"
+                            // All sinks are spatial, but some spatial sinks occur in the same space
+    
+                            let (_stream, handle) = match rodio::OutputStream::try_from_device_config(
+                                &cpal_device,
+                                config
+                            ) {
+                                Ok((s, h)) => (s, h),
+                                Err(e) => {
+                                    error!("Could not acquired Stream Handle to Output to Audio Stream. Try restarting the stream? {:?}", e);
+                                    return;
+                                }
+                            };
+                            
+                            let mut sink_manager = SinkManager::new(&handle);
+    
+                            // Iterate over the incoming PCM data
+                            #[allow(irrefutable_let_patterns)]
+                            while let packet = consumer.recv() {
+                                if shutdown.load(Ordering::Relaxed) {
+                                    warn!("{} {} ended.", device.io.to_string(), device.display_name);
+                                    break;
+                                }
+    
+                                match packet {
+                                    Ok(packet) => {
+                                        // Clients only hear audio that the server determins they can hear
+                                        // However the client needs to determine spacial audio, attenuation,
+                                        // deafening, and whether this is a group chat or not.
+                                        // Each audio frame needs to be sent to a player specific, SpatialSink
+    
+                                        // Get the sink for the current player
+                                        let source = packet.get_author();
+    
+                                        let current_player = match metadata.get("current_player") {
+                                            Some(player) => match players.get(&player) {
+                                                Some(player) => Some(player),
+                                                None => None
+                                            },
                                             None => None
-                                        },
-                                        None => None
-                                    };
-
-                                    if current_player.is_none() {
-                                        debug!("Audio stream is running without an active player. Aborting OutputStream thread");
-                                        return;
-                                    }
-
-                                    match packet.spatial && current_player.is_some() {
-                                        true => {
-                                            // We will only do positional audio if both the source and current have valid data
-                                            if packet.coordinate.is_some() && current_player.is_some() {
-                                                // Derive the SpatialSink
+                                        };
+    
+                                        if current_player.is_none() {
+                                            error!("Audio stream is running without an active player. Aborting OutputStream thread");
+                                            return;
+                                        }
+    
+                                        match packet.spatial && current_player.is_some() {
+                                            true => {
+                                                // We will only do positional audio if both the source and current have valid data
+                                                if packet.coordinate.is_some() && current_player.is_some() {
+                                                    // Derive the SpatialSink
+                                                    let sink = sink_manager.get_sink(
+                                                        source,
+                                                        super::sink_manager::AudioSinkType::SpatialSink
+                                                    );
+                                                    let sink: Result<Arc<SpatialSink>, ()> = sink.try_into();
+                                                    match sink {
+                                                        Ok(sink) => {
+                                                            // Always use the packet data instead of the source data
+                                                            let listener = current_player.unwrap();
+            
+                                                            let s = packet.coordinate.unwrap();
+                                                            let l = listener.coordinates;
+                                                            
+                                                            // The audio should always be in the same dimensions, and within a valud coordinate range
+                                                            // The client just has to attenuate the signal
+                                                            sink.set_emitter_position([s.x, s.y, s.z]);
+                                                            sink.set_left_ear_position([l.x + 0.0001, l.y, l.z]);
+                                                            sink.set_right_ear_position([l.x, l.y, l.z]);
+            
+                                                            let distance = (
+                                                                (s.x - l.x).powf(2.0) +
+                                                                (s.y - l.y).powf(2.0) +
+                                                                (s.z - l.z).powf(2.0)
+                                                            ).sqrt();
+            
+                                                            if distance > 44.0 {
+                                                                let dropoff = distance - 44.0;
+                    
+                                                                // This provides a 10 block linear attenuation dropoff
+                                                                // y = (⁻¹⁄₁₂)x + (¹⁴⁄₃)
+                                                                let dropoff_attenuation = f32::max(
+                                                                    0.0,
+                                                                    (-1.0 / 12.0) * dropoff + 14.0 / 3.0
+                                                                );
+            
+                                                                sink.set_volume(dropoff_attenuation);
+                                                            } else {
+                                                                sink.set_volume(1.0);
+                                                            }
+                                                        },
+                                                        Err(_) => {
+                                                            error!("Spatial Sink undefined");
+                                                        }
+                                                    };
+                                                }
+                                            },
+                                            false => {
                                                 let sink = sink_manager.get_sink(
                                                     source,
-                                                    super::sink_manager::AudioSinkType::SpatialSink
+                                                    super::sink_manager::AudioSinkType::Sink
                                                 );
-                                                let sink: Result<Arc<SpatialSink>, ()> = sink.try_into();
+    
+                                                let sink: Result<Arc<Sink>, ()> = sink.try_into();
                                                 match sink {
                                                     Ok(sink) => {
-                                                        // Always use the packet data instead of the source data
-                                                        let listener = current_player.unwrap();
-        
-                                                        let s = packet.coordinate.unwrap();
-                                                        let l = listener.coordinates;
-                                                        
-                                                        // The audio should always be in the same dimensions, and within a valud coordinate range
-                                                        // The client just has to attenuate the signal
-                                                        sink.set_emitter_position([s.x, s.y, s.z]);
-                                                        sink.set_left_ear_position([l.x + 0.0001, l.y, l.z]);
-                                                        sink.set_right_ear_position([l.x, l.y, l.z]);
-        
-                                                        let distance = (
-                                                            (s.x - l.x).powf(2.0) +
-                                                            (s.y - l.y).powf(2.0) +
-                                                            (s.z - l.z).powf(2.0)
-                                                        ).sqrt();
-        
-                                                        if distance > 44.0 {
-                                                            let dropoff = distance - 44.0;
-                
-                                                            // This provides a 10 block linear attenuation dropoff
-                                                            // y = (⁻¹⁄₁₂)x + (¹⁴⁄₃)
-                                                            let dropoff_attenuation = f32::max(
-                                                                0.0,
-                                                                (-1.0 / 12.0) * dropoff + 14.0 / 3.0
-                                                            );
-        
-                                                            sink.set_volume(dropoff_attenuation);
-                                                        } else {
-                                                            sink.set_volume(1.0);
-                                                        }
+                                                        // @todo: We need to pull down any player customizable attenuation
+                                                        sink.set_volume(1.0);
+                                                        sink.append(packet.buffer);
                                                     },
-                                                    Err(_) => {
-                                                        error!("Spatial Sink undefined");
-                                                    }
+                                                    Err(_) => {}
                                                 };
                                             }
-                                        },
-                                        false => {
-                                            let sink = sink_manager.get_sink(
-                                                source,
-                                                super::sink_manager::AudioSinkType::Sink
-                                            );
-
-                                            let sink: Result<Arc<Sink>, ()> = sink.try_into();
-                                            match sink {
-                                                Ok(sink) => {
-                                                    // @todo: We need to pull down any player customizable attenuation
-                                                    sink.set_volume(1.0);
-                                                    sink.append(packet.buffer);
-                                                },
-                                                Err(_) => {}
-                                            };
-                                        }
-                                    };                                    
-                                },
-                                Err(e) => {
-                                    warn!("Could not receive decode audio frame packet: {:?}", e);
+                                        };                                    
+                                    },
+                                    Err(e) => {
+                                        warn!("Could not receive decode audio frame packet: {:?}", e);
+                                    }
                                 }
-                            }
+                            } 
+                        }),
+                        None => {
+                            error!("CPAL output device is not defined. This shouldn't happen! Restart BVC? {:?}", device.clone());
+                            return Err(anyhow::anyhow!("Couldn't retrieve native cpal device for {} {}.", device.io.to_string(), device.display_name))
                         }
-                        
-                    }));
+                    };
+
+                    return Ok(handle);
                 },
                 Err(e) => return Err(e),
             },
@@ -381,8 +358,6 @@ impl OutputStream {
                 ))
             }
         };
-
-        Ok(())
     }
 
     /// Processes AudioFramePacket data

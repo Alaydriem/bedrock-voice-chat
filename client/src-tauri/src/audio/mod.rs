@@ -1,8 +1,6 @@
 use common::structs::packet::QuicNetworkPacket;
 
 pub(crate) mod device;
-pub(crate) mod events;
-pub(crate) mod listeners;
 
 mod stream;
 

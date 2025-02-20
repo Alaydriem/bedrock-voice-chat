@@ -1,4 +1,4 @@
-use common::structs::audio::{AudioDevice, AudioDeviceType, StreamConfig};
+use common::structs::audio::{AudioDevice, AudioDeviceHost, AudioDeviceType, StreamConfig};
 use cpal::traits::{DeviceTrait, HostTrait};
 use serde_json::json;
 use std::sync::Arc;
@@ -30,23 +30,33 @@ impl AppState {
     }
 
     /// Event handler for changing the audio device
-    pub fn change_audio_device(&mut self, io: &AudioDevice) {
+    pub fn change_audio_device(&mut self, device: AudioDevice) {
+        // Create a copy of the device so we can escape certain values
+        // @todo!() fix this in the data we get from typescript
+        let device: AudioDevice = AudioDevice {
+            name: device.name.replace('\"', ""),
+            display_name: device.display_name.replace('\"', ""),
+            host: device.host,
+            io: device.io.clone(),
+            stream_configs: device.stream_configs.clone()
+        };
+
         // Change the stored value
         self.store.set(
-            io.io.to_string(),
+            device.io.to_string(),
             json!({
-                "name": io.name,
-                "type": io.io.to_string(),
-                "config": io.stream_configs,
-                "host": io.host,
-                "display_name": io.display_name
+                "name": device.name,
+                "type": device.io,
+                "config": device.stream_configs,
+                "host": device.host,
+                "display_name": device.display_name
             }),
         );
 
         // Update the current state
-        match io.io {
-            AudioDeviceType::InputDevice => self.input_audio_device = io.clone(),
-            AudioDeviceType::OutputDevice => self.output_audio_device = io.clone(),
+        match device.io {
+            AudioDeviceType::InputDevice => self.input_audio_device = device.clone(),
+            AudioDeviceType::OutputDevice => self.output_audio_device = device.clone(),
         }
     }
 
@@ -63,13 +73,13 @@ impl AppState {
     fn setup_audio_device(io: AudioDeviceType, store: &Arc<Store<Wry>>) -> AudioDevice {
         let (name, host, stream_configs, display_name) = match store.get(io.to_string()) {
             Some(s) => (
-                s.get("name").unwrap().to_string(),
-                s.get("host").unwrap().to_string(),
+                s.get("name").unwrap().to_string().replace('\"', ""),
+                serde_json::from_str::<AudioDeviceHost>(s.get("host").unwrap().to_string().as_str()).unwrap(),
                 serde_json::from_value::<Vec<StreamConfig>>(s.get("config").unwrap().clone())
                     .unwrap(),
                 match s.get("display_name") {
-                    Some(name) => name.to_string(),
-                    None => s.get("name").unwrap().to_string(),
+                    Some(name) => name.to_string().replace('\"', ""),
+                    None => s.get("name").unwrap().to_string().replace('\"', ""),
                 },
             ),
             None => {
@@ -96,7 +106,7 @@ impl AppState {
 
                 (
                     "default".to_string(),
-                    default_host.id().name().to_string(),
+                    AudioDeviceHost::try_from(default_host.id()).unwrap(),
                     stream_config,
                     default_device.name().unwrap(),
                 )

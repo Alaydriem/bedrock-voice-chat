@@ -52,7 +52,7 @@ impl NetworkStreamManager {
         key: String
     ) -> Result<(), Box<dyn Error>> {
         // Stop the current stream if we're re-initializing our new one
-        self.stop()?;
+        self.stop().await?;
 
         let provider = common::rustls::MtlsProvider::new_from_vec(
             ca_cert.into_bytes(),
@@ -97,9 +97,9 @@ impl NetworkStreamManager {
         return Ok(());
     }
 
-    pub fn stop(&mut self) -> Result<(), anyhow::Error> {
-        self.input.stop();
-        self.output.stop();
+    pub async fn stop(&mut self) -> Result<(), anyhow::Error> {
+        self.input.stop().await?;
+        self.output.stop().await?;
 
         Ok(())
     }

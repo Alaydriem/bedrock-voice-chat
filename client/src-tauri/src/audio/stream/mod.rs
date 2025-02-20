@@ -3,7 +3,6 @@ mod stream_manager;
 use crate::NetworkPacket;
 use anyhow::Error;
 use common::structs::audio::{AudioDevice, AudioDeviceType};
-use log::info;
 use std::sync::Arc;
 
 use super::AudioPacket;
@@ -39,10 +38,10 @@ impl AudioStreamManager {
 
     /// Initializes a given input or output stream with a specific device, then starts it
     pub fn init(&mut self, device: AudioDevice) {
-        info!("Audio Stream init called");
         // Stop the current stream if we're re-initializing a new one so we don't
         // have dangling thread pointers
-        _ = self.stop(&device.io);
+        _ = self.stop(device.clone().io);
+        
         match device.io {
             AudioDeviceType::InputDevice => {
                 self.input = StreamTraitType::Input(stream_manager::InputStream::new(
@@ -62,20 +61,19 @@ impl AudioStreamManager {
     /// Restarts the audio stream for a given device
     /// This will stop the stream, create a new StreamManager with the same underlying device
     /// Then start a new stream in its place
-    pub async fn restart(&mut self, device: &AudioDeviceType) -> Result<(), Error> {
-        info!("Audio Stream restart called");
+    pub async fn restart(&mut self, device: AudioDeviceType) -> Result<(), Error> {
         // Stop the audio strema
-        _ = self.stop(device);
+        _ = self.stop(device.clone());
         match device {
             AudioDeviceType::InputDevice => {
                 self.input = StreamTraitType::Input(stream_manager::InputStream::new(
-                    Some(self.input.get_device().unwrap()),
+                    self.input.get_device(),
                     self.producer.clone(),
                 ));
             }
             AudioDeviceType::OutputDevice => {
                 self.output = StreamTraitType::Output(stream_manager::OutputStream::new(
-                    Some(self.output.get_device().unwrap()),
+                    self.output.get_device(),
                     self.consumer.clone(),
                 ));
             }
@@ -85,64 +83,39 @@ impl AudioStreamManager {
     }
 
     /// Starts the stream for a given audio device type
-    pub async fn start(&mut self, device: &AudioDeviceType) -> Result<(), Error> {
-        info!("Audio Stream Start called");
+    pub async fn start(&mut self, device: AudioDeviceType) -> Result<(), Error> {
         // Start the new device
-        let _ = match device {
+        match device {
             AudioDeviceType::InputDevice => match self.input.is_stopped() {
-                true => {
-                    return Err(anyhow::anyhow!(format!(
-                        "{} audio stream is already running!",
-                        device.to_string()
-                    )))
-                }
-                false => self.input.start(),
+                true => self.input.start().await,
+                false => Err(anyhow::anyhow!(format!(
+                    "{} audio stream is already running!",
+                    device.to_string()
+                )))
             },
             AudioDeviceType::OutputDevice => match self.output.is_stopped() {
-                true => {
-                    return Err(anyhow::anyhow!(format!(
-                        "{} audio stream is already running!",
-                        device.to_string()
-                    )))
-                }
-                false => self.output.start(),
-            },
-        };
-
-        Ok(())
+                true => self.output.start().await,
+                false => Err(anyhow::anyhow!(format!(
+                    "{} audio stream is already running!",
+                    device.to_string()
+                )))
+            }
+        }
     }
 
     /// Stops the audio stream for the given device
     /// This permanently shuts down all associated threads
     /// To restart the device, either call restart(), or re-initialize the device
-    pub fn stop(&mut self, device: &AudioDeviceType) -> Result<(), Error> {
-        info!("Audio Stream stop called");
+    pub async fn stop(&mut self, device: AudioDeviceType) -> Result<(), Error> {
         match device {
-            AudioDeviceType::InputDevice => match self.input.is_stopped() {
-                true => {
-                    return Err(anyhow::anyhow!(format!(
-                        "{} audio stream is already stopped!",
-                        device.to_string()
-                    )))
-                }
-                false => self.input.stop(),
-            },
-            AudioDeviceType::OutputDevice => match self.output.is_stopped() {
-                true => {
-                    return Err(anyhow::anyhow!(format!(
-                        "{} audio stream is already stopped!",
-                        device.to_string()
-                    )))
-                }
-                false => self.output.stop(),
-            },
+            AudioDeviceType::InputDevice => self.input.stop().await?,
+            AudioDeviceType::OutputDevice => self.output.stop().await?,
         };
 
         Ok(())
     }
 
     pub fn metadata(&mut self, key: String, value: String, device: &AudioDeviceType) -> Result<(), Error> {
-        info!("Audio Stream Metadata called");
         match device {
             AudioDeviceType::InputDevice => self.input.metadata(key, value),
             AudioDeviceType::OutputDevice => self.output.metadata(key, value)

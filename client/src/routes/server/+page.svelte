@@ -1,3 +1,3 @@
 <script lang="ts">
-    window.location.href="/login";
+    window.location.href="/dashboard";
 </script>

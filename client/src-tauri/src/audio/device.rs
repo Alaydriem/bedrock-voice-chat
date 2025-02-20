@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::anyhow;
-use common::structs::audio::{AudioDevice, AudioDeviceType};
+use common::structs::audio::{AudioDevice, AudioDeviceHost, AudioDeviceType};
 use cpal::{
     traits::{DeviceTrait, HostTrait},
     HostId, SupportedStreamConfigRange,
@@ -180,7 +180,7 @@ fn get_device_name(
                 devices.push(AudioDevice::new(
                     io.clone(),
                     device_name.clone(),
-                    host.id().name().to_string(),
+                    AudioDeviceHost::try_from(host.id()).unwrap(),
                     vec![supported_config],
                     format!(
                         "{} {} {}",
@@ -199,7 +199,7 @@ fn get_device_name(
         _ => vec![AudioDevice::new(
             io,
             device_name.clone(),
-            host.id().name().to_string(),
+            AudioDeviceHost::try_from(host.id()).unwrap(),
             stream_configs,
             device_name.clone(),
         )],

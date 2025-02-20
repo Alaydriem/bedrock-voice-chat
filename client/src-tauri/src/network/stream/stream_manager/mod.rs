@@ -18,17 +18,17 @@ impl StreamTrait for StreamTraitType {
         }
     }
 
-    fn stop(&mut self) {
+    async fn stop(&mut self) -> Result<(), anyhow::Error> {
         match self {
-            Self::Input(stream) => stream.stop(),
-            Self::Output(stream) => stream.stop(),
+            Self::Input(stream) => stream.stop().await,
+            Self::Output(stream) => stream.stop().await,
         }
     }
 
-    fn start(&mut self) -> Result<(), anyhow::Error> {
+    async fn start(&mut self) -> Result<(), anyhow::Error> {
         match self {
-            Self::Input(stream) => stream.start(),
-            Self::Output(stream) => stream.start(),
+            Self::Input(stream) => stream.start().await,
+            Self::Output(stream) => stream.start().await,
         }
     }
 

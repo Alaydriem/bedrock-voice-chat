@@ -18,6 +18,63 @@ pub enum AudioDeviceType {
     OutputDevice,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "./../../client/src/js/bindings/")]
+pub enum AudioDeviceHost {
+    Asio,
+    Wasapi,
+    #[cfg(target_os = "android")]
+    Oboe,
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
+    CoreAudio
+}
+
+impl TryFrom<rodio::cpal::HostId> for AudioDeviceHost {
+    type Error = ();
+
+    fn try_from(value: rodio::cpal::HostId) -> Result<Self, Self::Error> {
+        #[allow(unreachable_patterns)]
+        match value {
+            HostId::Asio => Ok(AudioDeviceHost::Asio),
+            HostId::Wasapi => Ok(AudioDeviceHost::Wasapi),
+            #[cfg(target_os = "android")]
+            HostId::Oboe => Ok(AudioDeviceHost::Oboe),
+            #[cfg(any(target_os = "macos", target_os = "ios"))]
+            HostId::CoreAudio => Ok(AudioDeviceHost::CoreAudio),
+            _ => Err(())
+        }
+    }
+}
+
+impl Into<rodio::cpal::HostId> for AudioDeviceHost {
+    fn into(self) -> rodio::cpal::HostId {
+        let host: rodio::cpal::HostId;
+        #[cfg(target_os = "windows")]
+        {
+            host = match self {
+                AudioDeviceHost::Asio => HostId::Asio,
+                AudioDeviceHost::Wasapi => HostId::Wasapi
+            };
+        }
+
+        #[cfg(target_os = "android")]
+        {
+            host = match self.host {
+                AudioDeviceHost::Oboe => HostId::Oboe
+            };
+        }
+
+        #[cfg(any(target_os = "macos", target_os = "ios"))]
+        {
+            host = match self.host {
+                AudioDeviceHost::CoreAudio => HostId::CoreAudio
+            };
+        }
+
+        host
+    }
+}
+
 impl AudioDeviceType {
     pub fn to_string(&self) -> String {
         match self {
@@ -32,7 +89,7 @@ impl AudioDeviceType {
 pub struct AudioDevice {
     pub io: AudioDeviceType,
     pub name: String,
-    pub host: String,
+    pub host: AudioDeviceHost,
     pub stream_configs: Vec<StreamConfig>,
     pub display_name: String,
 }
@@ -41,7 +98,7 @@ impl AudioDevice {
     pub fn new(
         io: AudioDeviceType,
         name: String,
-        host: String,
+        host: AudioDeviceHost,
         supported_stream_configs: Vec<SupportedStreamConfigRange>,
         display_name: String,
     ) -> Self {
@@ -116,29 +173,33 @@ impl AudioDevice {
 }
 
 /// Maps the AudioDevice back to a raw cpal device
+#[allow(unreachable_patterns)]
 impl Into<Option<rodio::cpal::Device>> for AudioDevice {
     fn into(self) -> Option<rodio::cpal::Device> {
         let host: rodio::cpal::Host;
+
         #[cfg(target_os = "windows")]
         {
-            host = match self.host.as_str() {
-                "ASIO" => rodio::cpal::host_from_id(HostId::Asio).unwrap(),
-                "WASAPI" => rodio::cpal::host_from_id(HostId::Wasapi).unwrap(),
-                &_ => return None,
+            host = match self.host {
+                AudioDeviceHost::Asio => rodio::cpal::host_from_id(HostId::Asio).unwrap(),
+                AudioDeviceHost::Wasapi => rodio::cpal::host_from_id(HostId::Wasapi).unwrap(),
+                _ => return None,
             };
         }
 
         #[cfg(target_os = "android")]
         {
-            host = match self.host.as_str() {
-                "Oboe" => rodio::cpal::host_from_id(HostId::Oboe).unwrap(),
+            host = match self.host {
+                AudioDeviceHost::Oboe => rodio::cpal::host_from_id(HostId::Oboe).unwrap(),
+                _ => return None,
             };
         }
 
         #[cfg(any(target_os = "macos", target_os = "ios"))]
         {
-            host = match self.host.as_str() {
-                "CoreAudio" => rodio::cpal::host_from_id(HostId::CoreAudio).unwrap(),
+            host = match self.host {
+                AudioDeviceHost::CoreAudio => rodio::cpal::host_from_id(HostId::CoreAudio).unwrap(),
+                _ => return None,
             };
         }
 

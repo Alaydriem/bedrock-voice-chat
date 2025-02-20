@@ -3,6 +3,7 @@
     import { Store } from '@tauri-apps/plugin-store';
     import { info, error, warn } from '@tauri-apps/plugin-log';
     import { invoke } from "@tauri-apps/api/core";
+    import type { AudioDevice } from "../../js/bindings/AudioDevice.ts";
 
     const result = (async () => { 
         const secretStore = await Store.load('secrets.json', { autoSave: false });
@@ -13,20 +14,24 @@
         info(`Current server: ${currentServer?.value}`);
 
         if (password?.value) {
+            function sleep(ms: number): Promise<void> {
+                return new Promise(resolve => setTimeout(resolve, ms));
+            }
+
             const stronghold = await Hold.new("servers", password.value);
             const server = await stronghold.get(currentServer!.value);
             const s = JSON.stringify(server);
-            //info(`Server: ${s}`);
-
+            
             await invoke("update_current_player").then(() => {
-                info("Current player updated");
+
             }).catch((e) => {
                 error(`Error updating current player: ${e}`);
             });
 
             const inputDevice = await invoke("get_audio_device", {
                 io: "InputDevice"
-            }).then((device) => {
+            }).then(async (device) => device as AudioDevice)
+            .then((device) => {
                 return device;
             }).catch((e) => {
                 error(`Error getting audio device: ${e}`);
@@ -35,28 +40,41 @@
             await invoke("change_audio_device", {
                 device: inputDevice
             }).then(() => {
-                info("Audio Input Device changed");
             }).catch((e) => {
                 error(`Error getting audio device: ${e}`);
             });
 
             const outputDevice = await invoke("get_audio_device", {
                 io: "OutputDevice"
-            }).then((device) => {
+            }).then(async (device) => device as AudioDevice)
+            .then((device) => {
                 return device;
             }).catch((e) => {
                 error(`Error getting audio device: ${e}`);
             });
 
+            console.log(outputDevice);
+            console.log(inputDevice);
             await invoke("change_audio_device", {
                 device: outputDevice
             }).then(() => {
-                info("Audio Input Device changed");
             }).catch((e) => {
                 error(`Error getting audio device: ${e}`);
             });
 
+            await sleep(5000);
+            await invoke("stop_audio_device", { device: "InputDevice" }).then(() => {
+
+            }).catch((e) => {
+                error(`Error stopping audio device: ${e}`);
+            });
             
+            await sleep(5000);
+            await invoke("stop_audio_device", { device: "OutputDevice" }).then(() => {
+
+            }).catch((e) => {
+                error(`Error stopping audio device: ${e}`);
+            });
         }
     })();
 </script>

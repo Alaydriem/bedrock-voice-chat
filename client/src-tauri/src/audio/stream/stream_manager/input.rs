@@ -4,31 +4,23 @@ use common::structs::{
     audio::{AudioDevice, BUFFER_SIZE},
     packet::{AudioFramePacket, QuicNetworkPacket, QuicNetworkPacketData},
 };
-use log::{debug, error, info, warn};
+use log::{error, info, warn};
 use opus::Bitrate;
 use rodio::cpal::traits::StreamTrait;
 use rodio::DeviceTrait;
-use std::{
-    sync::{
-        atomic::{AtomicBool, Ordering}, mpsc::{self, Receiver, Sender}, Arc, Mutex
-    },
-    thread::sleep,
-    time::Duration,
+use std::sync::{
+    atomic::{AtomicBool, Ordering}, mpsc::{self, Receiver, Sender}, Arc
 };
-use tokio::task::JoinHandle;
-
+use tokio::task::{AbortHandle, JoinHandle};
 use crate::{audio::stream::stream_manager::AudioFrameData, NetworkPacket};
 
 use super::AudioFrame;
-use crate::core::IpcMessage;
 
 pub(crate) struct InputStream {
     pub device: Option<AudioDevice>,
     pub bus: Arc<flume::Sender<NetworkPacket>>,
-    pub rx: spmc::Receiver<IpcMessage>,
-    pub tx: spmc::Sender<IpcMessage>,
-    jobs: Vec<JoinHandle<()>>,
-    shutdown: Arc<Mutex<AtomicBool>>,
+    jobs: Vec<AbortHandle>,
+    shutdown: Arc<AtomicBool>,
     metadata: Arc<moka::sync::Cache<String, String>>
 }
 
@@ -38,11 +30,8 @@ impl super::StreamTrait for InputStream {
         Ok(())
     }
 
-    fn stop(&mut self) {
-        _ = self.tx.send(IpcMessage::Terminate);
-
-        // Give the threads time to detect that they should gracefully shut down
-        _ = sleep(Duration::from_secs(1));
+    async fn stop(&mut self) -> Result<(), anyhow::Error> {
+        _ = self.shutdown.store(true, Ordering::Relaxed);
 
         // Then hard terminate them
         for job in &self.jobs {
@@ -50,60 +39,48 @@ impl super::StreamTrait for InputStream {
         }
 
         self.jobs = vec![];
+        Ok(())
     }
 
     fn is_stopped(&mut self) -> bool {
         self.jobs.len() == 0
     }
 
-    fn start(&mut self) -> Result<(), anyhow::Error> {
-        info!("Audio InputStream started");
-        let (producer, consumer) = mpsc::channel();
+    async fn start(&mut self) -> Result<(), anyhow::Error> {
+        let mut jobs = vec![];
 
-        let rx = self.rx.clone();
-        let monitor_shutdown = self.shutdown.clone();
-        self.jobs.push(tokio::spawn(async move {
-            match monitor_shutdown.lock() {
-                Ok(shutdown) => match rx.recv() {
-                    Ok(result) => match result {
-                        IpcMessage::Terminate => shutdown.store(true, Ordering::Relaxed),
-                    },
-                    Err(e) => {
-                        warn!("{:?}", e);
-                    }
-                },
-                Err(e) => {
-                    warn!("{:?}", e);
-                }
-            };
-        }));
+        let (producer, consumer) = mpsc::channel();
 
         // Start the audio input listener thread
         match self.listener(producer, self.shutdown.clone()) {
-            Ok(_) => {}
-            Err(e) => return Err(e),
+            Ok(job) => jobs.push(job),
+            Err(e) => {
+                error!("input listener encountered an error: {:?}", e);
+                return Err(e);
+            }
         };
 
         // Send the PCM data to the network sender
         match self.sender(consumer, self.shutdown.clone()) {
-            Ok(_) => {}
-            Err(e) => return Err(e),
+            Ok(job) => jobs.push(job),
+            Err(e) => {
+                error!("input sender encountered an error: {:?}", e);
+                return Err(e);
+            }
         };
 
+        self.jobs = jobs.iter().map(|handle| handle.abort_handle()).collect();
         Ok(())
     }
 }
 
 impl InputStream {
     pub fn new(device: Option<AudioDevice>, bus: Arc<flume::Sender<NetworkPacket>>) -> Self {
-        let (tx, rx) = spmc::channel();
         Self {
             device,
             bus,
-            rx,
-            tx,
             jobs: vec![],
-            shutdown: Arc::new(std::sync::Mutex::new(AtomicBool::new(false))),
+            shutdown: Arc::new(AtomicBool::new(false)),
             metadata: Arc::new(moka::sync::Cache::builder().build())
         }
     }
@@ -112,15 +89,15 @@ impl InputStream {
     fn listener(
         &mut self,
         producer: Sender<AudioFrame>,
-        shutdown: Arc<Mutex<AtomicBool>>
-    ) -> Result<(), anyhow::Error> {
+        shutdown: Arc<AtomicBool>
+    ) -> Result<JoinHandle<()>, anyhow::Error> {
         match self.device.clone() {
             Some(device) => match device.get_stream_config() {
                 Ok(config) => {
                     let cpal_device: Option<rodio::cpal::Device> = device.clone().into();
 
-                    match cpal_device {
-                        Some(cpal_device) => self.jobs.push(tokio::spawn(async move {
+                    let handle = match cpal_device {
+                        Some(cpal_device) => tokio::spawn(async move {
                             let cpal_device = cpal_device.clone();
                             let device = device.clone();
                             let device_config = rodio::cpal::StreamConfig {
@@ -194,19 +171,16 @@ impl InputStream {
 
                             match stream {
                                 Ok(stream) => {
-                                    stream.play().unwrap();
+                                    _ = stream.play().unwrap();
+                                    
                                     loop {
-                                        match shutdown.lock() {
-                                            Ok(mut shutdown) => {
-                                                if shutdown.get_mut().to_owned() {
-                                                    break;
-                                                }
-                                            },
-                                            Err(_) => {}
+                                        if shutdown.load(Ordering::Relaxed) {
+                                            stream.pause().unwrap();
+                                            break;
                                         }
                                     }
 
-                                    info!("{} {} ended.", device.io.to_string(), device.display_name);
+                                    warn!("{} {} ended.", device.io.to_string(), device.display_name);
                                     drop(stream);
                                     return;
                                 },
@@ -214,11 +188,14 @@ impl InputStream {
                                     error!("{:?}", e);
                                 }
                             };
-                        })),
+                        }),
                         None => {
-                            error!("Couldn't retrieve native cpal device for {} {}.", device.io.to_string(), device.display_name);
+                            error!("CPAL output device is not defined. This shouldn't happen! Restart BVC? {:?}", device.clone());
+                            return Err(anyhow::anyhow!("Couldn't retrieve native cpal device for {} {}.", device.io.to_string(), device.display_name))
                         }
-                    }
+                    };
+
+                    return Ok(handle);
                 }
                 Err(e) => return Err(e),
             },
@@ -228,15 +205,13 @@ impl InputStream {
                 ))
             }
         };
-
-        Ok(())
     }
 
     fn sender(
         &mut self,
         consumer: Receiver<AudioFrame>,
-        shutdown: Arc<Mutex<AtomicBool>>
-    ) -> Result<(), anyhow::Error> {
+        shutdown: Arc<AtomicBool>
+    ) -> Result<JoinHandle<()>, anyhow::Error> {
         match self.device.clone() {
             Some(device) => match device.get_stream_config() {
                 Ok(config) => {
@@ -265,21 +240,15 @@ impl InputStream {
                     };
 
                     let bus = self.bus.clone();
-                    self.jobs.push(tokio::spawn(async move {
+                    let handle = tokio::spawn(async move {
                         #[allow(irrefutable_let_patterns)]
                         while let sample = consumer.recv() {
-                            match shutdown.lock() {
-                                Ok(mut shutdown) => {
-                                    if shutdown.get_mut().to_owned() {
-                                        break;
-                                    }
-                                },
-                                Err(_) => {}
+                            if shutdown.load(Ordering::Relaxed) {
+                                break;
                             }
                             
                             match sample {
                                 Ok(sample) => {
-
                                     let mut raw_sample = match sample.f32() {
                                         Some(sample) => sample.pcm,
                                         None => continue
@@ -343,17 +312,20 @@ impl InputStream {
                                         match tx.send(packet) {
                                             Ok(_) => {},
                                             Err(e) => {
-                                                debug!("Sending audio frame to Quic network thread failed: {:?}", e);
+                                                error!("Sending audio frame to Quic network thread failed: {:?}", e);
                                             }
                                         };
                                     }
                                 },
-                                Err(e) => {
-                                    warn!("Failed to receive AudioFrame from producer: {:?}", e);
+                                Err(_e) => {
+                                    // We're intentionaly supressing this error because the channel could not
+                                    // yet be established -- since this is syncronous this'll throw constantly otherwise
                                 }
                             }
                         }
-                    }));
+                    });
+
+                    return Ok(handle);
                 }
                 Err(e) => return Err(e),
             },
@@ -363,7 +335,5 @@ impl InputStream {
                 ))
             }
         };
-
-        Ok(())
     }
 }

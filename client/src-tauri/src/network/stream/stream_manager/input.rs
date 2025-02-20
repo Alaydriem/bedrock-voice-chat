@@ -1,22 +1,16 @@
-use std::{
-    sync::{atomic::{AtomicBool, Ordering}, Arc, Mutex},
-    thread::sleep,
-    time::Duration,
-};
+use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
 use common::structs::packet::QuicNetworkPacket;
-use tokio::task::JoinHandle;
-use crate::{core::IpcMessage, AudioPacket};
+use tokio::task::AbortHandle;
+use crate::AudioPacket;
 use log::{error, warn};
 
 /// The InputStream consumes audio packets from the server
 /// Then sends it to the AudioStreamManager::OutputStream
 pub(crate) struct InputStream {
     pub bus: Arc<flume::Sender<AudioPacket>>,
-    pub rx: spmc::Receiver<IpcMessage>,
-    pub tx: spmc::Sender<IpcMessage>,
     pub stream: Option<s2n_quic::stream::ReceiveStream>,
-    jobs: Vec<JoinHandle<()>>,
-    shutdown: Arc<Mutex<AtomicBool>>,
+    jobs: Vec<AbortHandle>,
+    shutdown: Arc<AtomicBool>,
     metadata: Arc<moka::sync::Cache<String, String>>
 }
 
@@ -26,11 +20,8 @@ impl super::StreamTrait for InputStream {
         Ok(())
     }
 
-    fn stop(&mut self) {
-        _ = self.tx.send(IpcMessage::Terminate);
-
-        // Give the threads time to detect that they should gracefully shut down
-        _ = sleep(Duration::from_secs(1));
+    async fn stop(&mut self) -> Result<(), anyhow::Error> {
+        _ = self.shutdown.store(true, Ordering::Relaxed);
 
         // Then hard terminate them
         for job in &self.jobs {
@@ -38,45 +29,25 @@ impl super::StreamTrait for InputStream {
         }
 
         self.jobs = vec![];
+        Ok(())
     }
 
     fn is_stopped(&mut self) -> bool {
         self.jobs.len() == 0
     }
 
-    fn start(&mut self) -> Result<(), anyhow::Error> {
+    async fn start(&mut self) -> Result<(), anyhow::Error> {
         let bus = self.bus.clone();
-        let rx = self.rx.clone();
+        let mut jobs = vec![];
         let mut stream = self.stream.take().unwrap();
 
-        let monitor_shutdown = self.shutdown.clone();
-        self.jobs.push(tokio::spawn(async move {
-            match monitor_shutdown.lock() {
-                Ok(shutdown) => match rx.recv() {
-                    Ok(result) => match result {
-                        IpcMessage::Terminate => shutdown.store(true, Ordering::Relaxed),
-                    },
-                    Err(e) => {
-                        warn!("{:?}", e);
-                    }
-                },
-                Err(e) => {
-                    warn!("{:?}", e);
-                }
-            };
-        }));
-
         let shutdown = self.shutdown.clone();
-        self.jobs.push(tokio::spawn(async move {
+        jobs.push(tokio::spawn(async move {
             let mut packet = Vec::<u8>::new();
             while let Ok(Some(data)) = stream.receive().await {
-                match shutdown.lock() {
-                    Ok(mut shutdown) => {
-                        if shutdown.get_mut().to_owned() {
-                            break;
-                        }
-                    },
-                    Err(_) => {}
+                if shutdown.load(Ordering::Relaxed) {
+                    warn!("Network stream input handler stopped.");
+                    break;
                 }
 
                 // Process the packet, then send it to the AudioStreaManager::OutputStream
@@ -97,6 +68,8 @@ impl super::StreamTrait for InputStream {
             drop(stream);
         }));
 
+        self.jobs = jobs.iter().map(|handle| handle.abort_handle()).collect();
+
         Ok(())
     }
 }
@@ -106,14 +79,11 @@ impl InputStream {
         producer: Arc<flume::Sender<AudioPacket>>,
         stream: Option<s2n_quic::stream::ReceiveStream>,
     ) -> Self {
-        let (tx, rx) = spmc::channel();
         Self {
             bus: producer.clone(),
-            rx,
-            tx,
             stream,
             jobs: vec![],
-            shutdown: Arc::new(std::sync::Mutex::new(AtomicBool::new(false))),
+            shutdown: Arc::new(AtomicBool::new(false)),
             metadata: Arc::new(moka::sync::Cache::builder().build())
         }
     }
