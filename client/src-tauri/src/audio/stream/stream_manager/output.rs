@@ -88,9 +88,10 @@ impl super::StreamTrait for OutputStream {
     }
 
     async fn start(&mut self) -> Result<(), anyhow::Error> {
+        _ = self.shutdown.store(false, Ordering::Relaxed);
+        
         let mut jobs = vec![];
         let (producer, consumer) = mpsc::channel();
-
 
         // Playback the PCM data
         match self.playback(consumer, self.shutdown.clone()) {
@@ -163,6 +164,7 @@ impl OutputStream {
 
                         #[allow(irrefutable_let_patterns)]
                         while let packet = bus.recv_async().await {
+                            log::info!("received network packet from server for OUTPUT STREAM");
                             if shutdown.load(Ordering::Relaxed) {
                                 warn!("Output listener handler stopped.");
                                 break;
@@ -239,6 +241,7 @@ impl OutputStream {
                             // Iterate over the incoming PCM data
                             #[allow(irrefutable_let_patterns)]
                             while let packet = consumer.recv() {
+                                log::info!("recieved pcm stream to playback on device.");
                                 if shutdown.load(Ordering::Relaxed) {
                                     warn!("{} {} ended.", device.io.to_string(), device.display_name);
                                     break;

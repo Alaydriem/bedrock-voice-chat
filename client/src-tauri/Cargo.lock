@@ -665,6 +665,7 @@ dependencies = [
  "tauri-plugin-updater",
  "tokio",
  "trust-dns-resolver",
+ "windows-targets 0.53.0",
 ]
 
 [[package]]
@@ -8860,6 +8861,7 @@ dependencies = [
  "rand 0.8.5",
  "resolv-conf",
  "rustls 0.21.12",
+ "serde",
  "smallvec",
  "thiserror 1.0.69",
  "tokio",

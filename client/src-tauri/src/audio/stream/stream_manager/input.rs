@@ -8,9 +8,9 @@ use log::{error, info, warn};
 use opus::Bitrate;
 use rodio::cpal::traits::StreamTrait;
 use rodio::DeviceTrait;
-use std::sync::{
+use std::{sync::{
     atomic::{AtomicBool, Ordering}, mpsc::{self, Receiver, Sender}, Arc
-};
+}, time::Duration};
 use tokio::task::{AbortHandle, JoinHandle};
 use crate::{audio::stream::stream_manager::AudioFrameData, NetworkPacket};
 
@@ -47,6 +47,8 @@ impl super::StreamTrait for InputStream {
     }
 
     async fn start(&mut self) -> Result<(), anyhow::Error> {
+        _ = self.shutdown.store(false, Ordering::Relaxed);
+        
         let mut jobs = vec![];
 
         let (producer, consumer) = mpsc::channel();
@@ -111,7 +113,7 @@ impl InputStream {
                                 -36.0,
                                 -56.0,
                                 device_config.sample_rate.0 as f32,
-                                device_config.channels.into(),
+                                device_config.channels.into(), // Todo: this should either be 1 or 2, not +++
                                 150.0,
                                 5.0,
                                 150.0
@@ -241,9 +243,17 @@ impl InputStream {
 
                     let bus = self.bus.clone();
                     let handle = tokio::spawn(async move {
+                        #[cfg(target_os = "windows")] {
+                            windows_targets::link!("winmm.dll" "system" fn timeBeginPeriod(uperiod: u32) -> u32);
+                            unsafe {
+                                timeBeginPeriod(1);
+                            }
+                        }
+                        let tx = bus.clone();
                         #[allow(irrefutable_let_patterns)]
                         while let sample = consumer.recv() {
                             if shutdown.load(Ordering::Relaxed) {
+                                warn!("Audio Input stream, quic sender received shutdown signal, and is now terminating.");
                                 break;
                             }
                             
@@ -308,9 +318,10 @@ impl InputStream {
                                             }
                                         };
 
-                                        let tx = bus.clone();
-                                        match tx.send(packet) {
-                                            Ok(_) => {},
+                                        match tx.send_async(packet).await {
+                                            Ok(_) => {
+                                                tokio::time::sleep(Duration::from_millis(1)).await;
+                                            },
                                             Err(e) => {
                                                 error!("Sending audio frame to Quic network thread failed: {:?}", e);
                                             }

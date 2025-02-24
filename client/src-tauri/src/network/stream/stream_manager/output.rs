@@ -2,7 +2,7 @@ use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
 use common::structs::packet::{DebugPacket, PacketOwner, QuicNetworkPacket};
 use tokio::{io::AsyncWriteExt, task::AbortHandle};
 use crate::NetworkPacket;
-use log::{error, warn};
+use log::{error, info, warn};
 
 /// The OutputStream consumes PCM NetworkPackets from the AudioStreamManager::InputStream
 /// Then sends it to the server
@@ -38,8 +38,10 @@ impl super::StreamTrait for OutputStream {
     }
 
     async fn start(&mut self) -> Result<(), anyhow::Error> {
+        _ = self.shutdown.store(false, Ordering::Relaxed);
+        
         let mut jobs = vec![];
-        let bus = self.bus.clone();
+        let rx = self.bus.clone();
         let mut stream = self.stream.take().unwrap();
         let packet_owner = self.packet_owner.clone();
 
@@ -56,6 +58,7 @@ impl super::StreamTrait for OutputStream {
 
             match debug_packet.to_vec() {
                 Ok(reader) => {
+                    info!("Sent debug packet to server.");
                     _ = stream.write_all(&reader).await;
                 },
                 Err(e) => {
@@ -65,7 +68,8 @@ impl super::StreamTrait for OutputStream {
             }
 
             #[allow(irrefutable_let_patterns)]
-            while let packet = bus.recv_async().await {
+            while let packet = rx.recv_async().await {
+                log::info!("RECEIVED AUDIO PACKET TO SEND TO SERVER");
                 match packet {
                     Ok(network_packet) => {
                         if shutdown.load(Ordering::Relaxed) {

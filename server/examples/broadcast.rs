@@ -137,9 +137,9 @@ async fn client(
                         data: s.clone(),
                         sample_rate: 48000,
                         coordinate: Some(Coordinate {
-                            x: 5.0,
+                            x: 0.5,
                             y: 70.0,
-                            z: 5.5,
+                            z: 0.5,
                         }),
                         dimension: Some(common::Dimension::Overworld),
                         spatial: true
@@ -161,6 +161,7 @@ async fn client(
             }
         }
 
+        tokio::time::sleep(Duration::from_secs(30)).await;
         let r = send_stream.close().await;
         println!("Close Stream {:?}", r);
     }));

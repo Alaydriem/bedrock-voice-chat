@@ -55,9 +55,9 @@ impl NetworkStreamManager {
         self.stop().await?;
 
         let provider = common::rustls::MtlsProvider::new_from_vec(
-            ca_cert.into_bytes(),
-            cert.into_bytes(),
-            key.into_bytes()
+            ca_cert.as_bytes().to_vec(),
+            cert.as_bytes().to_vec(),
+            key.as_bytes().to_vec()
         ).await?;
 
         let client = Client::builder()
@@ -94,6 +94,8 @@ impl NetworkStreamManager {
             )
         );
 
+        self.input.start().await?;
+        self.output.start().await?;
         return Ok(());
     }
 

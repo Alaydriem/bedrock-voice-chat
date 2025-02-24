@@ -83,9 +83,9 @@ impl MtlsProvider {
         my_cert_pem: Vec<u8>,
         my_key_pem: Vec<u8>
     ) -> Result<Self, RustlsError> {
-        let root_store = into_root_store_vec(ca_cert_pem.as_ref()).await?;
-        let cert_chain = into_certificate_vec(my_cert_pem.as_ref()).await?;
-        let private_key = into_private_key_vec(my_key_pem.as_ref()).await?;
+        let root_store = into_root_store_vec(&ca_cert_pem).await?;
+        let cert_chain = into_certificate_vec(&my_cert_pem).await?;
+        let private_key = into_private_key_vec(&my_key_pem).await?;
         Ok(MtlsProvider {
             root_store,
             my_cert_chain: cert_chain.into_iter().map(CertificateDer::from).collect(),

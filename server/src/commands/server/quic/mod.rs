@@ -245,7 +245,7 @@ pub(crate) async fn get_task(
                                             let dt = Utc::now();
                                             let now: i64 = dt.timestamp();
 
-                                            let mut owner_wait_time_counter = 0;
+                                            let mut owner_wait_time_counter: i128 = 0;
                                             // Determine the owner before starting the consumer
                                             while owner.is_none() {
                                                 owner = match send_whoami.lock_arc().await.clone() {
@@ -268,9 +268,11 @@ pub(crate) async fn get_task(
                                                     owner_wait_time_counter =
                                                         owner_wait_time_counter + 1;
                                                     _ = tokio::time::sleep(
-                                                        Duration::from_micros(5)
+                                                        Duration::from_micros(100)
                                                     );
                                                 }
+
+                                                owner_wait_time_counter = 0;
                                             }
 
                                             let mut zeromq_socket = zeromq::SubSocket::new();
@@ -316,6 +318,7 @@ pub(crate) async fn get_task(
                                                             continue;
                                                         }
 
+                                                        tracing::info!("sending packet to client.");
                                                         match packet.to_vec() {
                                                             Ok(rs) => {
                                                                 _ = send_stream.write_all(

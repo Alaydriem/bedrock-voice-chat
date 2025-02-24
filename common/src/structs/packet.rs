@@ -47,7 +47,7 @@ pub const QUICK_NETWORK_PACKET_HEADER: &[u8; 5] = &[251, 33, 51, 0, 27];
 impl QuicNetworkPacket {
     /// write_all() returns a stream of data that isn't cleanly deliniated by packets
     /// And flush() may be called at any time.
-    /// This takes a reference to an existing Vec<u8>, from a receive_stream() and
+    /// This takes a reference to an existing `Vec<u8>``, from a receive_stream() and
     /// returns all the QuicNetworkPackets that were sent.
     /// The packet is mutated in place with any partial data
     pub fn from_stream(packet: &mut Vec<u8>) -> Result<Vec<QuicNetworkPacket>, anyhow::Error> {
@@ -293,6 +293,7 @@ impl QuicNetworkPacket {
                         let mut data: AudioFramePacket = data;
 
                         if self.get_author().eq(&recipient.name) {
+                            tracing::info!("Authors are the same.");
                             return false;
                         }
 
@@ -319,6 +320,7 @@ impl QuicNetworkPacket {
                             Some(sender) => (sender.dimension, sender.coordinates),
                             None => {
                                 if data.dimension.is_none() || data.coordinate.is_none() {
+                                    tracing::info!("palayers don't have coordinate data");
                                     return false;
                                 }
 
@@ -330,6 +332,7 @@ impl QuicNetworkPacket {
                             Some(recipiant) => {
                                 // if they aren't in the same dimension, then they can't hear each other
                                 if !recipiant.dimension.eq(&sender_dimension) {
+                                    tracing::info!("palayers aren't in the same dimension");
                                     return false;
                                 }
 

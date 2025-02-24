@@ -59,7 +59,7 @@ opus = { version = "^0.3" }
 ron = { version = "^0.8" }
 audio-gate = { version = "^0.1" }
 flume = { version = "^0.11" }
-trust-dns-resolver = { version = "^0.23", features = ["tokio-runtime", "tokio-rustls", "rustls"] }
+trust-dns-resolver = { version = "^0.23", features = ["tokio-runtime", "tokio-rustls", "rustls", "serde"] }
 
 tauri = { version = "^2", features = ["rustls-tls"] }
 tauri-plugin-opener = "^2"
@@ -71,6 +71,7 @@ tauri-plugin-notification = "^2"
 tauri-plugin-log = "^2"
 tauri-plugin-os = "^2"
 tauri-plugin-stronghold = "^2"
+windows-targets = "0.53.0"
 
 # Desktop Targets
 [target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]

@@ -4,6 +4,8 @@
     import { info, error, warn } from '@tauri-apps/plugin-log';
     import { invoke } from "@tauri-apps/api/core";
     import type { AudioDevice } from "../../js/bindings/AudioDevice.ts";
+    import type { LoginResponse } from "../../js/bindings/LoginResponse.ts";
+    import type { Keypair } from "../../js/bindings/Keypair.ts";
 
     const result = (async () => { 
         const secretStore = await Store.load('secrets.json', { autoSave: false });
@@ -14,9 +16,7 @@
         info(`Current server: ${currentServer?.value}`);
 
         if (password?.value) {
-            function sleep(ms: number): Promise<void> {
-                return new Promise(resolve => setTimeout(resolve, ms));
-            }
+            console.log("Hello, World!!!!");
 
             const stronghold = await Hold.new("servers", password.value);
             const server = await stronghold.get(currentServer!.value);
@@ -28,6 +28,7 @@
                 error(`Error updating current player: ${e}`);
             });
 
+            /*
             const inputDevice = await invoke("get_audio_device", {
                 io: "InputDevice"
             }).then(async (device) => device as AudioDevice)
@@ -43,6 +44,7 @@
             }).catch((e) => {
                 error(`Error getting audio device: ${e}`);
             });
+            */
 
             const outputDevice = await invoke("get_audio_device", {
                 io: "OutputDevice"
@@ -53,28 +55,48 @@
                 error(`Error getting audio device: ${e}`);
             });
 
-            console.log(outputDevice);
-            console.log(inputDevice);
             await invoke("change_audio_device", {
                 device: outputDevice
             }).then(() => {
             }).catch((e) => {
                 error(`Error getting audio device: ${e}`);
             });
+            const c = await stronghold.get(currentServer?.value)
+                .then((data) => JSON.parse(data))
+                .then((data) => {
 
-            await sleep(5000);
-            await invoke("stop_audio_device", { device: "InputDevice" }).then(() => {
+                const keypair: Keypair = {
+                    pk: data.keypair.pk,
+                    sk: data.keypair.sk
+                };
 
-            }).catch((e) => {
-                error(`Error stopping audio device: ${e}`);
+                const signature: Keypair = {
+                    pk: data.signature.pk,
+                    sk: data.signature.sk
+                };
+
+                const loginResponse: LoginResponse = {
+                    gamerpic: data.gamerpic,
+                    gamertag: data.gamertag,
+                    quic_connect_string: data.quic_connect_string,
+                    certificate_ca: data.certificate_ca,
+                    certificate_key: data.certificate_key,
+                    certificate: data.certificate,
+                    keypair: keypair,
+                    signature: signature,
+                };
+
+                return loginResponse;
             });
-            
-            await sleep(5000);
-            await invoke("stop_audio_device", { device: "OutputDevice" }).then(() => {
 
+            await invoke("change_network_stream", {
+                server: currentServer?.value,
+                data: c
+            }).then(() => {
             }).catch((e) => {
-                error(`Error stopping audio device: ${e}`);
+                error(`Error changing network stream: ${e}`);
             });
+
         }
     })();
 </script>

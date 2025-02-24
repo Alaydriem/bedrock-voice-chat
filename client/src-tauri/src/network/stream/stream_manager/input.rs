@@ -2,7 +2,7 @@ use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
 use common::structs::packet::QuicNetworkPacket;
 use tokio::task::AbortHandle;
 use crate::AudioPacket;
-use log::{error, warn};
+use log::{error, info, warn};
 
 /// The InputStream consumes audio packets from the server
 /// Then sends it to the AudioStreamManager::OutputStream
@@ -37,14 +37,18 @@ impl super::StreamTrait for InputStream {
     }
 
     async fn start(&mut self) -> Result<(), anyhow::Error> {
-        let bus = self.bus.clone();
+        _ = self.shutdown.store(false, Ordering::Relaxed);
+        
+        let tx = self.bus.clone();
         let mut jobs = vec![];
         let mut stream = self.stream.take().unwrap();
 
         let shutdown = self.shutdown.clone();
         jobs.push(tokio::spawn(async move {
+            log::info!("Started network recv stream.");
             let mut packet = Vec::<u8>::new();
             while let Ok(Some(data)) = stream.receive().await {
+                log::info!("received quic packet.");
                 if shutdown.load(Ordering::Relaxed) {
                     warn!("Network stream input handler stopped.");
                     break;
@@ -56,7 +60,7 @@ impl super::StreamTrait for InputStream {
                 match QuicNetworkPacket::from_stream(&mut packet) {
                     Ok(packets) => {
                         for data in packets {
-                            _ = bus.send_async(AudioPacket { data }).await;
+                            _ = tx.send_async(AudioPacket { data }).await;
                         }
                     },
                     Err(e) => {
