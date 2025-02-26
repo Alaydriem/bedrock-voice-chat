@@ -2,6 +2,8 @@ mod input;
 mod output;
 mod sink_manager;
 
+use std::sync::Arc;
+
 use common::structs::audio::AudioDevice;
 pub(crate) use input::InputStream;
 pub(crate) use output::OutputStream;
@@ -75,10 +77,10 @@ impl StreamTrait for StreamTraitType {
         }
     }
 
-    fn metadata(&mut self, key: String, value: String) -> Result<(), anyhow::Error> {
+    async fn metadata(&mut self, key: String, value: String) -> Result<(), anyhow::Error> {
         match self {
-            Self::Input(stream) => stream.metadata(key, value),
-            Self::Output(stream) => stream.metadata(key, value)
+            Self::Input(stream) => stream.metadata(key, value).await,
+            Self::Output(stream) => stream.metadata(key, value).await
         }        
     }
 }
@@ -88,6 +90,13 @@ impl StreamTraitType {
         match self {
             Self::Input(stream) => stream.device.clone(),
             Self::Output(stream) => stream.device.clone(),
+        }
+    }
+
+    pub fn get_metadata(&self) -> Arc<moka::future::Cache<String, String>> {
+        match self {
+            Self::Input(stream) => stream.metadata.clone(),
+            Self::Output(stream) => stream.metadata.clone(),
         }
     }
 }

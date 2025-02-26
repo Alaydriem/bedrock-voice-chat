@@ -22,12 +22,12 @@ use std::{
             Sender
         },
         Arc,
-        Mutex
     }, time::Duration
 };
 use tokio::task::{AbortHandle, JoinHandle};
-use moka::sync::Cache;
+use moka::future::Cache;
 use anyhow::anyhow;
+use tauri::async_runtime::Mutex;
 
 use super::sink_manager::SinkManager;
 
@@ -59,15 +59,15 @@ impl DecodedAudioFramePacket {
 pub(crate) struct OutputStream {
     pub device: Option<AudioDevice>,
     pub bus: Arc<flume::Receiver<AudioPacket>>,
-    players: Arc<Cache<String, Player>>,
+    players: Arc<moka::sync::Cache<String, Player>>,
     jobs: Vec<AbortHandle>,
     shutdown: Arc<AtomicBool>,
-    metadata: Arc<moka::sync::Cache<String, String>>
+    pub metadata: Arc<Cache<String, String>>
 }
 
 impl super::StreamTrait for OutputStream {
-    fn metadata(&mut self, key: String, value: String) -> Result<(), anyhow::Error> {
-        self.metadata.insert(key, value);
+    async fn metadata(&mut self, key: String, value: String) -> Result<(), anyhow::Error> {
+        self.metadata.insert(key.clone(), value.clone()).await;
         Ok(())
     }
 
@@ -94,7 +94,12 @@ impl super::StreamTrait for OutputStream {
         let (producer, consumer) = mpsc::channel();
 
         // Playback the PCM data
-        match self.playback(consumer, self.shutdown.clone()) {
+        match self.playback(
+            consumer,
+            self.shutdown.clone(),
+            self.metadata.clone(),
+            self.players.clone(),
+        ).await {
             Ok(job) => jobs.push(job),
             Err(e) => {
                 error!("input sender encountered an error: {:?}", e);
@@ -103,7 +108,11 @@ impl super::StreamTrait for OutputStream {
         };
 
         // Listen to the network stream
-        match self.listener(producer, self.shutdown.clone()) {
+        match self.listener(
+            Arc::new(producer),
+            self.shutdown.clone(),
+            self.players.clone()
+        ).await {
             Ok(job) => jobs.push(job),
             Err(e) => {
                 error!("input sender encountered an error: {:?}", e);
@@ -118,27 +127,32 @@ impl super::StreamTrait for OutputStream {
 }
 
 impl OutputStream {
-    pub fn new(device: Option<AudioDevice>, bus: Arc<flume::Receiver<AudioPacket>>) -> Self {
-        let player_data = Cache::builder()
+    pub fn new(
+        device: Option<AudioDevice>,
+        bus: Arc<flume::Receiver<AudioPacket>>,
+        metadata: Arc<moka::future::Cache<String, String>>
+    ) -> Self {
+        let players = moka::sync::Cache::builder()
             .time_to_idle(Duration::from_secs(15 * 60))
             .build();
 
         Self {
             device,
             bus,
-            players: Arc::new(player_data),
+            players: Arc::new(players),
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),
-            metadata: Arc::new(moka::sync::Cache::builder().build())
+            metadata
         }
     }
     
     /// Listens to incoming network packet events from the server
     /// Translates them, then sends them to playback for processing
-    fn listener(
+    async fn listener(
         &mut self,
-        producer: Sender<DecodedAudioFramePacket>,
-        shutdown: Arc<AtomicBool>
+        producer: Arc<Sender<DecodedAudioFramePacket>>,
+        shutdown: Arc<AtomicBool>,
+        players: Arc<moka::sync::Cache<String, Player>>
     ) -> Result<JoinHandle<()>, anyhow::Error> {
         match self.device.clone() {
             Some(device) => match device.get_stream_config() {
@@ -150,7 +164,6 @@ impl OutputStream {
                     };
 
                     let bus = self.bus.clone();
-                    let player_data = self.players.clone();
 
                     let handle = tokio::spawn(async move {
                         // Opus decoders are stored in a ttl-hashmap
@@ -164,7 +177,6 @@ impl OutputStream {
 
                         #[allow(irrefutable_let_patterns)]
                         while let packet = bus.recv_async().await {
-                            log::info!("received network packet from server for OUTPUT STREAM");
                             if shutdown.load(Ordering::Relaxed) {
                                 warn!("Output listener handler stopped.");
                                 break;
@@ -178,11 +190,11 @@ impl OutputStream {
                                             &device_config,
                                             producer.clone(),
                                             &packet.data
-                                        ),
+                                        ).await,
                                         PacketType::PlayerData => OutputStream::handle_player_data(
-                                            player_data.clone(),
+                                            players.clone(),
                                             &packet.data
-                                        ),
+                                        ).await,
                                         _ => {}
                                     }
                                 },
@@ -206,25 +218,25 @@ impl OutputStream {
     }
     
     /// Handles playback of the PCM Audio Stream to the output device
-    fn playback(
+    async fn playback(
         &mut self,
         consumer: Receiver<DecodedAudioFramePacket>,
-        shutdown: Arc<AtomicBool>
+        shutdown: Arc<AtomicBool>,
+        metadata: Arc<Cache<String, String>>,
+        players: Arc<moka::sync::Cache<String, Player>>
     ) -> Result<JoinHandle<()>, anyhow::Error> {
+        let current_player_name = match metadata.get("current_player").await {
+            Some(name) => name,
+            None => return Err(anyhow!("Playback stream cannot start without a player name set. Hint: .metadata('current_player', String) first."))
+        };
+
         match self.device.clone() {
             Some(device) => match device.get_stream_config() {
                 Ok(config) => {
-                    let metadata = self.metadata.clone();
-                    let players = self.players.clone();
-
                     let cpal_device: Option<rodio::cpal::Device> = device.clone().into();
                     let handle = match cpal_device {
                         Some(cpal_device) => tokio::spawn(async move {
-                            // Only allow a sink to be active for 15 minutes
-                            // This is a per _player_ sink, and ignores the client id.
-                            // Client IDs can be mapped back to Strings if the author is a "device"
-                            // All sinks are spatial, but some spatial sinks occur in the same space
-    
+                            log::info!("started receiving audio stream");
                             let (_stream, handle) = match rodio::OutputStream::try_from_device_config(
                                 &cpal_device,
                                 config
@@ -238,10 +250,10 @@ impl OutputStream {
                             
                             let mut sink_manager = SinkManager::new(&handle);
     
+                            log::info!("starting loop");
                             // Iterate over the incoming PCM data
                             #[allow(irrefutable_let_patterns)]
                             while let packet = consumer.recv() {
-                                log::info!("recieved pcm stream to playback on device.");
                                 if shutdown.load(Ordering::Relaxed) {
                                     warn!("{} {} ended.", device.io.to_string(), device.display_name);
                                     break;
@@ -256,18 +268,18 @@ impl OutputStream {
     
                                         // Get the sink for the current player
                                         let source = packet.get_author();
-    
-                                        let current_player = match metadata.get("current_player") {
-                                            Some(player) => match players.get(&player) {
-                                                Some(player) => Some(player),
-                                                None => None
-                                            },
+                                        
+                                        _ = players.iter().map(|(n, p)| log::info!("{:?} {:?}", n, p));
+
+                                        let current_player = match players.get(&current_player_name.clone()) {
+                                            Some(player) => Some(player),
                                             None => None
                                         };
     
+                                        // The current player doesn't have a position. This just means we're missing data from the server
+                                        // Keep looping until we have data.
                                         if current_player.is_none() {
-                                            error!("Audio stream is running without an active player. Aborting OutputStream thread");
-                                            return;
+                                            continue;
                                         }
     
                                         match packet.spatial && current_player.is_some() {
@@ -314,6 +326,8 @@ impl OutputStream {
                                                             } else {
                                                                 sink.set_volume(1.0);
                                                             }
+
+                                                            sink.append(packet.buffer);
                                                         },
                                                         Err(_) => {
                                                             error!("Spatial Sink undefined");
@@ -343,7 +357,8 @@ impl OutputStream {
                                         warn!("Could not receive decode audio frame packet: {:?}", e);
                                     }
                                 }
-                            } 
+                            }
+                            log::info!("ending loop");
                         }),
                         None => {
                             error!("CPAL output device is not defined. This shouldn't happen! Restart BVC? {:?}", device.clone());
@@ -353,7 +368,10 @@ impl OutputStream {
 
                     return Ok(handle);
                 },
-                Err(e) => return Err(e),
+                Err(e) => {
+                    error!("Receiving stream startup failed: {:?}", e);
+                    return Err(e)
+                }
             },
             None => {
                 return Err(anyhow!(
@@ -364,10 +382,10 @@ impl OutputStream {
     }
 
     /// Processes AudioFramePacket data
-    fn handle_audio_data(
+    async fn handle_audio_data(
         decoders: &Cache<Vec<u8>, Arc<Mutex<opus::Decoder>>>,
         device_config: &rodio::cpal::StreamConfig,
-        producer: Sender<DecodedAudioFramePacket>,
+        producer: Arc<Sender<DecodedAudioFramePacket>>,
         data: &QuicNetworkPacket
     ) {
         let owner = data.owner.clone();
@@ -378,50 +396,49 @@ impl OutputStream {
 
         match data {
             Ok(data ) => {
-                let decoder = match decoders.get(&client_id) {
+                let decoder = match decoders.get(&client_id).await {
                     Some(decoder) => decoder.to_owned(),
                     None => {
                         let decoder = opus::Decoder
                             ::new(sample_rate, opus::Channels::Mono)
                             .unwrap();
                         let decoder = Arc::new(Mutex::new(decoder));
-                        decoders.insert(client_id.clone(), decoder.clone());
+                        decoders.insert(client_id.clone(), decoder.clone()).await;
                         decoder
                     }
                 };
 
-                match decoder.lock() {
-                    Ok(mut decoder) => {
-                        let mut out = vec![0.0; BUFFER_SIZE as usize];
-                        let out_len = match decoder.decode_float(&data.data, &mut out, false) {
-                            Ok(s) => s,
-                            Err(e) => {
-                                warn!("Could not decode audio frame packet: {:?}", e);
-                                0
-                            }
-                        };
-
-                        out.truncate(out_len);
-                        if out.len() > 0 {
-                            _ = producer.send(DecodedAudioFramePacket {
-                                owner: owner.clone(),
-                                buffer: SamplesBuffer::<f32>::new(
-                                    1, // is this _always_ a mono channel? Shouldn't this be stero sometimes too?
-                                    data.sample_rate,
-                                    out
-                                ),
-                                coordinate: data.coordinate,
-                                spatial: data.spatial
-                            })
-                        }
-                    },
+                let mut decoder = decoder.lock().await;
+                let mut out = vec![0.0; BUFFER_SIZE as usize];
+                let out_len = match decoder.decode_float(&data.data, &mut out, false) {
+                    Ok(s) => s,
                     Err(e) => {
-                        warn!("Could not retrieve decoder: {:?}", e);
+                        warn!("Could not decode audio frame packet: {:?}", e);
+                        0
                     }
                 };
+
+                out.truncate(out_len);
+                if out.len() > 0 {
+                    let result = producer.send(DecodedAudioFramePacket {
+                        owner: owner.clone(),
+                        buffer: SamplesBuffer::<f32>::new(
+                            2, // is this _always_ a mono channel? Shouldn't this be stero sometimes too?
+                            data.sample_rate,
+                            out
+                        ),
+                        coordinate: data.coordinate,
+                        spatial: data.spatial
+                    });
+
+                    match result {
+                        Ok(_) => {},
+                        Err(e) => warn!("{:?}", e)
+                    }
+                }
             },
             Err(_) => {
-                warn!("Couldnot decode audio frame packet");
+                warn!("Could not decode audio frame packet");
             }
         }
     }
@@ -430,8 +447,8 @@ impl OutputStream {
     // The data we can receive can be _any_ valid QuicNetworkPacket, which is good because
     // We need the positional information that is pulsed by the server
     // @todo!() we need to move this outside of this thread so this thread is only concerned with AudioFramePacket
-    fn handle_player_data(
-        player_data: Arc<Cache<String, Player>>,
+    async fn handle_player_data(
+        player_data: Arc<moka::sync::Cache<String, Player>>,
         data: &QuicNetworkPacket
     ) {
         let data: Result<PlayerDataPacket, ()> = data.data.to_owned().try_into();

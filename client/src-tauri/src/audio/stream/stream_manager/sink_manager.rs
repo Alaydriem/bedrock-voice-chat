@@ -69,6 +69,8 @@ impl<'a> SinkManager<'a> {
                 ).unwrap());
                 let sink = Arc::new(Sink::try_new(&self.handle).unwrap());
 
+                sink.play();
+                spatial_sink.play();
                 _ = self.sinks.insert(source.clone(), Arc::new(AudioSink {
                     spatial_sink: spatial_sink,
                     sink: sink

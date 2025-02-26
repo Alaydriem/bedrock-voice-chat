@@ -293,7 +293,6 @@ impl QuicNetworkPacket {
                         let mut data: AudioFramePacket = data;
 
                         if self.get_author().eq(&recipient.name) {
-                            tracing::info!("Authors are the same.");
                             return false;
                         }
 
@@ -320,7 +319,6 @@ impl QuicNetworkPacket {
                             Some(sender) => (sender.dimension, sender.coordinates),
                             None => {
                                 if data.dimension.is_none() || data.coordinate.is_none() {
-                                    tracing::info!("palayers don't have coordinate data");
                                     return false;
                                 }
 
@@ -328,11 +326,10 @@ impl QuicNetworkPacket {
                             }
                         };
 
-                        return match actual_recipient {
+                        match actual_recipient {
                             Some(recipiant) => {
                                 // if they aren't in the same dimension, then they can't hear each other
                                 if !recipiant.dimension.eq(&sender_dimension) {
-                                    tracing::info!("palayers aren't in the same dimension");
                                     return false;
                                 }
 
@@ -344,9 +341,13 @@ impl QuicNetworkPacket {
                                 .sqrt();
 
                                 // Return true of the players are within spatial range of the other player
-                                distance <= (3.0_f32).sqrt() * range
+                                let proximity = (3.0_f32).sqrt() * range;
+
+                                return distance <= proximity;
                             }
-                            None => false,
+                            None => {
+                                return false;
+                            },
                         };
                     }
                     Err(_) => {

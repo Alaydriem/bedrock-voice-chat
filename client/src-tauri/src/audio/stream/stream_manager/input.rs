@@ -4,7 +4,7 @@ use common::structs::{
     audio::{AudioDevice, BUFFER_SIZE},
     packet::{AudioFramePacket, QuicNetworkPacket, QuicNetworkPacketData},
 };
-use log::{error, info, warn};
+use log::{error, warn};
 use opus::Bitrate;
 use rodio::cpal::traits::StreamTrait;
 use rodio::DeviceTrait;
@@ -13,7 +13,6 @@ use std::{sync::{
 }, time::Duration};
 use tokio::task::{AbortHandle, JoinHandle};
 use crate::{audio::stream::stream_manager::AudioFrameData, NetworkPacket};
-
 use super::AudioFrame;
 
 pub(crate) struct InputStream {
@@ -21,12 +20,13 @@ pub(crate) struct InputStream {
     pub bus: Arc<flume::Sender<NetworkPacket>>,
     jobs: Vec<AbortHandle>,
     shutdown: Arc<AtomicBool>,
-    metadata: Arc<moka::sync::Cache<String, String>>
+    pub metadata: Arc<moka::future::Cache<String, String>>
 }
 
 impl super::StreamTrait for InputStream {
-    fn metadata(&mut self, key: String, value: String) -> Result<(), anyhow::Error> {
-        self.metadata.insert(key, value);
+    async fn metadata(&mut self, key: String, value: String) -> Result<(), anyhow::Error> {
+        let metadata = self.metadata.clone();
+        metadata.insert(key, value).await;
         Ok(())
     }
 
@@ -77,13 +77,17 @@ impl super::StreamTrait for InputStream {
 }
 
 impl InputStream {
-    pub fn new(device: Option<AudioDevice>, bus: Arc<flume::Sender<NetworkPacket>>) -> Self {
+    pub fn new(
+        device: Option<AudioDevice>,
+        bus: Arc<flume::Sender<NetworkPacket>>,
+        metadata: Arc<moka::future::Cache<String, String>>
+    ) -> Self {
         Self {
             device,
             bus,
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),
-            metadata: Arc::new(moka::sync::Cache::builder().build())
+            metadata: metadata
         }
     }
 

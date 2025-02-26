@@ -2,7 +2,7 @@ use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
 use common::structs::packet::QuicNetworkPacket;
 use tokio::task::AbortHandle;
 use crate::AudioPacket;
-use log::{error, info, warn};
+use log::{error, warn};
 
 /// The InputStream consumes audio packets from the server
 /// Then sends it to the AudioStreamManager::OutputStream
@@ -11,12 +11,13 @@ pub(crate) struct InputStream {
     pub stream: Option<s2n_quic::stream::ReceiveStream>,
     jobs: Vec<AbortHandle>,
     shutdown: Arc<AtomicBool>,
-    metadata: Arc<moka::sync::Cache<String, String>>
+    pub metadata: Arc<moka::future::Cache<String, String>>
 }
 
 impl super::StreamTrait for InputStream {
-    fn metadata(&mut self, key: String, value: String) -> Result<(), anyhow::Error> {
-        self.metadata.insert(key, value);
+    async fn metadata(&mut self, key: String, value: String) -> Result<(), anyhow::Error> {
+        let metadata = self.metadata.clone();
+        metadata.insert(key, value).await;
         Ok(())
     }
 
@@ -48,7 +49,6 @@ impl super::StreamTrait for InputStream {
             log::info!("Started network recv stream.");
             let mut packet = Vec::<u8>::new();
             while let Ok(Some(data)) = stream.receive().await {
-                log::info!("received quic packet.");
                 if shutdown.load(Ordering::Relaxed) {
                     warn!("Network stream input handler stopped.");
                     break;
@@ -88,7 +88,7 @@ impl InputStream {
             stream,
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),
-            metadata: Arc::new(moka::sync::Cache::builder().build())
+            metadata: Arc::new(moka::future::Cache::builder().build())
         }
     }
 }

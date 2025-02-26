@@ -20,9 +20,9 @@ pub use rocket::time::OffsetDateTime as RocketOffsetDateTime;
 pub enum Dimension {
     #[serde(rename = "overworld")]
     Overworld,
-    #[serde(rename = "the_nether")]
-    TheEnd,
     #[serde(rename = "the_end")]
+    TheEnd,
+    #[serde(rename = "the_nether")]
     TheNether,
 }
 

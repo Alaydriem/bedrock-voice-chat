@@ -8,6 +8,32 @@ use std::{error::Error, net::SocketAddr};
 use std::{fs::File, io::BufReader, path::Path};
 use tokio::io::AsyncWriteExt;
 
+use std::f32::consts::PI;
+
+struct Spiral {
+    theta: f32, // Angle in degrees
+    step: f32,  // Step increment for theta
+}
+
+impl Spiral {
+    fn new(step: f32) -> Self {
+        Spiral { theta: 0.0, step }
+    }
+}
+
+impl Iterator for Spiral {
+    type Item = (f32, f32);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let radius = 0.1 * (self.theta / 360.0);
+        let radians = self.theta.to_radians();
+        let x = radius * radians.cos();
+        let y = radius * radians.sin();
+        self.theta += self.step;
+        Some((x, y))
+    }
+}
+
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -116,9 +142,11 @@ async fn client(
             ss.resize(ss_expected_size, 0);
         }
 
-        println!("{}", ss.len());
+        let mut spiral = Spiral::new(0.5);
+        println!("Read bytes into memory: {}, starting playback", ss.len());
         let mut total_chunks = 0;
         for chunk in ss.chunks(480) {
+            let (x, y) = spiral.next().unwrap();
             if chunk.len() < 480 {
                 println!("Unexpected chunk end");
                 break;
@@ -137,9 +165,9 @@ async fn client(
                         data: s.clone(),
                         sample_rate: 48000,
                         coordinate: Some(Coordinate {
-                            x: 0.5,
-                            y: 70.0,
-                            z: 0.5,
+                            x: x,
+                            y: y,
+                            z: 0.0,
                         }),
                         dimension: Some(common::Dimension::Overworld),
                         spatial: true
@@ -152,6 +180,7 @@ async fn client(
                     _ = send_stream.write_all(&rs).await;
                     // This should be 20ms of audio
                     if total_chunks % 4800 == 0 {
+                        _ = send_stream.flush().await;
                         _ = tokio::time::sleep(Duration::from_millis(20)).await;
                     }
                 }

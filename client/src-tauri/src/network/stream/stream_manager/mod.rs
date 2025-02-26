@@ -32,10 +32,10 @@ impl StreamTrait for StreamTraitType {
         }
     }
 
-    fn metadata(&mut self, key: String, value: String) -> Result<(), anyhow::Error> {
+    async fn metadata(&mut self, key: String, value: String) -> Result<(), anyhow::Error> {
         match self {
-            Self::Input(stream) => stream.metadata(key, value),
-            Self::Output(stream) => stream.metadata(key, value)
+            Self::Input(stream) => stream.metadata(key, value).await,
+            Self::Output(stream) => stream.metadata(key, value).await
         }        
     }
 }

@@ -43,6 +43,7 @@ pub(crate) async fn get_task(
     let message_queue = Arc::new(MessageQueue::new(5000));
     let recv_message_queue = message_queue.clone();
     let shutdown_message_queue = message_queue.clone();
+    let webhook_message_queue = message_queue.clone();
 
     let monitor_player_channel_cache = player_channel_cache.clone();
 
@@ -318,7 +319,6 @@ pub(crate) async fn get_task(
                                                             continue;
                                                         }
 
-                                                        tracing::info!("sending packet to client.");
                                                         match packet.to_vec() {
                                                             Ok(rs) => {
                                                                 _ = send_stream.write_all(
@@ -327,7 +327,7 @@ pub(crate) async fn get_task(
                                                             }
                                                             Err(e) => {
                                                                 tracing::error!(
-                                                                    "Send Stream Write: {:?}",
+                                                                    "Send Stream Write Error: {:?}",
                                                                     e.to_string()
                                                                 );
                                                             }
@@ -382,7 +382,7 @@ pub(crate) async fn get_task(
         match socket.bind("tcp://127.0.0.1:5556").await {
             Ok(_) => {}
             Err(e) => {
-                tracing::error!("{:?}", e);
+                tracing::error!("Address in use: Shared ZeroMQ Publisher {:?}", e);
             }
         }
 
@@ -421,13 +421,7 @@ pub(crate) async fn get_task(
 
         let player_channel_cache = monitor_player_channel_cache.clone();
 
-        let mut socket = zeromq::PubSocket::new();
-        match socket.bind("tcp://127.0.0.1:5556").await {
-            Ok(_) => {}
-            Err(e) => {
-                tracing::error!("{:?}", e);
-            }
-        }
+        let message_queue = webhook_message_queue.clone();
 
         #[allow(irrefutable_let_patterns)]
         while let packet = queue.pop().await {
@@ -438,25 +432,8 @@ pub(crate) async fn get_task(
 
             let pkc = packet.clone();
 
-            match pkc.to_string() {
-                Ok(message) =>
-                // Push the player position data to all active players.
-                // This provides players with both positional information,
-                // And acts as a pulse-clock to force events to be processed
-                // on the clients
-                {
-                    match socket.send(message.into()).await {
-                        Ok(_) => {}
-                        Err(e) => {
-                            tracing::error!("failed to send message {:?}", e);
-                        }
-                    }
-                }
-
-                Err(e) => {
-                    tracing::error!("Couldn't convert message {:?}", e);
-                }
-            };
+            // Push this into the message queue
+            _ = message_queue.push(packet.clone()).await;
 
             // Packet specific handling
             match pkc.packet_type {

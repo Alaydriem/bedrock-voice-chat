@@ -27,11 +27,13 @@ impl AudioStreamManager {
             consumer: consumer.clone(),
             input: StreamTraitType::Input(stream_manager::InputStream::new(
                 None,
-                producer.clone()
+                producer.clone(),
+                Arc::new(moka::future::Cache::builder().build())
             )),
             output: StreamTraitType::Output(stream_manager::OutputStream::new(
                 None,
                 consumer.clone(),
+                Arc::new(moka::future::Cache::builder().build())
             )),
         }
     }
@@ -47,12 +49,14 @@ impl AudioStreamManager {
                 self.input = StreamTraitType::Input(stream_manager::InputStream::new(
                     Some(device),
                     self.producer.clone(),
+                    self.input.get_metadata().clone()
                 ));
             }
             AudioDeviceType::OutputDevice => {
                 self.output = StreamTraitType::Output(stream_manager::OutputStream::new(
                     Some(device),
                     self.consumer.clone(),
+                    self.output.get_metadata().clone()
                 ));
             }
         }
@@ -64,17 +68,20 @@ impl AudioStreamManager {
     pub async fn restart(&mut self, device: AudioDeviceType) -> Result<(), Error> {
         // Stop the audio strema
         _ = self.stop(device.clone());
+        
         match device {
             AudioDeviceType::InputDevice => {
                 self.input = StreamTraitType::Input(stream_manager::InputStream::new(
                     self.input.get_device(),
                     self.producer.clone(),
+                    self.input.get_metadata().clone()
                 ));
             }
             AudioDeviceType::OutputDevice => {
                 self.output = StreamTraitType::Output(stream_manager::OutputStream::new(
                     self.output.get_device(),
                     self.consumer.clone(),
+                    self.output.get_metadata().clone()
                 ));
             }
         };
@@ -115,10 +122,10 @@ impl AudioStreamManager {
         Ok(())
     }
 
-    pub fn metadata(&mut self, key: String, value: String, device: &AudioDeviceType) -> Result<(), Error> {
+    pub async fn metadata(&mut self, key: String, value: String, device: &AudioDeviceType) -> Result<(), Error> {
         match device {
-            AudioDeviceType::InputDevice => self.input.metadata(key, value),
-            AudioDeviceType::OutputDevice => self.output.metadata(key, value)
+            AudioDeviceType::InputDevice => self.input.metadata(key, value).await,
+            AudioDeviceType::OutputDevice => self.output.metadata(key, value).await
         }
     }
 }

@@ -12,12 +12,14 @@ pub(crate) struct OutputStream {
     pub stream: Option<s2n_quic::stream::SendStream>,
     jobs: Vec<AbortHandle>,
     shutdown: Arc<AtomicBool>,
-    metadata: Arc<moka::sync::Cache<String, String>>
+    pub metadata: Arc<moka::future::Cache<String, String>>
 }
 
 impl super::StreamTrait for OutputStream {
-    fn metadata(&mut self, key: String, value: String) -> Result<(), anyhow::Error> {
-        self.metadata.insert(key, value);
+    async fn metadata(&mut self, key: String, value: String) -> Result<(), anyhow::Error> {
+        let metadata = self.metadata.clone();
+        metadata.insert(key, value).await;
+
         Ok(())
     }
 
@@ -117,7 +119,7 @@ impl OutputStream {
             stream,
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),
-            metadata: Arc::new(moka::sync::Cache::builder().build())
+            metadata: Arc::new(moka::future::Cache::builder().build())
         }
     }
 }
