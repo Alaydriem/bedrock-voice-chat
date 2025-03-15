@@ -28,7 +28,6 @@
                 error(`Error updating current player: ${e}`);
             });
 
-            /*
             const inputDevice = await invoke("get_audio_device", {
                 io: "InputDevice"
             }).then(async (device) => device as AudioDevice)
@@ -44,7 +43,6 @@
             }).catch((e) => {
                 error(`Error getting audio device: ${e}`);
             });
-            */
 
             const outputDevice = await invoke("get_audio_device", {
                 io: "OutputDevice"

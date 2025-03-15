@@ -7,9 +7,6 @@ version = "0.0.2"
 edition = "2021"
 build = "build.rs"
 
-[registries.crates-io]
-protocol = "sparse"
-
 [profile.release]
 opt-level = 3
 strip = true
@@ -92,10 +89,11 @@ zeromq = { version = "0.5.0-pre", default-features = false, features = [
 built = { version = "^0.7", features = ["git2", "chrono", "semver"] }
 
 [dev-dependencies]
-opus = { version = "0.3" }
-rodio = { version = "0.20" }
-async-ringbuf = { version = "0.3" }
+opus = { version = "^0.3" }
+rodio = { version = "^0.20" }
+async-ringbuf = { version = "^0.3" }
 ringbuf = { version = "0.4" }
+hound = "^3.5"
 
 [package.metadata.deb]
 maintainer = "Charles R. Portwood II <charlesportwoodii@erianna.com>"

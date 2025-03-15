@@ -65,13 +65,13 @@ impl super::StreamTrait for OutputStream {
                 },
                 Err(e) => {
                     error!("Failed to send DEBUG packet to stream: {:?}", e);
-                    return;
                 }
-            }
-
+            };
+            
+            let notify = crate::AUDIO_INPUT_NETWORK_NOTIFY.clone();
+            let mut buffer: Vec<QuicNetworkPacket> = Vec::new();
             #[allow(irrefutable_let_patterns)]
             while let packet = rx.recv_async().await {
-                log::info!("RECEIVED AUDIO PACKET TO SEND TO SERVER");
                 match packet {
                     Ok(network_packet) => {
                         if shutdown.load(Ordering::Relaxed) {
@@ -79,17 +79,29 @@ impl super::StreamTrait for OutputStream {
                             break;
                         }
 
-                        let mut packet = network_packet.data;
+                        let mut quic_network_packet = network_packet.data;
 
-                        packet.owner = packet_owner.clone();
-                        match packet.to_vec() {
-                            Ok(reader) => {
-                                _ = stream.write_all(&reader).await;
-                            }
-                            Err(e) => {
-                                error!("{}", e.to_string());
+                        quic_network_packet.owner = packet_owner.clone();
+                        buffer.push(quic_network_packet);
+
+                        // 4 packets should be 20ms of audio
+                        while buffer.len() >= 4 {
+                            for pkt in buffer.drain(..) {
+                                match pkt.to_vec() {
+                                    Ok(reader) => {
+                                        if let Err(e) = stream.write_all(&reader).await {
+                                            error!("Failed to send audio packet: {}", e.to_string());
+                                        }
+                                    }
+                                    Err(e) => {
+                                        error!("{}", e.to_string());
+                                    }
+                                }
                             }
                         }
+                        
+                        notify.notify_waiters();
+                        notify.notified().await;
                     }
                     Err(e) => {
                         error!("QuicNetworkPacket was not valid? {}", e.to_string());

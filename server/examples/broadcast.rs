@@ -1,3 +1,4 @@
+use common::structs::packet::AudioFramePacket;
 use common::structs::packet::PacketType;
 use common::structs::packet::QuicNetworkPacket;
 use common::Coordinate;
@@ -7,8 +8,8 @@ use std::time::Duration;
 use std::{error::Error, net::SocketAddr};
 use std::{fs::File, io::BufReader, path::Path};
 use tokio::io::AsyncWriteExt;
-
-use std::f32::consts::PI;
+use hound;
+use std::io::BufWriter;
 
 struct Spiral {
     theta: f32, // Angle in degrees
@@ -94,27 +95,80 @@ async fn client(
 
     tasks.push(tokio::spawn(async move {
         let mut packet = Vec::<u8>::new();
-
+        let mut count = 0;
+        let mut decoder = opus::Decoder::new(48000, opus::Channels::Mono).unwrap();
+    
+        let spec = hound::WavSpec {
+            channels: 2,
+            bits_per_sample: 32, // Change to 16 for compatibility
+            sample_format: hound::SampleFormat::Float,
+            sample_rate: 48000,
+        };
+    
+        let file = File::create("C:\\Users\\charlesportwoodii\\sample_voice.wav").unwrap();
+        let writer = BufWriter::new(file);
+        let mut wav_writer = hound::WavWriter::new(writer, spec).unwrap();
+    
         while let Ok(Some(data)) = receive_stream.receive().await {
             packet.append(&mut data.to_vec());
-
+    
             match QuicNetworkPacket::from_stream(&mut packet) {
                 Ok(packets) => {
                     for packet in packets {
                         match packet.packet_type {
                             PacketType::AudioFrame => {
-                                println!("Got packet from: {}", packet.get_author());
+                                let data: Result<AudioFramePacket, ()> = packet.data.to_owned().try_into();
+                                let mut out = vec![0.0; 960];
+                                let out_len = match decoder.decode_float(&data.unwrap().data, &mut out, false) {
+                                    Ok(s) => {
+                                        s
+                                    }
+                                    Err(e) => {
+                                        println!("Opus decode error: {:?}", e); // Debug error message
+                                        0
+                                    }
+                                };
+    
+                                if out_len > 0 {
+                                    // Write to the WAV file with clamping
+                                    for &sample in &out {
+                                        let clamped_sample = sample.clamp(-1.0, 1.0); // Ensure sample is in range [-1.0, 1.0]
+                                        if let Err(e) = wav_writer.write_sample(clamped_sample) {
+                                            println!("Wav write sample error: {:?}", e);
+                                        }
+                                    }
+
+                                    if count == 1000 {                                        
+                                        break;
+                                    }
+
+                                    count += 1;
+                                    if count % 100 == 0 {
+                                        println!("{:?}", count);
+                                    }
+                                }
                             }
                             _ => {}
                         }
                     }
+
+                    if count == 1000 {                                        
+                        break;
+                    }
+
                 }
                 Err(e) => {
                     println!("{:?}", e);
                 }
             };
         }
-        println!("Recieving loop died");
+        println!("Receiving loop died");
+    
+        if let Err(e) = wav_writer.finalize() {
+            println!("Wav write final error: {:?}", e);
+        } else {
+            println!("WAV file finalized successfully");
+        }
     }));
 
     tasks.push(tokio::spawn(async move {

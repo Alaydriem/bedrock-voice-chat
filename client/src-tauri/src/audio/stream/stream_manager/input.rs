@@ -9,7 +9,7 @@ use opus::Bitrate;
 use rodio::cpal::traits::StreamTrait;
 use rodio::DeviceTrait;
 use std::{sync::{
-    atomic::{AtomicBool, Ordering}, mpsc::{self, Receiver, Sender}, Arc
+    atomic::{AtomicBool, Ordering}, mpsc::{self, Receiver, SyncSender}, Arc
 }, time::Duration};
 use tokio::task::{AbortHandle, JoinHandle};
 use crate::{audio::stream::stream_manager::AudioFrameData, NetworkPacket};
@@ -51,7 +51,7 @@ impl super::StreamTrait for InputStream {
         
         let mut jobs = vec![];
 
-        let (producer, consumer) = mpsc::channel();
+        let (producer, consumer) = mpsc::sync_channel(1000);
 
         // Start the audio input listener thread
         match self.listener(producer, self.shutdown.clone()) {
@@ -87,14 +87,14 @@ impl InputStream {
             bus,
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),
-            metadata: metadata
+            metadata
         }
     }
 
     // Produces raw PCM data and sends it to the network consumer
     fn listener(
         &mut self,
-        producer: Sender<AudioFrame>,
+        producer: SyncSender<AudioFrame>,
         shutdown: Arc<AtomicBool>
     ) -> Result<JoinHandle<()>, anyhow::Error> {
         match self.device.clone() {
@@ -136,8 +136,19 @@ impl InputStream {
                                 // Makeup limit
                                 // Compressor
                                 // Limiter
-                                let audio_frame_data = AudioFrameData { pcm };
-                                _ = producer.send(AudioFrame::F32(audio_frame_data)).unwrap();
+
+                                let pcm_sendable = pcm.iter().all(|&e| f32::abs(e) == 0.0);
+                                // Only send audio frame data if our filters haven't cut data out
+                                if !pcm_sendable {
+                                    let audio_frame_data = AudioFrameData { pcm };
+
+                                    match producer.try_send(AudioFrame::F32(audio_frame_data)) {
+                                        Ok(()) => {},
+                                        Err(e) => {
+                                            error!("AudioInputStream to Audio Producer channel is full {:?}", e);
+                                        }
+                                    }
+                                }
                             };
 
                             let stream = match config.sample_format() {
@@ -179,12 +190,11 @@ impl InputStream {
                                 Ok(stream) => {
                                     _ = stream.play().unwrap();
                                     
-                                    loop {
-                                        if shutdown.load(Ordering::Relaxed) {
-                                            stream.pause().unwrap();
-                                            break;
-                                        }
+                                    // !todo() we need to optimize this so it's not an infinite loop yet so we can also still drop it
+                                    while !shutdown.load(Ordering::Relaxed) {
                                     }
+                                    
+                                    stream.pause().unwrap();
 
                                     warn!("{} {} ended.", device.io.to_string(), device.display_name);
                                     drop(stream);
@@ -246,6 +256,7 @@ impl InputStream {
                     };
 
                     let bus = self.bus.clone();
+                    let notify = crate::AUDIO_INPUT_NETWORK_NOTIFY.clone();
                     let handle = tokio::spawn(async move {
                         #[cfg(target_os = "windows")] {
                             windows_targets::link!("winmm.dll" "system" fn timeBeginPeriod(uperiod: u32) -> u32);
@@ -269,51 +280,23 @@ impl InputStream {
                                     };
 
                                     data_stream.append(&mut raw_sample);
-                                    if data_stream.len() >= (BUFFER_SIZE as usize) {
+                                    while data_stream.len() >= (BUFFER_SIZE as usize * 4) {
                                         let sample_to_process: Vec<f32> = data_stream
-                                            .get(0..960)
-                                            .unwrap()
-                                            .to_vec();
+                                            .drain(0..BUFFER_SIZE as usize)
+                                            .collect();
 
-                                        let mut remaining_data = data_stream
-                                            .get(960..data_stream.len())
-                                            .unwrap()
-                                            .to_vec()
-                                            .into_boxed_slice()
-                                            .to_vec();
-                                        data_stream = vec![0.0; 0];
-                                        data_stream.append(&mut remaining_data);
-                                        data_stream.shrink_to(data_stream.len());
-                                        data_stream.truncate(data_stream.len());
-
-                                        let s = match
-                                            encoder.encode_vec_float(
-                                                &sample_to_process,
-                                                sample_to_process.len() * 4
-                                            )
-                                        {
-                                            Ok(s) => s,
-                                            Err(e) => {
-                                                error!("{}", e.to_string());
-                                                Vec::<u8>::with_capacity(0)
-                                            }
+                                        let encoded_data = match encoder.encode_vec_float(&sample_to_process, sample_to_process.len() * 4) {
+                                            Ok(s) if s.len() > 3 => s,
+                                            _ => continue, // Skip if encoding failed or insufficient data
                                         };
-
-                                        // Opus frames with size of 3 or less mean that there either
-                                        // was insufficient data to fill the buffer or an error
-                                        // Buffer fill is intentional due to gates + other files
-                                        // in the audio processing pipeline
-                                        if s.len() <= 3 {
-                                            continue;
-                                        }
 
                                         let packet = NetworkPacket {
                                             data: QuicNetworkPacket {
                                                 packet_type: common::structs::packet::PacketType::AudioFrame,
                                                 owner: None, // This will be populated on the network side
                                                 data: QuicNetworkPacketData::AudioFrame(AudioFramePacket {
-                                                    length: s.len(),
-                                                    data: s.clone(),
+                                                    length: encoded_data.len(),
+                                                    data: encoded_data.clone(),
                                                     sample_rate: device_config.sample_rate.0,
                                                     coordinate: None,
                                                     dimension: None,
@@ -322,14 +305,12 @@ impl InputStream {
                                             }
                                         };
 
-                                        match tx.send_async(packet).await {
-                                            Ok(_) => {
-                                                tokio::time::sleep(Duration::from_millis(1)).await;
-                                            },
-                                            Err(e) => {
-                                                error!("Sending audio frame to Quic network thread failed: {:?}", e);
-                                            }
-                                        };
+                                        if let Err(e) = tx.send_async(packet).await {
+                                            error!("Sending audio frame to Quic network thread failed: {:?}", e);
+                                        } else {
+                                            notify.notify_waiters();
+                                            notify.notified().await;
+                                        }
                                     }
                                 },
                                 Err(_e) => {

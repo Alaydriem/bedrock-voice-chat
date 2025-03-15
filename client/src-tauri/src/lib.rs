@@ -17,12 +17,17 @@ use tauri_plugin_store::StoreExt;
 use audio::AudioStreamManager;
 use network::NetworkStreamManager;
 
+use tokio::sync::Notify;
+use once_cell::sync::Lazy;
+
 mod audio;
 mod auth;
 mod commands;
 mod core; 
 mod network;
 mod structs;
+
+pub(crate) static AUDIO_INPUT_NETWORK_NOTIFY: Lazy<Arc<Notify>> = Lazy::new(|| Arc::new(Notify::new()));
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
