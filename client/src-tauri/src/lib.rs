@@ -80,7 +80,7 @@ pub fn run() {
             // Initialize Stronghold so we can use it to store secrets
             let secret_store = app.store("secrets.json")?;
             let stronghold_salt = match secret_store.get("stronghold_password") {
-                Some(salt) => match salt.get("value") {
+                Some(salt) => match salt.as_str() {
                     Some(salt) => Some(salt.to_string()),
                     None => None,
                 },
@@ -92,7 +92,7 @@ pub fn run() {
                 let encoded_salt = base64::encode(salt);
                 secret_store.set(
                     "stronghold_password",
-                    json!({ "value": encoded_salt.clone() }),
+                    encoded_salt.clone(),
                 );
             }
 
@@ -142,7 +142,7 @@ pub fn run() {
 
             store.set(
                 "android_signature_hash".to_string(),
-                json!({ "value": android_signature_hash }),
+                android_signature_hash,
             );
 
             let app_state = AppState::new(store.clone());

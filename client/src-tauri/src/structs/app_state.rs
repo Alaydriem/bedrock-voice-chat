@@ -128,7 +128,7 @@ impl AppState {
     /// back to the login page
     fn get_current_server(store: &Arc<Store<Wry>>) -> Option<String> {
         match store.get("current_server") {
-            Some(s) => Some(s.get("value").unwrap().to_string()),
+            Some(s) => Some(s.as_str()?.to_string()),
             None => None,
         }
     }

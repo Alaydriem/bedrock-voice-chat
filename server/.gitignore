@@ -2,3 +2,5 @@
 logs
 *.pem
 *.key
+*.pfx
+*.crt

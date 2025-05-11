@@ -51,7 +51,7 @@ bytes = { version = "^1.10" }
 async-mutex = { version = "^1.4" }
 moka = { version = "^0.12", features = ["future", "sync"] }
 opus = { version = "^0.3" }
-ron = { version = "^0.8" }
+ron = { version = "^0.10" }
 audio-gate = { version = "^0.1" }
 flume = { version = "^0.11" }
 trust-dns-resolver = { version = "^0.23", features = ["tokio-runtime", "tokio-rustls", "rustls", "serde"] }
@@ -59,7 +59,7 @@ windows-targets = "0.53.0"
 
 tauri = { version = "^2", features = ["rustls-tls"] }
 tauri-plugin-opener = "^2"
-tauri-plugin-deep-link = { git = "https://github.com/charlesportwoodii/tauri-plugins-workspace", branch = "deep-link-app-scheme" }
+tauri-plugin-deep-link = "^2" 
 tauri-plugin-fs = "^2"
 tauri-plugin-http = "^2"
 tauri-plugin-store = "^2"
@@ -71,7 +71,7 @@ once_cell = "1.21.1"
 
 # Desktop Targets
 [target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]
-tauri-plugin-single-instance = { git = "https://github.com/charlesportwoodii/tauri-plugins-workspace", branch = "deep-link-app-scheme", features = ["deep-link"] }
+tauri-plugin-single-instance =  { version = "^2", features = ["deep-link"] }
 tauri-plugin-updater = "^2"
 tauri-plugin-process = "^2"
 

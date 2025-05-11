@@ -9,17 +9,15 @@
 
     const result = (async () => { 
         const secretStore = await Store.load('secrets.json', { autoSave: false });
-        const password = await secretStore.get<{ value: string }>("stronghold_password");
+        const password = await secretStore.get<string>("stronghold_password");
 
         const store = await Store.load('store.json', { autoSave: false });
-        const currentServer = await store.get<{ value: string }>("current_server");
-        info(`Current server: ${currentServer?.value}`);
+        const currentServer = await store.get<string>("current_server");
+        info(`Current server: ${currentServer}`);
 
-        if (password?.value) {
-            console.log("Hello, World!!!!");
-
-            const stronghold = await Hold.new("servers", password.value);
-            const server = await stronghold.get(currentServer!.value);
+        if (password) {
+            const stronghold = await Hold.new("servers", password);
+            const server = await stronghold.get(currentServer);
             const s = JSON.stringify(server);
             
             await invoke("update_current_player").then(() => {
@@ -59,7 +57,7 @@
             }).catch((e) => {
                 error(`Error getting audio device: ${e}`);
             });
-            const c = await stronghold.get(currentServer?.value)
+            const c = await stronghold.get(currentServer)
                 .then((data) => JSON.parse(data))
                 .then((data) => {
 
@@ -88,7 +86,7 @@
             });
 
             await invoke("change_network_stream", {
-                server: currentServer?.value,
+                server: currentServer,
                 data: c
             }).then(() => {
             }).catch((e) => {

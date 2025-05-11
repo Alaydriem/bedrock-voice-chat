@@ -56,6 +56,7 @@ export default class Login extends App {
 
     // Fetch the configuration from the server and retrieve the client_id for
     // Authenticating with Microsoft
+    console.log(serverUrl.value);
     await fetch(serverUrl.value + this.CONFIG_ENDPOINT, {
       method: 'GET'
     }).then(async (response) => {
@@ -68,8 +69,8 @@ export default class Login extends App {
       const secretState = self.crypto.randomUUID();
       // Store some temporary tokens during the login phase.
       const store = await Store.load('store.json', { autoSave: false });
-      await store.set("auth_state_token", { value: secretState });
-      await store.set("auth_state_endpoint", { value: serverUrl.value });
+      await store.set("auth_state_token", secretState);
+      await store.set("auth_state_endpoint", serverUrl.value);
       await store.save();
 
       // Open a browser Window to authenticate with Microsoft Services
@@ -88,12 +89,12 @@ export default class Login extends App {
   // This will return all the "correct" OAuth2 redirect URLs that are platform specific
   static async getRedirectUrl() {
     const store = await Store.load('store.json', { autoSave: false });
-    const androidSignatureHash = await store.get<{ value: string }>("android_signature_hash");
+    const androidSignatureHash = await store.get("android_signature_hash");
 
     const redirectUrl = (() => {
       switch (platform()) {
         case "windows": return "bedrock-voice-chat://auth";
-        case "android": return "mmsauth://com.alaydriem.bvc/" + androidSignatureHash?.value;
+        case "android": return "mmsauth://com.alaydriem.bvc/" + androidSignatureHash;
         case "ios": return "msauth.com.alaydriem.bvc.client://auth";
         default: throw new Error("Unsupported platform");
       };
@@ -111,8 +112,8 @@ export default class Login extends App {
 
     // Fetch the temporary variables from our store.json
     const store = await Store.load('store.json', { autoSave: false });
-    const authStateToken = await store.get<{ value: string }>("auth_state_token");
-    const authStateEndpoint = await store.get<{ value: string }>("auth_state_endpoint");
+    const authStateToken = await store.get<string>("auth_state_token");
+    const authStateEndpoint = await store.get<string>("auth_state_endpoint");
     const code = new URL(url).searchParams.get("code");
     const state = new URL(url).searchParams.get("state");
 
@@ -121,7 +122,7 @@ export default class Login extends App {
     await store.save();
 
     // Verify that the state sent back from the server matches the one we generated
-    if (state !== authStateToken?.value) {
+    if (state !== authStateToken) {
       warn("Auth State Mismatch");
       
       serverUrl?.classList.add("border-error");
@@ -133,22 +134,47 @@ export default class Login extends App {
     const redirectUri = await Login.getRedirectUrl();
     await invoke("server_login", {
       code: code,
-      server: authStateEndpoint?.value,
+      server: authStateEndpoint,
       redirect: redirectUri
     })
     .then(async (response) => response as LoginResponse)
     .then(async(response) => {
       // Initialize Stronghold from the app generated password on the first run
       const secretStore = await Store.load('secrets.json', { autoSave: false });
-      const password = await secretStore.get<{ value: string }>("stronghold_password");
-      if (password?.value) {
-        const stronghold = await Hold.new("servers", password.value);
-        if (authStateEndpoint?.value) {
+      const password = await secretStore.get<string>("stronghold_password");
+      if (password) {
+        const stronghold = await Hold.new("servers", password);
+        if (authStateEndpoint) {
           // Insert and save data, commit, set the current server, then redirect to the dashboard
-          await stronghold.insert(authStateEndpoint.value, JSON.stringify(response));
+          await stronghold.insert(authStateEndpoint, JSON.stringify(response));
           await stronghold.commit();
-          await store.set("current_server", { value: authStateEndpoint.value });
-          await store.set("current_player", { value: response.gamertag });
+          await store.set("current_server", authStateEndpoint);
+          await store.set("current_player", response.gamertag);
+          if (await store.has("server_list")) {
+            let serverList = await store.get("server_list") as Array<{ server: string, player: string }>;
+            let hasServer = false;
+            serverList.forEach(server => {
+              if (server.server == authStateEndpoint) {
+                hasServer = true;
+              }
+            });
+            
+            if (!hasServer) {
+              serverList.push({
+                "server": authStateEndpoint,
+                "player": response.gamertag
+              });
+              await store.set("server_list", serverList);
+            }
+          } else {
+            let serverList = [];
+            serverList.push({
+              "server": authStateEndpoint,
+              "player": response.gamertag
+            });
+            await store.set("server_list", serverList);
+          }
+
           await store.save();
           window.location.href = "/dashboard";
         } else {

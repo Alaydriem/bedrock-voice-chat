@@ -56,7 +56,7 @@ pub async fn authenticate(
             1 => Some(params),
             _ => None,
         },
-        Err(e) => None,
+        Err(_e) => None,
     };
 
     let (gamerpic, gamertag) = match get_gamertag_and_gamepic(profile) {

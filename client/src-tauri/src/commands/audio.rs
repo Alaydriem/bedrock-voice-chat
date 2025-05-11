@@ -49,9 +49,9 @@ pub(crate) async fn update_current_player(
     let mut asm = asm.lock().await;
     match app.store("store.json") {
         Ok(store) => match store.get("current_player") {
-            Some(value) => match value.get("value") {
+            Some(value) => match value.as_str() {
                 Some(value) => {
-                    let current_player = value.as_str().unwrap().to_string();
+                    let current_player = value.to_string();
                     _ = asm.metadata(
                         String::from("current_player"),
                         current_player,
