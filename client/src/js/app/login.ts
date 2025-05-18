@@ -56,7 +56,6 @@ export default class Login extends App {
 
     // Fetch the configuration from the server and retrieve the client_id for
     // Authenticating with Microsoft
-    console.log(serverUrl.value);
     await fetch(serverUrl.value + this.CONFIG_ENDPOINT, {
       method: 'GET'
     }).then(async (response) => {

@@ -4,7 +4,6 @@ use crate::structs::app_state::AppState;
 use common::ncryptflib::rocket::base64;
 use flume::{Receiver, Sender};
 use network::NetworkPacket;
-use serde_json::json;
 use std::{
     fs::File,
     sync::Arc,
@@ -26,6 +25,7 @@ mod commands;
 mod core; 
 mod network;
 mod structs;
+mod api;
 
 pub(crate) static AUDIO_INPUT_NETWORK_NOTIFY: Lazy<Arc<Notify>> = Lazy::new(|| Arc::new(Notify::new()));
 
@@ -73,7 +73,9 @@ pub fn run() {
             crate::commands::audio::update_current_player,
             // Stream Information
             crate::commands::network::stop_network_stream,
-            crate::commands::network::change_network_stream
+            crate::commands::network::change_network_stream,
+            // API implementation
+            crate::api::commands::api_ping,
         ])
         .setup(|app| {
             log::info!("BVC Variant {:?}", crate::commands::env::get_variant());

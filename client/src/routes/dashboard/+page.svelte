@@ -4,6 +4,7 @@
     import { info, error, warn } from '@tauri-apps/plugin-log';
     import { invoke } from "@tauri-apps/api/core";
     import type { AudioDevice } from "../../js/bindings/AudioDevice.ts";
+    import type { AudioDeviceType } from "../../js/bindings/AudioDeviceType.ts";
     import type { LoginResponse } from "../../js/bindings/LoginResponse.ts";
     import type { Keypair } from "../../js/bindings/Keypair.ts";
 
@@ -89,8 +90,32 @@
                 server: currentServer,
                 data: c
             }).then(() => {
+                info(`Changed network stream to ${currentServer}`);
             }).catch((e) => {
                 error(`Error changing network stream: ${e}`);
+            });
+
+            const sleep = (ms: number): Promise<void> => {
+                return new Promise(resolve => setTimeout(resolve, ms));
+            };
+
+            sleep(1000).then(() => {
+                invoke("stop_audio_device", {
+                    device: "InputDevice"
+                }).then(() => {
+                    info("stopped output device");
+                }).catch((e) => {
+                    error(`Error getting audio device: ${e}`);
+                });
+
+                invoke("change_audio_device", {
+                    device: inputDevice,
+                }).then(() => {
+                    info("changed input device again");
+                }).catch((e) => {
+                    error(`Error getting audio device: ${e}`);
+                });
+
             });
 
         }

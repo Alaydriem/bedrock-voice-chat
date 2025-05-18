@@ -76,7 +76,7 @@ export default class Hold
     async delete(key: string): Promise<Uint8Array | null> {
         if (await Hold.is_dev()) {
             return new Promise((resolve, reject) => {
-                localStorage.delete(key);
+                localStorage.removeItem(key);
                 resolve(null);
             });
         };

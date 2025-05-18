@@ -7,10 +7,25 @@
     window.App = new Login();
     window.dispatchEvent(new CustomEvent("app:mounted"));
 
+    const urlParams = new URLSearchParams(window.location.search);
+
     document.querySelector("#login-form")
       ?.addEventListener("submit", (e) => {
         window.App.login(e);
     });
+
+    if (urlParams.has("server")) {
+      const server = urlParams.get("server");
+      document.querySelector("#bvc-server-input")?.setAttribute("value", server);
+
+      if (urlParams.has("reauth")) {
+        const reauth = urlParams.get("reauth");
+        if (reauth === "true") {
+          document.querySelector("#login-form")
+            ?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+        }
+      }
+    }
   });
 </script>
 

@@ -190,9 +190,21 @@ impl InputStream {
                                 Ok(stream) => {
                                     _ = stream.play().unwrap();
                                     
-                                    // !todo() we need to optimize this so it's not an infinite loop yet so we can also still drop it
-                                    while !shutdown.load(Ordering::Relaxed) {
-                                    }
+                                    // Get the current thread handle
+                                    let thread = std::thread::current();
+                                    
+                                    // Spawn a thread that will unpark when shutdown is triggered
+                                    let shutdown_clone = shutdown.clone();
+                                    let thread_clone = thread.clone();
+                                    std::thread::spawn(move || {
+                                        while !shutdown_clone.load(Ordering::Relaxed) {
+                                            std::thread::sleep(Duration::from_millis(100));
+                                        }
+                                        thread_clone.unpark();
+                                    });
+                                    
+                                    // Park the current thread until shutdown
+                                    std::thread::park();
                                     
                                     stream.pause().unwrap();
 

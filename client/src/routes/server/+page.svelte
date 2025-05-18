@@ -1,19 +1,22 @@
 <script lang="ts">
-    // Query all servers from the stronghold servers file
+  import "../../css/app.css";
+  import Server from "../../js/app/server.ts";
+  import { onMount } from 'svelte';
 
-    // If there are none, redirect to the login page.
+  onMount(() => {
+    window.App = new Server();
+    window.dispatchEvent(new CustomEvent("app:mounted"));
 
-    // If there's one, ping the server
-        // If it's good with the credentials, redirect to the dashboard
-        // If it's bad, clear the login from the server, then redirect to login with the uri pre-populated, then immediately trigger the login flow
-    
-    // If there's more than one server
-        // Show icons for all of them, fetched from the servers
-        // The ping all of them and show the ones that are connectable in color vs b/w
-        // If the user clicks on a colored one
-            // Go to the dashboard with the current server set
-        
-        // If the user clicks on a b/w one
-            // Redirect to the login page with the domain pre-populated, then immediately jump to the login form
-    window.location.href="/login";
+    window.App.initialize();
+    document.querySelector("body")?.classList.remove("has-min-sidebar");
+  });    
 </script>
+
+<div id="root" class="min-h-100vh flex grow">
+  <main class="w-full px-[var(--margin-x)] pb-8 mt-8 pt-8">
+    <div id="server-avatar-container" class="grid grid-cols-2 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 lg:gap-6 xl:grid-cols-4">
+
+    </div>
+  </main>
+</div>
+
