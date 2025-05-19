@@ -84,6 +84,7 @@ zeromq = { version = "0.5.0-pre", default-features = false, features = [
     "tokio-runtime",
     "all-transport",
 ] }
+rocket_cors = "0.6.0"
 
 [build-dependencies]
 built = { version = "^0.7", features = ["git2", "chrono", "semver"] }

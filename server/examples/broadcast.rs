@@ -39,10 +39,10 @@ impl Iterator for Spiral {
 async fn main() {
     let args: Vec<String> = std::env::args().collect();
     let result = client(
-        args[1].to_string().parse::<String>().unwrap(),
-        args[2].to_string().parse::<String>().unwrap(),
-        args[3].to_string().parse::<String>().unwrap(),
-        args[4].to_string().parse::<String>().unwrap(),
+        args[1].to_string().parse::<String>().unwrap(), // Player Identifier
+        args[2].to_string().parse::<String>().unwrap(), // Path to Source File
+        args[3].to_string().parse::<String>().unwrap(), // Host:Port of QUIC Server
+        args[4].to_string().parse::<String>().unwrap(), // Server Name
     )
     .await;
     println!("{:?}", result);
@@ -105,7 +105,7 @@ async fn client(
             sample_rate: 48000,
         };
     
-        let file = File::create("C:\\Users\\charlesportwoodii\\sample_voice.wav").unwrap();
+        let file = File::create("C:\\Users\\charl\\Downloads\\sample_voice.wav").unwrap();
         let writer = BufWriter::new(file);
         let mut wav_writer = hound::WavWriter::new(writer, spec).unwrap();
     
@@ -246,7 +246,7 @@ async fn client(
 
         tokio::time::sleep(Duration::from_secs(30)).await;
         let r = send_stream.close().await;
-        println!("Close Stream {:?}", r);
+        println!("Close Sending Stream {:?}", r);
     }));
 
     for task in tasks {

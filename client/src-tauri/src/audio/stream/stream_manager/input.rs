@@ -129,6 +129,7 @@ impl InputStream {
 
                             let mut process_fn = move | data: &[f32] | {
                                 // @todo: Can this filter chain be called globally?
+                                // Mute ?
                                 // Gate
                                 let pcm = gate.process_frame(&data);
                                 // Apply additional filters
@@ -144,9 +145,7 @@ impl InputStream {
 
                                     match producer.try_send(AudioFrame::F32(audio_frame_data)) {
                                         Ok(()) => {},
-                                        Err(e) => {
-                                            error!("AudioInputStream to Audio Producer channel is full {:?}", e);
-                                        }
+                                        Err(e) => {}
                                     }
                                 }
                             };

@@ -1,125 +1,70 @@
 <script lang="ts">
-    import Hold from "../../js/app/stronghold.ts";
-    import { Store } from '@tauri-apps/plugin-store';
-    import { info, error, warn } from '@tauri-apps/plugin-log';
-    import { invoke } from "@tauri-apps/api/core";
-    import type { AudioDevice } from "../../js/bindings/AudioDevice.ts";
-    import type { AudioDeviceType } from "../../js/bindings/AudioDeviceType.ts";
-    import type { LoginResponse } from "../../js/bindings/LoginResponse.ts";
-    import type { Keypair } from "../../js/bindings/Keypair.ts";
+  // The sidebar and related functionality is not available in this version.
+  // It can be enabled by setting the variable `isGroupChatSidebarAvailable` to true.
+  const isGroupChatSidebarAvailable = true;
 
-    const result = (async () => { 
-        const secretStore = await Store.load('secrets.json', { autoSave: false });
-        const password = await secretStore.get<string>("stronghold_password");
+  import MainSidebar from "../../components/dashboard/sidebar/MainSidebar.svelte";
+  import MainSidebarGroupVcPanel from "../../components/dashboard/sidebar/MainSidebarGroupVCPanel.svelte";
+  import "../../css/app.css";
+  import Dashboard from "../../js/app/dashboard.ts";
 
-        const store = await Store.load('store.json', { autoSave: false });
-        const currentServer = await store.get<string>("current_server");
-        info(`Current server: ${currentServer}`);
+  import { onMount, mount } from "svelte";
 
-        if (password) {
-            const stronghold = await Hold.new("servers", password);
-            const server = await stronghold.get(currentServer);
-            const s = JSON.stringify(server);
-            
-            await invoke("update_current_player").then(() => {
+  onMount(() => {
+    window.App = new Dashboard();
+    window.dispatchEvent(new CustomEvent("app:mounted"));
 
-            }).catch((e) => {
-                error(`Error updating current player: ${e}`);
-            });
+    const mainSidebarContainer = document.getElementById(
+      "main-sidebar-container",
+    );
 
-            const inputDevice = await invoke("get_audio_device", {
-                io: "InputDevice"
-            }).then(async (device) => device as AudioDevice)
-            .then((device) => {
-                return device;
-            }).catch((e) => {
-                error(`Error getting audio device: ${e}`);
-            });
+    if (mainSidebarContainer) {
+      mount(MainSidebar, {
+        target: mainSidebarContainer,
+      });
 
-            await invoke("change_audio_device", {
-                device: inputDevice
-            }).then(() => {
-            }).catch((e) => {
-                error(`Error getting audio device: ${e}`);
-            });
+      mount(MainSidebarGroupVcPanel, {
+        target: mainSidebarContainer,
+      });
 
-            const outputDevice = await invoke("get_audio_device", {
-                io: "OutputDevice"
-            }).then(async (device) => device as AudioDevice)
-            .then((device) => {
-                return device;
-            }).catch((e) => {
-                error(`Error getting audio device: ${e}`);
-            });
+      if (isGroupChatSidebarAvailable) {
+        document.querySelector("body")?.classList.add("is-sidebar-open");
+      } else {
+        document.querySelector("body")?.classList.remove("is-sidebar-open");
+      }
+    }
 
-            await invoke("change_audio_device", {
-                device: outputDevice
-            }).then(() => {
-            }).catch((e) => {
-                error(`Error getting audio device: ${e}`);
-            });
-            const c = await stronghold.get(currentServer)
-                .then((data) => JSON.parse(data))
-                .then((data) => {
-
-                const keypair: Keypair = {
-                    pk: data.keypair.pk,
-                    sk: data.keypair.sk
-                };
-
-                const signature: Keypair = {
-                    pk: data.signature.pk,
-                    sk: data.signature.sk
-                };
-
-                const loginResponse: LoginResponse = {
-                    gamerpic: data.gamerpic,
-                    gamertag: data.gamertag,
-                    quic_connect_string: data.quic_connect_string,
-                    certificate_ca: data.certificate_ca,
-                    certificate_key: data.certificate_key,
-                    certificate: data.certificate,
-                    keypair: keypair,
-                    signature: signature,
-                };
-
-                return loginResponse;
-            });
-
-            await invoke("change_network_stream", {
-                server: currentServer,
-                data: c
-            }).then(() => {
-                info(`Changed network stream to ${currentServer}`);
-            }).catch((e) => {
-                error(`Error changing network stream: ${e}`);
-            });
-
-            const sleep = (ms: number): Promise<void> => {
-                return new Promise(resolve => setTimeout(resolve, ms));
-            };
-
-            sleep(1000).then(() => {
-                invoke("stop_audio_device", {
-                    device: "InputDevice"
-                }).then(() => {
-                    info("stopped output device");
-                }).catch((e) => {
-                    error(`Error getting audio device: ${e}`);
-                });
-
-                invoke("change_audio_device", {
-                    device: inputDevice,
-                }).then(() => {
-                    info("changed input device again");
-                }).catch((e) => {
-                    error(`Error getting audio device: ${e}`);
-                });
-
-            });
-
-        }
-    })();
+    window.App.initialize();
+  });
 </script>
 
-This is the dashboard
+<div id="root" class="min-h-100vh cloak flex grow bg-slate-50 dark:bg-navy-900">
+  <div id="main-sidebar-container" class="sidebar print:hidden"></div>
+
+  <main
+    class="main-content chat-app h-100vh mt-0 flex flex-col w-full min-w-0 supports-[height:1dvh]:h-dvh"
+  >
+    <div
+      class="chat-header relative z-10 flex h-[61px] w-full shrink-0 items-center justify-between border-b border-slate-150 bg-white px-[calc(var(--margin-x)-.5rem)] shadow-xs transition-[padding,width] duration-[.25s] dark:border-navy-700 dark:bg-navy-800"
+    >
+      {#if isGroupChatSidebarAvailable}
+        <div class="flex min-w-0 items-center gap-1">
+          <div class="ml-1 size-7">
+            <button
+              id="sidebar-toggle"
+              aria-label="Toggle sidebar"
+              class="menu-toggle cursor-pointer ml-0.5 flex size-7 flex-col justify-center space-y-1.5 text-primary outline-hidden focus:outline-hidden dark:text-accent-light/80 active"
+            >
+              <span></span>
+              <span></span>
+              <span></span>
+            </button>
+          </div>
+        </div>
+      {/if}
+      <div class="flex space-x-3 items-center">
+        <div class="flex space-x-2"></div>
+      </div>
+    </div>
+  </main>
+</div>

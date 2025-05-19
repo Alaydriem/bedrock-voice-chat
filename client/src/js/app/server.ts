@@ -1,19 +1,16 @@
-import { fetch } from '@tauri-apps/plugin-http';
-import { platform } from '@tauri-apps/plugin-os';
 import { info, error, warn } from '@tauri-apps/plugin-log';
 import { Store } from '@tauri-apps/plugin-store';
-import { openUrl } from '@tauri-apps/plugin-opener';
 import { invoke } from "@tauri-apps/api/core";
-import { onOpenUrl } from "@tauri-apps/plugin-deep-link";
-import { type LoginResponse } from "../bindings/LoginResponse";
 
+// @ts-ignore
 import murmurHash3 from "murmurHash3js";
 import { mount } from 'svelte';
 import ServerAvatar from '../../components/ServerAvatar.svelte';
-import ServerAvatarPlaceholder from '../../components/SeverAvatarPlaceholder.svelte';
 
 import Hold from "./stronghold.ts";
 import App from './app.js';
+
+import { type LoginResponse } from "../bindings/LoginResponse";
 
 declare global {
   interface Window {
@@ -104,8 +101,7 @@ export default class Server extends App {
           target: container,
           props: {
             id: hash,
-            server: server,
-            serverName: ""
+            server: server
           },
         });
       });

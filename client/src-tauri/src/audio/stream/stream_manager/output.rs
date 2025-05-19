@@ -44,12 +44,10 @@ impl DecodedAudioFramePacket {
     pub fn get_author(&self) -> String {
         match &self.owner {
             Some(owner) => {
-                // If the owner name is empty, or comes from the API, then default to the client ID
-                if owner.name.eq(&"") || owner.name.eq(&"api") {
-                    return general_purpose::STANDARD.encode(&owner.client_id);
-                }
-
-                return owner.name.clone();
+                // Utilize the client ID so that the same author can receive and hear multiple incoming
+                // network streams. Without this, the audio packets for the same author across two streams
+                // come in sequence and playback sounds corrupted
+                return general_purpose::STANDARD.encode(&owner.client_id);
             }
             None => String::from("")
         }
@@ -250,7 +248,6 @@ impl OutputStream {
                             
                             let mut sink_manager = SinkManager::new(&handle);
     
-                            log::info!("starting loop");
                             // Iterate over the incoming PCM data
                             #[allow(irrefutable_let_patterns)]
                             while let packet = consumer.recv() {
@@ -395,7 +392,7 @@ impl OutputStream {
         let data: Result<AudioFramePacket, ()> = data.data.to_owned().try_into();
 
         match data {
-            Ok(data ) => {
+            Ok(data) => {
                 let decoder = match decoders.get(&client_id).await {
                     Some(decoder) => decoder.to_owned(),
                     None => {

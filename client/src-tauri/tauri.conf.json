@@ -13,8 +13,8 @@
     "windows": [
       {
         "title": "bedrock-voice-chat-client",
-        "width": 800,
-        "height": 600
+        "width": 1355,
+        "height": 800
       }
     ],
     "security": {

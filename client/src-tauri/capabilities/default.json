@@ -11,6 +11,12 @@
     "os:default",
     "log:default",
     "stronghold:default",
+    "fs:default",
+    "fs:read-all",
+    "fs:write-all",
+    "fs:allow-exists",
+    "fs:allow-mkdir",
+    "http:allow-fetch-read-body",
     {
       "local": true,
       "windows": ["*"],
@@ -26,6 +32,10 @@
           "url": "https://*:*"
         }
       ]
+    },
+    {
+      "identifier": "fs:scope",
+      "allow": ["**/*"]
     }
   ]
 }
