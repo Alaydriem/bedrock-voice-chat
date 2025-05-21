@@ -1,7 +1,6 @@
 "use strict";
 
 import { world, system } from "@minecraft/server";
-import { Version } from "./version";
 import {
   HttpClient,
   HttpHeader,
@@ -10,26 +9,10 @@ import {
   http,
 } from "@minecraft/server-net";
 
-import * as mcsa from "@minecraft/server-admin";
+ import { variables } from "@minecraft/server-admin";
 
-world.beforeEvents.chatSend.subscribe(async (event) => {
-  let v = new Version(event, event.sender);
-  let cmd = event.message.split(" ");
-  if (cmd[0] == "!bvc") {
-    switch (cmd[1] ?? "version") {
-      default:
-      case "version":
-        event.cancel = true;
-        system.run(() => {
-          v.version();
-        });
-        break;
-    }
-  }
-});
-
-const bvc_server = mcsa.variables.get("bvc_server");
-const access_token = mcsa.variables.get("bvc_access_token");
+const bvc_server = variables.get("bvc_server");
+const access_token = variables.get("bvc_access_token");
 
 system.runInterval(async (e) => {
   let data = [];

@@ -8,6 +8,3 @@ edition = "2021"
 
 [lib]
 name = "pack"
-
-[registries.crates-io]
-protocol = "sparse"

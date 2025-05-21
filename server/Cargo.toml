@@ -95,6 +95,8 @@ rodio = { version = "^0.20" }
 async-ringbuf = { version = "^0.3" }
 ringbuf = { version = "0.4" }
 hound = "^3.5"
+read-process-memory = "0.1.6"
+proc_mem = "0.1.6"
 
 [package.metadata.deb]
 maintainer = "Charles R. Portwood II <charlesportwoodii@erianna.com>"
