@@ -3,7 +3,7 @@ use common::{
     structs::{
         audio::{AudioDevice, BUFFER_SIZE},
         packet::{AudioFramePacket, PacketOwner, PacketType, PlayerDataPacket, QuicNetworkPacket}
-    }, Coordinate, Player
+    }, Coordinate, Orientation, Player
 };
 use base64::{engine::general_purpose, Engine as _};
 use log::{error, warn};
@@ -37,6 +37,7 @@ struct DecodedAudioFramePacket {
     pub owner: Option<PacketOwner>,
     pub buffer: SamplesBuffer<f32>,
     pub coordinate: Option<Coordinate>,
+    pub orientation: Option<Orientation>,
     pub spatial: bool
 }
 
@@ -293,35 +294,84 @@ impl OutputStream {
                                                         Ok(sink) => {
                                                             // Always use the packet data instead of the source data
                                                             let listener = current_player.unwrap();
-            
                                                             let s = packet.coordinate.unwrap();
                                                             let l = listener.coordinates;
-                                                            
-                                                            // The audio should always be in the same dimensions, and within a valud coordinate range
-                                                            // The client just has to attenuate the signal
-                                                            sink.set_emitter_position([s.x, s.y, s.z]);
-                                                            sink.set_left_ear_position([l.x + 0.0001, l.y, l.z]);
-                                                            sink.set_right_ear_position([l.x, l.y, l.z]);
-            
+                                                            let o = listener.orientation;
+
                                                             let distance = (
                                                                 (s.x - l.x).powf(2.0) +
                                                                 (s.y - l.y).powf(2.0) +
                                                                 (s.z - l.z).powf(2.0)
                                                             ).sqrt();
-            
-                                                            if distance > 44.0 {
-                                                                let dropoff = distance - 44.0;
-                    
-                                                                // This provides a 10 block linear attenuation dropoff
-                                                                // y = (⁻¹⁄₁₂)x + (¹⁴⁄₃)
-                                                                let dropoff_attenuation = f32::max(
-                                                                    0.0,
-                                                                    (-1.0 / 12.0) * dropoff + 14.0 / 3.0
-                                                                );
-            
-                                                                sink.set_volume(dropoff_attenuation);
+
+                                                            let yaw_rad = o.y.to_radians();
+                                                            let ear_offset = 0.5;
+
+                                                            // Listener's left vector (perpendicular to yaw)
+                                                            let left_x = -yaw_rad.sin();
+                                                            let left_z = yaw_rad.cos();
+
+                                                            let min_distance = 8.0;
+                                                            let simulated_distance = 2.0;
+                                                            let spatial_scale = if distance <= min_distance {
+                                                                simulated_distance / distance.max(0.01)
                                                             } else {
-                                                                sink.set_volume(1.0);
+                                                                1.0
+                                                            };
+
+                                                            if distance <= min_distance {
+                                                                let relative_emitter = [
+                                                                    (s.x - l.x) * spatial_scale,
+                                                                    (s.y - l.y) * spatial_scale,
+                                                                    (s.z - l.z) * spatial_scale,
+                                                                ];
+
+                                                                let left_ear = [
+                                                                    left_x * ear_offset,
+                                                                    0.0,
+                                                                    left_z * ear_offset,
+                                                                ];
+
+                                                                let right_ear = [
+                                                                    -left_x * ear_offset,
+                                                                    0.0,
+                                                                    -left_z * ear_offset,
+                                                                ];
+
+                                                                sink.set_emitter_position(relative_emitter);
+                                                                sink.set_left_ear_position(left_ear);
+                                                                sink.set_right_ear_position(right_ear);
+                                                                sink.set_volume(1.3); // Stable volume for near field
+                                                            } else {
+                                                                let left_ear = Coordinate {
+                                                                    x: l.x + left_x * ear_offset,
+                                                                    y: l.y,
+                                                                    z: l.z + left_z * ear_offset,
+                                                                };
+
+                                                                let right_ear = Coordinate {
+                                                                    x: l.x - left_x * ear_offset,
+                                                                    y: l.y,
+                                                                    z: l.z - left_z * ear_offset,
+                                                                };
+
+                                                                sink.set_emitter_position([s.x, s.y, s.z]);
+                                                                sink.set_left_ear_position([left_ear.x, left_ear.y, left_ear.z]);
+                                                                sink.set_right_ear_position([right_ear.x, right_ear.y, right_ear.z]);
+
+                                                                let max_distance = 32.0;
+                                                                let max_boost = 20.0;
+
+                                                                if distance <= max_distance {
+                                                                    let t = distance / max_distance;
+                                                                    let eased = 1.0 - (1.0 - t).powi(2); // ease-out
+                                                                    sink.set_volume(1.0 + eased * max_boost);
+                                                                } else {
+                                                                    let base = 1.0 + max_boost;
+                                                                    let excess = distance - max_distance;
+                                                                    let falloff = 1.0 / (1.0 + (excess * excess / 32.0));
+                                                                    sink.set_volume(base * falloff);
+                                                                }
                                                             }
 
                                                             sink.append(packet.buffer);
@@ -425,7 +475,8 @@ impl OutputStream {
                             out
                         ),
                         coordinate: data.coordinate,
-                        spatial: data.spatial
+                        spatial: data.spatial,
+                        orientation: data.orientation
                     });
 
                     match result {

@@ -310,6 +310,7 @@ impl InputStream {
                                                     data: encoded_data.clone(),
                                                     sample_rate: device_config.sample_rate.0,
                                                     coordinate: None,
+                                                    orientation: None,
                                                     dimension: None,
                                                     spatial: false // This will be mutated on the server
                                                 })

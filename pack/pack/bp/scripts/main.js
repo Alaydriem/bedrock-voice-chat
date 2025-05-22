@@ -23,6 +23,7 @@ system.runInterval(async (e) => {
       dimension: player.dimension.id.replace("minecraft:", ""),
       coordinates: player.location,
       deafen: player.isSneaking,
+      orientation: player.getRotation()
     };
     data.push(p);
   });

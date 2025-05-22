@@ -34,9 +34,18 @@ pub struct Coordinate {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Orientation {
+    pub x: f32,
+    pub y: f32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Player {
     pub name: String,
     pub dimension: Dimension,
     pub deafen: bool,
     pub coordinates: Coordinate,
+    pub orientation: Orientation
 }
+
+

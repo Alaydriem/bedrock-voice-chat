@@ -218,11 +218,8 @@ async fn client(
                         length: s.len(),
                         data: s.clone(),
                         sample_rate: 48000,
-                        coordinate: Some(Coordinate {
-                            x: x,
-                            y: y,
-                            z: 0.0,
-                        }),
+                        coordinate: None,
+                        orientation: None,
                         dimension: Some(common::Dimension::Overworld),
                         spatial: true
                     },

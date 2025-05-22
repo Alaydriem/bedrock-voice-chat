@@ -1,4 +1,4 @@
-use crate::{Coordinate, Dimension, Player};
+use crate::{Coordinate, Dimension, Orientation, Player};
 use anyhow::{anyhow, Error};
 use base64::{engine::general_purpose, Engine as _};
 use serde::{Deserialize, Serialize};
@@ -228,6 +228,7 @@ impl QuicNetworkPacket {
                                 Some(position) => {
                                     data.coordinate = Some(position.coordinates);
                                     data.dimension = Some(position.dimension);
+                                    data.orientation = Some(position.orientation);
                                     let audio_frame: QuicNetworkPacketData =
                                         QuicNetworkPacketData::AudioFrame(data);
                                     self.data = audio_frame;
@@ -390,6 +391,7 @@ pub struct AudioFramePacket {
     pub sample_rate: u32,
     pub data: Vec<u8>,
     pub coordinate: Option<Coordinate>,
+    pub orientation: Option<Orientation>,
     pub dimension: Option<Dimension>,
     pub spatial: bool
 }
