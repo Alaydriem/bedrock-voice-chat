@@ -27,6 +27,8 @@
         target: mainSidebarContainer,
       });
 
+      document.querySelector("body")?.classList.remove("is-sidebar-open");
+      
       if (isGroupChatSidebarAvailable) {
         document.querySelector("body")?.classList.add("is-sidebar-open");
       } else {

@@ -66,7 +66,6 @@ export default class Login extends App {
       info("Successfully connected to Bedrock Voice Chat Server " + serverUrl.value);
       return await response.json();
     }).then(async (response) => {
-      info(response);
       const clientId = response.client_id;
       const secretState = self.crypto.randomUUID();
       // Store some temporary tokens during the login phase.

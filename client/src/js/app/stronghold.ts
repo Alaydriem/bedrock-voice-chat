@@ -94,6 +94,7 @@ export default class Hold
     }
 
     static async is_dev(): Promise<boolean> {
-        return await invoke("get_variant") == "dev";
+        return true;
+        //return await invoke("get_variant") == "dev";
     }
 }

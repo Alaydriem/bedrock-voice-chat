@@ -230,7 +230,7 @@ async fn client(
                 Ok(rs) => {
                     _ = send_stream.write_all(&rs).await;
                     // This should be 20ms of audio
-                    if total_chunks % 4800 == 0 {
+                    if total_chunks % 9600 == 0 {
                         _ = send_stream.flush().await;
                         _ = tokio::time::sleep(Duration::from_millis(20)).await;
                     }
