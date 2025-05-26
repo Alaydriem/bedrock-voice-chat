@@ -22,7 +22,7 @@ name = "bvc_client_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "^2", features = [] }
+tauri-build = { version = "^2.2", features = [] }
 
 [dependencies]
 common = { path = "./../../common" }
@@ -57,17 +57,17 @@ flume = { version = "^0.11" }
 trust-dns-resolver = { version = "^0.23", features = ["tokio-runtime", "tokio-rustls", "rustls", "serde"] }
 windows-targets = "0.53.0"
 
-tauri = { version = "^2", features = ["rustls-tls"] }
+tauri = { version = "=2.5.1", features = ["rustls-tls"] }
 tauri-plugin-opener = "^2"
 tauri-plugin-deep-link = "^2" 
 tauri-plugin-fs = "^2"
-tauri-plugin-http = "^2"
+tauri-plugin-http = "=2.3.0"
 tauri-plugin-store = "^2"
 tauri-plugin-notification = "^2"
 tauri-plugin-log = "^2"
 tauri-plugin-os = "^2"
 tauri-plugin-stronghold = "^2"
-once_cell = { version = "1.21.1", features = ["atomic-polyfill"] }
+once_cell = { version = "^1.21", features = ["atomic-polyfill"] }
 
 # Desktop Targets
 [target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]

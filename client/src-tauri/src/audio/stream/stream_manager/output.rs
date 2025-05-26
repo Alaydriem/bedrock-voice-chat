@@ -41,6 +41,7 @@ struct DecodedAudioFramePacket {
     pub owner: Option<PacketOwner>,
     pub buffer: SamplesBuffer<f32>,
     pub coordinate: Option<Coordinate>,
+    #[allow(dead_code)]
     pub orientation: Option<Orientation>,
     pub spatial: bool
 }

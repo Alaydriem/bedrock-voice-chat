@@ -2,7 +2,7 @@ use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
 use common::structs::packet::QuicNetworkPacket;
 use tokio::task::AbortHandle;
 use crate::AudioPacket;
-use log::{info, error, warn};
+use log::{error, warn};
 
 /// The InputStream consumes audio packets from the server
 /// Then sends it to the AudioStreamManager::OutputStream

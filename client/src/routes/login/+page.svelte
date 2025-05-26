@@ -15,7 +15,7 @@
     });
 
     if (urlParams.has("server")) {
-      const server = urlParams.get("server");
+      const server = urlParams.get("server") ?? "";
       document.querySelector("#bvc-server-input")?.setAttribute("value", server);
 
       if (urlParams.has("reauth")) {

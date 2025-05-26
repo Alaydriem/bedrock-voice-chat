@@ -1,6 +1,6 @@
 import { fetch } from '@tauri-apps/plugin-http';
 import { platform } from '@tauri-apps/plugin-os';
-import { info, error, warn } from '@tauri-apps/plugin-log';
+import { info, error, warn, debug } from '@tauri-apps/plugin-log';
 import { Store } from '@tauri-apps/plugin-store';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { invoke } from "@tauri-apps/api/core";
@@ -54,6 +54,7 @@ export default class Login extends App {
     serverUrl.classList.remove("border-error");
     errorMessage.classList.add("invisible");
 
+    info(serverUrl.value + this.CONFIG_ENDPOINT);
     // Fetch the configuration from the server and retrieve the client_id for
     // Authenticating with Microsoft
     await fetch(serverUrl.value + this.CONFIG_ENDPOINT, {
@@ -62,8 +63,10 @@ export default class Login extends App {
       if (response.status !== 200) {
         throw new Error("Bedrock Voice Chat Server " + serverUrl.value + " is not reachable.");
       }
-      return response.json();
+      info("Successfully connected to Bedrock Voice Chat Server " + serverUrl.value);
+      return await response.json();
     }).then(async (response) => {
+      info(response);
       const clientId = response.client_id;
       const secretState = self.crypto.randomUUID();
       // Store some temporary tokens during the login phase.
