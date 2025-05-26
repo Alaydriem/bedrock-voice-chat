@@ -1,12 +1,12 @@
 {
   "extends": "./.svelte-kit/tsconfig.json",
   "compilerOptions": {
-    "module": "ESNext",
+    "module": "esnext",
     "target": "ES2024",
     "allowImportingTsExtensions": true,
     "allowJs": true,
     "checkJs": true,
-    "lib": ["ES2024", "ES2015", "DOM", "DOM.Iterable"],
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
