@@ -31,7 +31,7 @@ export default class Server extends App {
     let serverList = await store.get("server_list") as Array<{ server: string, player: string }>;
     
     // If there are none, redirect to the login page.
-    if (serverList.length === 0) {
+    if (serverList == null || serverList.length === 0) {
       info("No servers found, redirecting to login page");
       window.location.href="/login";
       return;
