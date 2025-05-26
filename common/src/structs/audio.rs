@@ -28,7 +28,14 @@ pub enum AudioDeviceHost {
     #[cfg(target_os = "android")]
     Oboe,
     #[cfg(any(target_os = "macos", target_os = "ios"))]
-    CoreAudio
+    CoreAudio,
+    #[cfg(any(
+        target_os = "linux",
+        target_os = "dragonfly",
+        target_os = "freebsd",
+        target_os = "netbsd"
+    ))]
+    Alsa
 }
 
 impl TryFrom<rodio::cpal::HostId> for AudioDeviceHost {
@@ -45,6 +52,13 @@ impl TryFrom<rodio::cpal::HostId> for AudioDeviceHost {
             HostId::Oboe => Ok(AudioDeviceHost::Oboe),
             #[cfg(any(target_os = "macos", target_os = "ios"))]
             HostId::CoreAudio => Ok(AudioDeviceHost::CoreAudio),
+            #[cfg(any(
+                target_os = "linux",
+                target_os = "dragonfly",
+                target_os = "freebsd",
+                target_os = "netbsd"
+            ))]
+            HostId::Alsa => Ok(AudioDeviceHost::Alsa),
             _ => Err(())
         }
     }
@@ -61,6 +75,17 @@ impl Into<rodio::cpal::HostId> for AudioDeviceHost {
             };
         }
 
+        #[cfg(any(
+            target_os = "linux",
+            target_os = "dragonfly",
+            target_os = "freebsd",
+            target_os = "netbsd"
+        ))]
+        {
+            host = match self.host {
+                AudioDeviceHost::Alsa => HostId::Alsa
+            };
+        }
         #[cfg(target_os = "android")]
         {
             host = match self.host {
@@ -203,6 +228,18 @@ impl Into<Option<rodio::cpal::Device>> for AudioDevice {
         {
             host = match self.host {
                 AudioDeviceHost::CoreAudio => rodio::cpal::host_from_id(HostId::CoreAudio).unwrap(),
+                _ => return None,
+            };
+        }
+        #[cfg(any(
+            target_os = "linux",
+            target_os = "dragonfly",
+            target_os = "freebsd",
+            target_os = "netbsd"
+        ))]
+        {
+            host = match self.host {
+                AudioDeviceHost::Alsa => rodio::cpal::host_from_id(HostId::Alsa).unwrap(),
                 _ => return None,
             };
         }
