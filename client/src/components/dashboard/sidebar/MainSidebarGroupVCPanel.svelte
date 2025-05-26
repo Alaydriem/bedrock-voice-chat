@@ -4,6 +4,7 @@
 
     onMount(() => {
         document.querySelector("#reload-audio-engine")?.addEventListener("click", async () => {
+            window.App.shutdown();
             window.location.reload();
         });
 

@@ -3,7 +3,6 @@ import { Store } from '@tauri-apps/plugin-store';
 import { info, error, warn } from '@tauri-apps/plugin-log';
 import { invoke } from "@tauri-apps/api/core";
 import type { AudioDevice } from "../../js/bindings/AudioDevice.ts";
-import type { AudioDeviceType } from "../../js/bindings/AudioDeviceType.ts";
 import type { LoginResponse } from "../../js/bindings/LoginResponse.ts";
 
 import App from './app.js';
