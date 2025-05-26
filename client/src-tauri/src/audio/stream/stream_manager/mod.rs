@@ -99,4 +99,11 @@ impl StreamTraitType {
             Self::Output(stream) => stream.metadata.clone(),
         }
     }
+
+    pub fn mute(&self) {
+        match self {
+            Self::Input(stream) => stream.mute(),
+            Self::Output(stream) => stream.mute(),
+        }
+    }
 }

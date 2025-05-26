@@ -293,6 +293,7 @@ impl QuicNetworkPacket {
                     Ok(data) => {
                         let mut data: AudioFramePacket = data;
 
+                        // You cannot receive your own audio packets
                         if self.get_author().eq(&recipient.name) {
                             return false;
                         }
@@ -306,7 +307,8 @@ impl QuicNetworkPacket {
                             && packet_author.is_some()
                             && this_player.eq(&packet_author)
                         {
-                            data.spatial = true;
+                            // Group audio packets are non-spatial
+                            data.spatial = false;
                             self.data = QuicNetworkPacketData::AudioFrame(data);
                             return true;
                         }

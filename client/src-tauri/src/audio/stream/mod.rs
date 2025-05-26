@@ -128,4 +128,13 @@ impl AudioStreamManager {
             AudioDeviceType::OutputDevice => self.output.metadata(key, value).await
         }
     }
+
+    pub async fn mute(&mut self, device: &AudioDeviceType) -> Result<(), Error> {
+        match device {
+            AudioDeviceType::InputDevice => self.input.mute(),
+            AudioDeviceType::OutputDevice => self.output.mute()
+        };
+
+        Ok(())
+    }
 }

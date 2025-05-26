@@ -161,6 +161,8 @@
                 <button
                     data-tooltip="Refresh"
                     aria-label="Refresh"
+                    id="reload-audio-engine"
+                    x-tooltip.on.mouseenter="'Reload Audio Engine'"
                     class="pl-2 pr-2 btn size-8 rounded-full p-0 hover:bg-slate-300/20 focus:bg-slate-300/20 active:bg-slate-300/25 dark:hover:bg-navy-300/20 dark:focus:bg-navy-300/20 dark:active:bg-navy-300/25"
                 >
                     <i class="fa-solid fa-arrows-rotate"></i>
@@ -172,8 +174,19 @@
                         REC
                     </button>
                     <button
+                        data-tooltip="Toggle Deafen"
+                        aria-label="Toggle Deeafen"
+                        x-tooltip.on.mouseenter="'Mute Audio Output'"
+                        id="mute-audio-output"
+                        class="btn size-8 rounded-full p-0 hover:bg-slate-300/20 focus:bg-slate-300/20 active:bg-slate-300/25 dark:hover:bg-navy-300/20 dark:focus:bg-navy-300/20 dark:active:bg-navy-300/25"
+                    >
+                        <i class="fa-solid fa-volume-high"></i>
+                    </button>
+                    <button
                         data-tooltip="Toggle Mute"
                         aria-label="Toggle Mute"
+                        x-tooltip.on.mouseenter="'Mute Microphone'"
+                        id="mute-audio-input"
                         class="btn size-8 rounded-full p-0 hover:bg-slate-300/20 focus:bg-slate-300/20 active:bg-slate-300/25 dark:hover:bg-navy-300/20 dark:focus:bg-navy-300/20 dark:active:bg-navy-300/25"
                     >
                         <i class="fa-solid fa-microphone"></i>

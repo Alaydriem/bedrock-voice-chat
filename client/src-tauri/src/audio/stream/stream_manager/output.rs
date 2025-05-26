@@ -29,6 +29,10 @@ use moka::future::Cache;
 use anyhow::anyhow;
 use tauri::async_runtime::Mutex;
 
+use once_cell::sync::Lazy;
+
+static MUTE_OUTPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
+
 use super::sink_manager::SinkManager;
 
 /// This is our decoded audio stream
@@ -39,6 +43,14 @@ struct DecodedAudioFramePacket {
     pub coordinate: Option<Coordinate>,
     pub orientation: Option<Orientation>,
     pub spatial: bool
+}
+
+#[derive(Debug, Clone)]
+struct SpatialAudioData {
+    pub emitter: Coordinate,
+    pub left_ear: Coordinate,
+    pub right_ear: Coordinate,
+    pub gain: f32,
 }
 
 impl DecodedAudioFramePacket {
@@ -267,8 +279,6 @@ impl OutputStream {
                                         // Get the sink for the current player
                                         let source = packet.get_author();
                                         
-                                        _ = players.iter().map(|(n, p)| log::info!("{:?} {:?}", n, p));
-
                                         let current_player = match players.get(&current_player_name.clone()) {
                                             Some(player) => Some(player),
                                             None => None
@@ -284,6 +294,7 @@ impl OutputStream {
                                             true => {
                                                 // We will only do positional audio if both the source and current have valid data
                                                 if packet.coordinate.is_some() && current_player.is_some() {
+                                                    let current_player = current_player.unwrap();
                                                     // Derive the SpatialSink
                                                     let sink = sink_manager.get_sink(
                                                         source,
@@ -292,87 +303,34 @@ impl OutputStream {
                                                     let sink: Result<Arc<SpatialSink>, ()> = sink.try_into();
                                                     match sink {
                                                         Ok(sink) => {
-                                                            // Always use the packet data instead of the source data
-                                                            let listener = current_player.unwrap();
-                                                            let s = packet.coordinate.unwrap();
-                                                            let l = listener.coordinates;
-                                                            let o = listener.orientation;
-
-                                                            let distance = (
-                                                                (s.x - l.x).powf(2.0) +
-                                                                (s.y - l.y).powf(2.0) +
-                                                                (s.z - l.z).powf(2.0)
-                                                            ).sqrt();
-
-                                                            let yaw_rad = o.y.to_radians();
-                                                            let ear_offset = 0.5;
-
-                                                            // Listener's left vector (perpendicular to yaw)
-                                                            let left_x = -yaw_rad.sin();
-                                                            let left_z = yaw_rad.cos();
-
-                                                            let min_distance = 8.0;
-                                                            let simulated_distance = 2.0;
-                                                            let spatial_scale = if distance <= min_distance {
-                                                                simulated_distance / distance.max(0.01)
-                                                            } else {
-                                                                1.0
+                                                            let emitter = packet.coordinate.unwrap();
+                                                            let emitter_owner = match packet.owner.clone() {
+                                                                Some(owner) => match players.get(&owner.name) {
+                                                                    Some(player) => Some(player),
+                                                                    None => None
+                                                                },
+                                                                None => None
                                                             };
 
-                                                            if distance <= min_distance {
-                                                                let relative_emitter = [
-                                                                    (s.x - l.x) * spatial_scale,
-                                                                    (s.y - l.y) * spatial_scale,
-                                                                    (s.z - l.z) * spatial_scale,
-                                                                ];
+                                                            let deafen_emitter = match emitter_owner {
+                                                                Some(owner) => owner.deafen,
+                                                                None => false
+                                                            };
 
-                                                                let left_ear = [
-                                                                    left_x * ear_offset,
-                                                                    0.0,
-                                                                    left_z * ear_offset,
-                                                                ];
+                                                            let listener = current_player.coordinates;
+                                                            let listener_orientation = current_player.orientation;
+                                                            
+                                                            let spatial = OutputStream::calculate_virtual_listener_audio_data(
+                                                                &emitter,
+                                                                deafen_emitter,
+                                                                &listener,
+                                                                &listener_orientation
+                                                            );
 
-                                                                let right_ear = [
-                                                                    -left_x * ear_offset,
-                                                                    0.0,
-                                                                    -left_z * ear_offset,
-                                                                ];
-
-                                                                sink.set_emitter_position(relative_emitter);
-                                                                sink.set_left_ear_position(left_ear);
-                                                                sink.set_right_ear_position(right_ear);
-                                                                sink.set_volume(1.3); // Stable volume for near field
-                                                            } else {
-                                                                let left_ear = Coordinate {
-                                                                    x: l.x + left_x * ear_offset,
-                                                                    y: l.y,
-                                                                    z: l.z + left_z * ear_offset,
-                                                                };
-
-                                                                let right_ear = Coordinate {
-                                                                    x: l.x - left_x * ear_offset,
-                                                                    y: l.y,
-                                                                    z: l.z - left_z * ear_offset,
-                                                                };
-
-                                                                sink.set_emitter_position([s.x, s.y, s.z]);
-                                                                sink.set_left_ear_position([left_ear.x, left_ear.y, left_ear.z]);
-                                                                sink.set_right_ear_position([right_ear.x, right_ear.y, right_ear.z]);
-
-                                                                let max_distance = 32.0;
-                                                                let max_boost = 20.0;
-
-                                                                if distance <= max_distance {
-                                                                    let t = distance / max_distance;
-                                                                    let eased = 1.0 - (1.0 - t).powi(2); // ease-out
-                                                                    sink.set_volume(1.0 + eased * max_boost);
-                                                                } else {
-                                                                    let base = 1.0 + max_boost;
-                                                                    let excess = distance - max_distance;
-                                                                    let falloff = 1.0 / (1.0 + (excess * excess / 32.0));
-                                                                    sink.set_volume(base * falloff);
-                                                                }
-                                                            }
+                                                            sink.set_emitter_position([spatial.emitter.x, spatial.emitter.y, spatial.emitter.z]);
+                                                            sink.set_left_ear_position([spatial.left_ear.x, spatial.left_ear.y, spatial.left_ear.z]);
+                                                            sink.set_right_ear_position([spatial.right_ear.x, spatial.right_ear.y, spatial.right_ear.z]);
+                                                            sink.set_volume(spatial.gain);
 
                                                             sink.append(packet.buffer);
                                                         },
@@ -510,5 +468,122 @@ impl OutputStream {
                 warn!("Could not decode player data packet");
             }
         }
+    }
+
+    // Determines the virtual listener position based on the emitter and listener coordinates and orientation
+    // And returns where their ears _should be_ in the 3D space
+    fn calculate_virtual_listener_audio_data(
+        emitter: &Coordinate,
+        deafen_emitter: bool,
+        listener: &Coordinate,
+        orientation: &Orientation,
+    ) -> SpatialAudioData {
+        // Compute delta and full 3D distance for gain
+        let dx = emitter.x - listener.x;
+        let dy = emitter.y - listener.y;
+        let dz = emitter.z - listener.z;
+
+        let distance = (dx * dx + dy * dy + dz * dz).sqrt();
+
+        // Constants
+        let virtual_distance = 2.0;
+        let close_threshold = 12.0;
+        let falloff_distance = 48.0;
+        let steepen_start = 38.0;
+        let deafen_distance = 3.0;
+        let deafen_multiplier = 0.35;
+
+        let target_min_volume = 1.0 / (12.0 * 12.0);
+        let target_max_volume = 1.0 / (virtual_distance * virtual_distance);
+
+        // Direction vector in full 3D
+        let dir_mag = (dx * dx + dy * dy + dz * dz).sqrt();
+        let direction = if dir_mag > 0.01 {
+            [dx / dir_mag, dy / dir_mag, dz / dir_mag]
+        } else {
+            [0.0, 0.0, -1.0]
+        };
+
+        // Virtual listener position logic
+        let virtual_listener = if distance <= close_threshold {
+            Coordinate {
+                x: emitter.x - direction[0] * virtual_distance,
+                y: emitter.y - direction[1] * virtual_distance,
+                z: emitter.z - direction[2] * virtual_distance,
+            }
+        } else if distance <= falloff_distance {
+            let t = (distance - close_threshold) / (falloff_distance - close_threshold); // 0 → 1
+            let mut volume = target_max_volume + t * (target_min_volume - target_max_volume);
+
+            if distance >= steepen_start {
+                let s = (distance - steepen_start) / (falloff_distance - steepen_start); // 0 → 1
+                let steep_factor = s.powf(2.0); // steeper near end
+                volume *= 1.0 - 0.5 * steep_factor; // reduce volume more aggressively
+            }
+
+            let mapped_distance = 1.0 / volume.sqrt();
+            Coordinate {
+                x: emitter.x - direction[0] * mapped_distance,
+                y: emitter.y - direction[1] * mapped_distance,
+                z: emitter.z - direction[2] * mapped_distance,
+            }
+        } else {
+            listener.clone()
+        };
+
+        // Compute yaw (rotation about Y axis)
+        let yaw_rad = orientation.y.to_radians();
+        let forward_x = yaw_rad.sin();
+        let forward_z = -yaw_rad.cos();
+        let left_x = -forward_z;
+        let left_z = forward_x;
+        let ear_offset = 0.3;
+
+        let right_ear = Coordinate {
+            x: virtual_listener.x + left_x * ear_offset,
+            y: virtual_listener.y,
+            z: virtual_listener.z + left_z * ear_offset,
+        };
+        let left_ear = Coordinate {
+            x: virtual_listener.x - left_x * ear_offset,
+            y: virtual_listener.y,
+            z: virtual_listener.z - left_z * ear_offset,
+        };
+
+        // Gain logic
+        let mut gain = match deafen_emitter {
+            true => {
+                if distance <= deafen_distance {
+                    1.0 * deafen_multiplier
+                } else {
+                    0.0
+                }
+            },
+            false => {
+                if distance <= falloff_distance {
+                    1.0
+                } else {
+                    0.0
+                }
+            }
+        };
+
+        // If the audio output is mued, set the gain to 0 so we don't get a weird pop[]
+        let is_globally_deafened = MUTE_OUTPUT_STREAM.load(Ordering::Relaxed);
+        if is_globally_deafened {
+            gain = 0.0;
+        }
+        
+        SpatialAudioData {
+            emitter: emitter.clone(),
+            left_ear,
+            right_ear,
+            gain,
+        }
+    }
+
+    pub fn mute(&self) {
+        let current_state = MUTE_OUTPUT_STREAM.load(Ordering::Relaxed);
+        MUTE_OUTPUT_STREAM.store(!current_state, Ordering::Relaxed);
     }
 }

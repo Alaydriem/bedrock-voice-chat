@@ -70,6 +70,7 @@ pub fn run() {
             crate::commands::audio::change_audio_device,
             crate::commands::audio::stop_audio_device,
             crate::commands::audio::get_devices,
+            crate::commands::audio::mute,
             crate::commands::audio::update_current_player,
             // Stream Information
             crate::commands::network::stop_network_stream,

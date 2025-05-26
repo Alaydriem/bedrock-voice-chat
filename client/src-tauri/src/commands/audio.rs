@@ -86,3 +86,14 @@ pub(crate) async fn stop_audio_device(
 pub(crate) async fn get_devices() -> Result<HashMap<String, Vec<AudioDevice>>, ()> {
     return crate::audio::device::get_devices();
 }
+
+#[tauri::command]
+pub(crate) async fn mute(
+    device: AudioDeviceType,
+    asm: State<'_, Mutex<AudioStreamManager>>,
+) -> Result<(), ()>{
+    let mut asm = asm.lock().await;
+    _ = asm.mute(&device).await;
+
+    Ok(())
+}

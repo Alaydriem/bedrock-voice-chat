@@ -67,7 +67,7 @@ tauri-plugin-notification = "^2"
 tauri-plugin-log = "^2"
 tauri-plugin-os = "^2"
 tauri-plugin-stronghold = "^2"
-once_cell = "1.21.1"
+once_cell = { version = "1.21.1", features = ["atomic-polyfill"] }
 
 # Desktop Targets
 [target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]

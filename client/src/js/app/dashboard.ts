@@ -45,6 +45,29 @@ export default class Dashboard extends App {
             }
         }
 
+        document.querySelector("#reload-audio-engine")?.addEventListener("click", async () => {
+            window.location.reload();
+        });
+
+        document.querySelector("#mute-audio-input")?.addEventListener("click", async (el) => {
+            invoke("mute", { device: "InputDevice" }).then(() => {
+                const i = document.querySelector("#mute-audio-input i");
+                i?.classList.toggle("fa-microphone-slash");
+                i?.classList.toggle("fa-microphone");
+                i?.classList.toggle("text-error");
+            });
+        });
+
+        document.querySelector("#mute-audio-output")?.addEventListener("click", async (el) => {
+            invoke("mute", { device: "OutputDevice" }).then(() => {
+                const i = document.querySelector("#mute-audio-output i");
+                i?.classList.toggle("fa-volume-xmark");
+                i?.classList.toggle("fa-volume-high");
+                i?.classList.toggle("text-error");
+            });
+        });
+
+
         // Render the dashboard
         
         

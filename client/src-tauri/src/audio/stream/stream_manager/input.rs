@@ -15,6 +15,10 @@ use tokio::task::{AbortHandle, JoinHandle};
 use crate::{audio::stream::stream_manager::AudioFrameData, NetworkPacket};
 use super::AudioFrame;
 
+use once_cell::sync::Lazy;
+
+static MUTE_INPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
+
 pub(crate) struct InputStream {
     pub device: Option<AudioDevice>,
     pub bus: Arc<flume::Sender<NetworkPacket>>,
@@ -128,24 +132,18 @@ impl InputStream {
                             };
 
                             let mut process_fn = move | data: &[f32] | {
-                                // @todo: Can this filter chain be called globally?
-                                // Mute ?
                                 // Gate
                                 let pcm = gate.process_frame(&data);
-                                // Apply additional filters
-                                // Supression
-                                // Makeup limit
-                                // Compressor
-                                // Limiter
 
                                 let pcm_sendable = pcm.iter().all(|&e| f32::abs(e) == 0.0);
+
                                 // Only send audio frame data if our filters haven't cut data out
-                                if !pcm_sendable {
+                                if !pcm_sendable && !MUTE_INPUT_STREAM.load(Ordering::Relaxed) {
                                     let audio_frame_data = AudioFrameData { pcm };
 
                                     match producer.try_send(AudioFrame::F32(audio_frame_data)) {
                                         Ok(()) => {},
-                                        Err(e) => {}
+                                        Err(_e) => {}
                                     }
                                 }
                             };
@@ -283,6 +281,7 @@ impl InputStream {
                                 break;
                             }
                             
+                            
                             match sample {
                                 Ok(sample) => {
                                     let mut raw_sample = match sample.f32() {
@@ -343,5 +342,10 @@ impl InputStream {
                 ))
             }
         };
+    }
+
+    pub fn mute(&self) {
+        let current_state = MUTE_INPUT_STREAM.load(Ordering::Relaxed);
+        MUTE_INPUT_STREAM.store(!current_state, Ordering::Relaxed);
     }
 }
