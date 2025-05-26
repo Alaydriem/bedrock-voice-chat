@@ -21,7 +21,9 @@ pub enum AudioDeviceType {
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "./../../client/src/js/bindings/")]
 pub enum AudioDeviceHost {
+    #[cfg(target_os = "windows")]
     Asio,
+    #[cfg(target_os = "windows")]
     Wasapi,
     #[cfg(target_os = "android")]
     Oboe,
@@ -35,7 +37,9 @@ impl TryFrom<rodio::cpal::HostId> for AudioDeviceHost {
     fn try_from(value: rodio::cpal::HostId) -> Result<Self, Self::Error> {
         #[allow(unreachable_patterns)]
         match value {
+            #[cfg(target_os = "windows")]
             HostId::Asio => Ok(AudioDeviceHost::Asio),
+            #[cfg(target_os = "windows")]
             HostId::Wasapi => Ok(AudioDeviceHost::Wasapi),
             #[cfg(target_os = "android")]
             HostId::Oboe => Ok(AudioDeviceHost::Oboe),
