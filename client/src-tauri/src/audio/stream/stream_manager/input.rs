@@ -24,7 +24,8 @@ pub(crate) struct InputStream {
     pub bus: Arc<flume::Sender<NetworkPacket>>,
     jobs: Vec<AbortHandle>,
     shutdown: Arc<AtomicBool>,
-    pub metadata: Arc<moka::future::Cache<String, String>>
+    pub metadata: Arc<moka::future::Cache<String, String>>,
+    app_handle: tauri::AppHandle
 }
 
 impl super::StreamTrait for InputStream {
@@ -36,6 +37,8 @@ impl super::StreamTrait for InputStream {
 
     async fn stop(&mut self) -> Result<(), anyhow::Error> {
         _ = self.shutdown.store(true, Ordering::Relaxed);
+
+        _ = tokio::time::sleep(Duration::from_millis(500)).await;
 
         // Then hard terminate them
         for job in &self.jobs {
@@ -84,14 +87,16 @@ impl InputStream {
     pub fn new(
         device: Option<AudioDevice>,
         bus: Arc<flume::Sender<NetworkPacket>>,
-        metadata: Arc<moka::future::Cache<String, String>>
+        metadata: Arc<moka::future::Cache<String, String>>,
+        app_handle: tauri::AppHandle
     ) -> Self {
         Self {
             device,
             bus,
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),
-            metadata
+            metadata,
+            app_handle: app_handle.clone()
         }
     }
 
@@ -255,7 +260,7 @@ impl InputStream {
                         opus::Application::Voip,
                     ) {
                         Ok(mut encoder) => {
-                            _ = encoder.set_bitrate(Bitrate::Bits(64_000));
+                            _ = encoder.set_bitrate(Bitrate::Bits(32_000));
                             encoder
                         }
                         Err(e) => {
@@ -347,5 +352,9 @@ impl InputStream {
     pub fn mute(&self) {
         let current_state = MUTE_INPUT_STREAM.load(Ordering::Relaxed);
         MUTE_INPUT_STREAM.store(!current_state, Ordering::Relaxed);
+    }
+
+    pub fn mute_status(&self) -> bool {
+        MUTE_INPUT_STREAM.load(Ordering::Relaxed)
     }
 }

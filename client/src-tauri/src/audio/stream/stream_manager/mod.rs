@@ -106,4 +106,11 @@ impl StreamTraitType {
             Self::Output(stream) => stream.mute(),
         }
     }
+
+    pub fn mute_status(&self) -> bool {
+        match self {
+            Self::Input(stream) => stream.mute_status(),
+            Self::Output(stream) => stream.mute_status(),
+        }
+    }
 }

@@ -1,5 +1,6 @@
 use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
 use common::structs::packet::QuicNetworkPacket;
+use tauri::Emitter;
 use tokio::task::AbortHandle;
 use crate::AudioPacket;
 use log::{error, warn};
@@ -11,7 +12,8 @@ pub(crate) struct InputStream {
     pub stream: Option<s2n_quic::stream::ReceiveStream>,
     jobs: Vec<AbortHandle>,
     shutdown: Arc<AtomicBool>,
-    pub metadata: Arc<moka::future::Cache<String, String>>
+    pub metadata: Arc<moka::future::Cache<String, String>>,
+    app_handle: tauri::AppHandle,
 }
 
 impl super::StreamTrait for InputStream {
@@ -45,6 +47,7 @@ impl super::StreamTrait for InputStream {
         let mut stream = self.stream.take().unwrap();
 
         let shutdown = self.shutdown.clone();
+        let app_handle = self.app_handle.clone();
         jobs.push(tokio::spawn(async move {
             log::info!("Started network recv stream.");
             let mut packet = Vec::<u8>::new();
@@ -72,6 +75,15 @@ impl super::StreamTrait for InputStream {
             drop(stream);
         }));
 
+        _ = app_handle.emit(crate::events::EVENT_NOTIFICATION, crate::events::Notification::new(
+            "Network Stream Stopped".to_string(),
+            "The input network stream has been stopped.".to_string(),
+            Some("warn".to_string()),
+            None,
+            None,
+            None
+        ));
+        
         self.jobs = jobs.iter().map(|handle| handle.abort_handle()).collect();
 
         Ok(())
@@ -82,13 +94,15 @@ impl InputStream {
     pub fn new(
         producer: Arc<flume::Sender<AudioPacket>>,
         stream: Option<s2n_quic::stream::ReceiveStream>,
+        app_handle: tauri::AppHandle,
     ) -> Self {
         Self {
             bus: producer.clone(),
             stream,
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),
-            metadata: Arc::new(moka::future::Cache::builder().build())
+            metadata: Arc::new(moka::future::Cache::builder().build()),
+            app_handle: app_handle.clone()
         }
     }
 }

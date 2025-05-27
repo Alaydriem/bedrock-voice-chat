@@ -1,6 +1,8 @@
 use std::net::SocketAddr;
+use std::time::Duration;
 use common::structs::config::LoginResponse;
-use tauri::State;
+use flume::{Receiver, Sender};
+use tauri::{AppHandle, Manager, State};
 use tauri::async_runtime::Mutex;
 use trust_dns_resolver::{
     config::{
@@ -12,6 +14,9 @@ use crate::{
     structs::app_state::AppState, NetworkStreamManager
 };
 use log::{info, error};
+use std::sync::Arc;
+use crate::audio::AudioPacket;
+use crate::network::NetworkPacket;
 
 #[tauri::command]
 pub(crate) async fn stop_network_stream(
@@ -92,3 +97,23 @@ pub(crate) async fn change_network_stream(
     
     Ok(())
 }
+
+#[tauri::command]
+pub(crate) async fn reset_nsm(
+    handle: AppHandle,
+    nsm: State<'_, Mutex<NetworkStreamManager>>
+) -> Result<(), ()>{
+    let mut nsm = nsm.lock().await;
+    _ = nsm.stop().await;
+
+    _ = tokio::time::sleep(Duration::from_millis(100)).await;
+
+    handle.manage(Mutex::new(NetworkStreamManager::new(
+        handle.state::<Arc<Sender<AudioPacket>>>().inner().clone(),
+        handle.state::<Arc<Receiver<NetworkPacket>>>().inner().clone(),
+        handle.clone()
+    )));
+
+    Ok(())
+}
+

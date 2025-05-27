@@ -1,5 +1,6 @@
 use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
 use common::structs::packet::{DebugPacket, PacketOwner, QuicNetworkPacket};
+use tauri::Emitter;
 use tokio::{io::AsyncWriteExt, task::AbortHandle};
 use crate::NetworkPacket;
 use log::{error, info, warn};
@@ -12,7 +13,8 @@ pub(crate) struct OutputStream {
     pub stream: Option<s2n_quic::stream::SendStream>,
     jobs: Vec<AbortHandle>,
     shutdown: Arc<AtomicBool>,
-    pub metadata: Arc<moka::future::Cache<String, String>>
+    pub metadata: Arc<moka::future::Cache<String, String>>,
+    app_handle: tauri::AppHandle,
 }
 
 impl super::StreamTrait for OutputStream {
@@ -46,9 +48,11 @@ impl super::StreamTrait for OutputStream {
         let rx = self.bus.clone();
         let mut stream = self.stream.take().unwrap();
         let packet_owner = self.packet_owner.clone();
+        let app_handle = self.app_handle.clone();
 
         let shutdown = self.shutdown.clone();
         jobs.push(tokio::spawn(async move {
+
             // Send a DEBUG Packet to initialize the stream on the server
             let debug_packet = QuicNetworkPacket {
                 packet_type: common::structs::packet::PacketType::Debug,
@@ -70,6 +74,7 @@ impl super::StreamTrait for OutputStream {
             
             let notify = crate::AUDIO_INPUT_NETWORK_NOTIFY.clone();
             let mut buffer: Vec<QuicNetworkPacket> = Vec::new();
+            let mut error_count = 0;
             #[allow(irrefutable_let_patterns)]
             while let packet = rx.recv_async().await {
                 match packet {
@@ -90,7 +95,19 @@ impl super::StreamTrait for OutputStream {
                                 match pkt.to_vec() {
                                     Ok(reader) => {
                                         if let Err(e) = stream.write_all(&reader).await {
-                                            error!("Failed to send audio packet: {}", e.to_string());
+                                            error_count += 1;
+                                            if error_count == 100 {
+                                                _ = app_handle.emit(crate::events::EVENT_NOTIFICATION, crate::events::Notification::new(
+                                                    "High Network Stream Errors!".to_string(),
+                                                    "BVC is currently having difficulties connecting to the server. Audio packets may be delayed or out of sync. A restart is recommended.".to_string(),
+                                                    Some("error".to_string()),
+                                                    Some(e.to_string()),
+                                                    None,
+                                                    None
+                                                ));
+                                            }
+                                        } else {
+                                            error_count = 0;
                                         }
                                     }
                                     Err(e) => {
@@ -109,6 +126,15 @@ impl super::StreamTrait for OutputStream {
                 }
             }
 
+            _ = app_handle.emit(crate::events::EVENT_NOTIFICATION, crate::events::Notification::new(
+                "Network Stream Stopped".to_string(),
+                "The output network stream has been stopped.".to_string(),
+                Some("warn".to_string()),
+                None,
+                None,
+                None
+            ));
+
             _ = stream.close().await;
             drop(stream);
         }));
@@ -124,6 +150,7 @@ impl OutputStream {
         consumer: Arc<flume::Receiver<NetworkPacket>>,
         packet_owner: Option<PacketOwner>,
         stream: Option<s2n_quic::stream::SendStream>,
+        app_handle: tauri::AppHandle,
     ) -> Self {
         Self {
             bus: consumer.clone(),
@@ -131,7 +158,8 @@ impl OutputStream {
             stream,
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),
-            metadata: Arc::new(moka::future::Cache::builder().build())
+            metadata: Arc::new(moka::future::Cache::builder().build()),
+            app_handle: app_handle.clone(),
         }
     }
 }

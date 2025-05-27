@@ -5,8 +5,12 @@ import { invoke } from "@tauri-apps/api/core";
 import type { AudioDevice } from "../../js/bindings/AudioDevice.ts";
 import type { LoginResponse } from "../../js/bindings/LoginResponse.ts";
 
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
+
 import App from './app.js';
 import Sidebar from "./components/dashboard/sidebar.ts";
+import { mount } from "svelte";
+import Notification from "../../components/events/Notification.svelte";
 
 declare global {
   interface Window {
@@ -19,6 +23,19 @@ export default class Dashboard extends App {
     private store: Store | undefined;
     
     async initialize() {
+        const appWebview = getCurrentWebviewWindow();
+        appWebview.once('notification', (event: { payload?: { title?: string, body?: string, level?: string } }) => {
+            info(`Notification received: ${event.payload}`);
+            mount(Notification, {
+                target: document.querySelector("#notification-container")!,
+                props: {
+                    title: event.payload?.title || "",
+                    body: event.payload?.body || "",
+                    level: event.payload?.level || "info"
+                }
+            });
+        });
+
         document.querySelector("#sidebar-toggle")?.addEventListener("click", (e) => {
             const el = e.target as HTMLElement;
             el.classList.toggle("active");
@@ -27,6 +44,8 @@ export default class Dashboard extends App {
         this.store = await Store.load("store.json", { autoSave: false });
         const currentServer = await this.store.get<string>("current_server");
 
+        // If the audio engine is stopped for either the input or output channel, shutdown the existing one, reinitialize everything
+       
         let currentServerCredentials: LoginResponse | null = null;
         if (currentServer) {
             await this.renderSidebar(this.store, currentServer ?? "");
@@ -40,7 +59,10 @@ export default class Dashboard extends App {
                 currentServerCredentials = credentialsString ? JSON.parse(credentialsString) as LoginResponse : null;
 
                 document.getElementById("player-sidebar-avatar")?.setAttribute("src", atob(currentServerCredentials?.gamerpic ?? ""));
-                await this.initializeAudioDevicesAndNetworkStream(this.store, currentServer ?? "", currentServerCredentials);
+                if (await invoke("is_stopped", { device: "InputDevice" }) || await invoke("is_stopped", { device: "InputDevice" })) {
+                    await this.shutdown();
+                    await this.initializeAudioDevicesAndNetworkStream(this.store, currentServer ?? "", currentServerCredentials);
+                }
             }
         }
 
@@ -67,7 +89,11 @@ export default class Dashboard extends App {
 
         if (currentServer) {
             // Update the current player information, then we can render the dashboard views with it
-            await invoke("update_current_player").then(async () => {
+            await invoke("update_stream_metadata", {
+                key: "current_player",
+                value: credentials?.gamertag ?? "",
+                device: "OutputDevice"
+            }).then(async () => {
                 info("Updated current player");
 
                 await this.changeNetworkStream(currentServer, credentials);
@@ -92,7 +118,7 @@ export default class Dashboard extends App {
 
                 await invoke("change_audio_device", { device: device })
                     .then(() => {
-                        info(`Audio device changed to ${device.name}`);
+                        info(`Audio device changed to ${device.name} for ${type}`);
                     })
                     .catch((e) => {
                         error(`Error changing audio device: ${e}`);
@@ -117,8 +143,50 @@ export default class Dashboard extends App {
     }
 
     async shutdown() {
-        await invoke("stop_audio_device", { device: "InputDevice" });
-        await invoke("stop_audio_device", { device: "OutputDevice" });
-        await invoke("stop_network_stream");
+        await invoke("reset_asm");
+        await invoke("reset_nsm");
+    }
+
+    async bindSidebarEvents() {
+        document.querySelector("#reload-audio-engine")?.addEventListener("click", async () => {
+            window.App.shutdown();
+            window.location.reload();
+        });
+
+        const mute_input = document.querySelector("#mute-audio-input");
+        const mute_input_fa = document.querySelector("#mute-audio-input i");
+        await invoke("mute_status", { device: "InputDevice" }).then((muted) => {
+            if (muted) {
+                mute_input_fa?.classList.add("fa-microphone-slash");
+                mute_input_fa?.classList.remove("fa-microphone");
+                mute_input_fa?.classList.add("text-error");
+            }
+        });
+        mute_input?.addEventListener("click", async (el) => {
+            invoke("mute", { device: "InputDevice" }).then(() => {
+                const i = document.querySelector("#mute-audio-input i");
+                i?.classList.toggle("fa-microphone-slash");
+                i?.classList.toggle("fa-microphone");
+                i?.classList.toggle("text-error");
+            });
+        });
+
+        const mute_output = document.querySelector("#mute-audio-output");
+        const mute_output_fa = document.querySelector("#mute-audio-output i");
+        await invoke("mute_status", { device: "OutputDevice" }).then((muted) => {
+            if (muted) {
+                mute_output_fa?.classList.add("fa-volume-xmark");
+                mute_output_fa?.classList.remove("fa-volume-high");
+                mute_output_fa?.classList.add("text-error");
+            }
+        });
+        mute_output?.addEventListener("click", async (el) => {
+            invoke("mute", { device: "OutputDevice" }).then(() => {
+                const i = document.querySelector("#mute-audio-output i");
+                i?.classList.toggle("fa-volume-xmark");
+                i?.classList.toggle("fa-volume-high");
+                i?.classList.toggle("text-error");
+            });
+        });
     }
 }

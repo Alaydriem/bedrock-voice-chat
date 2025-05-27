@@ -15,7 +15,8 @@ pub(crate) struct NetworkStreamManager {
     producer: Arc<flume::Sender<AudioPacket>>,
     consumer: Arc<flume::Receiver<NetworkPacket>>,
     input: StreamTraitType,
-    output: StreamTraitType
+    output: StreamTraitType,
+    app_handle: tauri::AppHandle,
 }
 
 impl NetworkStreamManager {
@@ -24,20 +25,24 @@ impl NetworkStreamManager {
     /// The stream will not start until it is connected
     pub fn new(
         producer: Arc<flume::Sender<AudioPacket>>, // Sends data to audio output stream
-        consumer: Arc<flume::Receiver<NetworkPacket>> // Recv from the audio input stream
+        consumer: Arc<flume::Receiver<NetworkPacket>>, // Recv from the audio input stream
+        app_handle: tauri::AppHandle
     ) -> Self {
         Self {
             producer: producer.clone(),
             consumer: consumer.clone(),
             input: StreamTraitType::Input(stream_manager::InputStream::new(
                 producer.clone(),
-                None
+                None,
+                app_handle.clone()
             )),
             output:  StreamTraitType::Output(stream_manager::OutputStream::new(
                 consumer.clone(),
                 None,
-                None
+                None,
+                app_handle.clone()
             )),
+            app_handle: app_handle.clone(),
         }
     }
 
@@ -79,7 +84,8 @@ impl NetworkStreamManager {
         self.input = StreamTraitType::Input(
             stream_manager::InputStream::new(
                 self.producer.clone(),
-                Some(recv)
+                Some(recv),
+                self.app_handle.clone()
             )
         );
 
@@ -90,7 +96,8 @@ impl NetworkStreamManager {
                     name,
                     client_id: (0..32).map(|_| rand::random::<u8>()).collect()
                 }),
-                Some(send)
+                Some(send),
+                self.app_handle.clone()
             )
         );
 

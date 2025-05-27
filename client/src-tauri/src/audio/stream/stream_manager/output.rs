@@ -6,7 +6,7 @@ use common::{
     }, Coordinate, Orientation, Player
 };
 use base64::{engine::general_purpose, Engine as _};
-use log::{error, warn};
+use log::{error, info, warn};
 use rodio::{
     buffer::SamplesBuffer, Sink, SpatialSink
 };
@@ -74,7 +74,8 @@ pub(crate) struct OutputStream {
     players: Arc<moka::sync::Cache<String, Player>>,
     jobs: Vec<AbortHandle>,
     shutdown: Arc<AtomicBool>,
-    pub metadata: Arc<Cache<String, String>>
+    pub metadata: Arc<Cache<String, String>>,
+    app_handle: tauri::AppHandle
 }
 
 impl super::StreamTrait for OutputStream {
@@ -86,12 +87,17 @@ impl super::StreamTrait for OutputStream {
     async fn stop(&mut self) -> Result<(), anyhow::Error> {
         _ = self.shutdown.store(true, Ordering::Relaxed);
 
+        // Give existing jobs 500ms to clear
+        _ = tokio::time::sleep(Duration::from_millis(500)).await;
+
         // Then hard terminate them
         for job in &self.jobs {
             job.abort();
         }
 
+        info!("Output stream has been stopped.");
         self.jobs = vec![];
+
         Ok(())
     }
 
@@ -142,7 +148,8 @@ impl OutputStream {
     pub fn new(
         device: Option<AudioDevice>,
         bus: Arc<flume::Receiver<AudioPacket>>,
-        metadata: Arc<moka::future::Cache<String, String>>
+        metadata: Arc<moka::future::Cache<String, String>>,
+        app_handle: tauri::AppHandle
     ) -> Self {
         let players = moka::sync::Cache::builder()
             .time_to_idle(Duration::from_secs(15 * 60))
@@ -154,7 +161,8 @@ impl OutputStream {
             players: Arc::new(players),
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),
-            metadata
+            metadata,
+            app_handle: app_handle.clone()
         }
     }
     
@@ -266,6 +274,15 @@ impl OutputStream {
                             #[allow(irrefutable_let_patterns)]
                             while let packet = consumer.recv() {
                                 if shutdown.load(Ordering::Relaxed) {
+                                    for sink in sink_manager.sinks.iter() {
+                                        sink.1.sink.clear();
+                                        sink.1.spatial_sink.clear();
+                                        sink.1.sink.stop();
+                                        sink.1.spatial_sink.stop();
+                                    }
+
+                                    // We need to hard-drop the sink_manager so any audio in the existing buffer gets flushed
+                                    drop(sink_manager);
                                     warn!("{} {} ended.", device.io.to_string(), device.display_name);
                                     break;
                                 }
@@ -498,9 +515,8 @@ impl OutputStream {
         let target_max_volume = 1.0 / (virtual_distance * virtual_distance);
 
         // Direction vector in full 3D
-        let dir_mag = (dx * dx + dy * dy + dz * dz).sqrt();
-        let direction = if dir_mag > 0.01 {
-            [dx / dir_mag, dy / dir_mag, dz / dir_mag]
+        let direction = if distance > 0.01 {
+            [dx / distance, dy / distance, dz / distance]
         } else {
             [0.0, 0.0, -1.0]
         };
@@ -586,5 +602,9 @@ impl OutputStream {
     pub fn mute(&self) {
         let current_state = MUTE_OUTPUT_STREAM.load(Ordering::Relaxed);
         MUTE_OUTPUT_STREAM.store(!current_state, Ordering::Relaxed);
+    }
+
+    pub fn mute_status(&self) -> bool {
+        MUTE_OUTPUT_STREAM.load(Ordering::Relaxed)
     }
 }

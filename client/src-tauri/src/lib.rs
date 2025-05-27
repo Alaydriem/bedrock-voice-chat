@@ -26,6 +26,7 @@ mod core;
 mod network;
 mod structs;
 mod api;
+mod events;
 
 pub(crate) static AUDIO_INPUT_NETWORK_NOTIFY: Lazy<Arc<Notify>> = Lazy::new(|| Arc::new(Notify::new()));
 
@@ -71,10 +72,14 @@ pub fn run() {
             crate::commands::audio::stop_audio_device,
             crate::commands::audio::get_devices,
             crate::commands::audio::mute,
-            crate::commands::audio::update_current_player,
+            crate::commands::audio::mute_status,
+            crate::commands::audio::is_stopped,
+            crate::commands::audio::update_stream_metadata,
+            crate::commands::audio::reset_asm,
             // Stream Information
             crate::commands::network::stop_network_stream,
             crate::commands::network::change_network_stream,
+            crate::commands::network::reset_nsm,
             // API implementation
             crate::api::commands::api_ping,
         ])
@@ -168,6 +173,7 @@ pub fn run() {
             let audio_stream = AudioStreamManager::new(
                 handle.state::<Arc<Sender<NetworkPacket>>>().inner().clone(),
                 handle.state::<Arc<Receiver<AudioPacket>>>().inner().clone(),
+                handle.clone()
             );
             app.manage(Mutex::new(audio_stream));
 
@@ -178,9 +184,12 @@ pub fn run() {
             let network_stream = NetworkStreamManager::new(
                 handle.state::<Arc<Sender<AudioPacket>>>().inner().clone(),
                 handle.state::<Arc<Receiver<NetworkPacket>>>().inner().clone(),
+                handle.clone()
             );
             app.manage(Mutex::new(network_stream));
 
+            // Event Handlers
+            crate::events::Notification::register(app);
             Ok(())
         })
         .run(tauri::generate_context!())

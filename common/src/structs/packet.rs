@@ -336,15 +336,13 @@ impl QuicNetworkPacket {
                                     return false;
                                 }
 
-                                // If they are in the same dimension, then calculate their distance to determine if they are in range
-                                let distance = ((recipiant.coordinates.x - sender_coordinates.x)
-                                    .powf(2.0)
-                                    + (recipiant.coordinates.y - sender_coordinates.y).powf(2.0)
-                                    + (recipiant.coordinates.z - sender_coordinates.z).powf(2.0))
-                                .sqrt();
+                                let dx = sender_coordinates.x - recipiant.coordinates.x;
+                                let dy = sender_coordinates.y - recipiant.coordinates.y;
+                                let dz = sender_coordinates.z - recipiant.coordinates.z;
+                                let distance = (dx * dx + dy * dy + dz * dz).sqrt();
 
                                 // Return true of the players are within spatial range of the other player
-                                let proximity = (3.0_f32).sqrt() * range;
+                                let proximity = 1.73 * range;
 
                                 return distance <= proximity;
                             }

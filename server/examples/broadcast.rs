@@ -184,7 +184,7 @@ async fn client(
         let mut encoder =
             opus::Encoder::new(48000, opus::Channels::Mono, opus::Application::Voip).unwrap();
 
-        _ = encoder.set_bitrate(opus::Bitrate::Bits(64_000));
+        _ = encoder.set_bitrate(opus::Bitrate::Bits(32_000));
 
         println!("Starting new stream event.");
         let file = BufReader::new(File::open(source_file.clone()).unwrap());

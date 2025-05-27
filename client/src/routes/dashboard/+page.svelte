@@ -68,5 +68,6 @@
         <div class="flex space-x-2"></div>
       </div>
     </div>
+    <div id="notification-container" class="notification-container"></div>
   </main>
 </div>
