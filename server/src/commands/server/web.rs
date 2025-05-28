@@ -48,6 +48,7 @@ pub(crate) fn get_task(
                         routes![
                             routes::api::authenticate,
                             routes::api::get_config,
+                            routes::api::update_position,
                             routes::api::position,
                             routes::api::pong
                         ],

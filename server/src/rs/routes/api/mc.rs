@@ -23,11 +23,9 @@ use sea_orm_rocket::Connection as SeaOrmConnection;
 
 /// Stores player position data and online status from Minecraft Bedrock into Redis
 #[post("/mc", data = "<positions>")]
-pub async fn position(
+pub async fn update_position(
     // Guard the request so it's only accepted if we have a valid access token
     _access_token: MCAccessToken,
-    // Data is to be stored in Redis
-    _rdb: RedisConnection<RedisDb>,
     // Database connection
     db: SeaOrmConnection<'_, AppDb>,
     // The player position data
@@ -126,4 +124,26 @@ pub async fn position(
 
     _ = queue.push(packet).await;
     return Status::Ok;
+}
+
+#[get("/mc")]
+pub async fn position(
+    // Guard the request so it's only accepted if we have a valid access token
+    _access_token: MCAccessToken
+) -> Json<Vec<common::Player>> {
+    let cache: Result<Arc<moka::future::Cache<String, common::Player>>, anyhow::Error> = crate::commands::server::quic::get_cache().await;
+
+    match cache {
+        Ok(cache) => {
+            let players = cache.iter()
+                .map(|(_, player)| player.clone())
+                .collect::<Vec<common::Player>>();
+
+            return Json(players);
+        },
+        Err(e) => {
+            tracing::error!("Failed to get player cache: {}", e.to_string());
+            return Json(vec![]);
+        }
+    };
 }

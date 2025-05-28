@@ -344,6 +344,13 @@ impl QuicNetworkPacket {
                                 // Return true of the players are within spatial range of the other player
                                 let proximity = 1.73 * range;
 
+                                tracing::info!(
+                                    "Distance between {} and {} is {} with proximity of {}",
+                                    self.get_author(),
+                                    recipient.name,
+                                    distance,
+                                    proximity
+                                );
                                 return distance <= proximity;
                             }
                             None => {

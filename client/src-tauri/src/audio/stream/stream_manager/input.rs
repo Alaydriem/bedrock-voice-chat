@@ -139,7 +139,6 @@ impl InputStream {
                             let mut process_fn = move | data: &[f32] | {
                                 // Gate
                                 let pcm = gate.process_frame(&data);
-
                                 let pcm_sendable = pcm.iter().all(|&e| f32::abs(e) == 0.0);
 
                                 // Only send audio frame data if our filters haven't cut data out

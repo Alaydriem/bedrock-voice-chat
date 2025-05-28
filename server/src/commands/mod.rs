@@ -6,7 +6,7 @@ use std::{process::exit, sync::Arc};
 
 use crate::config::ApplicationConfig;
 
-mod server;
+pub(crate) mod server;
 mod user;
 #[derive(clap::Subcommand, Debug, Clone)]
 pub enum SubCommand {

@@ -203,12 +203,23 @@ pub(crate) async fn get_task(
                                                                         receiver_cache.clone()
                                                                     ).await;
 
+                                                                    if raw_network_packet.get_author().eq("Merely Adequate") {
+                                                                        tracing::info!(
+                                                                            "Received audio frame from {:?}",
+                                                                            raw_network_packet.get_author()
+                                                                        );
+                                                                    }
                                                                     _ =
                                                                         message_queue.push(
                                                                             raw_network_packet
                                                                         ).await;
                                                                 }
-                                                                _ => {}
+                                                                _ => {
+                                                                    tracing::warn!(
+                                                                        "Received packet with unsupported type: {:?}",
+                                                                        raw_network_packet.get_packet_type()
+                                                                    );
+                                                                }
                                                             };
                                                         }
                                                     }
@@ -316,6 +327,13 @@ pub(crate) async fn get_task(
                                                                 broadcast_range
                                                             ).await
                                                         {
+                                                            if !owner.clone().unwrap().name.eq(packet.owner.clone().unwrap().name.as_str()) {
+                                                                tracing::warn!(
+                                                                    "Packet not receivable by {:?} from {:?}",
+                                                                    owner.clone().unwrap().name,
+                                                                    packet.owner.clone()
+                                                                );
+                                                            }
                                                             continue;
                                                         }
 
@@ -562,7 +580,7 @@ pub(crate) async fn get_task(
 }
 
 /// Returns the cache object without if match branching nonsense
-async fn get_cache() -> Result<Arc<Cache<String, common::Player>>, anyhow::Error> {
+pub(crate) async fn get_cache() -> Result<Arc<Cache<String, common::Player>>, anyhow::Error> {
     match PLAYER_POSITION_CACHE.get() {
         Some(cache) => match cache {
             Some(cache) => Ok(cache.clone()),

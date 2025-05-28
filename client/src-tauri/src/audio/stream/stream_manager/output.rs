@@ -301,7 +301,7 @@ impl OutputStream {
                                             Some(player) => Some(player),
                                             None => None
                                         };
-    
+
                                         // The current player doesn't have a position. This just means we're missing data from the server
                                         // Keep looping until we have data.
                                         if current_player.is_none() {
@@ -504,7 +504,7 @@ impl OutputStream {
         let distance = (dx * dx + dy * dy + dz * dz).sqrt();
 
         // Constants
-        let virtual_distance = 2.0;
+        let virtual_distance = 1.33;
         let close_threshold = 12.0;
         let falloff_distance = 48.0;
         let steepen_start = 38.0;
@@ -556,16 +556,30 @@ impl OutputStream {
         let left_z = forward_x;
         let ear_offset = 0.3;
 
-        let right_ear = Coordinate {
+        let mut left_ear = Coordinate {
             x: virtual_listener.x + left_x * ear_offset,
             y: virtual_listener.y,
             z: virtual_listener.z + left_z * ear_offset,
         };
-        let left_ear = Coordinate {
+        let mut right_ear = Coordinate {
             x: virtual_listener.x - left_x * ear_offset,
             y: virtual_listener.y,
             z: virtual_listener.z - left_z * ear_offset,
         };
+
+        // There's stereo inversion at 24 units away???
+        if distance >= 24.0 {
+            right_ear = Coordinate {
+                x: virtual_listener.x + left_x * ear_offset,
+                y: virtual_listener.y,
+                z: virtual_listener.z + left_z * ear_offset,
+            };
+            left_ear = Coordinate {
+                x: virtual_listener.x - left_x * ear_offset,
+                y: virtual_listener.y,
+                z: virtual_listener.z - left_z * ear_offset,
+            };
+        }
 
         // Gain logic
         let mut gain = match deafen_emitter {

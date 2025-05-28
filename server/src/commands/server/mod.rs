@@ -16,7 +16,7 @@ use std::{fs::File, io::Write, path::Path, process::exit};
 use tracing::info;
 use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
 use tracing_subscriber::fmt::SubscriberBuilder;
-mod quic;
+pub(crate) mod quic;
 mod web;
 
 const DEADQUEUE_SIZE: usize = 10_000;
