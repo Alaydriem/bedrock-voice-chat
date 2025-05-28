@@ -40,7 +40,7 @@ pub(crate) fn get_cpal_hosts() -> Result<Vec<rodio::cpal::platform::Host>, anyho
         match cpal::host_from_id(HostId::CoreAudio) {
             Ok(host) => hosts.push(host),
             Err(e) => {
-                tracing::error!("{}", e.to_string());
+                error!("{}", e.to_string());
                 return Err(anyhow!("Could not initialize CoreAudio Audio Host."));
             }
         };
@@ -51,7 +51,7 @@ pub(crate) fn get_cpal_hosts() -> Result<Vec<rodio::cpal::platform::Host>, anyho
         match cpal::host_from_id(HostId::Oboe) {
             Ok(host) => hosts.push(host),
             Err(e) => {
-                tracing::error!("{}", e.to_string());
+                error!("{}", e.to_string());
                 return Err(anyhow!("Could not initialize Oboe Audio Host for Android."));
             }
         };
@@ -167,6 +167,7 @@ fn get_device_name(
         // Each ASIO "channel" is _likely_ a different physical input / output on the device
         // We need to map a "friendly" display name for these since they the ASIO device is one _single_ device, rather than a listing
         //
+        #[cfg(target_os = "windows")]
         HostId::Asio => {
             let mut devices = Vec::<AudioDevice>::new();
             // This filters out only the configs we're willing to support for the driver

@@ -88,13 +88,13 @@ impl Into<rodio::cpal::HostId> for AudioDeviceHost {
         }
         #[cfg(target_os = "android")]
         {
-            host = match self.host {
+            host = match self {
                 AudioDeviceHost::Oboe => HostId::Oboe
             };
         }
         #[cfg(any(target_os = "macos", target_os = "ios"))]
         {
-            host = match self.host {
+            host = match self {
                 AudioDeviceHost::CoreAudio => HostId::CoreAudio
             };
         }
