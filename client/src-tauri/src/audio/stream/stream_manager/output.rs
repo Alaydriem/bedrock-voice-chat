@@ -311,7 +311,7 @@ impl OutputStream {
                                         match packet.spatial && current_player.is_some() {
                                             true => {
                                                 // We will only do positional audio if both the source and current have valid data
-                                                if packet.coordinate.is_some() && current_player.is_some() {
+                                                if packet.coordinate.is_some() {
                                                     let current_player = current_player.unwrap();
                                                     // Derive the SpatialSink
                                                     let sink = sink_manager.get_sink(
@@ -605,6 +605,7 @@ impl OutputStream {
             gain = 0.0;
         }
         
+        info!("Calculated spatial audio data: emitter: {:?}, source: {:?}, gain: {}, distance: {:?}", emitter, listener, gain, distance);
         SpatialAudioData {
             emitter: emitter.clone(),
             left_ear,
@@ -620,5 +621,13 @@ impl OutputStream {
 
     pub fn mute_status(&self) -> bool {
         MUTE_OUTPUT_STREAM.load(Ordering::Relaxed)
+    }
+
+    pub fn get_players(&self) -> Arc<moka::sync::Cache<String, Player>> {
+        self.players.clone()
+    }
+    
+    pub fn set_players(&mut self, players: Arc<moka::sync::Cache<String, Player>>) {
+        self.players = players;
     }
 }

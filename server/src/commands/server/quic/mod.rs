@@ -203,12 +203,6 @@ pub(crate) async fn get_task(
                                                                         receiver_cache.clone()
                                                                     ).await;
 
-                                                                    if raw_network_packet.get_author().eq("Merely Adequate") {
-                                                                        tracing::info!(
-                                                                            "Received audio frame from {:?}",
-                                                                            raw_network_packet.get_author()
-                                                                        );
-                                                                    }
                                                                     _ =
                                                                         message_queue.push(
                                                                             raw_network_packet
@@ -327,13 +321,6 @@ pub(crate) async fn get_task(
                                                                 broadcast_range
                                                             ).await
                                                         {
-                                                            if !owner.clone().unwrap().name.eq(packet.owner.clone().unwrap().name.as_str()) {
-                                                                tracing::warn!(
-                                                                    "Packet not receivable by {:?} from {:?}",
-                                                                    owner.clone().unwrap().name,
-                                                                    packet.owner.clone()
-                                                                );
-                                                            }
                                                             continue;
                                                         }
 

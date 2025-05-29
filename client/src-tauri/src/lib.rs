@@ -68,6 +68,7 @@ pub fn run() {
             crate::commands::env::get_variant,
             // Audio Information
             crate::commands::audio::get_audio_device,
+            crate::commands::audio::set_audio_device,
             crate::commands::audio::change_audio_device,
             crate::commands::audio::stop_audio_device,
             crate::commands::audio::get_devices,

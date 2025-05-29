@@ -2,7 +2,8 @@ mod stream_manager;
 
 use crate::NetworkPacket;
 use anyhow::Error;
-use common::structs::audio::{AudioDevice, AudioDeviceType};
+use common::{structs::audio::{AudioDevice, AudioDeviceType}, Player};
+use log::info;
 use std::sync::Arc;
 
 use super::AudioPacket;
@@ -137,6 +138,8 @@ impl AudioStreamManager {
             AudioDeviceType::OutputDevice => self.output.is_stopped(),
         };
 
+        info!("Audio stream for {:?} is stopped: {}", device, status);
+
         Ok(status)
     }
 
@@ -162,6 +165,16 @@ impl AudioStreamManager {
             AudioDeviceType::OutputDevice => self.output.mute_status()
         };
 
+        info!("Audio stream for {:?} mute status: {}", device, status);
+
         Ok(status)
+    }
+
+    pub fn get_player_cache(&self) -> Option<Arc<moka::sync::Cache<String, Player>>> {
+        self.output.get_player_cache()
+    }
+
+    pub fn set_player_cache(&mut self, cache: Arc<moka::sync::Cache<String, Player>>) {
+        self.output.set_player_cache(cache);
     }
 }

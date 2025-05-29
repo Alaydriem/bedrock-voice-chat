@@ -59,7 +59,11 @@ export default class Dashboard extends App {
                 currentServerCredentials = credentialsString ? JSON.parse(credentialsString) as LoginResponse : null;
 
                 document.getElementById("player-sidebar-avatar")?.setAttribute("src", atob(currentServerCredentials?.gamerpic ?? ""));
-                if (await invoke("is_stopped", { device: "InputDevice" }) || await invoke("is_stopped", { device: "InputDevice" })) {
+                const isInputStreamStopped = await invoke("is_stopped", { device: "InputDevice" }).then((stopped) => stopped as boolean);
+                const isOutputStreamStopped = await invoke("is_stopped", { device: "OutputDevice" }).then((stopped) => stopped as boolean);
+                console.log(`Input stream stopped: ${isInputStreamStopped}, Output stream stopped: ${isOutputStreamStopped}`);
+                if (isInputStreamStopped || isOutputStreamStopped) {
+                    console.log("Audio engine is stopped, reinitializing...");
                     await this.shutdown();
                     await this.initializeAudioDevicesAndNetworkStream(this.store, currentServer ?? "", currentServerCredentials);
                 }
@@ -100,6 +104,7 @@ export default class Dashboard extends App {
                 
                 await this.updateAudioDevice("OutputDevice");
                 await this.updateAudioDevice("InputDevice");
+                await invoke("change_audio_device");
             }).catch((e) => {
                 error(`Error updating current player: ${e}`);
             });
@@ -116,8 +121,8 @@ export default class Dashboard extends App {
             .then(async (device) => {
                 info(`Using ${device.name} as ${type}`);
 
-                await invoke("change_audio_device", { device: device })
-                    .then(() => {
+                await invoke("set_audio_device", { device: device })
+                    .then(async () => {
                         info(`Audio device changed to ${device.name} for ${type}`);
                     })
                     .catch((e) => {

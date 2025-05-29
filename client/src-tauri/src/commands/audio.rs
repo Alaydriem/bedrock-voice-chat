@@ -9,6 +9,7 @@ use std::sync::Arc;
 use crate::{
     structs::app_state::AppState, AudioStreamManager,
 };
+use log::info;
 use tauri::async_runtime::Mutex;
 
 /// Returns the active audio device for the given device type
@@ -22,11 +23,9 @@ pub(crate) async fn get_audio_device(
     return Ok(state.get_audio_device(io));
 }
 
-/// Changes the audio device for the selected audio device type
-/// This will emit a "stop-audio-device" event, followed by a "change-audio-device" event
-/// Which will result in the specific stream being stopped, and a new one being started
+/// Sets the audio device for a given device type in the application store state
 #[tauri::command]
-pub(crate) async fn change_audio_device(
+pub(crate) async fn set_audio_device(
     device: AudioDevice,
     app: AppHandle,
     state: State<'_, Mutex<AppState>>,
@@ -35,10 +34,38 @@ pub(crate) async fn change_audio_device(
     let mut state = state.lock().await;
     _ = update_current_player(app.clone(), asm.clone());
     state.change_audio_device(device.clone());
+    Ok(())
+}
 
-    let mut asm = asm.lock().await;
-    asm.init(device.clone());
-    _ = asm.restart(device.clone().io).await;   
+/// Hard resets the audio stream manager with the new devices
+#[tauri::command]
+pub(crate) async fn change_audio_device(
+    app: AppHandle,
+    state: State<'_, Mutex<AppState>>,
+    asm: State<'_, Mutex<AudioStreamManager>>
+) -> Result<(), ()> {
+    let state = state.lock().await;
+    
+    // Reset the AudioStreamManager
+    _ = reset_asm(app.clone(), asm.clone()).await;
+
+    // Fetch the new Audio Stream Manager instance
+    let asm = app.state::<Mutex<AudioStreamManager>>();
+    let mut asm_active = asm.lock().await;
+ 
+    // Reinitialize the input and output devices
+    let input_device = state.get_audio_device(AudioDeviceType::InputDevice);
+    let output_device = state.get_audio_device(AudioDeviceType::OutputDevice);
+
+    asm_active.init(input_device.clone());
+    _ = asm_active.start(input_device.clone().io).await;
+    asm_active.init(output_device.clone());
+    _ = asm_active.start(output_device.clone().io).await;
+
+    drop(asm_active);
+    let asm = app.state::<Mutex<AudioStreamManager>>();
+
+    _ = update_current_player(app.clone(), asm.clone());
 
     Ok(())
 }
@@ -85,6 +112,7 @@ async fn update_current_player(
     app: AppHandle,
     asm: State<'_, Mutex<AudioStreamManager>>
 ) -> Result<(), ()>{
+    info!("Updating current player metadata");
     match app.store("store.json") {
         Ok(store) => match store.get("current_player") {
             Some(value) => match value.as_str() {

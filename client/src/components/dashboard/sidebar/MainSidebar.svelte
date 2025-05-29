@@ -1,9 +1,12 @@
+<script lang="ts">
+
+</script>
 <div class="main-sidebar">
     <div
         class="flex h-full w-full flex-col items-center border-r border-slate-150 bg-white dark:border-navy-700 dark:bg-navy-800"
     >
         <div class="flex pt-4">
-            <a href="/dashboard">
+            <a id="dashboard-link" href="/dashboard">
                 <img
                     class="size-11 transition-transform duration-500 ease-in-out hover:rotate-[360deg]"
                     src="images/app-logo.png"
@@ -21,7 +24,7 @@
         <div class="flex flex-col items-center space-y-3 py-3">
             <!-- Settings -->
             <a
-                href="#settings"
+                href="/settings#audio"
                 aria-label="Settings"
                 class="flex size-11 items-center justify-center rounded-lg outline-hidden transition-colors duration-200 hover:bg-primary/20 focus:bg-primary/20 active:bg-primary/25 dark:hover:bg-navy-300/20 dark:focus:bg-navy-300/20 dark:active:bg-navy-300/25"
             >

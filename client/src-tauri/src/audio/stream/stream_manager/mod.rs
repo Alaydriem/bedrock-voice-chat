@@ -4,7 +4,7 @@ mod sink_manager;
 
 use std::sync::Arc;
 
-use common::structs::audio::AudioDevice;
+use common::{structs::audio::AudioDevice, Player};
 pub(crate) use input::InputStream;
 pub(crate) use output::OutputStream;
 pub(crate) use crate::core::StreamTrait;
@@ -111,6 +111,20 @@ impl StreamTraitType {
         match self {
             Self::Input(stream) => stream.mute_status(),
             Self::Output(stream) => stream.mute_status(),
+        }
+    }
+
+    pub fn get_player_cache(&self) -> Option<Arc<moka::sync::Cache<String, Player>>> {
+        match self {
+            Self::Input(_) => None,
+            Self::Output(stream) => Some(stream.get_players()),
+        }
+    }
+
+    pub fn set_player_cache(&mut self, cache: Arc<moka::sync::Cache<String, Player>>) {
+        match self {
+            Self::Input(_) => {}
+            Self::Output(stream) => stream.set_players(cache),
         }
     }
 }

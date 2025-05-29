@@ -91,8 +91,25 @@ declare global {
         flatpickr: any;
         Quill: any;
         Tom: any;
+        loadedAlpinePlugins: Set<string>;
     }
 }
+
+if (!window.loadedAlpinePlugins) {
+    window.loadedAlpinePlugins = new Set<string>();
+}
+
+// Function to load a plugin if it hasn't been loaded
+function loadAlpinePlugin(pluginName: string, plugin: any) {
+    if (!window.loadedAlpinePlugins.has(pluginName)) {
+        Alpine.plugin(plugin);
+        window.loadedAlpinePlugins.add(pluginName);
+        console.log(`Alpine.js plugin "${pluginName}" loaded.`);
+    } else {
+        console.log(`Alpine.js plugin "${pluginName}" is already loaded.`);
+    }
+}
+
 
 export default class App {
     constructor() {
@@ -114,9 +131,9 @@ export default class App {
         window.helpers = helpers;
         window.pages = pages;
 
-        Alpine.plugin(persist);
-        Alpine.plugin(collapse);
-        Alpine.plugin(intersect);
+        loadAlpinePlugin("persist", persist);
+        loadAlpinePlugin("collapse", collapse);
+        loadAlpinePlugin("intersect", intersect);
 
         Alpine.directive("tooltip", tooltip);
         Alpine.directive("input-mask", inputMask);
