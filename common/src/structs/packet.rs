@@ -349,12 +349,28 @@ impl QuicNetworkPacket {
                                 // Return true of the players are within spatial range of the other player
                                 let proximity = 1.73 * range;
 
-                                if data.spatial.is_none() {
-                                    data.spatial = Some(true);
-                                    self.data = QuicNetworkPacketData::AudioFrame(data);
+                                let spatial = data.spatial.clone();
+                                match spatial {
+                                    // If the client explicitly wants their audio to be spatial, then calculate the distance and return if they are in range
+                                    Some(true) => {
+                                        return distance <= proximity;
+                                    },
+                                    // If the client explicitly set their audio to be broadcast
+                                    // Then there is a client implementation issue 
+                                    Some(false) => {
+                                        return false;
+                                    },
+                                    // If the client did not set their audio to be spatially received
+                                    // Then make it spatial, and return if in range
+                                    None => {
+                                        data.spatial = Some(true);
+                                        self.data = QuicNetworkPacketData::AudioFrame(data);
+                                        return distance <= proximity;
+                                    }
                                 }
 
-                                return distance <= proximity;
+
+
                             }
                             None => {
                                 return false;

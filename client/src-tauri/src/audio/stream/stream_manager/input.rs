@@ -139,6 +139,7 @@ impl InputStream {
                             let mut process_fn = move | data: &[f32] | {
                                 // Gate
                                 let pcm = gate.process_frame(&data);
+                                //let pcm = data.to_vec();
                                 let pcm_sendable = pcm.iter().all(|&e| f32::abs(e) == 0.0);
 
                                 // Only send audio frame data if our filters haven't cut data out
@@ -245,7 +246,11 @@ impl InputStream {
             Some(device) => match device.get_stream_config() {
                 Ok(config) => {
                     let device_config = rodio::cpal::StreamConfig {
-                        channels: config.channels(),
+                        channels: match config.channels() {
+                            1 => 1,
+                            2 => 2,
+                            _ => 1
+                        },
                         sample_rate: config.sample_rate(),
                         buffer_size: cpal::BufferSize::Fixed(common::structs::audio::BUFFER_SIZE),
                     };

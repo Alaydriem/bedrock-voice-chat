@@ -20,7 +20,7 @@ export default class AudioSettings  {
             console.log("Devices: ", devices);
             const deviceTypes = [
                 "WASAPI",
-                "ASIO",
+                //"ASIO",
             ];
 
             deviceTypes.forEach((type) => {
