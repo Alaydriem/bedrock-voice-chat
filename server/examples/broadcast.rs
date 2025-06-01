@@ -1,7 +1,6 @@
 use common::structs::packet::AudioFramePacket;
 use common::structs::packet::PacketType;
 use common::structs::packet::QuicNetworkPacket;
-use common::Coordinate;
 use rodio::Decoder;
 use s2n_quic::{client::Connect, Client};
 use std::time::Duration;
@@ -221,7 +220,7 @@ async fn client(
                         coordinate: None,
                         orientation: None,
                         dimension: Some(common::Dimension::Overworld),
-                        spatial: true
+                        spatial: None
                     },
                 ),
             };

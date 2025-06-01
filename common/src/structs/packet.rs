@@ -307,8 +307,11 @@ impl QuicNetworkPacket {
                             && packet_author.is_some()
                             && this_player.eq(&packet_author)
                         {
-                            // Group audio packets are non-spatial
-                            data.spatial = false;
+                            // Group audio packets defer to client sending settings, and non-spatial by default
+                            if data.spatial.is_none() {
+                                data.spatial = Some(false);
+                                // Group audio packets are non-spatial
+                            }
                             self.data = QuicNetworkPacketData::AudioFrame(data);
                             return true;
                         }
@@ -321,11 +324,13 @@ impl QuicNetworkPacket {
                         let (sender_dimension, sender_coordinates) = match actual_sender {
                             Some(sender) => (sender.dimension, sender.coordinates),
                             None => {
-                                if data.dimension.is_none() || data.coordinate.is_none() {
+                                let dimension = data.dimension.clone();
+                                let coordinates = data.coordinate.clone();
+                                if dimension.is_none() || coordinates.is_none() {
                                     return false;
                                 }
 
-                                (data.dimension.unwrap(), data.coordinate.unwrap())
+                                (dimension.unwrap(), coordinates.unwrap())
                             }
                         };
 
@@ -343,6 +348,11 @@ impl QuicNetworkPacket {
 
                                 // Return true of the players are within spatial range of the other player
                                 let proximity = 1.73 * range;
+
+                                if data.spatial.is_none() {
+                                    data.spatial = Some(true);
+                                    self.data = QuicNetworkPacketData::AudioFrame(data);
+                                }
 
                                 return distance <= proximity;
                             }
@@ -393,7 +403,7 @@ pub struct AudioFramePacket {
     pub coordinate: Option<Coordinate>,
     pub orientation: Option<Orientation>,
     pub dimension: Option<Dimension>,
-    pub spatial: bool
+    pub spatial: Option<bool>
 }
 
 impl TryFrom<QuicNetworkPacketData> for AudioFramePacket {

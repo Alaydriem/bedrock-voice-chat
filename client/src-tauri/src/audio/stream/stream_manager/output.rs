@@ -43,7 +43,7 @@ struct DecodedAudioFramePacket {
     pub coordinate: Option<Coordinate>,
     #[allow(dead_code)]
     pub orientation: Option<Orientation>,
-    pub spatial: bool
+    pub spatial: Option<bool>
 }
 
 #[derive(Debug, Clone)]
@@ -308,7 +308,12 @@ impl OutputStream {
                                             continue;
                                         }
     
-                                        match packet.spatial && current_player.is_some() {
+                                        let is_spatial = match packet.spatial {
+                                            Some(spatial) => spatial,
+                                            None => false
+                                        };
+
+                                        match is_spatial && current_player.is_some() {
                                             true => {
                                                 // We will only do positional audio if both the source and current have valid data
                                                 if packet.coordinate.is_some() {
@@ -368,7 +373,7 @@ impl OutputStream {
                                                 match sink {
                                                     Ok(sink) => {
                                                         // @todo: We need to pull down any player customizable attenuation
-                                                        sink.set_volume(1.0);
+                                                        sink.set_volume(1.3);
                                                         sink.append(packet.buffer);
                                                     },
                                                     Err(_) => {}

@@ -14,7 +14,7 @@ use std::{sync::{
 use tokio::task::{AbortHandle, JoinHandle};
 use crate::{audio::stream::stream_manager::AudioFrameData, NetworkPacket};
 use super::AudioFrame;
-
+use log::info;
 use once_cell::sync::Lazy;
 
 static MUTE_INPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
@@ -315,7 +315,7 @@ impl InputStream {
                                                     coordinate: None,
                                                     orientation: None,
                                                     dimension: None,
-                                                    spatial: false // This will be mutated on the server
+                                                    spatial: None
                                                 })
                                             }
                                         };

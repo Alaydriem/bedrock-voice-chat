@@ -119,7 +119,7 @@ export default class Dashboard extends App {
         await invoke("get_audio_device", { io: type })
             .then(async (device) => device as AudioDevice)
             .then(async (device) => {
-                info(`Using ${device.name} as ${type}`);
+                info(`Using ${device.display_name} as ${type}`);
 
                 await invoke("set_audio_device", { device: device })
                     .then(async () => {

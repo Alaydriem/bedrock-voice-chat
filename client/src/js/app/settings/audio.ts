@@ -1,8 +1,6 @@
-
-import { Store } from '@tauri-apps/plugin-store';
 import { info, error, warn } from '@tauri-apps/plugin-log';
 import { invoke } from "@tauri-apps/api/core";
-import { onMount, mount } from "svelte";
+import { mount } from "svelte";
 
 import selectSvelte from '../../../components/forms/select.svelte';
 import type { AudioDevice } from '../../bindings/AudioDevice';
@@ -22,7 +20,7 @@ export default class AudioSettings  {
             console.log("Devices: ", devices);
             const deviceTypes = [
                 "WASAPI",
-                //"ASIO",
+                "ASIO",
             ];
 
             deviceTypes.forEach((type) => {
@@ -48,7 +46,6 @@ export default class AudioSettings  {
                 }
             });
 
-            console.log(currentInputDevice)
             
             const currentOutputDevice = await invoke<AudioDevice>("get_audio_device", { io: "OutputDevice" });
             mount(selectSvelte, {
@@ -72,6 +69,7 @@ export default class AudioSettings  {
 
                     let targetDevice: AudioDevice | undefined;
                     if (target.id === "input-audio-device") {
+                        console.log("input device changed {deviceName: ", deviceName);
                         inputDevices.forEach((device) => {
                             if (device.display_name === deviceName) {
                                 targetDevice = device;
@@ -85,6 +83,7 @@ export default class AudioSettings  {
                         });
                     }
 
+                    console.log("{targetDevice: ", targetDevice);
                     await invoke("set_audio_device", { device: targetDevice })
                     .then(async (result) => {
                         info(`Audio device changed to ${targetDevice?.display_name} for ${target.id}`);
