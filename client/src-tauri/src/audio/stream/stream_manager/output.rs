@@ -627,12 +627,4 @@ impl OutputStream {
     pub fn mute_status(&self) -> bool {
         MUTE_OUTPUT_STREAM.load(Ordering::Relaxed)
     }
-
-    pub fn get_players(&self) -> Arc<moka::sync::Cache<String, Player>> {
-        self.players.clone()
-    }
-    
-    pub fn set_players(&mut self, players: Arc<moka::sync::Cache<String, Player>>) {
-        self.players = players;
-    }
 }

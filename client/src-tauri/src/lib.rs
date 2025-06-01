@@ -1,15 +1,9 @@
 use audio::AudioPacket;
-use blake2::{Blake2s256, Digest};
 use crate::structs::app_state::AppState;
-use common::ncryptflib::rocket::base64;
 use flume::{Receiver, Sender};
 use network::NetworkPacket;
-use std::{
-    fs::File,
-    sync::Arc,
-};
+use std::sync::Arc;
 use tauri::async_runtime::Mutex;
-use tauri::path::BaseDirectory;
 use tauri::Manager;
 use tauri_plugin_store::StoreExt;
 
@@ -29,6 +23,8 @@ mod api;
 mod events;
 
 pub(crate) static AUDIO_INPUT_NETWORK_NOTIFY: Lazy<Arc<Notify>> = Lazy::new(|| Arc::new(Notify::new()));
+pub(crate) static ANDROID_SIGNATURE_TEST_HASH: &str = "test-2jmj7l5rSw0yVb%2FvlWAYkK%2FYBwk%3D";
+pub(crate) static ANDROID_SIGNATURE_LIVE_HASH: &str = "live-2jmj7l5rSw0yVb%2FvlWAYkK%2FYBwk%3D";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -86,37 +82,8 @@ pub fn run() {
         ])
         .setup(|app| {
             log::info!("BVC Variant {:?}", crate::commands::env::get_variant());
-            // Initialize Stronghold so we can use it to store secrets
-            let secret_store = app.store("secrets.json")?;
-            let stronghold_salt = match secret_store.get("stronghold_password") {
-                Some(salt) => match salt.as_str() {
-                    Some(salt) => Some(salt.to_string()),
-                    None => None,
-                },
-                None => None,
-            };
-
-            if stronghold_salt.is_none() {
-                let salt = common::ncryptflib::randombytes_buf(64);
-                let encoded_salt = base64::encode(salt);
-                secret_store.set(
-                    "stronghold_password",
-                    encoded_salt.clone(),
-                );
-            }
-
+            let store = app.store("store.json")?;
             let handle = app.handle().clone();
-
-            handle.plugin(
-                tauri_plugin_stronghold::Builder::new(|password| {
-                    // This MUST be a 32 byte output
-                    let mut hasher = Blake2s256::new();
-                    hasher.update(password.as_bytes());
-                    return hasher.finalize().to_vec();
-                })
-                .build(),
-            )?;
-
             // On Windows, and Linux, circumvent non-installed desktop application deep link
             // url handling by force registering them with the system
             #[cfg(any(windows, target_os = "linux"))]
@@ -131,22 +98,11 @@ pub fn run() {
                 handle.plugin(tauri_plugin_updater::Builder::new().build())?;
             }
 
-            let store = app.store("store.json")?;
-            let resource_path = app.path().resolve("data.json", BaseDirectory::Resource)?;
-            let file = File::open(&resource_path).unwrap();
-            let data: serde_json::Value = serde_json::from_reader(file).unwrap();
-
             let android_signature_hash: String;
             if cfg!(dev) {
-                android_signature_hash = data["android"]["signature_hash"]["test"]
-                    .as_str()
-                    .unwrap()
-                    .to_string();
+                android_signature_hash = ANDROID_SIGNATURE_TEST_HASH.to_string();
             } else {
-                android_signature_hash = data["android"]["signature_hash"]["live"]
-                    .as_str()
-                    .unwrap()
-                    .to_string();
+                android_signature_hash = ANDROID_SIGNATURE_LIVE_HASH.to_string();
             }
 
             store.set(

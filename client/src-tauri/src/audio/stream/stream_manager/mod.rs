@@ -113,18 +113,4 @@ impl StreamTraitType {
             Self::Output(stream) => stream.mute_status(),
         }
     }
-
-    pub fn get_player_cache(&self) -> Option<Arc<moka::sync::Cache<String, Player>>> {
-        match self {
-            Self::Input(_) => None,
-            Self::Output(stream) => Some(stream.get_players()),
-        }
-    }
-
-    pub fn set_player_cache(&mut self, cache: Arc<moka::sync::Cache<String, Player>>) {
-        match self {
-            Self::Input(_) => {}
-            Self::Output(stream) => stream.set_players(cache),
-        }
-    }
 }

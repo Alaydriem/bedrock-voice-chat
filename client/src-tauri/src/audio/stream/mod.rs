@@ -2,7 +2,7 @@ mod stream_manager;
 
 use crate::NetworkPacket;
 use anyhow::Error;
-use common::{structs::audio::{AudioDevice, AudioDeviceType}, Player};
+use common::{structs::audio::{AudioDevice, AudioDeviceType}};
 use log::info;
 use std::sync::Arc;
 
@@ -168,13 +168,5 @@ impl AudioStreamManager {
         info!("Audio stream for {:?} mute status: {}", device, status);
 
         Ok(status)
-    }
-
-    pub fn get_player_cache(&self) -> Option<Arc<moka::sync::Cache<String, Player>>> {
-        self.output.get_player_cache()
-    }
-
-    pub fn set_player_cache(&mut self, cache: Arc<moka::sync::Cache<String, Player>>) {
-        self.output.set_player_cache(cache);
     }
 }

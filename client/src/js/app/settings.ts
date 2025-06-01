@@ -1,4 +1,4 @@
-import Hold from "../../js/app/stronghold.ts";
+import Hold from "./hold.ts";
 import { Store } from '@tauri-apps/plugin-store';
 import { info, error, warn } from '@tauri-apps/plugin-log';
 import { invoke } from "@tauri-apps/api/core";

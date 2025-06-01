@@ -1,15 +1,17 @@
-import Hold from "../../js/app/stronghold.ts";
+
 import { Store } from '@tauri-apps/plugin-store';
 import { info, error, warn } from '@tauri-apps/plugin-log';
 import { invoke } from "@tauri-apps/api/core";
-import type { AudioDevice } from "../../js/bindings/AudioDevice.ts";
-import type { LoginResponse } from "../../js/bindings/LoginResponse.ts";
-
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
-import App from './app.js';
-import Sidebar from "./components/dashboard/sidebar.ts";
 import { mount } from "svelte";
+
+import type { AudioDevice } from "../../js/bindings/AudioDevice.ts";
+import type { LoginResponse } from "../../js/bindings/LoginResponse.ts";
+import App from './app.js';
+import Hold from './hold.ts';
+import Sidebar from "./components/dashboard/sidebar.ts";
+
 import Notification from "../../components/events/Notification.svelte";
 
 declare global {
@@ -19,7 +21,7 @@ declare global {
 }
 
 export default class Dashboard extends App {
-    private stronghold: Hold | undefined;
+    private hold: Hold | undefined;
     private store: Store | undefined;
     
     async initialize() {
@@ -50,23 +52,19 @@ export default class Dashboard extends App {
         if (currentServer) {
             await this.renderSidebar(this.store, currentServer ?? "");
             
-            const passwordStore = await Store.load('secrets.json', { autoSave: false });
-            const password = await passwordStore.get<string>("stronghold_password");
-            if (password) {
-                this.stronghold = await Hold.new("servers", password);
-                
-                const credentialsString = await this.stronghold?.get(currentServer);
-                currentServerCredentials = credentialsString ? JSON.parse(credentialsString) as LoginResponse : null;
+            this.hold = await Hold.new("servers");
+            
+            const credentialsString = await this.hold?.get(currentServer);
+            currentServerCredentials = credentialsString ? JSON.parse(credentialsString) as LoginResponse : null;
 
-                document.getElementById("player-sidebar-avatar")?.setAttribute("src", atob(currentServerCredentials?.gamerpic ?? ""));
-                const isInputStreamStopped = await invoke("is_stopped", { device: "InputDevice" }).then((stopped) => stopped as boolean);
-                const isOutputStreamStopped = await invoke("is_stopped", { device: "OutputDevice" }).then((stopped) => stopped as boolean);
-                console.log(`Input stream stopped: ${isInputStreamStopped}, Output stream stopped: ${isOutputStreamStopped}`);
-                if (isInputStreamStopped || isOutputStreamStopped) {
-                    console.log("Audio engine is stopped, reinitializing...");
-                    await this.shutdown();
-                    await this.initializeAudioDevicesAndNetworkStream(this.store, currentServer ?? "", currentServerCredentials);
-                }
+            document.getElementById("player-sidebar-avatar")?.setAttribute("src", atob(currentServerCredentials?.gamerpic ?? ""));
+            const isInputStreamStopped = await invoke("is_stopped", { device: "InputDevice" }).then((stopped) => stopped as boolean);
+            const isOutputStreamStopped = await invoke("is_stopped", { device: "OutputDevice" }).then((stopped) => stopped as boolean);
+            console.log(`Input stream stopped: ${isInputStreamStopped}, Output stream stopped: ${isOutputStreamStopped}`);
+            if (isInputStreamStopped || isOutputStreamStopped) {
+                console.log("Audio engine is stopped, reinitializing...");
+                await this.shutdown();
+                await this.initializeAudioDevicesAndNetworkStream(this.store, currentServer ?? "", currentServerCredentials);
             }
         }
 
@@ -119,7 +117,7 @@ export default class Dashboard extends App {
         await invoke("get_audio_device", { io: type })
             .then(async (device) => device as AudioDevice)
             .then(async (device) => {
-                info(`Using ${device.display_name} as ${type}`);
+                info(`Using ${device.name} as ${type}`);
 
                 await invoke("set_audio_device", { device: device })
                     .then(async () => {

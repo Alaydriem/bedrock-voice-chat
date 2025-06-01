@@ -7,7 +7,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { onOpenUrl } from "@tauri-apps/plugin-deep-link";
 import { type LoginResponse } from "../bindings/LoginResponse";
 
-import Hold from "./stronghold.ts";
+import Hold from "./hold.ts";
 import App from './app.js';
 
 declare global {
@@ -140,49 +140,42 @@ export default class Login extends App {
     })
     .then(async (response) => response as LoginResponse)
     .then(async(response) => {
-      // Initialize Stronghold from the app generated password on the first run
-      const secretStore = await Store.load('secrets.json', { autoSave: false });
-      const password = await secretStore.get<string>("stronghold_password");
-      if (password) {
-        const stronghold = await Hold.new("servers", password);
-        if (authStateEndpoint) {
-          // Insert and save data, commit, set the current server, then redirect to the dashboard
-          await stronghold.insert(authStateEndpoint, JSON.stringify(response));
-          await stronghold.commit();
-          await store.set("current_server", authStateEndpoint);
-          await store.set("current_player", response.gamertag);
-          if (await store.has("server_list")) {
-            let serverList = await store.get("server_list") as Array<{ server: string, player: string }>;
-            let hasServer = false;
-            serverList.forEach(server => {
-              if (server.server == authStateEndpoint) {
-                hasServer = true;
-              }
-            });
-            
-            if (!hasServer) {
-              serverList.push({
-                "server": authStateEndpoint,
-                "player": response.gamertag
-              });
-              await store.set("server_list", serverList);
+      const hold = await Hold.new("servers");
+      if (authStateEndpoint) {
+        // Insert and save data, commit, set the current server, then redirect to the dashboard
+        await hold.insert(authStateEndpoint, JSON.stringify(response));
+        await hold.commit();
+        await store.set("current_server", authStateEndpoint);
+        await store.set("current_player", response.gamertag);
+        if (await store.has("server_list")) {
+          let serverList = await store.get("server_list") as Array<{ server: string, player: string }>;
+          let hasServer = false;
+          serverList.forEach(server => {
+            if (server.server == authStateEndpoint) {
+              hasServer = true;
             }
-          } else {
-            let serverList = [];
+          });
+          
+          if (!hasServer) {
             serverList.push({
               "server": authStateEndpoint,
               "player": response.gamertag
             });
             await store.set("server_list", serverList);
           }
-
-          await store.save();
-          window.location.href = "/dashboard";
         } else {
-          throw new Error("authStateEndpoint is undefined");
+          let serverList = [];
+          serverList.push({
+            "server": authStateEndpoint,
+            "player": response.gamertag
+          });
+          await store.set("server_list", serverList);
         }
+
+        await store.save();
+        window.location.href = "/dashboard";
       } else {
-        throw new Error("Unable to access stronghold password");
+        throw new Error("authStateEndpoint is undefined");
       }
     }).catch((e) => {
       warn(e);

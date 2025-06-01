@@ -7,7 +7,7 @@ import murmurHash3 from "murmurHash3js";
 import { mount } from 'svelte';
 import ServerAvatar from '../../components/ServerAvatar.svelte';
 
-import Hold from "./stronghold.ts";
+import Hold from "./hold.ts";
 import App from './app.js';
 
 import { type LoginResponse } from "../bindings/LoginResponse";
@@ -36,17 +36,8 @@ export default class Server extends App {
       window.location.href="/login";
       return;
     }
-    
-    const secretStore = await Store.load('secrets.json', { autoSave: false });
-    const password = await secretStore.get<string>("stronghold_password");
-    if (!password) {
-      info("No stronghold password found, redirecting to login page");
-      // If there's no password, redirect to the login page.
-      window.location.href="/login";
-      return;
-    }
 
-    const stronghold = await Hold.new("servers", password); 
+    const stronghold = await Hold.new("servers"); 
 
     if (serverList.length === 1) {
       // Ping the server and check that we're authenticated

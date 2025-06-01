@@ -10,7 +10,6 @@
     "store:default",
     "os:default",
     "log:default",
-    "stronghold:default",
     "fs:default",
     "fs:read-all",
     "fs:write-all",
