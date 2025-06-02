@@ -75,12 +75,19 @@ pub(crate) struct OutputStream {
     jobs: Vec<AbortHandle>,
     shutdown: Arc<AtomicBool>,
     pub metadata: Arc<Cache<String, String>>,
+    #[allow(unused)]
     app_handle: tauri::AppHandle
 }
 
 impl super::StreamTrait for OutputStream {
     async fn metadata(&mut self, key: String, value: String) -> Result<(), anyhow::Error> {
-        self.metadata.insert(key.clone(), value.clone()).await;
+        match key.as_str() {
+            "mute" => {
+                self.mute();
+            },
+            _ => self.metadata.insert(key.clone(), value.clone()).await
+        };
+        
         Ok(())
     }
 

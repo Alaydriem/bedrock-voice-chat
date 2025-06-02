@@ -8,15 +8,36 @@ use log::{error, warn};
 use opus::Bitrate;
 use rodio::cpal::traits::StreamTrait;
 use rodio::DeviceTrait;
+use serde::{Deserialize, Serialize};
 use std::{sync::{
-    atomic::{AtomicBool, Ordering}, mpsc::{self, Receiver, SyncSender}, Arc
+    atomic::{AtomicBool, Ordering}, mpsc::{self, Receiver, SyncSender}, Arc, Mutex
 }, time::Duration};
 use tokio::task::{AbortHandle, JoinHandle};
 use crate::{audio::stream::stream_manager::AudioFrameData, NetworkPacket};
 use super::AudioFrame;
 use once_cell::sync::Lazy;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct NoiseGateSettings {
+    open_threshold: f32,
+    close_threshold: f32,
+    relesae_rate: f32,
+    attack_rate: f32,
+    hold_time: f32
+}
+
 static MUTE_INPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
+static USE_NOISE_GATE: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
+static UPDATE_NOISE_GATE_SETTINGS: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
+static NOISE_GATE_SETTINGS: Lazy<Mutex<serde_json::Value>> = Lazy::new(|| {
+    Mutex::new(serde_json::to_value(NoiseGateSettings {
+        open_threshold: -36.0,
+        close_threshold: -56.0,
+        relesae_rate: 150.0,
+        attack_rate: 5.0,
+        hold_time: 150.0
+    }).expect("Failed to serialize NoiseGateSettings"))
+});
 
 pub(crate) struct InputStream {
     pub device: Option<AudioDevice>,
@@ -24,13 +45,41 @@ pub(crate) struct InputStream {
     jobs: Vec<AbortHandle>,
     shutdown: Arc<AtomicBool>,
     pub metadata: Arc<moka::future::Cache<String, String>>,
+    #[allow(unused)]
     app_handle: tauri::AppHandle
 }
 
 impl super::StreamTrait for InputStream {
     async fn metadata(&mut self, key: String, value: String) -> Result<(), anyhow::Error> {
-        let metadata = self.metadata.clone();
-        metadata.insert(key, value).await;
+        match key.as_str() {
+            // Toggle Mute
+            "mute" => {
+                self.mute();
+            },
+            // Toggle Noise Gate
+            "noise_gate" => {
+                match value.as_str() {
+                    "true" => USE_NOISE_GATE.store(true, Ordering::Relaxed),
+                    _ => USE_NOISE_GATE.store(false, Ordering::Relaxed),
+                };
+            },
+            "noise_gate_settings" => {
+                match serde_json::from_str::<NoiseGateSettings>(&value) {
+                    Ok(settings) => {
+                        let mut lock_settings = NOISE_GATE_SETTINGS.lock().unwrap();
+                        *lock_settings = serde_json::to_value(settings).expect("Failed to serialize NoiseGateSettings");
+                        UPDATE_NOISE_GATE_SETTINGS.store(true, Ordering::Relaxed);
+                        drop(lock_settings);
+                    }
+                    Err(_) => {}
+                }
+            },
+            _ => {
+                let metadata = self.metadata.clone();
+                metadata.insert(key, value).await;
+            }
+        };
+        
         Ok(())
     }
 
@@ -120,25 +169,77 @@ impl InputStream {
                                 buffer_size: cpal::BufferSize::Fixed(common::structs::audio::BUFFER_SIZE)
                             };
 
-                            // @todo: Move this out of this thread and let it be configurable
-                            let mut gate = NoiseGate::new(
-                                -36.0,
-                                -56.0,
-                                device_config.sample_rate.0 as f32,
-                                device_config.channels.into(), // Todo: this should either be 1 or 2, not +++
-                                150.0,
-                                5.0,
-                                150.0
-                            );
+                            let settings = NOISE_GATE_SETTINGS.lock().unwrap();
+                            let mut gate = match serde_json::from_value::<NoiseGateSettings>(settings.clone()) {
+                                Ok(settings) => NoiseGate::new(
+                                    settings.open_threshold,
+                                    settings.close_threshold,
+                                    device_config.sample_rate.0 as f32,
+                                    match device_config.channels.into() {
+                                        1 => 1,
+                                        2 => 2,
+                                        _ => 2
+                                    },
+                                    settings.relesae_rate,
+                                    settings.attack_rate,
+                                    settings.hold_time
+                                ),
+                                Err(e) => {
+                                    warn!("Failed to deserialize NoiseGateSettings: {}. Loading from predefined defaults", e);
+                                    NoiseGate::new(
+                                        -36.0,
+                                        -56.0,
+                                        device_config.sample_rate.0 as f32,
+                                        match device_config.channels.into() {
+                                            1 => 1,
+                                            2 => 2,
+                                            _ => 2
+                                        },
+                                        150.0,
+                                        5.0,
+                                        150.0
+                                    )
+                                }
+                            };
+
+                            drop(settings);
 
                             let error_fn = move | error | {
                                 warn!("an error occured on the stream: {}", error);
                             };
 
                             let mut process_fn = move | data: &[f32] | {
-                                // Gate
-                                let pcm = gate.process_frame(&data);
-                                //let pcm = data.to_vec();
+                                
+                                let pcm: Vec<f32>;
+                                // If the noise gate is enabled, process data through it
+                                if USE_NOISE_GATE.load(Ordering::Relaxed) {
+                                    // If there is a pending update, apply it, then disable the lock check
+                                    if UPDATE_NOISE_GATE_SETTINGS.load(Ordering::Relaxed) {
+                                        let current_settings = NOISE_GATE_SETTINGS.lock().unwrap();
+                                        match serde_json::from_value::<NoiseGateSettings>(current_settings.clone()) {
+                                            Ok(settings) => {
+                                                gate.update(
+                                                    settings.open_threshold,
+                                                    settings.close_threshold,
+                                                    settings.relesae_rate,
+                                                    settings.attack_rate,
+                                                    settings.hold_time
+                                                );
+                                            },
+                                            Err(e) => {
+                                                warn!("Noise gate settings were asked to update, but failed to deserialize: {}", e);
+                                            }
+                                        };
+                                        // Even if we fail to update the noise gate settings, clear the lock
+                                        UPDATE_NOISE_GATE_SETTINGS.store(false, Ordering::Relaxed);
+                                    }
+
+                                    // Process the frame through the gate
+                                    pcm = gate.process_frame(&data);
+                                } else {
+                                    // Send data through the gate normally
+                                    pcm = data.to_vec();
+                                }
                                 let pcm_sendable = pcm.iter().all(|&e| f32::abs(e) == 0.0);
 
                                 // Only send audio frame data if our filters haven't cut data out

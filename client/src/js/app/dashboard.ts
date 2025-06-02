@@ -98,6 +98,53 @@ export default class Dashboard extends App {
             }).then(async () => {
                 info("Updated current player");
 
+                // Load any metadata from the settings store
+                let useNoiseGate = await store.get("use_noise_gate") as boolean | null;
+                if (useNoiseGate == null) {
+                    await store.set("use_noise_gate", false);
+                    await store.save();
+                    useNoiseGate = false;
+                }
+
+                let noiseGateSettings = await store.get("noise_gate_settings") as { 
+                    open_threshold: number,
+                    close_threshold: number,
+                    release_rate: number,
+                    attack_rate: number,
+                    hold_time: number
+                } | null;
+
+                if (noiseGateSettings == null) {
+                    await store.set("noise_gate_settings", {
+                        open_threshold: -36.0,
+                        close_threshold: -56.0,
+                        release_rate: 150.0,
+                        attack_rate: 5.0,
+                        hold_time: 150.0
+                    });
+                    await store.save();
+                    noiseGateSettings = await store.get("noise_gate_settings") as { 
+                        open_threshold: number,
+                        close_threshold: number,
+                        release_rate: number,
+                        attack_rate: number,
+                        hold_time: number
+                    } | null;
+                }
+
+                // Set the noise gate
+                await invoke("update_stream_metadata", {
+                    key: "use_noise_gate",
+                    value: useNoiseGate ? "true" : "false",
+                    device: "InputDevice",
+                });
+
+                await invoke("update_stream_metadata", {
+                    key: "noise_gate_settings",
+                    value: JSON.stringify(noiseGateSettings),
+                    device: "InputDevice"
+                });
+
                 await this.changeNetworkStream(currentServer, credentials);
                 
                 await this.updateAudioDevice("OutputDevice");

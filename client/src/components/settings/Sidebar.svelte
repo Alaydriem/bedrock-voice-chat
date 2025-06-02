@@ -20,7 +20,6 @@
         const elements = document.querySelectorAll(".sidebar button");
         elements.forEach((element) => {
             element.addEventListener("click", (e) => {
-                const target = e.currentTarget as HTMLButtonElement;
                 mainElement!.innerHTML = ""; // Clear the main content
                 mountPage(activePage, mainElement!);
             });
