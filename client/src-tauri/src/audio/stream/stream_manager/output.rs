@@ -617,7 +617,7 @@ impl OutputStream {
             gain = 0.0;
         }
         
-        info!("Calculated spatial audio data: emitter: {:?}, source: {:?}, gain: {}, distance: {:?}", emitter, listener, gain, distance);
+        //info!("Calculated spatial audio data: emitter: {:?}, source: {:?}, gain: {}, distance: {:?}", emitter, listener, gain, distance);
         SpatialAudioData {
             emitter: emitter.clone(),
             left_ear,

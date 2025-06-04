@@ -21,11 +21,13 @@ use once_cell::sync::Lazy;
 pub(crate) struct NoiseGateSettings {
     open_threshold: f32,
     close_threshold: f32,
-    relesae_rate: f32,
+    release_rate: f32,
     attack_rate: f32,
     hold_time: f32
 }
 
+/// Indicator for if the Input Stream should be muted
+/// If this i
 static MUTE_INPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 static USE_NOISE_GATE: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 static UPDATE_NOISE_GATE_SETTINGS: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
@@ -33,7 +35,7 @@ static NOISE_GATE_SETTINGS: Lazy<Mutex<serde_json::Value>> = Lazy::new(|| {
     Mutex::new(serde_json::to_value(NoiseGateSettings {
         open_threshold: -36.0,
         close_threshold: -56.0,
-        relesae_rate: 150.0,
+        release_rate: 150.0,
         attack_rate: 5.0,
         hold_time: 150.0
     }).expect("Failed to serialize NoiseGateSettings"))
@@ -51,13 +53,14 @@ pub(crate) struct InputStream {
 
 impl super::StreamTrait for InputStream {
     async fn metadata(&mut self, key: String, value: String) -> Result<(), anyhow::Error> {
+        log::info!("Setting metadata for input stream: {} = {}", key, value);
         match key.as_str() {
             // Toggle Mute
             "mute" => {
                 self.mute();
             },
             // Toggle Noise Gate
-            "noise_gate" => {
+            "use_noise_gate" => {
                 match value.as_str() {
                     "true" => USE_NOISE_GATE.store(true, Ordering::Relaxed),
                     _ => USE_NOISE_GATE.store(false, Ordering::Relaxed),
@@ -71,8 +74,10 @@ impl super::StreamTrait for InputStream {
                         UPDATE_NOISE_GATE_SETTINGS.store(true, Ordering::Relaxed);
                         drop(lock_settings);
                     }
-                    Err(_) => {}
-                }
+                    Err(e) => {
+                        log::error!("Failed to deserialize NoiseGateSettings on metadata set: {}", e);
+                    }
+                };
             },
             _ => {
                 let metadata = self.metadata.clone();
@@ -170,37 +175,30 @@ impl InputStream {
                             };
 
                             let settings = NOISE_GATE_SETTINGS.lock().unwrap();
-                            let mut gate = match serde_json::from_value::<NoiseGateSettings>(settings.clone()) {
-                                Ok(settings) => NoiseGate::new(
-                                    settings.open_threshold,
-                                    settings.close_threshold,
-                                    device_config.sample_rate.0 as f32,
-                                    match device_config.channels.into() {
-                                        1 => 1,
-                                        2 => 2,
-                                        _ => 2
-                                    },
-                                    settings.relesae_rate,
-                                    settings.attack_rate,
-                                    settings.hold_time
-                                ),
-                                Err(e) => {
-                                    warn!("Failed to deserialize NoiseGateSettings: {}. Loading from predefined defaults", e);
-                                    NoiseGate::new(
-                                        -36.0,
-                                        -56.0,
-                                        device_config.sample_rate.0 as f32,
-                                        match device_config.channels.into() {
-                                            1 => 1,
-                                            2 => 2,
-                                            _ => 2
-                                        },
-                                        150.0,
-                                        5.0,
-                                        150.0
-                                    )
+                            let noise_gate_settings = match serde_json::from_value::<NoiseGateSettings>(settings.clone()) {
+                                Ok(settings) => settings,
+                                Err(_) => NoiseGateSettings {
+                                    open_threshold: -36.0,
+                                    close_threshold: -56.0,
+                                    release_rate: 150.0,
+                                    attack_rate: 5.0,
+                                    hold_time: 150.0
                                 }
                             };
+
+                            let mut gate = NoiseGate::new(
+                                noise_gate_settings.open_threshold,
+                                noise_gate_settings.close_threshold,
+                                device_config.sample_rate.0 as f32,
+                                match device_config.channels.into() {
+                                    1 => 1,
+                                    2 => 2,
+                                    _ => 2
+                                },
+                                noise_gate_settings.release_rate,
+                                noise_gate_settings.attack_rate,
+                                noise_gate_settings.hold_time
+                            );
 
                             drop(settings);
 
@@ -208,8 +206,7 @@ impl InputStream {
                                 warn!("an error occured on the stream: {}", error);
                             };
 
-                            let mut process_fn = move | data: &[f32] | {
-                                
+                            let mut process_fn = move | data: &[f32] | {  
                                 let pcm: Vec<f32>;
                                 // If the noise gate is enabled, process data through it
                                 if USE_NOISE_GATE.load(Ordering::Relaxed) {
@@ -218,10 +215,11 @@ impl InputStream {
                                         let current_settings = NOISE_GATE_SETTINGS.lock().unwrap();
                                         match serde_json::from_value::<NoiseGateSettings>(current_settings.clone()) {
                                             Ok(settings) => {
+                                                log::info!("Updating noise gate settings: {:?}", settings);
                                                 gate.update(
                                                     settings.open_threshold,
                                                     settings.close_threshold,
-                                                    settings.relesae_rate,
+                                                    settings.release_rate,
                                                     settings.attack_rate,
                                                     settings.hold_time
                                                 );
@@ -230,6 +228,7 @@ impl InputStream {
                                                 warn!("Noise gate settings were asked to update, but failed to deserialize: {}", e);
                                             }
                                         };
+                                        drop(current_settings);
                                         // Even if we fail to update the noise gate settings, clear the lock
                                         UPDATE_NOISE_GATE_SETTINGS.store(false, Ordering::Relaxed);
                                     }

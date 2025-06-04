@@ -138,8 +138,6 @@ impl AudioStreamManager {
             AudioDeviceType::OutputDevice => self.output.is_stopped(),
         };
 
-        info!("Audio stream for {:?} is stopped: {}", device, status);
-
         Ok(status)
     }
 
@@ -164,8 +162,6 @@ impl AudioStreamManager {
             AudioDeviceType::InputDevice => self.input.mute_status(),
             AudioDeviceType::OutputDevice => self.output.mute_status()
         };
-
-        info!("Audio stream for {:?} mute status: {}", device, status);
 
         Ok(status)
     }

@@ -60,7 +60,6 @@ export default class Dashboard extends App {
             document.getElementById("player-sidebar-avatar")?.setAttribute("src", atob(currentServerCredentials?.gamerpic ?? ""));
             const isInputStreamStopped = await invoke("is_stopped", { device: "InputDevice" }).then((stopped) => stopped as boolean);
             const isOutputStreamStopped = await invoke("is_stopped", { device: "OutputDevice" }).then((stopped) => stopped as boolean);
-            console.log(`Input stream stopped: ${isInputStreamStopped}, Output stream stopped: ${isOutputStreamStopped}`);
             if (isInputStreamStopped || isOutputStreamStopped) {
                 console.log("Audio engine is stopped, reinitializing...");
                 await this.shutdown();

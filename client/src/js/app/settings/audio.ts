@@ -117,6 +117,10 @@ export default class AudioSettings  {
                     key: "use_noise_gate",
                     value: target.checked ? "true" : "false",
                     device: "InputDevice",
+                }).then((result) => {
+                    console.log(result);
+                }).catch((e) => {
+                    error(`Error updating stream metadata: ${e}`);
                 });
                 await this.store?.save();
             });
