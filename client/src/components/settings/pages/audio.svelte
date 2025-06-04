@@ -57,7 +57,11 @@
                 />
                 <span x-tooltip.light="'A standard noise gate modeled after OBS\' Noise Gate Filter. Effective, but requires manual tuning for your environment.'">Noise Gate RS</span>
             </label>
-            <label class="inline-flex items-center space-x-2 pb-2">
+
+            <div id="noise-gate-audio-controls" class="hidden pt-5 pb-5 flex flex-row justify-evenly">
+
+            </div>
+            <label class="inline-flex items-center space-x-2 pb-2 pt-2">
                 <input
                 disabled
                 class="form-switch h-5 w-10 rounded-full bg-slate-300 before:rounded-full before:bg-slate-50 checked:bg-primary checked:before:bg-white dark:bg-navy-900 dark:before:bg-navy-300 dark:checked:bg-accent dark:checked:before:bg-white"

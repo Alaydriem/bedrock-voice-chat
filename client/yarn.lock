@@ -1636,6 +1636,10 @@ vitefu@^1.0.4:
   resolved "https://registry.npmjs.org/vitefu/-/vitefu-1.0.5.tgz"
   integrity sha512-h4Vflt9gxODPFNGPwp4zAMZRpZR7eslzwH2c5hn5kNZ5rhnKyRJ50U+yGCdc2IRaBs8O4haIgLNGrV5CrpMsCA==
 
+"webaudio-controls@https://github.com/g200kg/webaudio-controls#master":
+  version "2.1.2"
+  resolved "https://github.com/g200kg/webaudio-controls#c4dc6d2b31c196867e57853e7281eb7303d4f6ba"
+
 zimmerframe@^1.1.2:
   version "1.1.2"
   resolved "https://registry.npmjs.org/zimmerframe/-/zimmerframe-1.1.2.tgz"

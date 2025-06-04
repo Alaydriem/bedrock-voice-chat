@@ -2,7 +2,8 @@
     import "../../css/app.css";
     import Settings from "../../js/app/settings.ts";
 
-    import { onMount, mount } from "svelte";
+    import { onMount } from "svelte";
+
     onMount(() => {
       window.App = new Settings();
       window.dispatchEvent(new CustomEvent("app:mounted"));

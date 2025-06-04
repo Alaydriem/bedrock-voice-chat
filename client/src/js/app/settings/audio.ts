@@ -2,7 +2,12 @@ import { info, error, warn } from '@tauri-apps/plugin-log';
 import { invoke } from "@tauri-apps/api/core";
 import { mount } from "svelte";
 import { Store } from '@tauri-apps/plugin-store';
+
+import '../../../../node_modules/webaudio-controls/webaudio-controls.js';
+
 import selectSvelte from '../../../components/forms/select.svelte';
+import Knob from '../../../components/forms/knob.svelte';
+
 import type { AudioDevice } from '../../bindings/AudioDevice';
 declare global {
   interface Window {
@@ -99,11 +104,12 @@ export default class AudioSettings  {
         });
 
         // Noise Gate Settings
-        await this.store?.get<boolean>("use_noise_gate").then((useNoiseGate) => {
+        await this.store?.get<boolean>("use_noise_gate").then(async (useNoiseGate) => {
             const element = document.getElementById("noise-suppression-rs-toggle") as HTMLInputElement;
             // Check it to true
             if (useNoiseGate) {
                 element.checked = true;
+                document.getElementById("noise-gate-audio-controls")?.classList.remove("hidden");
             }
 
             // Enable the option
@@ -117,15 +123,93 @@ export default class AudioSettings  {
                     key: "use_noise_gate",
                     value: target.checked ? "true" : "false",
                     device: "InputDevice",
-                }).then((result) => {
-                    console.log(result);
-                }).catch((e) => {
-                    error(`Error updating stream metadata: ${e}`);
                 });
+                document.getElementById("noise-gate-audio-controls")?.classList.toggle("hidden");
                 await this.store?.save();
             });
 
             // Enable the settings with the default values
+            let noiseGateSettings = await this.store?.get("noise_gate_settings") as { 
+                open_threshold: number,
+                close_threshold: number,
+                release_rate: number,
+                attack_rate: number,
+                hold_time: number
+            } | null;
+            if (noiseGateSettings != null) {
+                const container = document.getElementById("noise-gate-audio-controls");
+                mount(Knob, {
+                    target: container!,
+                    props: {
+                        label: "Open Threshold",
+                        id: "open_threshold",
+                        value: noiseGateSettings.open_threshold,
+                        min: -96,
+                        max: 0,
+                        step: 1,
+                        diameter: 64,
+                        sprites: 100,
+                    }
+                });
+
+                mount(Knob, {
+                    target: container!,
+                    props: {
+                        label: "Close Threshold",
+                        id: "close_threshold",
+                        value: noiseGateSettings.close_threshold,
+                        min: -96,
+                        max: 0,
+                        step: 1,
+                        diameter: 64,
+                        sprites: 100,
+                    }
+                });
+
+                mount(Knob, {
+                    target: container!,
+                    props: {
+                        label: "Attack Rate",
+                        id: "attack_rate",
+                        value: noiseGateSettings.attack_rate,
+                        min: 0,
+                        max: 250,
+                        step: 1,
+                        diameter: 64,
+                        sprites: 100,
+                    }
+                });
+
+                mount(Knob, {
+                    target: container!,
+                    props: {
+                        label: "Hold time",
+                        id: "hold_time",
+                        value: noiseGateSettings.hold_time,
+                        min: 0,
+                        max: 250,
+                        step: 1,
+                        diameter: 64,
+                        sprites: 100,
+                    }
+                });
+
+                mount(Knob, {
+                    target: container!,
+                    props: {
+                        label: "Release Rate",
+                        id: "release_rate",
+                        value: noiseGateSettings.release_rate,
+                        min: 0,
+                        max: 250,
+                        step: 1,
+                        diameter: 64,
+                        sprites: 100,
+                    }
+                });
+
+                container?.classList.remove("hidden");
+            }
         });
     }
 }

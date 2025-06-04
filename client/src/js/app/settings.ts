@@ -13,7 +13,6 @@ declare global {
 }
 
 export default class Dashboard extends App {
-    private stronghold: Hold | undefined;
     private store: Store | undefined;
     
     async initialize() {
@@ -21,7 +20,6 @@ export default class Dashboard extends App {
         const mainSidebarContainer = document.getElementById(
             "main-sidebar-container",
         );
-
         mount(Sidebar, {
             target: mainSidebarContainer!,
             props: {
