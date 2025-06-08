@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::anyhow;
-use common::structs::audio::{AudioDevice, AudioDeviceHost, AudioDeviceType};
+use crate::audio::types::{AudioDevice, AudioDeviceHost, AudioDeviceType};
 use cpal::{
     traits::{DeviceTrait, HostTrait},
     HostId, SupportedStreamConfigRange,

@@ -4,7 +4,7 @@ mod sink_manager;
 
 use std::sync::Arc;
 
-use common::structs::audio::AudioDevice;
+use crate::audio::types::AudioDevice;
 
 pub(crate) use input::InputStream;
 pub(crate) use output::OutputStream;

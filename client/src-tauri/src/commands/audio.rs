@@ -1,4 +1,4 @@
-use common::structs::audio::{AudioDevice, AudioDeviceType};
+use crate::audio::types::{AudioDevice, AudioDeviceType};
 use std::{collections::HashMap, time::Duration};
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_store::StoreExt;

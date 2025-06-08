@@ -2,8 +2,7 @@ mod stream_manager;
 
 use crate::NetworkPacket;
 use anyhow::Error;
-use common::{structs::audio::{AudioDevice, AudioDeviceType}};
-use log::info;
+use crate::audio::types::{AudioDevice, AudioDeviceType};
 use std::sync::Arc;
 
 use super::AudioPacket;

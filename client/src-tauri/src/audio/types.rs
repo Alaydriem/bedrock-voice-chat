@@ -12,14 +12,14 @@ use ts_rs::TS;
 pub const BUFFER_SIZE: u32 = 960;
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export, export_to = "./../../client/src/js/bindings/")]
+#[ts(export, export_to = "./../../src/js/bindings/")]
 pub enum AudioDeviceType {
     InputDevice,
     OutputDevice,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export, export_to = "./../../client/src/js/bindings/")]
+#[ts(export, export_to = "./../../src/js/bindings/")]
 pub enum AudioDeviceHost {
     #[cfg(target_os = "windows")]
     Asio,
@@ -113,7 +113,7 @@ impl AudioDeviceType {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export, export_to = "./../../client/src/js/bindings/")]
+#[ts(export, export_to = "./../../src/js/bindings/")]
 pub struct AudioDevice {
     pub io: AudioDeviceType,
     pub name: String,
@@ -273,7 +273,7 @@ impl Into<Option<rodio::cpal::Device>> for AudioDevice {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export, export_to = "./../../client/src/js/bindings/")]
+#[ts(export, export_to = "./../../src/js/bindings/")]
 pub struct StreamConfig {
     pub channels: u16,
     pub sample_rate: u32,

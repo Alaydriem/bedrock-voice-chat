@@ -1,9 +1,7 @@
 use anyhow::anyhow;
 use audio_gate::NoiseGate;
-use common::structs::{
-    audio::{AudioDevice, BUFFER_SIZE},
-    packet::{AudioFramePacket, QuicNetworkPacket, QuicNetworkPacketData},
-};
+use crate::audio::types::{AudioDevice, BUFFER_SIZE};
+use common::structs::packet::{AudioFramePacket, QuicNetworkPacket, QuicNetworkPacketData};
 use log::{error, warn};
 use opus::Bitrate;
 use rodio::cpal::traits::StreamTrait;
@@ -171,7 +169,7 @@ impl InputStream {
                             let device_config = rodio::cpal::StreamConfig {
                                 channels: config.channels(),
                                 sample_rate: config.sample_rate(),
-                                buffer_size: cpal::BufferSize::Fixed(common::structs::audio::BUFFER_SIZE)
+                                buffer_size: cpal::BufferSize::Fixed(crate::audio::types::BUFFER_SIZE)
                             };
 
                             let settings = NOISE_GATE_SETTINGS.lock().unwrap();
@@ -351,7 +349,7 @@ impl InputStream {
                             _ => 1
                         },
                         sample_rate: config.sample_rate(),
-                        buffer_size: cpal::BufferSize::Fixed(common::structs::audio::BUFFER_SIZE),
+                        buffer_size: cpal::BufferSize::Fixed(crate::audio::types::BUFFER_SIZE),
                     };
 
                     let mut data_stream = Vec::<f32>::new();

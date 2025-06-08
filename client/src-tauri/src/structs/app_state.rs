@@ -1,4 +1,4 @@
-use common::structs::audio::{AudioDevice, AudioDeviceHost, AudioDeviceType, StreamConfig};
+use crate::audio::types::{AudioDevice, AudioDeviceHost, AudioDeviceType, StreamConfig};
 use cpal::traits::{DeviceTrait, HostTrait};
 use serde_json::json;
 use std::sync::Arc;
