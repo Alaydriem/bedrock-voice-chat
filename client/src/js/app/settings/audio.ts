@@ -149,6 +149,7 @@ export default class AudioSettings  {
                         step: 1,
                         diameter: 64,
                         sprites: 100,
+                        store: this.store!
                     }
                 });
 
@@ -163,6 +164,7 @@ export default class AudioSettings  {
                         step: 1,
                         diameter: 64,
                         sprites: 100,
+                        store: this.store!
                     }
                 });
 
@@ -177,6 +179,7 @@ export default class AudioSettings  {
                         step: 1,
                         diameter: 64,
                         sprites: 100,
+                        store: this.store!
                     }
                 });
 
@@ -191,6 +194,7 @@ export default class AudioSettings  {
                         step: 1,
                         diameter: 64,
                         sprites: 100,
+                        store: this.store!
                     }
                 });
 
@@ -205,6 +209,7 @@ export default class AudioSettings  {
                         step: 1,
                         diameter: 64,
                         sprites: 100,
+                        store: this.store!
                     }
                 });
 

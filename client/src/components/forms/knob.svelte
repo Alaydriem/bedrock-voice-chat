@@ -1,6 +1,6 @@
 <script lang="ts">
+    import type { Store } from "@tauri-apps/plugin-store";
     import { onMount } from "svelte";
-
     export let id: string = "knob";
     export let src: string = "../../../../node_modules/webaudio-controls/knobs/LittlePhatty.png";
     export let value: number = 0;
@@ -10,13 +10,46 @@
     export let label: string = "Knob";
     export let diameter: number = 64;
     export let sprites: number = 100;
+    export let store: Store;
 
     onMount(() => {
         const knob = document.querySelector("webaudio-knob#" + id);
+        let timeout;
         knob?.addEventListener("change", (e: Event) => {
             const target = e.target as HTMLInputElement;
             value = parseFloat(target.value);
-            console.log(`Knob ${id} changed to: ${value}`);
+            timeout = setTimeout(async () => {
+                let noiseGateSettings = await store.get("noise_gate_settings") as { 
+                    open_threshold: number,
+                    close_threshold: number,
+                    release_rate: number,
+                    attack_rate: number,
+                    hold_time: number
+                };
+
+                if (noiseGateSettings != null) {
+                    switch (id) {
+                        case "open_threshold":
+                            noiseGateSettings.open_threshold = value;
+                            break;
+                        case "close_threshold":
+                            noiseGateSettings.close_threshold = value;
+                            break;
+                        case "release_rate":
+                            noiseGateSettings.release_rate = value;
+                            break;
+                        case "attack_rate":
+                            noiseGateSettings.attack_rate = value;
+                            break;
+                        case "hold_time":
+                            noiseGateSettings.hold_time = value;
+                            break;
+                    }
+
+                    await store.set("noise_gate_settings", noiseGateSettings);
+                    await store.save();
+                }
+            }, 200);
         });
     });
 </script>
