@@ -87,9 +87,10 @@ For Windows:
 
 ```
 # Set paths
-$env:OPENSSL_DIR="C:\Users\charl\projects\vcpkg\installed\arm64-android"
-$env:SODIUM_LIB_DIR="C:\Users\charl\projects\vcpkg\installed\arm64-android\lib"
-$env:SODIUM_INCLUDE_DIR="C:\Users\charl\projects\vcpkg\installed\arm64-android\include"
+# Set paths
+$env:OPENSSL_DIR="$env:USERPROFILE\projects\vcpkg\installed\arm64-android"
+$env:SODIUM_LIB_DIR="$env:USERPROFILE\projects\vcpkg\installed\arm64-android\lib"
+$env:SODIUM_INCLUDE_DIR="$env:USERPROFILE\projects\vcpkg\installed\arm64-android\include"
 $env:SODIUM_SHARED=0
 
 # Set General Compiler Options
@@ -101,13 +102,8 @@ $env:TARGET="aarch64-linux-android"
 $env:AWS_LC_SYS_CMAKE_GENERATOR="Ninja"
 $env:AWS_LC_SYS_CMAKE_BUILDER=1
 $env:AWS_LC_SYS_EXTERNAL_BINDGEN=0
-```
-
-3. Make sure your gradle.properties has:
-```
-abiList=arm64-v8a
-archList=arm64
-targetList=aarch64
+$env:BINDGEN_EXTRA_CLANG_ARGS="--sysroot=$env:ANDROID_NDK_HOME/toolchains/llvm/prebuilt/windows-x86_64/sysroot"
+$env:RUSTFLAGS="-C link-arg=-lc++_shared"
 ```
 
 4. You can then try to build for Android by running. Make sure you have a valid target device, in this case an arm64
@@ -117,32 +113,7 @@ yarn tauri android dev --open
 
 This will build, compile, and install onto the device, however the app currently crashes when the Activity is launched.
 
-```
-2025-06-08 13:43:20.086  5235-5235  AndroidRuntime          com.alaydriem.bvc.client             E  FATAL EXCEPTION: main
-Process: com.alaydriem.bvc.client, PID: 5235
-java.lang.UnsatisfiedLinkError: dlopen failed: library "libbvc_client_lib.so" not found
-  at java.lang.Runtime.loadLibrary0(Runtime.java:1081)
-  at java.lang.Runtime.loadLibrary0(Runtime.java:1003)
-  at java.lang.System.loadLibrary(System.java:1765)
-  at com.alaydriem.bvc.client.WryActivity.<clinit>(WryActivity.kt:120)
-  at java.lang.Class.newInstance(Native Method)
-  at android.app.AppComponentFactory.instantiateActivity(AppComponentFactory.java:95)
-  at androidx.core.app.CoreComponentFactory.instantiateActivity(CoreComponentFactory.java:45)
-  at android.app.Instrumentation.newActivity(Instrumentation.java:1329)
-  at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:3570)
-  at android.app.ActivityThread.handleLaunchActivity(ActivityThread.java:3814)
-  at android.app.servertransaction.LaunchActivityItem.execute(LaunchActivityItem.java:101)
-  at android.app.servertransaction.TransactionExecutor.executeCallbacks(TransactionExecutor.java:135)
-  at android.app.servertransaction.TransactionExecutor.execute(TransactionExecutor.java:95)
-  at android.app.ActivityThread$H.handleMessage(ActivityThread.java:2309)
-  at android.os.Handler.dispatchMessage(Handler.java:106)
-  at android.os.Looper.loopOnce(Looper.java:346)
-  at android.os.Looper.loop(Looper.java:475)
-  at android.app.ActivityThread.main(ActivityThread.java:7950)
-  at java.lang.reflect.Method.invoke(Native Method)
-  at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:548)
-  at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:942)
-```
+
 
 
 ### iOS Building
