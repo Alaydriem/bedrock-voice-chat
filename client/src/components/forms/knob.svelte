@@ -1,6 +1,8 @@
 <script lang="ts">
     import type { Store } from "@tauri-apps/plugin-store";
+    import { invoke } from "@tauri-apps/api/core";
     import { onMount } from "svelte";
+    
     export let id: string = "knob";
     export let src: string = "../../../../node_modules/webaudio-controls/knobs/LittlePhatty.png";
     export let value: number = 0;
@@ -48,6 +50,12 @@
 
                     await store.set("noise_gate_settings", noiseGateSettings);
                     await store.save();
+
+                    await invoke("update_stream_metadata", {
+                        key: "noise_gate_settings",
+                        value: JSON.stringify(noiseGateSettings),
+                        device: "InputDevice"
+                    });
                 }
             }, 200);
         });
