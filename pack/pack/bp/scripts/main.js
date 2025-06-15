@@ -17,6 +17,12 @@ const access_token = variables.get("bvc_access_token");
 system.runInterval(async (e) => {
   let data = [];
   let players = world.getAllPlayers();
+
+  // Only send player data if there are multiple players online
+  if (players.length <= 1) {
+    return;
+  }
+
   players.forEach((player) => {
     let p = {
       name: player.name,
