@@ -104,9 +104,6 @@ function loadAlpinePlugin(pluginName: string, plugin: any) {
     if (!window.loadedAlpinePlugins.has(pluginName)) {
         Alpine.plugin(plugin);
         window.loadedAlpinePlugins.add(pluginName);
-        console.log(`Alpine.js plugin "${pluginName}" loaded.`);
-    } else {
-        console.log(`Alpine.js plugin "${pluginName}" is already loaded.`);
     }
 }
 

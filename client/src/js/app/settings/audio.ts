@@ -26,7 +26,6 @@ export default class AudioSettings  {
             let inputDevices = Array<AudioDevice>();
             let outputDevices = Array<AudioDevice>();
 
-            console.log("Devices: ", devices);
             const deviceTypes = [
                 "WASAPI",
                 //"ASIO",
@@ -44,7 +43,6 @@ export default class AudioSettings  {
                 }
             });
 
-            document.getElementById("audio-device-select-spinner")?.classList.add("hidden");
             const currentInputDevice = await invoke<AudioDevice>("get_audio_device", { io: "InputDevice" });
             mount(selectSvelte, {
                 target: document.getElementById("input-audio-device-container")!,
@@ -76,7 +74,6 @@ export default class AudioSettings  {
 
                     let targetDevice: AudioDevice | undefined;
                     if (target.id === "input-audio-device") {
-                        console.log("input device changed {deviceName: ", deviceName);
                         inputDevices.forEach((device) => {
                             if (device.display_name === deviceName) {
                                 targetDevice = device;
@@ -90,7 +87,6 @@ export default class AudioSettings  {
                         });
                     }
 
-                    console.log("{targetDevice: ", targetDevice);
                     await invoke("set_audio_device", { device: targetDevice })
                     .then(async (result) => {
                         info(`Audio device changed to ${targetDevice?.display_name} for ${target.id}`);
@@ -101,6 +97,8 @@ export default class AudioSettings  {
                     })
                 });
             });
+
+            document.getElementById("audio-device-select-spinner")?.classList.add("hidden");
         });
 
         // Noise Gate Settings
@@ -124,7 +122,9 @@ export default class AudioSettings  {
                     value: target.checked ? "true" : "false",
                     device: "InputDevice",
                 });
+
                 document.getElementById("noise-gate-audio-controls")?.classList.toggle("hidden");
+
                 await this.store?.save();
             });
 
@@ -212,8 +212,6 @@ export default class AudioSettings  {
                         store: this.store!
                     }
                 });
-
-                container?.classList.remove("hidden");
             }
         });
     }

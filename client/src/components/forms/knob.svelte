@@ -2,6 +2,7 @@
     import type { Store } from "@tauri-apps/plugin-store";
     import { invoke } from "@tauri-apps/api/core";
     import { onMount } from "svelte";
+    import LittlePhatty from "../../../node_modules/webaudio-controls/knobs/LittlePhatty.png";
     
     export let id: string = "knob";
     export let src: string = "../../../../node_modules/webaudio-controls/knobs/LittlePhatty.png";
@@ -66,7 +67,7 @@
     class="inline-flex"
     id={id}
     valuetip=1
-    src={src}
+    src={LittlePhatty}
     value={value}
     min={min}
     max={max}

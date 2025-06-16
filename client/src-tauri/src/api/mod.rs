@@ -3,11 +3,8 @@ use log::error;
 mod channel;
 mod client;
 
-use tauri_plugin_http::reqwest::{
-    Client as ReqwestClient,
-    StatusCode,
-    header::{ HeaderMap, HeaderValue}
-};
+use reqwest::{Client as ReqwestClient, StatusCode, header::{HeaderMap, HeaderValue}};
+use std::error::Error;
 
 pub(crate) struct Api {
     endpoint: String,
@@ -22,29 +19,38 @@ impl Api {
         }
     }
 
-    async fn get_client(&self) -> ReqwestClient {
-        self.client.get_client().await
+    async fn get_client(&self, fqdn: Option<&str>) -> ReqwestClient {
+        self.client.get_client(fqdn).await
     }
 
     pub(crate) async fn ping(&self) -> Result<(), bool> {
-        let client = self.get_client().await;
+        let client = self.get_client(Some(self.endpoint.as_str())).await;
+
         let mut headers = HeaderMap::new();
         headers.insert(
             "Content-Type",
-            HeaderValue::from_str("application/json").unwrap(),
+            HeaderValue::from_static("application/json"),
         );
         headers.insert(
             "Accept",
-            HeaderValue::from_str("application/json").unwrap(),
+            HeaderValue::from_static("application/json"),
         );
 
-        match client.get(format!("{}/api/ping", self.endpoint)).headers(headers).send().await {
+        // Reconstruct full URL with resolved IP address
+        let url = format!("{}/api/ping", self.endpoint);
+
+        match client.get(url).headers(headers).send().await {
             Ok(response) => match response.status() {
                 StatusCode::OK => Ok(()),
                 _ => Err(false),
             },
             Err(e) => {
-                error!("{}", e);
+                error!("Unable to connect to BVC Server: {} {}", self.endpoint, e);
+                let mut source = e.source();
+                while let Some(cause) = source {
+                    error!("Caused by: {}", cause);
+                    source = cause.source();
+                }
                 Err(false)
             }
         }
