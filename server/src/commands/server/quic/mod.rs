@@ -546,17 +546,30 @@ pub(crate) async fn get_task(
 
             let addr: std::net::SocketAddr = format!("127.0.0.1:{}", shutdown_config.server.quic_port).parse().unwrap();
             let connect = s2n_quic::client::Connect::new(addr).with_server_name("localhost");
-            let client = s2n_quic::Client::builder().with_tls(p)
+            let client = match s2n_quic::Client::builder().with_tls(p)
                 .unwrap()
                 .with_io("0.0.0.0:0")
                 .unwrap()
-                .start()
-                .unwrap();
+                .start() {
+                    Ok(client) => Some(client),
+                    Err(e) => {
+                        tracing::warn!("QUIC Client rejected request, likely already shutdown: {:?}", e);
+                        None
+                    }
+                };
 
-            client.connect(connect)
-                .await
-                .unwrap()
-                .close(s2n_quic::application::Error::UNKNOWN.into());
+            match client {
+                Some(client) => match client.connect(connect).await {
+                    Ok(connection) => {
+                        connection.close(s2n_quic::application::Error::UNKNOWN.into());
+                    },
+                    Err(e) => {
+                        tracing::warn!("QUIC Client rejected request, likely already shutdown: {:?}", e);
+                    }
+                },
+                None => {}
+            };
+                
 
             tracing::info!("All quic threads are now forcefully shutting down.");
             return;
