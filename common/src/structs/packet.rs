@@ -101,22 +101,22 @@ impl QuicNetworkPacket {
             }
 
             // The next 8 bytes should be the packet length
-            let length = match packet.get(5..13) {
-                Some(bytes) => usize::from_be_bytes(bytes.try_into().unwrap()),
+            let length = match packet.get(5..9) {
+                Some(bytes) => u32::from_be_bytes(bytes.try_into().unwrap()) as usize,
                 None => {
                     break;
                 }
             };
 
-            if packet.len() >= length + 13 {
-                let packet_to_process = packet.get(0..length + 13).unwrap().to_vec();
+            if packet.len() >= length + 9 {
+                let packet_to_process = packet.get(0..length + 9).unwrap().to_vec();
 
-                *packet = packet.get(13 + length..packet.len()).unwrap().to_vec();
+                *packet = packet.get(9 + length..packet.len()).unwrap().to_vec();
 
                 packet.shrink_to(packet.len());
                 packet.truncate(packet.len());
 
-                match Self::from_vec(&packet_to_process[13..]) {
+                match Self::from_vec(&packet_to_process[9..]) {
                     Ok(p) => packets.push(p),
                     Err(_) => {
                         continue;
@@ -132,20 +132,24 @@ impl QuicNetworkPacket {
 
     /// Converts the packet into a parseable string
     pub fn to_vec(&self) -> Result<Vec<u8>, anyhow::Error> {
-        let mut serialized = postcard::to_stdvec(&self)?;
-        let mut header: Vec<u8> = QUICK_NETWORK_PACKET_HEADER.to_vec();
-        let mut len = (serialized.len() as u32).to_be_bytes().to_vec();
-
-        header.append(&mut len);
-        header.append(&mut serialized);
+        let payload = postcard::to_stdvec(&self)?;
+        let payload_len = payload.len();
+        const HEADER_LEN: usize = QUICK_NETWORK_PACKET_HEADER.len();
+        const LENGTH_LEN: usize = 4;
+        let total_len = HEADER_LEN + LENGTH_LEN + payload_len;
+        let mut buffer = Vec::with_capacity(total_len);
         
-        Ok(header)
+        buffer.extend_from_slice(QUICK_NETWORK_PACKET_HEADER);
+        buffer.extend_from_slice(&(payload_len as u32).to_be_bytes());
+        buffer.extend_from_slice(&payload);
+
+        Ok(buffer)
     }
 
     /// Convers a vec back into a raw packet
     pub fn from_vec(data: &[u8]) -> Result<Self, anyhow::Error> {
-        let deserialized = postcard::from_bytes(data)?;
-        Ok(deserialized)
+        postcard::from_bytes::<QuicNetworkPacket>(data)
+            .map_err(|e| anyhow!("Postcard deserialization error: {}", e))
     }
 
     /// Returns the packet type
