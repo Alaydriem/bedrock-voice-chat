@@ -9,6 +9,7 @@ use std::{fs::File, io::BufReader, path::Path};
 use tokio::io::AsyncWriteExt;
 use hound;
 use std::io::BufWriter;
+use std::mem::size_of;
 
 struct Spiral {
     theta: f32, // Angle in degrees

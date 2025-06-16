@@ -69,3 +69,4 @@ s2n-quic = { version = "^1.52.0", default-features = false, features = [
 ] }
 
 rodio = { version = "^0.20" }
+postcard = { version = "^1.1", features = [ "use-std", "postcard-derive" ] }
