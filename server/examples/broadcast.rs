@@ -1,6 +1,7 @@
 use common::structs::packet::AudioFramePacket;
 use common::structs::packet::PacketType;
 use common::structs::packet::QuicNetworkPacket;
+use common::structs::packet::SampleRate;
 use rodio::Decoder;
 use s2n_quic::{client::Connect, Client};
 use std::time::Duration;
@@ -172,6 +173,8 @@ async fn client(
     }));
 
     tasks.push(tokio::spawn(async move {
+
+        let start_time = std::time::Instant::now();
         // Windows has a sleep resolution time of ~15.6ms, which is much longer than the 5-9ms it takes to generate a "real" packet
         // This simulates the slow generation without generating packets in us time.
         windows_targets::link!("winmm.dll" "system" fn timeBeginPeriod(uperiod: u32) -> u32);
@@ -207,6 +210,9 @@ async fn client(
             }
             total_chunks = total_chunks + 480;
             let s = encoder.encode_vec(chunk, chunk.len() * 4).unwrap();
+            let elapsed = std::time::Instant::now().duration_since(start_time);
+            let frame_counter = elapsed.as_millis() / 20;
+
             let packet = QuicNetworkPacket {
                 owner: Some(common::structs::packet::PacketOwner {
                     name: id.clone(),
@@ -215,9 +221,9 @@ async fn client(
                 packet_type: common::structs::packet::PacketType::AudioFrame,
                 data: common::structs::packet::QuicNetworkPacketData::AudioFrame(
                     common::structs::packet::AudioFramePacket {
-                        length: s.len(),
+                        frame_counter: frame_counter as u32,
                         data: s.clone(),
-                        sample_rate: 48000,
+                        sample_rate: SampleRate::Hz48000,
                         coordinate: None,
                         orientation: None,
                         dimension: Some(common::Dimension::Overworld),

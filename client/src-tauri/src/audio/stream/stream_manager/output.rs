@@ -459,7 +459,7 @@ impl OutputStream {
                         owner: owner.clone(),
                         buffer: SamplesBuffer::<f32>::new(
                             2, // is this _always_ a mono channel? Shouldn't this be stero sometimes too?
-                            data.sample_rate,
+                            data.sample_rate.into(),
                             out
                         ),
                         coordinate: data.coordinate,

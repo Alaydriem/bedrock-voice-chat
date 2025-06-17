@@ -46,7 +46,8 @@ pub(crate) struct InputStream {
     shutdown: Arc<AtomicBool>,
     pub metadata: Arc<moka::future::Cache<String, String>>,
     #[allow(unused)]
-    app_handle: tauri::AppHandle
+    app_handle: tauri::AppHandle,
+    start_time: std::time::Instant,
 }
 
 impl super::StreamTrait for InputStream {
@@ -147,7 +148,8 @@ impl InputStream {
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),
             metadata,
-            app_handle: app_handle.clone()
+            app_handle: app_handle.clone(),
+            start_time: std::time::Instant::now(),
         }
     }
 
@@ -342,6 +344,7 @@ impl InputStream {
         match self.device.clone() {
             Some(device) => match device.get_stream_config() {
                 Ok(config) => {
+                    let start_time = self.start_time.clone();
                     let device_config = rodio::cpal::StreamConfig {
                         channels: match config.channels() {
                             1 => 1,
@@ -406,14 +409,17 @@ impl InputStream {
                                             _ => continue, // Skip if encoding failed or insufficient data
                                         };
 
+                                        let elapsed = std::time::Instant::now().duration_since(start_time);
+                                        let frame_counter = elapsed.as_millis() / 20;
+
                                         let packet = NetworkPacket {
                                             data: QuicNetworkPacket {
                                                 packet_type: common::structs::packet::PacketType::AudioFrame,
                                                 owner: None, // This will be populated on the network side
                                                 data: QuicNetworkPacketData::AudioFrame(AudioFramePacket {
-                                                    length: encoded_data.len(),
+                                                    frame_counter: frame_counter as u32,
                                                     data: encoded_data.clone(),
-                                                    sample_rate: device_config.sample_rate.0,
+                                                    sample_rate: common::structs::packet::SampleRate::Hz48000, //device_config.sample_rate.0,
                                                     coordinate: None,
                                                     orientation: None,
                                                     dimension: None,

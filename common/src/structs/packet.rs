@@ -393,11 +393,35 @@ impl TryFrom<QuicNetworkPacketData> for CollectionPacket {
     }
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub enum SampleRate {
+    Hz48000
+}
+
+impl From<SampleRate> for u32 {
+    fn from(sr: SampleRate) -> u32 {
+        match sr {
+            SampleRate::Hz48000 => 48000,
+        }
+    }
+}
+
+impl TryFrom<u32> for SampleRate {
+    type Error = ();
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        match value {
+            48000 => Ok(SampleRate::Hz48000),
+            _ => Err(()),
+        }
+    }
+}
+
 /// A single, Opus encoded audio frame
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AudioFramePacket {
-    pub length: usize,
-    pub sample_rate: u32,
+    pub frame_counter: u32,
+    pub sample_rate: SampleRate,
     pub data: Vec<u8>,
     pub coordinate: Option<Coordinate>,
     pub orientation: Option<Orientation>,
