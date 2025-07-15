@@ -22,7 +22,7 @@ pub enum Dimension {
     Overworld,
     #[serde(rename = "the_end")]
     TheEnd,
-    #[serde(rename = "the_nether")]
+    #[serde(rename = "nether")]
     TheNether,
 }
 
