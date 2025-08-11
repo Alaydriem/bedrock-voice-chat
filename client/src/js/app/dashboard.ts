@@ -13,6 +13,9 @@ import Hold from './hold.ts';
 import Sidebar from "./components/dashboard/sidebar.ts";
 
 import Notification from "../../components/events/Notification.svelte";
+import PlayerPresence from "../../components/events/PlayerPresence.svelte";
+import type { NoiseGateSettings } from '../bindings/NoiseGateSettings.ts';
+import type { PlayerGainStore } from '../bindings/PlayerGainStore.ts';
 
 declare global {
   interface Window {
@@ -27,7 +30,7 @@ export default class Dashboard extends App {
     async initialize() {
         const appWebview = getCurrentWebviewWindow();
         appWebview.once('notification', (event: { payload?: { title?: string, body?: string, level?: string } }) => {
-            info(`Notification received: ${event.payload}`);
+            info(`Notification received: ${JSON.stringify(event.payload)}`);
             mount(Notification, {
                 target: document.querySelector("#notification-container")!,
                 props: {
@@ -36,6 +39,18 @@ export default class Dashboard extends App {
                     level: event.payload?.level || "info"
                 }
             });
+        });
+
+        appWebview.once("player_presence", (event: { payload?: { player?: string } }) => {
+            info(`Player presence event received: ${event.payload}`);
+            if (event.payload?.player) {
+                mount(PlayerPresence, {
+                    target: document.querySelector("#player-presence-container")!,
+                    props: {
+                        player: event.payload.player
+                    }
+                });
+            }
         });
 
         document.querySelector("#sidebar-toggle")?.addEventListener("click", (e) => {
@@ -105,13 +120,7 @@ export default class Dashboard extends App {
                     useNoiseGate = false;
                 }
 
-                let noiseGateSettings = await store.get("noise_gate_settings") as { 
-                    open_threshold: number,
-                    close_threshold: number,
-                    release_rate: number,
-                    attack_rate: number,
-                    hold_time: number
-                } | null;
+                let noiseGateSettings = await store.get("noise_gate_settings") as NoiseGateSettings | null;
 
                 if (noiseGateSettings == null) {
                     await store.set("noise_gate_settings", {
@@ -122,13 +131,7 @@ export default class Dashboard extends App {
                         hold_time: 150.0
                     });
                     await store.save();
-                    noiseGateSettings = await store.get("noise_gate_settings") as { 
-                        open_threshold: number,
-                        close_threshold: number,
-                        release_rate: number,
-                        attack_rate: number,
-                        hold_time: number
-                    } | null;
+                    noiseGateSettings = await store.get("noise_gate_settings") as NoiseGateSettings | null;
                 }
 
                 // Set the noise gate
@@ -142,6 +145,20 @@ export default class Dashboard extends App {
                     key: "noise_gate_settings",
                     value: JSON.stringify(noiseGateSettings),
                     device: "InputDevice"
+                });
+
+                // Update the player gain metadata
+                let playerGainStore = await store.get("player_gain_store") as PlayerGainStore | null;
+                if (!playerGainStore || typeof playerGainStore !== "object" || Array.isArray(playerGainStore)) {
+                    playerGainStore = {};
+                    await store.set("player_gain_store", playerGainStore);
+                    await store.save();
+                }
+
+                await invoke("update_stream_metadata", {
+                    key: "player_gain_store",
+                    value: JSON.stringify(playerGainStore),
+                    device: "OutputDevice"
                 });
 
                 await this.changeNetworkStream(currentServer, credentials);

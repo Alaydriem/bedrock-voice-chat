@@ -2,14 +2,16 @@ use crate::AudioPacket;
 use crate::audio::types::{AudioDevice, BUFFER_SIZE};
 use common::{
     structs::{
+        audio::{
+            PlayerGainSettings,
+            PlayerGainStore
+        },
         packet::{AudioFramePacket, PacketOwner, PacketType, PlayerDataPacket, QuicNetworkPacket}
     }, Coordinate, Orientation, Player
 };
 use base64::{engine::general_purpose, Engine as _};
 use log::{error, info, warn};
-use rodio::{
-    buffer::SamplesBuffer, Sink, SpatialSink
-};
+use rodio::{buffer::SamplesBuffer, Sink, SpatialSink};
 use std::{
     sync::{
         atomic::{
@@ -28,10 +30,16 @@ use tokio::task::{AbortHandle, JoinHandle};
 use moka::future::Cache;
 use anyhow::anyhow;
 use tauri::async_runtime::Mutex;
-
+use tauri::Emitter;
 use once_cell::sync::Lazy;
 
 static MUTE_OUTPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
+
+static PLAYER_ATTENUATION_SETTINGS: Lazy<std::sync::Mutex<serde_json::Value>> = Lazy::new(|| {
+    std::sync::Mutex::new(serde_json::to_value(PlayerGainStore::default()).expect("Failed to serialize PlayerGainStore"))
+});
+
+static UPDATE_PLAYER_ATTENUATION_SETTINGS: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 
 use super::sink_manager::SinkManager;
 
@@ -76,7 +84,8 @@ pub(crate) struct OutputStream {
     shutdown: Arc<AtomicBool>,
     pub metadata: Arc<Cache<String, String>>,
     #[allow(unused)]
-    app_handle: tauri::AppHandle
+    app_handle: tauri::AppHandle,
+    player_presence: Arc<moka::sync::Cache<String, bool>>
 }
 
 impl super::StreamTrait for OutputStream {
@@ -84,6 +93,32 @@ impl super::StreamTrait for OutputStream {
         match key.as_str() {
             "mute" => {
                 self.mute();
+            },
+            "player_gain_store" => {
+                match serde_json::from_str::<PlayerGainStore>(&value) {
+                    Ok(settings) => {
+                        let mut lock_settings = PLAYER_ATTENUATION_SETTINGS.lock().unwrap();
+                        *lock_settings = serde_json::to_value(settings).expect("Failed to serialize PlayerGainStore");
+                        UPDATE_PLAYER_ATTENUATION_SETTINGS.store(true, Ordering::Relaxed);
+                        drop(lock_settings);
+                    },
+                    Err(e) => {
+                        error!("Failed to parse PlayerGainStore: {:?}", e);
+                    }
+                };
+                info!("Player gain store updated.");
+            },
+            "player_presence" => {
+                if !self.player_presence.contains_key(&value) {
+                    self.app_handle.emit(
+                        crate::events::event::player_presence::PLAYER_PRESENCE,
+                        crate::events::event::player_presence::Presence::new(
+                            value.clone(),
+                            "online".to_string()
+                    )).unwrap();
+                }
+                
+                self.player_presence.insert(value.clone(), true);
             },
             _ => self.metadata.insert(key.clone(), value.clone()).await
         };
@@ -169,7 +204,10 @@ impl OutputStream {
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),
             metadata,
-            app_handle: app_handle.clone()
+            app_handle: app_handle.clone(),
+            player_presence: Arc::new(moka::sync::Cache::builder()
+                .time_to_idle(Duration::from_secs(3 * 60))
+                .build())
         }
     }
     
@@ -277,6 +315,8 @@ impl OutputStream {
                             
                             let mut sink_manager = SinkManager::new(&handle);
     
+                            let mut player_gain_store_settings: PlayerGainStore = PlayerGainStore::default();
+                            
                             // Iterate over the incoming PCM data
                             #[allow(irrefutable_let_patterns)]
                             while let packet = consumer.recv() {
@@ -292,6 +332,22 @@ impl OutputStream {
                                     drop(sink_manager);
                                     warn!("{} {} ended.", device.io.to_string(), device.display_name);
                                     break;
+                                }
+
+                                // If the player attentuation settings are updated, reparse them
+                                if UPDATE_PLAYER_ATTENUATION_SETTINGS.load(Ordering::Relaxed) {
+                                    let current_settings = PLAYER_ATTENUATION_SETTINGS.lock().unwrap();
+                                    match serde_json::from_value::<PlayerGainStore>(current_settings.clone()) {
+                                        Ok(settings) => {
+                                            player_gain_store_settings = settings;
+                                        },
+                                        Err(e) => {
+                                            error!("Failed to parse PlayerGainStore: {:?}", e);
+                                        }
+                                    };
+                                    
+                                    UPDATE_PLAYER_ATTENUATION_SETTINGS.store(false, Ordering::Relaxed);
+                                    drop(current_settings)
                                 }
     
                                 match packet {
@@ -314,7 +370,20 @@ impl OutputStream {
                                         if current_player.is_none() {
                                             continue;
                                         }
-    
+                                        
+                                        let player_gain_settings: PlayerGainSettings = match player_gain_store_settings.0.get(&source) {
+                                            Some(settings) => settings.clone(),
+                                            None => PlayerGainSettings {
+                                                gain: 1.0,
+                                                muted: false
+                                            }
+                                        };
+
+                                        // If the source is muted, ignore the packet entirely
+                                        if player_gain_settings.muted {
+                                            continue;
+                                        }
+
                                         let is_spatial = match packet.spatial {
                                             Some(spatial) => spatial,
                                             None => false
@@ -360,7 +429,9 @@ impl OutputStream {
                                                             sink.set_emitter_position([spatial.emitter.x, spatial.emitter.y, spatial.emitter.z]);
                                                             sink.set_left_ear_position([spatial.left_ear.x, spatial.left_ear.y, spatial.left_ear.z]);
                                                             sink.set_right_ear_position([spatial.right_ear.x, spatial.right_ear.y, spatial.right_ear.z]);
-                                                            sink.set_volume(spatial.gain);
+
+                                                            // Get player attenuation (default to 1.0 if not set) and adjust the volume of the sink
+                                                            sink.set_volume(spatial.gain * player_gain_settings.gain);
 
                                                             sink.append(packet.buffer);
                                                         },
@@ -379,8 +450,8 @@ impl OutputStream {
                                                 let sink: Result<Arc<Sink>, ()> = sink.try_into();
                                                 match sink {
                                                     Ok(sink) => {
-                                                        // @todo: We need to pull down any player customizable attenuation
-                                                        sink.set_volume(1.3);
+                                                        // Get player attenuation (default to 1.0 if not set) and adjust the volume of the sink
+                                                        sink.set_volume(1.3 * player_gain_settings.gain);
                                                         sink.append(packet.buffer);
                                                     },
                                                     Err(_) => {}

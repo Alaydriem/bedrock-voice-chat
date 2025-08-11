@@ -75,7 +75,7 @@ impl super::StreamTrait for InputStream {
             drop(stream);
         }));
 
-        _ = app_handle.emit(crate::events::EVENT_NOTIFICATION, crate::events::Notification::new(
+        _ = app_handle.emit(crate::events::event::notification::EVENT_NOTIFICATION, crate::events::event::notification::Notification::new(
             "Network Stream Stopped".to_string(),
             "The input network stream has been stopped.".to_string(),
             Some("warn".to_string()),

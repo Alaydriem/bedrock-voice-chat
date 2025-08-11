@@ -6,7 +6,6 @@ use log::{error, warn};
 use opus::Bitrate;
 use rodio::cpal::traits::StreamTrait;
 use rodio::DeviceTrait;
-use serde::{Deserialize, Serialize};
 use std::{sync::{
     atomic::{AtomicBool, Ordering}, mpsc::{self, Receiver, SyncSender}, Arc, Mutex
 }, time::Duration};
@@ -14,15 +13,7 @@ use tokio::task::{AbortHandle, JoinHandle};
 use crate::{audio::stream::stream_manager::AudioFrameData, NetworkPacket};
 use super::AudioFrame;
 use once_cell::sync::Lazy;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct NoiseGateSettings {
-    open_threshold: f32,
-    close_threshold: f32,
-    release_rate: f32,
-    attack_rate: f32,
-    hold_time: f32
-}
+use common::structs::audio::NoiseGateSettings;
 
 /// Indicator for if the Input Stream should be muted
 /// If this i
@@ -30,13 +21,7 @@ static MUTE_INPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false)
 static USE_NOISE_GATE: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 static UPDATE_NOISE_GATE_SETTINGS: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 static NOISE_GATE_SETTINGS: Lazy<Mutex<serde_json::Value>> = Lazy::new(|| {
-    Mutex::new(serde_json::to_value(NoiseGateSettings {
-        open_threshold: -36.0,
-        close_threshold: -56.0,
-        release_rate: 150.0,
-        attack_rate: 5.0,
-        hold_time: 150.0
-    }).expect("Failed to serialize NoiseGateSettings"))
+    Mutex::new(serde_json::to_value(NoiseGateSettings::default()).expect("Failed to serialize NoiseGateSettings"))
 });
 
 pub(crate) struct InputStream {
@@ -175,13 +160,7 @@ impl InputStream {
                             let settings = NOISE_GATE_SETTINGS.lock().unwrap();
                             let noise_gate_settings = match serde_json::from_value::<NoiseGateSettings>(settings.clone()) {
                                 Ok(settings) => settings,
-                                Err(_) => NoiseGateSettings {
-                                    open_threshold: -36.0,
-                                    close_threshold: -56.0,
-                                    release_rate: 150.0,
-                                    attack_rate: 5.0,
-                                    hold_time: 150.0
-                                }
+                                Err(_) => NoiseGateSettings::default()
                             };
 
                             let mut gate = NoiseGate::new(

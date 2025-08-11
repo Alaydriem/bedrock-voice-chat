@@ -207,7 +207,10 @@ pub(crate) async fn get_task(
                                                                         message_queue.push(
                                                                             raw_network_packet
                                                                         ).await;
-                                                                }
+                                                                },
+                                                                PacketType::Debug => {
+                                                                    // Do nothing for debug packets
+                                                                },
                                                                 _ => {
                                                                     tracing::warn!(
                                                                         "Received packet with unsupported type: {:?}",

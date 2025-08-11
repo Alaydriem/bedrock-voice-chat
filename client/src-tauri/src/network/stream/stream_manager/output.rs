@@ -97,7 +97,7 @@ impl super::StreamTrait for OutputStream {
                                         if let Err(e) = stream.write_all(&reader).await {
                                             error_count += 1;
                                             if error_count == 100 {
-                                                _ = app_handle.emit(crate::events::EVENT_NOTIFICATION, crate::events::Notification::new(
+                                                _ = app_handle.emit(crate::events::event::notification::EVENT_NOTIFICATION, crate::events::event::notification::Notification::new(
                                                     "High Network Stream Errors!".to_string(),
                                                     "BVC is currently having difficulties connecting to the server. Audio packets may be delayed or out of sync. A restart is recommended.".to_string(),
                                                     Some("error".to_string()),
@@ -126,7 +126,7 @@ impl super::StreamTrait for OutputStream {
                 }
             }
 
-            _ = app_handle.emit(crate::events::EVENT_NOTIFICATION, crate::events::Notification::new(
+            _ = app_handle.emit(crate::events::event::notification::EVENT_NOTIFICATION, crate::events::event::notification::Notification::new(
                 "Network Stream Stopped".to_string(),
                 "The output network stream has been stopped.".to_string(),
                 Some("warn".to_string()),
