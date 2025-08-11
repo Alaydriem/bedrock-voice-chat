@@ -36,7 +36,7 @@ impl NetworkStreamManager {
                 None,
                 app_handle.clone()
             )),
-            output:  StreamTraitType::Output(stream_manager::OutputStream::new(
+            output: StreamTraitType::Output(stream_manager::OutputStream::new(
                 consumer.clone(),
                 None,
                 None,
