@@ -10,6 +10,7 @@ pub mod consts;
 pub mod request;
 pub mod rustls;
 pub mod structs;
+pub mod traits;
 
 extern crate rocket;
 

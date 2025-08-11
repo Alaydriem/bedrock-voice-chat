@@ -4,7 +4,7 @@ use crate::audio::types::{AudioDevice, BUFFER_SIZE};
 use common::structs::packet::{AudioFramePacket, QuicNetworkPacket, QuicNetworkPacketData};
 use log::{error, warn};
 use opus::Bitrate;
-use rodio::cpal::traits::StreamTrait;
+use rodio::cpal::traits::StreamTrait as CpalStreamTrait;
 use rodio::DeviceTrait;
 use std::{sync::{
     atomic::{AtomicBool, Ordering}, mpsc::{self, Receiver, SyncSender}, Arc, Mutex
@@ -34,7 +34,7 @@ pub(crate) struct InputStream {
     app_handle: tauri::AppHandle
 }
 
-impl super::StreamTrait for InputStream {
+impl common::traits::StreamTrait for InputStream {
     async fn metadata(&mut self, key: String, value: String) -> Result<(), anyhow::Error> {
         log::info!("Setting metadata for input stream: {} = {}", key, value);
         match key.as_str() {
@@ -85,7 +85,7 @@ impl super::StreamTrait for InputStream {
         Ok(())
     }
 
-    fn is_stopped(&mut self) -> bool {
+    fn is_stopped(&self) -> bool {
         self.jobs.len() == 0
     }
 

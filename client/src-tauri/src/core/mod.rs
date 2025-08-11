@@ -1,2 +1,1 @@
-mod stream_trait;
-pub(crate) use stream_trait::StreamTrait;
+// StreamTrait moved to common::traits::StreamTrait
