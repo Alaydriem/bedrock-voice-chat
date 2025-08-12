@@ -389,15 +389,14 @@ impl InputStream {
                                             data: QuicNetworkPacket {
                                                 packet_type: common::structs::packet::PacketType::AudioFrame,
                                                 owner: None, // This will be populated on the network side
-                                                data: QuicNetworkPacketData::AudioFrame(AudioFramePacket {
-                                                    length: encoded_data.len(),
-                                                    data: encoded_data.clone(),
-                                                    sample_rate: device_config.sample_rate.0,
-                                                    coordinate: None,
-                                                    orientation: None,
-                                                    dimension: None,
-                                                    spatial: None
-                                                })
+                                                data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
+                                                    encoded_data.clone(),
+                                                    device_config.sample_rate.0,
+                                                    None,
+                                                    None,
+                                                    None,
+                                                    None
+                                                ))
                                             }
                                         };
 

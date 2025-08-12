@@ -54,11 +54,16 @@ impl QuicNetworkPacket {
         let mut packets = Vec::<QuicNetworkPacket>::new();
 
         // If we didn't get anything we can return immediately
-        if packet.len() == 0 {
+        if packet.is_empty() {
             return Ok(packets);
         }
 
         loop {
+            // Need at least 5 bytes for magic header
+            if packet.len() < 5 {
+                break;
+            }
+            
             // The first 5 bytes of the packet should always be the magic header we use to indicate a new packet has started
             // If these bytes don't match the magic header, then rip them off the packet and try again
             // If we don't get any bytes from this then the packet is malformed, and we need more data
@@ -75,21 +80,14 @@ impl QuicNetworkPacket {
                         {
                             Some(position) => {
                                 // Reset the packet to the starting point of the magic packet header
-                                *packet = packet.get(position..packet.len()).unwrap().to_vec();
-
-                                packet.shrink_to(packet.len());
-                                packet.truncate(packet.len());
-
+                                packet.drain(0..position);
                                 // Try to continue
                                 continue;
                             }
                             None => {
                                 // If this happens we have a bunch of random data without a magic packet.
                                 // We should reset the buffer because we can't do anything with this
-                                *packet = Vec::new();
-
-                                packet.shrink_to(packet.len());
-                                packet.truncate(packet.len());
+                                packet.clear();
                                 break;
                             }
                         }
@@ -100,30 +98,31 @@ impl QuicNetworkPacket {
                 }
             }
 
-            // The next 8 bytes should be the packet length
-            let length = match packet.get(5..9) {
-                Some(bytes) => u32::from_be_bytes(bytes.try_into().unwrap()) as usize,
-                None => {
-                    break;
-                }
+            // Parse variable-length packet size (starts at byte 5)
+            let (payload_len, length_size) = match crate::encoding::decode_varint_u32(&packet[5..]) {
+                Ok((len, size)) => (len as usize, size),
+                Err(_) => break, // Need more data to parse length
             };
 
-            if packet.len() >= length + 9 {
-                let packet_to_process = packet.get(0..length + 9).unwrap().to_vec();
+            let header_size = 5 + length_size;  // magic header + varint length
+            let total_packet_size = header_size + payload_len;
 
-                *packet = packet.get(9 + length..packet.len()).unwrap().to_vec();
+            if packet.len() >= total_packet_size {
+                // We have a complete packet - extract payload before draining
+                let payload_data = packet[header_size..total_packet_size].to_vec();
+                
+                // Remove this packet from buffer
+                packet.drain(0..total_packet_size);
 
-                packet.shrink_to(packet.len());
-                packet.truncate(packet.len());
-
-                match Self::from_vec(&packet_to_process[9..]) {
+                // Parse the payload
+                match Self::from_vec(&payload_data) {
                     Ok(p) => packets.push(p),
                     Err(_) => {
-                        continue;
+                        continue; // Skip malformed packets
                     }
                 };
             } else {
-                break;
+                break; // Need more data
             }
         }
 
@@ -132,16 +131,15 @@ impl QuicNetworkPacket {
 
     /// Converts the packet into a parseable string
     pub fn to_vec(&self) -> Result<Vec<u8>, anyhow::Error> {
+        // Postcard handles AudioFramePacket efficiently with pre-encoded fields
         let payload = postcard::to_stdvec(&self)?;
-        let payload_len = payload.len();
-        const HEADER_LEN: usize = QUICK_NETWORK_PACKET_HEADER.len();
-        const LENGTH_LEN: usize = 4;
-        let total_len = HEADER_LEN + LENGTH_LEN + payload_len;
-        let mut buffer = Vec::with_capacity(total_len);
         
+        let mut buffer = Vec::new();
         buffer.extend_from_slice(QUICK_NETWORK_PACKET_HEADER);
-        buffer.extend_from_slice(&(payload_len as u32).to_be_bytes());
-        buffer.extend_from_slice(&payload);
+        
+        // Use varint encoding for packet length (major space savings)
+        buffer.extend(crate::encoding::encode_varint_u32(payload.len() as u32));
+        buffer.extend(payload);
 
         Ok(buffer)
     }
@@ -396,9 +394,18 @@ impl TryFrom<QuicNetworkPacketData> for CollectionPacket {
 /// A single, Opus encoded audio frame
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AudioFramePacket {
-    pub length: usize,
+    // Store pre-encoded zigzag+varint bytes for efficient serialization
+    #[serde(with = "serde_bytes")]
+    encoded_length: Vec<u8>,    // zigzag+varint encoded i32
+    
+    #[serde(with = "serde_bytes")] 
+    encoded_timestamp: Vec<u8>, // zigzag+varint encoded i64
+    
     pub sample_rate: u32,
+    
+    #[serde(with = "serde_bytes")]
     pub data: Vec<u8>,
+    
     pub coordinate: Option<Coordinate>,
     pub orientation: Option<Orientation>,
     pub dimension: Option<Dimension>,
@@ -413,6 +420,63 @@ impl TryFrom<QuicNetworkPacketData> for AudioFramePacket {
             QuicNetworkPacketData::AudioFrame(c) => Ok(c),
             _ => Err(()),
         }
+    }
+}
+
+impl AudioFramePacket {
+    /// Create a new AudioFramePacket with automatic timestamp and length encoding
+    pub fn new(
+        data: Vec<u8>,
+        sample_rate: u32,
+        coordinate: Option<Coordinate>,
+        orientation: Option<Orientation>,
+        dimension: Option<Dimension>,
+        spatial: Option<bool>
+    ) -> Self {
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as i64;
+            
+        let length = data.len() as i32;
+        
+        Self {
+            encoded_length: crate::encoding::encode_zigzag_varint_i32(length),
+            encoded_timestamp: crate::encoding::encode_zigzag_varint_i64(timestamp),
+            sample_rate,
+            data,
+            coordinate,
+            orientation,
+            dimension,
+            spatial
+        }
+    }
+    
+    /// Get the decoded length value
+    pub fn length(&self) -> i32 {
+        crate::encoding::decode_zigzag_varint_i32(&self.encoded_length)
+            .unwrap_or((0, 0)).0
+    }
+    
+    /// Get the decoded timestamp value (Unix timestamp in milliseconds)
+    pub fn timestamp(&self) -> i64 {
+        crate::encoding::decode_zigzag_varint_i64(&self.encoded_timestamp)
+            .unwrap_or((0, 0)).0
+    }
+    
+    /// Get the actual data length (convenience method)
+    pub fn data_len(&self) -> usize {
+        self.data.len()
+    }
+    
+    /// Get the size of the encoded length field (for space analysis)
+    pub fn encoded_length_size(&self) -> usize {
+        self.encoded_length.len()
+    }
+    
+    /// Get the size of the encoded timestamp field (for space analysis)
+    pub fn encoded_timestamp_size(&self) -> usize {
+        self.encoded_timestamp.len()
     }
 }
 

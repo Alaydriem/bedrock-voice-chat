@@ -214,19 +214,18 @@ async fn client(
                 }),
                 packet_type: common::structs::packet::PacketType::AudioFrame,
                 data: common::structs::packet::QuicNetworkPacketData::AudioFrame(
-                    common::structs::packet::AudioFramePacket {
-                        length: s.len(),
-                        data: s.clone(),
-                        sample_rate: 48000,
-                        coordinate: Some(common::Coordinate {
+                    common::structs::packet::AudioFramePacket::new(
+                        s.clone(),
+                        48000,
+                        Some(common::Coordinate {
                             x: 335.0,
                             y: 78.0,
                             z: -689.0,
                         }),
-                        orientation: None,
-                        dimension: Some(common::Dimension::Overworld),
-                        spatial: None
-                    },
+                        None,
+                        Some(common::Dimension::Overworld),
+                        None
+                    ),
                 ),
             };
 

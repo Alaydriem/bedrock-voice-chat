@@ -70,3 +70,6 @@ s2n-quic = { version = "^1.52.0", default-features = false, features = [
 
 rodio = { version = "^0.20" }
 postcard = { version = "^1.1", features = [ "use-std", "postcard-derive" ] }
+residua-zigzag = { version = "^0.1", package = "residua-zigzag" }
+leb128 = { version = "^0.2" }
+serde_bytes = { version = "^0.11" }

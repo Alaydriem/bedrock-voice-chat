@@ -1145,6 +1145,7 @@ dependencies = [
  "blake3",
  "dyn-clone",
  "erased-serde",
+ "leb128",
  "moka",
  "nanoid",
  "ncryptf-rs",
@@ -1152,6 +1153,7 @@ dependencies = [
  "rand 0.9.1",
  "rcgen",
  "reqwest 0.12.20",
+ "residua-zigzag",
  "rocket",
  "rocket_db_pools",
  "rocket_dyn_templates",
@@ -1162,6 +1164,7 @@ dependencies = [
  "sea-orm",
  "sea-orm-rocket",
  "serde",
+ "serde_bytes",
  "serde_json",
  "tokio",
  "tracing",
@@ -3503,6 +3506,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
+name = "leb128"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "884e2677b40cc8c339eaefcb701c32ef1fd2493d71118dc0ca4b6a736c93bd67"
+
+[[package]]
 name = "lewton"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5774,6 +5783,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "residua-zigzag"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b37805477eee599a61753230f511ae94d737f69b536e468e294723ad5f1b75f"
+
+[[package]]
 name = "resolv-conf"
 version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6555,6 +6570,15 @@ dependencies = [
  "erased-serde",
  "serde",
  "typeid",
+]
+
+[[package]]
+name = "serde_bytes"
+version = "0.11.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8437fd221bde2d4ca316d61b90e337e9e702b3820b87d63caa9ba6c02bd06d96"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
