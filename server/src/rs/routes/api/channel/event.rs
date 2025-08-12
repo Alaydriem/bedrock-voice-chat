@@ -7,6 +7,7 @@ use common::structs::{
         ChannelEventPacket, PacketOwner, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
     },
 };
+use crate::stream::quic::WebhookReceiver;
 use rocket::{http::Status, mtls::Certificate, response::status, serde::json::Json, State};
 
 use moka::future::Cache;
@@ -19,7 +20,7 @@ pub async fn channel_event<'r>(
         Arc<async_mutex::Mutex<Cache<String, common::structs::channel::Channel>>>,
     >,
     id: &str,
-    queue: &State<Arc<deadqueue::limited::Queue<QuicNetworkPacket>>>,
+    webhook_receiver: &State<WebhookReceiver>,
     event: Json<ChannelEvent>,
 ) -> status::Custom<Option<Json<bool>>> {
     let user = match identity.subject().common_name() {
@@ -64,7 +65,9 @@ pub async fn channel_event<'r>(
         }),
     };
 
-    _ = queue.push(packet).await;
+    if let Err(e) = webhook_receiver.send_packet(packet).await {
+        tracing::error!("Failed to send packet to QUIC server: {}", e);
+    }
 
     return status::Custom(Status::Ok, Some(Json(true)));
 }

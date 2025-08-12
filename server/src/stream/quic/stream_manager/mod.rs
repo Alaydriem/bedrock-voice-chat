@@ -1,5 +1,5 @@
-pub(crate) enum StreamTraitType {
-    QuicListener(QuicListener),
-    CacheManager(CacheManager),
-    WebhookReceiver(WebhookReceiver)
-}
+mod input;
+mod output;
+
+pub(crate) use input::InputStream;
+pub(crate) use output::OutputStream;

@@ -2,7 +2,6 @@ use crate::commands::Config as StateConfig;
 
 use anyhow::anyhow;
 use clap::Parser;
-use common::structs::packet::QuicNetworkPacket;
 use rcgen::{
     CertificateParams, DistinguishedName, ExtendedKeyUsagePurpose, IsCa, KeyPair, KeyUsagePurpose,
 };
@@ -16,10 +15,7 @@ use std::{fs::File, io::Write, path::Path, process::exit};
 use tracing::info;
 use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
 use tracing_subscriber::fmt::SubscriberBuilder;
-pub(crate) mod quic;
-mod web;
 
-const DEADQUEUE_SIZE: usize = 10_000;
 /// Starts the BVC Server
 #[derive(Debug, Parser, Clone)]
 #[clap(author, version, about, long_about = None)]
@@ -83,43 +79,39 @@ impl Config {
                 .build(),
         ));
 
-        // The deadqueue is our primary way of sending messages to the QUIC stream to broadcast to clients
-        // without needing to setup a new stream.
-        // The QUIC server polls this queue and is configured to handle inbound packets and advertise them
-        // To the appropriate clients
-        let queue = Arc::new(deadqueue::limited::Queue::<QuicNetworkPacket>::new(
-            DEADQUEUE_SIZE,
-        ));
+        // QUIC server manager is our main entry point - it should run until shutdown
+        let mut quic_manager = crate::stream::quic::QuicServerManager::new(cfg.config.clone());
+        let webhook_receiver = quic_manager.get_webhook_receiver().clone();
+        let cache_manager = quic_manager.get_cache_manager();
+        
+        // Create Rocket manager
+        let rocket_manager = crate::rs::manager::RocketManager::new(
+            cfg.config.clone(),
+            webhook_receiver,
+            channel_cache.clone(),
+            cache_manager,
+        );
 
-        let mut tasks = Vec::new();
-
-        // Task for Rocket https API
-        // The API handles player positioning data from the game/source, and various non-streaming events
-        // such as channel creation, or anything else that may require a "broadcast".
-        let rocket_task = web::get_task(&cfg.config.clone(), queue.clone(), channel_cache.clone());
-        tasks.push(rocket_task);
-
-        // Tasks for the QUIC streaming server
-        // The QUIC server handles broadcasting of messages and raw packets to clients
-        // This includes audio frame, player positioning data, and more.
-        match quic::get_task(&cfg.config.clone(), queue.clone(), channel_cache.clone()).await {
-            Ok(t) => {
-                for task in t {
-                    tasks.push(task);
+        // QUIC manager start() should be our main blocking entry point
+        // It runs until SIGTERM and manages all QUIC connections, including Rocket
+        tokio::select! {
+            result = quic_manager.start() => {
+                match result {
+                    Ok(_) => tracing::info!("QUIC server stopped normally"),
+                    Err(e) => tracing::error!("QUIC server error: {}", e),
                 }
             }
-            Err(e) => {
-                panic!(
-                    "Something went wrong setting up the QUIC server {}",
-                    e.to_string()
-                );
+            result = rocket_manager.start() => {
+                match result {
+                    Ok(_) => tracing::info!("Rocket server stopped normally"),
+                    Err(e) => tracing::error!("Rocket server error: {}", e),
+                }
             }
-        }
-
-        for task in tasks {
-            #[allow(unused_must_use)]
-            {
-                task.await;
+            _ = tokio::signal::ctrl_c() => {
+                tracing::info!("Received SIGTERM, shutting down...");
+                if let Err(e) = quic_manager.stop().await {
+                    tracing::error!("Error during shutdown: {}", e);
+                }
             }
         }
     }

@@ -4,6 +4,7 @@ use tokio;
 mod commands;
 mod config;
 mod rs;
+mod stream;
 
 mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
