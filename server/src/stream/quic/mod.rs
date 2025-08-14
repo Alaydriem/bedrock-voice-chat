@@ -212,6 +212,7 @@ impl QuicServerManager {
             let broadcast_tx = self.broadcast_tx.clone();
             let cache_manager = self.cache_manager.clone();
             let broadcast_range = self.config.voice.broadcast_range;
+            let webhook_receiver = self.webhook_receiver.clone(); // Clone outside of spawn
 
             // Spawn a task to handle this connection
             tokio::spawn(async move {
@@ -270,6 +271,9 @@ impl QuicServerManager {
                                 }
                             });
                         }));
+                        
+                        // Set webhook receiver for presence events
+                        input_stream.set_webhook_receiver(webhook_receiver.clone());
                         
                         // Each output stream gets its own broadcast receiver
                         let broadcast_rx = broadcast_tx.subscribe();

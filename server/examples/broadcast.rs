@@ -9,7 +9,6 @@ use std::{fs::File, io::BufReader, path::Path};
 use tokio::io::AsyncWriteExt;
 use hound;
 use std::io::BufWriter;
-use std::mem::size_of;
 
 struct Spiral {
     theta: f32, // Angle in degrees
@@ -189,24 +188,29 @@ async fn client(
         println!("Starting new stream event.");
         let file = BufReader::new(File::open(source_file.clone()).unwrap());
         let source = Decoder::new(file).unwrap();
-        let mut ss: Vec<i16> = source.collect();
-        // Pad the source file to the expected length so the last chunk doesn't get cut off
-        let ss_expected_size = (((ss.len() / 480) as f32).ceil() * 480.0) as usize;
-        if ss.len() != ss_expected_size {
-            ss.resize(ss_expected_size, 0);
-        }
+        
+        // TRUE STREAMING: Process samples as iterator without collecting entire file
+        let sample_iter = source.into_iter();
+        let mut chunk_buffer = Vec::with_capacity(480);
 
         let mut spiral = Spiral::new(0.5);
-        println!("Read bytes into memory: {}, starting playback", ss.len());
+        println!("Starting streaming playback from file: {}", source_file);
         let mut total_chunks = 0;
-        for chunk in ss.chunks(480) {
-            let (x, y) = spiral.next().unwrap();
-            if chunk.len() < 480 {
-                println!("Unexpected chunk end");
-                break;
+        
+        // Process samples one by one, building 480-sample chunks
+        for sample in sample_iter {
+            chunk_buffer.push(sample);
+            
+            // Continue if we don't have a full chunk yet
+            if chunk_buffer.len() < 480 {
+                continue;
             }
+            
+            // Process the full 480-sample chunk exactly like original
+            let chunk: Vec<i16> = chunk_buffer.drain(..480).collect();
+            let (_x, _y) = spiral.next().unwrap();
             total_chunks = total_chunks + 480;
-            let s = encoder.encode_vec(chunk, chunk.len() * 4).unwrap();
+            let s = encoder.encode_vec(&chunk, chunk.len() * 4).unwrap();
             let packet = QuicNetworkPacket {
                 owner: Some(common::structs::packet::PacketOwner {
                     name: id.clone(),
@@ -235,8 +239,49 @@ async fn client(
                     // This should be 20ms of audio
                     if total_chunks % 9600 == 0 {
                         _ = send_stream.flush().await;
-                        _ = tokio::time::sleep(Duration::from_millis(20)).await;
+                        _ = tokio::time::sleep(Duration::from_millis(60)).await;
                     }
+                }
+                Err(e) => {
+                    println!("{}", e.to_string());
+                }
+            }
+        }
+        
+        // Handle any remaining samples in chunk_buffer (less than 480)
+        if !chunk_buffer.is_empty() {
+            println!("Sending final partial chunk with {} samples", chunk_buffer.len());
+            // Pad to 480 samples with silence to match original behavior
+            chunk_buffer.resize(480, 0);
+            
+            let (_x, _y) = spiral.next().unwrap();
+            let s = encoder.encode_vec(&chunk_buffer, chunk_buffer.len() * 4).unwrap();
+            let packet = QuicNetworkPacket {
+                owner: Some(common::structs::packet::PacketOwner {
+                    name: id.clone(),
+                    client_id: client_id.clone(),
+                }),
+                packet_type: common::structs::packet::PacketType::AudioFrame,
+                data: common::structs::packet::QuicNetworkPacketData::AudioFrame(
+                    common::structs::packet::AudioFramePacket::new(
+                        s.clone(),
+                        48000,
+                        Some(common::Coordinate {
+                            x: 335.0,
+                            y: 78.0,
+                            z: -689.0,
+                        }),
+                        None,
+                        Some(common::Dimension::Overworld),
+                        None
+                    ),
+                ),
+            };
+
+            match packet.to_vec() {
+                Ok(rs) => {
+                    _ = send_stream.write_all(&rs).await;
+                    _ = send_stream.flush().await;
                 }
                 Err(e) => {
                     println!("{}", e.to_string());

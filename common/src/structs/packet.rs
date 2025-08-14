@@ -16,6 +16,7 @@ pub enum PacketType {
     ChannelEvent,
     Collection,
     Debug,
+    PlayerPresence,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
@@ -31,6 +32,7 @@ pub enum QuicNetworkPacketData {
     ChannelEvent(ChannelEventPacket),
     Collection(CollectionPacket),
     Debug(DebugPacket),
+    PlayerPresence(PlayerPresenceEvent),
 }
 
 /// A network packet to be sent via QUIC
@@ -163,6 +165,7 @@ impl QuicNetworkPacket {
             PacketType::PlayerData => true,
             PacketType::ChannelEvent => true,
             PacketType::Collection => false,
+            PacketType::PlayerPresence => true,
         }
     }
 
@@ -367,6 +370,8 @@ impl QuicNetworkPacket {
             },
             // Player data should always be received
             PacketType::PlayerData => true,
+            // Player presence events should always be received by all clients
+            PacketType::PlayerPresence => true,
             // If there are other packet types we want recipiants to receive, this should be updated
             _ => false,
         }
@@ -525,6 +530,30 @@ impl TryFrom<QuicNetworkPacketData> for ChannelEventPacket {
     fn try_from(value: QuicNetworkPacketData) -> Result<Self, Self::Error> {
         match value {
             QuicNetworkPacketData::ChannelEvent(c) => Ok(c),
+            _ => Err(()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
+pub enum ConnectionEventType {
+    Connected,
+    Disconnected,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct PlayerPresenceEvent {
+    pub player_name: String,
+    pub timestamp: i64,  // Unix timestamp in milliseconds
+    pub event_type: ConnectionEventType,
+}
+
+impl TryFrom<QuicNetworkPacketData> for PlayerPresenceEvent {
+    type Error = ();
+
+    fn try_from(value: QuicNetworkPacketData) -> Result<Self, Self::Error> {
+        match value {
+            QuicNetworkPacketData::PlayerPresence(p) => Ok(p),
             _ => Err(()),
         }
     }

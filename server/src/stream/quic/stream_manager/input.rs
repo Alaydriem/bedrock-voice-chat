@@ -1,9 +1,9 @@
 use common::traits::StreamTrait;
-use common::structs::packet::QuicNetworkPacket;
+use common::structs::packet::{QuicNetworkPacket, PlayerPresenceEvent, ConnectionEventType, PacketOwner, PacketType, QuicNetworkPacketData};
 use anyhow::Error;
 use s2n_quic::stream::ReceiveStream;
 use tokio::sync::mpsc;
-use crate::stream::quic::ServerInputPacket;
+use crate::stream::quic::{ServerInputPacket, WebhookReceiver};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::collections::hash_map::DefaultHasher;
@@ -27,6 +27,8 @@ pub(crate) struct InputStream {
     // Callback to notify when disconnect happens (for cache cleanup)
     // Parameters: (player_name, client_id)
     disconnect_callback: Option<Box<dyn Fn(String, Vec<u8>) + Send + Sync>>,
+    // Webhook receiver for sending presence events
+    webhook_receiver: Option<WebhookReceiver>,
 }
 
 impl InputStream {
@@ -41,6 +43,7 @@ impl InputStream {
             player_id: None,
             client_id: None,
             disconnect_callback: None,
+            webhook_receiver: None,
         }
     }
 
@@ -55,6 +58,10 @@ impl InputStream {
 
     pub fn set_disconnect_callback(&mut self, callback: Box<dyn Fn(String, Vec<u8>) + Send + Sync>) {
         self.disconnect_callback = Some(callback);
+    }
+
+    pub fn set_webhook_receiver(&mut self, webhook_receiver: WebhookReceiver) {
+        self.webhook_receiver = Some(webhook_receiver);
     }
 
     #[allow(unused)]
@@ -97,6 +104,37 @@ impl StreamTrait for InputStream {
                                         self.client_id = Some(owner.client_id.clone());
                                         let client_hash = client_id_hash(&owner.client_id);
                                         tracing::info!("Initialized player identity: {} (client: {})", owner.name, client_hash);
+                                        
+                                        // Send Connected presence event in separate task (non-blocking)
+                                        if let Some(webhook_receiver) = &self.webhook_receiver {
+                                            let player_name = owner.name.clone();
+                                            let webhook_receiver_clone = webhook_receiver.clone();
+                                            tokio::spawn(async move {
+                                                let timestamp = std::time::SystemTime::now()
+                                                    .duration_since(std::time::UNIX_EPOCH)
+                                                    .unwrap()
+                                                    .as_millis() as i64;
+                                                    
+                                                let presence_packet = QuicNetworkPacket {
+                                                    owner: Some(PacketOwner {
+                                                        name: String::from("api"),
+                                                        client_id: vec![0u8; 0],
+                                                    }),
+                                                    packet_type: PacketType::PlayerPresence,
+                                                    data: QuicNetworkPacketData::PlayerPresence(PlayerPresenceEvent {
+                                                        player_name: player_name.clone(),
+                                                        timestamp,
+                                                        event_type: ConnectionEventType::Connected,
+                                                    }),
+                                                };
+                                                
+                                                if let Err(e) = webhook_receiver_clone.send_packet(presence_packet).await {
+                                                    tracing::error!("Failed to send player connected event: {}", e);
+                                                }
+
+                                                tracing::debug!("Broadcast player connected event {}", player_name);
+                                            });
+                                        }
                                     }
                                     
                                     let server_packet = ServerInputPacket { data: packet };
@@ -124,6 +162,37 @@ impl StreamTrait for InputStream {
                         // Call disconnect callback for cache cleanup
                         if let (Some(callback), Some(player_id), Some(client_id)) = (&self.disconnect_callback, &self.player_id, &self.client_id) {
                             callback(player_id.clone(), client_id.clone());
+                            
+                            // Send Disconnected presence event in separate task (non-blocking)
+                            if let Some(webhook_receiver) = &self.webhook_receiver {
+                                let player_name = player_id.clone();
+                                let webhook_receiver_clone = webhook_receiver.clone();
+                                tokio::spawn(async move {
+                                    let timestamp = std::time::SystemTime::now()
+                                        .duration_since(std::time::UNIX_EPOCH)
+                                        .unwrap()
+                                        .as_millis() as i64;
+                                        
+                                    let presence_packet = QuicNetworkPacket {
+                                        owner: Some(PacketOwner {
+                                            name: String::from("api"),
+                                            client_id: vec![0u8; 0],
+                                        }),
+                                        packet_type: PacketType::PlayerPresence,
+                                        data: QuicNetworkPacketData::PlayerPresence(PlayerPresenceEvent {
+                                            player_name: player_name.clone(),
+                                            timestamp,
+                                            event_type: ConnectionEventType::Disconnected,
+                                        }),
+                                    };
+                                    
+                                    if let Err(e) = webhook_receiver_clone.send_packet(presence_packet).await {
+                                        tracing::error!("Failed to send player disconnected event: {}", e);
+                                    }
+
+                                    tracing::debug!("Broadcast player disconnected event {}", player_name);
+                                });
+                            }
                         }
                         
                         break;
@@ -139,6 +208,35 @@ impl StreamTrait for InputStream {
                         // Call disconnect callback for cache cleanup
                         if let (Some(callback), Some(player_id), Some(client_id)) = (&self.disconnect_callback, &self.player_id, &self.client_id) {
                             callback(player_id.clone(), client_id.clone());
+                            
+                            // Send Disconnected presence event in separate task (non-blocking)
+                            if let Some(webhook_receiver) = &self.webhook_receiver {
+                                let player_name = player_id.clone();
+                                let webhook_receiver_clone = webhook_receiver.clone();
+                                tokio::spawn(async move {
+                                    let timestamp = std::time::SystemTime::now()
+                                        .duration_since(std::time::UNIX_EPOCH)
+                                        .unwrap()
+                                        .as_millis() as i64;
+                                        
+                                    let presence_packet = QuicNetworkPacket {
+                                        owner: Some(PacketOwner {
+                                            name: String::from("api"),
+                                            client_id: vec![0u8; 0],
+                                        }),
+                                        packet_type: PacketType::PlayerPresence,
+                                        data: QuicNetworkPacketData::PlayerPresence(PlayerPresenceEvent {
+                                            player_name,
+                                            timestamp,
+                                            event_type: ConnectionEventType::Disconnected,
+                                        }),
+                                    };
+                                    
+                                    if let Err(e) = webhook_receiver_clone.send_packet(presence_packet).await {
+                                        tracing::error!("Failed to send player disconnected event: {}", e);
+                                    }
+                                });
+                            }
                         }
                         
                         break;
