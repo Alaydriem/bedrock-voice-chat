@@ -1,6 +1,7 @@
 pub mod ncryptflib;
 
 pub mod auth;
+pub mod encoding;
 pub mod pool;
 pub mod redis;
 pub use serde::{Deserialize, Serialize};
@@ -10,6 +11,7 @@ pub mod consts;
 pub mod request;
 pub mod rustls;
 pub mod structs;
+pub mod traits;
 
 extern crate rocket;
 

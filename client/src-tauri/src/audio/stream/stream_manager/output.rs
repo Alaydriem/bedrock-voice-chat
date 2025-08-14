@@ -88,7 +88,7 @@ pub(crate) struct OutputStream {
     player_presence: Arc<moka::sync::Cache<String, bool>>
 }
 
-impl super::StreamTrait for OutputStream {
+impl common::traits::StreamTrait for OutputStream {
     async fn metadata(&mut self, key: String, value: String) -> Result<(), anyhow::Error> {
         match key.as_str() {
             "mute" => {
@@ -143,7 +143,7 @@ impl super::StreamTrait for OutputStream {
         Ok(())
     }
 
-    fn is_stopped(&mut self) -> bool {
+    fn is_stopped(&self) -> bool {
         self.jobs.len() == 0
     }
 

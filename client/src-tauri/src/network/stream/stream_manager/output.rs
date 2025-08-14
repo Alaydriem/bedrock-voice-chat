@@ -17,7 +17,7 @@ pub(crate) struct OutputStream {
     app_handle: tauri::AppHandle,
 }
 
-impl super::StreamTrait for OutputStream {
+impl common::traits::StreamTrait for OutputStream {
     async fn metadata(&mut self, key: String, value: String) -> Result<(), anyhow::Error> {
         let metadata = self.metadata.clone();
         metadata.insert(key, value).await;
@@ -37,7 +37,7 @@ impl super::StreamTrait for OutputStream {
         Ok(())
     }
 
-    fn is_stopped(&mut self) -> bool {
+    fn is_stopped(&self) -> bool {
         self.jobs.len() == 0
     }
 

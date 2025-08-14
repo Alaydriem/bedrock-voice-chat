@@ -8,7 +8,7 @@ use crate::audio::types::AudioDevice;
 
 pub(crate) use input::InputStream;
 pub(crate) use output::OutputStream;
-pub(crate) use crate::core::StreamTrait;
+pub(crate) use common::traits::StreamTrait;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
@@ -56,8 +56,8 @@ pub(crate) enum StreamTraitType {
     Output(OutputStream),
 }
 
-impl StreamTrait for StreamTraitType {
-    fn is_stopped(&mut self) -> bool {
+impl common::traits::StreamTrait for StreamTraitType {
+    fn is_stopped(&self) -> bool {
         match self {
             Self::Input(stream) => stream.is_stopped(),
             Self::Output(stream) => stream.is_stopped(),
