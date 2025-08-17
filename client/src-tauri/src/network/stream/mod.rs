@@ -65,41 +65,38 @@ impl NetworkStreamManager {
             key.as_bytes().to_vec()
         ).await?;
 
+        let dg_endpoint = s2n_quic::provider::datagram::default::Endpoint::builder()
+            .with_send_capacity(1024).expect("send cap > 0")
+            .with_recv_capacity(1024).expect("recv cap > 0")
+            .build().expect("build dg endpoint");
+
         let client = Client::builder()
             .with_tls(provider)?
             .with_io("0.0.0.0:0")?
+            .with_datagram(dg_endpoint)?
             .start()?;
         
         let connect = Connect::new(socket).with_server_name(server);
 
         let mut connection = client.connect(connect).await?;
-        _ = connection.keep_alive(true);
-        let stream = connection.open_bidirectional_stream().await?;
-        _ = stream.connection().keep_alive(true);
+        connection.keep_alive(true)?;
+        let conn_arc = Arc::new(connection);
 
-        let (recv, send) = stream.split();
-        _ = recv.connection().keep_alive(true);
-        _ = send.connection().keep_alive(true);
+        self.input = StreamTraitType::Input(stream_manager::InputStream::new(
+            self.producer.clone(),
+            Some(conn_arc.clone()),
+            self.app_handle.clone(),
+        ));
 
-        self.input = StreamTraitType::Input(
-            stream_manager::InputStream::new(
-                self.producer.clone(),
-                Some(recv),
-                self.app_handle.clone()
-            )
-        );
-
-        self.output = StreamTraitType::Output(
-            stream_manager::OutputStream::new(
-                self.consumer.clone(),
-                Some(PacketOwner {
-                    name,
-                    client_id: (0..32).map(|_| rand::random::<u8>()).collect()
-                }),
-                Some(send),
-                self.app_handle.clone()
-            )
-        );
+        self.output = StreamTraitType::Output(stream_manager::OutputStream::new(
+            self.consumer.clone(),
+            Some(PacketOwner {
+                name,
+                client_id: (0..32).map(|_| rand::random::<u8>()).collect(),
+            }),
+            Some(conn_arc.clone()),
+            self.app_handle.clone(),
+        ));
 
         self.input.start().await?;
         self.output.start().await?;

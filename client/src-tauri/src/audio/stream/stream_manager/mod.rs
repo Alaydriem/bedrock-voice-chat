@@ -87,6 +87,7 @@ impl common::traits::StreamTrait for StreamTraitType {
 }
 
 impl StreamTraitType {
+    #[allow(unused)]
     pub fn get_device(&self) -> Option<AudioDevice> {
         match self {
             Self::Input(stream) => stream.device.clone(),

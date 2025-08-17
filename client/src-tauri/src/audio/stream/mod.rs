@@ -72,6 +72,7 @@ impl AudioStreamManager {
     /// Restarts the audio stream for a given device
     /// This will stop the stream, create a new StreamManager with the same underlying device
     /// Then start a new stream in its place
+    #[allow(unused)]
     pub async fn restart(&mut self, device: AudioDeviceType) -> Result<(), Error> {
         // Stop the audio strema
         _ = self.stop(device.clone());

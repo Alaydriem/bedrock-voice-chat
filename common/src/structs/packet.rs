@@ -35,7 +35,7 @@ pub enum QuicNetworkPacketData {
     PlayerPresence(PlayerPresenceEvent),
 }
 
-/// A network packet to be sent via QUIC
+/// A Quic Network Datagram
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct QuicNetworkPacket {
     pub packet_type: PacketType,
@@ -43,119 +43,33 @@ pub struct QuicNetworkPacket {
     pub data: QuicNetworkPacketData,
 }
 
-/// Magic header
-pub const QUICK_NETWORK_PACKET_HEADER: &[u8; 5] = &[251, 33, 51, 0, 27];
+pub const MAX_DATAGRAM_SIZE: usize = 1150;
 
 impl QuicNetworkPacket {
-    /// write_all() returns a stream of data that isn't cleanly deliniated by packets
-    /// And flush() may be called at any time.
-    /// This takes a reference to an existing `Vec<u8>``, from a receive_stream() and
-    /// returns all the QuicNetworkPackets that were sent.
-    /// The packet is mutated in place with any partial data
-    pub fn from_stream(packet: &mut Vec<u8>) -> Result<Vec<QuicNetworkPacket>, anyhow::Error> {
-        let mut packets = Vec::<QuicNetworkPacket>::new();
-
-        // If we didn't get anything we can return immediately
-        if packet.is_empty() {
-            return Ok(packets);
+    /// Serialize the packet for direct QUIC DATAGRAM transmission (no framing)
+    pub fn to_datagram(&self) -> Result<Vec<u8>, anyhow::Error> {
+        let bytes = postcard::to_stdvec(&self)?;
+        if bytes.len() > MAX_DATAGRAM_SIZE {
+            return Err(anyhow!(
+                "Serialized datagram size {} exceeds max {}",
+                bytes.len(),
+                MAX_DATAGRAM_SIZE
+            ));
         }
-
-        loop {
-            // Need at least 5 bytes for magic header
-            if packet.len() < 5 {
-                break;
-            }
-            
-            // The first 5 bytes of the packet should always be the magic header we use to indicate a new packet has started
-            // If these bytes don't match the magic header, then rip them off the packet and try again
-            // If we don't get any bytes from this then the packet is malformed, and we need more data
-            match packet.get(0..5) {
-                Some(header) => match header.to_vec().eq(&QUICK_NETWORK_PACKET_HEADER) {
-                    true => {}
-                    false => {
-                        // If the first 5 bytes exist, but they aren't the magic packet header, then we've lost packets
-                        // To prevent packet loss from causing a memory leak, we need to advance the pointer in the packet to the position of the next instance of the magic header.
-
-                        match packet
-                            .windows(QUICK_NETWORK_PACKET_HEADER.len())
-                            .position(|window| window == QUICK_NETWORK_PACKET_HEADER)
-                        {
-                            Some(position) => {
-                                // Reset the packet to the starting point of the magic packet header
-                                packet.drain(0..position);
-                                // Try to continue
-                                continue;
-                            }
-                            None => {
-                                // If this happens we have a bunch of random data without a magic packet.
-                                // We should reset the buffer because we can't do anything with this
-                                packet.clear();
-                                break;
-                            }
-                        }
-                    }
-                },
-                None => {
-                    break;
-                }
-            }
-
-            // Parse variable-length packet size (starts at byte 5)
-            let (payload_len, length_size) = match crate::encoding::decode_varint_u32(&packet[5..]) {
-                Ok((len, size)) => (len as usize, size),
-                Err(_) => break, // Need more data to parse length
-            };
-
-            let header_size = 5 + length_size;  // magic header + varint length
-            let total_packet_size = header_size + payload_len;
-
-            if packet.len() >= total_packet_size {
-                // We have a complete packet - extract payload before draining
-                let payload_data = packet[header_size..total_packet_size].to_vec();
-                
-                // Remove this packet from buffer
-                packet.drain(0..total_packet_size);
-
-                // Parse the payload
-                match Self::from_vec(&payload_data) {
-                    Ok(p) => packets.push(p),
-                    Err(_) => {
-                        continue; // Skip malformed packets
-                    }
-                };
-            } else {
-                break; // Need more data
-            }
-        }
-
-        return Ok(packets);
+        Ok(bytes)
     }
 
-    /// Converts the packet into a parseable string
-    pub fn to_vec(&self) -> Result<Vec<u8>, anyhow::Error> {
-        // Postcard handles AudioFramePacket efficiently with pre-encoded fields
-        let payload = postcard::to_stdvec(&self)?;
-        
-        let mut buffer = Vec::new();
-        buffer.extend_from_slice(QUICK_NETWORK_PACKET_HEADER);
-        
-        // Use varint encoding for packet length (major space savings)
-        buffer.extend(crate::encoding::encode_varint_u32(payload.len() as u32));
-        buffer.extend(payload);
-
-        Ok(buffer)
-    }
-
-    /// Convers a vec back into a raw packet
-    pub fn from_vec(data: &[u8]) -> Result<Self, anyhow::Error> {
+    /// Deserialize a packet from a QUIC DATAGRAM payload
+    pub fn from_datagram(data: &[u8]) -> Result<Self, anyhow::Error> {
+        if data.len() > MAX_DATAGRAM_SIZE {
+            return Err(anyhow!("Incoming datagram size {} exceeds max {}", data.len(), MAX_DATAGRAM_SIZE));
+        }
         postcard::from_bytes::<QuicNetworkPacket>(data)
             .map_err(|e| anyhow!("Postcard deserialization error: {}", e))
     }
 
     /// Returns the packet type
-    pub fn get_packet_type(&self) -> PacketType {
-        return self.packet_type.clone();
-    }
+    pub fn get_packet_type(&self) -> PacketType { self.packet_type.clone() }
 
     /// Whether or not a packet should be broadcasted
     pub fn is_broadcast(&self) -> bool {
@@ -193,9 +107,7 @@ impl QuicNetworkPacket {
     }
 
     /// Returns the underlying data frame.
-    pub fn get_data(&self) -> Option<&QuicNetworkPacketData> {
-        Some(&self.data)
-    }
+    pub fn get_data(&self) -> Option<&QuicNetworkPacketData> { Some(&self.data) }
 
     // Updates the coordinates for a given packet with the player position data
     pub async fn update_coordinates(&mut self, player_data: Arc<Cache<String, Player>>) {

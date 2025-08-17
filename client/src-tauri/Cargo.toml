@@ -34,46 +34,47 @@ serde_json = "^1"
 rust-argon2 = { version = "^2.1", optional = true }
 log = "^0.4"
 anyhow = { version = "^1" }
-s2n-quic = { version = "^1.52.0", default-features = false, features = [
+s2n-quic = { version = "=1.63.0", default-features = false, features = [
     "provider-address-token-default",
     "provider-tls-rustls",
     "provider-event-tracing",
+    "unstable-provider-datagram",
 ] }
-cpal = { version = "^0.15", features = [
+cpal = { version = "^0.16", features = [
     "asio",
     "asio-sys",
 ] }
 spmc = { version = "^0.3" }
 rand = { version = "^0.9" }
-rodio = { version = "^0.20" }
+rodio = { version = "^0.21" }
 bytes = { version = "^1.10" }
 async-mutex = { version = "^1.4" }
 moka = { version = "^0.12", features = ["future", "sync"] }
-opus = { version = "^0.3" }
+opus = { git = "https://github.com/SpaceManiac/opus-rs", rev ="834381efeaa864d06925e849992341926d358879" }
 ron = { version = "^0.10" }
 audio-gate = { version = "^0.1" }
 flume = { version = "^0.11" }
 trust-dns-resolver = { version = "^0.23", features = ["tokio-runtime", "tokio-rustls", "rustls", "serde"] }
-windows-targets = "0.53.0"
+windows-targets = "^0.53.0"
 ts-rs = { version = "^11.0" }
 
-tauri = { version = "=2.5.1", features = ["rustls-tls"] }
-tauri-plugin-opener = "^2"
-tauri-plugin-deep-link = "^2" 
-tauri-plugin-fs = "^2"
-tauri-plugin-http = "=2.3.0"
-tauri-plugin-store = "^2"
-tauri-plugin-notification = "^2"
-tauri-plugin-log = "^2"
-tauri-plugin-os = "^2"
+tauri = { version = "^2.7", features = ["rustls-tls"] }
+tauri-plugin-opener = "^2.4"
+tauri-plugin-deep-link = "^2.4" 
+tauri-plugin-fs = "^2.4"
+tauri-plugin-http = "^2.5"
+tauri-plugin-store = "^2.3"
+tauri-plugin-notification = "^2.3"
+tauri-plugin-log = "^2.6"
+tauri-plugin-os = "^2.3"
 once_cell = { version = "^1.21", features = ["atomic-polyfill"] }
 reqwest = { version = "0.12", features = ["rustls-tls", "json"] }
 
 # Desktop Targets
 [target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]
-tauri-plugin-single-instance =  { version = "^2", features = ["deep-link"] }
-tauri-plugin-updater = "^2"
-tauri-plugin-process = "^2"
+tauri-plugin-single-instance =  { version = "^2.3", features = ["deep-link"] }
+tauri-plugin-updater = "^2.9"
+tauri-plugin-process = "^2.3"
 
 # Mobile Targets
 #[target."cfg(any(target_os = \"android\", target_os = \"ios\"))".dependencies]

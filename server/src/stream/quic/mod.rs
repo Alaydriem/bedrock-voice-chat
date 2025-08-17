@@ -27,11 +27,12 @@ use stream_manager::{InputStream, OutputStream};
 use common::traits::StreamTrait;
 use anyhow;
 use tokio::sync::{broadcast, mpsc, oneshot};
+use std::sync::Arc;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
 /// Helper function to create a short hash representation of client_id
-fn client_id_hash(client_id: &[u8]) -> String {
+pub(crate) fn client_id_hash(client_id: &[u8]) -> String {
     let mut hasher = DefaultHasher::new();
     client_id.hash(&mut hasher);
     format!("{:x}", hasher.finish() & 0xFFFF) // Take only last 4 hex digits for readability
@@ -43,11 +44,6 @@ pub use webhook_receiver::WebhookReceiver;
 // Define packet types similar to client
 #[derive(Debug, Clone)]
 pub struct ServerInputPacket {
-    pub data: QuicNetworkPacket,
-}
-
-#[derive(Debug, Clone)]
-pub struct ServerOutputPacket {
     pub data: QuicNetworkPacket,
 }
 
@@ -69,7 +65,8 @@ pub struct QuicServerManager {
 impl QuicServerManager {
     /// Creates a new QuicServerManager with the given application configuration
     pub fn new(config: ApplicationConfig) -> Self {
-        let (broadcast_tx, _) = broadcast::channel(10000);
+    // Use configured receive capacity as an upper bound for broadcast buffering
+    let (broadcast_tx, _) = broadcast::channel(config.voice.datagram_recv_capacity.max(1024));
         let (webhook_tx, webhook_rx) = mpsc::unbounded_channel();
         let (shutdown_tx, shutdown_rx) = oneshot::channel();
         
@@ -109,10 +106,23 @@ impl QuicServerManager {
         let bind_addr = format!("{}:{}", self.config.server.listen, self.config.server.quic_port);
         
         // Start QUIC server
+    // Configure DATAGRAM support using the default endpoint/provider with capacities from config
+        let dg_endpoint = {
+            let send_cap = if self.config.voice.datagram_send_capacity == 0 { 1024 } else { self.config.voice.datagram_send_capacity };
+            let recv_cap = if self.config.voice.datagram_recv_capacity == 0 { 1024 } else { self.config.voice.datagram_recv_capacity };
+            let builder = s2n_quic::provider::datagram::default::Endpoint::builder()
+                .with_send_capacity(send_cap)
+                .expect("datagram send capacity must be > 0")
+                .with_recv_capacity(recv_cap)
+                .expect("datagram recv capacity must be > 0");
+            builder.build().expect("datagram endpoint build")
+        };
+
         let server = Server::builder()
             .with_event(s2n_quic::provider::event::tracing::Subscriber::default())?
             .with_tls(provider)?
             .with_io(bind_addr.as_str())?
+            .with_datagram(dg_endpoint)?
             .start()?;
 
         // Get webhook receiver and set up webhook processing
@@ -205,131 +215,78 @@ impl QuicServerManager {
     /// Main connection acceptance loop
     /// Creates new InputStream/OutputStream pairs for each connection
     async fn accept_connections(&self, mut server: Server) -> Result<(), anyhow::Error> {
-        while let Some(mut connection) = server.accept().await {
+    while let Some(mut connection) = server.accept().await {
             let connection_id = format!("{:?}", connection.id());
             tracing::info!("New QUIC connection accepted: {}", connection_id);
 
             let broadcast_tx = self.broadcast_tx.clone();
             let cache_manager = self.cache_manager.clone();
             let broadcast_range = self.config.voice.broadcast_range;
-            let webhook_receiver = self.webhook_receiver.clone(); // Clone outside of spawn
+            let webhook_receiver = self.webhook_receiver.clone();
 
-            // Spawn a task to handle this connection
             tokio::spawn(async move {
-                // Enable keepalive for this connection to prevent idle timeouts
-                if let Err(e) = connection.keep_alive(true) {
-                    tracing::warn!("Failed to enable keepalive for connection {}: {}", connection_id, e);
+                if let Err(e) = connection.keep_alive(true) { tracing::warn!("Keepalive failed {}: {}", connection_id, e); }
+                let conn_arc = Arc::new(connection);
+
+                // Construct streams
+                let mut input_stream = InputStream::new(Some(conn_arc.clone()), None);
+                let mut output_stream = OutputStream::new(Some(conn_arc.clone()));
+
+                output_stream.set_caches(
+                    cache_manager.get_channel_cache(),
+                    cache_manager.get_player_cache(),
+                    broadcast_range,
+                );
+
+                let output_stream_identity_setter = {
+                    let player_id_mutex = output_stream.player_id.clone();
+                    let client_id_mutex = output_stream.client_id.clone();
+                    move |player_id: String, client_id: Vec<u8>| {
+                        if let Ok(mut guard) = player_id_mutex.lock() { *guard = Some(player_id.clone()); }
+                        if let Ok(mut guard) = client_id_mutex.lock() { *guard = Some(client_id.clone()); }
+                    }
+                };
+
+                let cache_manager_for_callback = cache_manager.clone();
+                input_stream.set_disconnect_callback(Box::new(move |player_id: String, client_id: Vec<u8>| {
+                    let cache_manager = cache_manager_for_callback.clone();
+                    tokio::spawn(async move {
+                        let client_hash = client_id_hash(&client_id);
+                        tracing::info!("Player {} (client: {}) disconnected", player_id, client_hash);
+                        if let Err(e) = cache_manager.remove_player(&player_id).await { tracing::error!("Failed to remove player {}: {}", player_id, e); }
+                    });
+                }));
+
+                input_stream.set_webhook_receiver(webhook_receiver.clone());
+                output_stream.set_broadcast_receiver(broadcast_tx.subscribe());
+
+                let (input_shutdown_tx, input_shutdown_rx) = oneshot::channel();
+                let (output_shutdown_tx, output_shutdown_rx) = oneshot::channel();
+
+                let input_broadcast_tx = broadcast_tx.clone();
+                let input_cache_manager = cache_manager.clone();
+                let input_task = tokio::spawn(async move {
+                    if let Err(e) = Self::run_input_stream_with_player_callback(
+                        input_stream,
+                        input_broadcast_tx,
+                        input_cache_manager,
+                        input_shutdown_rx,
+                        Box::new(output_stream_identity_setter)
+                    ).await { tracing::error!("Input stream error: {}", e); }
+                });
+
+                let output_task = tokio::spawn(async move {
+                    if let Err(e) = Self::run_output_stream(output_stream, output_shutdown_rx).await { tracing::error!("Output stream error: {}", e); }
+                });
+
+                tokio::select! {
+                    _ = input_task => { let _ = output_shutdown_tx.send(()); },
+                    _ = output_task => { let _ = input_shutdown_tx.send(()); }
                 }
-                
-                // Accept a bidirectional stream for this connection
-                match connection.accept_bidirectional_stream().await {
-                    Ok(Some(stream)) => {
-                        // Enable keepalive for the stream and its connection
-                        if let Err(e) = stream.connection().keep_alive(true) {
-                            tracing::warn!("Failed to enable stream connection keepalive: {}", e);
-                        }
-                        
-                        let (receive_stream, send_stream) = stream.split();
-                        
-                        // Create shutdown channels for both streams
-                        let (input_shutdown_tx, input_shutdown_rx) = oneshot::channel();
-                        let (output_shutdown_tx, output_shutdown_rx) = oneshot::channel();
-                        
-                        // Create InputStream and OutputStream for this connection
-                        let mut input_stream = InputStream::new(Some(receive_stream), None);
-                        let mut output_stream = OutputStream::new(Some(send_stream), None);
-                        
-                        // Set up caches for packet filtering
-                        output_stream.set_caches(
-                            cache_manager.get_channel_cache(),
-                            cache_manager.get_player_cache(),
-                            broadcast_range,
-                        );
-                        
-                        // Set up player identity sharing - create a callback that updates the output stream
-                        let output_stream_player_setter = {
-                            let player_id_mutex = output_stream.player_id.clone();
-                            move |player_id: String| {
-                                if let Ok(mut guard) = player_id_mutex.lock() {
-                                    *guard = Some(player_id.clone());
-                                    tracing::debug!("Set player identity for output stream: {}", player_id);
-                                }
-                            }
-                        };
-                        
-                        // Set disconnect callback for cache cleanup
-                        let cache_manager_for_callback = cache_manager.clone();
-                        input_stream.set_disconnect_callback(Box::new(move |player_id: String, client_id: Vec<u8>| {
-                            let cache_manager = cache_manager_for_callback.clone();
-                            tokio::spawn(async move {
-                                // Create short hash for logging
-                                let client_hash = client_id_hash(&client_id);
-                                
-                                tracing::info!("Player {} (client: {}) disconnected, cleaning up cache", player_id, client_hash);
-                                if let Err(e) = cache_manager.remove_player(&player_id).await {
-                                    tracing::error!("Failed to remove player {} from cache: {}", player_id, e);
-                                }
-                            });
-                        }));
-                        
-                        // Set webhook receiver for presence events
-                        input_stream.set_webhook_receiver(webhook_receiver.clone());
-                        
-                        // Each output stream gets its own broadcast receiver
-                        let broadcast_rx = broadcast_tx.subscribe();
-                        output_stream.set_broadcast_receiver(broadcast_rx);
-                        
-                        // Start the input stream (handles incoming packets)
-                        let input_broadcast_tx = broadcast_tx.clone();
-                        let input_cache_manager = cache_manager.clone();
-                        let input_task = tokio::spawn(async move {
-                            if let Err(e) = Self::run_input_stream_with_player_callback(
-                                input_stream, 
-                                input_broadcast_tx, 
-                                input_cache_manager,
-                                input_shutdown_rx,
-                                Box::new(output_stream_player_setter)
-                            ).await {
-                                tracing::error!("Input stream error: {}", e);
-                            }
-                        });
-                        
-                        // Start the output stream (handles outgoing packets)
-                        let output_task = tokio::spawn(async move {
-                            if let Err(e) = Self::run_output_stream(
-                                output_stream,
-                                output_shutdown_rx
-                            ).await {
-                                tracing::error!("Output stream error: {}", e);
-                            }
-                        });
-                        
-                        // Use select! instead of try_join! - if either ends, terminate both
-                        tokio::select! {
-                            result = input_task => {
-                                tracing::info!("Input stream ended: {:?}", result);
-                                // Signal output stream to shutdown
-                                let _ = output_shutdown_tx.send(());
-                            }
-                            result = output_task => {
-                                tracing::info!("Output stream ended: {:?}", result);
-                                // Signal input stream to shutdown
-                                let _ = input_shutdown_tx.send(());
-                            }
-                        }
-                    }
-                    Ok(None) => {
-                        tracing::warn!("No bidirectional stream available for connection {}", connection_id);
-                    }
-                    Err(e) => {
-                        tracing::error!("Failed to accept bidirectional stream for connection {}: {}", connection_id, e);
-                    }
-                }
-                
+
                 tracing::info!("Connection {} closed", connection_id);
             });
         }
-        
         Ok(())
     }
 
@@ -339,7 +296,7 @@ impl QuicServerManager {
         broadcast_tx: broadcast::Sender<QuicNetworkPacket>,
         cache_manager: CacheManager,
         mut shutdown_rx: oneshot::Receiver<()>,
-        player_callback: Box<dyn Fn(String) + Send + Sync>,
+        player_callback: Box<dyn Fn(String, Vec<u8>) + Send + Sync>,
     ) -> Result<(), anyhow::Error> {
         // Set up the input stream to broadcast received packets
         let (packet_tx, mut packet_rx) = mpsc::unbounded_channel();
@@ -361,7 +318,7 @@ impl QuicServerManager {
                     // Extract player identity from first packet with owner and notify output stream
                     if !has_set_identity && packet.owner.is_some() {
                         let owner = packet.owner.as_ref().unwrap();
-                        player_callback(owner.name.clone());
+                        player_callback(owner.name.clone(), owner.client_id.clone());
                         has_set_identity = true;
                         tracing::info!("Notified output stream of player identity: {}", owner.name);
                     }

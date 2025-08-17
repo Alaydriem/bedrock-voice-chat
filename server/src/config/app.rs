@@ -58,13 +58,26 @@ pub struct ApplicationConfigServer {
 /// Voice specific settings
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ApplicationConfigVoice {
-    #[serde(default)]
+    #[serde(default = "default_broadcast_range")]
     pub broadcast_range: f32,
-    #[serde(default)]
+    #[serde(default = "default_crouch_multiplier")]
     pub crouch_distance_multiplier: f32,
-    #[serde(default)]
+    #[serde(default = "default_whisper_multiplier")]
     pub whisper_distance_multiplier: f32,
+    // Maximum number of outbound datagrams buffered per connection before backpressure / drops
+    #[serde(default = "default_datagram_send_capacity")]
+    pub datagram_send_capacity: usize,
+    // Maximum number of inbound datagrams buffered per connection
+    #[serde(default = "default_datagram_recv_capacity")]
+    pub datagram_recv_capacity: usize,
 }
+
+// Serde field defaults for Voice config when deserializing from partial configs
+fn default_broadcast_range() -> f32 { 32.0 }
+fn default_crouch_multiplier() -> f32 { 1.0 }
+fn default_whisper_multiplier() -> f32 { 0.5 }
+fn default_datagram_send_capacity() -> usize { 1024 }
+fn default_datagram_recv_capacity() -> usize { 1024 }
 
 /// TLS Configuration for server
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -133,6 +146,8 @@ impl Default for ApplicationConfig {
                 broadcast_range: 32.0,
                 crouch_distance_multiplier: 1.0,
                 whisper_distance_multiplier: 0.5,
+                datagram_send_capacity: 1024,
+                datagram_recv_capacity: 1024,
             },
             log: ApplicationConfigLogger {
                 level: String::from("info"),

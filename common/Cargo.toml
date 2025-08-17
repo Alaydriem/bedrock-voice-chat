@@ -62,13 +62,14 @@ moka = { version = "^0.12", features = [
     "async-trait",
     "sync",
 ] }
-s2n-quic = { version = "^1.52.0", default-features = false, features = [
+s2n-quic = { version = "=1.63.0", default-features = false, features = [
     "provider-address-token-default",
     "provider-tls-rustls",
     "provider-event-tracing",
+    "unstable-provider-datagram",
 ] }
 
-rodio = { version = "^0.20" }
+rodio = { version = "^0.21" }
 postcard = { version = "^1.1", features = [ "use-std", "postcard-derive" ] }
 residua-zigzag = { version = "^0.1", package = "residua-zigzag" }
 leb128 = { version = "^0.2" }

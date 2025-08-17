@@ -2,17 +2,19 @@ use common::structs::packet::AudioFramePacket;
 use common::structs::packet::PacketType;
 use common::structs::packet::QuicNetworkPacket;
 use rodio::Decoder;
-use s2n_quic::{client::Connect, Client};
+use s2n_quic::{client::Connect, Client, Connection};
 use std::time::Duration;
 use std::{error::Error, net::SocketAddr};
 use std::{fs::File, io::BufReader, path::Path};
-use tokio::io::AsyncWriteExt;
 use hound;
 use std::io::BufWriter;
+use bytes::Bytes;
+use core::{future::Future, pin::Pin, task::{Context, Poll}};
+use std::sync::Arc;
 
 struct Spiral {
-    theta: f32, // Angle in degrees
-    step: f32,  // Step increment for theta
+    theta: f32,
+    step: f32,
 }
 
 impl Spiral {
@@ -38,10 +40,10 @@ impl Iterator for Spiral {
 async fn main() {
     let args: Vec<String> = std::env::args().collect();
     let result = client(
-        args[1].to_string().parse::<String>().unwrap(), // Player Identifier
-        args[2].to_string().parse::<String>().unwrap(), // Path to Source File
-        args[3].to_string().parse::<String>().unwrap(), // Host:Port of QUIC Server
-        args[4].to_string().parse::<String>().unwrap(), // Server Name
+        args[1].to_string().parse::<String>().unwrap(),
+        args[2].to_string().parse::<String>().unwrap(),
+        args[3].to_string().parse::<String>().unwrap(),
+        args[4].to_string().parse::<String>().unwrap(),
     )
     .await;
     println!("{:?}", result);
@@ -66,40 +68,36 @@ async fn client(
 
     let provider = common::rustls::MtlsProvider::new(ca, cert, key).await?;
 
+    let dg_endpoint = s2n_quic::provider::datagram::default::Endpoint::builder()
+            .with_send_capacity(1024).expect("send cap > 0")
+            .with_recv_capacity(1024).expect("recv cap > 0")
+            .build().expect("build dg endpoint");
+         
     let client = Client::builder()
-        .with_tls(provider)?
-        .with_io("0.0.0.0:0")?
-        .start()?;
+            .with_tls(provider)?
+            .with_io("0.0.0.0:0")?
+            .with_datagram(dg_endpoint)?
+            .start()?;
 
     println!("I am client: {}", id);
     let addr: SocketAddr = socket_addr.parse()?;
     let connect = Connect::new(addr).with_server_name(server_name);
     let mut connection = client.connect(connect).await?;
 
-    // ensure the connection doesn't time out with inactivity
     connection.keep_alive(true)?;
 
-    // open a new stream and split the receiving and sending sides
-    let stream = connection.open_bidirectional_stream().await?;
-    _ = stream.connection().keep_alive(true);
-
-    let (mut receive_stream, mut send_stream) = stream.split();
-
-    _ = receive_stream.connection().keep_alive(true);
-    _ = send_stream.connection().keep_alive(true);
+    let connection = Arc::new(connection);
 
     let mut tasks = Vec::new();
-
-    // spawn a task that copies responses from the server to stdout
-
-    tasks.push(tokio::spawn(async move {
-        let mut packet = Vec::<u8>::new();
+    tasks.push(tokio::spawn({
+        let connection = connection.clone();
+        async move {
         let mut count = 0;
         let mut decoder = opus::Decoder::new(48000, opus::Channels::Mono).unwrap();
     
         let spec = hound::WavSpec {
             channels: 2,
-            bits_per_sample: 32, // Change to 16 for compatibility
+            bits_per_sample: 32,
             sample_format: hound::SampleFormat::Float,
             sample_rate: 48000,
         };
@@ -108,195 +106,212 @@ async fn client(
         let writer = BufWriter::new(file);
         let mut wav_writer = hound::WavWriter::new(writer, spec).unwrap();
     
-        while let Ok(Some(data)) = receive_stream.receive().await {
-            packet.append(&mut data.to_vec());
-    
-            match QuicNetworkPacket::from_stream(&mut packet) {
-                Ok(packets) => {
-                    for packet in packets {
-                        match packet.packet_type {
-                            PacketType::AudioFrame => {
-                                let data: Result<AudioFramePacket, ()> = packet.data.to_owned().try_into();
-                                let mut out = vec![0.0; 960];
-                                let out_len = match decoder.decode_float(&data.unwrap().data, &mut out, false) {
-                                    Ok(s) => {
-                                        s
-                                    }
-                                    Err(e) => {
-                                        println!("Opus decode error: {:?}", e); // Debug error message
-                                        0
-                                    }
-                                };
-    
-                                if out_len > 0 {
-                                    // Write to the WAV file with clamping
-                                    for &sample in &out {
-                                        let clamped_sample = sample.clamp(-1.0, 1.0); // Ensure sample is in range [-1.0, 1.0]
-                                        if let Err(e) = wav_writer.write_sample(clamped_sample) {
-                                            println!("Wav write sample error: {:?}", e);
-                                        }
-                                    }
-
-                                    if count == 1000 {                                        
-                                        break;
-                                    }
-
-                                    count += 1;
-                                    if count % 100 == 0 {
-                                        println!("{:?}", count);
-                                    }
+        while let Ok(bytes) = recv_one_datagram(&connection).await {
+            match QuicNetworkPacket::from_datagram(&bytes) {
+                Ok(packet) => {
+                    if let PacketType::AudioFrame = packet.packet_type {
+                        let data: Result<AudioFramePacket, ()> = packet.data.to_owned().try_into();
+                        if let Ok(frame) = data {
+                            let mut out = vec![0.0; 960];
+                            let out_len = match decoder.decode_float(&frame.data, &mut out, false) {
+                                Ok(s) => s,
+                                Err(e) => { println!("Opus decode error: {:?}", e); 0 }
+                            };
+                            if out_len > 0 {
+                                for &sample in &out {
+                                    let clamped_sample = sample.clamp(-1.0, 1.0);
+                                    if let Err(e) = wav_writer.write_sample(clamped_sample) { println!("Wav write sample error: {:?}", e); }
                                 }
+                                if count == 1000 { break; }
+                                count += 1;
+                                if count % 100 == 0 { println!("{:?}", count); }
                             }
-                            _ => {}
                         }
                     }
-
-                    if count == 1000 {                                        
-                        break;
-                    }
-
+                    if count == 1000 { break; }
                 }
-                Err(e) => {
-                    println!("{:?}", e);
-                }
-            };
+                Err(e) => { println!("Datagram decode error: {:?}", e); }
+            }
         }
-        println!("Receiving loop died");
+        println!("Receiving loop ended");
     
         if let Err(e) = wav_writer.finalize() {
             println!("Wav write final error: {:?}", e);
         } else {
             println!("WAV file finalized successfully");
         }
-    }));
+    }}));
 
-    tasks.push(tokio::spawn(async move {
-        // Windows has a sleep resolution time of ~15.6ms, which is much longer than the 5-9ms it takes to generate a "real" packet
-        // This simulates the slow generation without generating packets in us time.
-        windows_targets::link!("winmm.dll" "system" fn timeBeginPeriod(uperiod: u32) -> u32);
-        unsafe {
-            timeBeginPeriod(1);
-        }
-
-        let client_id: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
-
-        let mut encoder =
-            opus::Encoder::new(48000, opus::Channels::Mono, opus::Application::Voip).unwrap();
-
-        _ = encoder.set_bitrate(opus::Bitrate::Bits(32_000));
-
-        println!("Starting new stream event.");
-        let file = BufReader::new(File::open(source_file.clone()).unwrap());
-        let source = Decoder::new(file).unwrap();
-        
-        // TRUE STREAMING: Process samples as iterator without collecting entire file
-        let sample_iter = source.into_iter();
-        let mut chunk_buffer = Vec::with_capacity(480);
-
-        let mut spiral = Spiral::new(0.5);
-        println!("Starting streaming playback from file: {}", source_file);
-        let mut total_chunks = 0;
-        
-        // Process samples one by one, building 480-sample chunks
-        for sample in sample_iter {
-            chunk_buffer.push(sample);
-            
-            // Continue if we don't have a full chunk yet
-            if chunk_buffer.len() < 480 {
-                continue;
+    tasks.push(tokio::spawn({
+        let connection = connection.clone();
+        async move {
+            // Windows has a sleep resolution time of ~15.6ms, which is much longer than the 5-9ms it takes to generate a "real" packet
+            // This simulates the slow generation without generating packets in us time.
+            windows_targets::link!("winmm.dll" "system" fn timeBeginPeriod(uperiod: u32) -> u32);
+            unsafe {
+                timeBeginPeriod(1);
             }
-            
-            // Process the full 480-sample chunk exactly like original
-            let chunk: Vec<i16> = chunk_buffer.drain(..480).collect();
-            let (_x, _y) = spiral.next().unwrap();
-            total_chunks = total_chunks + 480;
-            let s = encoder.encode_vec(&chunk, chunk.len() * 4).unwrap();
-            let packet = QuicNetworkPacket {
-                owner: Some(common::structs::packet::PacketOwner {
-                    name: id.clone(),
-                    client_id: client_id.clone(),
-                }),
-                packet_type: common::structs::packet::PacketType::AudioFrame,
-                data: common::structs::packet::QuicNetworkPacketData::AudioFrame(
-                    common::structs::packet::AudioFramePacket::new(
-                        s.clone(),
-                        48000,
-                        Some(common::Coordinate {
-                            x: 335.0,
-                            y: 78.0,
-                            z: -689.0,
-                        }),
-                        None,
-                        Some(common::Dimension::Overworld),
-                        None
-                    ),
-                ),
-            };
 
-            match packet.to_vec() {
-                Ok(rs) => {
-                    _ = send_stream.write_all(&rs).await;
-                    // This should be 20ms of audio
-                    if total_chunks % 9600 == 0 {
-                        _ = send_stream.flush().await;
-                        _ = tokio::time::sleep(Duration::from_millis(60)).await;
+            let client_id: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
+
+            let mut encoder =
+                opus::Encoder::new(48000, opus::Channels::Stereo, opus::Application::Voip).unwrap();
+
+            _ = encoder.set_force_channels(Some(opus::Channels::Mono));
+            _ = encoder.set_bitrate(opus::Bitrate::Bits(32_000));
+
+            println!("Starting new stream event.");
+            let file = BufReader::new(File::open(source_file.clone()).unwrap());
+            let source = Decoder::new(file).unwrap();
+            
+            let sample_iter = source.into_iter();
+            let mut chunk_buffer: Vec<f32> = Vec::with_capacity(1920);
+
+            let mut spiral = Spiral::new(0.5);
+            println!("Starting streaming playback from file: {}", source_file);
+            let mut total_chunks = 0;
+            
+            for sample in sample_iter {
+                chunk_buffer.push(sample);
+                
+                if chunk_buffer.len() < 1920 {
+                    continue;
+                }
+                
+                let chunk_f32: Vec<f32> = chunk_buffer.drain(..1920).collect();
+                let chunk: Vec<i16> = chunk_f32.iter().map(|s| (s * i16::MAX as f32).clamp(i16::MIN as f32, i16::MAX as f32) as i16).collect();
+                let (_x, _y) = spiral.next().unwrap();
+                total_chunks = total_chunks + 1920;
+                let s = encoder.encode_vec(&chunk, 960).unwrap();
+                let packet = QuicNetworkPacket {
+                    owner: Some(common::structs::packet::PacketOwner {
+                        name: id.clone(),
+                        client_id: client_id.clone(),
+                    }),
+                    packet_type: common::structs::packet::PacketType::AudioFrame,
+                    data: common::structs::packet::QuicNetworkPacketData::AudioFrame(
+                        common::structs::packet::AudioFramePacket::new(
+                            s.clone(),
+                            48000,
+                            Some(common::Coordinate {
+                                x: 335.0,
+                                y: 78.0,
+                                z: -689.0,
+                            }),
+                            None,
+                            Some(common::Dimension::Overworld),
+                            None
+                        ),
+                    ),
+                };
+
+                match packet.to_datagram() {
+                    Ok(rs) => {
+                        let payload = Bytes::from(rs);
+                        let send_res = connection.datagram_mut(|dg: &mut s2n_quic::provider::datagram::default::Sender| dg.send_datagram(payload.clone()));
+                        if let Err(e) = send_res { println!("Datagram send query error: {:?}", e); }
+                        tokio::time::sleep(Duration::from_millis(10)).await;
                     }
-                }
-                Err(e) => {
-                    println!("{}", e.to_string());
-                }
+                    Err(e) => { println!("{}", e.to_string()); }
+                }            
             }
-        }
-        
-        // Handle any remaining samples in chunk_buffer (less than 480)
-        if !chunk_buffer.is_empty() {
-            println!("Sending final partial chunk with {} samples", chunk_buffer.len());
-            // Pad to 480 samples with silence to match original behavior
-            chunk_buffer.resize(480, 0);
             
-            let (_x, _y) = spiral.next().unwrap();
-            let s = encoder.encode_vec(&chunk_buffer, chunk_buffer.len() * 4).unwrap();
-            let packet = QuicNetworkPacket {
-                owner: Some(common::structs::packet::PacketOwner {
-                    name: id.clone(),
-                    client_id: client_id.clone(),
-                }),
-                packet_type: common::structs::packet::PacketType::AudioFrame,
-                data: common::structs::packet::QuicNetworkPacketData::AudioFrame(
-                    common::structs::packet::AudioFramePacket::new(
-                        s.clone(),
-                        48000,
-                        Some(common::Coordinate {
-                            x: 335.0,
-                            y: 78.0,
-                            z: -689.0,
-                        }),
-                        None,
-                        Some(common::Dimension::Overworld),
-                        None
+            if !chunk_buffer.is_empty() {
+                println!("Sending final partial chunk with {} samples", chunk_buffer.len());
+                chunk_buffer.resize(960, 0.0f32);
+                
+                let (_x, _y) = spiral.next().unwrap();
+                let final_chunk: Vec<i16> = chunk_buffer.iter().map(|s| (s * i16::MAX as f32).clamp(i16::MIN as f32, i16::MAX as f32) as i16).collect();
+                let s = encoder.encode_vec(&final_chunk, final_chunk.len() * 4).unwrap();
+                let packet = QuicNetworkPacket {
+                    owner: Some(common::structs::packet::PacketOwner {
+                        name: id.clone(),
+                        client_id: client_id.clone(),
+                    }),
+                    packet_type: common::structs::packet::PacketType::AudioFrame,
+                    data: common::structs::packet::QuicNetworkPacketData::AudioFrame(
+                        common::structs::packet::AudioFramePacket::new(
+                            s.clone(),
+                            48000,
+                            Some(common::Coordinate {
+                                x: 335.0,
+                                y: 78.0,
+                                z: -689.0,
+                            }),
+                            None,
+                            Some(common::Dimension::Overworld),
+                            None
+                        ),
                     ),
-                ),
-            };
+                };
 
-            match packet.to_vec() {
-                Ok(rs) => {
-                    _ = send_stream.write_all(&rs).await;
-                    _ = send_stream.flush().await;
-                }
-                Err(e) => {
-                    println!("{}", e.to_string());
+                match packet.to_datagram() {
+                    Ok(rs) => {
+                        let payload = Bytes::from(rs);
+                        let send_res = connection.datagram_mut(|dg: &mut s2n_quic::provider::datagram::default::Sender| dg.send_datagram(payload.clone()));
+                        if let Err(e) = send_res { println!("Datagram send query error: {:?}", e); }
+                    }
+                    Err(e) => { println!("{}", e.to_string()); }
                 }
             }
-        }
 
-        tokio::time::sleep(Duration::from_secs(30)).await;
-        let r = send_stream.close().await;
-        println!("Close Sending Stream {:?}", r);
-    }));
+            tokio::time::sleep(Duration::from_secs(30)).await;
+            println!("Send task complete");
+        }
+}));
 
     for task in tasks {
         _ = task.await;
     }
 
     Ok(())
+}
+
+struct RecvDatagram<'c> { conn: &'c Connection }
+impl<'c> RecvDatagram<'c> { fn new(conn: &'c Connection) -> Self { Self { conn } } }
+impl<'c> Future for RecvDatagram<'c> {
+    type Output = Result<Bytes, anyhow::Error>;
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match self.conn.datagram_mut(|r: &mut s2n_quic::provider::datagram::default::Receiver| r.poll_recv_datagram(cx)) {
+            Ok(Poll::Ready(Ok(bytes))) => Poll::Ready(Ok(bytes)),
+            Ok(Poll::Ready(Err(e))) => Poll::Ready(Err(anyhow::anyhow!(e))),
+            Ok(Poll::Pending) => Poll::Pending,
+            Err(e) => Poll::Ready(Err(anyhow::anyhow!(e)))
+        }
+    }
+}
+async fn recv_one_datagram(conn: &Connection) -> Result<Bytes, anyhow::Error> { RecvDatagram::new(conn).await }
+
+fn downmix_stereo_to_mono_i16(interleaved_f32: &[f32]) -> Vec<i16> {
+    // interleaved: L, R, L, R, ...
+    let mut out = Vec::with_capacity(interleaved_f32.len() / 2);
+    let mut i = 0;
+    while i + 1 < interleaved_f32.len() {
+        // -3 dB per channel prevents clipping when summing
+        let l = interleaved_f32[i] * 0.7071;
+        let r = interleaved_f32[i + 1] * 0.7071;
+        let mono = (l + r).clamp(-1.0, 1.0);
+        out.push((mono * i16::MAX as f32) as i16);
+        i += 2;
+    }
+    out
+}
+
+fn pull_one_frame_mono_i16(src: &mut impl Iterator<Item = f32>, stereo: bool) -> Option<Vec<i16>> {
+    if stereo {
+        // need 1920 f32 samples -> 960 mono
+        let mut buf = Vec::with_capacity(1920);
+        while buf.len() < 1920 {
+            buf.push(src.next()?);
+        }
+        Some(downmix_stereo_to_mono_i16(&buf))
+    } else {
+        // mono source: 960 f32 -> 960 mono
+        let mut out = Vec::with_capacity(960);
+        while out.len() < 960 {
+            let s = src.next()?;
+            out.push((s.clamp(-1.0, 1.0) * i16::MAX as f32) as i16);
+        }
+        Some(out)
+    }
 }

@@ -1,7 +1,9 @@
 use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
 use common::structs::packet::{DebugPacket, PacketOwner, QuicNetworkPacket};
 use tauri::Emitter;
-use tokio::{io::AsyncWriteExt, task::AbortHandle};
+use tokio::task::AbortHandle;
+use bytes::Bytes;
+use s2n_quic::Connection;
 use crate::NetworkPacket;
 use log::{error, info, warn};
 
@@ -10,7 +12,7 @@ use log::{error, info, warn};
 pub(crate) struct OutputStream {
     pub bus: Arc<flume::Receiver<NetworkPacket>>,
     pub packet_owner: Option<PacketOwner>,
-    pub stream: Option<s2n_quic::stream::SendStream>,
+    pub connection: Option<Arc<Connection>>,
     jobs: Vec<AbortHandle>,
     shutdown: Arc<AtomicBool>,
     pub metadata: Arc<moka::future::Cache<String, String>>,
@@ -46,7 +48,7 @@ impl common::traits::StreamTrait for OutputStream {
         
         let mut jobs = vec![];
         let rx = self.bus.clone();
-        let mut stream = self.stream.take().unwrap();
+        let connection = self.connection.clone().unwrap();
         let packet_owner = self.packet_owner.clone();
         let app_handle = self.app_handle.clone();
 
@@ -62,15 +64,14 @@ impl common::traits::StreamTrait for OutputStream {
                 )
             };
 
-            match debug_packet.to_vec() {
-                Ok(reader) => {
+            match debug_packet.to_datagram() {
+                Ok(bytes) => {
                     info!("Sent debug packet to server.");
-                    _ = stream.write_all(&reader).await;
-                },
-                Err(e) => {
-                    error!("Failed to send DEBUG packet to stream: {:?}", e);
+                    let payload = Bytes::from(bytes);
+                    if let Err(e) = connection.datagram_mut(|dg: &mut s2n_quic::provider::datagram::default::Sender| dg.send_datagram(payload.clone())) { error!("Debug datagram send error: {:?}", e); }
                 }
-            };
+                Err(e) => { error!("Failed to serialize DEBUG packet: {:?}", e); }
+            }
             
             let notify = crate::AUDIO_INPUT_NETWORK_NOTIFY.clone();
             let mut buffer: Vec<QuicNetworkPacket> = Vec::new();
@@ -92,27 +93,21 @@ impl common::traits::StreamTrait for OutputStream {
                         // 4 packets should be 20ms of audio
                         while buffer.len() >= 4 {
                             for pkt in buffer.drain(..) {
-                                match pkt.to_vec() {
-                                    Ok(reader) => {
-                                        if let Err(e) = stream.write_all(&reader).await {
-                                            error_count += 1;
-                                            if error_count == 100 {
-                                                _ = app_handle.emit(crate::events::event::notification::EVENT_NOTIFICATION, crate::events::event::notification::Notification::new(
-                                                    "High Network Stream Errors!".to_string(),
-                                                    "BVC is currently having difficulties connecting to the server. Audio packets may be delayed or out of sync. A restart is recommended.".to_string(),
-                                                    Some("error".to_string()),
-                                                    Some(e.to_string()),
-                                                    None,
-                                                    None
-                                                ));
-                                            }
-                                        } else {
-                                            error_count = 0;
-                                        }
+                                match pkt.to_datagram() {
+                                    Ok(bytes) => {
+                                        let payload = Bytes::from(bytes);
+                                        let send_res = connection.datagram_mut(|dg: &mut s2n_quic::provider::datagram::default::Sender| dg.send_datagram(payload.clone()));
+                                        if let Err(e) = send_res { error_count += 1; if error_count == 100 { _ = app_handle.emit(crate::events::event::notification::EVENT_NOTIFICATION, crate::events::event::notification::Notification::new(
+                                                "High Network Datagram Errors!".to_string(),
+                                                "BVC is currently having difficulties connecting to the server. Audio packets may be delayed or out of sync. A restart is recommended.".to_string(),
+                                                Some("error".to_string()),
+                                                Some(e.to_string()),
+                                                None,
+                                                None
+                                            )); }
+                                        } else { error_count = 0; }
                                     }
-                                    Err(e) => {
-                                        error!("{}", e.to_string());
-                                    }
+                                    Err(e) => { error!("{}", e.to_string()); }
                                 }
                             }
                         }
@@ -135,8 +130,7 @@ impl common::traits::StreamTrait for OutputStream {
                 None
             ));
 
-            _ = stream.close().await;
-            drop(stream);
+            // No stream close; connection closed elsewhere if needed
         }));
 
         self.jobs = jobs.iter().map(|handle| handle.abort_handle()).collect();
@@ -149,13 +143,13 @@ impl OutputStream {
     pub fn new(
         consumer: Arc<flume::Receiver<NetworkPacket>>,
         packet_owner: Option<PacketOwner>,
-        stream: Option<s2n_quic::stream::SendStream>,
+        connection: Option<Arc<Connection>>,
         app_handle: tauri::AppHandle,
     ) -> Self {
         Self {
             bus: consumer.clone(),
             packet_owner,
-            stream,
+            connection,
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),
             metadata: Arc::new(moka::future::Cache::builder().build()),

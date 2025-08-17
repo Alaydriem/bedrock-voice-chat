@@ -1,6 +1,7 @@
 /// The StreamTrait interface defines the methods that must be implemented by
 /// any streaming component at minimum: stop, is_stopped, start, and metadata.
 /// This should be implemented both by network and audio streams.
+#[allow(async_fn_in_trait)]
 pub trait StreamTrait {
     /// Stop the stream gracefully
     async fn stop(&mut self) -> Result<(), anyhow::Error>;
