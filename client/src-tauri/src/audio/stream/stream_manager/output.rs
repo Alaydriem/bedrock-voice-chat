@@ -1,6 +1,10 @@
+use crate::audio::stream::jitter_buffer::DecodedAudioFramePacket;
+use crate::audio::stream::stream_manager::AudioSinkType;
+
 use crate::AudioPacket;
 use crate::audio::types::{AudioDevice, BUFFER_SIZE};
 use common::{
+    encoding::decode_zigzag_varint_i64,
     structs::{
         audio::{
             PlayerGainSettings,
@@ -35,24 +39,7 @@ use once_cell::sync::Lazy;
 
 static MUTE_OUTPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 
-static PLAYER_ATTENUATION_SETTINGS: Lazy<std::sync::Mutex<serde_json::Value>> = Lazy::new(|| {
-    std::sync::Mutex::new(serde_json::to_value(PlayerGainStore::default()).expect("Failed to serialize PlayerGainStore"))
-});
-
-static UPDATE_PLAYER_ATTENUATION_SETTINGS: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
-
 use super::sink_manager::SinkManager;
-
-/// This is our decoded audio stream
-#[derive(Debug, Clone)]
-struct DecodedAudioFramePacket {
-    pub owner: Option<PacketOwner>,
-    pub buffer: SamplesBuffer,
-    pub coordinate: Option<Coordinate>,
-    #[allow(dead_code)]
-    pub orientation: Option<Orientation>,
-    pub spatial: Option<bool>
-}
 
 #[derive(Debug, Clone)]
 struct SpatialAudioData {
@@ -60,20 +47,6 @@ struct SpatialAudioData {
     pub left_ear: Coordinate,
     pub right_ear: Coordinate,
     pub gain: f32,
-}
-
-impl DecodedAudioFramePacket {
-    pub fn get_author(&self) -> String {
-        match &self.owner {
-            Some(owner) => {
-                // Utilize the client ID so that the same author can receive and hear multiple incoming
-                // network streams. Without this, the audio packets for the same author across two streams
-                // come in sequence and playback sounds corrupted
-                return general_purpose::STANDARD.encode(&owner.client_id);
-            }
-            None => String::from("")
-        }
-    }
 }
 
 pub(crate) struct OutputStream {
@@ -85,7 +58,8 @@ pub(crate) struct OutputStream {
     pub metadata: Arc<Cache<String, String>>,
     #[allow(unused)]
     app_handle: tauri::AppHandle,
-    player_presence: Arc<moka::sync::Cache<String, bool>>
+    player_presence: Arc<moka::sync::Cache<String, bool>>,
+    sink_manager: Option<SinkManager>,
 }
 
 impl common::traits::StreamTrait for OutputStream {
@@ -96,11 +70,10 @@ impl common::traits::StreamTrait for OutputStream {
             },
             "player_gain_store" => {
                 match serde_json::from_str::<PlayerGainStore>(&value) {
-                    Ok(settings) => {
-                        let mut lock_settings = PLAYER_ATTENUATION_SETTINGS.lock().unwrap();
-                        *lock_settings = serde_json::to_value(settings).expect("Failed to serialize PlayerGainStore");
-                        UPDATE_PLAYER_ATTENUATION_SETTINGS.store(true, Ordering::Relaxed);
-                        drop(lock_settings);
+                    Ok(settings) => {                        
+                        if let Some(sink_manager) = self.sink_manager.as_mut() {
+                            sink_manager.update_player_store(settings.clone())
+                        }
                     },
                     Err(e) => {
                         error!("Failed to parse PlayerGainStore: {:?}", e);
@@ -129,6 +102,9 @@ impl common::traits::StreamTrait for OutputStream {
     async fn stop(&mut self) -> Result<(), anyhow::Error> {
         _ = self.shutdown.store(true, Ordering::Relaxed);
 
+        if let Some(sink_manager) = self.sink_manager.as_mut() {
+            sink_manager.stop().await;
+        }
         // Give existing jobs 500ms to clear
         _ = tokio::time::sleep(Duration::from_millis(500)).await;
 
@@ -207,7 +183,8 @@ impl OutputStream {
             app_handle: app_handle.clone(),
             player_presence: Arc::new(moka::sync::Cache::builder()
                 .time_to_idle(Duration::from_secs(3 * 60))
-                .build())
+                .build()),
+            sink_manager: None
         }
     }
     
@@ -231,15 +208,6 @@ impl OutputStream {
                     let bus = self.bus.clone();
 
                     let handle = tokio::spawn(async move {
-                        // Opus decoders are stored in a ttl-hashmap
-                        // Opus streams maintain state between opus packets, so we need to re-use
-                        // the same decode, per stream
-                        // We can save some memory but automatically dropping unused decoders
-                        // after 15 minutes
-                        let decoders: Cache<Vec<u8>, Arc<Mutex<opus::Decoder>>> = Cache::builder()
-                            .time_to_idle(Duration::from_secs(15 * 60))
-                            .build();
-
                         #[allow(irrefutable_let_patterns)]
                         while let packet = bus.recv_async().await {
                             if shutdown.load(Ordering::Relaxed) {
@@ -251,7 +219,6 @@ impl OutputStream {
                                 Ok(packet) => {
                                     match packet.data.get_packet_type() {
                                         PacketType::AudioFrame => OutputStream::handle_audio_data(
-                                            &decoders,
                                             &device_config,
                                             producer.clone(),
                                             &packet.data
@@ -300,24 +267,32 @@ impl OutputStream {
                 Ok(config) => {
                     let cpal_device: Option<rodio::cpal::Device> = device.clone().into();
                     let handle = match cpal_device {
-                        Some(cpal_device) => tokio::spawn(async move {
+                        Some(cpal_device) => {
                             log::info!("started receiving audio stream");
                             let builder = match OutputStreamBuilder::from_device(cpal_device) {
                                 Ok(b) => b,
-                                Err(e) => { error!("Could not create OutputStreamBuilder: {:?}", e); return; }
+                                Err(e) => { error!("Could not create OutputStreamBuilder: {:?}", e); return Err(anyhow::anyhow!(e)); }
                             };
                             let stream_config: rodio::cpal::StreamConfig = config.clone().into();
                             let builder = builder.with_config(&stream_config);
                             let stream = match builder.open_stream_or_fallback() {
                                 Ok(s) => s,
-                                Err(e) => { error!("Could not acquire OutputStream. Try restarting the stream? {:?}", e); return; }
+                                Err(e) => { error!("Could not acquire OutputStream. Try restarting the stream? {:?}", e); return Err(anyhow::anyhow!(e)); }
                             };
 
                             let mixer = stream.mixer();
-                            let mut sink_manager = SinkManager::new(&mixer);
+                            let mut sink_manager = SinkManager::new(
+                                self.app_handle.clone(),
+                                Arc::new(mixer.clone()),
+                                players.clone(),
+                                PlayerGainStore::default(),
+                                current_player_name,
+                                consumer
+                            );
     
-                            let mut player_gain_store_settings: PlayerGainStore = PlayerGainStore::default();
-                            
+                            self.sink_manager = Some(sink_manager);
+                            return self.sink_manager.as_mut().unwrap().listen().await;
+                            /*
                             // Iterate over the incoming PCM data
                             #[allow(irrefutable_let_patterns)]
                             while let packet = consumer.recv() {
@@ -466,7 +441,8 @@ impl OutputStream {
                                 }
                             }
                             log::info!("ending loop");
-                        }),
+                            */
+                        },
                         None => {
                             error!("CPAL output device is not defined. This shouldn't happen! Restart BVC? {:?}", device.clone());
                             return Err(anyhow::anyhow!("Couldn't retrieve native cpal device for {} {}.", device.io.to_string(), device.display_name))
@@ -490,58 +466,34 @@ impl OutputStream {
 
     /// Processes AudioFramePacket data
     async fn handle_audio_data(
-        decoders: &Cache<Vec<u8>, Arc<Mutex<opus::Decoder>>>,
         device_config: &rodio::cpal::StreamConfig,
         producer: Arc<Sender<DecodedAudioFramePacket>>,
         data: &QuicNetworkPacket
     ) {
         let owner = data.owner.clone();
-        let client_id = data.get_client_id();
         let sample_rate = device_config.sample_rate.0.into();
 
         let data: Result<AudioFramePacket, ()> = data.data.to_owned().try_into();
 
         match data {
             Ok(data) => {
-                let decoder = match decoders.get(&client_id).await {
-                    Some(decoder) => decoder.to_owned(),
-                    None => {
-                        let decoder = opus::Decoder
-                            ::new(sample_rate, opus::Channels::Mono)
-                            .unwrap();
-                        let decoder = Arc::new(Mutex::new(decoder));
-                        decoders.insert(client_id.clone(), decoder.clone()).await;
-                        decoder
-                    }
-                };
+                let result = producer.send(DecodedAudioFramePacket {
+                    timestamp: data.timestamp() as u64,
+                    sample_rate: sample_rate,
+                    data: data.data,
+                    route: AudioSinkType::from_spatial(match data.spatial {
+                        Some(spatial) => spatial,
+                        None => false
+                    }),
+                    coordinate: data.coordinate,
+                    orientation: data.orientation,
+                    owner: owner.clone(),
+                });
 
-                let mut decoder = decoder.lock().await;
-                let mut out = vec![0.0; BUFFER_SIZE as usize];
-                let out_len = match decoder.decode_float(&data.data, &mut out, false) {
-                    Ok(s) => s,
+                match result {
+                    Ok(_) => {},
                     Err(e) => {
-                        warn!("Could not decode audio frame packet: {:?}", e);
-                        0
-                    }
-                };
-
-                out.truncate(out_len);
-                if out.len() > 0 {
-                    let result = producer.send(DecodedAudioFramePacket {
-                        owner: owner.clone(),
-                        buffer: SamplesBuffer::new(
-                            1,
-                            data.sample_rate,
-                            out
-                        ),
-                        coordinate: data.coordinate,
-                        spatial: data.spatial,
-                        orientation: data.orientation
-                    });
-
-                    match result {
-                        Ok(_) => {},
-                        Err(e) => warn!("{:?}", e)
+                        warn!("Could not send decoded audio frame packet: {:?}", e);
                     }
                 }
             },

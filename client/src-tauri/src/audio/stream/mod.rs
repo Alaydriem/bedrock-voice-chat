@@ -1,4 +1,5 @@
 mod stream_manager;
+mod jitter_buffer;
 
 use crate::NetworkPacket;
 use anyhow::Error;

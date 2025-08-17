@@ -1,6 +1,7 @@
 mod input;
 mod output;
 mod sink_manager;
+mod audio_sink;
 
 use std::sync::Arc;
 
@@ -9,6 +10,7 @@ use crate::audio::types::AudioDevice;
 pub(crate) use input::InputStream;
 pub(crate) use output::OutputStream;
 pub(crate) use common::traits::StreamTrait;
+pub(crate) use audio_sink::AudioSinkType;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
