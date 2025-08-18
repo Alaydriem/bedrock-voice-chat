@@ -12,8 +12,7 @@ const WARMUP_PACKETS_NEEDED: usize = 2;
 const MAX_PLC_ATTEMPTS: usize = 5;
 const MAX_OPUS_FRAME_MS: usize = 480; // worst-case single decode span
 const FRAME_MS: i64 = 20;
-#[allow(dead_code)]
-const TARGET_LATENCY_MS: i64 = 160; // legacy constant, unused after overflow policy change
+const LARGE_JUMP_FORWARD_MS: i64 = 1000; // Allow timestamp jumps > 1000ms (stream restart)
 
 #[derive(Debug)]
 pub enum JitterBufferError {
@@ -85,6 +84,7 @@ pub struct JitterBufferSource {
     stopped: bool,
     // Time tracking (ms) to detect and drop late packets
     last_output_ts_ms: i64,
+    last_accepted_timestamp: i64,
     samples_per_frame: usize,
     frame_sample_countdown: usize,
     queued_frames: usize,
@@ -92,17 +92,27 @@ pub struct JitterBufferSource {
     frames_decoded: u64,
     frames_plc: u64,
     frames_silence: u64,
-    #[allow(dead_code)]
-    frames_dropped_late: u64,
-    #[allow(dead_code)]
-    frames_trimmed_future: u64, // deprecated; kept for compatibility but unused
     frames_dropped_overflow: u64,
+    frames_dropped_ooo: u64,
     aggregated_decodes: u64,
 }
 
 impl JitterBufferSource {
     fn frames_for_rate(rate: u32) -> usize { (rate as usize) / 50 }
     fn max_samples_for_rate(rate: u32) -> usize { (rate as usize) * MAX_OPUS_FRAME_MS / 1000 }
+
+    #[allow(dead_code)]
+    pub fn get_diagnostics(&self) -> String {
+        format!(
+            "decoded={} plc={} silence={} overflow={} ooo={} aggregated={}",
+            self.frames_decoded,
+            self.frames_plc,
+            self.frames_silence,
+            self.frames_dropped_overflow,
+            self.frames_dropped_ooo,
+            self.aggregated_decodes
+        )
+    }
 
     fn new(
         rx: flume::Receiver<Option<EncodedAudioFramePacket>>,
@@ -135,16 +145,16 @@ impl JitterBufferSource {
             capacity,
             stopped: false,
             last_output_ts_ms: initial_packet.timestamp as i64 - FRAME_MS,
+            last_accepted_timestamp: initial_packet.timestamp as i64,
             samples_per_frame: frames,
             frame_sample_countdown: 0,
             queued_frames: 0,
             frames_decoded: 0,
             frames_plc: 0,
             frames_silence: 0,
-            frames_dropped_late: 0,
-            frames_trimmed_future: 0,
             aggregated_decodes: 0,
             frames_dropped_overflow: 0,
+            frames_dropped_ooo: 0,
         };
 
         // Seed first packet directly (FIFO)
@@ -233,12 +243,44 @@ impl JitterBufferSource {
         }
     }
 
+    fn is_packet_acceptable(&self, packet_timestamp: i64) -> bool {
+        // Drop packets with timestamps <= last accepted (out-of-order/duplicate)
+        if packet_timestamp <= self.last_accepted_timestamp {
+            return false;
+        }
+
+        // Allow large forward jumps (stream restart scenarios)
+        let time_diff = packet_timestamp - self.last_accepted_timestamp;
+        if time_diff > LARGE_JUMP_FORWARD_MS {
+            return true; // Accept as potential stream restart
+        }
+
+        // Accept reasonable forward progression
+        true
+    }
+
     fn drain_incoming(&mut self) {
         while let Ok(msg) = self.rx.try_recv() {
             match msg {
                 Some(packet) => {
-                    // Server guarantees no late frames; accept all, but cap memory
-                    // If ring is at capacity, drop the newest (incoming) to preserve smoothness of queued audio
+                    let packet_timestamp = packet.timestamp as i64;
+                    
+                    // Check for out-of-order packets
+                    if !self.is_packet_acceptable(packet_timestamp) {
+                        self.frames_dropped_ooo = self.frames_dropped_ooo.saturating_add(1);
+                        if self.frames_dropped_ooo % 50 == 1 {
+                            warn!(
+                                "Out-of-order: dropping packet ts={} <= last_accepted={} (drops={})",
+                                packet_timestamp, self.last_accepted_timestamp, self.frames_dropped_ooo
+                            );
+                        }
+                        continue; // Drop this packet
+                    }
+
+                    // Update accepted timestamp on successful validation
+                    self.last_accepted_timestamp = packet_timestamp;
+
+                    // Check for overflow and handle capacity
                     if self.ring.len() >= self.capacity {
                         self.frames_dropped_overflow = self.frames_dropped_overflow.saturating_add(1);
                         if self.frames_dropped_overflow % 100 == 1 {
@@ -278,7 +320,6 @@ impl Iterator for JitterBufferSource {
                 // One frame fully consumed
                 self.last_output_ts_ms += FRAME_MS;
                 if self.queued_frames > 0 { self.queued_frames -= 1; }
-                self.frames_decoded = self.frames_decoded; // no-op; placeholder for potential periodic report
             }
             return Some(sample);
         }
