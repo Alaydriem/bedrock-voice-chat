@@ -185,25 +185,21 @@ mod tests {
             data: QuicNetworkPacketData::AudioFrame(audio_packet),
         };
 
-        // Serialize the packet
-        let serialized = original_packet.to_vec().expect("Failed to serialize packet");
+        // Serialize the packet (datagram form)
+        let serialized = original_packet.to_datagram().expect("Failed to serialize packet");
         let serialized_len = serialized.len();
-        println!("Packet serialized to {} bytes", serialized_len);
+        println!("Datagram serialized to {} bytes", serialized_len);
 
-        // Deserialize the packet
-        let mut packet_buffer = serialized;
-        let deserialized_packets = QuicNetworkPacket::from_stream(&mut packet_buffer)
-            .expect("Failed to deserialize packet");
-
-        assert_eq!(deserialized_packets.len(), 1);
-        let deserialized_packet = &deserialized_packets[0];
+        // Deserialize the packet directly from datagram bytes
+        let deserialized_packet = QuicNetworkPacket::from_datagram(&serialized)
+            .expect("Failed to deserialize datagram packet");
 
         // Verify packet type and owner
         assert_eq!(deserialized_packet.packet_type, PacketType::AudioFrame);
         assert_eq!(deserialized_packet.get_author(), "test_user");
 
         // Verify audio data
-        if let QuicNetworkPacketData::AudioFrame(audio) = &deserialized_packet.data {
+    if let QuicNetworkPacketData::AudioFrame(audio) = &deserialized_packet.data {
             assert_eq!(audio.length(), test_data.len() as i32);
             assert_eq!(audio.data, test_data);
             assert_eq!(audio.sample_rate, 48000);
@@ -224,10 +220,7 @@ mod tests {
                      (4 + 8) - (encoded_length_size + encoded_timestamp_size));
         }
         
-        // Test packet header efficiency
-        // Old header: 5 bytes magic + 4 bytes fixed length = 9 bytes
-        // New header: 5 bytes magic + varint length (small packets = 1 byte) = 6 bytes
-        println!("Packet header savings: ~3 bytes (9 bytes fixed → ~6 bytes varint for small packets)");
-        println!("Combined optimizations save ~8 bytes per audio packet!");
+    // Datagram path removed all custom stream framing overhead (previous header bytes eliminated)
+    println!("Datagram path removes custom header; size now = payload only.");
     }
 }

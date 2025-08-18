@@ -48,11 +48,11 @@ pub(crate) fn get_cpal_hosts() -> Result<Vec<rodio::cpal::platform::Host>, anyho
 
     #[cfg(any(target_os = "android"))]
     {
-        match cpal::host_from_id(HostId::Oboe) {
+    match cpal::host_from_id(HostId::Aaudio) {
             Ok(host) => hosts.push(host),
             Err(e) => {
                 error!("{}", e.to_string());
-                return Err(anyhow!("Could not initialize Oboe Audio Host for Android."));
+        return Err(anyhow!("Could not initialize AAudio Audio Host for Android."));
             }
         };
     }

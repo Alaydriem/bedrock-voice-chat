@@ -1,7 +1,8 @@
 use moka::sync::Cache;
 use rodio::{
-    OutputStreamHandle, Sink, SpatialSink
+    Sink, SpatialSink,
 };
+use rodio::mixer::Mixer;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -44,16 +45,16 @@ pub(crate) struct AudioSink {
 
 pub(crate) struct SinkManager<'a> {
     pub sinks: Cache<String, Arc<AudioSink>>,
-    handle: &'a OutputStreamHandle
+    mixer: &'a Mixer,
 }
 
 impl<'a> SinkManager<'a> {
-    pub fn new(handle: &'a OutputStreamHandle) -> Self {
+    pub fn new(mixer: &'a Mixer) -> Self {
         Self {
             sinks: Cache::builder()
                 .time_to_idle(Duration::from_secs(15 * 60))
                 .build(),
-            handle
+            mixer
         }
     }
 
@@ -61,13 +62,13 @@ impl<'a> SinkManager<'a> {
         let inner_sink = match self.sinks.get(&source.clone()) {
             Some(sink) => sink,
             None => {
-                let spatial_sink = Arc::new(SpatialSink::try_new(
-                    &self.handle,
+                let spatial_sink = Arc::new(SpatialSink::connect_new(
+                    &self.mixer,
                     [0.0, 0.0, 0.0],
                     [0.0, 0.0, 0.0],
                     [0.0, 0.0, 0.0]
-                ).unwrap());
-                let sink = Arc::new(Sink::try_new(&self.handle).unwrap());
+                ));
+                let sink = Arc::new(Sink::connect_new(&self.mixer));
 
                 sink.play();
                 spatial_sink.play();

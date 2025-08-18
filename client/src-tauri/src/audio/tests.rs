@@ -23,7 +23,7 @@ fn get_cpal_hosts() {
             #[cfg(any(target_os = "android"))]
             {
                 assert_eq!(1, hosts.len());
-                assert_eq!("Oboe", hosts.get(0).unwrap().id().name());
+                assert_eq!("AAudio", hosts.get(0).unwrap().id().name());
             }
         }
         Err(e) => {

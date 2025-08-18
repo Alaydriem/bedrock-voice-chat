@@ -1,22 +1,25 @@
 use common::traits::StreamTrait;
 use common::structs::packet::QuicNetworkPacket;
 use anyhow::Error;
-use s2n_quic::stream::SendStream;
-use tokio::sync::{mpsc, broadcast};
+use s2n_quic::Connection;
+use bytes::Bytes;
+use tokio::sync::broadcast;
 use std::sync::Arc;
-use crate::stream::quic::ServerOutputPacket;
 use std::sync::atomic::{AtomicBool, Ordering};
 use async_mutex::Mutex;
 use moka::future::Cache;
 use common::Player;
+use crate::stream::quic::client_id_hash;
 
 pub(crate) struct OutputStream {
-    sender: Option<SendStream>,
+    connection: Option<Arc<Connection>>,
     // Direct broadcast receiver instead of mutex consumer
     broadcast_rx: Option<broadcast::Receiver<QuicNetworkPacket>>,
     is_stopped: Arc<AtomicBool>,
     // Player identity for filtering (shared with corresponding InputStream)
     pub(crate) player_id: Arc<std::sync::Mutex<Option<String>>>,
+    // Client id for enriched logging
+    pub(crate) client_id: Arc<std::sync::Mutex<Option<Vec<u8>>>>,
     // Caches needed for packet filtering
     channel_cache: Option<Arc<Mutex<Cache<String, String>>>>,
     player_cache: Option<Arc<Cache<String, Player>>>,
@@ -25,14 +28,14 @@ pub(crate) struct OutputStream {
 
 impl OutputStream {
     pub fn new(
-        sender: Option<SendStream>,
-        _consumer: Option<Arc<tokio::sync::Mutex<mpsc::UnboundedReceiver<ServerOutputPacket>>>>,
+        connection: Option<Arc<Connection>>
     ) -> Self {
         Self {
-            sender,
+            connection,
             broadcast_rx: None,
             is_stopped: Arc::new(AtomicBool::new(true)),
             player_id: Arc::new(std::sync::Mutex::new(None)),
+            client_id: Arc::new(std::sync::Mutex::new(None)),
             channel_cache: None,
             player_cache: None,
             broadcast_range: 20.0, // Default value
@@ -58,9 +61,7 @@ impl OutputStream {
     }
 
     #[allow(unused)]
-    pub fn set_sender(&mut self, sender: SendStream) {
-        self.sender = Some(sender);
-    }
+    pub fn set_connection(&mut self, connection: Arc<Connection>) { self.connection = Some(connection); }
 
     #[allow(unused)]
     pub fn set_player_id(&self, player_id: String) {
@@ -71,6 +72,17 @@ impl OutputStream {
 
     pub fn get_player_id(&self) -> Option<String> {
         self.player_id.lock().ok().and_then(|guard| guard.clone())
+    }
+
+    #[allow(unused)]
+    pub fn set_client_id(&self, client_id: Vec<u8>) {
+        if let Ok(mut guard) = self.client_id.lock() {
+            *guard = Some(client_id);
+        }
+    }
+
+    pub fn get_client_id(&self) -> Option<Vec<u8>> {
+        self.client_id.lock().ok().and_then(|guard| guard.clone())
     }
 
     /// Check if this output stream should receive a packet based on player identity
@@ -123,7 +135,7 @@ impl StreamTrait for OutputStream {
         tracing::info!("Starting QUIC output stream");
         self.is_stopped.store(false, Ordering::Relaxed);
         
-        if let (Some(mut sender), Some(mut broadcast_rx)) = (self.sender.take(), self.broadcast_rx.take()) {
+        if let (Some(connection), Some(mut broadcast_rx)) = (self.connection.clone(), self.broadcast_rx.take()) {
             // Handle outgoing packets to this connection directly from broadcast
             loop {
                 match broadcast_rx.recv().await {
@@ -132,24 +144,42 @@ impl StreamTrait for OutputStream {
                         if !self.is_receivable(&mut packet).await {
                             continue; // Skip packets not intended for this player
                         }
+                        match packet.to_datagram() {
+                            Ok(bytes) => {
+                                let payload = Bytes::from(bytes);
+                                let send_res = connection.datagram_mut(|dg: &mut s2n_quic::provider::datagram::default::Sender| {
+                                    dg.send_datagram(payload.clone())
+                                });
+                                // Identity for logs
+                                let player = self.get_player_id().unwrap_or_else(|| "unknown".into());
+                                let client_hash = self.get_client_id().map(|cid| client_id_hash(&cid)).unwrap_or_else(|| "????".into());
 
-                        match packet.to_vec() {
-                            Ok(data) => {
-                                // Using sender.send() for single packet delivery
-                                // Note: write_all() would be needed for:
-                                // - Streaming large data that exceeds QUIC frame size
-                                // - When you need to guarantee all bytes are written
-                                // - For protocols requiring specific byte ordering
-                                // Current use case: Single voice packets fit in QUIC frames
-                                if let Err(e) = sender.send(data.into()).await {
-                                    tracing::error!("Failed to send data over QUIC stream: {}", e);
-                                    break;
+                                fn is_conn_closed(msg: &str) -> bool {
+                                    let m = msg.to_ascii_lowercase();
+                                    (m.contains("connection") && m.contains("clos")) || m.contains("closed") || m.contains("reset")
+                                }
+
+                                match send_res {
+                                    Ok(Ok(())) => { /* sent */ }
+                                    Ok(Err(e)) => {
+                                        let emsg = e.to_string();
+                                        if is_conn_closed(&emsg) {
+                                            tracing::error!("datagram_send_closed player={} client={} err={}", player, client_hash, emsg);
+                                            break;
+                                        } else if emsg.to_ascii_lowercase().contains("capacity") || emsg.to_ascii_lowercase().contains("queue") {
+                                            tracing::debug!("datagram send capacity issue player={} client={} err={}", player, client_hash, emsg);
+                                        } else {
+                                            tracing::debug!("datagram send error player={} client={} err={}", player, client_hash, emsg);
+                                        }
+                                    }
+                                    Err(e) => {
+                                        let emsg = e.to_string();
+                                        tracing::error!("datagram_send_query_failed player={} client={} err={}", player, client_hash, emsg);
+                                        break;
+                                    }
                                 }
                             }
-                            Err(e) => {
-                                tracing::error!("Failed to serialize packet: {}", e);
-                                continue;
-                            }
+                            Err(e) => { tracing::error!("Failed to serialize packet to datagram: {}", e); continue; }
                         }
                     }
                     Err(broadcast::error::RecvError::Closed) => {

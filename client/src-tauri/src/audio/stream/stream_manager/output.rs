@@ -11,7 +11,7 @@ use common::{
 };
 use base64::{engine::general_purpose, Engine as _};
 use log::{error, info, warn};
-use rodio::{buffer::SamplesBuffer, Sink, SpatialSink};
+use rodio::{buffer::SamplesBuffer, Sink, SpatialSink, OutputStreamBuilder};
 use std::{
     sync::{
         atomic::{
@@ -47,7 +47,7 @@ use super::sink_manager::SinkManager;
 #[derive(Debug, Clone)]
 struct DecodedAudioFramePacket {
     pub owner: Option<PacketOwner>,
-    pub buffer: SamplesBuffer<f32>,
+    pub buffer: SamplesBuffer,
     pub coordinate: Option<Coordinate>,
     #[allow(dead_code)]
     pub orientation: Option<Orientation>,
@@ -302,18 +302,19 @@ impl OutputStream {
                     let handle = match cpal_device {
                         Some(cpal_device) => tokio::spawn(async move {
                             log::info!("started receiving audio stream");
-                            let (_stream, handle) = match rodio::OutputStream::try_from_device_config(
-                                &cpal_device,
-                                config
-                            ) {
-                                Ok((s, h)) => (s, h),
-                                Err(e) => {
-                                    error!("Could not acquired Stream Handle to Output to Audio Stream. Try restarting the stream? {:?}", e);
-                                    return;
-                                }
+                            let builder = match OutputStreamBuilder::from_device(cpal_device) {
+                                Ok(b) => b,
+                                Err(e) => { error!("Could not create OutputStreamBuilder: {:?}", e); return; }
                             };
-                            
-                            let mut sink_manager = SinkManager::new(&handle);
+                            let stream_config: rodio::cpal::StreamConfig = config.clone().into();
+                            let builder = builder.with_config(&stream_config);
+                            let stream = match builder.open_stream_or_fallback() {
+                                Ok(s) => s,
+                                Err(e) => { error!("Could not acquire OutputStream. Try restarting the stream? {:?}", e); return; }
+                            };
+
+                            let mixer = stream.mixer();
+                            let mut sink_manager = SinkManager::new(&mixer);
     
                             let mut player_gain_store_settings: PlayerGainStore = PlayerGainStore::default();
                             
@@ -528,8 +529,8 @@ impl OutputStream {
                 if out.len() > 0 {
                     let result = producer.send(DecodedAudioFramePacket {
                         owner: owner.clone(),
-                        buffer: SamplesBuffer::<f32>::new(
-                            2, // is this _always_ a mono channel? Shouldn't this be stero sometimes too?
+                        buffer: SamplesBuffer::new(
+                            1,
                             data.sample_rate,
                             out
                         ),

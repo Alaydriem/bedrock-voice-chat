@@ -55,10 +55,11 @@ tracing-subscriber = { version = "^0.3" }
 tracing-appender = { version = "^0.2" }
 base64 = { version = "^0.22" }
 faccess = { version = "^0.2" }
-s2n-quic = { version = "^1.52.0", default-features = false, features = [
+s2n-quic = { version = "=1.63.0", default-features = false, features = [
     "provider-address-token-default",
     "provider-tls-rustls",
     "provider-event-tracing",
+    "unstable-provider-datagram",
 ] }
 bytes = { version = "^1.6" }
 async-mutex = { version = "^1.4" }
@@ -90,8 +91,8 @@ rocket_cors = "0.6.0"
 built = { version = "^0.7", features = ["git2", "chrono", "semver"] }
 
 [dev-dependencies]
-opus = { version = "^0.3" }
-rodio = { version = "^0.20" }
+opus = { git = "https://github.com/SpaceManiac/opus-rs", rev ="834381efeaa864d06925e849992341926d358879" }
+rodio = { version = "^0.21" }
 async-ringbuf = { version = "^0.3" }
 ringbuf = { version = "0.4" }
 hound = "^3.5"

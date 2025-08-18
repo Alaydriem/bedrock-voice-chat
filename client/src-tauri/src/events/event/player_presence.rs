@@ -1,4 +1,4 @@
-use log::{info, warn, error};
+use log::info;
 use serde::{Serialize, Deserialize};
 use tauri::Listener;
 
@@ -17,6 +17,7 @@ impl Presence {
         Self { player, status }
     }
 
+    #[allow(unused)]
     pub fn register(app: &tauri::App) {
         app.listen(PLAYER_PRESENCE, |event| {
             if let Ok(payload) = serde_json::from_str::<Presence>(&event.payload()) {
