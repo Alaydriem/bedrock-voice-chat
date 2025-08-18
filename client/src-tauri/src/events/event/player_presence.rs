@@ -1,5 +1,5 @@
 use log::info;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use tauri::Listener;
 
 // Events Tauri is to subscribe to

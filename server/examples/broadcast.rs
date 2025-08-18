@@ -210,7 +210,7 @@ async fn client(
                         let payload = Bytes::from(rs);
                         let send_res = connection.datagram_mut(|dg: &mut s2n_quic::provider::datagram::default::Sender| dg.send_datagram(payload.clone()));
                         if let Err(e) = send_res { println!("Datagram send query error: {:?}", e); }
-                        tokio::time::sleep(Duration::from_millis(10)).await;
+                        tokio::time::sleep(Duration::from_millis(18)).await;
                     }
                     Err(e) => { println!("{}", e.to_string()); }
                 }            
@@ -281,37 +281,3 @@ impl<'c> Future for RecvDatagram<'c> {
     }
 }
 async fn recv_one_datagram(conn: &Connection) -> Result<Bytes, anyhow::Error> { RecvDatagram::new(conn).await }
-
-fn downmix_stereo_to_mono_i16(interleaved_f32: &[f32]) -> Vec<i16> {
-    // interleaved: L, R, L, R, ...
-    let mut out = Vec::with_capacity(interleaved_f32.len() / 2);
-    let mut i = 0;
-    while i + 1 < interleaved_f32.len() {
-        // -3 dB per channel prevents clipping when summing
-        let l = interleaved_f32[i] * 0.7071;
-        let r = interleaved_f32[i + 1] * 0.7071;
-        let mono = (l + r).clamp(-1.0, 1.0);
-        out.push((mono * i16::MAX as f32) as i16);
-        i += 2;
-    }
-    out
-}
-
-fn pull_one_frame_mono_i16(src: &mut impl Iterator<Item = f32>, stereo: bool) -> Option<Vec<i16>> {
-    if stereo {
-        // need 1920 f32 samples -> 960 mono
-        let mut buf = Vec::with_capacity(1920);
-        while buf.len() < 1920 {
-            buf.push(src.next()?);
-        }
-        Some(downmix_stereo_to_mono_i16(&buf))
-    } else {
-        // mono source: 960 f32 -> 960 mono
-        let mut out = Vec::with_capacity(960);
-        while out.len() < 960 {
-            let s = src.next()?;
-            out.push((s.clamp(-1.0, 1.0) * i16::MAX as f32) as i16);
-        }
-        Some(out)
-    }
-}

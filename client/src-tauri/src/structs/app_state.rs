@@ -17,10 +17,7 @@ impl AppState {
     pub fn new(store: Arc<Store<Wry>>) -> Self {
         Self {
             store: store.clone(),
-            input_audio_device: AppState::setup_audio_device(
-                AudioDeviceType::InputDevice,
-                &store
-            ),
+            input_audio_device: AppState::setup_audio_device(AudioDeviceType::InputDevice, &store),
             output_audio_device: AppState::setup_audio_device(
                 AudioDeviceType::OutputDevice,
                 &store,
@@ -38,7 +35,7 @@ impl AppState {
             display_name: device.display_name.replace('\"', ""),
             host: device.host,
             io: device.io.clone(),
-            stream_configs: device.stream_configs.clone()
+            stream_configs: device.stream_configs.clone(),
         };
 
         // Change the stored value
@@ -74,7 +71,10 @@ impl AppState {
         let (name, host, stream_configs, display_name) = match store.get(io.to_string()) {
             Some(s) => (
                 s.get("name").unwrap().to_string().replace('\"', ""),
-                serde_json::from_str::<AudioDeviceHost>(s.get("host").unwrap().to_string().as_str()).unwrap(),
+                serde_json::from_str::<AudioDeviceHost>(
+                    s.get("host").unwrap().to_string().as_str(),
+                )
+                .unwrap(),
                 serde_json::from_value::<Vec<StreamConfig>>(s.get("config").unwrap().clone())
                     .unwrap(),
                 match s.get("display_name") {

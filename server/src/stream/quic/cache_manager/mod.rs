@@ -1,9 +1,11 @@
-use common::structs::packet::{QuicNetworkPacket, PacketType, PlayerDataPacket, ChannelEventPacket};
+use anyhow::Error;
 use common::structs::channel::ChannelEvents;
+use common::structs::packet::{
+    ChannelEventPacket, PacketType, PlayerDataPacket, QuicNetworkPacket,
+};
 use common::Player;
 use moka::future::Cache;
 use std::sync::Arc;
-use anyhow::Error;
 use std::time::Duration;
 
 /// Manages player position cache and channel membership cache
@@ -24,11 +26,7 @@ impl CacheManager {
                 .build(),
         );
 
-        let channel_cache = Arc::new(
-            Cache::builder()
-                .max_capacity(100)
-                .build(),
-        );
+        let channel_cache = Arc::new(Cache::builder().max_capacity(100).build());
 
         Self {
             player_cache,
@@ -70,13 +68,17 @@ impl CacheManager {
                             channel_data.event,
                             channel_data.channel
                         );
-                        
+
                         match channel_data.event {
                             ChannelEvents::Join => {
                                 self.channel_cache
                                     .insert(channel_data.name.clone(), channel_data.channel.clone())
                                     .await;
-                                tracing::info!("Player {} joined channel {}", channel_data.name, channel_data.channel);
+                                tracing::info!(
+                                    "Player {} joined channel {}",
+                                    channel_data.name,
+                                    channel_data.channel
+                                );
                             }
                             ChannelEvents::Leave => {
                                 self.channel_cache.remove(&channel_data.name).await;
@@ -95,11 +97,17 @@ impl CacheManager {
 
     /// Update coordinates for AudioFrame packets and return the updated packet
     /// This is called for each AudioFrame to update player positions before broadcasting
-    pub async fn update_coordinates(&self, mut packet: QuicNetworkPacket) -> Result<QuicNetworkPacket, Error> {
+    pub async fn update_coordinates(
+        &self,
+        mut packet: QuicNetworkPacket,
+    ) -> Result<QuicNetworkPacket, Error> {
         if packet.packet_type == PacketType::AudioFrame {
             // Use the existing update_coordinates method from the packet itself
             packet.update_coordinates(self.player_cache.clone()).await;
-            tracing::debug!("Updated coordinates for AudioFrame packet from player: {}", packet.get_author());
+            tracing::debug!(
+                "Updated coordinates for AudioFrame packet from player: {}",
+                packet.get_author()
+            );
         }
         Ok(packet)
     }
@@ -109,10 +117,10 @@ impl CacheManager {
     pub async fn remove_player(&self, player_name: &str) -> Result<(), Error> {
         // Remove from player position cache
         self.player_cache.remove(player_name).await;
-        
+
         // Remove from channel membership cache
         self.channel_cache.remove(player_name).await;
-        
+
         tracing::info!("Removed player {} from caches on disconnect", player_name);
         Ok(())
     }

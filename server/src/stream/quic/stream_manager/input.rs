@@ -1,34 +1,53 @@
-use common::traits::StreamTrait;
-use common::structs::packet::{QuicNetworkPacket, PlayerPresenceEvent, ConnectionEventType, PacketOwner, PacketType, QuicNetworkPacketData};
-use anyhow::Error;
-use s2n_quic::Connection;
-use tokio::sync::mpsc;
 use crate::stream::quic::{ServerInputPacket, WebhookReceiver};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use anyhow::Error;
+use bytes::Bytes;
+use common::structs::packet::{
+    ConnectionEventType, PacketOwner, PacketType, PlayerPresenceEvent, QuicNetworkPacket,
+    QuicNetworkPacketData,
+};
+use common::traits::StreamTrait;
+use core::{
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
+use moka::sync::Cache;
+use s2n_quic::Connection;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
-use bytes::Bytes;
-use core::{future::Future, pin::Pin, task::{Context, Poll}};
-use moka::sync::Cache;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::mpsc;
 
 // Minimal Future wrapper to await a single datagram without external crates
-struct RecvDatagram<'c> { conn: &'c Connection }
-impl<'c> RecvDatagram<'c> { fn new(conn: &'c Connection) -> Self { Self { conn } } }
+struct RecvDatagram<'c> {
+    conn: &'c Connection,
+}
+impl<'c> RecvDatagram<'c> {
+    fn new(conn: &'c Connection) -> Self {
+        Self { conn }
+    }
+}
 impl<'c> Future for RecvDatagram<'c> {
     type Output = Result<Bytes, anyhow::Error>;
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match self.conn.datagram_mut(|r: &mut s2n_quic::provider::datagram::default::Receiver| r.poll_recv_datagram(cx)) {
+        match self
+            .conn
+            .datagram_mut(|r: &mut s2n_quic::provider::datagram::default::Receiver| {
+                r.poll_recv_datagram(cx)
+            }) {
             Ok(Poll::Ready(Ok(bytes))) => Poll::Ready(Ok(bytes)),
             Ok(Poll::Ready(Err(e))) => Poll::Ready(Err(anyhow::anyhow!(e))),
             Ok(Poll::Pending) => Poll::Pending,
-            Err(e) => Poll::Ready(Err(anyhow::anyhow!(e)))
+            Err(e) => Poll::Ready(Err(anyhow::anyhow!(e))),
         }
     }
 }
 
-async fn recv_one_datagram(conn: &Connection) -> Result<Bytes, anyhow::Error> { RecvDatagram::new(conn).await }
+async fn recv_one_datagram(conn: &Connection) -> Result<Bytes, anyhow::Error> {
+    RecvDatagram::new(conn).await
+}
 
 /// Helper function to create a short hash representation of client_id
 fn client_id_hash(client_id: &[u8]) -> String {
@@ -81,9 +100,14 @@ impl InputStream {
     }
 
     #[allow(unused)]
-    pub fn set_connection(&mut self, connection: Arc<Connection>) { self.connection = Some(connection); }
+    pub fn set_connection(&mut self, connection: Arc<Connection>) {
+        self.connection = Some(connection);
+    }
 
-    pub fn set_disconnect_callback(&mut self, callback: Box<dyn Fn(String, Vec<u8>) + Send + Sync>) {
+    pub fn set_disconnect_callback(
+        &mut self,
+        callback: Box<dyn Fn(String, Vec<u8>) + Send + Sync>,
+    ) {
         self.disconnect_callback = Some(callback);
     }
 
@@ -131,7 +155,9 @@ impl InputStream {
         match last_seen {
             None => (true, false),
             Some(prev) => {
-                if ts <= prev { return (false, false); }
+                if ts <= prev {
+                    return (false, false);
+                }
                 let delta = ts - prev;
                 (true, delta > jump_threshold_ms)
             }
@@ -153,8 +179,9 @@ impl StreamTrait for InputStream {
     async fn start(&mut self) -> Result<(), Error> {
         tracing::info!("Starting QUIC input stream");
         self.is_stopped.store(false, Ordering::Relaxed);
-        
-    if let (Some(connection), Some(producer)) = (self.connection.clone(), self.producer.clone()) {
+
+        if let (Some(connection), Some(producer)) = (self.connection.clone(), self.producer.clone())
+        {
             // Handle incoming datagrams from this connection
             loop {
                 // Custom future to await a single datagram without futures crate
@@ -167,16 +194,24 @@ impl StreamTrait for InputStream {
                                 if packet.packet_type == PacketType::AudioFrame {
                                     // Use reference to avoid cloning data unnecessarily
                                     let ts_opt = match &packet.data {
-                                        QuicNetworkPacketData::AudioFrame(af) => Some(af.timestamp()),
+                                        QuicNetworkPacketData::AudioFrame(af) => {
+                                            Some(af.timestamp())
+                                        }
                                         _ => None,
                                     };
 
                                     if let Some(ts) = ts_opt {
                                         let key = self.sender_key_for_packet(&packet, &connection);
                                         let last_seen = self.last_seen_ts.get(&key);
-                                        let (accept, large_jump) = Self::decide_accept(last_seen, ts, Self::LARGE_JUMP_FORWARD_MS);
+                                        let (accept, large_jump) = Self::decide_accept(
+                                            last_seen,
+                                            ts,
+                                            Self::LARGE_JUMP_FORWARD_MS,
+                                        );
                                         if !accept {
-                                            if let Some(prev) = last_seen { tracing::trace!("Dropping out-of-order AudioFrame: ts={} <= last_seen={}", ts, prev); }
+                                            if let Some(prev) = last_seen {
+                                                tracing::trace!("Dropping out-of-order AudioFrame: ts={} <= last_seen={}", ts, prev);
+                                            }
                                             continue; // Drop older/same-timestamp frame
                                         }
                                         // Update last seen timestamp for sender
@@ -203,7 +238,11 @@ impl StreamTrait for InputStream {
                                     self.player_id = Some(owner.name.clone());
                                     self.client_id = Some(owner.client_id.clone());
                                     let client_hash = client_id_hash(&owner.client_id);
-                                    tracing::info!("Initialized player identity: {} (client: {})", owner.name, client_hash);
+                                    tracing::info!(
+                                        "Initialized player identity: {} (client: {})",
+                                        owner.name,
+                                        client_hash
+                                    );
 
                                     if let Some(webhook_receiver) = &self.webhook_receiver {
                                         let player_name = owner.name.clone();
@@ -212,20 +251,35 @@ impl StreamTrait for InputStream {
                                             let timestamp = std::time::SystemTime::now()
                                                 .duration_since(std::time::UNIX_EPOCH)
                                                 .unwrap()
-                                                .as_millis() as i64;
+                                                .as_millis()
+                                                as i64;
                                             let presence_packet = QuicNetworkPacket {
-                                                owner: Some(PacketOwner { name: String::from("api"), client_id: vec![] }),
-                                                packet_type: PacketType::PlayerPresence,
-                                                data: QuicNetworkPacketData::PlayerPresence(PlayerPresenceEvent {
-                                                    player_name: player_name.clone(),
-                                                    timestamp,
-                                                    event_type: ConnectionEventType::Connected,
+                                                owner: Some(PacketOwner {
+                                                    name: String::from("api"),
+                                                    client_id: vec![],
                                                 }),
+                                                packet_type: PacketType::PlayerPresence,
+                                                data: QuicNetworkPacketData::PlayerPresence(
+                                                    PlayerPresenceEvent {
+                                                        player_name: player_name.clone(),
+                                                        timestamp,
+                                                        event_type: ConnectionEventType::Connected,
+                                                    },
+                                                ),
                                             };
-                                            if let Err(e) = webhook_receiver_clone.send_packet(presence_packet).await {
-                                                tracing::error!("Failed to send player connected event: {}", e);
+                                            if let Err(e) = webhook_receiver_clone
+                                                .send_packet(presence_packet)
+                                                .await
+                                            {
+                                                tracing::error!(
+                                                    "Failed to send player connected event: {}",
+                                                    e
+                                                );
                                             }
-                                            tracing::debug!("Broadcast player connected event {}", player_name);
+                                            tracing::debug!(
+                                                "Broadcast player connected event {}",
+                                                player_name
+                                            );
                                         });
                                     }
                                 }
@@ -245,22 +299,38 @@ impl StreamTrait for InputStream {
                     Err(e) => {
                         let emsg = e.to_string();
                         let player = self.player_id.clone().unwrap_or_else(|| "unknown".into());
-                        let client_hash = self.client_id.as_ref().map(|cid| super::super::client_id_hash(cid)).unwrap_or_else(|| {
-                            // derive from connection id
-                            let dbg_id = format!("{:?}", connection.id());
-                            let mut hasher = std::collections::hash_map::DefaultHasher::new();
-                            use std::hash::{Hash, Hasher};
-                            dbg_id.hash(&mut hasher);
-                            format!("{:x}", hasher.finish() & 0xFFFF)
-                        });
+                        let client_hash = self
+                            .client_id
+                            .as_ref()
+                            .map(|cid| super::super::client_id_hash(cid))
+                            .unwrap_or_else(|| {
+                                // derive from connection id
+                                let dbg_id = format!("{:?}", connection.id());
+                                let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                                use std::hash::{Hash, Hasher};
+                                dbg_id.hash(&mut hasher);
+                                format!("{:x}", hasher.finish() & 0xFFFF)
+                            });
 
                         // Treat connection-closed-like errors as fatal and close
                         let lower = emsg.to_ascii_lowercase();
-                        let is_closed = (lower.contains("connection") && lower.contains("clos")) || lower.contains("closed") || lower.contains("reset");
+                        let is_closed = (lower.contains("connection") && lower.contains("clos"))
+                            || lower.contains("closed")
+                            || lower.contains("reset");
                         if is_closed {
-                            tracing::error!("datagram_recv_closed player={} client={} err={}", player, client_hash, emsg);
+                            tracing::error!(
+                                "datagram_recv_closed player={} client={} err={}",
+                                player,
+                                client_hash,
+                                emsg
+                            );
                         } else {
-                            tracing::error!("datagram_recv_error player={} client={} err={}", player, client_hash, emsg);
+                            tracing::error!(
+                                "datagram_recv_error player={} client={} err={}",
+                                player,
+                                client_hash,
+                                emsg
+                            );
                         }
                         break;
                     }
@@ -268,7 +338,9 @@ impl StreamTrait for InputStream {
             }
 
             // Handle disconnect / cleanup once loop exits
-            if let (Some(callback), Some(player_id), Some(client_id)) = (&self.disconnect_callback, &self.player_id, &self.client_id) {
+            if let (Some(callback), Some(player_id), Some(client_id)) =
+                (&self.disconnect_callback, &self.player_id, &self.client_id)
+            {
                 callback(player_id.clone(), client_id.clone());
                 if let Some(webhook_receiver) = &self.webhook_receiver {
                     let player_name = player_id.clone();
@@ -279,7 +351,10 @@ impl StreamTrait for InputStream {
                             .unwrap()
                             .as_millis() as i64;
                         let presence_packet = QuicNetworkPacket {
-                            owner: Some(PacketOwner { name: String::from("api"), client_id: vec![] }),
+                            owner: Some(PacketOwner {
+                                name: String::from("api"),
+                                client_id: vec![],
+                            }),
                             packet_type: PacketType::PlayerPresence,
                             data: QuicNetworkPacketData::PlayerPresence(PlayerPresenceEvent {
                                 player_name: player_name.clone(),
@@ -295,13 +370,17 @@ impl StreamTrait for InputStream {
                 }
             }
         }
-        
+
         self.is_stopped.store(true, Ordering::Relaxed);
         Ok(())
     }
 
     async fn metadata(&mut self, key: String, value: String) -> Result<(), Error> {
-        tracing::info!("Setting metadata for QUIC input stream: {} = {}", key, value);
+        tracing::info!(
+            "Setting metadata for QUIC input stream: {} = {}",
+            key,
+            value
+        );
         Ok(())
     }
 }
@@ -312,29 +391,39 @@ mod tests {
 
     #[test]
     fn test_decide_accept_none_prev() {
-        let (accept, large) = InputStream::decide_accept(None, 100, InputStream::LARGE_JUMP_FORWARD_MS);
+        let (accept, large) =
+            InputStream::decide_accept(None, 100, InputStream::LARGE_JUMP_FORWARD_MS);
         assert!(accept);
         assert!(!large);
     }
 
     #[test]
     fn test_decide_accept_older_or_equal() {
-        let (a1, l1) = InputStream::decide_accept(Some(100), 99, InputStream::LARGE_JUMP_FORWARD_MS);
-        assert!(!a1); assert!(!l1);
-        let (a2, l2) = InputStream::decide_accept(Some(100), 100, InputStream::LARGE_JUMP_FORWARD_MS);
-        assert!(!a2); assert!(!l2);
+        let (a1, l1) =
+            InputStream::decide_accept(Some(100), 99, InputStream::LARGE_JUMP_FORWARD_MS);
+        assert!(!a1);
+        assert!(!l1);
+        let (a2, l2) =
+            InputStream::decide_accept(Some(100), 100, InputStream::LARGE_JUMP_FORWARD_MS);
+        assert!(!a2);
+        assert!(!l2);
     }
 
     #[test]
     fn test_decide_accept_newer_small_delta() {
-        let (accept, large) = InputStream::decide_accept(Some(100), 150, InputStream::LARGE_JUMP_FORWARD_MS);
+        let (accept, large) =
+            InputStream::decide_accept(Some(100), 150, InputStream::LARGE_JUMP_FORWARD_MS);
         assert!(accept);
         assert!(!large);
     }
 
     #[test]
     fn test_decide_accept_large_jump() {
-        let (accept, large) = InputStream::decide_accept(Some(1000), 1000 + InputStream::LARGE_JUMP_FORWARD_MS + 1, InputStream::LARGE_JUMP_FORWARD_MS);
+        let (accept, large) = InputStream::decide_accept(
+            Some(1000),
+            1000 + InputStream::LARGE_JUMP_FORWARD_MS + 1,
+            InputStream::LARGE_JUMP_FORWARD_MS,
+        );
         assert!(accept);
         assert!(large);
     }

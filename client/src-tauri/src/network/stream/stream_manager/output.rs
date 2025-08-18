@@ -1,11 +1,14 @@
-use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
+use crate::NetworkPacket;
+use bytes::Bytes;
 use common::structs::packet::{DebugPacket, PacketOwner, QuicNetworkPacket};
+use log::{error, info, warn};
+use s2n_quic::Connection;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 use tauri::Emitter;
 use tokio::task::AbortHandle;
-use bytes::Bytes;
-use s2n_quic::Connection;
-use crate::NetworkPacket;
-use log::{error, info, warn};
 
 /// The OutputStream consumes PCM NetworkPackets from the AudioStreamManager::InputStream
 /// Then sends it to the server
@@ -45,7 +48,7 @@ impl common::traits::StreamTrait for OutputStream {
 
     async fn start(&mut self) -> Result<(), anyhow::Error> {
         _ = self.shutdown.store(false, Ordering::Relaxed);
-        
+
         let mut jobs = vec![];
         let rx = self.bus.clone();
         let connection = self.connection.clone().unwrap();

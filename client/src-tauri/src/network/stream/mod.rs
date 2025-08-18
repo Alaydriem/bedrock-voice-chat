@@ -2,14 +2,14 @@ mod stream_manager;
 
 use crate::AudioPacket;
 use crate::NetworkPacket;
-use std::net::SocketAddr;
-use std::sync::Arc;
 use common::structs::packet::PacketOwner;
 use s2n_quic::client::Connect;
 use s2n_quic::Client;
+use std::error::Error;
+use std::net::SocketAddr;
+use std::sync::Arc;
 use stream_manager::StreamTrait;
 use stream_manager::StreamTraitType;
-use std::error::Error;
 
 pub(crate) struct NetworkStreamManager {
     producer: Arc<flume::Sender<AudioPacket>>,
@@ -26,7 +26,7 @@ impl NetworkStreamManager {
     pub fn new(
         producer: Arc<flume::Sender<AudioPacket>>, // Sends data to audio output stream
         consumer: Arc<flume::Receiver<NetworkPacket>>, // Recv from the audio input stream
-        app_handle: tauri::AppHandle
+        app_handle: tauri::AppHandle,
     ) -> Self {
         Self {
             producer: producer.clone(),
@@ -34,13 +34,13 @@ impl NetworkStreamManager {
             input: StreamTraitType::Input(stream_manager::InputStream::new(
                 producer.clone(),
                 None,
-                app_handle.clone()
+                app_handle.clone(),
             )),
             output: StreamTraitType::Output(stream_manager::OutputStream::new(
                 consumer.clone(),
                 None,
                 None,
-                app_handle.clone()
+                app_handle.clone(),
             )),
             app_handle: app_handle.clone(),
         }
@@ -54,7 +54,7 @@ impl NetworkStreamManager {
         name: String,
         ca_cert: String,
         cert: String,
-        key: String
+        key: String,
     ) -> Result<(), Box<dyn Error>> {
         // Stop the current stream if we're re-initializing our new one
         self.stop().await?;
@@ -62,20 +62,24 @@ impl NetworkStreamManager {
         let provider = common::rustls::MtlsProvider::new_from_vec(
             ca_cert.as_bytes().to_vec(),
             cert.as_bytes().to_vec(),
-            key.as_bytes().to_vec()
-        ).await?;
+            key.as_bytes().to_vec(),
+        )
+        .await?;
 
         let dg_endpoint = s2n_quic::provider::datagram::default::Endpoint::builder()
-            .with_send_capacity(1024).expect("send cap > 0")
-            .with_recv_capacity(1024).expect("recv cap > 0")
-            .build().expect("build dg endpoint");
+            .with_send_capacity(1024)
+            .expect("send cap > 0")
+            .with_recv_capacity(1024)
+            .expect("recv cap > 0")
+            .build()
+            .expect("build dg endpoint");
 
         let client = Client::builder()
             .with_tls(provider)?
             .with_io("0.0.0.0:0")?
             .with_datagram(dg_endpoint)?
             .start()?;
-        
+
         let connect = Connect::new(socket).with_server_name(server);
 
         let mut connection = client.connect(connect).await?;

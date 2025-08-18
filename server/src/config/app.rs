@@ -73,11 +73,21 @@ pub struct ApplicationConfigVoice {
 }
 
 // Serde field defaults for Voice config when deserializing from partial configs
-fn default_broadcast_range() -> f32 { 32.0 }
-fn default_crouch_multiplier() -> f32 { 1.0 }
-fn default_whisper_multiplier() -> f32 { 0.5 }
-fn default_datagram_send_capacity() -> usize { 1024 }
-fn default_datagram_recv_capacity() -> usize { 1024 }
+fn default_broadcast_range() -> f32 {
+    32.0
+}
+fn default_crouch_multiplier() -> f32 {
+    1.0
+}
+fn default_whisper_multiplier() -> f32 {
+    0.5
+}
+fn default_datagram_send_capacity() -> usize {
+    1024
+}
+fn default_datagram_recv_capacity() -> usize {
+    1024
+}
 
 /// TLS Configuration for server
 #[derive(Serialize, Deserialize, Debug, Clone)]

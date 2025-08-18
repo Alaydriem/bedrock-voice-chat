@@ -1,17 +1,21 @@
-use crate::{config::ApplicationConfig, rs::routes, stream::quic::{CacheManager, WebhookReceiver}};
+use crate::{
+    config::ApplicationConfig,
+    rs::routes,
+    stream::quic::{CacheManager, WebhookReceiver},
+};
+use anyhow::Error;
 use common::{
     ncryptflib as ncryptf,
     pool::{redis::RedisDb, seaorm::AppDb},
 };
 use migration::{Migrator, MigratorTrait};
 use moka::future::Cache;
-use rocket::{self, routes};
-use rocket_db_pools;
 use rocket::http::Method;
+use rocket::{self, routes};
 use rocket_cors::{AllowedOrigins, CorsOptions};
+use rocket_db_pools;
 use sea_orm_rocket::Database;
 use std::sync::Arc;
-use anyhow::Error;
 
 /// Manager for the Rocket HTTP server
 pub struct RocketManager {
@@ -42,7 +46,7 @@ impl RocketManager {
         tracing::info!("Starting Rocket HTTP server manager");
 
         ncryptf::ek_route!(RedisDb);
-        
+
         match self.config.get_rocket_config() {
             Ok(figment) => {
                 let cors = CorsOptions::default()
@@ -52,7 +56,8 @@ impl RocketManager {
                             .into_iter()
                             .map(From::from)
                             .collect(),
-                    ).allow_credentials(true);
+                    )
+                    .allow_credentials(true);
 
                 let rocket = rocket::custom(figment)
                     .manage(self.config.server.clone())
@@ -101,14 +106,10 @@ impl RocketManager {
                         }
                         Ok(())
                     }
-                    Err(e) => {
-                        Err(anyhow::anyhow!("Rocket ignite error: {}", e))
-                    }
+                    Err(e) => Err(anyhow::anyhow!("Rocket ignite error: {}", e)),
                 }
             }
-            Err(error) => {
-                Err(anyhow::anyhow!("Rocket config error: {}", error))
-            }
+            Err(error) => Err(anyhow::anyhow!("Rocket config error: {}", error)),
         }
     }
 

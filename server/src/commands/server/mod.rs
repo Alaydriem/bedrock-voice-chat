@@ -83,7 +83,7 @@ impl Config {
         let mut quic_manager = crate::stream::quic::QuicServerManager::new(cfg.config.clone());
         let webhook_receiver = quic_manager.get_webhook_receiver().clone();
         let cache_manager = quic_manager.get_cache_manager();
-        
+
         // Create Rocket manager
         let rocket_manager = crate::rs::manager::RocketManager::new(
             cfg.config.clone(),

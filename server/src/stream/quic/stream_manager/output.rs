@@ -1,15 +1,15 @@
-use common::traits::StreamTrait;
-use common::structs::packet::QuicNetworkPacket;
-use anyhow::Error;
-use s2n_quic::Connection;
-use bytes::Bytes;
-use tokio::sync::broadcast;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use async_mutex::Mutex;
-use moka::future::Cache;
-use common::Player;
 use crate::stream::quic::client_id_hash;
+use anyhow::Error;
+use async_mutex::Mutex;
+use bytes::Bytes;
+use common::structs::packet::QuicNetworkPacket;
+use common::traits::StreamTrait;
+use common::Player;
+use moka::future::Cache;
+use s2n_quic::Connection;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use tokio::sync::broadcast;
 
 pub(crate) struct OutputStream {
     connection: Option<Arc<Connection>>,
@@ -27,9 +27,7 @@ pub(crate) struct OutputStream {
 }
 
 impl OutputStream {
-    pub fn new(
-        connection: Option<Arc<Connection>>
-    ) -> Self {
+    pub fn new(connection: Option<Arc<Connection>>) -> Self {
         Self {
             connection,
             broadcast_rx: None,
@@ -61,7 +59,9 @@ impl OutputStream {
     }
 
     #[allow(unused)]
-    pub fn set_connection(&mut self, connection: Arc<Connection>) { self.connection = Some(connection); }
+    pub fn set_connection(&mut self, connection: Arc<Connection>) {
+        self.connection = Some(connection);
+    }
 
     #[allow(unused)]
     pub fn set_player_id(&self, player_id: String) {
@@ -87,10 +87,7 @@ impl OutputStream {
 
     /// Check if this output stream should receive a packet based on player identity
     /// This is a synchronous wrapper that will need to be called from async context
-    pub async fn is_receivable(
-        &self,
-        packet: &mut QuicNetworkPacket,
-    ) -> bool {
+    pub async fn is_receivable(&self, packet: &mut QuicNetworkPacket) -> bool {
         // If we don't have a player ID yet, we can't filter
         let player_id = match self.get_player_id() {
             Some(id) => id,
@@ -116,7 +113,9 @@ impl OutputStream {
         };
 
         // Use the existing packet filtering logic
-        packet.is_receivable(recipient, channel_cache, player_cache, self.broadcast_range).await
+        packet
+            .is_receivable(recipient, channel_cache, player_cache, self.broadcast_range)
+            .await
     }
 }
 
@@ -134,8 +133,10 @@ impl StreamTrait for OutputStream {
     async fn start(&mut self) -> Result<(), Error> {
         tracing::info!("Starting QUIC output stream");
         self.is_stopped.store(false, Ordering::Relaxed);
-        
-        if let (Some(connection), Some(mut broadcast_rx)) = (self.connection.clone(), self.broadcast_rx.take()) {
+
+        if let (Some(connection), Some(mut broadcast_rx)) =
+            (self.connection.clone(), self.broadcast_rx.take())
+        {
             // Handle outgoing packets to this connection directly from broadcast
             loop {
                 match broadcast_rx.recv().await {
@@ -147,16 +148,24 @@ impl StreamTrait for OutputStream {
                         match packet.to_datagram() {
                             Ok(bytes) => {
                                 let payload = Bytes::from(bytes);
-                                let send_res = connection.datagram_mut(|dg: &mut s2n_quic::provider::datagram::default::Sender| {
-                                    dg.send_datagram(payload.clone())
-                                });
+                                let send_res = connection.datagram_mut(
+                                    |dg: &mut s2n_quic::provider::datagram::default::Sender| {
+                                        dg.send_datagram(payload.clone())
+                                    },
+                                );
                                 // Identity for logs
-                                let player = self.get_player_id().unwrap_or_else(|| "unknown".into());
-                                let client_hash = self.get_client_id().map(|cid| client_id_hash(&cid)).unwrap_or_else(|| "????".into());
+                                let player =
+                                    self.get_player_id().unwrap_or_else(|| "unknown".into());
+                                let client_hash = self
+                                    .get_client_id()
+                                    .map(|cid| client_id_hash(&cid))
+                                    .unwrap_or_else(|| "????".into());
 
                                 fn is_conn_closed(msg: &str) -> bool {
                                     let m = msg.to_ascii_lowercase();
-                                    (m.contains("connection") && m.contains("clos")) || m.contains("closed") || m.contains("reset")
+                                    (m.contains("connection") && m.contains("clos"))
+                                        || m.contains("closed")
+                                        || m.contains("reset")
                                 }
 
                                 match send_res {
@@ -164,22 +173,42 @@ impl StreamTrait for OutputStream {
                                     Ok(Err(e)) => {
                                         let emsg = e.to_string();
                                         if is_conn_closed(&emsg) {
-                                            tracing::error!("datagram_send_closed player={} client={} err={}", player, client_hash, emsg);
+                                            tracing::error!(
+                                                "datagram_send_closed player={} client={} err={}",
+                                                player,
+                                                client_hash,
+                                                emsg
+                                            );
                                             break;
-                                        } else if emsg.to_ascii_lowercase().contains("capacity") || emsg.to_ascii_lowercase().contains("queue") {
+                                        } else if emsg.to_ascii_lowercase().contains("capacity")
+                                            || emsg.to_ascii_lowercase().contains("queue")
+                                        {
                                             tracing::debug!("datagram send capacity issue player={} client={} err={}", player, client_hash, emsg);
                                         } else {
-                                            tracing::debug!("datagram send error player={} client={} err={}", player, client_hash, emsg);
+                                            tracing::debug!(
+                                                "datagram send error player={} client={} err={}",
+                                                player,
+                                                client_hash,
+                                                emsg
+                                            );
                                         }
                                     }
                                     Err(e) => {
                                         let emsg = e.to_string();
-                                        tracing::error!("datagram_send_query_failed player={} client={} err={}", player, client_hash, emsg);
+                                        tracing::error!(
+                                            "datagram_send_query_failed player={} client={} err={}",
+                                            player,
+                                            client_hash,
+                                            emsg
+                                        );
                                         break;
                                     }
                                 }
                             }
-                            Err(e) => { tracing::error!("Failed to serialize packet to datagram: {}", e); continue; }
+                            Err(e) => {
+                                tracing::error!("Failed to serialize packet to datagram: {}", e);
+                                continue;
+                            }
                         }
                     }
                     Err(broadcast::error::RecvError::Closed) => {
@@ -193,13 +222,17 @@ impl StreamTrait for OutputStream {
                 }
             }
         }
-        
+
         self.is_stopped.store(true, Ordering::Relaxed);
         Ok(())
     }
 
     async fn metadata(&mut self, key: String, value: String) -> Result<(), Error> {
-        tracing::info!("Setting metadata for QUIC output stream: {} = {}", key, value);
+        tracing::info!(
+            "Setting metadata for QUIC output stream: {} = {}",
+            key,
+            value
+        );
         Ok(())
     }
 }

@@ -223,9 +223,9 @@ impl QuicNetworkPacket {
                                 let dimension = data.dimension.clone();
                                 let coordinates = data.coordinate.clone();
                                 if dimension.is_none() || coordinates.is_none() {
-                                    return false;
+                                    // Allow delivery if sender position is unknown; rely on client-side defaults.
+                                    return true;
                                 }
-
                                 (dimension.unwrap(), coordinates.unwrap())
                             }
                         };
@@ -269,7 +269,9 @@ impl QuicNetworkPacket {
 
                             }
                             None => {
-                                return false;
+                                // Recipient not found in position cache; allow delivery.
+                                // This relaxes filtering to avoid dropping audio before presence is registered.
+                                return true;
                             },
                         };
                     }

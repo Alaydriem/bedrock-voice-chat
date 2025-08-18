@@ -1,7 +1,7 @@
+use common::ncryptflib as ncryptf;
 use common::structs::packet::{
     PacketOwner, PacketType, PlayerDataPacket, QuicNetworkPacket, QuicNetworkPacketData,
 };
-use common::ncryptflib as ncryptf;
 use rocket::{http::Status, serde::json::Json, State};
 
 use sea_orm::ActiveValue;
@@ -10,7 +10,11 @@ use common::certificates::{get_root_ca, sign_cert_with_ca};
 use common::ncryptflib::rocket::Utc;
 use entity::player;
 
-use crate::{config::ApplicationConfigServer, rs::guards::MCAccessToken, stream::quic::{CacheManager, WebhookReceiver}};
+use crate::{
+    config::ApplicationConfigServer,
+    rs::guards::MCAccessToken,
+    stream::quic::{CacheManager, WebhookReceiver},
+};
 
 use common::pool::seaorm::AppDb;
 #[allow(unused_imports)] // for rust-analyzer
@@ -135,16 +139,18 @@ pub async fn position(
 ) -> Json<Vec<common::Player>> {
     // Get all current player positions from the cache
     let player_cache = cache_manager.get_player_cache();
-    
+
     // Collect all cached players
     let players = Vec::new();
-    
+
     // Unfortunately, moka doesn't have a direct "get all values" method
     // For now, we'll return an empty list and log this limitation
     // TODO: Consider maintaining a separate list of active players or using a different cache structure
-    tracing::info!("Position endpoint called - cache contains {} entries", 
-                   player_cache.entry_count());
-    
+    tracing::info!(
+        "Position endpoint called - cache contains {} entries",
+        player_cache.entry_count()
+    );
+
     // Return the collected players
     Json(players)
 }
