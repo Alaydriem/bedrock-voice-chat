@@ -1,5 +1,6 @@
 use rodio::{Sink, SpatialSink};
 use std::sync::Arc;
+use common::Coordinate;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum AudioSinkType {
@@ -47,16 +48,16 @@ impl AudioSink {
     /// Update spatial positioning using Rodio's built-in methods
     pub fn update_spatial_position(
         &self,
-        emitter_pos: [f32; 3],
-        left_ear: [f32; 3],
-        right_ear: [f32; 3],
+        emitter_pos: &Coordinate,
+        left_ear: &Coordinate,
+        right_ear: &Coordinate,
         volume: f32,
     ) {
         match self {
             AudioSink::Spatial(sink) => {
-                sink.set_emitter_position(emitter_pos);
-                sink.set_left_ear_position(left_ear);
-                sink.set_right_ear_position(right_ear);
+                sink.set_emitter_position([emitter_pos.x, emitter_pos.y, emitter_pos.z]);
+                sink.set_left_ear_position([left_ear.x, left_ear.y, left_ear.z]);
+                sink.set_right_ear_position([right_ear.x, right_ear.y, right_ear.z]);
                 sink.set_volume(volume);
             }
             AudioSink::Normal(sink) => {

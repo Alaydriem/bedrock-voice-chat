@@ -13,7 +13,7 @@ use crate::audio::stream::jitter_buffer::{
 };
 use crate::audio::stream::stream_manager::audio_sink::AudioSink;
 use common::structs::audio::{PlayerGainSettings, PlayerGainStore};
-use common::Player;
+use common::{Player, Coordinate};
 
 #[derive(Clone, Default)]
 struct PlayerSinks {
@@ -27,16 +27,10 @@ pub struct SinkManager {
     consumer: Option<Receiver<EncodedAudioFramePacket>>,
     shutdown: Arc<AtomicBool>,
     global_mute: Arc<AtomicBool>,
-
-    // Player data cache (listener information)
     players: Cache<String, Player>,
     current_player_name: String,
     player_gain_store: Arc<StdMutex<PlayerGainStore>>,
-
-    // Per-player sinks and jitter buffer handles
     sinks: Cache<Vec<u8>, PlayerSinks>,
-
-    // Audio mixer reference
     mixer: Arc<Mixer>,
 }
 
@@ -73,8 +67,6 @@ impl SinkManager {
         self.global_mute.store(muted, Ordering::Relaxed);
     }
 
-    // Getter methods removed; updates applied per packet
-
     pub async fn listen(&mut self) -> Result<JoinHandle<()>, anyhow::Error> {
         _ = self.shutdown.store(false, Ordering::Relaxed);
 
@@ -92,33 +84,24 @@ impl SinkManager {
 
         // Spawn an async task; use async recv to avoid blocking
         let handle = tokio::spawn(async move {
-            loop {
-                // Check shutdown first
+            while let Ok(packet) = consumer.recv_async().await {
                 if shutdown.load(Ordering::Relaxed) {
                     break;
                 }
 
-                // Use recv_async for proper async operation
-                match consumer.recv_async().await {
-                    Ok(packet) => {
-
                 let author = packet.get_author();
                 let author_bytes = packet.get_client_id();
 
-                // Extract emitter data from packet
                 let emitter_pos = packet.coordinate.clone();
                 let emitter_spatial = packet.spatial.unwrap_or(false);
 
-                // Get listener data from player cache (single read)
                 let listener_info = players
                     .get(&current_player_name)
                     .map(|player| (player.coordinates.clone(), player.orientation.clone()));
 
-                // Determine sink type based on spatial flag and listener availability
                 let use_spatial =
                     emitter_spatial && listener_info.is_some() && emitter_pos.is_some();
 
-                // Lookup per-player gain
                 let gain_settings: PlayerGainSettings = {
                     let store = player_gain_store.lock().ok();
                     store
@@ -132,12 +115,10 @@ impl SinkManager {
                     continue;
                 }
 
-                // Get or create PlayerSinks entry atomically
                 let mut bundle = sinks.get(&author_bytes).unwrap_or_else(|| {
                     let b = PlayerSinks::default();
-                    // Use entry API or manual double-check to handle races
                     if let Some(existing) = sinks.get(&author_bytes) {
-                        existing // Another thread inserted while we were creating
+                        existing
                     } else {
                         sinks.insert(author_bytes.clone(), b.clone());
                         b
@@ -145,7 +126,6 @@ impl SinkManager {
                 });
 
                 if use_spatial {
-                    // Ensure spatial sink exists
                     if bundle.spatial.is_none() {
                         let rodio_sink = Arc::new(SpatialSink::connect_new(
                             &mixer,
@@ -168,7 +148,6 @@ impl SinkManager {
                             &listener_orientation,
                         );
 
-                    // Apply spatial positions and per-packet volume
                     if let Some(spatial_sink) = &bundle.spatial {
                         let mute_mult = if global_mute.load(Ordering::Relaxed) {
                             0.0
@@ -177,26 +156,13 @@ impl SinkManager {
                         };
                         let volume = spatial_data.gain * gain_settings.gain * mute_mult;
                         spatial_sink.update_spatial_position(
-                            [
-                                emitter_coordinate.x,
-                                emitter_coordinate.y,
-                                emitter_coordinate.z,
-                            ],
-                            [
-                                spatial_data.left_ear.x,
-                                spatial_data.left_ear.y,
-                                spatial_data.left_ear.z,
-                            ],
-                            [
-                                spatial_data.right_ear.x,
-                                spatial_data.right_ear.y,
-                                spatial_data.right_ear.z,
-                            ],
+                            &emitter_coordinate,
+                            &spatial_data.left_ear,
+                            &spatial_data.right_ear,
                             volume,
                         );
                     }
 
-                    // Ensure jitter buffer exists and append source once
                     if bundle.spatial_handle.is_none() {
                         match JitterBuffer::new(packet.clone(), 120) {
                             Ok((source, handle)) => {
@@ -219,7 +185,6 @@ impl SinkManager {
                         }
                     }
                 } else {
-                    // Normal routing
                     if bundle.normal.is_none() {
                         let rodio_sink = Arc::new(Sink::connect_new(&mixer));
                         let sink = Arc::new(AudioSink::Normal(rodio_sink));
@@ -235,9 +200,9 @@ impl SinkManager {
                         };
                         let volume = 1.3 * gain_settings.gain * mute_mult;
                         normal_sink.update_spatial_position(
-                            [0.0, 0.0, 0.0],
-                            [0.0, 0.0, 0.0],
-                            [0.0, 0.0, 0.0],
+                            &Coordinate::default(),
+                            &Coordinate::default(),
+                            &Coordinate::default(),
                             volume,
                         );
                     }
@@ -265,14 +230,7 @@ impl SinkManager {
                     }
                 }
 
-                // Write back updated bundle
                 sinks.insert(author_bytes.clone(), bundle);
-                    }
-                    Err(_) => {
-                        // Channel closed or error - exit loop
-                        break;
-                    }
-                }
             }
         });
 
@@ -282,7 +240,6 @@ impl SinkManager {
     pub async fn stop(&mut self) {
         self.shutdown.store(true, Ordering::Relaxed);
 
-        // Give existing jobs 500ms to clear
         tokio::time::sleep(Duration::from_millis(500)).await;
 
         for (_, bundle) in self.sinks.iter() {
@@ -302,6 +259,4 @@ impl SinkManager {
 
         info!("SinkManager has been stopped.");
     }
-
-    // Legacy helpers removed; spatial updates are applied per-packet
 }

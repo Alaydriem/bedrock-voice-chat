@@ -35,6 +35,16 @@ pub struct Coordinate {
     pub z: f32,
 }
 
+impl Default for Coordinate {
+    fn default() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Orientation {
     pub x: f32,

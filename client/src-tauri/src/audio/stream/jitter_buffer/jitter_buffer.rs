@@ -11,9 +11,9 @@ use common::{Coordinate, Orientation};
 const MAX_DECODE_ERRORS: usize = 10;
 const WARMUP_PACKETS_NEEDED: usize = 2;
 const MAX_PLC_ATTEMPTS: usize = 5;
-const MAX_OPUS_FRAME_MS: usize = 480; // worst-case single decode span
+const MAX_OPUS_FRAME_MS: usize = 480;
 const FRAME_MS: u64 = 20;
-const LARGE_JUMP_FORWARD_MS: u64 = 1000; // Allow timestamp jumps > 1000ms (stream restart)
+const LARGE_JUMP_FORWARD_MS: u64 = 1000;
 
 #[derive(Debug)]
 pub enum JitterBufferError {
@@ -41,7 +41,6 @@ pub struct SpatialAudioData {
     pub gain: f32,
 }
 
-/// Handle used to feed data into a JitterBufferSource and to stop it
 #[derive(Clone)]
 pub struct JitterBufferHandle {
     tx: flume::Sender<Option<EncodedAudioFramePacket>>,
@@ -64,33 +63,26 @@ impl JitterBufferHandle {
     }
 }
 
-/// Source that decodes and outputs PCM samples endlessly until stopped
 pub struct JitterBufferSource {
     rx: flume::Receiver<Option<EncodedAudioFramePacket>>,
     ring: VecDeque<EncodedAudioFramePacket>,
     decoder: Decoder,
     current_sample_rate: u32,
-    // FIFO overrun detection (simple growth heuristic)
     ring_high_water: usize,
     last_ring_len: usize,
-    // State tracking
     warmup_packets_received: usize,
     plc_consecutive_count: usize,
     decode_error_count: usize,
-    // Pre-allocated buffers
     decode_buffer: Vec<f32>,
     output_producer: ringbuf::HeapProd<f32>,
     output_consumer: ringbuf::HeapCons<f32>,
-    // Control
     capacity: usize,
     stopped: bool,
-    // Time tracking (ms) to detect and drop late packets
     last_output_ts_ms: u64,
     last_accepted_timestamp: u64,
     samples_per_frame: usize,
     frame_sample_countdown: usize,
     queued_frames: usize,
-    // Diagnostics
     frames_decoded: u64,
     frames_plc: u64,
     frames_silence: u64,
@@ -103,19 +95,6 @@ impl JitterBufferSource {
     fn frames_for_rate(rate: u32) -> usize { (rate as usize) / 50 }
     fn max_samples_for_rate(rate: u32) -> usize { (rate as usize) * MAX_OPUS_FRAME_MS / 1000 }
 
-    #[allow(dead_code)]
-    pub fn get_diagnostics(&self) -> String {
-        format!(
-            "decoded={} plc={} silence={} overflow={} ooo={} aggregated={}",
-            self.frames_decoded,
-            self.frames_plc,
-            self.frames_silence,
-            self.frames_dropped_overflow,
-            self.frames_dropped_ooo,
-            self.aggregated_decodes
-        )
-    }
-
     fn new(
         rx: flume::Receiver<Option<EncodedAudioFramePacket>>,
         capacity: usize,
@@ -126,16 +105,15 @@ impl JitterBufferSource {
             Decoder::new(initial_rate, Channels::Mono).map_err(JitterBufferError::DecoderError)?;
 
     let frames = Self::frames_for_rate(initial_rate);
+
     // Allocate for up to 120 ms to avoid truncation when packets aggregate frames
     let max_samples = Self::max_samples_for_rate(initial_rate);
     let mut decode_buffer = Vec::with_capacity(max_samples);
     decode_buffer.resize(max_samples, 0.0);
 
-    // Create ring buffer and split it
     let ring_buf = HeapRb::<f32>::new(frames * 4);
     let (output_producer, output_consumer) = ring_buf.split();
 
-        // Initialize source and seed the first packet into the ring with proper sequencing
         let mut source = Self {
             rx,
             ring: VecDeque::with_capacity(capacity),
@@ -164,7 +142,6 @@ impl JitterBufferSource {
             frames_dropped_ooo: 0,
         };
 
-        // Seed first packet directly (FIFO)
         if source.ring.len() >= source.capacity {
             source.ring.pop_front();
         }
@@ -197,7 +174,6 @@ impl JitterBufferSource {
         {
             Ok(samples_written) => {
                 self.decode_error_count = 0;
-                // Log when decode returns significantly more than a single 20 ms frame
                 let expected_20ms = Self::frames_for_rate(self.current_sample_rate);
                 if samples_written > expected_20ms * 2 {
                     warn!(
@@ -224,11 +200,10 @@ impl JitterBufferSource {
 
     fn generate_plc_to_ring(&mut self) -> usize {
         if self.plc_consecutive_count >= MAX_PLC_ATTEMPTS {
-            // Write silence directly to ring - no Vec allocation!
             let mut written = 0;
             for _ in 0..self.samples_per_frame {
                 if self.output_producer.try_push(0.0).is_err() {
-                    break; // Ring full
+                    break;
                 }
                 written += 1;
             }
@@ -242,7 +217,6 @@ impl JitterBufferSource {
                     self.plc_consecutive_count += 1;
                     let copy_len = samples_written.min(self.samples_per_frame);
                     
-                    // Copy directly to ring - no intermediate Vec!
                     let mut written = 0;
                     for &sample in &self.decode_buffer[..copy_len] {
                         if self.output_producer.try_push(sample).is_err() {
@@ -251,7 +225,6 @@ impl JitterBufferSource {
                         written += 1;
                     }
                     
-                    // Pad with silence if needed
                     for _ in copy_len..self.samples_per_frame {
                         if self.output_producer.try_push(0.0).is_err() {
                             break;
@@ -262,7 +235,6 @@ impl JitterBufferSource {
                 }
                 Err(e) => {
                     error!("PLC generation error: {:?}", e);
-                    // Write silence on error
                     let mut written = 0;
                     for _ in 0..self.samples_per_frame {
                         if self.output_producer.try_push(0.0).is_err() {
@@ -277,18 +249,15 @@ impl JitterBufferSource {
     }
 
     fn is_packet_acceptable(&self, packet_timestamp: u64) -> bool {
-        // Drop packets with timestamps <= last accepted (out-of-order/duplicate)
         if packet_timestamp <= self.last_accepted_timestamp {
             return false;
         }
 
-        // Allow large forward jumps (stream restart scenarios)
         let time_diff = packet_timestamp.saturating_sub(self.last_accepted_timestamp);
         if time_diff > LARGE_JUMP_FORWARD_MS {
-            return true; // Accept as potential stream restart
+            return true;
         }
 
-        // Accept reasonable forward progression
         true
     }
 
@@ -296,9 +265,8 @@ impl JitterBufferSource {
         while let Ok(msg) = self.rx.try_recv() {
             match msg {
                 Some(packet) => {
-                    let packet_timestamp = packet.timestamp; // No casting needed!
+                    let packet_timestamp = packet.timestamp;
                     
-                    // Check for out-of-order packets
                     if !self.is_packet_acceptable(packet_timestamp) {
                         self.frames_dropped_ooo = self.frames_dropped_ooo.saturating_add(1);
                         if self.frames_dropped_ooo % 50 == 1 {
@@ -307,13 +275,11 @@ impl JitterBufferSource {
                                 packet_timestamp, self.last_accepted_timestamp, self.frames_dropped_ooo
                             );
                         }
-                        continue; // Drop this packet
+                        continue;
                     }
 
-                    // Update accepted timestamp on successful validation
                     self.last_accepted_timestamp = packet_timestamp;
 
-                    // Check for overflow and handle capacity
                     if self.ring.len() >= self.capacity {
                         self.frames_dropped_overflow = self.frames_dropped_overflow.saturating_add(1);
                         if self.frames_dropped_overflow % 100 == 1 {
@@ -331,7 +297,6 @@ impl JitterBufferSource {
                     }
                 }
                 None => {
-                    // Stop signal received
                     self.stopped = true;
                 }
             }
@@ -343,44 +308,36 @@ impl Iterator for JitterBufferSource {
     type Item = f32;
 
     fn next(&mut self) -> Option<Self::Item> {
-        // Try to pop from ring buffer first
         if let Some(sample) = self.output_consumer.try_pop() {
             if self.frame_sample_countdown == 0 {
                 self.frame_sample_countdown = self.samples_per_frame;
             }
             self.frame_sample_countdown = self.frame_sample_countdown.saturating_sub(1);
             if self.frame_sample_countdown == 0 {
-                // One frame fully consumed
                 self.last_output_ts_ms = self.last_output_ts_ms.saturating_add(FRAME_MS);
                 if self.queued_frames > 0 { self.queued_frames -= 1; }
             }
             return Some(sample);
         }
 
-        // Drain any incoming packets from channel
         self.drain_incoming();
 
-        // If stopped and no buffered packets and no output, end the source
         if self.stopped && self.ring.is_empty() {
             return None;
         }
 
-        // During warmup phase: return silence until we have enough packets
         if self.warmup_packets_received < WARMUP_PACKETS_NEEDED {
             return Some(0.0);
         }
 
-        // Process packets without any Vec allocations
         if let Some(packet) = self.ring.pop_front() {
             match self.process_packet_sync(&packet) {
                 Ok(samples_written) => {
-                    self.plc_consecutive_count = 0; // Reset PLC counter on success
+                    self.plc_consecutive_count = 0;
                     
-                    // Split into frames and write directly to ring - NO VEC ALLOCATION!
                     let spf = self.samples_per_frame;
                     let mut frames_added = 0usize;
                     for chunk in self.decode_buffer[..samples_written].chunks(spf) {
-                        // Copy chunk directly to ring
                         for &sample in chunk {
                             if self.output_producer.try_push(sample).is_err() {
                                 warn!("Ring buffer overflow during decode");
@@ -388,7 +345,6 @@ impl Iterator for JitterBufferSource {
                             }
                         }
                         
-                        // Pad frame to exactly spf samples if needed
                         if chunk.len() < spf {
                             for _ in chunk.len()..spf {
                                 if self.output_producer.try_push(0.0).is_err() {
@@ -407,7 +363,6 @@ impl Iterator for JitterBufferSource {
                 }
                 Err(e) => {
                     error!("Failed to process packet: {}", e);
-                    // Generate PLC directly to ring
                     if self.plc_consecutive_count >= MAX_PLC_ATTEMPTS {
                         self.frames_silence += 1;
                     } else {
@@ -419,7 +374,6 @@ impl Iterator for JitterBufferSource {
                 }
             }
         } else {
-            // No packets ready: generate PLC/silence directly to ring
             if self.plc_consecutive_count >= MAX_PLC_ATTEMPTS {
                 self.frames_silence += 1;
             } else {
@@ -449,8 +403,6 @@ impl Source for JitterBufferSource {
         None // Infinite stream
     }
 }
-
-/// Facade providing constructors and spatial helper
 pub struct JitterBuffer;
 
 impl JitterBuffer {
@@ -460,14 +412,11 @@ impl JitterBuffer {
         capacity: usize,
     ) -> Result<(JitterBufferSource, JitterBufferHandle), JitterBufferError> {
         let (tx, rx) = flume::unbounded::<Option<EncodedAudioFramePacket>>();
-        // Source will be initialized with this packet and ring seeded internally
         let source = JitterBufferSource::new(rx, capacity, initial_packet)?;
         let handle = JitterBufferHandle { tx };
         Ok((source, handle))
     }
 
-    /// Calculate virtual listener audio data for spatial positioning
-    /// This will be used by SinkManager to set Rodio's spatial positioning
     pub fn calculate_virtual_listener_audio_data(
         emitter: &Coordinate,
         deafen_emitter: bool,
