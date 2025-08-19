@@ -2,7 +2,12 @@ use crate::audio::stream::stream_manager::AudioSinkType;
 use base64::{engine::general_purpose, Engine as _};
 use common::{structs::packet::PacketOwner, Coordinate, Dimension, Orientation};
 
+pub mod adaptive;
+pub mod audio_processor;
 mod jitter_buffer;
+pub mod jitter_buffer_source;
+pub mod metrics;
+
 pub use jitter_buffer::{JitterBuffer, JitterBufferHandle, SpatialAudioData};
 
 #[allow(dead_code)]
@@ -56,18 +61,18 @@ impl SeqClock {
 #[derive(Clone, Debug)]
 pub(crate) struct EncodedAudioFramePacket {
     pub timestamp: u64,
-    #[allow(dead_code)]
     pub sample_rate: u32,
     pub data: Vec<u8>, // Opus-encoded data
-    #[allow(dead_code)]
     pub route: AudioSinkType,
     pub coordinate: Option<Coordinate>,
-    #[allow(dead_code)]
     pub orientation: Option<Orientation>,
-    #[allow(dead_code)]
     pub dimension: Option<Dimension>,
     pub spatial: Option<bool>,
     pub owner: Option<PacketOwner>,
+    
+    // Additional fields for jitter buffer configuration
+    pub buffer_size_ms: u32,
+    pub time_between_reports_secs: u64,
 }
 
 impl EncodedAudioFramePacket {

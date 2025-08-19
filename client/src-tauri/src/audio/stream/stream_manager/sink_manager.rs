@@ -164,10 +164,10 @@ impl SinkManager {
                     }
 
                     if bundle.spatial_handle.is_none() {
-                        match JitterBuffer::new(packet.clone(), 120) {
-                            Ok((source, handle)) => {
+                        match JitterBuffer::create_with_handle(packet.clone(), format!("spatial_{}", author)) {
+                            Ok((jitter_buffer, handle)) => {
                                 if let Some(spatial_sink) = &bundle.spatial {
-                                    spatial_sink.append(source);
+                                    spatial_sink.append(jitter_buffer);
                                 }
                                 bundle.spatial_handle = Some(handle.clone());
                             }
@@ -208,10 +208,10 @@ impl SinkManager {
                     }
 
                     if bundle.normal_handle.is_none() {
-                        match JitterBuffer::new(packet.clone(), 120) {
-                            Ok((source, handle)) => {
+                        match JitterBuffer::create_with_handle(packet.clone(), format!("normal_{}", author)) {
+                            Ok((jitter_buffer, handle)) => {
                                 if let Some(normal_sink) = &bundle.normal {
-                                    normal_sink.append(source);
+                                    normal_sink.append(jitter_buffer);
                                 }
                                 bundle.normal_handle = Some(handle.clone());
                             }

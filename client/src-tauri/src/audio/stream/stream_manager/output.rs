@@ -347,6 +347,8 @@ impl OutputStream {
                     dimension: data.dimension,
                     spatial: data.spatial,
                     owner: owner.clone(),
+                    buffer_size_ms: 120, // Default buffer size
+                    time_between_reports_secs: 30, // Default reporting interval
                 });
 
                 match result {
