@@ -1,5 +1,6 @@
 use log::{error, warn};
 use opus::{Channels, Decoder};
+use ringbuf::{HeapRb, traits::{Split, Producer, Consumer}};
 use rodio::Source;
 use std::collections::VecDeque;
 use std::time::Duration;
@@ -11,8 +12,8 @@ const MAX_DECODE_ERRORS: usize = 10;
 const WARMUP_PACKETS_NEEDED: usize = 2;
 const MAX_PLC_ATTEMPTS: usize = 5;
 const MAX_OPUS_FRAME_MS: usize = 480; // worst-case single decode span
-const FRAME_MS: i64 = 20;
-const LARGE_JUMP_FORWARD_MS: i64 = 1000; // Allow timestamp jumps > 1000ms (stream restart)
+const FRAME_MS: u64 = 20;
+const LARGE_JUMP_FORWARD_MS: u64 = 1000; // Allow timestamp jumps > 1000ms (stream restart)
 
 #[derive(Debug)]
 pub enum JitterBufferError {
@@ -78,13 +79,14 @@ pub struct JitterBufferSource {
     decode_error_count: usize,
     // Pre-allocated buffers
     decode_buffer: Vec<f32>,
-    output_buffer: VecDeque<f32>,
+    output_producer: ringbuf::HeapProd<f32>,
+    output_consumer: ringbuf::HeapCons<f32>,
     // Control
     capacity: usize,
     stopped: bool,
     // Time tracking (ms) to detect and drop late packets
-    last_output_ts_ms: i64,
-    last_accepted_timestamp: i64,
+    last_output_ts_ms: u64,
+    last_accepted_timestamp: u64,
     samples_per_frame: usize,
     frame_sample_countdown: usize,
     queued_frames: usize,
@@ -129,6 +131,10 @@ impl JitterBufferSource {
     let mut decode_buffer = Vec::with_capacity(max_samples);
     decode_buffer.resize(max_samples, 0.0);
 
+    // Create ring buffer and split it
+    let ring_buf = HeapRb::<f32>::new(frames * 4);
+    let (output_producer, output_consumer) = ring_buf.split();
+
         // Initialize source and seed the first packet into the ring with proper sequencing
         let mut source = Self {
             rx,
@@ -141,11 +147,12 @@ impl JitterBufferSource {
             plc_consecutive_count: 0,
             decode_error_count: 0,
             decode_buffer,
-            output_buffer: VecDeque::with_capacity(frames * 4),
+            output_producer,
+            output_consumer,
             capacity,
             stopped: false,
-            last_output_ts_ms: initial_packet.timestamp as i64 - FRAME_MS,
-            last_accepted_timestamp: initial_packet.timestamp as i64,
+            last_output_ts_ms: initial_packet.timestamp.saturating_sub(FRAME_MS),
+            last_accepted_timestamp: initial_packet.timestamp,
             samples_per_frame: frames,
             frame_sample_countdown: 0,
             queued_frames: 0,
@@ -179,11 +186,11 @@ impl JitterBufferSource {
     fn process_packet_sync(
         &mut self,
         packet: &EncodedAudioFramePacket,
-    ) -> Result<Vec<f32>, JitterBufferError> {
+    ) -> Result<usize, JitterBufferError> {
         self.decode_opus(&packet.data)
     }
 
-    fn decode_opus(&mut self, opus_data: &[u8]) -> Result<Vec<f32>, JitterBufferError> {
+    fn decode_opus(&mut self, opus_data: &[u8]) -> Result<usize, JitterBufferError> {
         match self
             .decoder
             .decode_float(opus_data, &mut self.decode_buffer, false)
@@ -200,7 +207,7 @@ impl JitterBufferSource {
                     );
                     self.aggregated_decodes += 1;
                 }
-                Ok(self.decode_buffer[..samples_written].to_vec())
+                Ok(samples_written)
             }
             Err(e) => {
                 self.decode_error_count += 1;
@@ -215,42 +222,68 @@ impl JitterBufferSource {
         }
     }
 
-    fn generate_plc(&mut self) -> Vec<f32> {
+    fn generate_plc_to_ring(&mut self) -> usize {
         if self.plc_consecutive_count >= MAX_PLC_ATTEMPTS {
-            // Generate 20 ms of silence after max PLC attempts
-            vec![0.0; self.samples_per_frame]
+            // Write silence directly to ring - no Vec allocation!
+            let mut written = 0;
+            for _ in 0..self.samples_per_frame {
+                if self.output_producer.try_push(0.0).is_err() {
+                    break; // Ring full
+                }
+                written += 1;
+            }
+            written
         } else {
-            // Use Opus PLC
             match self
                 .decoder
                 .decode_float(&[], &mut self.decode_buffer, false)
             {
                 Ok(samples_written) => {
                     self.plc_consecutive_count += 1;
-                    // Ensure exactly 20 ms: cut or pad
-                    let mut frame = Vec::with_capacity(self.samples_per_frame);
-                    frame.extend_from_slice(&self.decode_buffer[..samples_written.min(self.samples_per_frame)]);
-                    if frame.len() < self.samples_per_frame {
-                        frame.resize(self.samples_per_frame, 0.0);
+                    let copy_len = samples_written.min(self.samples_per_frame);
+                    
+                    // Copy directly to ring - no intermediate Vec!
+                    let mut written = 0;
+                    for &sample in &self.decode_buffer[..copy_len] {
+                        if self.output_producer.try_push(sample).is_err() {
+                            break;
+                        }
+                        written += 1;
                     }
-                    frame
+                    
+                    // Pad with silence if needed
+                    for _ in copy_len..self.samples_per_frame {
+                        if self.output_producer.try_push(0.0).is_err() {
+                            break;
+                        }
+                        written += 1;
+                    }
+                    written
                 }
                 Err(e) => {
                     error!("PLC generation error: {:?}", e);
-                    vec![0.0; self.samples_per_frame]
+                    // Write silence on error
+                    let mut written = 0;
+                    for _ in 0..self.samples_per_frame {
+                        if self.output_producer.try_push(0.0).is_err() {
+                            break;
+                        }
+                        written += 1;
+                    }
+                    written
                 }
             }
         }
     }
 
-    fn is_packet_acceptable(&self, packet_timestamp: i64) -> bool {
+    fn is_packet_acceptable(&self, packet_timestamp: u64) -> bool {
         // Drop packets with timestamps <= last accepted (out-of-order/duplicate)
         if packet_timestamp <= self.last_accepted_timestamp {
             return false;
         }
 
         // Allow large forward jumps (stream restart scenarios)
-        let time_diff = packet_timestamp - self.last_accepted_timestamp;
+        let time_diff = packet_timestamp.saturating_sub(self.last_accepted_timestamp);
         if time_diff > LARGE_JUMP_FORWARD_MS {
             return true; // Accept as potential stream restart
         }
@@ -263,7 +296,7 @@ impl JitterBufferSource {
         while let Ok(msg) = self.rx.try_recv() {
             match msg {
                 Some(packet) => {
-                    let packet_timestamp = packet.timestamp as i64;
+                    let packet_timestamp = packet.timestamp; // No casting needed!
                     
                     // Check for out-of-order packets
                     if !self.is_packet_acceptable(packet_timestamp) {
@@ -310,15 +343,15 @@ impl Iterator for JitterBufferSource {
     type Item = f32;
 
     fn next(&mut self) -> Option<Self::Item> {
-        // If we have samples in output buffer, return next sample and maintain frame clock
-        if let Some(sample) = self.output_buffer.pop_front() {
+        // Try to pop from ring buffer first
+        if let Some(sample) = self.output_consumer.try_pop() {
             if self.frame_sample_countdown == 0 {
                 self.frame_sample_countdown = self.samples_per_frame;
             }
             self.frame_sample_countdown = self.frame_sample_countdown.saturating_sub(1);
             if self.frame_sample_countdown == 0 {
                 // One frame fully consumed
-                self.last_output_ts_ms += FRAME_MS;
+                self.last_output_ts_ms = self.last_output_ts_ms.saturating_add(FRAME_MS);
                 if self.queued_frames > 0 { self.queued_frames -= 1; }
             }
             return Some(sample);
@@ -337,54 +370,64 @@ impl Iterator for JitterBufferSource {
             return Some(0.0);
         }
 
-        // Pop next item from ring or synthesize audio
+        // Process packets without any Vec allocations
         if let Some(packet) = self.ring.pop_front() {
             match self.process_packet_sync(&packet) {
-                Ok(samples) => {
+                Ok(samples_written) => {
                     self.plc_consecutive_count = 0; // Reset PLC counter on success
-                    // Split decoded samples into 20 ms frames and enqueue
+                    
+                    // Split into frames and write directly to ring - NO VEC ALLOCATION!
                     let spf = self.samples_per_frame;
                     let mut frames_added = 0usize;
-                    for chunk in samples.chunks(spf) {
-                        let mut frame = Vec::with_capacity(spf);
-                        frame.extend_from_slice(chunk);
-                        if frame.len() < spf { frame.resize(spf, 0.0); }
-                        self.output_buffer.extend(frame);
+                    for chunk in self.decode_buffer[..samples_written].chunks(spf) {
+                        // Copy chunk directly to ring
+                        for &sample in chunk {
+                            if self.output_producer.try_push(sample).is_err() {
+                                warn!("Ring buffer overflow during decode");
+                                break;
+                            }
+                        }
+                        
+                        // Pad frame to exactly spf samples if needed
+                        if chunk.len() < spf {
+                            for _ in chunk.len()..spf {
+                                if self.output_producer.try_push(0.0).is_err() {
+                                    break;
+                                }
+                            }
+                        }
                         frames_added += 1;
                     }
+                    
                     if frames_added > 0 {
                         self.queued_frames = self.queued_frames.saturating_add(frames_added);
                         self.frames_decoded += frames_added as u64;
                     }
-                    self.output_buffer.pop_front()
+                    self.output_consumer.try_pop()
                 }
                 Err(e) => {
                     error!("Failed to process packet: {}", e);
-                    // On decode error, try PLC once
-                    let frame = if self.plc_consecutive_count >= MAX_PLC_ATTEMPTS {
+                    // Generate PLC directly to ring
+                    if self.plc_consecutive_count >= MAX_PLC_ATTEMPTS {
                         self.frames_silence += 1;
-                        vec![0.0; self.samples_per_frame]
                     } else {
                         self.frames_plc += 1;
-                        self.generate_plc()
-                    };
-                    self.output_buffer.extend(frame);
+                    }
+                    self.generate_plc_to_ring();
                     self.queued_frames = self.queued_frames.saturating_add(1);
-                    self.output_buffer.pop_front()
+                    self.output_consumer.try_pop()
                 }
             }
         } else {
-            // No packets ready: PLC up to MAX_PLC_ATTEMPTS, then full-frame silence
-            let frame = if self.plc_consecutive_count >= MAX_PLC_ATTEMPTS {
+            // No packets ready: generate PLC/silence directly to ring
+            if self.plc_consecutive_count >= MAX_PLC_ATTEMPTS {
                 self.frames_silence += 1;
-                vec![0.0; self.samples_per_frame]
             } else {
                 self.frames_plc += 1;
-                self.generate_plc()
-            };
-            self.output_buffer.extend(frame);
+            }
+            self.generate_plc_to_ring();
             self.queued_frames = self.queued_frames.saturating_add(1);
-            self.output_buffer.pop_front()
+            self.output_consumer.try_pop()
         }
     }
 }

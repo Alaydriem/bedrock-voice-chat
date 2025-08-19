@@ -55,7 +55,10 @@ impl SinkManager {
             players,
             current_player_name,
             player_gain_store,
-            sinks: Cache::new(100),
+            sinks: Cache::builder()
+                .time_to_live(Duration::from_secs(15 * 60)) // 15 minutes TTL
+                .max_capacity(100)
+                .build(),
             mixer,
         }
     }
@@ -87,12 +90,17 @@ impl SinkManager {
         let mixer = self.mixer.clone();
         let global_mute = self.global_mute.clone();
 
-        // Spawn an async task; use blocking recv() to wait indefinitely
+        // Spawn an async task; use async recv to avoid blocking
         let handle = tokio::spawn(async move {
-            while let Ok(packet) = consumer.recv() {
+            loop {
+                // Check shutdown first
                 if shutdown.load(Ordering::Relaxed) {
                     break;
                 }
+
+                // Use recv_async for proper async operation
+                match consumer.recv_async().await {
+                    Ok(packet) => {
 
                 let author = packet.get_author();
                 let author_bytes = packet.get_client_id();
@@ -124,11 +132,16 @@ impl SinkManager {
                     continue;
                 }
 
-                // Get or create PlayerSinks entry
+                // Get or create PlayerSinks entry atomically
                 let mut bundle = sinks.get(&author_bytes).unwrap_or_else(|| {
                     let b = PlayerSinks::default();
-                    sinks.insert(author_bytes.clone(), b.clone());
-                    b
+                    // Use entry API or manual double-check to handle races
+                    if let Some(existing) = sinks.get(&author_bytes) {
+                        existing // Another thread inserted while we were creating
+                    } else {
+                        sinks.insert(author_bytes.clone(), b.clone());
+                        b
+                    }
                 });
 
                 if use_spatial {
@@ -254,6 +267,12 @@ impl SinkManager {
 
                 // Write back updated bundle
                 sinks.insert(author_bytes.clone(), bundle);
+                    }
+                    Err(_) => {
+                        // Channel closed or error - exit loop
+                        break;
+                    }
+                }
             }
         });
 
