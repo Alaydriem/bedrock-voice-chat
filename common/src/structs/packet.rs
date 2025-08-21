@@ -17,6 +17,7 @@ pub enum PacketType {
     Collection,
     Debug,
     PlayerPresence,
+    ServerError,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
@@ -33,6 +34,7 @@ pub enum QuicNetworkPacketData {
     Collection(CollectionPacket),
     Debug(DebugPacket),
     PlayerPresence(PlayerPresenceEvent),
+    ServerError(ServerErrorPacket)
 }
 
 /// A Quic Network Datagram
@@ -80,6 +82,7 @@ impl QuicNetworkPacket {
             PacketType::ChannelEvent => true,
             PacketType::Collection => false,
             PacketType::PlayerPresence => true,
+            PacketType::ServerError => false,
         }
     }
 
@@ -286,6 +289,16 @@ impl QuicNetworkPacket {
             PacketType::PlayerData => true,
             // Player presence events should always be received by all clients
             PacketType::PlayerPresence => true,
+            PacketType::ServerError => match self.get_data() {
+                Some(data) => match data.to_owned().try_into() {
+                    Ok(data) => {
+                        let mut data: ServerErrorPacket = data;
+                        self.get_author().eq(&recipient.name)
+                    },
+                    Err(e) => false,
+                },
+                None => false
+            }
             // If there are other packet types we want recipiants to receive, this should be updated
             _ => false,
         }
@@ -418,7 +431,11 @@ impl TryFrom<QuicNetworkPacketData> for PlayerDataPacket {
 
 /// Debug Packet
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct DebugPacket(pub String);
+pub struct DebugPacket {
+    pub owner: String,
+    pub version: String,
+    pub timestamp: u64,
+}
 
 impl TryFrom<QuicNetworkPacketData> for DebugPacket {
     type Error = ();
@@ -468,6 +485,32 @@ impl TryFrom<QuicNetworkPacketData> for PlayerPresenceEvent {
     fn try_from(value: QuicNetworkPacketData) -> Result<Self, Self::Error> {
         match value {
             QuicNetworkPacketData::PlayerPresence(p) => Ok(p),
+            _ => Err(()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ServerErrorType {
+    VersionIncompatible { 
+        client_version: String, 
+        server_version: String 
+    },
+}
+
+/// Server Error Packet
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerErrorPacket {
+    pub error_type: ServerErrorType,
+    pub message: String
+}
+
+impl TryFrom<QuicNetworkPacketData> for ServerErrorPacket {
+    type Error = ();
+
+    fn try_from(value: QuicNetworkPacketData) -> Result<Self, Self::Error> {
+        match value {
+            QuicNetworkPacketData::ServerError(s) => Ok(s),
             _ => Err(()),
         }
     }

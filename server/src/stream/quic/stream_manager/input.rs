@@ -3,7 +3,7 @@ use anyhow::Error;
 use bytes::Bytes;
 use common::structs::packet::{
     ConnectionEventType, PacketOwner, PacketType, PlayerPresenceEvent, QuicNetworkPacket,
-    QuicNetworkPacketData,
+    QuicNetworkPacketData, ServerErrorPacket, ServerErrorType,
 };
 use common::traits::StreamTrait;
 use core::{
@@ -74,6 +74,8 @@ pub(crate) struct InputStream {
 }
 
 impl InputStream {
+    const LARGE_JUMP_FORWARD_MS: i64 = 3_000;
+
     pub fn new(
         connection: Option<Arc<Connection>>,
         producer: Option<mpsc::UnboundedSender<ServerInputPacket>>,
@@ -99,11 +101,6 @@ impl InputStream {
         self.producer = Some(producer);
     }
 
-    #[allow(unused)]
-    pub fn set_connection(&mut self, connection: Arc<Connection>) {
-        self.connection = Some(connection);
-    }
-
     pub fn set_disconnect_callback(
         &mut self,
         callback: Box<dyn Fn(String, Vec<u8>) + Send + Sync>,
@@ -115,20 +112,23 @@ impl InputStream {
         self.webhook_receiver = Some(webhook_receiver);
     }
 
-    #[allow(unused)]
-    pub fn get_player_id(&self) -> Option<&String> {
-        self.player_id.as_ref()
+    pub async fn send_event(&self, packet: QuicNetworkPacket) {
+        if let Some(webhook_receiver) = &self.webhook_receiver {
+            let webhook_receiver_clone = webhook_receiver.clone();
+            tokio::spawn(async move {
+                if let Err(e) = webhook_receiver_clone
+                    .send_packet(packet)
+                    .await
+                {
+                    tracing::error!(
+                        "Failed to send player connected event: {}",
+                        e
+                    );
+                }
+            });
+        }
     }
-}
 
-impl InputStream {
-    // Threshold (ms) considered a "large" forward jump; accepted, but traceable for metrics later
-    const LARGE_JUMP_FORWARD_MS: i64 = 3_000; // 3 seconds
-
-    /// Build a stable sender key for the last_seen cache:
-    /// - Prefer packet.owner.client_id
-    /// - Else use known self.client_id if set
-    /// - Else hash the connection.id() into an 8-byte Vec
     fn sender_key_for_packet(&self, packet: &QuicNetworkPacket, conn: &Connection) -> Vec<u8> {
         if let Some(owner) = &packet.owner {
             if !owner.client_id.is_empty() {
@@ -142,7 +142,6 @@ impl InputStream {
             }
         }
 
-        // Fallback: hash the connection ID's Debug string into a u64
         let dbg_id = format!("{:?}", conn.id());
         let mut hasher = DefaultHasher::new();
         dbg_id.hash(&mut hasher);
@@ -150,7 +149,6 @@ impl InputStream {
         h.to_be_bytes().to_vec()
     }
 
-    /// Decide if an incoming timestamp should be accepted and whether it's a large forward jump
     fn decide_accept(last_seen: Option<i64>, ts: i64, jump_threshold_ms: i64) -> (bool, bool) {
         match last_seen {
             None => (true, false),
@@ -184,54 +182,92 @@ impl StreamTrait for InputStream {
         {
             // Handle incoming datagrams from this connection
             loop {
+                if self.is_stopped() {
+                    break;
+                }
                 // Custom future to await a single datagram without futures crate
                 let datagram = recv_one_datagram(&connection).await;
                 match datagram {
                     Ok(bytes) => {
                         match QuicNetworkPacket::from_datagram(&bytes) {
                             Ok(packet) => {
-                                // Out-of-order filtering: apply only to AudioFrame packets, ignore Collections for this logic
-                                if packet.packet_type == PacketType::AudioFrame {
-                                    // Use reference to avoid cloning data unnecessarily
-                                    let ts_opt = match &packet.data {
-                                        QuicNetworkPacketData::AudioFrame(af) => {
-                                            Some(af.timestamp())
-                                        }
-                                        _ => None,
-                                    };
-
-                                    if let Some(ts) = ts_opt {
-                                        let key = self.sender_key_for_packet(&packet, &connection);
-                                        let last_seen = self.last_seen_ts.get(&key);
-                                        let (accept, large_jump) = Self::decide_accept(
-                                            last_seen,
-                                            ts,
-                                            Self::LARGE_JUMP_FORWARD_MS,
-                                        );
-                                        if !accept {
-                                            if let Some(prev) = last_seen {
-                                                tracing::trace!("Dropping out-of-order AudioFrame: ts={} <= last_seen={}", ts, prev);
+                                match packet.packet_type {
+                                    PacketType::AudioFrame => {
+                                        // Use reference to avoid cloning data unnecessarily
+                                        let ts_opt = match &packet.data {
+                                            QuicNetworkPacketData::AudioFrame(af) => {
+                                                Some(af.timestamp())
                                             }
-                                            continue; // Drop older/same-timestamp frame
-                                        }
-                                        // Update last seen timestamp for sender
-                                        self.last_seen_ts.insert(key.clone(), ts);
-                                        if large_jump {
-                                            // Trace marker for future metrics aggregation
-                                            let client_hash = match &self.client_id {
-                                                Some(cid) => client_id_hash(cid),
-                                                None => {
-                                                    // If we don't know the client yet, hash the derived key for some stability
-                                                    client_id_hash(&key)
+                                            _ => None,
+                                        };
+
+                                        if let Some(ts) = ts_opt {
+                                            let key = self.sender_key_for_packet(&packet, &connection);
+                                            let last_seen = self.last_seen_ts.get(&key);
+                                            let (accept, large_jump) = Self::decide_accept(
+                                                last_seen,
+                                                ts,
+                                                Self::LARGE_JUMP_FORWARD_MS,
+                                            );
+                                            if !accept {
+                                                if let Some(prev) = last_seen {
+                                                    tracing::trace!("Dropping out-of-order AudioFrame: ts={} <= last_seen={}", ts, prev);
                                                 }
-                                            };
-                                            let prev = last_seen.unwrap_or(0);
-                                            let delta = ts - prev;
-                                            // Use a dedicated tracing target so this can be scraped/tapped later
-                                            tracing::debug!(target: "ofo", "large_jump_forward client={} ts={} last_seen={} delta_ms={}", client_hash, ts, prev, delta);
+                                                continue; // Drop older/same-timestamp frame
+                                            }
+                                            // Update last seen timestamp for sender
+                                            self.last_seen_ts.insert(key.clone(), ts);
+                                            if large_jump {
+                                                // Trace marker for future metrics aggregation
+                                                let client_hash = match &self.client_id {
+                                                    Some(cid) => client_id_hash(cid),
+                                                    None => {
+                                                        // If we don't know the client yet, hash the derived key for some stability
+                                                        client_id_hash(&key)
+                                                    }
+                                                };
+                                                let prev = last_seen.unwrap_or(0);
+                                                let delta = ts - prev;
+                                                // Use a dedicated tracing target so this can be scraped/tapped later
+                                                tracing::debug!(target: "ofo", "large_jump_forward client={} ts={} last_seen={} delta_ms={}", client_hash, ts, prev, delta);
+                                            }
                                         }
-                                    }
-                                }
+                                    },
+                                    PacketType::Debug => match &packet.data {
+                                        QuicNetworkPacketData::Debug(d) => {
+                                            if let (Ok(client_version), Ok(server_version)) = (
+                                                semver::Version::parse(&d.version),
+                                                semver::Version::parse(common::consts::version::PROTOCOL_VERSION),
+                                            ) {
+                                                // Reject if client major.minor is older than server
+                                                if client_version.major < server_version.major || 
+                                                    (client_version.major == server_version.major && client_version.minor < server_version.minor) {
+                                                        
+                                                    let error_packet = ServerErrorPacket {
+                                                        error_type: ServerErrorType::VersionIncompatible {
+                                                            client_version: d.version.clone(),
+                                                            server_version: common::consts::version::PROTOCOL_VERSION.to_string()
+                                                        },
+                                                        message: format!(
+                                                            "Client version {} is too old. Server requires {}+. Please update your client.",
+                                                            &d.version, common::consts::version::PROTOCOL_VERSION
+                                                        )
+                                                    };
+
+                                                    self.send_event(QuicNetworkPacket {
+                                                        owner: packet.owner.clone(),
+                                                        packet_type: PacketType::ServerError,
+                                                        data: QuicNetworkPacketData::ServerError(error_packet),
+                                                    }).await;
+
+                                                    break;
+                                                }
+                                            }
+                                        },
+                                        _ => {}
+                                    },
+                                    _ => {}
+                                };
 
                                 if self.player_id.is_none() && packet.owner.is_some() {
                                     let owner = packet.owner.as_ref().unwrap();
@@ -244,44 +280,24 @@ impl StreamTrait for InputStream {
                                         client_hash
                                     );
 
-                                    if let Some(webhook_receiver) = &self.webhook_receiver {
-                                        let player_name = owner.name.clone();
-                                        let webhook_receiver_clone = webhook_receiver.clone();
-                                        tokio::spawn(async move {
-                                            let timestamp = std::time::SystemTime::now()
-                                                .duration_since(std::time::UNIX_EPOCH)
-                                                .unwrap()
-                                                .as_millis()
-                                                as i64;
-                                            let presence_packet = QuicNetworkPacket {
-                                                owner: Some(PacketOwner {
-                                                    name: String::from("api"),
-                                                    client_id: vec![],
-                                                }),
-                                                packet_type: PacketType::PlayerPresence,
-                                                data: QuicNetworkPacketData::PlayerPresence(
-                                                    PlayerPresenceEvent {
-                                                        player_name: player_name.clone(),
-                                                        timestamp,
-                                                        event_type: ConnectionEventType::Connected,
-                                                    },
-                                                ),
-                                            };
-                                            if let Err(e) = webhook_receiver_clone
-                                                .send_packet(presence_packet)
-                                                .await
-                                            {
-                                                tracing::error!(
-                                                    "Failed to send player connected event: {}",
-                                                    e
-                                                );
-                                            }
-                                            tracing::debug!(
-                                                "Broadcast player connected event {}",
-                                                player_name
-                                            );
-                                        });
-                                    }
+                                    self.send_event(QuicNetworkPacket {
+                                        owner: Some(PacketOwner {
+                                            name: String::from("api"),
+                                            client_id: vec![],
+                                        }),
+                                        packet_type: PacketType::PlayerPresence,
+                                        data: QuicNetworkPacketData::PlayerPresence(
+                                            PlayerPresenceEvent {
+                                                player_name: owner.name.clone(),
+                                                timestamp: std::time::SystemTime::now()
+                                                    .duration_since(std::time::UNIX_EPOCH)
+                                                    .unwrap()
+                                                    .as_millis()
+                                                    as i64,
+                                                event_type: ConnectionEventType::Connected,
+                                            },
+                                        ),
+                                    }).await;
                                 }
 
                                 let server_packet = ServerInputPacket { data: packet };

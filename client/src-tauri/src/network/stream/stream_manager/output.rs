@@ -8,7 +8,9 @@ use std::sync::{
     Arc,
 };
 use tauri::Emitter;
-use tokio::task::AbortHandle;
+use tokio::{task::AbortHandle, time::Instant};
+
+use common::consts::version::PROTOCOL_VERSION as CLIENT_VERSION;
 
 /// The OutputStream consumes PCM NetworkPackets from the AudioStreamManager::InputStream
 /// Then sends it to the server
@@ -63,7 +65,11 @@ impl common::traits::StreamTrait for OutputStream {
                 packet_type: common::structs::packet::PacketType::Debug,
                 owner: packet_owner.clone(),
                 data: common::structs::packet::QuicNetworkPacketData::Debug(
-                    DebugPacket(packet_owner.clone().unwrap().name)
+                    DebugPacket {
+                        owner: packet_owner.clone().unwrap().name,
+                        version: CLIENT_VERSION.to_string(),
+                        timestamp: Instant::now().elapsed().as_millis() as u64,
+                    }
                 )
             };
 

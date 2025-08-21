@@ -2,8 +2,6 @@ use log::info;
 use serde::{Deserialize, Serialize};
 use tauri::Listener;
 
-// Events Tauri is to subscribe to
-// This is the general notification event
 pub(crate) const PLAYER_PRESENCE: &str = "player_presence";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

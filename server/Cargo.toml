@@ -86,6 +86,7 @@ zeromq = { version = "0.5.0-pre", default-features = false, features = [
     "all-transport",
 ] }
 rocket_cors = "0.6.0"
+semver = "1.0.26"
 
 [build-dependencies]
 built = { version = "^0.7", features = ["git2", "chrono", "semver"] }

@@ -693,6 +693,7 @@ dependencies = [
  "s2n-quic",
  "sea-orm",
  "sea-orm-rocket",
+ "semver",
  "serde",
  "serde_json",
  "tokio",

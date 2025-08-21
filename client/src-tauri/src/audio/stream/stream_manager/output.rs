@@ -1,4 +1,4 @@
-use crate::audio::stream::jitter_buffer::EncodedAudioFramePacket;
+use crate::{audio::stream::jitter_buffer::EncodedAudioFramePacket, events::ServerError};
 use crate::audio::stream::stream_manager::AudioSinkType;
 
 use crate::audio::types::AudioDevice;
@@ -7,7 +7,7 @@ use anyhow::anyhow;
 use common::{
     structs::{
         audio::PlayerGainStore,
-        packet::{AudioFramePacket, PacketType, PlayerDataPacket, QuicNetworkPacket},
+        packet::{AudioFramePacket, PacketType, PlayerDataPacket, QuicNetworkPacket, ServerErrorPacket},
     },
     Player,
 };
@@ -24,7 +24,6 @@ use std::{
 };
 use tauri::Emitter;
 use tokio::task::{AbortHandle, JoinHandle};
-
 use super::sink_manager::SinkManager;
 
 static MUTE_OUTPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
@@ -62,21 +61,6 @@ impl common::traits::StreamTrait for OutputStream {
                     }
                 };
                 info!("Player gain store updated.");
-            }
-            "player_presence" => {
-                if !self.player_presence.contains_key(&value) {
-                    self.app_handle
-                        .emit(
-                            crate::events::event::player_presence::PLAYER_PRESENCE,
-                            crate::events::event::player_presence::Presence::new(
-                                value.clone(),
-                                "online".to_string(),
-                            ),
-                        )
-                        .unwrap();
-                }
-
-                self.player_presence.insert(value.clone(), true);
             }
             _ => {
                 let _ = self.metadata.insert(key.clone(), value.clone()).await;
@@ -193,6 +177,8 @@ impl OutputStream {
                 Ok(_config) => {
                     let bus = self.bus.clone();
 
+                    let app_handle = self.app_handle.clone();
+                    let player_presence = self.player_presence.clone();
                     let handle = tokio::spawn(async move {
                         #[allow(irrefutable_let_patterns)]
                         while let packet = bus.recv_async().await {
@@ -207,6 +193,8 @@ impl OutputStream {
                                         OutputStream::handle_audio_data(
                                             producer.clone(),
                                             &packet.data,
+                                            Some(&app_handle.clone()),
+                                            Some(&player_presence.clone())
                                         )
                                         .await
                                     }
@@ -214,6 +202,13 @@ impl OutputStream {
                                         OutputStream::handle_player_data(
                                             players.clone(),
                                             &packet.data,
+                                        )
+                                        .await
+                                    }
+                                    PacketType::ServerError => {
+                                        OutputStream::handle_server_error(
+                                            &packet.data,
+                                            Some(&app_handle.clone()),
                                         )
                                         .await
                                     }
@@ -326,9 +321,32 @@ impl OutputStream {
     async fn handle_audio_data(
         producer: flume::Sender<EncodedAudioFramePacket>,
         data: &QuicNetworkPacket,
+        app_handle: Option<&tauri::AppHandle>,
+        player_presence: Option<&moka::sync::Cache<String, bool>>,
     ) {
         let owner = data.owner.clone();
         let data: Result<AudioFramePacket, ()> = data.data.to_owned().try_into();
+
+        if let (Some(app_handle), Some(player_presence)) = (app_handle, player_presence) {
+            match owner.clone() {
+                Some(owner) => {
+                    let owner_name = owner.name.clone();
+                    if !player_presence.contains_key(&owner_name) {
+                        if let Err(e) = app_handle.emit(
+                            crate::events::event::player_presence::PLAYER_PRESENCE,
+                            crate::events::event::player_presence::Presence::new(
+                                owner_name.clone(),
+                                "joined".to_string(),
+                            ),
+                        ) {
+                            error!("Failed to emit player presence event: {:?}", e);
+                        }
+                    }
+                    player_presence.insert(owner_name, true);
+                },
+                None => {}
+            }
+        }
 
         match data {
             Ok(data) => {
@@ -381,6 +399,25 @@ impl OutputStream {
             }
             Err(_) => {
                 warn!("Could not decode player data packet");
+            }
+        }
+    }
+
+    async fn handle_server_error(
+        data: &QuicNetworkPacket,
+        app_handle: Option<&tauri::AppHandle>,
+    ) {
+        if let Some(app_handle) = app_handle {
+            if let Ok(error_packet) = TryInto::<ServerErrorPacket>::try_into(data.data.clone()) {
+                if let Err(e) = app_handle.emit(
+                    crate::events::event::server_error::SERVER_ERROR,
+                    ServerError::new(
+                        error_packet.error_type,
+                        error_packet.message,
+                    )
+                ) {
+                    error!("Failed to emit server error event: {:?}", e);
+                }
             }
         }
     }
