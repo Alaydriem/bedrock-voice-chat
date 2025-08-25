@@ -13,7 +13,6 @@ import Hold from './hold.ts';
 import Sidebar from "./components/dashboard/sidebar.ts";
 
 import Notification from "../../components/events/Notification.svelte";
-import PlayerPresence from "../../components/events/PlayerPresence.svelte";
 import type { NoiseGateSettings } from '../bindings/NoiseGateSettings.ts';
 import type { PlayerGainStore } from '../bindings/PlayerGainStore.ts';
 
@@ -26,10 +25,13 @@ declare global {
 export default class Dashboard extends App {
     private hold: Hold | undefined;
     private store: Store | undefined;
+    private eventUnlisteners: (() => void)[] = [];
     
     async initialize() {
         const appWebview = getCurrentWebviewWindow();
-        appWebview.once('notification', (event: { payload?: { title?: string, body?: string, level?: string } }) => {
+        
+        // Handle notifications
+        const notificationUnlisten = await appWebview.listen('notification', (event: { payload?: { title?: string, body?: string, level?: string } }) => {
             info(`Notification received: ${JSON.stringify(event.payload)}`);
             mount(Notification, {
                 target: document.querySelector("#notification-container")!,
@@ -40,24 +42,14 @@ export default class Dashboard extends App {
                 }
             });
         });
-
-        appWebview.once("player_presence", (event: { payload?: { player?: string } }) => {
-            info(`Player presence event received: ${event.payload}`);
-            if (event.payload?.player) {
-                mount(PlayerPresence, {
-                    target: document.querySelector("#player-presence-container")!,
-                    props: {
-                        player: event.payload.player
-                    }
-                });
-            }
-        });
+        this.eventUnlisteners.push(notificationUnlisten);
 
         document.querySelector("#sidebar-toggle")?.addEventListener("click", (e) => {
             const el = e.target as HTMLElement;
             el.classList.toggle("active");
             document.querySelector("body")?.classList.toggle("is-sidebar-open");
         });
+        
         this.store = await Store.load("store.json", { autoSave: false });
         const currentServer = await this.store.get<string>("current_server");
 
@@ -208,7 +200,20 @@ export default class Dashboard extends App {
         });
     }
 
+    async cleanup(): Promise<void> {
+        // Clean up other event listeners
+        this.eventUnlisteners.forEach(unlisten => {
+            try {
+                unlisten();
+            } catch (err) {
+                error(`Error cleaning up event listener: ${err}`);
+            }
+        });
+        this.eventUnlisteners = [];
+    }
+
     async shutdown() {
+        await this.cleanup();
         await invoke("reset_asm");
         await invoke("reset_nsm");
     }

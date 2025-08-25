@@ -226,8 +226,11 @@ impl QuicNetworkPacket {
                                 let dimension = data.dimension.clone();
                                 let coordinates = data.coordinate.clone();
                                 if dimension.is_none() || coordinates.is_none() {
-                                    // Allow delivery if sender position is unknown; rely on client-side defaults.
-                                    return true;
+                                    // Sender position is unknown; only allow if explicitly non-spatial
+                                    match data.spatial {
+                                        Some(false) => return true, // Non-spatial audio is allowed
+                                        Some(true) | None => return false, // Spatial audio requires sender position
+                                    }
                                 }
                                 (dimension.unwrap(), coordinates.unwrap())
                             }
@@ -267,14 +270,9 @@ impl QuicNetworkPacket {
                                         return distance <= proximity;
                                     }
                                 }
-
-
-
                             }
                             None => {
-                                // Recipient not found in position cache; allow delivery.
-                                // This relaxes filtering to avoid dropping audio before presence is registered.
-                                return true;
+                                return false;
                             },
                         };
                     }

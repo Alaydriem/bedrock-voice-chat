@@ -4,6 +4,8 @@ use crate::audio::stream::stream_manager::AudioSinkType;
 use crate::audio::types::AudioDevice;
 use crate::AudioPacket;
 use anyhow::anyhow;
+use base64::{engine::general_purpose, Engine as _};
+use common::structs::packet::{ConnectionEventType, PlayerPresenceEvent};
 use common::{
     structs::{
         audio::PlayerGainStore,
@@ -35,12 +37,12 @@ pub(crate) struct OutputStream {
     jobs: Vec<AbortHandle>,
     shutdown: Arc<AtomicBool>,
     pub metadata: Arc<Cache<String, String>>,
-    #[allow(unused)]
     app_handle: tauri::AppHandle,
-    player_presence: Arc<moka::sync::Cache<String, bool>>,
     sink_manager: Option<SinkManager>,
-    // Keep the rodio output stream alive for the lifetime of playback
     playback_stream: Option<rodio::OutputStream>,
+    player_presence: Arc<moka::sync::Cache<String, ()>>,
+    // Client ID to Player Name mapping for gain control  
+    client_id_to_player: Arc<moka::sync::Cache<String, String>>,
 }
 
 impl common::traits::StreamTrait for OutputStream {
@@ -53,14 +55,25 @@ impl common::traits::StreamTrait for OutputStream {
                 match serde_json::from_str::<PlayerGainStore>(&value) {
                     Ok(settings) => {
                         if let Some(sink_manager) = self.sink_manager.as_mut() {
-                            sink_manager.update_player_store(settings.clone())
+                            // Remap the PlayerGainStore from player names to client IDs
+                            let mut remapped_settings = PlayerGainStore::default();
+                            
+                            for (player_name, gain_settings) in &settings.0 {
+                                // Find all client IDs for this player name
+                                for (client_id, mapped_player_name) in self.client_id_to_player.iter() {
+                                    if mapped_player_name.as_str() == player_name {
+                                        remapped_settings.0.insert(client_id.as_ref().clone(), gain_settings.clone());
+                                    }
+                                }
+                            }
+                            
+                            sink_manager.update_player_store(remapped_settings)
                         }
                     }
                     Err(e) => {
                         error!("Failed to parse PlayerGainStore: {:?}", e);
                     }
                 };
-                info!("Player gain store updated.");
             }
             _ => {
                 let _ = self.metadata.insert(key.clone(), value.clone()).await;
@@ -119,7 +132,7 @@ impl common::traits::StreamTrait for OutputStream {
 
         // Listen to the network stream
         match self
-            .listener(producer, self.shutdown.clone(), self.players.clone())
+            .listener(producer, self.shutdown.clone(), self.players.clone(), self.metadata.clone())
             .await
         {
             Ok(job) => jobs.push(job),
@@ -146,6 +159,14 @@ impl OutputStream {
             .time_to_idle(Duration::from_secs(15 * 60))
             .build();
 
+        let player_presence = moka::sync::Cache::builder()
+            .time_to_idle(Duration::from_secs(15 * 60))
+            .build();
+
+        let client_id_to_player = moka::sync::Cache::builder()
+            .time_to_idle(Duration::from_secs(15 * 60))
+            .build();
+
         Self {
             device,
             bus,
@@ -154,13 +175,10 @@ impl OutputStream {
             shutdown: Arc::new(AtomicBool::new(false)),
             metadata,
             app_handle: app_handle.clone(),
-            player_presence: Arc::new(
-                moka::sync::Cache::builder()
-                    .time_to_idle(Duration::from_secs(3 * 60))
-                    .build(),
-            ),
             sink_manager: None,
             playback_stream: None,
+            player_presence: Arc::new(player_presence),
+            client_id_to_player: Arc::new(client_id_to_player),
         }
     }
 
@@ -171,14 +189,16 @@ impl OutputStream {
         producer: flume::Sender<EncodedAudioFramePacket>,
         shutdown: Arc<AtomicBool>,
         players: Arc<moka::sync::Cache<String, Player>>,
+        metadata: Arc<Cache<String, String>>,
     ) -> Result<JoinHandle<()>, anyhow::Error> {
         match self.device.clone() {
             Some(device) => match device.get_stream_config() {
                 Ok(_config) => {
                     let bus = self.bus.clone();
 
-                    let app_handle = self.app_handle.clone();
                     let player_presence = self.player_presence.clone();
+                    let client_id_to_player = self.client_id_to_player.clone();
+                    let app_handle = self.app_handle.clone();
                     let handle = tokio::spawn(async move {
                         #[allow(irrefutable_let_patterns)]
                         while let packet = bus.recv_async().await {
@@ -193,8 +213,10 @@ impl OutputStream {
                                         OutputStream::handle_audio_data(
                                             producer.clone(),
                                             &packet.data,
+                                            metadata.clone(),
+                                            player_presence.clone(),
+                                            client_id_to_player.clone(),
                                             Some(&app_handle.clone()),
-                                            Some(&player_presence.clone())
                                         )
                                         .await
                                     }
@@ -209,6 +231,15 @@ impl OutputStream {
                                         OutputStream::handle_server_error(
                                             &packet.data,
                                             Some(&app_handle.clone()),
+                                        )
+                                        .await
+                                    },
+                                    PacketType::PlayerPresence => {
+                                        OutputStream::handle_player_presence(
+                                            &packet.data,
+                                            metadata.clone(),
+                                            Some(&app_handle.clone()),
+                                            player_presence.clone()
                                         )
                                         .await
                                     }
@@ -317,36 +348,106 @@ impl OutputStream {
         };
     }
 
+    // Process the player presence event
+    async fn handle_player_presence(
+        data: &QuicNetworkPacket,
+        metadata: Arc<Cache<String, String>>,
+        app_handle: Option<&tauri::AppHandle>,
+        player_presence: Arc<moka::sync::Cache<String, ()>>,
+    ) {
+         let current_player_name = match metadata.get("current_player").await {
+            Some(name) => name,
+            None => return,
+        };
+
+        if let Some(app_handle) = app_handle {
+            let data: Result<PlayerPresenceEvent, ()> = data.data.to_owned().try_into();
+
+            match data {
+                Ok(data) => {
+                    // Ignore events from self
+                    if current_player_name.eq(&data.player_name) {
+                        return;
+                    } 
+
+                    match data.event_type {
+                        ConnectionEventType::Connected => {
+                            player_presence.insert(data.player_name.clone(), ());
+                        },
+                        ConnectionEventType::Disconnected => {
+                            player_presence.remove(&data.player_name);
+                        },
+                    }
+
+                    if let Err(e) = app_handle.emit(
+                        crate::events::event::player_presence::PLAYER_PRESENCE,
+                        crate::events::event::player_presence::Presence::new(
+                            data.player_name,
+                            match data.event_type {
+                                ConnectionEventType::Connected => String::from("joined"),
+                                ConnectionEventType::Disconnected => String::from("disconnected"),
+                            },
+                        ),
+                    ) {
+                        error!("Failed to emit player presence event: {:?}", e);
+                    }
+                }
+                Err(_) => {
+                    warn!("Could not decode player data packet");
+                }
+            }
+        } 
+    }
+
     /// Processes AudioFramePacket data
     async fn handle_audio_data(
         producer: flume::Sender<EncodedAudioFramePacket>,
         data: &QuicNetworkPacket,
+        metadata: Arc<Cache<String, String>>,
+        player_presence: Arc<moka::sync::Cache<String, ()>>,
+        client_id_to_player: Arc<moka::sync::Cache<String, String>>,
         app_handle: Option<&tauri::AppHandle>,
-        player_presence: Option<&moka::sync::Cache<String, bool>>,
     ) {
-        let owner = data.owner.clone();
-        let data: Result<AudioFramePacket, ()> = data.data.to_owned().try_into();
+        let current_player_name = match metadata.get("current_player").await {
+            Some(name) => name,
+            None => return,
+        };
 
-        if let (Some(app_handle), Some(player_presence)) = (app_handle, player_presence) {
-            match owner.clone() {
-                Some(owner) => {
-                    let owner_name = owner.name.clone();
-                    if !player_presence.contains_key(&owner_name) {
+        // Check if this is a new player we haven't seen before
+        if let Some(owner) = &data.owner {
+            let player_name = &owner.name;
+            
+            // Build client ID to player name mapping for gain control
+            if !player_name.is_empty() && !player_name.eq(&"api") {
+                let client_id = general_purpose::STANDARD.encode(&owner.client_id);
+                client_id_to_player.insert(client_id, player_name.clone());
+            }
+            
+            // Don't emit events for ourselves
+            if !player_name.eq(&current_player_name) && !player_name.is_empty() {
+                // Check if we've seen this player before
+                if player_presence.get(player_name).is_none() {
+                    // Mark this player as seen
+                    player_presence.insert(player_name.clone(), ());
+                    
+                    // Emit synthetic presence event for new player detected via audio
+                    if let Some(app_handle) = app_handle {
                         if let Err(e) = app_handle.emit(
                             crate::events::event::player_presence::PLAYER_PRESENCE,
                             crate::events::event::player_presence::Presence::new(
-                                owner_name.clone(),
-                                "joined".to_string(),
+                                player_name.clone(),
+                                String::from("joined"),
                             ),
                         ) {
-                            error!("Failed to emit player presence event: {:?}", e);
+                            error!("Failed to emit auto-detected player presence event: {:?}", e);
                         }
                     }
-                    player_presence.insert(owner_name, true);
-                },
-                None => {}
+                }
             }
         }
+
+        let owner = data.owner.clone();
+        let data: Result<AudioFramePacket, ()> = data.data.to_owned().try_into();
 
         match data {
             Ok(data) => {

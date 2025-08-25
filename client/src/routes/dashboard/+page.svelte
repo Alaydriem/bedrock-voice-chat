@@ -5,12 +5,17 @@
 
   import MainSidebar from "../../components/dashboard/sidebar/MainSidebar.svelte";
   import MainSidebarGroupVcPanel from "../../components/dashboard/sidebar/MainSidebarGroupVCPanel.svelte";
+  import PlayerPresenceList from "../../components/PlayerPresenceList.svelte";
   import "../../css/app.css";
   import Dashboard from "../../js/app/dashboard.ts";
+  import { PlayerPresenceManager } from "../../js/app/components/dashboard/presence.ts";
+  import { Store } from '@tauri-apps/plugin-store';
 
-  import { onMount, mount } from "svelte";
+  import { onMount, onDestroy, mount, setContext } from "svelte";
 
-  onMount(() => {
+  let playerPresenceManager: PlayerPresenceManager | undefined;
+
+  onMount(async () => {
     window.App = new Dashboard();
     window.dispatchEvent(new CustomEvent("app:mounted"));
 
@@ -36,7 +41,27 @@
       }
     }
 
-    window.App.initialize();
+    // Initialize the main dashboard
+    await window.App.initialize();
+    
+    // Initialize PlayerPresenceManager at page level
+    try {
+      const store = await Store.load("store.json", { autoSave: false });
+      playerPresenceManager = new PlayerPresenceManager(store);
+      await playerPresenceManager.initialize();
+      
+      // Make presence manager available to child components via context
+      setContext('presenceManager', playerPresenceManager);
+    } catch (err) {
+      console.error("Failed to initialize PlayerPresenceManager:", err);
+    }
+  });
+
+  onDestroy(() => {
+    // Clean up PlayerPresenceManager when page is destroyed
+    if (playerPresenceManager) {
+      playerPresenceManager.cleanup();
+    }
   });
 </script>
 
@@ -69,5 +94,7 @@
       </div>
     </div>
     <div id="notification-container" class="notification-container"></div>
+    <!-- Player Presence List - Now using reactive Svelte component -->
+    <PlayerPresenceList />
   </main>
 </div>
