@@ -215,10 +215,10 @@ impl StreamTrait for InputStream {
                                                 }
                                                 continue; // Drop older/same-timestamp frame
                                             }
+
                                             // Update last seen timestamp for sender
                                             self.last_seen_ts.insert(key.clone(), ts);
                                             if large_jump {
-                                                // Trace marker for future metrics aggregation
                                                 let client_hash = match &self.client_id {
                                                     Some(cid) => client_id_hash(cid),
                                                     None => {
@@ -359,8 +359,9 @@ impl StreamTrait for InputStream {
             {
                 callback(player_id.clone(), client_id.clone());
                 if let Some(webhook_receiver) = &self.webhook_receiver {
-                    let player_name = player_id.clone();
                     let webhook_receiver_clone = webhook_receiver.clone();
+                    let client_id = client_id.clone();
+                    let player_name = player_id.clone();
                     tokio::spawn(async move {
                         let timestamp = std::time::SystemTime::now()
                             .duration_since(std::time::UNIX_EPOCH)
@@ -368,8 +369,8 @@ impl StreamTrait for InputStream {
                             .as_millis() as i64;
                         let presence_packet = QuicNetworkPacket {
                             owner: Some(PacketOwner {
-                                name: String::from("api"),
-                                client_id: vec![],
+                                name: player_name.clone(),
+                                client_id: client_id.clone(),
                             }),
                             packet_type: PacketType::PlayerPresence,
                             data: QuicNetworkPacketData::PlayerPresence(PlayerPresenceEvent {

@@ -55,11 +55,9 @@ impl common::traits::StreamTrait for OutputStream {
                 match serde_json::from_str::<PlayerGainStore>(&value) {
                     Ok(settings) => {
                         if let Some(sink_manager) = self.sink_manager.as_mut() {
-                            // Remap the PlayerGainStore from player names to client IDs
                             let mut remapped_settings = PlayerGainStore::default();
                             
                             for (player_name, gain_settings) in &settings.0 {
-                                // Find all client IDs for this player name
                                 for (client_id, mapped_player_name) in self.client_id_to_player.iter() {
                                     if mapped_player_name.as_str() == player_name {
                                         remapped_settings.0.insert(client_id.as_ref().clone(), gain_settings.clone());
@@ -89,6 +87,7 @@ impl common::traits::StreamTrait for OutputStream {
         if let Some(sink_manager) = self.sink_manager.as_mut() {
             sink_manager.stop().await;
         }
+
         // Give existing jobs 500ms to clear
         _ = tokio::time::sleep(Duration::from_millis(500)).await;
 
@@ -425,9 +424,7 @@ impl OutputStream {
             
             // Don't emit events for ourselves
             if !player_name.eq(&current_player_name) && !player_name.is_empty() {
-                // Check if we've seen this player before
                 if player_presence.get(player_name).is_none() {
-                    // Mark this player as seen
                     player_presence.insert(player_name.clone(), ());
                     
                     // Emit synthetic presence event for new player detected via audio
@@ -486,7 +483,6 @@ impl OutputStream {
     // Sender<AudioFrame> is technically as alias of Sender<QuicNetworkPacket> with a nested data
     // The data we can receive can be _any_ valid QuicNetworkPacket, which is good because
     // We need the positional information that is pulsed by the server
-    // @todo!() we need to move this outside of this thread so this thread is only concerned with AudioFramePacket
     async fn handle_player_data(
         player_data: Arc<moka::sync::Cache<String, Player>>,
         data: &QuicNetworkPacket,

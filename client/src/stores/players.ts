@@ -94,7 +94,7 @@ export async function updatePlayerGain(playerName: string, gain: number): Promis
         });
 
         // Update persistent store
-        await updatePlayerGainStore(playerName, { gain, muted: currentMuted });\
+        await updatePlayerGainStore(playerName, { gain, muted: currentMuted });
     } catch (err) {
         error(`Failed to update player gain: ${err}`);
     }

@@ -138,85 +138,73 @@ impl StreamTrait for OutputStream {
             (self.connection.clone(), self.broadcast_rx.take())
         {
             // Handle outgoing packets to this connection directly from broadcast
-            loop {
-                match broadcast_rx.recv().await {
-                    Ok(mut packet) => {
-                        // Check if this stream should receive this packet
-                        if !self.is_receivable(&mut packet).await {
-                            continue; // Skip packets not intended for this player
+            while let Ok(mut packet) = broadcast_rx.recv().await {
+                // Check if this stream should receive this packet
+                if !self.is_receivable(&mut packet).await {
+                    continue; // Skip packets not intended for this player
+                }
+                match packet.to_datagram() {
+                    Ok(bytes) => {
+                        let payload = Bytes::from(bytes);
+                        let send_res = connection.datagram_mut(
+                            |dg: &mut s2n_quic::provider::datagram::default::Sender| {
+                                dg.send_datagram(payload.clone())
+                            },
+                        );
+                        // Identity for logs
+                        let player =
+                            self.get_player_id().unwrap_or_else(|| "unknown".into());
+                        let client_hash = self
+                            .get_client_id()
+                            .map(|cid| client_id_hash(&cid))
+                            .unwrap_or_else(|| "????".into());
+
+                        fn is_conn_closed(msg: &str) -> bool {
+                            let m = msg.to_ascii_lowercase();
+                            (m.contains("connection") && m.contains("clos"))
+                                || m.contains("closed")
+                                || m.contains("reset")
                         }
-                        match packet.to_datagram() {
-                            Ok(bytes) => {
-                                let payload = Bytes::from(bytes);
-                                let send_res = connection.datagram_mut(
-                                    |dg: &mut s2n_quic::provider::datagram::default::Sender| {
-                                        dg.send_datagram(payload.clone())
-                                    },
-                                );
-                                // Identity for logs
-                                let player =
-                                    self.get_player_id().unwrap_or_else(|| "unknown".into());
-                                let client_hash = self
-                                    .get_client_id()
-                                    .map(|cid| client_id_hash(&cid))
-                                    .unwrap_or_else(|| "????".into());
 
-                                fn is_conn_closed(msg: &str) -> bool {
-                                    let m = msg.to_ascii_lowercase();
-                                    (m.contains("connection") && m.contains("clos"))
-                                        || m.contains("closed")
-                                        || m.contains("reset")
-                                }
-
-                                match send_res {
-                                    Ok(Ok(())) => { /* sent */ }
-                                    Ok(Err(e)) => {
-                                        let emsg = e.to_string();
-                                        if is_conn_closed(&emsg) {
-                                            tracing::error!(
-                                                "datagram_send_closed player={} client={} err={}",
-                                                player,
-                                                client_hash,
-                                                emsg
-                                            );
-                                            break;
-                                        } else if emsg.to_ascii_lowercase().contains("capacity")
-                                            || emsg.to_ascii_lowercase().contains("queue")
-                                        {
-                                            tracing::debug!("datagram send capacity issue player={} client={} err={}", player, client_hash, emsg);
-                                        } else {
-                                            tracing::debug!(
-                                                "datagram send error player={} client={} err={}",
-                                                player,
-                                                client_hash,
-                                                emsg
-                                            );
-                                        }
-                                    }
-                                    Err(e) => {
-                                        let emsg = e.to_string();
-                                        tracing::error!(
-                                            "datagram_send_query_failed player={} client={} err={}",
-                                            player,
-                                            client_hash,
-                                            emsg
-                                        );
-                                        break;
-                                    }
+                        match send_res {
+                            Ok(Ok(())) => { /* sent */ }
+                            Ok(Err(e)) => {
+                                let emsg = e.to_string();
+                                if is_conn_closed(&emsg) {
+                                    tracing::error!(
+                                        "datagram_send_closed player={} client={} err={}",
+                                        player,
+                                        client_hash,
+                                        emsg
+                                    );
+                                    break;
+                                } else if emsg.to_ascii_lowercase().contains("capacity")
+                                    || emsg.to_ascii_lowercase().contains("queue")
+                                {
+                                    tracing::debug!("datagram send capacity issue player={} client={} err={}", player, client_hash, emsg);
+                                } else {
+                                    tracing::debug!(
+                                        "datagram send error player={} client={} err={}",
+                                        player,
+                                        client_hash,
+                                        emsg
+                                    );
                                 }
                             }
                             Err(e) => {
-                                tracing::error!("Failed to serialize packet to datagram: {}", e);
-                                continue;
+                                let emsg = e.to_string();
+                                tracing::error!(
+                                    "datagram_send_query_failed player={} client={} err={}",
+                                    player,
+                                    client_hash,
+                                    emsg
+                                );
+                                break;
                             }
                         }
                     }
-                    Err(broadcast::error::RecvError::Closed) => {
-                        tracing::info!("Broadcast channel closed");
-                        break;
-                    }
-                    Err(broadcast::error::RecvError::Lagged(skipped)) => {
-                        tracing::warn!("Output stream lagged, skipped {} messages", skipped);
+                    Err(e) => {
+                        tracing::error!("Failed to serialize packet to datagram: {}", e);
                         continue;
                     }
                 }

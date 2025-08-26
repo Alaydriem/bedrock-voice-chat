@@ -11,9 +11,7 @@ use std::time::Duration;
 /// Manages player position cache and channel membership cache
 #[derive(Clone)]
 pub struct CacheManager {
-    // Player position cache - expires after 5 minutes
     player_cache: Arc<Cache<String, Player>>,
-    // Player to channel mapping cache
     channel_cache: Arc<Cache<String, String>>,
 }
 
@@ -102,7 +100,6 @@ impl CacheManager {
         mut packet: QuicNetworkPacket,
     ) -> Result<QuicNetworkPacket, Error> {
         if packet.packet_type == PacketType::AudioFrame {
-            // Use the existing update_coordinates method from the packet itself
             packet.update_coordinates(self.player_cache.clone()).await;
             tracing::debug!(
                 "Updated coordinates for AudioFrame packet from player: {}",
@@ -115,12 +112,8 @@ impl CacheManager {
     /// Remove a player from the cache when they disconnect
     /// This is called when a player disconnects to clean up cache entries
     pub async fn remove_player(&self, player_name: &str) -> Result<(), Error> {
-        // Remove from player position cache
         self.player_cache.remove(player_name).await;
-
-        // Remove from channel membership cache
         self.channel_cache.remove(player_name).await;
-
         tracing::info!("Removed player {} from caches on disconnect", player_name);
         Ok(())
     }
