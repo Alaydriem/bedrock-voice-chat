@@ -1,7 +1,24 @@
 <script lang="ts">
     import { activePlayers, updatePlayerGain, updatePlayerMute } from '../stores/players';
-    import PlayerPresence from './events/PlayerPresence.svelte';
+    import PlayerCard from './PlayerCard.svelte';
     
+    import { playerStore } from '../stores/players'; // adjust path as needed
+
+    // Dev helper: add a mock player to the store
+    if (import.meta.env.DEV) {
+        // Expose a global function for the console
+        (window as any).addMockPlayer = function(name = "TestUser", gain = 1.0, muted = false) {
+            playerStore.add(name, { gain, muted });
+            console.log(`Added mock player: ${name}`);
+        };
+        
+        // Expose helper to clear all players
+        (window as any).clearPlayers = function() {
+            playerStore.clear();
+            console.log("Cleared all players");
+        };
+    }
+
     function handleGainChange(playerName: string, gain: number) {
         updatePlayerGain(playerName, gain);
     }
@@ -11,28 +28,34 @@
     }
 </script>
 
-<div class="player-presence-section flex-1 p-4">
-    <h2 class="text-lg font-semibold mb-2 text-white">Connected Players</h2>
+<div class="player-presence-section flex-1 p-4 flex flex-col h-full">
     
-    <div class="space-y-2 max-h-64 overflow-y-auto">
+    <!-- Responsive flex layout for Discord-like card layout with auto-spacing -->
+    <div class="flex flex-wrap justify-evenly gap-y-4 flex-1 min-h-0">
         {#each $activePlayers as player (player.name)}
-            <PlayerPresence 
-                player={player.name}
-                initialGain={player.settings.gain}
-                initialMuted={player.settings.muted}
-                onGainChange={(gain: number) => handleGainChange(player.name, gain)}
-                onMuteToggle={(muted: boolean) => handleMuteToggle(player.name, muted)}
-            />
+            <div class="player-card-container">
+                <PlayerCard 
+                    player={player.name}
+                    initialGain={player.settings.gain}
+                    initialMuted={player.settings.muted}
+                    onGainChange={(gain) => handleGainChange(player.name, gain)}
+                    onMuteToggle={(muted) => handleMuteToggle(player.name, muted)}
+                />
+            </div>
         {:else}
-            <div class="text-gray-400 text-center py-4">
-                No other players connected
+            <div class="col-span-full text-gray-400 text-center py-8">
+                <i class="fas fa-users text-3xl mb-2 opacity-50"></i>
+                <p>No other players connected</p>
+                <p class="text-xs mt-1 opacity-75">Players will appear here when they join the voice channel</p>
             </div>
         {/each}
     </div>
     
+    <!-- Footer with player count -->
     {#if $activePlayers.length > 0}
-        <div class="text-xs text-gray-500 mt-2">
-            {$activePlayers.length} player{$activePlayers.length === 1 ? '' : 's'} connected
+        <div class="text-xs text-gray-500 mt-4 text-center shrink-0">
+            <i class="fas fa-users mr-1"></i>
+            {$activePlayers.length} player{$activePlayers.length === 1 ? '' : 's'} connected and nearby
         </div>
     {/if}
 </div>

@@ -8,6 +8,7 @@
 @import "./pages.css" layer(pages);
 @import "highlight.js/styles/atom-one-dark.css" layer(components); /* Just for demo purpose only for highlighting code */
 @import "./fontawesome-all.css" layer(utilities);
+@import "./player-cards.css" layer(components);
 
 @custom-variant dark (&:where(.dark, .dark *));
 

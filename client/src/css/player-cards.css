@@ -1,0 +1,261 @@
+/* Custom Player Card Background Colors */
+/* Easy expansion: just add more .card-bg-* classes here */
+
+/* Size utilities for status indicators */
+.size-4 {
+  width: 1rem;
+  height: 1rem;
+}
+
+.card-bg-slate {
+  background-color: rgb(100 116 139 / 0.2);
+}
+
+.card-bg-primary {
+  background-color: rgb(79 70 229 / 0.2);
+}
+
+.card-bg-secondary {
+  background-color: rgb(240 0 185 / 0.2);
+}
+
+.card-bg-info {
+  background-color: rgb(14 165 233 / 0.2);
+}
+
+.card-bg-success {
+  background-color: rgb(16 185 129 / 0.2);
+}
+
+.card-bg-warning {
+  background-color: rgb(255 152 0 / 0.2);
+}
+
+.card-bg-error {
+  background-color: rgb(255 87 36 / 0.2);
+}
+
+.card-bg-purple {
+  background-color: rgb(147 51 234 / 0.2);
+}
+
+.card-bg-indigo {
+  background-color: rgb(99 102 241 / 0.2);
+}
+
+.card-bg-pink {
+  background-color: rgb(236 72 153 / 0.2);
+}
+
+.card-bg-teal {
+  background-color: rgb(20 184 166 / 0.2);
+}
+
+/* Accent / Highlight Colors */
+.card-bg-mustard {
+  background-color: rgb(225 177 44 / 0.2);
+}
+.card-bg-burnt-orange {
+  background-color: rgb(211 84 0 / 0.2);
+}
+.card-bg-crimson {
+  background-color: rgb(192 57 43 / 0.2);
+}
+.card-bg-turquoise {
+  background-color: rgb(26 188 156 / 0.2);
+}
+.card-bg-chartreuse {
+  background-color: rgb(163 203 56 / 0.2);
+}
+.card-bg-coral {
+  background-color: rgb(255 111 97 / 0.2);
+}
+
+/* Supporting Cool Tones */
+.card-bg-slate-blue {
+  background-color: rgb(108 122 137 / 0.2);
+}
+.card-bg-dusty-lavender {
+  background-color: rgb(155 89 182 / 0.2);
+}
+.card-bg-steel-blue {
+  background-color: rgb(70 130 180 / 0.2);
+}
+
+/* Neutrals */
+.card-bg-taupe {
+  background-color: rgb(166 123 91 / 0.2);
+}
+.card-bg-charcoal {
+  background-color: rgb(44 62 80 / 0.2);
+}
+.card-bg-silver {
+  background-color: rgb(189 195 199 / 0.2);
+}
+.card-bg-ivory {
+  background-color: rgb(245 245 240 / 0.2);
+}
+
+/* Extra Pop */
+.card-bg-electric-blue {
+  background-color: rgb(41 128 185 / 0.2);
+}
+
+/* Card styling enhancements */
+.player-card {
+  position: relative;
+  transition: all 0.2s ease;
+  /* Compact default size - no expansion needed with floating popover */
+  min-height: 180px;
+  height: fit-content;
+}
+
+.player-card:hover {
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -2px rgb(0 0 0 / 0.05);
+  transform: scale(1.02);
+}
+
+/* Flexbox container for responsive card layout */
+.player-card-container {
+  /* Let flexbox distribute space evenly, with responsive sizing */
+  flex: 0 0 auto;
+  /* 2 cards per row on mobile */
+  width: calc(50% - 1rem);
+  max-width: 280px;
+}
+
+.player-card-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: 0.5rem;
+  pointer-events: none;
+}
+
+/* Control pill styling */
+.control-pill {
+  display: flex;
+  background-color: rgb(71 85 105); /* slate-600 */
+  border-radius: 9999px;
+  border: 1px solid rgb(51 65 85); /* slate-700 */
+  overflow: hidden;
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+}
+
+.control-pill-button {
+  padding: 0.5rem 0.75rem;
+  transition: background-color 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.control-pill-button:hover {
+  background-color: rgb(51 65 85); /* slate-700 */
+}
+
+.control-pill-divider {
+  width: 1px;
+  background-color: rgb(51 65 85); /* slate-700 */
+  margin: 0.25rem 0;
+}
+
+/* Floating Volume Popover (Lineone style) */
+.volume-popover {
+  position: absolute;
+  top: 90%;
+  min-width: 90%;
+  transform: translateX(-50%);
+  margin-top: 0.5rem;
+  z-index: 50;
+  background-color: rgb(71 85 105); /* slate-600 - matching control pill */
+  border: 1px solid var(--color-navy-50); /* slate-700 */
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 10px 10px -5px rgb(0 0 0 / 0.04);
+  width: 180px;
+  /* Lineone-style animation */
+  animation: fadeInUp 0.2s ease-out forwards;
+}
+
+/* Smooth fade-in animation matching lineone */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Volume slider styling */
+input[type="range"] {
+  background: transparent;
+}
+
+input[type="range"]::-webkit-slider-track {
+  width: 100%;
+  height: 8px;
+  cursor: pointer;
+  background: rgb(79 70 229 / 0.3); /* primary with opacity */
+  border-radius: 4px;
+  border: 1px solid rgb(79 70 229 / 0.5); /* primary border */
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  background: #4f46e5;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  border: 2px solid white;
+  margin-top: -4px;
+}
+
+input[type="range"]:disabled::-webkit-slider-thumb {
+  background: #64748b;
+  cursor: not-allowed;
+}
+
+input[type="range"]::-moz-range-track {
+  width: 100%;
+  height: 8px;
+  cursor: pointer;
+  background: rgb(79 70 229 / 0.3); /* primary with opacity */
+  border-radius: 4px;
+  border: 1px solid rgb(79 70 229 / 0.5); /* primary border */
+}
+
+input[type="range"]::-moz-range-thumb {
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  background: #4f46e5;
+  cursor: pointer;
+  border: 2px solid white;
+  transition: background-color 0.2s;
+}
+
+input[type="range"]:disabled::-moz-range-thumb {
+  background: #64748b;
+  cursor: not-allowed;
+}
+
+/* Legacy dropdown styles - can be removed if not used elsewhere */
+.volume-dropdown {
+  position: absolute;
+  top: 100%;
+  margin-top: 0.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  background-color: var(--color-navy-800);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 10px 10px -5px rgb(0 0 0 / 0.04);
+  border: 1px solid var(--color-navy-600);
+  min-width: 12rem;
+}
