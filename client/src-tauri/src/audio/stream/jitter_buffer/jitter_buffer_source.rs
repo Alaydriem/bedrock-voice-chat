@@ -7,6 +7,7 @@ use super::EncodedAudioFramePacket;
 use super::audio_processor::{AudioProcessor, AudioProcessorError};
 use super::metrics::MetricsCollector;
 use super::adaptive::AdaptationEngine;
+use crate::audio::stream::activity_detector::ActivityUpdate;
 
 #[derive(Debug)]
 pub enum JitterBufferError {
@@ -51,6 +52,11 @@ pub struct JitterBufferSource {
     // Timing state (minimal)
     last_output_ts_ms: u64,
     last_accepted_timestamp: u64,
+    
+    // Activity detection
+    player_name: String,
+    activity_tx: Option<flume::Sender<ActivityUpdate>>,
+    last_activity_emission: std::time::Instant,
 }
 
 impl JitterBufferSource {
@@ -58,6 +64,16 @@ impl JitterBufferSource {
         packet_receiver: flume::Receiver<Option<EncodedAudioFramePacket>>,
         initial_packet: EncodedAudioFramePacket,
         capacity: usize,
+    ) -> Result<Self, JitterBufferError> {
+        Self::new_with_activity(packet_receiver, initial_packet, capacity, String::new(), None)
+    }
+    
+    pub fn new_with_activity(
+        packet_receiver: flume::Receiver<Option<EncodedAudioFramePacket>>,
+        initial_packet: EncodedAudioFramePacket,
+        capacity: usize,
+        player_name: String,
+        activity_tx: Option<flume::Sender<ActivityUpdate>>,
     ) -> Result<Self, JitterBufferError> {
         let sample_rate = initial_packet.sample_rate as u32;
         
@@ -82,6 +98,9 @@ impl JitterBufferSource {
             warmup_packets_received: 1, // Count the initial packet
             last_output_ts_ms: initial_packet.timestamp.saturating_sub(20), // FRAME_MS = 20
             last_accepted_timestamp: initial_packet.timestamp,
+            player_name,
+            activity_tx,
+            last_activity_emission: std::time::Instant::now(),
         };
         
         // Record initial packet
@@ -90,7 +109,42 @@ impl JitterBufferSource {
             source.packet_ring.len()
         );
         
+        // Emit initial activity since we have a packet
+        source.emit_activity_if_needed();
+        
         Ok(source)
+    }
+    
+    /// Emit activity update if we have packets and enough time has passed
+    fn emit_activity_if_needed(&mut self) {
+        // Only emit if we have packets (indicating active audio)
+        if self.packet_ring.is_empty() {
+            return;
+        }
+        
+        // Rate limit emissions to every 50ms
+        let now = std::time::Instant::now();
+        if now.duration_since(self.last_activity_emission).as_millis() < 50 {
+            return;
+        }
+        
+        // Emit activity update
+        if let Some(ref tx) = self.activity_tx {
+            if !self.player_name.is_empty() {
+                let update = ActivityUpdate {
+                    player_name: self.player_name.clone(),
+                    rms_level: 1.0, // Simple presence indicator (not actual RMS)
+                    timestamp: std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_millis() as u64)
+                        .unwrap_or(0),
+                };
+                
+                // Non-blocking send
+                let _ = tx.try_send(update);
+                self.last_activity_emission = now;
+            }
+        }
     }
     
     /// Drain incoming packets from channel
@@ -126,6 +180,9 @@ impl JitterBufferSource {
                     // Record metrics
                     self.metrics_collector.record_packet_arrival(packet_timestamp, self.packet_ring.len());
                     self.metrics_collector.update_ring_metrics(self.packet_ring.len());
+                    
+                    // Emit activity since we just received a packet
+                    self.emit_activity_if_needed();
                 }
                 None => {
                     // Stop signal received

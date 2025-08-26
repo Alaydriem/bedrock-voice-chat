@@ -11,6 +11,7 @@
   import { PlayerPresenceManager } from "../../js/app/components/dashboard/presence.ts";
   import { Store } from '@tauri-apps/plugin-store';
 
+  import { info, error } from '@tauri-apps/plugin-log';
   import { onMount, onDestroy, mount, setContext } from "svelte";
 
   let playerPresenceManager: PlayerPresenceManager | undefined;
@@ -53,7 +54,7 @@
       // Make presence manager available to child components via context
       setContext('presenceManager', playerPresenceManager);
     } catch (err) {
-      console.error("Failed to initialize PlayerPresenceManager:", err);
+      error("Failed to initialize PlayerPresenceManager: ${err}");
     }
   });
 

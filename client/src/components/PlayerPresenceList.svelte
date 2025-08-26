@@ -3,6 +3,9 @@
     import PlayerCard from './PlayerCard.svelte';
     
     import { playerStore } from '../stores/players'; // adjust path as needed
+    
+    // Initialize audio activity management
+    import '../stores/audioActivity';
 
     // Dev helper: add a mock player to the store
     if (import.meta.env.DEV) {
@@ -16,6 +19,16 @@
         (window as any).clearPlayers = function() {
             playerStore.clear();
             console.log("Cleared all players");
+        };
+        
+        // Expose helper to test audio highlighting
+        (window as any).testAudioHighlight = function(playerName = "TestUser") {
+            if (typeof (window as any).simulateAudioActivity === 'function') {
+                (window as any).simulateAudioActivity(playerName, 1.0);
+                console.log(`Testing audio highlight for ${playerName}`);
+            } else {
+                console.error('simulateAudioActivity function not available');
+            }
         };
     }
 

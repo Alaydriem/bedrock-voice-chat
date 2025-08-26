@@ -110,6 +110,23 @@
   height: fit-content;
 }
 
+/* Speaker highlighting - gradient border effect without size change */
+.player-card-wrapper {
+  /* Always maintain the same total size with consistent padding */
+  padding: 4px; /* equivalent to p-1 */
+  transition: all 0.2s ease;
+}
+
+.player-card-wrapper.speaking {
+  background: linear-gradient(to right, rgb(251 191 36), rgb(251 146 60)); /* from-amber-400 to-orange-600 */
+  border-radius: 0.5rem; /* rounded-lg */
+}
+
+.player-card-wrapper.speaking .player-card {
+  background-color: rgb(30 41 59); /* navy-800 dark background */
+  border-radius: 0.5rem; /* rounded-lg */
+}
+
 .player-card:hover {
   box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -2px rgb(0 0 0 / 0.05);
   transform: scale(1.02);

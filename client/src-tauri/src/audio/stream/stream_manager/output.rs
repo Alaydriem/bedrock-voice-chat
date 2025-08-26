@@ -309,6 +309,7 @@ impl OutputStream {
                                 current_player_name,
                                 Arc::new(StdMutex::new(PlayerGainStore::default())),
                                 Arc::new(mixer.clone()),
+                                self.app_handle.clone(),
                             );
 
                             self.sink_manager = Some(sink_manager);

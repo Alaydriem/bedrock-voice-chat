@@ -37,6 +37,9 @@ pub struct AudioProcessor {
     // Error handling
     plc_consecutive_count: usize,
     decode_error_count: usize,
+    
+    // Activity detection support
+    last_decoded_samples: Vec<f32>,
 }
 
 impl AudioProcessor {
@@ -64,6 +67,7 @@ impl AudioProcessor {
             queued_frames: 0,
             plc_consecutive_count: 0,
             decode_error_count: 0,
+            last_decoded_samples: Vec::new(),
         })
     }
     
