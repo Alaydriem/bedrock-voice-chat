@@ -1,6 +1,6 @@
+use common::Coordinate;
 use rodio::{Sink, SpatialSink};
 use std::sync::Arc;
-use common::Coordinate;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum AudioSinkType {

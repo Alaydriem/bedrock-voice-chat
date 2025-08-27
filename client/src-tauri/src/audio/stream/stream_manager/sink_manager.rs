@@ -6,8 +6,8 @@ use flume::Receiver;
 use log::{info, warn};
 use moka::sync::Cache;
 use rodio::{mixer::Mixer, Sink, SpatialSink};
-use tokio::task::JoinHandle;
 use tauri::Emitter;
+use tokio::task::JoinHandle;
 
 use crate::audio::stream::jitter_buffer::{
     EncodedAudioFramePacket, JitterBuffer, SpatialAudioData,
@@ -15,7 +15,7 @@ use crate::audio::stream::jitter_buffer::{
 use crate::audio::stream::stream_manager::audio_sink::AudioSink;
 use crate::audio::stream::ActivityUpdate;
 use common::structs::audio::{PlayerGainSettings, PlayerGainStore};
-use common::{Player, Coordinate};
+use common::{Coordinate, Player};
 
 #[derive(Clone, Default)]
 struct PlayerSinks {
@@ -49,20 +49,20 @@ impl SinkManager {
     ) -> Self {
         // Create activity streaming channel
         let (activity_tx, activity_rx) = flume::unbounded::<ActivityUpdate>();
-        
+
         // Spawn activity streaming task
         let app_handle_clone = app_handle.clone();
         tokio::spawn(async move {
             let mut batch_timer = tokio::time::interval(Duration::from_millis(100));
             let mut current_activities = std::collections::HashMap::new();
-            
+
             loop {
                 tokio::select! {
                     // Collect activity updates
                     Ok(update) = activity_rx.recv_async() => {
                         current_activities.insert(update.player_name.clone(), update.rms_level);
                     }
-                    
+
                     // Batch and stream every 100ms
                     _ = batch_timer.tick() => {
                         if !current_activities.is_empty() {
@@ -75,7 +75,7 @@ impl SinkManager {
                 }
             }
         });
-        
+
         Self {
             consumer: Some(consumer),
             shutdown: Arc::new(AtomicBool::new(false)),
@@ -128,10 +128,12 @@ impl SinkManager {
 
                 let author = packet.get_author();
                 let author_bytes = packet.get_client_id();
-                
+
                 // Get proper display name for activity detection
                 let display_name = match &packet.owner {
-                    Some(owner) if !owner.name.is_empty() && owner.name != "api" => owner.name.clone(),
+                    Some(owner) if !owner.name.is_empty() && owner.name != "api" => {
+                        owner.name.clone()
+                    }
                     _ => author.clone(), // Fallback to encoded client ID if no proper name
                 };
 
@@ -208,7 +210,7 @@ impl SinkManager {
 
                     if bundle.spatial_handle.is_none() {
                         match JitterBuffer::create_with_handle_and_activity(
-                            packet.clone(), 
+                            packet.clone(),
                             format!("spatial_{}", author),
                             display_name.clone(),
                             activity_tx.clone(),
@@ -257,7 +259,7 @@ impl SinkManager {
 
                     if bundle.normal_handle.is_none() {
                         match JitterBuffer::create_with_handle_and_activity(
-                            packet.clone(), 
+                            packet.clone(),
                             format!("normal_{}", author),
                             display_name.clone(),
                             activity_tx.clone(),

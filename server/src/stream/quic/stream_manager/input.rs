@@ -116,14 +116,8 @@ impl InputStream {
         if let Some(webhook_receiver) = &self.webhook_receiver {
             let webhook_receiver_clone = webhook_receiver.clone();
             tokio::spawn(async move {
-                if let Err(e) = webhook_receiver_clone
-                    .send_packet(packet)
-                    .await
-                {
-                    tracing::error!(
-                        "Failed to send player connected event: {}",
-                        e
-                    );
+                if let Err(e) = webhook_receiver_clone.send_packet(packet).await {
+                    tracing::error!("Failed to send player connected event: {}", e);
                 }
             });
         }
@@ -202,7 +196,8 @@ impl StreamTrait for InputStream {
                                         };
 
                                         if let Some(ts) = ts_opt {
-                                            let key = self.sender_key_for_packet(&packet, &connection);
+                                            let key =
+                                                self.sender_key_for_packet(&packet, &connection);
                                             let last_seen = self.last_seen_ts.get(&key);
                                             let (accept, large_jump) = Self::decide_accept(
                                                 last_seen,
@@ -232,17 +227,22 @@ impl StreamTrait for InputStream {
                                                 tracing::debug!(target: "ofo", "large_jump_forward client={} ts={} last_seen={} delta_ms={}", client_hash, ts, prev, delta);
                                             }
                                         }
-                                    },
+                                    }
                                     PacketType::Debug => match &packet.data {
                                         QuicNetworkPacketData::Debug(d) => {
                                             if let (Ok(client_version), Ok(server_version)) = (
                                                 semver::Version::parse(&d.version),
-                                                semver::Version::parse(common::consts::version::PROTOCOL_VERSION),
+                                                semver::Version::parse(
+                                                    common::consts::version::PROTOCOL_VERSION,
+                                                ),
                                             ) {
                                                 // Reject if client major.minor is older than server
-                                                if client_version.major < server_version.major || 
-                                                    (client_version.major == server_version.major && client_version.minor < server_version.minor) {
-                                                        
+                                                if client_version.major < server_version.major
+                                                    || (client_version.major
+                                                        == server_version.major
+                                                        && client_version.minor
+                                                            < server_version.minor)
+                                                {
                                                     let error_packet = ServerErrorPacket {
                                                         error_type: ServerErrorType::VersionIncompatible {
                                                             client_version: d.version.clone(),
@@ -257,13 +257,16 @@ impl StreamTrait for InputStream {
                                                     self.send_event(QuicNetworkPacket {
                                                         owner: packet.owner.clone(),
                                                         packet_type: PacketType::ServerError,
-                                                        data: QuicNetworkPacketData::ServerError(error_packet),
-                                                    }).await;
+                                                        data: QuicNetworkPacketData::ServerError(
+                                                            error_packet,
+                                                        ),
+                                                    })
+                                                    .await;
 
                                                     break;
                                                 }
                                             }
-                                        },
+                                        }
                                         _ => {}
                                     },
                                     _ => {}
@@ -297,7 +300,8 @@ impl StreamTrait for InputStream {
                                                 event_type: ConnectionEventType::Connected,
                                             },
                                         ),
-                                    }).await;
+                                    })
+                                    .await;
                                 }
 
                                 let server_packet = ServerInputPacket { data: packet };

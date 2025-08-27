@@ -81,7 +81,7 @@ impl common::traits::StreamTrait for OutputStream {
                 }
                 Err(e) => { error!("Failed to serialize DEBUG packet: {:?}", e); }
             }
-            
+
             let notify = crate::AUDIO_INPUT_NETWORK_NOTIFY.clone();
             let mut buffer: Vec<QuicNetworkPacket> = Vec::new();
             let mut error_count = 0;
@@ -120,7 +120,7 @@ impl common::traits::StreamTrait for OutputStream {
                                 }
                             }
                         }
-                        
+
                         notify.notify_waiters();
                         notify.notified().await;
                     }

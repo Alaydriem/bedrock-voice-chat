@@ -81,7 +81,7 @@ impl MtlsProvider {
     pub async fn new_from_vec(
         ca_cert_pem: Vec<u8>,
         my_cert_pem: Vec<u8>,
-        my_key_pem: Vec<u8>
+        my_key_pem: Vec<u8>,
     ) -> Result<Self, RustlsError> {
         let root_store = into_root_store_vec(&ca_cert_pem).await?;
         let cert_chain = into_certificate_vec(&my_cert_pem).await?;
@@ -120,7 +120,8 @@ async fn into_certificate(path: &Path) -> Result<Vec<CertificateDer<'static>>, R
 }
 
 async fn into_root_store_vec(buf: &Vec<u8>) -> Result<RootCertStore, RustlsError> {
-    let ca_certs: Vec<CertificateDer<'static>> = into_certificate_vec(buf).await
+    let ca_certs: Vec<CertificateDer<'static>> = into_certificate_vec(buf)
+        .await
         .map(|certs| certs.into_iter().map(CertificateDer::from))?
         .collect();
     let mut cert_store = RootCertStore::empty();

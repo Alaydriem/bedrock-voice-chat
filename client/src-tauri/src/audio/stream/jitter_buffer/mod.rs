@@ -69,7 +69,7 @@ pub(crate) struct EncodedAudioFramePacket {
     pub dimension: Option<Dimension>,
     pub spatial: Option<bool>,
     pub owner: Option<PacketOwner>,
-    
+
     // Additional fields for jitter buffer configuration
     pub buffer_size_ms: u32,
     pub time_between_reports_secs: u64,

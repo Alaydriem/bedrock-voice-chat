@@ -152,8 +152,7 @@ impl StreamTrait for OutputStream {
                             },
                         );
                         // Identity for logs
-                        let player =
-                            self.get_player_id().unwrap_or_else(|| "unknown".into());
+                        let player = self.get_player_id().unwrap_or_else(|| "unknown".into());
                         let client_hash = self
                             .get_client_id()
                             .map(|cid| client_id_hash(&cid))
@@ -181,7 +180,12 @@ impl StreamTrait for OutputStream {
                                 } else if emsg.to_ascii_lowercase().contains("capacity")
                                     || emsg.to_ascii_lowercase().contains("queue")
                                 {
-                                    tracing::debug!("datagram send capacity issue player={} client={} err={}", player, client_hash, emsg);
+                                    tracing::debug!(
+                                        "datagram send capacity issue player={} client={} err={}",
+                                        player,
+                                        client_hash,
+                                        emsg
+                                    );
                                 } else {
                                     tracing::debug!(
                                         "datagram send error player={} client={} err={}",

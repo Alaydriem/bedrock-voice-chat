@@ -1,6 +1,7 @@
-use crate::{audio::stream::jitter_buffer::EncodedAudioFramePacket, events::ServerError};
 use crate::audio::stream::stream_manager::AudioSinkType;
+use crate::{audio::stream::jitter_buffer::EncodedAudioFramePacket, events::ServerError};
 
+use super::sink_manager::SinkManager;
 use crate::audio::types::AudioDevice;
 use crate::AudioPacket;
 use anyhow::anyhow;
@@ -9,7 +10,9 @@ use common::structs::packet::{ConnectionEventType, PlayerPresenceEvent};
 use common::{
     structs::{
         audio::PlayerGainStore,
-        packet::{AudioFramePacket, PacketType, PlayerDataPacket, QuicNetworkPacket, ServerErrorPacket},
+        packet::{
+            AudioFramePacket, PacketType, PlayerDataPacket, QuicNetworkPacket, ServerErrorPacket,
+        },
     },
     Player,
 };
@@ -26,7 +29,6 @@ use std::{
 };
 use tauri::Emitter;
 use tokio::task::{AbortHandle, JoinHandle};
-use super::sink_manager::SinkManager;
 
 static MUTE_OUTPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 
@@ -41,7 +43,7 @@ pub(crate) struct OutputStream {
     sink_manager: Option<SinkManager>,
     playback_stream: Option<rodio::OutputStream>,
     player_presence: Arc<moka::sync::Cache<String, ()>>,
-    // Client ID to Player Name mapping for gain control  
+    // Client ID to Player Name mapping for gain control
     client_id_to_player: Arc<moka::sync::Cache<String, String>>,
 }
 
@@ -56,15 +58,20 @@ impl common::traits::StreamTrait for OutputStream {
                     Ok(settings) => {
                         if let Some(sink_manager) = self.sink_manager.as_mut() {
                             let mut remapped_settings = PlayerGainStore::default();
-                            
+
                             for (player_name, gain_settings) in &settings.0 {
-                                for (client_id, mapped_player_name) in self.client_id_to_player.iter() {
+                                for (client_id, mapped_player_name) in
+                                    self.client_id_to_player.iter()
+                                {
                                     if mapped_player_name.as_str() == player_name {
-                                        remapped_settings.0.insert(client_id.as_ref().clone(), gain_settings.clone());
+                                        remapped_settings.0.insert(
+                                            client_id.as_ref().clone(),
+                                            gain_settings.clone(),
+                                        );
                                     }
                                 }
                             }
-                            
+
                             sink_manager.update_player_store(remapped_settings)
                         }
                     }
@@ -131,7 +138,12 @@ impl common::traits::StreamTrait for OutputStream {
 
         // Listen to the network stream
         match self
-            .listener(producer, self.shutdown.clone(), self.players.clone(), self.metadata.clone())
+            .listener(
+                producer,
+                self.shutdown.clone(),
+                self.players.clone(),
+                self.metadata.clone(),
+            )
             .await
         {
             Ok(job) => jobs.push(job),
@@ -232,13 +244,13 @@ impl OutputStream {
                                             Some(&app_handle.clone()),
                                         )
                                         .await
-                                    },
+                                    }
                                     PacketType::PlayerPresence => {
                                         OutputStream::handle_player_presence(
                                             &packet.data,
                                             metadata.clone(),
                                             Some(&app_handle.clone()),
-                                            player_presence.clone()
+                                            player_presence.clone(),
                                         )
                                         .await
                                     }
@@ -355,7 +367,7 @@ impl OutputStream {
         app_handle: Option<&tauri::AppHandle>,
         player_presence: Arc<moka::sync::Cache<String, ()>>,
     ) {
-         let current_player_name = match metadata.get("current_player").await {
+        let current_player_name = match metadata.get("current_player").await {
             Some(name) => name,
             None => return,
         };
@@ -368,15 +380,15 @@ impl OutputStream {
                     // Ignore events from self
                     if current_player_name.eq(&data.player_name) {
                         return;
-                    } 
+                    }
 
                     match data.event_type {
                         ConnectionEventType::Connected => {
                             player_presence.insert(data.player_name.clone(), ());
-                        },
+                        }
                         ConnectionEventType::Disconnected => {
                             player_presence.remove(&data.player_name);
-                        },
+                        }
                     }
 
                     if let Err(e) = app_handle.emit(
@@ -396,7 +408,7 @@ impl OutputStream {
                     warn!("Could not decode player data packet");
                 }
             }
-        } 
+        }
     }
 
     /// Processes AudioFramePacket data
@@ -416,18 +428,18 @@ impl OutputStream {
         // Check if this is a new player we haven't seen before
         if let Some(owner) = &data.owner {
             let player_name = &owner.name;
-            
+
             // Build client ID to player name mapping for gain control
             if !player_name.is_empty() && !player_name.eq(&"api") {
                 let client_id = general_purpose::STANDARD.encode(&owner.client_id);
                 client_id_to_player.insert(client_id, player_name.clone());
             }
-            
+
             // Don't emit events for ourselves
             if !player_name.eq(&current_player_name) && !player_name.is_empty() {
                 if player_presence.get(player_name).is_none() {
                     player_presence.insert(player_name.clone(), ());
-                    
+
                     // Emit synthetic presence event for new player detected via audio
                     if let Some(app_handle) = app_handle {
                         if let Err(e) = app_handle.emit(
@@ -437,7 +449,10 @@ impl OutputStream {
                                 String::from("joined"),
                             ),
                         ) {
-                            error!("Failed to emit auto-detected player presence event: {:?}", e);
+                            error!(
+                                "Failed to emit auto-detected player presence event: {:?}",
+                                e
+                            );
                         }
                     }
                 }
@@ -464,7 +479,7 @@ impl OutputStream {
                     dimension: data.dimension,
                     spatial: data.spatial,
                     owner: owner.clone(),
-                    buffer_size_ms: 120, // Default buffer size
+                    buffer_size_ms: 120,           // Default buffer size
                     time_between_reports_secs: 30, // Default reporting interval
                 });
 
@@ -501,18 +516,12 @@ impl OutputStream {
         }
     }
 
-    async fn handle_server_error(
-        data: &QuicNetworkPacket,
-        app_handle: Option<&tauri::AppHandle>,
-    ) {
+    async fn handle_server_error(data: &QuicNetworkPacket, app_handle: Option<&tauri::AppHandle>) {
         if let Some(app_handle) = app_handle {
             if let Ok(error_packet) = TryInto::<ServerErrorPacket>::try_into(data.data.clone()) {
                 if let Err(e) = app_handle.emit(
                     crate::events::event::server_error::SERVER_ERROR,
-                    ServerError::new(
-                        error_packet.error_type,
-                        error_packet.message,
-                    )
+                    ServerError::new(error_packet.error_type, error_packet.message),
                 ) {
                     error!("Failed to emit server error event: {:?}", e);
                 }

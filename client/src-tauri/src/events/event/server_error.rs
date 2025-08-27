@@ -13,14 +13,20 @@ pub(crate) struct ServerError {
 
 impl ServerError {
     pub fn new(error_type: ServerErrorType, message: String) -> Self {
-        Self { error_type, message }
+        Self {
+            error_type,
+            message,
+        }
     }
 
     #[allow(unused)]
     pub fn register(app: &tauri::App) {
         app.listen(SERVER_ERROR, |event| {
             if let Ok(payload) = serde_json::from_str::<ServerError>(&event.payload()) {
-                error!("Server error occurred: {:?} - {}", payload.error_type, payload.message);
+                error!(
+                    "Server error occurred: {:?} - {}",
+                    payload.error_type, payload.message
+                );
             }
         });
     }

@@ -1,6 +1,6 @@
+mod activity_detector;
 mod jitter_buffer;
 mod stream_manager;
-mod activity_detector;
 
 use crate::audio::types::{AudioDevice, AudioDeviceType};
 use crate::NetworkPacket;

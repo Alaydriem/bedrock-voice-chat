@@ -3,8 +3,8 @@ use rodio::Source;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use super::jitter_buffer_source::{JitterBufferError, JitterBufferSource};
 use super::EncodedAudioFramePacket;
-use super::jitter_buffer_source::{JitterBufferSource, JitterBufferError};
 use common::{Coordinate, Orientation};
 
 const FRAME_MS: u64 = 20;
@@ -52,9 +52,9 @@ impl JitterBuffer {
     ) -> Result<Self, JitterBufferError> {
         let sample_rate = initial_packet.sample_rate as u32;
         let buffer_size_ms = initial_packet.buffer_size_ms as u64;
-        
+
         let buffer_capacity = ((buffer_size_ms / FRAME_MS) as usize).max(5); // Minimum 5 frames
-        
+
         log::info!(
             "[{}] Creating jitter buffer with capacity: {} frames ({}ms), sample_rate: {}Hz",
             identifier,
@@ -62,18 +62,14 @@ impl JitterBuffer {
             buffer_size_ms,
             sample_rate
         );
-        
-        let source = JitterBufferSource::new(
-            packet_receiver,
-            initial_packet,
-            buffer_capacity,
-        )?;
-        
+
+        let source = JitterBufferSource::new(packet_receiver, initial_packet, buffer_capacity)?;
+
         Ok(Self {
             source: Arc::new(Mutex::new(source)),
         })
     }
-    
+
     /// Create a new JitterBuffer pair (source, handle) seeded with the first packet
     pub fn create_with_handle(
         initial_packet: EncodedAudioFramePacket,
@@ -84,7 +80,7 @@ impl JitterBuffer {
         let handle = JitterBufferHandle { tx };
         Ok((jitter_buffer, handle))
     }
-    
+
     /// Create a new JitterBuffer pair with activity detection support
     pub fn create_with_handle_and_activity(
         initial_packet: EncodedAudioFramePacket,
@@ -93,11 +89,11 @@ impl JitterBuffer {
         activity_tx: Option<flume::Sender<crate::audio::stream::ActivityUpdate>>,
     ) -> Result<(Self, JitterBufferHandle), JitterBufferError> {
         let (tx, rx) = flume::unbounded::<Option<EncodedAudioFramePacket>>();
-        
+
         let sample_rate = initial_packet.sample_rate as u32;
         let buffer_size_ms = initial_packet.buffer_size_ms as u64;
         let buffer_capacity = ((buffer_size_ms / 20) as usize).max(5); // Minimum 5 frames (20ms each)
-        
+
         log::info!(
             "[{}] Creating jitter buffer with activity detection for player '{}', capacity: {} frames ({}ms), sample_rate: {}Hz",
             identifier,
@@ -106,7 +102,7 @@ impl JitterBuffer {
             buffer_size_ms,
             sample_rate
         );
-        
+
         let source = super::jitter_buffer_source::JitterBufferSource::new_with_activity(
             rx,
             initial_packet,
@@ -114,11 +110,11 @@ impl JitterBuffer {
             player_name,
             activity_tx,
         )?;
-        
+
         let jitter_buffer = Self {
             source: Arc::new(Mutex::new(source)),
         };
-        
+
         let handle = JitterBufferHandle { tx };
         Ok((jitter_buffer, handle))
     }

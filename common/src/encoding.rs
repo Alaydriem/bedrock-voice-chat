@@ -1,6 +1,6 @@
 use anyhow::Error;
-use std::io::Cursor;
 use residua_zigzag::{ZigZagDecode, ZigZagEncode};
+use std::io::Cursor;
 
 /// Encode a u32 value using variable-length encoding (LEB128)
 pub fn encode_varint_u32(value: u32) -> Vec<u8> {
@@ -71,7 +71,7 @@ mod tests {
     #[test]
     fn test_varint_u32() {
         let test_values = [0, 1, 127, 128, 255, 256, 65535, 65536];
-        
+
         for value in test_values {
             let encoded = encode_varint_u32(value);
             let (decoded, size) = decode_varint_u32(&encoded).unwrap();
@@ -83,7 +83,7 @@ mod tests {
     #[test]
     fn test_zigzag_varint_i32() {
         let test_values = [0, -1, 1, -64, 64, -128, 128, i32::MIN, i32::MAX];
-        
+
         for value in test_values {
             let encoded = encode_zigzag_varint_i32(value);
             let (decoded, size) = decode_zigzag_varint_i32(&encoded).unwrap();
@@ -95,7 +95,7 @@ mod tests {
     #[test]
     fn test_zigzag_varint_i64() {
         let test_values = [0, -1, 1, -64, 64, -128, 128, i64::MIN, i64::MAX];
-        
+
         for value in test_values {
             let encoded = encode_zigzag_varint_i64(value);
             let (decoded, size) = decode_zigzag_varint_i64(&encoded).unwrap();
@@ -108,21 +108,29 @@ mod tests {
     fn test_space_savings() {
         // Test typical audio frame lengths (120-960 bytes)
         let typical_lengths = [120, 240, 480, 960];
-        
+
         for length in typical_lengths {
             let encoded = encode_zigzag_varint_i32(length);
-            println!("Length {} encodes to {} bytes (vs 4 bytes for i32)", length, encoded.len());
+            println!(
+                "Length {} encodes to {} bytes (vs 4 bytes for i32)",
+                length,
+                encoded.len()
+            );
             assert!(encoded.len() <= 2); // Should be 1-2 bytes for typical values
         }
-        
+
         // Test recent timestamps (should encode efficiently)
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_millis() as i64;
-            
+
         let encoded = encode_zigzag_varint_i64(now);
-        println!("Timestamp {} encodes to {} bytes (vs 8 bytes for i64)", now, encoded.len());
+        println!(
+            "Timestamp {} encodes to {} bytes (vs 8 bytes for i64)",
+            now,
+            encoded.len()
+        );
     }
 
     #[test]
@@ -135,10 +143,14 @@ mod tests {
         let packet = AudioFramePacket::new(
             test_data.clone(),
             48000,
-            Some(Coordinate { x: 100.0, y: 50.0, z: 200.0 }),
+            Some(Coordinate {
+                x: 100.0,
+                y: 50.0,
+                z: 200.0,
+            }),
             None,
             Some(Dimension::Overworld),
-            Some(true)
+            Some(true),
         );
 
         // Verify the accessors work
@@ -146,7 +158,7 @@ mod tests {
         assert_eq!(packet.data_len(), test_data.len());
         assert_eq!(packet.sample_rate, 48000);
         assert_eq!(packet.data, test_data);
-        
+
         // Verify timestamp is recent (within last minute)
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -154,14 +166,19 @@ mod tests {
             .as_millis() as i64;
         let packet_time = packet.timestamp();
         assert!((now - packet_time).abs() < 60_000); // Within 60 seconds
-        
-        println!("AudioFramePacket created successfully with length {} and timestamp {}", 
-                 packet.length(), packet.timestamp());
+
+        println!(
+            "AudioFramePacket created successfully with length {} and timestamp {}",
+            packet.length(),
+            packet.timestamp()
+        );
     }
 
-    #[test] 
+    #[test]
     fn test_packet_serialization_roundtrip() {
-        use crate::structs::packet::{AudioFramePacket, QuicNetworkPacket, QuicNetworkPacketData, PacketOwner, PacketType};
+        use crate::structs::packet::{
+            AudioFramePacket, PacketOwner, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
+        };
         use crate::{Coordinate, Dimension};
 
         // Create a test audio frame
@@ -169,10 +186,14 @@ mod tests {
         let audio_packet = AudioFramePacket::new(
             test_data.clone(),
             48000,
-            Some(Coordinate { x: 100.0, y: 50.0, z: 200.0 }),
+            Some(Coordinate {
+                x: 100.0,
+                y: 50.0,
+                z: 200.0,
+            }),
             None,
             Some(Dimension::Overworld),
-            Some(true)
+            Some(true),
         );
 
         // Create a complete QUIC packet
@@ -186,7 +207,9 @@ mod tests {
         };
 
         // Serialize the packet (datagram form)
-        let serialized = original_packet.to_datagram().expect("Failed to serialize packet");
+        let serialized = original_packet
+            .to_datagram()
+            .expect("Failed to serialize packet");
         let serialized_len = serialized.len();
         println!("Datagram serialized to {} bytes", serialized_len);
 
@@ -199,12 +222,15 @@ mod tests {
         assert_eq!(deserialized_packet.get_author(), "test_user");
 
         // Verify audio data
-    if let QuicNetworkPacketData::AudioFrame(audio) = &deserialized_packet.data {
+        if let QuicNetworkPacketData::AudioFrame(audio) = &deserialized_packet.data {
             assert_eq!(audio.length(), test_data.len() as i32);
             assert_eq!(audio.data, test_data);
             assert_eq!(audio.sample_rate, 48000);
-            println!("Round-trip successful! Deserialized length: {}, timestamp: {}", 
-                     audio.length(), audio.timestamp());
+            println!(
+                "Round-trip successful! Deserialized length: {}, timestamp: {}",
+                audio.length(),
+                audio.timestamp()
+            );
         } else {
             panic!("Deserialized packet is not an AudioFrame");
         }
@@ -213,14 +239,22 @@ mod tests {
         if let QuicNetworkPacketData::AudioFrame(audio) = &deserialized_packet.data {
             let encoded_length_size = audio.encoded_length_size();
             let encoded_timestamp_size = audio.encoded_timestamp_size();
-            
-            println!("Encoded length field: {} bytes (vs 4 bytes for u32 or 8 for usize)", encoded_length_size);
-            println!("Encoded timestamp field: {} bytes (vs 8 bytes for i64)", encoded_timestamp_size);
-            println!("Total AudioFramePacket field savings: {} bytes per packet", 
-                     (4 + 8) - (encoded_length_size + encoded_timestamp_size));
+
+            println!(
+                "Encoded length field: {} bytes (vs 4 bytes for u32 or 8 for usize)",
+                encoded_length_size
+            );
+            println!(
+                "Encoded timestamp field: {} bytes (vs 8 bytes for i64)",
+                encoded_timestamp_size
+            );
+            println!(
+                "Total AudioFramePacket field savings: {} bytes per packet",
+                (4 + 8) - (encoded_length_size + encoded_timestamp_size)
+            );
         }
-        
-    // Datagram path removed all custom stream framing overhead (previous header bytes eliminated)
-    println!("Datagram path removes custom header; size now = payload only.");
+
+        // Datagram path removed all custom stream framing overhead (previous header bytes eliminated)
+        println!("Datagram path removes custom header; size now = payload only.");
     }
 }

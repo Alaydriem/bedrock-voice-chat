@@ -57,7 +57,5 @@ pub struct Player {
     pub dimension: Dimension,
     pub deafen: bool,
     pub coordinates: Coordinate,
-    pub orientation: Orientation
+    pub orientation: Orientation,
 }
-
-

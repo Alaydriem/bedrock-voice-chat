@@ -1,9 +1,9 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NetworkQuality {
-    Excellent,  // < 1% loss, < 20ms jitter, stable RTT
-    Good,       // < 3% loss, < 50ms jitter, moderate RTT variance  
-    Moderate,   // < 8% loss, < 100ms jitter, high RTT variance
-    Poor,       // > 8% loss, > 100ms jitter, very unstable
+    Excellent, // < 1% loss, < 20ms jitter, stable RTT
+    Good,      // < 3% loss, < 50ms jitter, moderate RTT variance
+    Moderate,  // < 8% loss, < 100ms jitter, high RTT variance
+    Poor,      // > 8% loss, > 100ms jitter, very unstable
 }
 
 impl NetworkQuality {
@@ -16,17 +16,17 @@ impl NetworkQuality {
             _ => NetworkQuality::Poor,
         }
     }
-    
+
     /// Get recommended buffer size multiplier
     pub fn buffer_multiplier(&self) -> f64 {
         match self {
-            NetworkQuality::Excellent => 0.8,  // Can use smaller buffer
-            NetworkQuality::Good => 1.0,       // Normal buffer size
-            NetworkQuality::Moderate => 1.5,   // Increase buffer
-            NetworkQuality::Poor => 2.0,       // Large buffer for stability
+            NetworkQuality::Excellent => 0.8, // Can use smaller buffer
+            NetworkQuality::Good => 1.0,      // Normal buffer size
+            NetworkQuality::Moderate => 1.5,  // Increase buffer
+            NetworkQuality::Poor => 2.0,      // Large buffer for stability
         }
     }
-    
+
     /// Get recommended warmup packet count
     pub fn warmup_packets(&self) -> usize {
         match self {
@@ -36,32 +36,37 @@ impl NetworkQuality {
             NetworkQuality::Poor => 8,
         }
     }
-    
+
     /// Get reorder tolerance window (in milliseconds)
     pub fn reorder_window_ms(&self) -> u64 {
         match self {
-            NetworkQuality::Excellent => 40,   // 2 frames
-            NetworkQuality::Good => 80,        // 4 frames  
-            NetworkQuality::Moderate => 160,   // 8 frames
-            NetworkQuality::Poor => 320,       // 16 frames
+            NetworkQuality::Excellent => 40, // 2 frames
+            NetworkQuality::Good => 80,      // 4 frames
+            NetworkQuality::Moderate => 160, // 8 frames
+            NetworkQuality::Poor => 320,     // 16 frames
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CongestionLevel {
-    None,       // Minimal buffering needed
-    Light,      // Slight buffer increase
-    Moderate,   // Significant buffer increase
-    Severe,     // Maximum buffering + aggressive drop policy
+    None,     // Minimal buffering needed
+    Light,    // Slight buffer increase
+    Moderate, // Significant buffer increase
+    Severe,   // Maximum buffering + aggressive drop policy
 }
 
 impl CongestionLevel {
     /// Assess congestion from buffer metrics
-    pub fn from_buffer_metrics(avg_depth: f64, target_depth: usize, underruns: u64, overflows: u64) -> Self {
+    pub fn from_buffer_metrics(
+        avg_depth: f64,
+        target_depth: usize,
+        underruns: u64,
+        overflows: u64,
+    ) -> Self {
         let depth_ratio = avg_depth / target_depth as f64;
         let total_issues = underruns + overflows;
-        
+
         match (depth_ratio, total_issues) {
             (ratio, issues) if ratio < 0.5 && issues == 0 => CongestionLevel::None,
             (ratio, issues) if ratio < 1.5 && issues < 5 => CongestionLevel::Light,
@@ -69,7 +74,7 @@ impl CongestionLevel {
             _ => CongestionLevel::Severe,
         }
     }
-    
+
     /// Get adjustment factor for buffer capacity
     pub fn capacity_adjustment(&self) -> f64 {
         match self {
