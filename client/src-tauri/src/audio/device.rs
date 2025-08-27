@@ -48,7 +48,7 @@ pub(crate) fn get_cpal_hosts() -> Result<Vec<rodio::cpal::platform::Host>, anyho
 
     #[cfg(any(target_os = "android"))]
     {
-        match cpal::host_from_id(HostId::Aaudio) {
+        match cpal::host_from_id(HostId::AAudio) {
             Ok(host) => hosts.push(host),
             Err(e) => {
                 error!("{}", e.to_string());

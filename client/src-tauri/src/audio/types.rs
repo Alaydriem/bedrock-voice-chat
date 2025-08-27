@@ -26,7 +26,7 @@ pub enum AudioDeviceHost {
     #[cfg(target_os = "windows")]
     Wasapi,
     #[cfg(target_os = "android")]
-    Aaudio,
+    AAudio,
     #[cfg(any(target_os = "macos", target_os = "ios"))]
     CoreAudio,
     #[cfg(any(
@@ -49,7 +49,7 @@ impl TryFrom<rodio::cpal::HostId> for AudioDeviceHost {
             #[cfg(target_os = "windows")]
             HostId::Wasapi => Ok(AudioDeviceHost::Wasapi),
             #[cfg(target_os = "android")]
-            HostId::Aaudio => Ok(AudioDeviceHost::Aaudio),
+            HostId::AAudio => Ok(AudioDeviceHost::AAudio),
             #[cfg(any(target_os = "macos", target_os = "ios"))]
             HostId::CoreAudio => Ok(AudioDeviceHost::CoreAudio),
             #[cfg(any(
@@ -89,7 +89,7 @@ impl Into<rodio::cpal::HostId> for AudioDeviceHost {
         #[cfg(target_os = "android")]
         {
             host = match self {
-                AudioDeviceHost::Aaudio => HostId::Aaudio,
+                AudioDeviceHost::AAudio => HostId::AAudio,
             };
         }
         #[cfg(any(target_os = "macos", target_os = "ios"))]
@@ -218,7 +218,7 @@ impl Into<Option<rodio::cpal::Device>> for AudioDevice {
         #[cfg(target_os = "android")]
         {
             host = match self.host {
-                AudioDeviceHost::Aaudio => rodio::cpal::host_from_id(HostId::Aaudio).unwrap(),
+                AudioDeviceHost::AAudio => rodio::cpal::host_from_id(HostId::AAudio).unwrap(),
                 _ => return None,
             };
         }
