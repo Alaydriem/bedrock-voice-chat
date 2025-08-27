@@ -35,7 +35,7 @@ pub enum AudioDeviceHost {
         target_os = "freebsd",
         target_os = "netbsd"
     ))]
-    Alsa
+    Alsa,
 }
 
 impl TryFrom<rodio::cpal::HostId> for AudioDeviceHost {
@@ -59,7 +59,7 @@ impl TryFrom<rodio::cpal::HostId> for AudioDeviceHost {
                 target_os = "netbsd"
             ))]
             HostId::Alsa => Ok(AudioDeviceHost::Alsa),
-            _ => Err(())
+            _ => Err(()),
         }
     }
 }
@@ -71,7 +71,7 @@ impl Into<rodio::cpal::HostId> for AudioDeviceHost {
         {
             host = match self {
                 AudioDeviceHost::Asio => HostId::Asio,
-                AudioDeviceHost::Wasapi => HostId::Wasapi
+                AudioDeviceHost::Wasapi => HostId::Wasapi,
             };
         }
 
@@ -83,19 +83,19 @@ impl Into<rodio::cpal::HostId> for AudioDeviceHost {
         ))]
         {
             host = match self {
-                AudioDeviceHost::Alsa => HostId::Alsa
+                AudioDeviceHost::Alsa => HostId::Alsa,
             };
         }
         #[cfg(target_os = "android")]
         {
             host = match self {
-                AudioDeviceHost::Aaudio => HostId::Aaudio
+                AudioDeviceHost::Aaudio => HostId::Aaudio,
             };
         }
         #[cfg(any(target_os = "macos", target_os = "ios"))]
         {
             host = match self {
-                AudioDeviceHost::CoreAudio => HostId::CoreAudio
+                AudioDeviceHost::CoreAudio => HostId::CoreAudio,
             };
         }
 

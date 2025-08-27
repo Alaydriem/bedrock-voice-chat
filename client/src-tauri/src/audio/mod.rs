@@ -12,6 +12,5 @@ pub(crate) struct AudioPacket {
     pub data: QuicNetworkPacket,
 }
 
-
 #[cfg(test)]
 mod tests;

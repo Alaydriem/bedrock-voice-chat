@@ -1,11 +1,16 @@
-use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
-use common::structs::packet::{DebugPacket, PacketOwner, QuicNetworkPacket};
-use tauri::Emitter;
-use tokio::task::AbortHandle;
-use bytes::Bytes;
-use s2n_quic::Connection;
 use crate::NetworkPacket;
+use bytes::Bytes;
+use common::structs::packet::{DebugPacket, PacketOwner, QuicNetworkPacket};
 use log::{error, info, warn};
+use s2n_quic::Connection;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
+use tauri::Emitter;
+use tokio::{task::AbortHandle, time::Instant};
+
+use common::consts::version::PROTOCOL_VERSION as CLIENT_VERSION;
 
 /// The OutputStream consumes PCM NetworkPackets from the AudioStreamManager::InputStream
 /// Then sends it to the server
@@ -45,7 +50,7 @@ impl common::traits::StreamTrait for OutputStream {
 
     async fn start(&mut self) -> Result<(), anyhow::Error> {
         _ = self.shutdown.store(false, Ordering::Relaxed);
-        
+
         let mut jobs = vec![];
         let rx = self.bus.clone();
         let connection = self.connection.clone().unwrap();
@@ -60,7 +65,11 @@ impl common::traits::StreamTrait for OutputStream {
                 packet_type: common::structs::packet::PacketType::Debug,
                 owner: packet_owner.clone(),
                 data: common::structs::packet::QuicNetworkPacketData::Debug(
-                    DebugPacket(packet_owner.clone().unwrap().name)
+                    DebugPacket {
+                        owner: packet_owner.clone().unwrap().name,
+                        version: CLIENT_VERSION.to_string(),
+                        timestamp: Instant::now().elapsed().as_millis() as u64,
+                    }
                 )
             };
 
@@ -72,7 +81,7 @@ impl common::traits::StreamTrait for OutputStream {
                 }
                 Err(e) => { error!("Failed to serialize DEBUG packet: {:?}", e); }
             }
-            
+
             let notify = crate::AUDIO_INPUT_NETWORK_NOTIFY.clone();
             let mut buffer: Vec<QuicNetworkPacket> = Vec::new();
             let mut error_count = 0;
@@ -111,7 +120,7 @@ impl common::traits::StreamTrait for OutputStream {
                                 }
                             }
                         }
-                        
+
                         notify.notify_waiters();
                         notify.notified().await;
                     }

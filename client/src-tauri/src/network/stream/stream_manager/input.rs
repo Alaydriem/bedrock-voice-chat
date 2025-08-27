@@ -1,12 +1,19 @@
-use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
-use common::structs::packet::QuicNetworkPacket;
+use crate::AudioPacket;
 use bytes::Bytes;
-use core::{future::Future, pin::Pin, task::{Context, Poll}};
+use common::structs::packet::QuicNetworkPacket;
+use core::{
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
+use log::{error, warn};
 use s2n_quic::Connection;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 use tauri::Emitter;
 use tokio::task::AbortHandle;
-use crate::AudioPacket;
-use log::{error, warn};
 
 /// The InputStream consumes audio packets from the server
 /// Then sends it to the AudioStreamManager::OutputStream
@@ -44,10 +51,10 @@ impl common::traits::StreamTrait for InputStream {
 
     async fn start(&mut self) -> Result<(), anyhow::Error> {
         _ = self.shutdown.store(false, Ordering::Relaxed);
-        
+
         let tx = self.bus.clone();
         let mut jobs = vec![];
-    let connection = self.connection.clone().unwrap();
+        let connection = self.connection.clone().unwrap();
 
         let shutdown = self.shutdown.clone();
         let app_handle = self.app_handle.clone();
@@ -59,21 +66,28 @@ impl common::traits::StreamTrait for InputStream {
                     break;
                 }
                 match QuicNetworkPacket::from_datagram(&bytes) {
-                    Ok(packet) => { _ = tx.send_async(AudioPacket { data: packet }).await; }
-                    Err(e) => { error!("Couldn't decode datagram packet. {:?}", e); }
+                    Ok(packet) => {
+                        _ = tx.send_async(AudioPacket { data: packet }).await;
+                    }
+                    Err(e) => {
+                        error!("Couldn't decode datagram packet. {:?}", e);
+                    }
                 }
             }
         }));
 
-        _ = app_handle.emit(crate::events::event::notification::EVENT_NOTIFICATION, crate::events::event::notification::Notification::new(
-            "Network Stream Stopped".to_string(),
-            "The input network stream has been stopped.".to_string(),
-            Some("warn".to_string()),
-            None,
-            None,
-            None
-        ));
-        
+        _ = app_handle.emit(
+            crate::events::event::notification::EVENT_NOTIFICATION,
+            crate::events::event::notification::Notification::new(
+                "Network Stream Stopped".to_string(),
+                "The input network stream has been stopped.".to_string(),
+                Some("warn".to_string()),
+                None,
+                None,
+                None,
+            ),
+        );
+
         self.jobs = jobs.iter().map(|handle| handle.abort_handle()).collect();
 
         Ok(())
@@ -92,23 +106,35 @@ impl InputStream {
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),
             metadata: Arc::new(moka::future::Cache::builder().build()),
-            app_handle: app_handle.clone()
+            app_handle: app_handle.clone(),
         }
     }
 }
 
 // Minimal datagram future for client
-struct RecvDatagram<'c> { conn: &'c Connection }
-impl<'c> RecvDatagram<'c> { fn new(conn: &'c Connection) -> Self { Self { conn } } }
+struct RecvDatagram<'c> {
+    conn: &'c Connection,
+}
+impl<'c> RecvDatagram<'c> {
+    fn new(conn: &'c Connection) -> Self {
+        Self { conn }
+    }
+}
 impl<'c> Future for RecvDatagram<'c> {
     type Output = Result<Bytes, anyhow::Error>;
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match self.conn.datagram_mut(|r: &mut s2n_quic::provider::datagram::default::Receiver| r.poll_recv_datagram(cx)) {
+        match self
+            .conn
+            .datagram_mut(|r: &mut s2n_quic::provider::datagram::default::Receiver| {
+                r.poll_recv_datagram(cx)
+            }) {
             Ok(Poll::Ready(Ok(bytes))) => Poll::Ready(Ok(bytes)),
             Ok(Poll::Ready(Err(e))) => Poll::Ready(Err(anyhow::anyhow!(e))),
             Ok(Poll::Pending) => Poll::Pending,
-            Err(e) => Poll::Ready(Err(anyhow::anyhow!(e)))
+            Err(e) => Poll::Ready(Err(anyhow::anyhow!(e))),
         }
     }
 }
-async fn recv_one_datagram(conn: &Connection) -> Result<Bytes, anyhow::Error> { RecvDatagram::new(conn).await }
+async fn recv_one_datagram(conn: &Connection) -> Result<Bytes, anyhow::Error> {
+    RecvDatagram::new(conn).await
+}

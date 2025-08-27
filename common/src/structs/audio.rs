@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use ts_rs::TS;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TS)]
@@ -9,7 +9,7 @@ pub struct NoiseGateSettings {
     pub close_threshold: f32,
     pub release_rate: f32,
     pub attack_rate: f32,
-    pub hold_time: f32
+    pub hold_time: f32,
 }
 
 impl Default for NoiseGateSettings {
@@ -19,7 +19,7 @@ impl Default for NoiseGateSettings {
             close_threshold: -56.0,
             release_rate: 150.0,
             attack_rate: 5.0,
-            hold_time: 150.0
+            hold_time: 150.0,
         }
     }
 }
@@ -28,7 +28,7 @@ impl Default for NoiseGateSettings {
 #[ts(export, export_to = "./../../client/src/js/bindings/")]
 pub struct PlayerGainSettings {
     pub gain: f32,
-    pub muted: bool
+    pub muted: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TS)]
@@ -36,5 +36,7 @@ pub struct PlayerGainSettings {
 pub struct PlayerGainStore(pub HashMap<String, PlayerGainSettings>);
 
 impl Default for PlayerGainStore {
-    fn default() -> Self { Self(std::collections::HashMap::new()) }
+    fn default() -> Self {
+        Self(std::collections::HashMap::new())
+    }
 }

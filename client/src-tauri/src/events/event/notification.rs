@@ -1,5 +1,5 @@
-use log::{info, warn, error};
-use serde::{Serialize, Deserialize};
+use log::{error, info, warn};
+use serde::{Deserialize, Serialize};
 use tauri::Listener;
 
 // Events Tauri is to subscribe to
@@ -17,8 +17,22 @@ pub(crate) struct Notification {
 }
 
 impl Notification {
-    pub fn new(title: String, body: String, level: Option<String>,  e: Option<String>, icon: Option<String>, sound: Option<String>) -> Self {
-        Self { title, body, level, e, icon, sound }
+    pub fn new(
+        title: String,
+        body: String,
+        level: Option<String>,
+        e: Option<String>,
+        icon: Option<String>,
+        sound: Option<String>,
+    ) -> Self {
+        Self {
+            title,
+            body,
+            level,
+            e,
+            icon,
+            sound,
+        }
     }
 
     pub fn register(app: &tauri::App) {

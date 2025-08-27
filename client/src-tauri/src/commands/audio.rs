@@ -1,16 +1,14 @@
 use crate::audio::types::{AudioDevice, AudioDeviceType};
-use std::{collections::HashMap, time::Duration};
-use tauri::{AppHandle, Manager, State};
-use tauri_plugin_store::StoreExt;
-use flume::{Receiver, Sender};
 use crate::audio::AudioPacket;
 use crate::network::NetworkPacket;
-use std::sync::Arc;
-use crate::{
-    structs::app_state::AppState, AudioStreamManager,
-};
+use crate::{structs::app_state::AppState, AudioStreamManager};
+use flume::{Receiver, Sender};
 use log::info;
+use std::sync::Arc;
+use std::{collections::HashMap, time::Duration};
 use tauri::async_runtime::Mutex;
+use tauri::{AppHandle, Manager, State};
+use tauri_plugin_store::StoreExt;
 
 /// Returns the active audio device for the given device type
 #[tauri::command]
@@ -29,7 +27,7 @@ pub(crate) async fn set_audio_device(
     device: AudioDevice,
     app: AppHandle,
     state: State<'_, Mutex<AppState>>,
-    asm: State<'_, Mutex<AudioStreamManager>>
+    asm: State<'_, Mutex<AudioStreamManager>>,
 ) -> Result<(), ()> {
     let mut state = state.lock().await;
     _ = update_current_player(app.clone(), asm.clone());
@@ -42,17 +40,17 @@ pub(crate) async fn set_audio_device(
 pub(crate) async fn change_audio_device(
     app: AppHandle,
     state: State<'_, Mutex<AppState>>,
-    asm: State<'_, Mutex<AudioStreamManager>>
+    asm: State<'_, Mutex<AudioStreamManager>>,
 ) -> Result<(), ()> {
     let state = state.lock().await;
-    
+
     // Reset the AudioStreamManager
     _ = reset_asm(app.clone(), asm.clone()).await;
 
     // Fetch the new Audio Stream Manager instance
     let asm = app.state::<Mutex<AudioStreamManager>>();
     let mut asm_active = asm.lock().await;
- 
+
     // Reinitialize the input and output devices
     let input_device = state.get_audio_device(AudioDeviceType::InputDevice);
     let output_device = state.get_audio_device(AudioDeviceType::OutputDevice);
@@ -75,14 +73,10 @@ pub(crate) async fn update_stream_metadata(
     key: String,
     value: String,
     device: AudioDeviceType,
-    asm: State<'_, Mutex<AudioStreamManager>>
-) -> Result<(), ()>{
+    asm: State<'_, Mutex<AudioStreamManager>>,
+) -> Result<(), ()> {
     let mut asm = asm.lock().await;
-    _ = asm.metadata(
-        key,
-        value,
-        &device
-    ).await;
+    _ = asm.metadata(key, value, &device).await;
 
     Ok(())
 }
@@ -90,8 +84,8 @@ pub(crate) async fn update_stream_metadata(
 #[tauri::command]
 pub(crate) async fn reset_asm(
     handle: AppHandle,
-    asm: State<'_, Mutex<AudioStreamManager>>
-) -> Result<(), ()>{
+    asm: State<'_, Mutex<AudioStreamManager>>,
+) -> Result<(), ()> {
     let mut asm = asm.lock().await;
     _ = asm.stop(AudioDeviceType::OutputDevice).await;
     _ = asm.stop(AudioDeviceType::InputDevice).await;
@@ -101,7 +95,7 @@ pub(crate) async fn reset_asm(
     handle.manage(Mutex::new(AudioStreamManager::new(
         handle.state::<Arc<Sender<NetworkPacket>>>().inner().clone(),
         handle.state::<Arc<Receiver<AudioPacket>>>().inner().clone(),
-        handle.clone()
+        handle.clone(),
     )));
 
     Ok(())
@@ -110,20 +104,26 @@ pub(crate) async fn reset_asm(
 // Maps the current player information to the Audio Output Stream
 async fn update_current_player(
     app: AppHandle,
-    asm: State<'_, Mutex<AudioStreamManager>>
-) -> Result<(), ()>{
+    asm: State<'_, Mutex<AudioStreamManager>>,
+) -> Result<(), ()> {
     info!("Updating current player metadata");
     match app.store("store.json") {
         Ok(store) => match store.get("current_player") {
             Some(value) => match value.as_str() {
                 Some(value) => {
-                    _ = update_stream_metadata(String::from("current_player"), String::from(value), AudioDeviceType::OutputDevice, asm.clone()).await;
-                },
-                None => return Err(())
+                    _ = update_stream_metadata(
+                        String::from("current_player"),
+                        String::from(value),
+                        AudioDeviceType::OutputDevice,
+                        asm.clone(),
+                    )
+                    .await;
+                }
+                None => return Err(()),
             },
-            None => return Err(())
-        },                    
-        Err(_) => return Err(())    
+            None => return Err(()),
+        },
+        Err(_) => return Err(()),
     };
 
     Ok(())
@@ -134,7 +134,7 @@ async fn update_current_player(
 #[tauri::command]
 pub(crate) async fn stop_audio_device(
     device: AudioDeviceType,
-    asm: State<'_, Mutex<AudioStreamManager>>
+    asm: State<'_, Mutex<AudioStreamManager>>,
 ) -> Result<(), ()> {
     let mut asm = asm.lock().await;
 
@@ -153,7 +153,7 @@ pub(crate) async fn get_devices() -> Result<HashMap<String, Vec<AudioDevice>>, (
 pub(crate) async fn mute(
     device: AudioDeviceType,
     asm: State<'_, Mutex<AudioStreamManager>>,
-) -> Result<(), ()>{
+) -> Result<(), ()> {
     let mut asm = asm.lock().await;
     _ = asm.mute(&device).await;
 
@@ -168,7 +168,7 @@ pub(crate) async fn mute_status(
     let mut asm = asm.lock().await;
     match asm.mute_status(&device).await {
         Ok(status) => Ok(status),
-        Err(_) => Err(()),  
+        Err(_) => Err(()),
     }
 }
 
@@ -180,6 +180,6 @@ pub(crate) async fn is_stopped(
     let mut asm = asm.lock().await;
     match asm.is_stopped(&device).await {
         Ok(status) => Ok(status),
-        Err(_) => Err(()),  
+        Err(_) => Err(()),
     }
 }

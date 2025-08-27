@@ -109,6 +109,8 @@ function loadAlpinePlugin(pluginName: string, plugin: any) {
 
 
 export default class App {
+    protected isCleanedUp = false;
+    
     constructor() {
         document.documentElement.classList.add("dark");
         FilePond.registerPlugin(FilePondPluginImagePreview);
@@ -156,5 +158,33 @@ export default class App {
             setTimeout(() => preloader.remove(), 1000);
             }, 150);
         }
+
+        // Register cleanup events
+        this.registerCleanupEvents();
     }
+
+    private registerCleanupEvents(): void {
+        const cleanup = () => this.safeCleanup();
+        
+        window.addEventListener('beforeunload', cleanup);
+        window.addEventListener('pagehide', cleanup);
+        window.addEventListener('popstate', cleanup);
+        window.addEventListener('unload', cleanup);
+    }
+
+    protected safeCleanup(): void {
+        if (!this.isCleanedUp) {
+            this.isCleanedUp = true;
+            if ((this as any).cleanup && typeof (this as any).cleanup === 'function') {
+                try {
+                    (this as any).cleanup();
+                } catch (error) {
+                    console.error('Error during cleanup:', error);
+                }
+            }
+        }
+    }
+
+    // Override in subclasses that need cleanup
+    async cleanup?(): Promise<void>;
 }

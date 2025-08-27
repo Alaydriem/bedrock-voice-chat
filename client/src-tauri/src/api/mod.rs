@@ -3,19 +3,22 @@ use log::error;
 mod channel;
 mod client;
 
-use reqwest::{Client as ReqwestClient, StatusCode, header::{HeaderMap, HeaderValue}};
+use reqwest::{
+    header::{HeaderMap, HeaderValue},
+    Client as ReqwestClient, StatusCode,
+};
 use std::error::Error;
 
 pub(crate) struct Api {
     endpoint: String,
-    client: client::Client
+    client: client::Client,
 }
 
 impl Api {
     pub fn new(endpoint: String, ca_cert: String, pem: String) -> Self {
         Self {
             endpoint,
-            client: client::Client::new(ca_cert, pem)
+            client: client::Client::new(ca_cert, pem),
         }
     }
 
@@ -27,14 +30,8 @@ impl Api {
         let client = self.get_client(Some(self.endpoint.as_str())).await;
 
         let mut headers = HeaderMap::new();
-        headers.insert(
-            "Content-Type",
-            HeaderValue::from_static("application/json"),
-        );
-        headers.insert(
-            "Accept",
-            HeaderValue::from_static("application/json"),
-        );
+        headers.insert("Content-Type", HeaderValue::from_static("application/json"));
+        headers.insert("Accept", HeaderValue::from_static("application/json"));
 
         // Reconstruct full URL with resolved IP address
         let url = format!("{}/api/ping", self.endpoint);

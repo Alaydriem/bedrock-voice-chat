@@ -1,9 +1,9 @@
 mod input;
 mod output;
 
+pub(crate) use common::traits::StreamTrait;
 pub(crate) use input::InputStream;
 pub(crate) use output::OutputStream;
-pub(crate) use common::traits::StreamTrait;
 
 pub(crate) enum StreamTraitType {
     Input(InputStream),
@@ -35,7 +35,7 @@ impl common::traits::StreamTrait for StreamTraitType {
     async fn metadata(&mut self, key: String, value: String) -> Result<(), anyhow::Error> {
         match self {
             Self::Input(stream) => stream.metadata(key, value).await,
-            Self::Output(stream) => stream.metadata(key, value).await
-        }        
+            Self::Output(stream) => stream.metadata(key, value).await,
+        }
     }
 }

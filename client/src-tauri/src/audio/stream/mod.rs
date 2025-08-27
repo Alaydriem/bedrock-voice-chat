@@ -1,12 +1,16 @@
+mod activity_detector;
+mod jitter_buffer;
 mod stream_manager;
 
+use crate::audio::types::{AudioDevice, AudioDeviceType};
 use crate::NetworkPacket;
 use anyhow::Error;
-use crate::audio::types::{AudioDevice, AudioDeviceType};
 use std::sync::Arc;
 
 use super::AudioPacket;
 use stream_manager::{StreamTrait, StreamTraitType};
+
+pub(crate) use activity_detector::ActivityUpdate;
 
 pub(crate) struct AudioStreamManager {
     producer: Arc<flume::Sender<NetworkPacket>>,
@@ -31,15 +35,15 @@ impl AudioStreamManager {
                 None,
                 producer.clone(),
                 Arc::new(moka::future::Cache::builder().build()),
-                app_handle.clone()
+                app_handle.clone(),
             )),
             output: StreamTraitType::Output(stream_manager::OutputStream::new(
                 None,
                 consumer.clone(),
                 Arc::new(moka::future::Cache::builder().build()),
-                app_handle.clone()
+                app_handle.clone(),
             )),
-            app_handle: app_handle.clone()
+            app_handle: app_handle.clone(),
         }
     }
 
@@ -48,7 +52,7 @@ impl AudioStreamManager {
         // Stop the current stream if we're re-initializing a new one so we don't
         // have dangling thread pointers
         _ = self.stop(device.clone().io);
-        
+
         match device.io {
             AudioDeviceType::InputDevice => {
                 self.input = StreamTraitType::Input(stream_manager::InputStream::new(
@@ -63,7 +67,7 @@ impl AudioStreamManager {
                     Some(device),
                     self.consumer.clone(),
                     self.output.get_metadata().clone(),
-                    self.app_handle.clone()
+                    self.app_handle.clone(),
                 ));
             }
         }
@@ -76,14 +80,14 @@ impl AudioStreamManager {
     pub async fn restart(&mut self, device: AudioDeviceType) -> Result<(), Error> {
         // Stop the audio strema
         _ = self.stop(device.clone());
-        
+
         match device {
             AudioDeviceType::InputDevice => {
                 self.input = StreamTraitType::Input(stream_manager::InputStream::new(
                     self.input.get_device(),
                     self.producer.clone(),
                     self.input.get_metadata().clone(),
-                    self.app_handle.clone()
+                    self.app_handle.clone(),
                 ));
             }
             AudioDeviceType::OutputDevice => {
@@ -91,7 +95,7 @@ impl AudioStreamManager {
                     self.output.get_device(),
                     self.consumer.clone(),
                     self.output.get_metadata().clone(),
-                    self.app_handle.clone()
+                    self.app_handle.clone(),
                 ));
             }
         };
@@ -108,15 +112,15 @@ impl AudioStreamManager {
                 false => Err(anyhow::anyhow!(format!(
                     "{} audio stream is already running!",
                     device.to_string()
-                )))
+                ))),
             },
             AudioDeviceType::OutputDevice => match self.output.is_stopped() {
                 true => self.output.start().await,
                 false => Err(anyhow::anyhow!(format!(
                     "{} audio stream is already running!",
                     device.to_string()
-                )))
-            }
+                ))),
+            },
         }
     }
 
@@ -141,17 +145,22 @@ impl AudioStreamManager {
         Ok(status)
     }
 
-    pub async fn metadata(&mut self, key: String, value: String, device: &AudioDeviceType) -> Result<(), Error> {
+    pub async fn metadata(
+        &mut self,
+        key: String,
+        value: String,
+        device: &AudioDeviceType,
+    ) -> Result<(), Error> {
         match device {
             AudioDeviceType::InputDevice => self.input.metadata(key, value).await,
-            AudioDeviceType::OutputDevice => self.output.metadata(key, value).await
+            AudioDeviceType::OutputDevice => self.output.metadata(key, value).await,
         }
     }
 
     pub async fn mute(&mut self, device: &AudioDeviceType) -> Result<(), Error> {
         match device {
             AudioDeviceType::InputDevice => self.input.mute(),
-            AudioDeviceType::OutputDevice => self.output.mute()
+            AudioDeviceType::OutputDevice => self.output.mute(),
         };
 
         Ok(())
@@ -160,7 +169,7 @@ impl AudioStreamManager {
     pub async fn mute_status(&mut self, device: &AudioDeviceType) -> Result<bool, Error> {
         let status = match device {
             AudioDeviceType::InputDevice => self.input.mute_status(),
-            AudioDeviceType::OutputDevice => self.output.mute_status()
+            AudioDeviceType::OutputDevice => self.output.mute_status(),
         };
 
         Ok(status)

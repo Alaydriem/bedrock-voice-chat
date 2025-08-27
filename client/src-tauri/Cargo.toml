@@ -57,6 +57,7 @@ flume = { version = "^0.11" }
 trust-dns-resolver = { version = "^0.23", features = ["tokio-runtime", "tokio-rustls", "rustls", "serde"] }
 windows-targets = "^0.53.0"
 ts-rs = { version = "^11.0" }
+ringbuf = "^0.4"
 
 tauri = { version = "^2.7", features = ["rustls-tls"] }
 tauri-plugin-opener = "^2.4"

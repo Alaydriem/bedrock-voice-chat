@@ -1,5 +1,5 @@
-use audio::AudioPacket;
 use crate::structs::app_state::AppState;
+use audio::AudioPacket;
 use flume::{Receiver, Sender};
 use network::NetworkPacket;
 use std::sync::Arc;
@@ -10,19 +10,20 @@ use tauri_plugin_store::StoreExt;
 use audio::AudioStreamManager;
 use network::NetworkStreamManager;
 
-use tokio::sync::Notify;
 use once_cell::sync::Lazy;
+use tokio::sync::Notify;
 
+mod api;
 mod audio;
 mod auth;
 mod commands;
-mod core; 
+mod core;
+mod events;
 mod network;
 mod structs;
-mod api;
-mod events;
 
-pub(crate) static AUDIO_INPUT_NETWORK_NOTIFY: Lazy<Arc<Notify>> = Lazy::new(|| Arc::new(Notify::new()));
+pub(crate) static AUDIO_INPUT_NETWORK_NOTIFY: Lazy<Arc<Notify>> =
+    Lazy::new(|| Arc::new(Notify::new()));
 pub(crate) static ANDROID_SIGNATURE_TEST_HASH: &str = "test-2jmj7l5rSw0yVb%2FvlWAYkK%2FYBwk%3D";
 pub(crate) static ANDROID_SIGNATURE_LIVE_HASH: &str = "live-2jmj7l5rSw0yVb%2FvlWAYkK%2FYBwk%3D";
 
@@ -105,10 +106,7 @@ pub fn run() {
                 android_signature_hash = ANDROID_SIGNATURE_LIVE_HASH.to_string();
             }
 
-            store.set(
-                "android_signature_hash".to_string(),
-                android_signature_hash,
-            );
+            store.set("android_signature_hash".to_string(), android_signature_hash);
 
             let app_state = AppState::new(store.clone());
             app.manage(Mutex::new(app_state));
@@ -130,7 +128,7 @@ pub fn run() {
             let audio_stream = AudioStreamManager::new(
                 handle.state::<Arc<Sender<NetworkPacket>>>().inner().clone(),
                 handle.state::<Arc<Receiver<AudioPacket>>>().inner().clone(),
-                handle.clone()
+                handle.clone(),
             );
             app.manage(Mutex::new(audio_stream));
 
@@ -140,8 +138,11 @@ pub fn run() {
 
             let network_stream = NetworkStreamManager::new(
                 handle.state::<Arc<Sender<AudioPacket>>>().inner().clone(),
-                handle.state::<Arc<Receiver<NetworkPacket>>>().inner().clone(),
-                handle.clone()
+                handle
+                    .state::<Arc<Receiver<NetworkPacket>>>()
+                    .inner()
+                    .clone(),
+                handle.clone(),
             );
             app.manage(Mutex::new(network_stream));
 

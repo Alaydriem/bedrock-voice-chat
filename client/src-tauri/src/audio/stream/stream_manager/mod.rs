@@ -1,3 +1,4 @@
+mod audio_sink;
 mod input;
 mod output;
 mod sink_manager;
@@ -6,9 +7,10 @@ use std::sync::Arc;
 
 use crate::audio::types::AudioDevice;
 
+pub(crate) use audio_sink::AudioSinkType;
+pub(crate) use common::traits::StreamTrait;
 pub(crate) use input::InputStream;
 pub(crate) use output::OutputStream;
-pub(crate) use common::traits::StreamTrait;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
@@ -81,8 +83,8 @@ impl common::traits::StreamTrait for StreamTraitType {
     async fn metadata(&mut self, key: String, value: String) -> Result<(), anyhow::Error> {
         match self {
             Self::Input(stream) => stream.metadata(key, value).await,
-            Self::Output(stream) => stream.metadata(key, value).await
-        }        
+            Self::Output(stream) => stream.metadata(key, value).await,
+        }
     }
 }
 

@@ -17,6 +17,7 @@ pub enum PacketType {
     Collection,
     Debug,
     PlayerPresence,
+    ServerError,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
@@ -33,6 +34,7 @@ pub enum QuicNetworkPacketData {
     Collection(CollectionPacket),
     Debug(DebugPacket),
     PlayerPresence(PlayerPresenceEvent),
+    ServerError(ServerErrorPacket),
 }
 
 /// A Quic Network Datagram
@@ -62,14 +64,20 @@ impl QuicNetworkPacket {
     /// Deserialize a packet from a QUIC DATAGRAM payload
     pub fn from_datagram(data: &[u8]) -> Result<Self, anyhow::Error> {
         if data.len() > MAX_DATAGRAM_SIZE {
-            return Err(anyhow!("Incoming datagram size {} exceeds max {}", data.len(), MAX_DATAGRAM_SIZE));
+            return Err(anyhow!(
+                "Incoming datagram size {} exceeds max {}",
+                data.len(),
+                MAX_DATAGRAM_SIZE
+            ));
         }
         postcard::from_bytes::<QuicNetworkPacket>(data)
             .map_err(|e| anyhow!("Postcard deserialization error: {}", e))
     }
 
     /// Returns the packet type
-    pub fn get_packet_type(&self) -> PacketType { self.packet_type.clone() }
+    pub fn get_packet_type(&self) -> PacketType {
+        self.packet_type.clone()
+    }
 
     /// Whether or not a packet should be broadcasted
     pub fn is_broadcast(&self) -> bool {
@@ -80,6 +88,7 @@ impl QuicNetworkPacket {
             PacketType::ChannelEvent => true,
             PacketType::Collection => false,
             PacketType::PlayerPresence => true,
+            PacketType::ServerError => false,
         }
     }
 
@@ -94,7 +103,7 @@ impl QuicNetworkPacket {
 
                 return owner.name.clone();
             }
-            None => String::from("")
+            None => String::from(""),
         }
     }
 
@@ -102,12 +111,14 @@ impl QuicNetworkPacket {
     pub fn get_client_id(&self) -> Vec<u8> {
         match &self.owner {
             Some(owner) => owner.client_id.clone(),
-            None => vec![]
+            None => vec![],
         }
     }
 
     /// Returns the underlying data frame.
-    pub fn get_data(&self) -> Option<&QuicNetworkPacketData> { Some(&self.data) }
+    pub fn get_data(&self) -> Option<&QuicNetworkPacketData> {
+        Some(&self.data)
+    }
 
     // Updates the coordinates for a given packet with the player position data
     pub async fn update_coordinates(&mut self, player_data: Arc<Cache<String, Player>>) {
@@ -223,9 +234,12 @@ impl QuicNetworkPacket {
                                 let dimension = data.dimension.clone();
                                 let coordinates = data.coordinate.clone();
                                 if dimension.is_none() || coordinates.is_none() {
-                                    return false;
+                                    // Sender position is unknown; only allow if explicitly non-spatial
+                                    match data.spatial {
+                                        Some(false) => return true,        // Non-spatial audio is allowed
+                                        Some(true) | None => return false, // Spatial audio requires sender position
+                                    }
                                 }
-
                                 (dimension.unwrap(), coordinates.unwrap())
                             }
                         };
@@ -250,12 +264,12 @@ impl QuicNetworkPacket {
                                     // If the client explicitly wants their audio to be spatial, then calculate the distance and return if they are in range
                                     Some(true) => {
                                         return distance <= proximity;
-                                    },
+                                    }
                                     // If the client explicitly set their audio to be broadcast
-                                    // Then there is a client implementation issue 
+                                    // Then there is a client implementation issue
                                     Some(false) => {
                                         return false;
-                                    },
+                                    }
                                     // If the client did not set their audio to be spatially received
                                     // Then make it spatial, and return if in range
                                     None => {
@@ -264,13 +278,10 @@ impl QuicNetworkPacket {
                                         return distance <= proximity;
                                     }
                                 }
-
-
-
                             }
                             None => {
                                 return false;
-                            },
+                            }
                         };
                     }
                     Err(_) => {
@@ -284,6 +295,16 @@ impl QuicNetworkPacket {
             PacketType::PlayerData => true,
             // Player presence events should always be received by all clients
             PacketType::PlayerPresence => true,
+            PacketType::ServerError => match self.get_data() {
+                Some(data) => match data.to_owned().try_into() {
+                    Ok(data) => {
+                        let mut data: ServerErrorPacket = data;
+                        self.get_author().eq(&recipient.name)
+                    }
+                    Err(e) => false,
+                },
+                None => false,
+            },
             // If there are other packet types we want recipiants to receive, this should be updated
             _ => false,
         }
@@ -313,20 +334,20 @@ impl TryFrom<QuicNetworkPacketData> for CollectionPacket {
 pub struct AudioFramePacket {
     // Store pre-encoded zigzag+varint bytes for efficient serialization
     #[serde(with = "serde_bytes")]
-    encoded_length: Vec<u8>,    // zigzag+varint encoded i32
-    
-    #[serde(with = "serde_bytes")] 
+    encoded_length: Vec<u8>, // zigzag+varint encoded i32
+
+    #[serde(with = "serde_bytes")]
     encoded_timestamp: Vec<u8>, // zigzag+varint encoded i64
-    
+
     pub sample_rate: u32,
-    
+
     #[serde(with = "serde_bytes")]
     pub data: Vec<u8>,
-    
+
     pub coordinate: Option<Coordinate>,
     pub orientation: Option<Orientation>,
     pub dimension: Option<Dimension>,
-    pub spatial: Option<bool>
+    pub spatial: Option<bool>,
 }
 
 impl TryFrom<QuicNetworkPacketData> for AudioFramePacket {
@@ -348,15 +369,15 @@ impl AudioFramePacket {
         coordinate: Option<Coordinate>,
         orientation: Option<Orientation>,
         dimension: Option<Dimension>,
-        spatial: Option<bool>
+        spatial: Option<bool>,
     ) -> Self {
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_millis() as i64;
-            
+
         let length = data.len() as i32;
-        
+
         Self {
             encoded_length: crate::encoding::encode_zigzag_varint_i32(length),
             encoded_timestamp: crate::encoding::encode_zigzag_varint_i64(timestamp),
@@ -365,32 +386,34 @@ impl AudioFramePacket {
             coordinate,
             orientation,
             dimension,
-            spatial
+            spatial,
         }
     }
-    
+
     /// Get the decoded length value
     pub fn length(&self) -> i32 {
         crate::encoding::decode_zigzag_varint_i32(&self.encoded_length)
-            .unwrap_or((0, 0)).0
+            .unwrap_or((0, 0))
+            .0
     }
-    
+
     /// Get the decoded timestamp value (Unix timestamp in milliseconds)
     pub fn timestamp(&self) -> i64 {
         crate::encoding::decode_zigzag_varint_i64(&self.encoded_timestamp)
-            .unwrap_or((0, 0)).0
+            .unwrap_or((0, 0))
+            .0
     }
-    
+
     /// Get the actual data length (convenience method)
     pub fn data_len(&self) -> usize {
         self.data.len()
     }
-    
+
     /// Get the size of the encoded length field (for space analysis)
     pub fn encoded_length_size(&self) -> usize {
         self.encoded_length.len()
     }
-    
+
     /// Get the size of the encoded timestamp field (for space analysis)
     pub fn encoded_timestamp_size(&self) -> usize {
         self.encoded_timestamp.len()
@@ -416,7 +439,11 @@ impl TryFrom<QuicNetworkPacketData> for PlayerDataPacket {
 
 /// Debug Packet
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct DebugPacket(pub String);
+pub struct DebugPacket {
+    pub owner: String,
+    pub version: String,
+    pub timestamp: u64,
+}
 
 impl TryFrom<QuicNetworkPacketData> for DebugPacket {
     type Error = ();
@@ -456,7 +483,7 @@ pub enum ConnectionEventType {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PlayerPresenceEvent {
     pub player_name: String,
-    pub timestamp: i64,  // Unix timestamp in milliseconds
+    pub timestamp: i64, // Unix timestamp in milliseconds
     pub event_type: ConnectionEventType,
 }
 
@@ -466,6 +493,32 @@ impl TryFrom<QuicNetworkPacketData> for PlayerPresenceEvent {
     fn try_from(value: QuicNetworkPacketData) -> Result<Self, Self::Error> {
         match value {
             QuicNetworkPacketData::PlayerPresence(p) => Ok(p),
+            _ => Err(()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ServerErrorType {
+    VersionIncompatible {
+        client_version: String,
+        server_version: String,
+    },
+}
+
+/// Server Error Packet
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerErrorPacket {
+    pub error_type: ServerErrorType,
+    pub message: String,
+}
+
+impl TryFrom<QuicNetworkPacketData> for ServerErrorPacket {
+    type Error = ();
+
+    fn try_from(value: QuicNetworkPacketData) -> Result<Self, Self::Error> {
+        match value {
+            QuicNetworkPacketData::ServerError(s) => Ok(s),
             _ => Err(()),
         }
     }
