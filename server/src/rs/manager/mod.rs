@@ -16,6 +16,7 @@ use rocket_cors::{AllowedOrigins, CorsOptions};
 use rocket_db_pools;
 use sea_orm_rocket::Database;
 use std::sync::Arc;
+use base64::{Engine as _, engine::general_purpose};
 
 /// Manager for the Rocket HTTP server
 pub struct RocketManager {

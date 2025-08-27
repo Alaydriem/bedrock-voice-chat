@@ -1,5 +1,5 @@
 use std::path::Path;
-
+use base64::{Engine as _, engine::general_purpose};
 use anyhow::anyhow;
 use common::{
     auth::xbl::ProfileResponse,
@@ -134,7 +134,7 @@ fn get_gamertag_and_gamepic(
 
             for setting in profile.profile_users[0].settings.clone().into_iter() {
                 if setting.id == "GameDisplayPicRaw" {
-                    gamerpic = Some(base64::encode(setting.value.clone()));
+                    gamerpic = Some(general_purpose::STANDARD.encode(setting.value.clone()));
                 }
 
                 if setting.id == "Gamertag" {
