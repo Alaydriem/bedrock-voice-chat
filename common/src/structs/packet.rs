@@ -298,10 +298,10 @@ impl QuicNetworkPacket {
             PacketType::ServerError => match self.get_data() {
                 Some(data) => match data.to_owned().try_into() {
                     Ok(data) => {
-                        let mut data: ServerErrorPacket = data;
+                        let mut _data: ServerErrorPacket = data;
                         self.get_author().eq(&recipient.name)
                     }
-                    Err(e) => false,
+                    Err(_) => false,
                 },
                 None => false,
             },

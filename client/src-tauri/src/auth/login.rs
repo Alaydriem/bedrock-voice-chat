@@ -73,26 +73,43 @@ pub(crate) async fn server_login(
                                 None => Err(false),
                             },
                             Err(e) => {
-                                log::error!("{:?}", e.to_string());
+                                log::error!("Response Error: {:?}", e.to_string());
                                 Err(false)
                             }
                         },
                         Err(e) => {
-                            log::error!("{}", e.to_string());
+                            log::error!("Ncryptf Error: {}", e.to_string());
                             return Err(false);
                         }
                     }
                 }
                 Err(e) => {
-                    log::error!("{}", e.to_string());
+                    log::error!("Error: {}", e.to_string());
                     return Err(false);
                 }
             },
             _ => Err(false),
         },
         Err(e) => {
-            log::error!("{}", e.to_string());
+            log::error!("Unknown Error: {}", e.to_string());
             Err(false)
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_server_login() {        
+        let server = "https://local.bedrockvc.stream".to_string();
+        let code = "test_code".to_string();
+        let redirect = "http://localhost:3000/redirect".to_string();
+
+        let result = server_login(server, code, redirect).await;
+
+        assert!(result.is_err(), "Expected login to fail for test data");
     }
 }

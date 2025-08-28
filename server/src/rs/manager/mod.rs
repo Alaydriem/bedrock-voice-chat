@@ -6,17 +6,15 @@ use crate::{
 use anyhow::Error;
 use common::{
     ncryptflib as ncryptf,
-    pool::{redis::RedisDb, seaorm::AppDb},
+    pool::seaorm::AppDb,
 };
 use migration::{Migrator, MigratorTrait};
 use moka::future::Cache;
 use rocket::http::Method;
 use rocket::{self, routes};
 use rocket_cors::{AllowedOrigins, CorsOptions};
-use rocket_db_pools;
 use sea_orm_rocket::Database;
-use std::sync::Arc;
-use base64::{Engine as _, engine::general_purpose};
+use std::sync::{Arc, Mutex};
 
 /// Manager for the Rocket HTTP server
 pub struct RocketManager {
@@ -46,10 +44,17 @@ impl RocketManager {
     pub async fn start(&self) -> Result<(), Error> {
         tracing::info!("Starting Rocket HTTP server manager");
 
-        ncryptf::ek_route!(RedisDb);
+        ncryptf::ek_route!();
 
         match self.config.get_rocket_config() {
             Ok(figment) => {
+                let cache = cached::TimedCache::with_lifespan_and_refresh(
+                    std::time::Duration::from_secs(3600),
+                    true
+                );
+                let cache = Arc::new(Mutex::new(cache));
+                let cache_wrapper = ncryptf::rocket::CacheWrapper::TimedCache(cache);
+
                 let cors = CorsOptions::default()
                     .allowed_origins(AllowedOrigins::all())
                     .allowed_methods(
@@ -61,12 +66,12 @@ impl RocketManager {
                     .allow_credentials(true);
 
                 let rocket = rocket::custom(figment)
+                    .manage(cache_wrapper)
                     .manage(self.config.server.clone())
                     .manage(self.webhook_receiver.clone())
                     .manage(self.channel_cache.clone())
                     .manage(self.cache_manager.clone())
                     .attach(AppDb::init())
-                    .attach(RedisDb::init())
                     .attach(cors.to_cors().unwrap())
                     .attach(rocket::fairing::AdHoc::try_on_ignite("Migrations", migrate))
                     .mount("/assets", rocket::fs::FileServer::from("assets"))

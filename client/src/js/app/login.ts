@@ -81,7 +81,7 @@ export default class Login extends App {
 
       openUrl(authLoginUrl);
     }).catch((e) => {
-      warn(e);
+      warn(String(e));
       serverUrl.classList.add("border-error");
       errorMessage.classList.remove("invisible");
     });
@@ -95,7 +95,7 @@ export default class Login extends App {
     const redirectUrl = (() => {
       switch (platform()) {
         case "windows": return "bedrock-voice-chat://auth";
-        case "android": return "mmsauth://com.alaydriem.bvc/" + androidSignatureHash;
+        case "android": return "bedrock-voice-chat://auth";
         case "ios": return "msauth.com.alaydriem.bvc.client://auth";
         default: throw new Error("Unsupported platform");
       };
@@ -178,7 +178,7 @@ export default class Login extends App {
         throw new Error("authStateEndpoint is undefined");
       }
     }).catch((e) => {
-      warn(e);
+      warn(String(e));
       serverUrl?.classList.add("border-error");
       errorMessage?.classList.remove("invisible");
     });

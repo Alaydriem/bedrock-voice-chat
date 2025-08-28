@@ -21,7 +21,7 @@ path = "./src/lib.rs"
 
 [dependencies]
 nanoid = { version = "^0.4" }
-ncryptf-rs = { version = "^0.4", features = ["rocket", "client"] }
+ncryptf-rs = { version = "^0.5", features = ["rocket", "client"] }
 tokio = { version = "^1.38", features = ["full"] }
 anyhow = { version = "^1.0" }
 serde = { version = "^1", features = ["derive"] }
