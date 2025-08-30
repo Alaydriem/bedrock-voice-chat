@@ -23,47 +23,16 @@ export class PlayerPresenceManager {
 
         debug("Initializing simplified PlayerPresenceManager...");
         
-        // Set the Tauri store reference for the audio control functions
         setTauriStore(this.store);
         
-        // Clean up any existing listener
         this.cleanup();
         
-        // Load persisted players from Tauri store
-        await this.loadPersistedPlayers();
-        
-        // Set up single event listener
         this.unlisten = await getCurrentWebviewWindow().listen("player_presence", (event: any) => {
             this.handlePresenceEvent(event);
         });
         
         this.isInitialized = true;
         info("PlayerPresenceManager initialized successfully");
-    }
-    
-    private async loadPersistedPlayers(): Promise<void> {
-        try {
-            info("Loading persisted players from store...");
-            
-            // Clear reactive store first
-            playerStore.clear();
-            
-            // Get current player gain store (our source of truth for persistence)
-            const playerGainStore = await this.store.get("player_gain_store") as PlayerGainStore || {};
-            
-            let loadedCount = 0;
-            // Add each player to reactive store
-            for (const [playerName, settings] of Object.entries(playerGainStore)) {
-                if (playerName && settings) {
-                    playerStore.add(playerName, settings);
-                    loadedCount++;
-                }
-            }
-            
-            debug(`Loaded ${loadedCount} persisted players into reactive store`);
-        } catch (err) {
-            error(`Failed to load persisted players: ${err}`);
-        }
     }
     
     private async handlePresenceEvent(event: any): Promise<void> {
@@ -90,13 +59,11 @@ export class PlayerPresenceManager {
         info(`Processing player presence: ${playerName} - ${status}`);
         
         if (status === 'joined') {
-            // Only add if not already present (natural deduplication)
             if (!playerStore.has(playerName)) {
                 debug(`Adding new player: ${playerName}`);
                 const settings = await this.getPlayerSettings(playerName);
                 playerStore.add(playerName, settings);
                 
-                // Persist to store
                 await this.savePlayerToStore(playerName, settings);
             } else {
                 debug(`Player ${playerName} already exists, skipping add`);
@@ -105,7 +72,6 @@ export class PlayerPresenceManager {
             debug(`Removing player: ${playerName}`);
             playerStore.remove(playerName);
             
-            // Remove from persistent store too
             await this.removePlayerFromStore(playerName);
         } else {
             error(`Unknown presence status: ${status} for player ${playerName}`);
@@ -130,7 +96,6 @@ export class PlayerPresenceManager {
             await this.store.set("player_gain_store", playerGainStore);
             await this.store.save();
             
-            // Update backend metadata
             await invoke("update_stream_metadata", {
                 key: "player_gain_store",
                 value: JSON.stringify(playerGainStore),
@@ -151,7 +116,6 @@ export class PlayerPresenceManager {
             await this.store.set("player_gain_store", playerGainStore);
             await this.store.save();
             
-            // Update backend metadata
             await invoke("update_stream_metadata", {
                 key: "player_gain_store",
                 value: JSON.stringify(playerGainStore),
@@ -164,7 +128,6 @@ export class PlayerPresenceManager {
         }
     }
     
-    // Public methods for updating player settings
     async updatePlayerGain(playerName: string, gain: number): Promise<void> {
         const player = playerStore.get(playerName);
         if (!player) {
@@ -193,7 +156,6 @@ export class PlayerPresenceManager {
         debug(`${muted ? 'Muted' : 'Unmuted'} ${playerName}`);
     }
     
-    // Public utility methods
     getActivePlayerCount(): number {
         return playerStore.size();
     }
