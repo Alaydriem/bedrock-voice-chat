@@ -1,9 +1,13 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import AudioSettings from "../../../js/app/settings/audio";
-    onMount(() => {
+    import { family } from '@tauri-apps/plugin-os';
+    
+    let osFamily: string = "";
+    onMount(async () => {
+        osFamily = await family();
         const settings = new AudioSettings();
-        settings.initialize();
+        settings.initialize(osFamily);
     });
 </script>
 
@@ -21,18 +25,20 @@
             </p>
         </div>
 
-        <div class="flex mb-4 -mx-2">
-            
-            <div class="mt-5 flex-1 px-5" id="input-audio-device-container">
-            </div>
-            <div
-                id="audio-device-select-spinner"
-                class="justify-center spinner size-7 animate-spin rounded-full border-[3px] border-warning/30 border-r-warning"
-            ></div>
+        {#if osFamily !== "ios" && osFamily !== "android"}
+            <div class="flex mb-4 -mx-2">
+                
+                <div class="mt-5 flex-1 px-5" id="input-audio-device-container">
+                </div>
+                <div
+                    id="audio-device-select-spinner"
+                    class="justify-center spinner size-7 animate-spin rounded-full border-[3px] border-warning/30 border-r-warning"
+                ></div>
 
-            <div class="mt-5 flex-1 px-5" id="output-audio-device-container">
+                <div class="mt-5 flex-1 px-5" id="output-audio-device-container">
+                </div>
             </div>
-        </div>
+        {/if}
 
         <div class="my-4 h-px  bg-slate-200 dark:bg-navy-500"></div>
 
@@ -40,10 +46,10 @@
             <h2
                 class="font-medium tracking-wide text-slate-700 line-clamp-1 dark:text-navy-100 lg:text-base pb-2"
             >
-                Noise Supression
+                Noise Suppression
             </h2>
             <p class="text-sm leading-6">
-                Supress background noise from your microphone.
+                Suppress background noise from your microphone.
             </p>
         </div>
 

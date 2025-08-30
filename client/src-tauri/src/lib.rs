@@ -41,15 +41,14 @@ pub fn run() {
                 .expect("no main window")
                 .set_focus();
         }));
+    }
 
-        builder = builder.plugin(
+    builder
+        .plugin(
             tauri_plugin_log::Builder::new()
                 .level(log::LevelFilter::Info)
                 .build(),
         )
-    }
-
-    builder
         //.plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_os::init())

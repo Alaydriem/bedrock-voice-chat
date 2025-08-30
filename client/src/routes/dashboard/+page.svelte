@@ -1,7 +1,7 @@
 <script lang="ts">
   // The sidebar and related functionality is not available in this version.
   // It can be enabled by setting the variable `isGroupChatSidebarAvailable` to true.
-  const isGroupChatSidebarAvailable = true;
+  let isGroupChatSidebarAvailable = true;
 
   import MainSidebar from "../../components/dashboard/sidebar/MainSidebar.svelte";
   import MainSidebarGroupVcPanel from "../../components/dashboard/sidebar/MainSidebarGroupVCPanel.svelte";
@@ -10,13 +10,62 @@
   import Dashboard from "../../js/app/dashboard.ts";
   import { PlayerPresenceManager } from "../../js/app/components/dashboard/presence.ts";
   import { Store } from '@tauri-apps/plugin-store';
+  import PlatformDetector from "../../js/app/utils/PlatformDetector";
+  import SwipeGestureManager from "../../js/app/utils/SwipeGestureManager";
 
-  import { info, error } from '@tauri-apps/plugin-log';
+  import { info, error, debug } from '@tauri-apps/plugin-log';
   import { onMount, onDestroy, mount, setContext } from "svelte";
 
   let playerPresenceManager: PlayerPresenceManager | undefined;
+  let swipeGesture: any = null;
+  let isMobile = false;
+  
+  // Initialize utilities
+  const platformDetector = new PlatformDetector();
+  const swipeGestureManager = new SwipeGestureManager();
+
+  const isSidebarOpen = () => {
+    return document.querySelector("body")?.classList.contains("is-sidebar-open") || false;
+  };
+
+  const openSidebar = () => {
+    if (!isSidebarOpen()) {
+      document.querySelector("body")?.classList.add("is-sidebar-open");
+      document.querySelector("#sidebar-toggle")?.classList.add("active");
+    }
+  };
+
+  const closeSidebar = () => {
+    if (isSidebarOpen()) {
+      document.querySelector("body")?.classList.remove("is-sidebar-open");
+      document.querySelector("#sidebar-toggle")?.classList.remove("active");
+    }
+  };
+
+  const openGroupChatPanel = () => {
+    openSidebar();
+  };
+
+  const closeGroupChatPanel = () => {
+    closeSidebar();
+  };
+
+  const toggleSidebar = () => {
+    if (isSidebarOpen()) {
+      closeSidebar();
+    } else {
+      openSidebar();
+    }
+  };
 
   onMount(async () => {
+    isMobile = await platformDetector.checkMobile();
+    
+    // TEMPORARY: Force mobile mode for testing (remove this later)
+    isMobile = true;
+    
+    await debug(`Platform detection: isMobile = ${isMobile}`);
+
     window.App = new Dashboard();
     window.dispatchEvent(new CustomEvent("app:mounted"));
 
@@ -33,16 +82,36 @@
         target: mainSidebarContainer,
       });
 
-      document.querySelector("body")?.classList.remove("is-sidebar-open");
-      
       if (isGroupChatSidebarAvailable) {
-        document.querySelector("body")?.classList.add("is-sidebar-open");
-      } else {
-        document.querySelector("body")?.classList.remove("is-sidebar-open");
+        openSidebar();
+        closeSidebar();
       }
     }
 
-    // Initialize the main dashboard
+    if (isMobile && isGroupChatSidebarAvailable) {
+      
+      setTimeout(() => {
+        const mainContent = document.querySelector('.main-content');
+        const rootElement = document.getElementById('root');
+        const targetElement = mainContent || rootElement;
+        
+        if (targetElement) {
+          swipeGesture = swipeGestureManager.create({
+            target: targetElement,
+            threshold: 50, // Lower threshold for easier testing
+            velocity: 0.2, // Lower velocity for easier testing
+            debug: true, // Enable debug mode
+            swipeLeft: ({ distance, velocity }: { distance: number; velocity: number }) => {
+              closeGroupChatPanel();
+            },
+            swipeRight: ({ distance, velocity }: { distance: number; velocity: number }) => {
+              openGroupChatPanel();
+            }
+          });
+        }
+      }, 100);
+    }
+
     await window.App.initialize();
     
     // Initialize PlayerPresenceManager at page level
@@ -52,13 +121,18 @@
       await playerPresenceManager.initialize();
       
       // Make presence manager available to child components via context
-      setContext('presenceManager', playerPresenceManager);
+      //setContext('presenceManager', playerPresenceManager);
     } catch (err) {
-      error("Failed to initialize PlayerPresenceManager: ${err}");
+      error("Failed to initialize PlayerPresenceManager" + err);
     }
   });
 
   onDestroy(() => {
+    // Clean up swipe gesture
+    if (swipeGesture) {
+      swipeGesture.destroy();
+    }
+    
     // Clean up PlayerPresenceManager when page is destroyed
     if (playerPresenceManager) {
       playerPresenceManager.cleanup();

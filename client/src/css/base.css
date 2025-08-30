@@ -86,15 +86,16 @@ body.is-monochrome::before {
 
 /* Sidebar */
 .main-sidebar {
-  @apply fixed top-0 left-0 z-40 h-full w-[var(--main-sidebar-width)] shrink-0 -translate-x-full transform-gpu transition-transform duration-200 ease-in md:z-[60] md:translate-x-0;
+  @apply fixed top-0 left-0 z-50 h-full w-[var(--main-sidebar-width)] shrink-0 translate-x-0 transform-gpu transition-transform duration-200 ease-in;
 }
 
-.is-sidebar-open .main-sidebar {
+/* Remove this rule since main sidebar should always be visible */
+/* .is-sidebar-open .main-sidebar {
   @apply translate-x-0;
-}
+} */
 
 .sidebar-panel {
-  @apply fixed top-0 left-0 z-30 h-full w-[calc(var(--main-sidebar-width)+var(--sidebar-panel-width))] -translate-x-full transform-gpu shadow-soft transition-transform delay-150 duration-[.25s] ease-in dark:shadow-navy-900/60 md:delay-[unset];
+  @apply fixed top-0 left-0 z-40 h-full w-[calc(var(--main-sidebar-width)+var(--sidebar-panel-width))] -translate-x-full transform-gpu shadow-soft transition-transform delay-150 duration-[.25s] ease-in dark:shadow-navy-900/60;
 }
 
 .is-sidebar-open .sidebar-panel {
@@ -102,7 +103,7 @@ body.is-monochrome::before {
 }
 
 .sidebar-panel-min {
-  @apply fixed z-40 h-full w-[var(--sidebar-panel-min-width)] shrink-0 -translate-x-full transform-gpu shadow-soft transition-transform duration-[.25s] ease-in dark:shadow-navy-900/60 md:translate-x-[var(--main-sidebar-width)];
+  @apply fixed z-40 h-full w-[var(--sidebar-panel-min-width)] shrink-0 -translate-x-full transform-gpu shadow-soft transition-transform duration-[.25s] ease-in dark:shadow-navy-900/60;
 }
 
 .is-sidebar-open .sidebar-panel-min {
@@ -111,7 +112,7 @@ body.is-monochrome::before {
 
 /* Header */
 nav.header {
-  @apply fixed top-0 right-0 z-20 flex h-[61px] w-full border-b border-slate-150 transition-all duration-[.25s] dark:border-navy-700 md:w-[calc(100%-var(--main-sidebar-width))];
+  @apply fixed top-0 right-0 z-20 flex h-[61px] w-[calc(100%-var(--main-sidebar-width))] border-b border-slate-150 transition-all duration-[.25s] dark:border-navy-700;
 }
 
 nav.header:before {
@@ -123,11 +124,12 @@ nav.header .header-container {
 }
 
 .has-min-sidebar nav.header {
-  @apply md:w-[calc(100%-(var(--main-sidebar-width)+var(--sidebar-panel-min-width)))];
+  @apply w-[calc(100%-(var(--main-sidebar-width)+var(--sidebar-panel-min-width)))];
 }
 
+/* When sidebar panel is open, account for both main-sidebar and sidebar-panel */
 .is-sidebar-open nav.header {
-  @apply xl:w-[calc(100%-(var(--main-sidebar-width)+var(--sidebar-panel-width)))];
+  @apply w-[calc(100%-(var(--main-sidebar-width)+var(--sidebar-panel-width)))];
 }
 
 .is-header-blur nav.header .header-container {
@@ -139,16 +141,18 @@ nav.header .header-container {
 }
 
 /* Main content */
+/* Main content positioning */
 .main-content {
-  @apply mt-[60px] grid grid-cols-1 place-content-start transition-[width,margin-left,margin-right,padding-left,padding-right] duration-[.25s] ease-in print:m-0 md:ml-[var(--main-sidebar-width)];
+  @apply mt-[60px] grid grid-cols-1 place-content-start transition-[width,margin-left,margin-right,padding-left,padding-right] duration-[.25s] ease-in print:m-0 ml-[var(--main-sidebar-width)];
 }
 
 .has-min-sidebar .main-content {
-  @apply md:ml-[calc(var(--main-sidebar-width)+var(--sidebar-panel-min-width))];
+  @apply ml-[calc(var(--main-sidebar-width)+var(--sidebar-panel-min-width))];
 }
 
+/* When sidebar panel is open, account for both main-sidebar and sidebar-panel */
 .is-sidebar-open .main-content {
-  @apply ease-out xl:ml-[calc(var(--main-sidebar-width)+var(--sidebar-panel-width))];
+  @apply ease-out ml-[calc(var(--main-sidebar-width)+var(--sidebar-panel-width))];
 }
 
 /* Sideblock styles */
