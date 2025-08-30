@@ -2,6 +2,7 @@ import { info, error, warn } from '@tauri-apps/plugin-log';
 import { invoke } from "@tauri-apps/api/core";
 import { mount } from "svelte";
 import { Store } from '@tauri-apps/plugin-store';
+import PlatformDetector from '../utils/PlatformDetector';
 
 import '../../../../node_modules/webaudio-controls/webaudio-controls.js';
 
@@ -17,11 +18,19 @@ declare global {
 
 export default class AudioSettings  {
     private store: Store | undefined;
-    async initialize(osFamily: string) {
-        this.store = await Store.load("store.json", { autoSave: false });
+    private platformDetector: PlatformDetector;
 
+    constructor() {
+        this.platformDetector = new PlatformDetector();
+    }
+
+    async initialize(): Promise<boolean> {
+        this.store = await Store.load("store.json", { autoSave: false });
+        
+        const isMobile = await this.platformDetector.checkMobile();
+        
         // Don't load the devices options on mobile
-        if (osFamily != "ios" && osFamily != "android") {
+        if (!isMobile) {
             document.getElementById("audio-settings-page")?.classList.remove("hidden");
             await invoke<Record<string, AudioDevice[]>>("get_devices")
             .then(async (devices) => {
@@ -102,6 +111,9 @@ export default class AudioSettings  {
 
                 document.getElementById("audio-device-select-spinner")?.classList.add("hidden");
             });
+        } else {
+            // On mobile, show the audio settings page but hide device containers
+            document.getElementById("audio-settings-page")?.classList.remove("hidden");
         }
 
         // Noise Gate Settings
@@ -217,5 +229,8 @@ export default class AudioSettings  {
                 });
             }
         });
+        
+        // Return whether device containers should be shown (true for desktop, false for mobile)
+        return !isMobile;
     }
 }

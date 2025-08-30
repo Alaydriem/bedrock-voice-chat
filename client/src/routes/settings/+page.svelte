@@ -7,7 +7,7 @@
     onMount(() => {
       window.App = new Settings();
       window.dispatchEvent(new CustomEvent("app:mounted"));
-      
+      document.querySelector("body")?.classList.add("is-sidebar-open");
       window.App.initialize();
     });
 </script>

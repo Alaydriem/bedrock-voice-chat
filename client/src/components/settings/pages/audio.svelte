@@ -1,13 +1,12 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import AudioSettings from "../../../js/app/settings/audio";
-    import { family } from '@tauri-apps/plugin-os';
     
-    let osFamily: string = "";
+    let showDeviceContainers = false;
+    
     onMount(async () => {
-        osFamily = await family();
         const settings = new AudioSettings();
-        settings.initialize(osFamily);
+        showDeviceContainers = await settings.initialize();
     });
 </script>
 
@@ -25,20 +24,18 @@
             </p>
         </div>
 
-        {#if osFamily !== "ios" && osFamily !== "android"}
-            <div class="flex mb-4 -mx-2">
-                
-                <div class="mt-5 flex-1 px-5" id="input-audio-device-container">
-                </div>
-                <div
-                    id="audio-device-select-spinner"
-                    class="justify-center spinner size-7 animate-spin rounded-full border-[3px] border-warning/30 border-r-warning"
-                ></div>
-
-                <div class="mt-5 flex-1 px-5" id="output-audio-device-container">
-                </div>
+        <div class="flex mb-4 -mx-2">
+            
+            <div class="mt-5 flex-1 px-5" id="input-audio-device-container">
             </div>
-        {/if}
+            <div
+                id="audio-device-select-spinner"
+                class="justify-center spinner size-7 animate-spin rounded-full border-[3px] border-warning/30 border-r-warning"
+            ></div>
+
+            <div class="mt-5 flex-1 px-5" id="output-audio-device-container">
+            </div>
+        </div>
 
         <div class="my-4 h-px  bg-slate-200 dark:bg-navy-500"></div>
 
