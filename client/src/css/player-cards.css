@@ -134,11 +134,8 @@
 
 /* Flexbox container for responsive card layout */
 .player-card-container {
-  /* Let flexbox distribute space evenly, with responsive sizing */
-  flex: 0 0 auto;
-  /* 2 cards per row on mobile */
-  width: calc(50% - 1rem);
-  max-width: 280px;
+  /* Full width on mobile, 98%-1rem on sm and up, max-width constraint on larger screens */
+  @apply w-full sm:w-[calc(98%-1rem)] sm:max-w-[280px] flex-shrink-0;
 }
 
 .player-card-overlay {
