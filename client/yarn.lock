@@ -1577,9 +1577,9 @@ tapable@^2.2.0:
   resolved "https://registry.npmjs.org/tapable/-/tapable-2.2.1.tgz"
   integrity sha512-GNzQvQTOIP6RyTfE2Qxb8ZVlNmw0n88vp1szwWRimP02mnTsx3Wtn5qRdqY9w2XduFNUgvOwhNnQsjwCp+kqaQ==
 
-"tauri-plugin-audio-permissions-api@https://github.com/charlesportwoodii/tauri-plugin-record-audio-permissions":
+"tauri-plugin-audio-permissions@https://github.com/charlesportwoodii/tauri-plugin-audio-permissions":
   version "0.1.0"
-  resolved "https://github.com/charlesportwoodii/tauri-plugin-record-audio-permissions#81b0b9909049da4b92448e673130d88b63a5900e"
+  resolved "https://github.com/charlesportwoodii/tauri-plugin-audio-permissions#0208612f8072b51d87da603b542bc3af512ee556"
   dependencies:
     "@tauri-apps/api" ">=2.0.0-beta.6"
 

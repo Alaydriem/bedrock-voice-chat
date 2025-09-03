@@ -19,7 +19,7 @@ import type { PlayerGainStore } from '../bindings/PlayerGainStore.ts';
 import {
     requestPermission as requestAudioPermissions,
     checkPermission as checkAudioPermissions
-} from 'tauri-plugin-audio-permissions-api';
+} from 'tauri-plugin-audio-permissions';
 
 declare global {
   interface Window {
