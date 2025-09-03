@@ -1579,7 +1579,7 @@ tapable@^2.2.0:
 
 "tauri-plugin-audio-permissions@https://github.com/charlesportwoodii/tauri-plugin-audio-permissions":
   version "0.1.0"
-  resolved "https://github.com/charlesportwoodii/tauri-plugin-audio-permissions#0208612f8072b51d87da603b542bc3af512ee556"
+  resolved "https://github.com/charlesportwoodii/tauri-plugin-audio-permissions#b23dbb00a4272a0ac7efd7edfc7fae86f28bf05e"
   dependencies:
     "@tauri-apps/api" ">=2.0.0-beta.6"
 

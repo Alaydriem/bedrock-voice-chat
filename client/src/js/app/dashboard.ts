@@ -17,8 +17,8 @@ import type { NoiseGateSettings } from '../bindings/NoiseGateSettings.ts';
 import type { PlayerGainStore } from '../bindings/PlayerGainStore.ts';
 
 import {
-    requestPermission as requestAudioPermissions,
-    checkPermission as checkAudioPermissions
+    requestAudioPermissions,
+    checkAudioPermissions
 } from 'tauri-plugin-audio-permissions';
 
 declare global {
