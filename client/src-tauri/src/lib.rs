@@ -79,10 +79,7 @@ pub fn run() {
             crate::commands::network::change_network_stream,
             crate::commands::network::reset_nsm,
             // API implementation
-            crate::api::commands::api_ping,
-            crate::commands::plugin::record_audio_permissions::request_audio_permission,
-            crate::commands::plugin::record_audio_permissions::check_audio_permission,
-
+            crate::api::commands::api_ping
         ])
         .setup(|app| {
             log::info!("BVC Variant {:?}", crate::commands::env::get_variant());

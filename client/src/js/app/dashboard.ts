@@ -1,6 +1,6 @@
 
 import { Store } from '@tauri-apps/plugin-store';
-import { info, error, warn } from '@tauri-apps/plugin-log';
+import { info, error, warn, debug } from '@tauri-apps/plugin-log';
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
@@ -15,6 +15,11 @@ import Sidebar from "./components/dashboard/sidebar.ts";
 import Notification from "../../components/events/Notification.svelte";
 import type { NoiseGateSettings } from '../bindings/NoiseGateSettings.ts';
 import type { PlayerGainStore } from '../bindings/PlayerGainStore.ts';
+
+import {
+    requestPermission as requestAudioPermissions,
+    checkPermission as checkAudioPermissions
+} from 'tauri-plugin-audio-permissions-api';
 
 declare global {
   interface Window {
@@ -68,13 +73,19 @@ export default class Dashboard extends App {
             const isInputStreamStopped = await invoke("is_stopped", { device: "InputDevice" }).then((stopped) => stopped as boolean);
             const isOutputStreamStopped = await invoke("is_stopped", { device: "OutputDevice" }).then((stopped) => stopped as boolean);
             if (isInputStreamStopped || isOutputStreamStopped) {
-                console.log("Audio engine is stopped, reinitializing...");
+                debug("Audio engine is stopped, reinitializing...");
                 await this.shutdown();
-                await this.initializeAudioDevicesAndNetworkStream(this.store, currentServer ?? "", currentServerCredentials);
+                await requestAudioPermissions().then(async (granted) => {
+                    if (granted) {
+                        info("Audio permissions are granted by ABI");
+                        await this.initializeAudioDevicesAndNetworkStream(this.store!, currentServer ?? "", currentServerCredentials);
+                    } else {
+                        warn("Audio permissions are not granted, or need to be requested");
+                    }
+                });
+                
             }
         }
-
-        
         // Render the dashboard
     }
 
