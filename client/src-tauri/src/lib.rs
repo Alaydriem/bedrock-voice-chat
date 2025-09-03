@@ -49,6 +49,7 @@ pub fn run() {
                 .level(log::LevelFilter::Info)
                 .build(),
         )
+        .plugin(tauri_plugin_audio_permissions::init())
         //.plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_os::init())
@@ -79,6 +80,9 @@ pub fn run() {
             crate::commands::network::reset_nsm,
             // API implementation
             crate::api::commands::api_ping,
+            crate::commands::plugin::record_audio_permissions::request_audio_permission,
+            crate::commands::plugin::record_audio_permissions::check_audio_permission,
+
         ])
         .setup(|app| {
             log::info!("BVC Variant {:?}", crate::commands::env::get_variant());

@@ -22,7 +22,7 @@ name = "bvc_client_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "^2.2", features = [] }
+tauri-build = { version = "^2.4", features = [] }
 
 [dependencies]
 common = { path = "./../../common" }
@@ -51,7 +51,7 @@ bytes = { version = "^1.10" }
 async-mutex = { version = "^1.4" }
 moka = { version = "^0.12", features = ["future", "sync"] }
 opus = { git = "https://github.com/SpaceManiac/opus-rs", rev ="834381efeaa864d06925e849992341926d358879" }
-ron = { version = "^0.10" }
+ron = { version = "^0.11" }
 audio-gate = { version = "^0.1" }
 flume = { version = "^0.11" }
 trust-dns-resolver = { version = "^0.23", features = ["tokio-runtime", "tokio-rustls", "rustls", "serde"] }
@@ -59,7 +59,7 @@ windows-targets = "^0.53.0"
 ts-rs = { version = "^11.0" }
 ringbuf = "^0.4"
 
-tauri = { version = "^2.7", features = ["rustls-tls"] }
+tauri = { version = "^2.8", features = ["rustls-tls"] }
 tauri-plugin-opener = "^2.4"
 tauri-plugin-deep-link = "^2.4" 
 tauri-plugin-fs = "^2.4"
@@ -69,9 +69,10 @@ tauri-plugin-http = { version = "^2.5", default-features = false, features = [
   "cookies",
   "http2",
 ] }
+tauri-plugin-audio-permissions = { git = "https://github.com/charlesportwoodii/tauri-plugin-record-audio-permissions" }
 tauri-plugin-store = "^2.3"
 tauri-plugin-notification = "^2.3"
-tauri-plugin-log = "^2.6"
+tauri-plugin-log = "^2.7"
 tauri-plugin-os = "2"
 once_cell = { version = "^1.21", features = ["atomic-polyfill"] }
 reqwest = { version = "0.12", features = ["rustls-tls", "json", "multipart"],  default-features = false }

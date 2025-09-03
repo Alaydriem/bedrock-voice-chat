@@ -574,6 +574,11 @@
     postcss "^8.4.41"
     tailwindcss "4.0.6"
 
+"@tauri-apps/api@>=2.0.0-beta.6", "@tauri-apps/api@^2.8.0":
+  version "2.8.0"
+  resolved "https://registry.yarnpkg.com/@tauri-apps/api/-/api-2.8.0.tgz#0348a2b3ba5982ec67a7d569f329b4a55d7d5f1e"
+  integrity sha512-ga7zdhbS2GXOMTIZRT0mYjKJtR9fivsXzsyq5U3vjDL0s6DTMwYRm0UHNjzTY5dh4+LSC68Sm/7WEiimbQNYlw==
+
 "@tauri-apps/api@^2":
   version "2.5.0"
   resolved "https://registry.yarnpkg.com/@tauri-apps/api/-/api-2.5.0.tgz#f1c67b5505ba689621b549f9d0165389337586dc"
@@ -583,11 +588,6 @@
   version "2.2.0"
   resolved "https://registry.npmjs.org/@tauri-apps/api/-/api-2.2.0.tgz"
   integrity sha512-R8epOeZl1eJEl603aUMIGb4RXlhPjpgxbGVEaqY+0G5JG9vzV/clNlzTeqc+NLYXVqXcn8mb4c5b9pJIUDEyAg==
-
-"@tauri-apps/api@^2.8.0":
-  version "2.8.0"
-  resolved "https://registry.yarnpkg.com/@tauri-apps/api/-/api-2.8.0.tgz#0348a2b3ba5982ec67a7d569f329b4a55d7d5f1e"
-  integrity sha512-ga7zdhbS2GXOMTIZRT0mYjKJtR9fivsXzsyq5U3vjDL0s6DTMwYRm0UHNjzTY5dh4+LSC68Sm/7WEiimbQNYlw==
 
 "@tauri-apps/cli-darwin-arm64@2.5.0":
   version "2.5.0"
@@ -1576,6 +1576,12 @@ tapable@^2.2.0:
   version "2.2.1"
   resolved "https://registry.npmjs.org/tapable/-/tapable-2.2.1.tgz"
   integrity sha512-GNzQvQTOIP6RyTfE2Qxb8ZVlNmw0n88vp1szwWRimP02mnTsx3Wtn5qRdqY9w2XduFNUgvOwhNnQsjwCp+kqaQ==
+
+"tauri-plugin-audio-permissions@https://github.com/charlesportwoodii/tauri-plugin-record-audio-permissions":
+  version "0.1.0"
+  resolved "https://github.com/charlesportwoodii/tauri-plugin-record-audio-permissions#abae146a34868576f8f1eaa306b0651ba45ab5fa"
+  dependencies:
+    "@tauri-apps/api" ">=2.0.0-beta.6"
 
 tippy.js@^6.3:
   version "6.3.7"
