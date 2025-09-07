@@ -6,8 +6,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { invoke } from "@tauri-apps/api/core";
 import { onOpenUrl } from "@tauri-apps/plugin-deep-link";
 import { type LoginResponse } from "../bindings/LoginResponse";
-
-import Hold from "./hold.ts";
+import Keyring from "./keyring.ts";
 import App from './app.js';
 
 declare global {
@@ -140,11 +139,17 @@ export default class Login extends App {
     })
     .then(async (response) => response as LoginResponse)
     .then(async(response) => {
-      const hold = await Hold.new("servers");
+      const keyring = await Keyring.new("servers");
       if (authStateEndpoint) {
         // Insert and save data, commit, set the current server, then redirect to the dashboard
-        await hold.insert(authStateEndpoint, JSON.stringify(response));
-        await hold.commit();
+        Object.keys(response).forEach(async key => {
+          const value = response[key as keyof LoginResponse];
+          if (typeof value === "string" || value instanceof Uint8Array) {
+            await keyring.insert(authStateEndpoint + "_" + key, value);
+          } else {
+            await keyring.insert(authStateEndpoint + "_" + key, JSON.stringify(value));
+          }
+        });
         await store.set("current_server", authStateEndpoint);
         await store.set("current_player", response.gamertag);
         if (await store.has("server_list")) {
@@ -178,7 +183,8 @@ export default class Login extends App {
         throw new Error("authStateEndpoint is undefined");
       }
     }).catch((e) => {
-      warn(String(e));
+      warn(e);
+      warn(JSON.stringify(e));
       serverUrl?.classList.add("border-error");
       errorMessage?.classList.remove("invisible");
     });

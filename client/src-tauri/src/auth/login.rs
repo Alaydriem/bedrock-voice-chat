@@ -11,6 +11,8 @@ use tauri_plugin_http::reqwest::{
     StatusCode,
 };
 
+use base64::{Engine as _, engine::general_purpose};
+
 use crate::auth::ncryptf;
 
 pub(crate) async fn server_login(
@@ -46,7 +48,7 @@ pub(crate) async fn server_login(
     headers.insert("X-HashId", HeaderValue::from_str(&ek.hash_id).unwrap());
     headers.insert(
         "X-PubKey",
-        HeaderValue::from_str(&base64::encode(kp.get_public_key())).unwrap(),
+        HeaderValue::from_str(&general_purpose::STANDARD.encode(kp.get_public_key())).unwrap(),
     );
 
     let endpoint = format!("{}/{}", &server, ncryptf::AUTH_ENDPOINT);
@@ -62,7 +64,7 @@ pub(crate) async fn server_login(
         Ok(response) => match response.status() {
             StatusCode::OK => match response.bytes().await {
                 Ok(bytes) => {
-                    let bbody = base64::decode(bytes.clone()).unwrap();
+                    let bbody = general_purpose::STANDARD.decode(bytes.clone()).unwrap();
                     let r = common::ncryptflib::Response::from(kp.get_secret_key()).unwrap();
 
                     match r.decrypt(bbody, None, None) {

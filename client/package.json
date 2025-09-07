@@ -28,6 +28,7 @@
     "@use-gesture/vanilla": "^10.3.1",
     "murmurhash3js": "^3.0.1",
     "tauri-plugin-audio-permissions": "https://github.com/charlesportwoodii/tauri-plugin-audio-permissions",
+    "tauri-plugin-keyring": "https://github.com/charlesportwoodii/tauri-plugin-keyring",
     "ts-pattern": "^5.6",
     "webaudio-controls": "https://github.com/g200kg/webaudio-controls#master"
   },

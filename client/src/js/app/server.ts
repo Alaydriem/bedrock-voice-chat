@@ -7,10 +7,26 @@ import murmurHash3 from "murmurHash3js";
 import { mount } from 'svelte';
 import ServerAvatar from '../../components/ServerAvatar.svelte';
 
-import Hold from "./hold.ts";
+import Keyring from "./keyring.ts";
 import App from './app.js';
 
 import { type LoginResponse } from "../bindings/LoginResponse";
+
+// Utility function to get all keys from a type at runtime
+function getLoginResponseKeys(): (keyof LoginResponse)[] {
+  // Create a sample object that satisfies the LoginResponse type
+  const sample: Record<keyof LoginResponse, any> = {
+    gamerpic: null,
+    gamertag: null,
+    keypair: null,
+    signature: null,
+    certificate: null,
+    certificate_key: null,
+    certificate_ca: null,
+    quic_connect_string: null
+  };
+  return Object.keys(sample) as (keyof LoginResponse)[];
+}
 
 declare global {
   interface Window {
@@ -21,9 +37,56 @@ declare global {
 export default class Server extends App {
 
   private avatarSize: number = 32;
+  private keyring: Keyring | undefined;
 
   constructor() {
       super();
+  }
+
+  async setKeyring(keyring: Keyring) {
+    this.keyring = keyring;
+  }
+
+  async getCredentials(server: string): Promise<LoginResponse | null> {
+    const response: LoginResponse = {} as LoginResponse;
+    // Get keys from the LoginResponse type dynamically
+    const keys = getLoginResponseKeys();
+
+    if (!this.keyring) {
+      throw new Error("Keyring not initialized");
+    }
+    
+    for (const key of keys) {
+      const storedValue = await this.keyring.get(server + "_" + key);
+
+      if (key === "keypair" || key === "signature") {
+        let valueStr: string;
+        if (typeof storedValue === "string") {
+          valueStr = storedValue;
+        } else if (storedValue instanceof Uint8Array) {
+          valueStr = new TextDecoder().decode(storedValue);
+        } else {
+          valueStr = "";
+        }
+        (response as any)[key] = JSON.parse(valueStr);
+      } else {
+        (response as any)[key] = storedValue;
+      }
+    }
+
+    return response;
+  }
+
+  async deleteCredentials(server: string): Promise<void> {
+    const keys = getLoginResponseKeys();
+    
+    if (!this.keyring) {
+      throw new Error("Keyring not initialized");
+    }
+
+    for (const key of keys) {
+      await this.keyring.delete(server + "_" + key);
+    }
   }
 
   async initialize() {
@@ -37,13 +100,12 @@ export default class Server extends App {
       return;
     }
 
-    const stronghold = await Hold.new("servers"); 
+    this.keyring = await Keyring.new("servers");
 
     if (serverList.length === 1) {
       // Ping the server and check that we're authenticated
       const server = serverList[0].server;
-      const credentialsString = await stronghold.get(server);
-      const credentials: LoginResponse | null = credentialsString ? JSON.parse(credentialsString) as LoginResponse : null;
+      const credentials = await this.getCredentials(server);
 
       if (!credentials) {
         error("No credentials found for server " + server + ", redirecting to login page");
@@ -63,7 +125,7 @@ export default class Server extends App {
         .catch(async (e) => {
           error("Ping failed for server " + server + ": " + e);
           // If the ping fails, clear the credentials and redirect to the login page.
-          stronghold.delete(server);
+          this.deleteCredentials(server);
           // Delete the item from server_list
           serverList = serverList.filter((item) => item.server !== server);
           await store.set("server_list", serverList);
@@ -107,9 +169,7 @@ export default class Server extends App {
         const button = card?.querySelector("button");
         if (!button) { return; }
 
-        const credentialsString = await stronghold.get(server);
-        const credentials: LoginResponse | null = credentialsString ? JSON.parse(credentialsString) as LoginResponse : null;
-
+        const credentials = await this.getCredentials(server);
         if (!credentials) {
           error("No credentials found for server " + server + ", prompting for re-authentication");
           button.removeAttribute("disabled");

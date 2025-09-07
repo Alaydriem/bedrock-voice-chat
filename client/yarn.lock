@@ -689,6 +689,13 @@
   dependencies:
     "@tauri-apps/api" "^2.0.0"
 
+"@tauri-apps/plugin-log@^2.7.0":
+  version "2.7.0"
+  resolved "https://registry.yarnpkg.com/@tauri-apps/plugin-log/-/plugin-log-2.7.0.tgz#0f334f9a408b9f4efa5b23cfd45e2a2be4c5b101"
+  integrity sha512-81XQ2f93x4vmIB5OY0XlYAxy60cHdYLs0Ki8Qp38tNATRiuBit+Orh3frpY3qfYQnqEvYVyRub7YRJWlmW2RRA==
+  dependencies:
+    "@tauri-apps/api" "^2.8.0"
+
 "@tauri-apps/plugin-notification@^2":
   version "2.2.2"
   resolved "https://registry.yarnpkg.com/@tauri-apps/plugin-notification/-/plugin-notification-2.2.2.tgz#1c08c96e3411374ceb1015f5ccfc859284e79b8e"
@@ -1579,9 +1586,16 @@ tapable@^2.2.0:
 
 "tauri-plugin-audio-permissions@https://github.com/charlesportwoodii/tauri-plugin-audio-permissions":
   version "0.1.0"
-  resolved "https://github.com/charlesportwoodii/tauri-plugin-audio-permissions#b23dbb00a4272a0ac7efd7edfc7fae86f28bf05e"
+  resolved "https://github.com/charlesportwoodii/tauri-plugin-audio-permissions#812dee1278093a070ddb15f483ac6a0bbfa6cfb7"
   dependencies:
     "@tauri-apps/api" ">=2.0.0-beta.6"
+
+"tauri-plugin-keyring@https://github.com/charlesportwoodii/tauri-plugin-keyring":
+  version "0.1.0"
+  resolved "https://github.com/charlesportwoodii/tauri-plugin-keyring#759b7458675021c125c5f1a56d10f3a6c21427ed"
+  dependencies:
+    "@tauri-apps/api" "^2.0.0"
+    "@tauri-apps/plugin-log" "^2.7.0"
 
 tippy.js@^6.3:
   version "6.3.7"

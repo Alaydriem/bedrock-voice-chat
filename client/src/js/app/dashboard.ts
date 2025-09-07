@@ -9,7 +9,8 @@ import { mount } from "svelte";
 import type { AudioDevice } from "../../js/bindings/AudioDevice.ts";
 import type { LoginResponse } from "../../js/bindings/LoginResponse.ts";
 import App from './app.js';
-import Hold from './hold.ts';
+import Server from './server.ts';
+import Keyring from './keyring.ts';
 import Sidebar from "./components/dashboard/sidebar.ts";
 
 import Notification from "../../components/events/Notification.svelte";
@@ -17,8 +18,7 @@ import type { NoiseGateSettings } from '../bindings/NoiseGateSettings.ts';
 import type { PlayerGainStore } from '../bindings/PlayerGainStore.ts';
 
 import {
-    requestAudioPermissions,
-    checkAudioPermissions
+    requestPermission as requestAudioPermissions
 } from 'tauri-plugin-audio-permissions';
 
 declare global {
@@ -28,7 +28,7 @@ declare global {
 }
 
 export default class Dashboard extends App {
-    private hold: Hold | undefined;
+    private keyring: Keyring | undefined;
     private store: Store | undefined;
     private eventUnlisteners: (() => void)[] = [];
     
@@ -64,11 +64,14 @@ export default class Dashboard extends App {
         if (currentServer) {
             await this.renderSidebar(this.store, currentServer ?? "");
             
-            this.hold = await Hold.new("servers");
-            
-            const credentialsString = await this.hold?.get(currentServer);
-            currentServerCredentials = credentialsString ? JSON.parse(credentialsString) as LoginResponse : null;
+            this.keyring = await Keyring.new("servers");
 
+            const server = new Server();
+            server.setKeyring(this.keyring);
+            currentServerCredentials = await server.getCredentials(currentServer);
+
+            console.log(currentServer);
+            console.log(currentServerCredentials);
             document.getElementById("player-sidebar-avatar")?.setAttribute("src", atob(currentServerCredentials?.gamerpic ?? ""));
             const isInputStreamStopped = await invoke("is_stopped", { device: "InputDevice" }).then((stopped) => stopped as boolean);
             const isOutputStreamStopped = await invoke("is_stopped", { device: "OutputDevice" }).then((stopped) => stopped as boolean);
