@@ -17,6 +17,7 @@
     "fs:allow-mkdir",
     "http:allow-fetch-read-body",
     "audio-permissions:default",
+    "keyring:default",
     {
       "local": true,
       "windows": ["*"],
