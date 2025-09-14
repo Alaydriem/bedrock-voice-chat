@@ -20,6 +20,12 @@
   let swipeGesture: any = null;
   let isMobile = false;
   
+  // Dashboard instance and managers
+  let dashboardInstance: Dashboard | undefined;
+  let playerManager: any = undefined;
+  let channelManager: any = undefined;
+  let audioActivityManager: any = undefined;
+  
   // Initialize utilities
   const platformDetector = new PlatformDetector();
   const swipeGestureManager = new SwipeGestureManager();
@@ -60,27 +66,47 @@
 
   onMount(async () => {
     isMobile = await platformDetector.checkMobile();
-    
-    // TEMPORARY: Force mobile mode for testing (remove this later)
-    isMobile = true;
-    
-    await debug(`Platform detection: isMobile = ${isMobile}`);
 
     window.App = new Dashboard();
     window.dispatchEvent(new CustomEvent("app:mounted"));
+
+    // Initialize the Dashboard first to get managers
+    await window.App.initialize();
+    
+    // Get managers and store from the Dashboard instance
+    const managers = window.App.getManagers();
+    playerManager = managers.playerManager;
+    channelManager = managers.channelManager;
+    audioActivityManager = managers.audioActivityManager;
+    const store = await Store.load("store.json", { autoSave: false });
+    const serverUrl = await store.get<string>("current_server") || "";
 
     const mainSidebarContainer = document.getElementById(
       "main-sidebar-container",
     );
 
     if (mainSidebarContainer) {
-      mount(MainSidebar, {
+      // Mount MainSidebar first
+      const mainSidebarComponent = mount(MainSidebar, {
         target: mainSidebarContainer,
       });
 
-      mount(MainSidebarGroupVcPanel, {
+      // Mount MainSidebarGroupVcPanel to the same container (it will position itself using pl-[var(--main-sidebar-width)])
+      const groupVcPanelComponent = mount(MainSidebarGroupVcPanel, {
         target: mainSidebarContainer,
+        props: {
+          playerManager,
+          channelManager,
+          store,
+          serverUrl
+        }
       });
+
+      // Now that MainSidebar is mounted, we can render the server links
+      await window.App.renderSidebar(store, serverUrl);
+      
+      // Set the player avatar now that the DOM element exists
+      window.App.setPlayerAvatar();
 
       if (isGroupChatSidebarAvailable) {
         openSidebar();
@@ -111,13 +137,10 @@
         }
       }, 100);
     }
-
-    await window.App.initialize();
     
     // Initialize PlayerPresenceManager at page level
     try {
-      const store = await Store.load("store.json", { autoSave: false });
-      playerPresenceManager = new PlayerPresenceManager(store);
+      playerPresenceManager = new PlayerPresenceManager(store, playerManager);
       await playerPresenceManager.initialize();
       
       // Make presence manager available to child components via context
@@ -170,6 +193,11 @@
     </div>
     <div id="notification-container" class="notification-container"></div>
     <!-- Player Presence List - Now using reactive Svelte component -->
-    <PlayerPresenceList />
+    {#if playerManager && audioActivityManager}
+      <PlayerPresenceList 
+        {playerManager}
+        {audioActivityManager}
+      />
+    {/if}
   </main>
 </div>

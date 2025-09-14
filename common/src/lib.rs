@@ -13,6 +13,9 @@ pub mod rustls;
 pub mod structs;
 pub mod traits;
 
+// Re-export important types for easy access
+pub use structs::player_source::PlayerSource;
+
 extern crate rocket;
 
 pub use rocket::time::Duration as RocketDuration;

@@ -4,7 +4,6 @@ use base64::{engine::general_purpose, Engine as _};
 use serde::{Deserialize, Serialize};
 
 use super::channel::ChannelEvents;
-use async_mutex::Mutex;
 use moka::future::Cache;
 use std::sync::Arc;
 
@@ -190,7 +189,7 @@ impl QuicNetworkPacket {
     pub async fn is_receivable(
         &mut self,
         recipient: PacketOwner,
-        channel_data: Arc<Mutex<Cache<String, String>>>,
+        channel_membership: Arc<Cache<String, std::collections::HashSet<String>>>,
         position_data: Arc<Cache<String, Player>>,
         range: f32,
     ) -> bool {
@@ -205,15 +204,21 @@ impl QuicNetworkPacket {
                             return false;
                         }
 
-                        let player_channels = channel_data.lock_arc().await.clone();
-                        let this_player = player_channels.get(&self.get_author()).await;
-                        let packet_author = player_channels.get(&recipient.name).await;
+                        // Check if both players are in the same channel
+                        let sender_name = &self.get_author();
+                        let receiver_name = &recipient.name;
+                        let mut players_in_same_channel = false;
+                        
+                        // Check each channel's membership to see if both players are present
+                        for (_, members) in channel_membership.iter() {
+                            if members.contains(sender_name) && members.contains(receiver_name) {
+                                players_in_same_channel = true;
+                                break;
+                            }
+                        }
 
-                        // If the players are both in the same group, then the audio packet may be received by the sender
-                        if this_player.is_some()
-                            && packet_author.is_some()
-                            && this_player.eq(&packet_author)
-                        {
+                        // If the players are both in the same group, then the audio packet may be received
+                        if players_in_same_channel {
                             // Group audio packets defer to client sending settings, and non-spatial by default
                             if data.spatial.is_none() {
                                 data.spatial = Some(false);
@@ -305,8 +310,9 @@ impl QuicNetworkPacket {
                 },
                 None => false,
             },
+            PacketType::ChannelEvent => true,
             // If there are other packet types we want recipiants to receive, this should be updated
-            _ => false,
+            _ => self.is_broadcast(),
         }
     }
 }
@@ -461,6 +467,48 @@ pub struct ChannelEventPacket {
     pub event: ChannelEvents,
     pub name: String,
     pub channel: String,
+    pub channel_name: Option<String>, // Channel display name (for create/delete events)
+    pub creator: Option<String>,      // Channel creator (for create/delete events)
+    pub timestamp: Option<i64>,       // Unix timestamp in milliseconds
+}
+
+impl ChannelEventPacket {
+    /// Create a simple join/leave event (legacy format)
+    pub fn new(event: ChannelEvents, player_name: String, channel_id: String) -> Self {
+        Self {
+            event,
+            name: player_name,
+            channel: channel_id,
+            channel_name: None,
+            creator: None,
+            timestamp: None,
+        }
+    }
+
+    /// Create a full event with metadata (for create/delete events)
+    pub fn new_full(
+        event: ChannelEvents,
+        player_name: String,
+        channel_id: String,
+        channel_name: Option<String>,
+        creator: Option<String>,
+    ) -> Self {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        
+        Self {
+            event,
+            name: player_name,
+            channel: channel_id,
+            channel_name,
+            creator,
+            timestamp: Some(
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis() as i64
+            ),
+        }
+    }
 }
 
 impl TryFrom<QuicNetworkPacketData> for ChannelEventPacket {

@@ -117,11 +117,13 @@ export default class Server extends App {
         return;
       }
 
-      await invoke("api_ping", { 
+      await invoke("api_initialize_client", { 
         endpoint: server,
         cert: credentials.certificate_ca,
         pem: credentials.certificate + credentials.certificate_key 
-      })
+      });
+
+      await invoke("api_ping")
         .then(async (response: any) => {
           window.location.href = "/dashboard";
         })
@@ -193,11 +195,13 @@ export default class Server extends App {
           return;
         }
 
-        await invoke("api_ping", { 
+        await invoke("api_initialize_client", { 
           endpoint: server,
           cert: credentials.certificate_ca,
           pem: credentials.certificate + credentials.certificate_key 
-        })
+        });
+
+        await invoke("api_ping")
           .then(async (response: any) => {
             button.removeAttribute("disabled");
             button.querySelector(".spinner")?.remove();

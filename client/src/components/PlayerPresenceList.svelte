@@ -1,43 +1,51 @@
 <script lang="ts">
-    import { activePlayers, updatePlayerGain, updatePlayerMute } from '../stores/players';
     import PlayerCard from './PlayerCard.svelte';
+    import { info } from '@tauri-apps/plugin-log';
+    import type { PlayerSource } from '../js/bindings/PlayerSource';
+    import type { PlayerManager } from '../js/app/managers/PlayerManager';
+    import type { AudioActivityManager } from '../js/app/managers/AudioActivityManager';
     
-    import { playerStore } from '../stores/players'; // adjust path as needed
-    
-    // Initialize audio activity management
-    import '../stores/audioActivity';
-
-    // Dev helper: add a mock player to the store
-    if (import.meta.env.DEV) {
-        // Expose a global function for the console
-        (window as any).addMockPlayer = function(name = "TestUser", gain = 1.0, muted = false) {
-            playerStore.add(name, { gain, muted });
-            console.log(`Added mock player: ${name}`);
-        };
-        
-        // Expose helper to clear all players
-        (window as any).clearPlayers = function() {
-            playerStore.clear();
-            console.log("Cleared all players");
-        };
-        
-        // Expose helper to test audio highlighting
-        (window as any).testAudioHighlight = function(playerName = "TestUser") {
-            if (typeof (window as any).simulateAudioActivity === 'function') {
-                (window as any).simulateAudioActivity(playerName, 1.0);
-                console.log(`Testing audio highlight for ${playerName}`);
-            } else {
-                console.error('simulateAudioActivity function not available');
-            }
+    // Define PlayerData interface locally (matches PlayerManager definition)
+    interface PlayerData {
+        name: string;
+        sources: Set<string>;
+        settings: {
+            gain: number;
+            muted: boolean;
         };
     }
+    
+    // Manager props (injected via dependency injection)
+    export let playerManager: PlayerManager;
+    export let audioActivityManager: AudioActivityManager;
+
+    // Store values that will be reactively updated
+    let activePlayers: PlayerData[] = [];
+    let currentUser = "";
+
+    // Get store objects from managers
+    $: activePlayersStore = playerManager?.activePlayers;
+    $: currentUserStore = playerManager?.currentUser;
+
+    // Subscribe to stores using proper Svelte syntax
+    $: activePlayers = activePlayersStore ? $activePlayersStore : [];
+    $: currentUser = currentUserStore ? $currentUserStore : "";
 
     function handleGainChange(playerName: string, gain: number) {
-        updatePlayerGain(playerName, gain);
+        if (playerManager) {
+            playerManager.updatePlayerGain(playerName, gain);
+        }
     }
     
     function handleMuteToggle(playerName: string, muted: boolean) {
-        updatePlayerMute(playerName, muted);
+        if (playerManager) {
+            playerManager.updatePlayerMute(playerName, muted);
+        }
+    }
+    
+    // Helper function to check if a player is a group member
+    function isPlayerGroupMember(player: PlayerData): boolean {
+        return player.sources && player.sources.has('Group');
     }
 </script>
 
@@ -45,14 +53,16 @@
     
     <!-- Responsive flex layout for Discord-like card layout with auto-spacing -->
     <div class="flex flex-wrap justify-evenly gap-y-4 flex-1 min-h-0">
-        {#each $activePlayers as player (player.name)}
+        {#each activePlayers as player (player.name)}
             <div class="player-card-container">
                 <PlayerCard 
                     player={player.name}
                     initialGain={player.settings.gain}
                     initialMuted={player.settings.muted}
+                    isGroupMember={isPlayerGroupMember(player)}
                     onGainChange={(gain) => handleGainChange(player.name, gain)}
                     onMuteToggle={(muted) => handleMuteToggle(player.name, muted)}
+                    {audioActivityManager}
                 />
             </div>
         {:else}
@@ -65,10 +75,10 @@
     </div>
     
     <!-- Footer with player count -->
-    {#if $activePlayers.length > 0}
+    {#if activePlayers.length > 0}
         <div class="text-xs text-gray-500 mt-4 text-center shrink-0">
             <i class="fas fa-users mr-1"></i>
-            {$activePlayers.length} player{$activePlayers.length === 1 ? '' : 's'} connected and nearby
+            {activePlayers.length} player{activePlayers.length === 1 ? '' : 's'} connected and nearby
         </div>
     {/if}
 </div>
