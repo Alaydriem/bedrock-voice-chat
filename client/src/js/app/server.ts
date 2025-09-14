@@ -43,11 +43,12 @@ export default class Server extends App {
       super();
   }
 
-  async setKeyring(keyring: Keyring) {
+  async setKeyring(keyring: Keyring, server: string) {
     this.keyring = keyring;
+    await this.keyring.setServer(server);
   }
 
-  async getCredentials(server: string): Promise<LoginResponse | null> {
+  async getCredentials(): Promise<LoginResponse | null> {
     const response: LoginResponse = {} as LoginResponse;
     // Get keys from the LoginResponse type dynamically
     const keys = getLoginResponseKeys();
@@ -57,7 +58,7 @@ export default class Server extends App {
     }
     
     for (const key of keys) {
-      const storedValue = await this.keyring.get(server + "_" + key);
+      const storedValue = await this.keyring.get(key);
 
       if (key === "keypair" || key === "signature") {
         let valueStr: string;
@@ -85,7 +86,7 @@ export default class Server extends App {
     }
 
     for (const key of keys) {
-      await this.keyring.delete(server + "_" + key);
+      await this.keyring.delete(key);
     }
   }
 
@@ -105,7 +106,9 @@ export default class Server extends App {
     if (serverList.length === 1) {
       // Ping the server and check that we're authenticated
       const server = serverList[0].server;
-      const credentials = await this.getCredentials(server);
+      await this.keyring.setServer(server);
+      
+      const credentials = await this.getCredentials();
 
       if (!credentials) {
         error("No credentials found for server " + server + ", redirecting to login page");
@@ -169,7 +172,7 @@ export default class Server extends App {
         const button = card?.querySelector("button");
         if (!button) { return; }
 
-        const credentials = await this.getCredentials(server);
+        const credentials = await this.getCredentials();
         if (!credentials) {
           error("No credentials found for server " + server + ", prompting for re-authentication");
           button.removeAttribute("disabled");

@@ -141,13 +141,14 @@ export default class Login extends App {
     .then(async(response) => {
       const keyring = await Keyring.new("servers");
       if (authStateEndpoint) {
+        keyring.setServer(authStateEndpoint);
         // Insert and save data, commit, set the current server, then redirect to the dashboard
         Object.keys(response).forEach(async key => {
           const value = response[key as keyof LoginResponse];
           if (typeof value === "string" || value instanceof Uint8Array) {
-            await keyring.insert(authStateEndpoint + "_" + key, value);
+            await keyring.insert(key, value);
           } else {
-            await keyring.insert(authStateEndpoint + "_" + key, JSON.stringify(value));
+            await keyring.insert(key, JSON.stringify(value));
           }
         });
         await store.set("current_server", authStateEndpoint);

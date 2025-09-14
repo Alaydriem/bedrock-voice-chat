@@ -67,11 +67,9 @@ export default class Dashboard extends App {
             this.keyring = await Keyring.new("servers");
 
             const server = new Server();
-            server.setKeyring(this.keyring);
-            currentServerCredentials = await server.getCredentials(currentServer);
+            server.setKeyring(this.keyring, currentServer);
+            currentServerCredentials = await server.getCredentials();
 
-            console.log(currentServer);
-            console.log(currentServerCredentials);
             document.getElementById("player-sidebar-avatar")?.setAttribute("src", atob(currentServerCredentials?.gamerpic ?? ""));
             const isInputStreamStopped = await invoke("is_stopped", { device: "InputDevice" }).then((stopped) => stopped as boolean);
             const isOutputStreamStopped = await invoke("is_stopped", { device: "OutputDevice" }).then((stopped) => stopped as boolean);
