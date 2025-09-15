@@ -19,36 +19,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
-      - name: Check for changes
-        uses: dorny/paths-filter@v3
-        id: changes
-        with:
-          filters: |
-            server:
-              - 'server/**'
-              - 'common/**'
-              - 'migration/**'
-              - 'entity/**'
-              - '.github/workflows/build-server.yml'
-              - '.github/workflows/build-all.yml'
-            client:
-              - 'client/**'
-              - 'common/**'
-              - '.github/workflows/build-*.yml'
-              - '.github/workflows/build-all.yml'
-            common:
-              - 'common/**'
-            android:
-              - 'client/**'
-              - 'common/**'
-              - '.github/workflows/build-android.yml'
-              - '.github/workflows/build-all.yml'
-            client:
-              - 'client/**'
-              - 'common/**'
-              - '.github/workflows/build-client.yml'
-              - '.github/workflows/build-all.yml'
 
   # Build server for multiple platforms
   build-server:
