@@ -8,10 +8,6 @@ on:
       - 'common/**'
       - '.github/workflows/build-client.yml'
   pull_request:
-    paths:
-      - 'client/**'
-      - 'common/**'
-      - '.github/workflows/build-client.yml'
   workflow_call:
     inputs:
       build_mode:
