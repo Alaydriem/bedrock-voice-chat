@@ -1,0 +1,142 @@
+name: Build Android Client
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'client/**'
+      - 'common/**'
+      - '.github/workflows/build-android.yml'
+  pull_request:
+    paths:
+      - 'client/**'
+      - 'common/**'
+      - '.github/workflows/build-android.yml'
+
+jobs:
+  build-android:
+    name: Build Android Client (${{ matrix.build_mode }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        build_mode: ${{ fromJSON(inputs.build_mode && format('["{0}"]', inputs.build_mode) || '["debug", "release"]') }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'yarn'
+          cache-dependency-path: client/yarn.lock
+
+      - name: Set up Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r27c
+          add-to-path: false
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: |
+            aarch64-linux-android
+            armv7-linux-androideabi
+            armv6-linux-androideabi
+            i686-linux-android
+            x86_64-linux-android
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            client/src-tauri
+            common
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            pkg-config \
+            libssl-dev \
+            libsqlite3-dev \
+            cmake \
+            ninja-build \
+            build-essential \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+
+      - name: Install JavaScript dependencies
+        working-directory: ./client
+        run: yarn install --frozen-lockfile
+
+      - name: Download and setup ASIO SDK
+        working-directory: ./client/src-tauri
+        run: |
+          echo "Downloading ASIO SDK..."
+          curl -L -o asiosdk.zip "https://download.steinberg.net/sdk_downloads/asiosdk_2.3.3_2019-06-14.zip"
+          unzip -q asiosdk.zip
+          ls -la
+          echo "ASIO SDK downloaded and extracted"
+
+      - name: Set up Android environment
+        run: |
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_ROOT" >> $GITHUB_ENV
+          echo "ANDROID_NDK_ROOT=$ANDROID_NDK_ROOT" >> $GITHUB_ENV
+
+      - name: Make Android build script executable
+        working-directory: ./client
+        run: chmod +x android-build.sh
+
+      - name: Build Android app
+        working-directory: ./client
+        run: ./android-build.sh ${{ matrix.build_mode }}
+
+      - name: Prepare Android artifacts
+        working-directory: ./client
+        run: |
+          mkdir -p artifacts
+          
+          if [ "${{ matrix.build_mode }}" = "release" ]; then
+            # Copy release artifacts
+            if [ -f "src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk" ]; then
+              cp "src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk" \
+                 "artifacts/bvc-android-${{ matrix.build_mode }}.apk"
+            fi
+            if [ -f "src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab" ]; then
+              cp "src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab" \
+                 "artifacts/bvc-android-${{ matrix.build_mode }}.aab"
+            fi
+          else
+            # Copy debug artifacts
+            if [ -f "src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk" ]; then
+              cp "src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk" \
+                 "artifacts/bvc-android-${{ matrix.build_mode }}.apk"
+            fi
+            if [ -f "src-tauri/gen/android/app/build/outputs/bundle/universalDebug/app-universal-debug.aab" ]; then
+              cp "src-tauri/gen/android/app/build/outputs/bundle/universalDebug/app-universal-debug.aab" \
+                 "artifacts/bvc-android-${{ matrix.build_mode }}.aab"
+            fi
+          fi
+          
+          # List artifacts for debugging
+          echo "Available artifacts:"
+          ls -la artifacts/ || echo "No artifacts directory found"
+
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-client-${{ matrix.build_mode }}
+          path: client/artifacts/
+          retention-days: 30

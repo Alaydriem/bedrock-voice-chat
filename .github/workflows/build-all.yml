@@ -1,0 +1,164 @@
+name: Build All Platforms
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+
+jobs:
+  # Determine which components have changed to optimize builds
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      server: ${{ steps.changes.outputs.server }}
+      client: ${{ steps.changes.outputs.client }}
+      common: ${{ steps.changes.outputs.common }}
+      android: ${{ steps.changes.outputs.android }}
+      windows: ${{ steps.changes.outputs.windows }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Check for changes
+        uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            server:
+              - 'server/**'
+              - 'common/**'
+              - 'migration/**'
+              - 'entity/**'
+              - '.github/workflows/build-server.yml'
+              - '.github/workflows/build-all.yml'
+            client:
+              - 'client/**'
+              - 'common/**'
+              - '.github/workflows/build-*.yml'
+              - '.github/workflows/build-all.yml'
+            common:
+              - 'common/**'
+            android:
+              - 'client/**'
+              - 'common/**'
+              - '.github/workflows/build-android.yml'
+              - '.github/workflows/build-all.yml'
+            client:
+              - 'client/**'
+              - 'common/**'
+              - '.github/workflows/build-client.yml'
+              - '.github/workflows/build-all.yml'
+
+  # Build server for multiple platforms
+  build-server:
+    name: Build Server
+    needs: changes
+    if: needs.changes.outputs.server == 'true' || needs.changes.outputs.common == 'true'
+    uses: ./.github/workflows/build-server.yml
+    with:
+      build_mode: ${{ inputs.build_mode == 'both' && '' || inputs.build_mode || '' }}
+
+  # Build Android client
+  build-android:
+    name: Build Android Client
+    needs: changes
+    if: needs.changes.outputs.android == 'true' || needs.changes.outputs.common == 'true'
+    uses: ./.github/workflows/build-android.yml
+    with:
+      build_mode: ${{ inputs.build_mode == 'both' && '' || inputs.build_mode || '' }}
+
+  # Build Windows client
+  build-windows:
+    name: Build Windows Client
+    needs: changes
+    if: needs.changes.outputs.windows == 'true' || needs.changes.outputs.common == 'true'
+    uses: ./.github/workflows/build-windows.yml
+    with:
+      build_mode: ${{ inputs.build_mode == 'both' && '' || inputs.build_mode || '' }}
+
+  # Collect and organize all artifacts
+  collect-artifacts:
+    name: Collect All Artifacts
+    runs-on: ubuntu-latest
+    needs: [build-server, build-android, build-windows]
+    if: always() && (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-windows.result == 'success')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all-artifacts
+
+      - name: Organize artifacts
+        run: |
+          mkdir -p organized-artifacts/{server,android,windows}
+          
+          # Organize server artifacts
+          if [ -d "all-artifacts" ]; then
+            find all-artifacts -name "server-*" -type d | while read dir; do
+              if [ -d "$dir" ]; then
+                cp -r "$dir"/* organized-artifacts/server/ 2>/dev/null || true
+              fi
+            done
+            
+            # Organize Android artifacts
+            find all-artifacts -name "android-client-*" -type d | while read dir; do
+              if [ -d "$dir" ]; then
+                cp -r "$dir"/* organized-artifacts/android/ 2>/dev/null || true
+              fi
+            done
+            
+            # Organize Windows artifacts
+            find all-artifacts -name "windows-client-*" -type d | while read dir; do
+              if [ -d "$dir" ]; then
+                cp -r "$dir"/* organized-artifacts/windows/ 2>/dev/null || true
+              fi
+            done
+          fi
+          
+          echo "Organized artifacts:"
+          find organized-artifacts -type f | sort
+
+      - name: Create build summary
+        run: |
+          echo "# Build Summary" > build-summary.md
+          echo "" >> build-summary.md
+          echo "## Generated Artifacts" >> build-summary.md
+          echo "" >> build-summary.md
+          
+          if [ -d "organized-artifacts/server" ] && [ "$(find organized-artifacts/server -type f | wc -l)" -gt 0 ]; then
+            echo "### Server Builds" >> build-summary.md
+            find organized-artifacts/server -type f -exec basename {} \; | sort | while read file; do
+              echo "- $file" >> build-summary.md
+            done
+            echo "" >> build-summary.md
+          fi
+          
+          if [ -d "organized-artifacts/android" ] && [ "$(find organized-artifacts/android -type f | wc -l)" -gt 0 ]; then
+            echo "### Android Client" >> build-summary.md
+            find organized-artifacts/android -type f -exec basename {} \; | sort | while read file; do
+              echo "- $file" >> build-summary.md
+            done
+            echo "" >> build-summary.md
+          fi
+          
+          if [ -d "organized-artifacts/windows" ] && [ "$(find organized-artifacts/windows -type f | wc -l)" -gt 0 ]; then
+            echo "### Windows Client" >> build-summary.md
+            find organized-artifacts/windows -type f -exec basename {} \; | sort | while read file; do
+              echo "- $file" >> build-summary.md
+            done
+            echo "" >> build-summary.md
+          fi
+          
+          echo "Build completed at: $(date -u)" >> build-summary.md
+          
+          cat build-summary.md
+
+      - name: Upload organized artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bedrock-voice-chat-builds
+          path: |
+            organized-artifacts/
+            build-summary.md
+          retention-days: 90

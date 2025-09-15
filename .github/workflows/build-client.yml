@@ -1,0 +1,138 @@
+name: Build Windows Client
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'client/**'
+      - 'common/**'
+      - '.github/workflows/build-client.yml'
+  pull_request:
+    paths:
+      - 'client/**'
+      - 'common/**'
+      - '.github/workflows/build-client.yml'
+
+jobs:
+  build-windows:
+    name: Build Windows Client (${{ matrix.build_mode }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        build_mode: ${{ fromJSON(inputs.build_mode && format('["{0}"]', inputs.build_mode) || '["debug", "release"]') }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'yarn'
+          cache-dependency-path: client/yarn.lock
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            client/src-tauri
+            common
+
+      - name: Install JavaScript dependencies
+        working-directory: ./client
+        run: yarn install --frozen-lockfile
+
+      - name: Download and setup ASIO SDK
+        working-directory: ./client/src-tauri
+        shell: powershell
+        run: |
+          Write-Host "Downloading ASIO SDK..."
+          Invoke-WebRequest -Uri "https://download.steinberg.net/sdk_downloads/asiosdk_2.3.3_2019-06-14.zip" -OutFile "asiosdk.zip"
+          Expand-Archive -Path "asiosdk.zip" -DestinationPath "." -Force
+          Get-ChildItem -Path "." -Name
+          Write-Host "ASIO SDK downloaded and extracted"
+
+      - name: Set up LIBCLANG environment
+        shell: powershell
+        run: |
+          # Set LIBCLANG_PATH to Visual Studio Community 2022 LLVM lib directory
+          $libclangPath = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm\x64\lib"
+          if (-not (Test-Path $libclangPath)) {
+            $libclangPath = "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Tools\Llvm\x64\lib"
+          }
+          if (-not (Test-Path $libclangPath)) {
+            $libclangPath = "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\x64\lib"
+          }
+          if (-not (Test-Path $libclangPath)) {
+            Write-Host "Warning: Could not find Visual Studio LLVM lib directory, using default"
+            $libclangPath = "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\x64\lib"
+          }
+          
+          Write-Host "Setting LIBCLANG_PATH to: $libclangPath"
+          echo "LIBCLANG_PATH=$libclangPath" >> $env:GITHUB_ENV
+
+      - name: Build Windows client (debug)
+        if: matrix.build_mode == 'debug'
+        working-directory: ./client
+        run: yarn tauri build --debug
+
+      - name: Build Windows client (release)
+        if: matrix.build_mode == 'release'
+        working-directory: ./client
+        run: yarn tauri build
+
+      - name: Prepare Windows artifacts
+        working-directory: ./client
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Path "artifacts" -Force
+          
+          if ("${{ matrix.build_mode }}" -eq "release") {
+            # Copy release artifacts
+            if (Test-Path "src-tauri\target\release\bedrock-voice-chat-client.exe") {
+              Copy-Item "src-tauri\target\release\bedrock-voice-chat-client.exe" "artifacts\bvc-windows-${{ matrix.build_mode }}.exe"
+            }
+            if (Test-Path "src-tauri\target\release\bundle\msi\*.msi") {
+              Get-ChildItem "src-tauri\target\release\bundle\msi\*.msi" | ForEach-Object {
+                Copy-Item $_.FullName "artifacts\bvc-windows-${{ matrix.build_mode }}.msi"
+              }
+            }
+            if (Test-Path "src-tauri\target\release\bundle\nsis\*.exe") {
+              Get-ChildItem "src-tauri\target\release\bundle\nsis\*.exe" | ForEach-Object {
+                Copy-Item $_.FullName "artifacts\bvc-windows-installer-${{ matrix.build_mode }}.exe"
+              }
+            }
+          } else {
+            # Copy debug artifacts
+            if (Test-Path "src-tauri\target\debug\bedrock-voice-chat-client.exe") {
+              Copy-Item "src-tauri\target\debug\bedrock-voice-chat-client.exe" "artifacts\bvc-windows-${{ matrix.build_mode }}.exe"
+            }
+            if (Test-Path "src-tauri\target\debug\bundle\msi\*.msi") {
+              Get-ChildItem "src-tauri\target\debug\bundle\msi\*.msi" | ForEach-Object {
+                Copy-Item $_.FullName "artifacts\bvc-windows-${{ matrix.build_mode }}.msi"
+              }
+            }
+            if (Test-Path "src-tauri\target\debug\bundle\nsis\*.exe") {
+              Get-ChildItem "src-tauri\target\debug\bundle\nsis\*.exe" | ForEach-Object {
+                Copy-Item $_.FullName "artifacts\bvc-windows-installer-${{ matrix.build_mode }}.exe"
+              }
+            }
+          }
+          
+          # List artifacts for debugging
+          Write-Host "Available artifacts:"
+          Get-ChildItem "artifacts" -ErrorAction SilentlyContinue | Format-Table
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-client-${{ matrix.build_mode }}
+          path: client/artifacts/
+          retention-days: 30

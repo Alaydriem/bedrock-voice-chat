@@ -1,0 +1,118 @@
+name: Build Server
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'server/**'
+      - 'common/**'
+      - 'migration/**'
+      - 'entity/**'
+      - '.github/workflows/build-server.yml'
+  pull_request:
+    paths:
+      - 'server/**'
+      - 'common/**'
+      - 'migration/**'
+      - 'entity/**'
+      - '.github/workflows/build-server.yml'
+
+jobs:
+  build-server:
+    name: Build Server (${{ matrix.target }} - ${{ matrix.build_mode }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        build_mode: ${{ fromJSON(inputs.build_mode && format('["{0}"]', inputs.build_mode) || '["debug", "release"]') }}
+        include:
+          # Windows builds
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            artifact_name: bedrock-voice-chat-server.exe
+            
+          # Linux builds
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact_name: bedrock-voice-chat-server-amd64
+            
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact_name: bedrock-voice-chat-server-arm64
+            cross: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            server
+            common
+
+      - name: Install cross (for cross-compilation)
+        if: matrix.cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux' && !matrix.cross
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            pkg-config \
+            libssl-dev \
+            libsqlite3-dev \
+            cmake \
+            build-essential
+
+      - name: Build server (cross-compilation)
+        if: matrix.cross
+        working-directory: ./server
+        run: |
+          if [ "${{ matrix.build_mode }}" = "release" ]; then
+            cross build --release --target ${{ matrix.target }}
+          else
+            cross build --target ${{ matrix.target }}
+          fi
+
+      - name: Build server (native)
+        if: '!matrix.cross'
+        working-directory: ./server
+        run: |
+          if [ "${{ matrix.build_mode }}" = "release" ]; then
+            cargo build --release --target ${{ matrix.target }}
+          else
+            cargo build --target ${{ matrix.target }}
+          fi
+        shell: bash
+
+      - name: Prepare artifacts
+        shell: bash
+        run: |
+          if [ "${{ matrix.build_mode }}" = "release" ]; then
+            BUILD_DIR="target/${{ matrix.target }}/release"
+          else
+            BUILD_DIR="target/${{ matrix.target }}/debug"
+          fi
+          
+          mkdir -p artifacts
+          
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp "server/${BUILD_DIR}/bedrock-voice-chat-server.exe" "artifacts/bvc-server-${{ matrix.target }}-${{ matrix.build_mode }}.exe"
+          else
+            cp "server/${BUILD_DIR}/bedrock-voice-chat-server" "artifacts/bvc-server-${{ matrix.target }}-${{ matrix.build_mode }}"
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-${{ matrix.target }}-${{ matrix.build_mode }}
+          path: artifacts/
+          retention-days: 30
