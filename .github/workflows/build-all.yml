@@ -4,6 +4,17 @@ on:
   push:
     branches: [ master ]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      build_mode:
+        description: 'Build mode'
+        required: false
+        default: 'both'
+        type: choice
+        options:
+          - debug
+          - release
+          - both
 
 jobs:
   # Determine which components have changed to optimize builds
@@ -19,6 +30,28 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Detect file changes
+        uses: dorny/paths-filter@v2
+        id: changes
+        with:
+          filters: |
+            server:
+              - 'server/**'
+              - 'common/**'
+              - 'migration/**'
+              - 'entity/**'
+              - '.github/workflows/build-server.yml'
+            android:
+              - 'client/**'
+              - 'common/**'
+              - '.github/workflows/build-android.yml'
+            windows:
+              - 'client/**'
+              - 'common/**'
+              - '.github/workflows/build-client.yml'
+            common:
+              - 'common/**'
 
   # Build server for multiple platforms
   build-server:
