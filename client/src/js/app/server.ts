@@ -3,7 +3,7 @@ import { Store } from '@tauri-apps/plugin-store';
 import { invoke } from "@tauri-apps/api/core";
 
 // @ts-ignore
-import murmurHash3 from "murmurHash3js";
+import murmurHash3 from "murmurhash3js";
 import { mount } from 'svelte';
 import ServerAvatar from '../../components/ServerAvatar.svelte';
 
