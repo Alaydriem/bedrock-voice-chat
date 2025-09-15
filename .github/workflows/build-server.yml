@@ -35,6 +35,10 @@ jobs:
       fail-fast: false
       matrix:
         build_mode: ${{ fromJSON(inputs.build_mode && format('["{0}"]', inputs.build_mode) || '["debug"]') }}
+        target:
+          - x86_64-pc-windows-msvc
+          - x86_64-unknown-linux-gnu  
+          - aarch64-unknown-linux-gnu
         include:
           # Windows builds
           - target: x86_64-pc-windows-msvc
