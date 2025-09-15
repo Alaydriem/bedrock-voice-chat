@@ -41,21 +41,11 @@ jobs:
             artifact_name: bedrock-voice-chat-server.exe
             build_mode: debug
             
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
-            artifact_name: bedrock-voice-chat-server.exe
-            build_mode: release
-            
           # Linux x64 builds
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             artifact_name: bedrock-voice-chat-server-amd64
             build_mode: debug
-            
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-            artifact_name: bedrock-voice-chat-server-amd64
-            build_mode: release
 
     steps:
       - name: Checkout code
