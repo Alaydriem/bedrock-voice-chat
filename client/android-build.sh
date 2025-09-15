@@ -25,13 +25,26 @@ fi
 echo "Detected platform: $PLATFORM"
 
 # Validate required environment variables
+# Try multiple possible NDK environment variable names
 if [[ -z "$ANDROID_NDK_HOME" ]]; then
-    echo "Error: ANDROID_NDK_HOME is not set"
-    exit 1
+    if [[ -n "$ANDROID_NDK_ROOT" ]]; then
+        echo "ANDROID_NDK_HOME not set, using ANDROID_NDK_ROOT: $ANDROID_NDK_ROOT"
+        export ANDROID_NDK_HOME="$ANDROID_NDK_ROOT"
+    elif [[ -n "$NDK_HOME" ]]; then
+        echo "ANDROID_NDK_HOME not set, using NDK_HOME: $NDK_HOME"
+        export ANDROID_NDK_HOME="$NDK_HOME"
+    else
+        echo "Error: No NDK environment variable is set (tried ANDROID_NDK_HOME, ANDROID_NDK_ROOT, NDK_HOME)"
+        echo "Available environment variables:"
+        env | grep -i ndk || echo "No NDK variables found"
+        exit 1
+    fi
 fi
 
 if [[ ! -d "$ANDROID_NDK_HOME" ]]; then
     echo "Error: Android NDK not found at $ANDROID_NDK_HOME"
+    echo "Directory contents:"
+    ls -la "$(dirname "$ANDROID_NDK_HOME")" 2>/dev/null || echo "Parent directory not accessible"
     exit 1
 fi
 

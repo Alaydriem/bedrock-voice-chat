@@ -31,29 +31,32 @@ jobs:
   build-server:
     name: Build Server (${{ matrix.target }} - ${{ matrix.build_mode }})
     runs-on: ${{ matrix.os }}
+    if: ${{ !inputs.build_mode || inputs.build_mode == matrix.build_mode || inputs.build_mode == 'both' }}
     strategy:
       fail-fast: false
       matrix:
-        build_mode: ${{ fromJSON(inputs.build_mode && format('["{0}"]', inputs.build_mode) || '["debug"]') }}
-        target:
-          - x86_64-pc-windows-msvc
-          - x86_64-unknown-linux-gnu  
-          - aarch64-unknown-linux-gnu
         include:
           # Windows builds
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             artifact_name: bedrock-voice-chat-server.exe
+            build_mode: debug
             
-          # Linux builds
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            artifact_name: bedrock-voice-chat-server.exe
+            build_mode: release
+            
+          # Linux x64 builds
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             artifact_name: bedrock-voice-chat-server-amd64
+            build_mode: debug
             
-          #- target: aarch64-unknown-linux-gnu
-          #  os: ubuntu-latest
-          #  artifact_name: bedrock-voice-chat-server-arm64
-          #  cross: true
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact_name: bedrock-voice-chat-server-amd64
+            build_mode: release
 
     steps:
       - name: Checkout code

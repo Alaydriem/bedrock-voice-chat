@@ -57,6 +57,23 @@ jobs:
           ndk-version: r27c
           add-to-path: false
 
+      - name: Set up Android SDK and build tools
+        run: |
+          # Install Android SDK components via sdkmanager
+          echo "Installing Android SDK build tools and CMake..."
+          
+          # Accept licenses
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          
+          # Install required SDK components
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+            "build-tools;34.0.0" \
+            "cmake;3.22.1" \
+            "platform-tools" \
+            "platforms;android-34"
+          
+          echo "Android SDK components installed"
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -103,8 +120,64 @@ jobs:
 
       - name: Set up Android environment
         run: |
+          # The setup-ndk action sets ANDROID_NDK_ROOT, but we need to ensure all common NDK env vars are set
           echo "ANDROID_NDK_HOME=$ANDROID_NDK_ROOT" >> $GITHUB_ENV
           echo "ANDROID_NDK_ROOT=$ANDROID_NDK_ROOT" >> $GITHUB_ENV
+          echo "NDK_HOME=$ANDROID_NDK_ROOT" >> $GITHUB_ENV
+          
+          # Set up Android SDK CMake
+          CMAKE_VERSION="3.22.1"
+          ANDROID_CMAKE_PATH="$ANDROID_HOME/cmake/$CMAKE_VERSION/bin"
+          if [ -d "$ANDROID_CMAKE_PATH" ]; then
+            echo "ANDROID_CMAKE_PATH=$ANDROID_CMAKE_PATH" >> $GITHUB_ENV
+            echo "CMAKE=$ANDROID_CMAKE_PATH/cmake" >> $GITHUB_ENV
+            echo "Adding Android CMake to PATH: $ANDROID_CMAKE_PATH"
+            echo "$ANDROID_CMAKE_PATH" >> $GITHUB_PATH
+          else
+            echo "Android CMake not found at $ANDROID_CMAKE_PATH, using system CMake"
+            echo "CMAKE=cmake" >> $GITHUB_ENV
+          fi
+          
+          # Set up Ninja (prefer system ninja)
+          echo "CMAKE_GENERATOR=Ninja" >> $GITHUB_ENV
+          
+          # Debug: Show what NDK variables are available
+          echo "Available NDK environment variables:"
+          echo "ANDROID_NDK_ROOT: $ANDROID_NDK_ROOT"
+          echo "ANDROID_NDK_HOME: $ANDROID_NDK_HOME"
+          echo "NDK_HOME: $NDK_HOME"
+          
+          # Debug: Show build tools
+          echo "Build tools verification:"
+          cmake --version || echo "CMake not found"
+          ninja --version || echo "Ninja not found"
+          
+          # Verify NDK installation
+          if [ -d "$ANDROID_NDK_ROOT" ]; then
+            echo "NDK found at: $ANDROID_NDK_ROOT"
+            ls -la "$ANDROID_NDK_ROOT" | head -10
+          else
+            echo "ERROR: NDK not found at $ANDROID_NDK_ROOT"
+            echo "Available directories in /usr/local/lib/android/sdk/:"
+            ls -la /usr/local/lib/android/sdk/ || echo "Android SDK directory not found"
+            
+            # Try to find NDK in common locations
+            echo "Searching for NDK installations..."
+            find /usr/local/lib/android/sdk/ -name "ndk*" -type d 2>/dev/null || echo "No NDK directories found"
+            
+            # Set fallback NDK path if found
+            NDK_PATH=$(find /usr/local/lib/android/sdk/ -name "ndk" -type d 2>/dev/null | head -1)
+            if [ -n "$NDK_PATH" ]; then
+              # Find the actual version directory
+              NDK_VERSION_PATH=$(find "$NDK_PATH" -maxdepth 1 -type d -name "*.*.*" | head -1)
+              if [ -n "$NDK_VERSION_PATH" ]; then
+                echo "Found NDK at: $NDK_VERSION_PATH"
+                echo "ANDROID_NDK_ROOT=$NDK_VERSION_PATH" >> $GITHUB_ENV
+                echo "ANDROID_NDK_HOME=$NDK_VERSION_PATH" >> $GITHUB_ENV
+                echo "NDK_HOME=$NDK_VERSION_PATH" >> $GITHUB_ENV
+              fi
+            fi
+          fi
 
       - name: Initialize Tauri Android project
         working-directory: ./client
