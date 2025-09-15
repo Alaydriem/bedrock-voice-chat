@@ -185,6 +185,20 @@ impl QuicNetworkPacket {
         };
     }
 
+    /// Helper function to get all channels a player is in
+    async fn get_player_channels(
+        player_name: &str,
+        channel_membership: &Cache<String, std::collections::HashSet<String>>,
+    ) -> Vec<String> {
+        let mut player_channels = Vec::new();
+        for (channel_id, members) in channel_membership.iter() {
+            if members.contains(player_name) {
+                player_channels.push((*channel_id).clone());
+            }
+        }
+        player_channels
+    }
+
     /// Determines if a given PacketOwner can receive this QuicNetworkPacket
     pub async fn is_receivable(
         &mut self,
@@ -197,40 +211,44 @@ impl QuicNetworkPacket {
             PacketType::AudioFrame => match self.get_data() {
                 Some(data) => match data.to_owned().try_into() {
                     Ok(data) => {
+                        let current_player = &self.get_author();
                         let mut data: AudioFramePacket = data;
 
                         // You cannot receive your own audio packets
-                        if self.get_author().eq(&recipient.name) {
+                        if current_player.eq(&recipient.name) {
                             return false;
                         }
 
-                        // Check if both players are in the same channel
-                        let sender_name = &self.get_author();
+                        // Check if both players are in the same channel using optimized approach
                         let receiver_name = &recipient.name;
-                        let mut players_in_same_channel = false;
                         
-                        // Check each channel's membership to see if both players are present
-                        for (_, members) in channel_membership.iter() {
-                            if members.contains(sender_name) && members.contains(receiver_name) {
-                                players_in_same_channel = true;
-                                break;
-                            }
-                        }
+                        // Get channels for both players concurrently
+                        let (sender_channels, receiver_channels) = tokio::join!(
+                            Self::get_player_channels(current_player, &channel_membership),
+                            Self::get_player_channels(receiver_name, &channel_membership)
+                        );
+
+                        // Check if they share any channels (O(k*m) where k,m = channels per player, typically 1-2)
+                        let players_in_same_channel = sender_channels.iter()
+                            .any(|channel| receiver_channels.contains(channel));
 
                         // If the players are both in the same group, then the audio packet may be received
                         if players_in_same_channel {
                             // Group audio packets defer to client sending settings, and non-spatial by default
                             if data.spatial.is_none() {
-                                data.spatial = Some(false);
                                 // Group audio packets are non-spatial
+                                data.spatial = Some(false);
                             }
                             self.data = QuicNetworkPacketData::AudioFrame(data);
                             return true;
                         }
 
-                        // Senders and recipients have different rules, recipiants _must_ exist, whereas senders can be an object or item with arbitrary data
-                        let actual_sender = position_data.get(&self.get_author()).await;
-                        let actual_recipient = position_data.get(&recipient.name).await;
+                        // Senders and recipients have different rules, recipients _must_ exist, whereas senders can be an object or item with arbitrary data
+                        // Use tokio::join! to fetch both positions concurrently
+                        let (actual_sender, actual_recipient) = tokio::join!(
+                            position_data.get(current_player),
+                            position_data.get(receiver_name)
+                        );
 
                         // Determine the sender coordinates and dimension first from the player object, then the packet data
                         let (sender_dimension, sender_coordinates) = match actual_sender {
