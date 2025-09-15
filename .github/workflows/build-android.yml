@@ -120,37 +120,82 @@ jobs:
       - name: Prepare Android artifacts
         working-directory: ./client
         run: |
+          echo "=== Android Build Output Investigation ==="
+          echo "Searching for all APK and AAB files..."
+          find . -name "*.apk" -o -name "*.aab" 2>/dev/null || echo "No APK/AAB files found"
+          
+          echo "=== Checking expected paths ==="
+          echo "Looking in src-tauri/gen/android/app/build/outputs/"
+          ls -la src-tauri/gen/android/app/build/outputs/ 2>/dev/null || echo "Directory not found"
+          
+          echo "=== Full directory structure ==="
+          find src-tauri/gen/android/ -type f -name "*.apk" -o -name "*.aab" 2>/dev/null || echo "No APK/AAB files in gen/android"
+          
           mkdir -p artifacts
           
+          # Try to find and copy any APK/AAB files
+          APK_FOUND=false
+          AAB_FOUND=false
+          
           if [ "${{ matrix.build_mode }}" = "release" ]; then
-            # Copy release artifacts
-            if [ -f "src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk" ]; then
-              cp "src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk" \
-                 "artifacts/bvc-android-${{ matrix.build_mode }}.apk"
+            echo "=== Looking for release artifacts ==="
+            # Search for release APK more broadly
+            RELEASE_APK=$(find src-tauri/gen/android/ -name "*release*.apk" 2>/dev/null | head -n1)
+            if [ -n "$RELEASE_APK" ] && [ -f "$RELEASE_APK" ]; then
+              echo "Found release APK: $RELEASE_APK"
+              cp "$RELEASE_APK" "artifacts/bvc-android-${{ matrix.build_mode }}.apk"
+              APK_FOUND=true
             fi
-            if [ -f "src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab" ]; then
-              cp "src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab" \
-                 "artifacts/bvc-android-${{ matrix.build_mode }}.aab"
+            
+            # Search for release AAB more broadly
+            RELEASE_AAB=$(find src-tauri/gen/android/ -name "*release*.aab" 2>/dev/null | head -n1)
+            if [ -n "$RELEASE_AAB" ] && [ -f "$RELEASE_AAB" ]; then
+              echo "Found release AAB: $RELEASE_AAB"
+              cp "$RELEASE_AAB" "artifacts/bvc-android-${{ matrix.build_mode }}.aab"
+              AAB_FOUND=true
             fi
           else
-            # Copy debug artifacts
-            if [ -f "src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk" ]; then
-              cp "src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk" \
-                 "artifacts/bvc-android-${{ matrix.build_mode }}.apk"
+            echo "=== Looking for debug artifacts ==="
+            # Search for debug APK more broadly
+            DEBUG_APK=$(find src-tauri/gen/android/ -name "*debug*.apk" 2>/dev/null | head -n1)
+            if [ -n "$DEBUG_APK" ] && [ -f "$DEBUG_APK" ]; then
+              echo "Found debug APK: $DEBUG_APK"
+              cp "$DEBUG_APK" "artifacts/bvc-android-${{ matrix.build_mode }}.apk"
+              APK_FOUND=true
             fi
-            if [ -f "src-tauri/gen/android/app/build/outputs/bundle/universalDebug/app-universal-debug.aab" ]; then
-              cp "src-tauri/gen/android/app/build/outputs/bundle/universalDebug/app-universal-debug.aab" \
-                 "artifacts/bvc-android-${{ matrix.build_mode }}.aab"
+            
+            # Search for debug AAB more broadly
+            DEBUG_AAB=$(find src-tauri/gen/android/ -name "*debug*.aab" 2>/dev/null | head -n1)
+            if [ -n "$DEBUG_AAB" ] && [ -f "$DEBUG_AAB" ]; then
+              echo "Found debug AAB: $DEBUG_AAB"
+              cp "$DEBUG_AAB" "artifacts/bvc-android-${{ matrix.build_mode }}.aab"
+              AAB_FOUND=true
             fi
           fi
           
-          # List artifacts for debugging
-          echo "Available artifacts:"
+          echo "=== Artifact Summary ==="
+          echo "APK found: $APK_FOUND"
+          echo "AAB found: $AAB_FOUND"
+          
+          # List final artifacts
+          echo "=== Final artifacts ==="
           ls -la artifacts/ || echo "No artifacts directory found"
+          
+          # Count artifacts for upload validation
+          ARTIFACT_COUNT=$(find artifacts/ -type f 2>/dev/null | wc -l)
+          echo "Total artifacts: $ARTIFACT_COUNT"
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
+        id: upload-android
         with:
           name: android-client-${{ matrix.build_mode }}
           path: client/artifacts/
           retention-days: 30
+
+      - name: Output artifact information
+        run: |
+          echo "🚀 Android Build Complete!"
+          echo "📦 Artifacts uploaded as: android-client-${{ matrix.build_mode }}"
+          echo "🔗 Artifact URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "⏰ Retention: 30 days"

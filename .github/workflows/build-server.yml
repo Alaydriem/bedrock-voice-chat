@@ -85,9 +85,12 @@ jobs:
       - name: Setup cross-compilation environment
         if: matrix.cross
         run: |
-          # Install cross-compilation toolchain
+          # Install cross-compilation toolchain and dependencies
           sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
+          sudo apt-get install -y \
+            gcc-aarch64-linux-gnu \
+            pkg-config \
+            libssl-dev
 
       - name: Verify cross-compilation setup
         if: matrix.cross
@@ -102,6 +105,8 @@ jobs:
           ls -la .cargo/config.toml || echo "No .cargo/config.toml found"
           echo "Cross version:"
           cross --version
+          echo "Testing aarch64 toolchain:"
+          aarch64-linux-gnu-gcc --version || echo "aarch64-linux-gnu-gcc not found"
 
       - name: Build server (cross-compilation)
         if: matrix.cross
@@ -150,7 +155,18 @@ jobs:
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
+        id: upload-server
         with:
           name: server-${{ matrix.target }}-${{ matrix.build_mode }}
           path: artifacts/
           retention-days: 30
+
+      - name: Output artifact information
+        shell: bash
+        run: |
+          echo "🚀 Server Build Complete!"
+          echo "🎯 Target: ${{ matrix.target }}"
+          echo "🔧 Mode: ${{ matrix.build_mode }}"
+          echo "📦 Artifacts uploaded as: server-${{ matrix.target }}-${{ matrix.build_mode }}"
+          echo "🔗 Artifact URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "⏰ Retention: 30 days"

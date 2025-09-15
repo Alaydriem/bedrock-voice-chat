@@ -150,7 +150,17 @@ jobs:
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
+        id: upload-windows
         with:
           name: windows-client-${{ matrix.build_mode }}
           path: client/artifacts/
           retention-days: 30
+
+      - name: Output artifact information
+        shell: powershell
+        run: |
+          Write-Host "🚀 Windows Client Build Complete!" -ForegroundColor Green
+          Write-Host "🔧 Mode: ${{ matrix.build_mode }}" -ForegroundColor Cyan
+          Write-Host "📦 Artifacts uploaded as: windows-client-${{ matrix.build_mode }}" -ForegroundColor Cyan
+          Write-Host "🔗 Artifact URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" -ForegroundColor Blue
+          Write-Host "⏰ Retention: 30 days" -ForegroundColor Yellow
