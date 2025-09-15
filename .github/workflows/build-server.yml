@@ -31,7 +31,6 @@ jobs:
   build-server:
     name: Build Server (${{ matrix.target }} - ${{ matrix.build_mode }})
     runs-on: ${{ matrix.os }}
-    if: ${{ !inputs.build_mode || inputs.build_mode == matrix.build_mode || inputs.build_mode == 'both' }}
     strategy:
       fail-fast: false
       matrix:
@@ -58,6 +57,7 @@ jobs:
             artifact_name: bedrock-voice-chat-server-amd64
             build_mode: release
 
+    if: ${{ !inputs.build_mode || inputs.build_mode == matrix.build_mode || inputs.build_mode == 'both' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
