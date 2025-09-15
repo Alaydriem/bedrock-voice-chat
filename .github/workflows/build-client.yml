@@ -36,7 +36,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        build_mode: ${{ fromJSON(inputs.build_mode && format('["{0}"]', inputs.build_mode) || '["debug", "release"]') }}
+        build_mode: ${{ fromJSON(inputs.build_mode && format('["{0}"]', inputs.build_mode) || '["debug"]') }}
     
     steps:
       - name: Checkout code
