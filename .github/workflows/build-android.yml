@@ -106,6 +106,13 @@ jobs:
           echo "ANDROID_NDK_HOME=$ANDROID_NDK_ROOT" >> $GITHUB_ENV
           echo "ANDROID_NDK_ROOT=$ANDROID_NDK_ROOT" >> $GITHUB_ENV
 
+      - name: Initialize Tauri Android project
+        working-directory: ./client
+        run: |
+          echo "Initializing Tauri Android project..."
+          yarn tauri android init
+          echo "Android project initialized successfully"
+
       - name: Make Android build script executable
         working-directory: ./client
         run: chmod +x android-build.sh

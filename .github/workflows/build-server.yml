@@ -50,10 +50,10 @@ jobs:
             os: ubuntu-latest
             artifact_name: bedrock-voice-chat-server-amd64
             
-          - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
-            artifact_name: bedrock-voice-chat-server-arm64
-            cross: true
+          #- target: aarch64-unknown-linux-gnu
+          #  os: ubuntu-latest
+          #  artifact_name: bedrock-voice-chat-server-arm64
+          #  cross: true
 
     steps:
       - name: Checkout code
@@ -84,7 +84,8 @@ jobs:
             libssl-dev \
             libsqlite3-dev \
             cmake \
-            build-essential
+            build-essential \
+            libasound2-dev
 
       - name: Setup cross-compilation environment
         if: matrix.cross
@@ -94,7 +95,8 @@ jobs:
           sudo apt-get install -y \
             gcc-aarch64-linux-gnu \
             pkg-config \
-            libssl-dev
+            libssl-dev \
+            libasound2-dev
 
       - name: Verify cross-compilation setup
         if: matrix.cross
