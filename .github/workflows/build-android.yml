@@ -11,7 +11,23 @@ on:
     paths:
       - 'client/**'
       - 'common/**'
-      - '.github/workflows/build-android.yml'
+      - '.github/workflows/build-android.yml'  
+  workflow_call:
+    inputs:
+      build_mode:
+        description: 'Build mode (debug or release)'
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      build_mode:
+        description: 'Build mode'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
 
 jobs:
   build-android:
