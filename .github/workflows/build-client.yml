@@ -97,11 +97,17 @@ jobs:
       - name: Build Windows client (debug)
         if: matrix.build_mode == 'debug'
         working-directory: ./client
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: yarn tauri build --debug
 
       - name: Build Windows client (release)
         if: matrix.build_mode == 'release'
         working-directory: ./client
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: yarn tauri build
 
       - name: Prepare Windows artifacts

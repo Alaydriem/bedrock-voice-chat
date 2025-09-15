@@ -40,7 +40,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        build_mode: ${{ fromJSON(inputs.build_mode && format('["{0}"]', inputs.build_mode) || '["debug", "release"]') }}
+        build_mode: ${{ fromJSON(inputs.build_mode && format('["{0}"]', inputs.build_mode) || '["debug"]') }}
         include:
           # Windows builds
           - target: x86_64-pc-windows-msvc
@@ -88,9 +88,37 @@ jobs:
             cmake \
             build-essential
 
+      - name: Setup cross-compilation environment
+        if: matrix.cross
+        run: |
+          # Install cross-compilation toolchain
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Verify cross-compilation setup
+        if: matrix.cross
+        run: |
+          echo "Cross-compilation environment:"
+          echo "OPENSSL_STATIC=${OPENSSL_STATIC:-not set}"
+          echo "OPENSSL_VENDORED=${OPENSSL_VENDORED:-not set}"
+          echo "PKG_CONFIG_ALLOW_CROSS=${PKG_CONFIG_ALLOW_CROSS:-not set}"
+          echo "Available Cross.toml:"
+          ls -la Cross.toml || echo "No Cross.toml found"
+          echo "Available .cargo/config.toml:"
+          ls -la .cargo/config.toml || echo "No .cargo/config.toml found"
+          echo "Cross version:"
+          cross --version
+
       - name: Build server (cross-compilation)
         if: matrix.cross
         working-directory: ./server
+        env:
+          # Force vendored OpenSSL to avoid cross-compilation issues
+          OPENSSL_STATIC: "1"
+          OPENSSL_VENDORED: "1"
+          PKG_CONFIG_ALLOW_CROSS: "0"
+          # Additional environment variables for cross compilation
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: "aarch64-linux-gnu-gcc"
         run: |
           if [ "${{ matrix.build_mode }}" = "release" ]; then
             cross build --release --target ${{ matrix.target }}

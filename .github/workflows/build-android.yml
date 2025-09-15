@@ -67,7 +67,6 @@ jobs:
           targets: |
             aarch64-linux-android
             armv7-linux-androideabi
-            armv6-linux-androideabi
             i686-linux-android
             x86_64-linux-android
 
@@ -117,6 +116,9 @@ jobs:
 
       - name: Build Android app
         working-directory: ./client
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: ./android-build.sh ${{ matrix.build_mode }}
 
       - name: Prepare Android artifacts
