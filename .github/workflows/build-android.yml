@@ -190,12 +190,18 @@ jobs:
         working-directory: ./client
         run: chmod +x android-build.sh
 
-      - name: Build Android app
+      - name: Build Android (debug)
+        if: matrix.build_mode == 'debug'
         working-directory: ./client
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: ./android-build.sh ${{ matrix.build_mode }}
+        run: |
+          cp src-tauri/tauri.conf.debug.json src-tauri/tauri.conf.json
+          ./android-build.sh debug
+
+      - name: Build Android (release)
+        if: matrix.build_mode == 'release'
+        working-directory: ./client
+        run: |
+          ./android-build.sh release
 
       - name: Prepare Android artifacts
         working-directory: ./client

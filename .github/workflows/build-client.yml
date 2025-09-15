@@ -96,7 +96,9 @@ jobs:
         env:
           # Disable updater for debug builds
           TAURI_BUNDLE_CREATE_UPDATER_ARTIFACTS: "false"
-        run: yarn tauri build --debug
+        run: |
+          cp src-tauri/tauri.conf.debug.json src-tauri/tauri.conf.json
+          yarn tauri build --debug
 
       - name: Build Windows client (release)
         if: matrix.build_mode == 'release'
