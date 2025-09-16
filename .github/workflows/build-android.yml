@@ -38,16 +38,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Java 17
+      - name: Set up Java 21
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'temurin'
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '24'
           cache: 'yarn'
           cache-dependency-path: client/yarn.lock
 
@@ -154,151 +154,6 @@ jobs:
           echo "Build tools verification:"
           cmake --version || echo "CMake not found"
           ninja --version || echo "Ninja not found"
-          
-          # Verify NDK installation
-          if [ -d "$ANDROID_NDK_ROOT" ]; then
-            echo "NDK found at: $ANDROID_NDK_ROOT"
-            ls -la "$ANDROID_NDK_ROOT" | head -10
-            
-            # Set up LIBCLANG_PATH for Android NDK
-            ANDROID_LIBCLANG_PATH="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/lib"
-            if [ -d "$ANDROID_LIBCLANG_PATH" ]; then
-              echo "Found Android libclang at: $ANDROID_LIBCLANG_PATH"
-              echo "LIBCLANG_PATH=$ANDROID_LIBCLANG_PATH" >> $GITHUB_ENV
-              
-              # Backup and modify .cargo/config.toml to use Android libclang
-              echo "Backing up and modifying .cargo/config.toml for Android build..."
-              cd client/src-tauri
-              cp .cargo/config.toml .cargo/config.toml.backup
-              
-              # Create new config with Android-appropriate LIBCLANG_PATH
-              cat > .cargo/config.toml << EOF
-          [env]
-          CPAL_ASIO_DIR = { value = "./asiosdk_2.3.3_2019-06-14", relative = true }
-          LIBCLANG_PATH = { value = "$ANDROID_LIBCLANG_PATH", relative = false }
-
-          [build]
-          rustflags = ["--cfg", "s2n_quic_unstable"]
-
-          # Android-specific configurations
-          [target.aarch64-linux-android]
-          linker = "aarch64-linux-android27-clang"
-
-          [target.armv7-linux-androideabi]
-          linker = "armv7a-linux-androideabi27-clang"
-
-          [target.i686-linux-android]
-          linker = "i686-linux-android27-clang"
-
-          [target.x86_64-linux-android]
-          linker = "x86_64-linux-android27-clang"
-          EOF
-              
-              echo "Modified .cargo/config.toml:"
-              cat .cargo/config.toml
-            else
-              echo "WARNING: Android libclang not found at expected path: $ANDROID_LIBCLANG_PATH"
-              echo "Available contents in NDK toolchains:"
-              find "$ANDROID_NDK_ROOT/toolchains" -name "*clang*" -type f 2>/dev/null | head -10 || echo "No clang found"
-              
-              # Fallback to system libclang
-              echo "Using system libclang as fallback..."
-              
-              # Find system libclang more robustly
-              SYSTEM_LIBCLANG_PATH=""
-              for potential_path in "/usr/lib/x86_64-linux-gnu" "/usr/lib" "/usr/lib64" "/usr/local/lib"; do
-                if [ -f "$potential_path/libclang.so" ] || find "$potential_path" -name "libclang*.so*" 2>/dev/null | grep -q .; then
-                  SYSTEM_LIBCLANG_PATH="$potential_path"
-                  echo "Found system libclang at: $SYSTEM_LIBCLANG_PATH"
-                  break
-                fi
-              done
-              
-              if [ -n "$SYSTEM_LIBCLANG_PATH" ]; then
-                echo "LIBCLANG_PATH=$SYSTEM_LIBCLANG_PATH" >> $GITHUB_ENV
-                echo "Using system libclang at: $SYSTEM_LIBCLANG_PATH"
-                
-                # Update config with system libclang
-                cd client/src-tauri
-                cp .cargo/config.toml .cargo/config.toml.backup
-                cat > .cargo/config.toml << EOF
-          [env]
-          CPAL_ASIO_DIR = { value = "./asiosdk_2.3.3_2019-06-14", relative = true }
-          LIBCLANG_PATH = { value = "$SYSTEM_LIBCLANG_PATH", relative = false }
-
-          [build]
-          rustflags = ["--cfg", "s2n_quic_unstable"]
-
-          # Android-specific configurations
-          [target.aarch64-linux-android]
-          linker = "aarch64-linux-android27-clang"
-
-          [target.armv7-linux-androideabi]
-          linker = "armv7a-linux-androideabi27-clang"
-
-          [target.i686-linux-android]
-          linker = "i686-linux-android27-clang"
-
-          [target.x86_64-linux-android]
-          linker = "x86_64-linux-android27-clang"
-          EOF
-              else
-                echo "ERROR: No system libclang found in common locations"
-                echo "Will try without explicit LIBCLANG_PATH and let bindgen auto-detect"
-                
-                # Create config without explicit LIBCLANG_PATH
-                cd client/src-tauri
-                cp .cargo/config.toml .cargo/config.toml.backup
-                cat > .cargo/config.toml << EOF
-          [env]
-          CPAL_ASIO_DIR = { value = "./asiosdk_2.3.3_2019-06-14", relative = true }
-
-          [build]
-          rustflags = ["--cfg", "s2n_quic_unstable"]
-
-          # Android-specific configurations
-          [target.aarch64-linux-android]
-          linker = "aarch64-linux-android27-clang"
-
-          [target.armv7-linux-androideabi]
-          linker = "armv7a-linux-androideabi27-clang"
-
-          [target.i686-linux-android]
-          linker = "i686-linux-android27-clang"
-
-          [target.x86_64-linux-android]
-          linker = "x86_64-linux-android27-clang"
-          EOF
-              fi
-            fi
-          else
-            echo "ERROR: NDK not found at $ANDROID_NDK_ROOT"
-            echo "Available directories in /usr/local/lib/android/sdk/:"
-            ls -la /usr/local/lib/android/sdk/ || echo "Android SDK directory not found"
-            
-            # Try to find NDK in common locations
-            echo "Searching for NDK installations..."
-            find /usr/local/lib/android/sdk/ -name "ndk*" -type d 2>/dev/null || echo "No NDK directories found"
-            
-            # Set fallback NDK path if found
-            NDK_PATH=$(find /usr/local/lib/android/sdk/ -name "ndk" -type d 2>/dev/null | head -1)
-            if [ -n "$NDK_PATH" ]; then
-              # Find the actual version directory
-              NDK_VERSION_PATH=$(find "$NDK_PATH" -maxdepth 1 -type d -name "*.*.*" | head -1)
-              if [ -n "$NDK_VERSION_PATH" ]; then
-                echo "Found NDK at: $NDK_VERSION_PATH"
-                echo "ANDROID_NDK_ROOT=$NDK_VERSION_PATH" >> $GITHUB_ENV
-                echo "ANDROID_NDK_HOME=$NDK_VERSION_PATH" >> $GITHUB_ENV
-                echo "NDK_HOME=$NDK_VERSION_PATH" >> $GITHUB_ENV
-                
-                # Set up LIBCLANG_PATH for fallback NDK
-                FALLBACK_LIBCLANG_PATH="$NDK_VERSION_PATH/toolchains/llvm/prebuilt/linux-x86_64/lib"
-                if [ -d "$FALLBACK_LIBCLANG_PATH" ]; then
-                  echo "LIBCLANG_PATH=$FALLBACK_LIBCLANG_PATH" >> $GITHUB_ENV
-                fi
-              fi
-            fi
-          fi
 
       - name: Install bindgen
         working-directory: ./client
@@ -311,46 +166,6 @@ jobs:
           yarn tauri android init
           echo "Android project initialized successfully"
 
-      - name: Verify libclang setup
-        working-directory: ./client/src-tauri
-        run: |
-          echo "=== Verifying libclang setup ==="
-          echo "LIBCLANG_PATH: ${LIBCLANG_PATH:-not set}"
-          
-          # Search for libclang in common system locations
-          echo "=== Searching for libclang system-wide ==="
-          find /usr -name "libclang*.so*" 2>/dev/null | head -10 || echo "No libclang found in /usr"
-          find /lib -name "libclang*.so*" 2>/dev/null | head -10 || echo "No libclang found in /lib"
-          
-          # Check specific common locations
-          for path in "/usr/lib/x86_64-linux-gnu" "/usr/lib" "/usr/lib64" "/usr/local/lib"; do
-            if [ -d "$path" ]; then
-              echo "Checking $path:"
-              ls -la "$path"/libclang* 2>/dev/null || echo "  No libclang files"
-            fi
-          done
-          
-          # Check what clang is installed
-          echo "=== Clang installation verification ==="
-          which clang || echo "clang not in PATH"
-          clang --version || echo "clang version check failed"
-          
-          # Check LLVM installation
-          echo "=== LLVM packages ==="
-          dpkg -l | grep -i llvm || echo "No LLVM packages found"
-          dpkg -l | grep -i clang || echo "No clang packages found"
-          
-          if [ -n "$LIBCLANG_PATH" ]; then
-            echo "Contents of LIBCLANG_PATH directory ($LIBCLANG_PATH):"
-            ls -la "$LIBCLANG_PATH" | grep -i clang || echo "No clang libraries found"
-            
-            # Test if we can find libclang
-            find "$LIBCLANG_PATH" -name "libclang*" 2>/dev/null || echo "No libclang files found"
-          fi
-          
-          echo "Current .cargo/config.toml:"
-          cat .cargo/config.toml
-
       - name: Make Android build script executable
         working-directory: ./client
         run: chmod +x android-build.sh
@@ -360,69 +175,10 @@ jobs:
         working-directory: ./client
         env:
           # Additional environment variables that bindgen might respect
-          LIBCLANG_PATH: ${{ env.LIBCLANG_PATH }}
-          LD_LIBRARY_PATH: ${{ env.LIBCLANG_PATH }}:$LD_LIBRARY_PATH
-          BINDGEN_EXTRA_CLANG_ARGS: "-I/usr/include -I/usr/include/x86_64-linux-gnu"
-        run: |
-          echo "=== Build Environment Debug ==="
-          echo "LIBCLANG_PATH: ${LIBCLANG_PATH:-not set}"
-          echo "LD_LIBRARY_PATH: ${LD_LIBRARY_PATH:-not set}"
-          echo "BINDGEN_EXTRA_CLANG_ARGS: ${BINDGEN_EXTRA_CLANG_ARGS:-not set}"
-          
-          # Try to find libclang one more time before building
-          if [ -z "$LIBCLANG_PATH" ]; then
-            echo "LIBCLANG_PATH not set, searching for libclang..."
-            FOUND_LIBCLANG=$(find /usr -name "libclang.so*" 2>/dev/null | head -1)
-            if [ -n "$FOUND_LIBCLANG" ]; then
-              LIBCLANG_DIR=$(dirname "$FOUND_LIBCLANG")
-              echo "Found libclang at: $FOUND_LIBCLANG"
-              echo "Setting LIBCLANG_PATH to: $LIBCLANG_DIR"
-              export LIBCLANG_PATH="$LIBCLANG_DIR"
-              export LD_LIBRARY_PATH="$LIBCLANG_DIR:$LD_LIBRARY_PATH"
-            fi
-          fi
-          
+          LIBCLANG_PATH: /usr/lib/llvm-19/lib
+        run: |         
           ./android-build.sh debug
-
-      - name: Build Android (release)
-        if: matrix.build_mode == 'release'
-        working-directory: ./client
-        env:
-          # Additional environment variables that bindgen might respect
-          LIBCLANG_PATH: ${{ env.LIBCLANG_PATH }}
-          LD_LIBRARY_PATH: ${{ env.LIBCLANG_PATH }}:$LD_LIBRARY_PATH
-          BINDGEN_EXTRA_CLANG_ARGS: "-I/usr/include -I/usr/include/x86_64-linux-gnu"
-        run: |
-          echo "=== Build Environment Debug ==="
-          echo "LIBCLANG_PATH: ${LIBCLANG_PATH:-not set}"
-          echo "LD_LIBRARY_PATH: ${LD_LIBRARY_PATH:-not set}"
-          echo "BINDGEN_EXTRA_CLANG_ARGS: ${BINDGEN_EXTRA_CLANG_ARGS:-not set}"
           
-          # Try to find libclang one more time before building
-          if [ -z "$LIBCLANG_PATH" ]; then
-            echo "LIBCLANG_PATH not set, searching for libclang..."
-            FOUND_LIBCLANG=$(find /usr -name "libclang.so*" 2>/dev/null | head -1)
-            if [ -n "$FOUND_LIBCLANG" ]; then
-              LIBCLANG_DIR=$(dirname "$FOUND_LIBCLANG")
-              echo "Found libclang at: $FOUND_LIBCLANG"
-              echo "Setting LIBCLANG_PATH to: $LIBCLANG_DIR"
-              export LIBCLANG_PATH="$LIBCLANG_DIR"
-              export LD_LIBRARY_PATH="$LIBCLANG_DIR:$LD_LIBRARY_PATH"
-            fi
-          fi
-          
-          ./android-build.sh release
-
-      - name: Restore original .cargo/config.toml
-        if: always()
-        working-directory: ./client/src-tauri
-        run: |
-          if [ -f ".cargo/config.toml.backup" ]; then
-            echo "Restoring original .cargo/config.toml..."
-            mv .cargo/config.toml.backup .cargo/config.toml
-            echo "Original .cargo/config.toml restored"
-          fi
-
       - name: Prepare Android artifacts
         working-directory: ./client
         run: |
