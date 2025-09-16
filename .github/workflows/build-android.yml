@@ -107,11 +107,6 @@ jobs:
             libclang-dev \
             clang \
             llvm-dev
-          
-          # Verify libclang installation
-          echo "=== Installed libclang verification ==="
-          find /usr -name "libclang*.so*" 2>/dev/null | head -5
-          dpkg -L libclang-dev | grep "\.so" || echo "No .so files in libclang-dev package"
 
       - name: Install JavaScript dependencies
         working-directory: ./client
