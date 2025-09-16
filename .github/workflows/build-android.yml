@@ -198,7 +198,6 @@ jobs:
         if: matrix.build_mode == 'debug'
         working-directory: ./client
         run: |
-          cp src-tauri/tauri.conf.debug.json src-tauri/tauri.conf.json
           ./android-build.sh debug
 
       - name: Build Android (release)
