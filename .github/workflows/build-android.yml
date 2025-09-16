@@ -105,7 +105,13 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev \
             libclang-dev \
-            clang
+            clang \
+            llvm-dev
+          
+          # Verify libclang installation
+          echo "=== Installed libclang verification ==="
+          find /usr -name "libclang*.so*" 2>/dev/null | head -5
+          dpkg -L libclang-dev | grep "\.so" || echo "No .so files in libclang-dev package"
 
       - name: Install JavaScript dependencies
         working-directory: ./client
@@ -202,8 +208,18 @@ jobs:
               
               # Fallback to system libclang
               echo "Using system libclang as fallback..."
-              SYSTEM_LIBCLANG_PATH="/usr/lib/x86_64-linux-gnu"
-              if [ -f "/usr/lib/x86_64-linux-gnu/libclang.so" ] || [ -f "/usr/lib/x86_64-linux-gnu/libclang-1.so" ]; then
+              
+              # Find system libclang more robustly
+              SYSTEM_LIBCLANG_PATH=""
+              for potential_path in "/usr/lib/x86_64-linux-gnu" "/usr/lib" "/usr/lib64" "/usr/local/lib"; do
+                if [ -f "$potential_path/libclang.so" ] || find "$potential_path" -name "libclang*.so*" 2>/dev/null | grep -q .; then
+                  SYSTEM_LIBCLANG_PATH="$potential_path"
+                  echo "Found system libclang at: $SYSTEM_LIBCLANG_PATH"
+                  break
+                fi
+              done
+              
+              if [ -n "$SYSTEM_LIBCLANG_PATH" ]; then
                 echo "LIBCLANG_PATH=$SYSTEM_LIBCLANG_PATH" >> $GITHUB_ENV
                 echo "Using system libclang at: $SYSTEM_LIBCLANG_PATH"
                 
@@ -214,6 +230,33 @@ jobs:
           [env]
           CPAL_ASIO_DIR = { value = "./asiosdk_2.3.3_2019-06-14", relative = true }
           LIBCLANG_PATH = { value = "$SYSTEM_LIBCLANG_PATH", relative = false }
+
+          [build]
+          rustflags = ["--cfg", "s2n_quic_unstable"]
+
+          # Android-specific configurations
+          [target.aarch64-linux-android]
+          linker = "aarch64-linux-android27-clang"
+
+          [target.armv7-linux-androideabi]
+          linker = "armv7a-linux-androideabi27-clang"
+
+          [target.i686-linux-android]
+          linker = "i686-linux-android27-clang"
+
+          [target.x86_64-linux-android]
+          linker = "x86_64-linux-android27-clang"
+          EOF
+              else
+                echo "ERROR: No system libclang found in common locations"
+                echo "Will try without explicit LIBCLANG_PATH and let bindgen auto-detect"
+                
+                # Create config without explicit LIBCLANG_PATH
+                cd client/src-tauri
+                cp .cargo/config.toml .cargo/config.toml.backup
+                cat > .cargo/config.toml << EOF
+          [env]
+          CPAL_ASIO_DIR = { value = "./asiosdk_2.3.3_2019-06-14", relative = true }
 
           [build]
           rustflags = ["--cfg", "s2n_quic_unstable"]
@@ -279,16 +322,36 @@ jobs:
           echo "=== Verifying libclang setup ==="
           echo "LIBCLANG_PATH: ${LIBCLANG_PATH:-not set}"
           
+          # Search for libclang in common system locations
+          echo "=== Searching for libclang system-wide ==="
+          find /usr -name "libclang*.so*" 2>/dev/null | head -10 || echo "No libclang found in /usr"
+          find /lib -name "libclang*.so*" 2>/dev/null | head -10 || echo "No libclang found in /lib"
+          
+          # Check specific common locations
+          for path in "/usr/lib/x86_64-linux-gnu" "/usr/lib" "/usr/lib64" "/usr/local/lib"; do
+            if [ -d "$path" ]; then
+              echo "Checking $path:"
+              ls -la "$path"/libclang* 2>/dev/null || echo "  No libclang files"
+            fi
+          done
+          
+          # Check what clang is installed
+          echo "=== Clang installation verification ==="
+          which clang || echo "clang not in PATH"
+          clang --version || echo "clang version check failed"
+          
+          # Check LLVM installation
+          echo "=== LLVM packages ==="
+          dpkg -l | grep -i llvm || echo "No LLVM packages found"
+          dpkg -l | grep -i clang || echo "No clang packages found"
+          
           if [ -n "$LIBCLANG_PATH" ]; then
-            echo "Contents of LIBCLANG_PATH directory:"
+            echo "Contents of LIBCLANG_PATH directory ($LIBCLANG_PATH):"
             ls -la "$LIBCLANG_PATH" | grep -i clang || echo "No clang libraries found"
             
             # Test if we can find libclang
             find "$LIBCLANG_PATH" -name "libclang*" 2>/dev/null || echo "No libclang files found"
           fi
-          
-          echo "System clang version:"
-          clang --version || echo "System clang not found"
           
           echo "Current .cargo/config.toml:"
           cat .cargo/config.toml
@@ -300,13 +363,59 @@ jobs:
       - name: Build Android (debug)
         if: matrix.build_mode == 'debug'
         working-directory: ./client
+        env:
+          # Additional environment variables that bindgen might respect
+          LIBCLANG_PATH: ${{ env.LIBCLANG_PATH }}
+          LD_LIBRARY_PATH: ${{ env.LIBCLANG_PATH }}:$LD_LIBRARY_PATH
+          BINDGEN_EXTRA_CLANG_ARGS: "-I/usr/include -I/usr/include/x86_64-linux-gnu"
         run: |
+          echo "=== Build Environment Debug ==="
+          echo "LIBCLANG_PATH: ${LIBCLANG_PATH:-not set}"
+          echo "LD_LIBRARY_PATH: ${LD_LIBRARY_PATH:-not set}"
+          echo "BINDGEN_EXTRA_CLANG_ARGS: ${BINDGEN_EXTRA_CLANG_ARGS:-not set}"
+          
+          # Try to find libclang one more time before building
+          if [ -z "$LIBCLANG_PATH" ]; then
+            echo "LIBCLANG_PATH not set, searching for libclang..."
+            FOUND_LIBCLANG=$(find /usr -name "libclang.so*" 2>/dev/null | head -1)
+            if [ -n "$FOUND_LIBCLANG" ]; then
+              LIBCLANG_DIR=$(dirname "$FOUND_LIBCLANG")
+              echo "Found libclang at: $FOUND_LIBCLANG"
+              echo "Setting LIBCLANG_PATH to: $LIBCLANG_DIR"
+              export LIBCLANG_PATH="$LIBCLANG_DIR"
+              export LD_LIBRARY_PATH="$LIBCLANG_DIR:$LD_LIBRARY_PATH"
+            fi
+          fi
+          
           ./android-build.sh debug
 
       - name: Build Android (release)
         if: matrix.build_mode == 'release'
         working-directory: ./client
+        env:
+          # Additional environment variables that bindgen might respect
+          LIBCLANG_PATH: ${{ env.LIBCLANG_PATH }}
+          LD_LIBRARY_PATH: ${{ env.LIBCLANG_PATH }}:$LD_LIBRARY_PATH
+          BINDGEN_EXTRA_CLANG_ARGS: "-I/usr/include -I/usr/include/x86_64-linux-gnu"
         run: |
+          echo "=== Build Environment Debug ==="
+          echo "LIBCLANG_PATH: ${LIBCLANG_PATH:-not set}"
+          echo "LD_LIBRARY_PATH: ${LD_LIBRARY_PATH:-not set}"
+          echo "BINDGEN_EXTRA_CLANG_ARGS: ${BINDGEN_EXTRA_CLANG_ARGS:-not set}"
+          
+          # Try to find libclang one more time before building
+          if [ -z "$LIBCLANG_PATH" ]; then
+            echo "LIBCLANG_PATH not set, searching for libclang..."
+            FOUND_LIBCLANG=$(find /usr -name "libclang.so*" 2>/dev/null | head -1)
+            if [ -n "$FOUND_LIBCLANG" ]; then
+              LIBCLANG_DIR=$(dirname "$FOUND_LIBCLANG")
+              echo "Found libclang at: $FOUND_LIBCLANG"
+              echo "Setting LIBCLANG_PATH to: $LIBCLANG_DIR"
+              export LIBCLANG_PATH="$LIBCLANG_DIR"
+              export LD_LIBRARY_PATH="$LIBCLANG_DIR:$LD_LIBRARY_PATH"
+            fi
+          fi
+          
           ./android-build.sh release
 
       - name: Restore original .cargo/config.toml
