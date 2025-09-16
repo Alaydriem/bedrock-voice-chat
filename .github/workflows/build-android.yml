@@ -179,6 +179,10 @@ jobs:
             fi
           fi
 
+      - name: Install bindgen
+        working-directory: ./client
+        run: cargo install --force --locked bindgen-cli
+
       - name: Initialize Tauri Android project
         working-directory: ./client
         run: |

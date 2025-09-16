@@ -94,11 +94,9 @@ jobs:
         if: matrix.build_mode == 'debug'
         working-directory: ./client
         env:
-          # Disable updater for debug builds
-          TAURI_BUNDLE_CREATE_UPDATER_ARTIFACTS: "false"
-        run: |
-          cp src-tauri/tauri.conf.debug.json src-tauri/tauri.conf.json
-          yarn tauri build --debug
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: yarn tauri build --debug --no-bundle
 
       - name: Build Windows client (release)
         if: matrix.build_mode == 'release'
