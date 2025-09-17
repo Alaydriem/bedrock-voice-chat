@@ -173,8 +173,8 @@ jobs:
         working-directory: ./client
         env:
           # libclang setup
-          LIBCLANG_PATH: /usr/lib/llvm-14/lib/
-          LD_LIBRARY_PATH: /usr/lib/llvm-14/lib/:$LD_LIBRARY_PATH
+          LIBCLANG_PATH: /usr/lib/llvm-17/lib/
+          LD_LIBRARY_PATH: /usr/lib/llvm-17/lib/:$LD_LIBRARY_PATH
           BINDGEN_EXTRA_CLANG_ARGS: "-I/usr/include -I/usr/include/x86_64-linux-gnu"
           
           # NDK environment setup  
