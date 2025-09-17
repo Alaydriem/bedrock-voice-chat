@@ -175,7 +175,6 @@ jobs:
           # libclang setup
           LIBCLANG_PATH: /usr/lib/llvm-17/lib/
           LD_LIBRARY_PATH: /usr/lib/llvm-17/lib/:$LD_LIBRARY_PATH
-          BINDGEN_EXTRA_CLANG_ARGS: "-I/usr/include -I/usr/include/x86_64-linux-gnu"
           
           # NDK environment setup  
           ANDROID_NDK_HOME: "$ANDROID_NDK_ROOT"
@@ -207,7 +206,7 @@ jobs:
           CXX_x86_64_linux_android: "x86_64-linux-android27-clang++"
           AR_x86_64_linux_android: "llvm-ar"
           CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER: "x86_64-linux-android27-clang"
-        run: |          
+        run: |         
           yarn tauri android build --debug
           
       - name: Prepare Android artifacts
