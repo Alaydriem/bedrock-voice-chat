@@ -93,7 +93,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
+          sudo apt-get install -y --no-install-recommends \
             pkg-config \
             libssl-dev \
             libsqlite3-dev \
@@ -107,6 +107,7 @@ jobs:
             libclang-dev \
             clang \
             llvm-dev
+          sudo ls -laht /usr/lib/
 
       - name: Install JavaScript dependencies
         working-directory: ./client
