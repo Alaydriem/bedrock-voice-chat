@@ -240,9 +240,6 @@ jobs:
           ANDROID_PLATFORM: "android-27"
           CMAKE_ANDROID_API: "27"
         run: |
-          cargo install cargo-ndk --locked
-          cargo ndk-env
-
           export PATH="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
           yarn tauri android build --debug
           
