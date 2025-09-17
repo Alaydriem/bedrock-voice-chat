@@ -1,0 +1,18 @@
+[env]
+CPAL_ASIO_DIR = { value = "./asiosdk_2.3.3_2019-06-14", relative = true }
+
+[build]
+rustflags = ["--cfg", "s2n_quic_unstable"]
+
+# Android-specific configurations
+[target.aarch64-linux-android]
+linker = "aarch64-linux-android27-clang"
+
+[target.armv7-linux-androideabi]
+linker = "armv7a-linux-androideabi27-clang"
+
+[target.i686-linux-android]
+linker = "i686-linux-android27-clang"
+
+[target.x86_64-linux-android]
+linker = "x86_64-linux-android27-clang"
