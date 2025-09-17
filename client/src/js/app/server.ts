@@ -3,7 +3,7 @@ import { Store } from '@tauri-apps/plugin-store';
 import { invoke } from "@tauri-apps/api/core";
 
 // @ts-ignore
-import murmurHash3 from "murmurHash3js";
+import murmurHash3 from "murmurhash3js";
 import { mount } from 'svelte';
 import ServerAvatar from '../../components/ServerAvatar.svelte';
 
@@ -117,11 +117,13 @@ export default class Server extends App {
         return;
       }
 
-      await invoke("api_ping", { 
+      await invoke("api_initialize_client", { 
         endpoint: server,
         cert: credentials.certificate_ca,
         pem: credentials.certificate + credentials.certificate_key 
-      })
+      });
+
+      await invoke("api_ping")
         .then(async (response: any) => {
           window.location.href = "/dashboard";
         })
@@ -193,11 +195,13 @@ export default class Server extends App {
           return;
         }
 
-        await invoke("api_ping", { 
+        await invoke("api_initialize_client", { 
           endpoint: server,
           cert: credentials.certificate_ca,
           pem: credentials.certificate + credentials.certificate_key 
-        })
+        });
+
+        await invoke("api_ping")
           .then(async (response: any) => {
             button.removeAttribute("disabled");
             button.querySelector(".spinner")?.remove();

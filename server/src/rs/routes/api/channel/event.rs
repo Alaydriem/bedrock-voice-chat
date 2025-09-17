@@ -2,7 +2,7 @@ use crate::stream::quic::WebhookReceiver;
 use common::structs::{
     channel::{
         ChannelEvent,
-        ChannelEvents::{Join, Leave},
+        ChannelEvents::{Join, Leave, Delete},
     },
     packet::{
         ChannelEventPacket, PacketOwner, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
@@ -36,7 +36,27 @@ pub async fn channel_event<'r>(
     let mut channel = match lock.get(id).await {
         Some(channel) => channel,
         None => {
-            return status::Custom(Status::BadRequest, Some(Json(false)));
+            if event.event.eq(&Delete) {
+                let packet = QuicNetworkPacket {
+                    owner: Some(PacketOwner {
+                        name: String::from("channel_api"),
+                        client_id: vec![0u8; 0],
+                    }),
+                    packet_type: PacketType::ChannelEvent,
+                    data: QuicNetworkPacketData::ChannelEvent(ChannelEventPacket::new(
+                        event.event,
+                        user,
+                        id.to_string(),
+                    )),
+                };
+
+                send_channel_event(packet, webhook_receiver).await;
+
+                return status::Custom(Status::Ok, Some(Json(true)));
+            } else {
+                // You can't send channel events to a closed channel
+                return status::Custom(Status::BadRequest, Some(Json(false)));
+            }
         }
     };
 
@@ -47,6 +67,7 @@ pub async fn channel_event<'r>(
         Leave => {
             _ = channel.remove_player(user.clone());
         }
+        _ => {}
     }
 
     _ = lock.insert(id.to_string(), channel).await;
@@ -54,20 +75,24 @@ pub async fn channel_event<'r>(
 
     let packet = QuicNetworkPacket {
         owner: Some(PacketOwner {
-            name: String::from("api"),
+            name: String::from("channel_api"),
             client_id: vec![0u8; 0],
         }),
         packet_type: PacketType::ChannelEvent,
-        data: QuicNetworkPacketData::ChannelEvent(ChannelEventPacket {
-            event: event.event,
-            name: user,
-            channel: id.to_string(),
-        }),
+        data: QuicNetworkPacketData::ChannelEvent(ChannelEventPacket::new(
+            event.event,
+            user,
+            id.to_string(),
+        )),
     };
 
+    send_channel_event(packet, webhook_receiver).await;
+
+    return status::Custom(Status::Ok, Some(Json(true)));
+}
+
+async fn send_channel_event(packet: QuicNetworkPacket, webhook_receiver: &State<WebhookReceiver>) {
     if let Err(e) = webhook_receiver.send_packet(packet).await {
         tracing::error!("Failed to send packet to QUIC server: {}", e);
     }
-
-    return status::Custom(Status::Ok, Some(Json(true)));
 }

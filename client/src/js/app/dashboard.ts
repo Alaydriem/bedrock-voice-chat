@@ -13,6 +13,10 @@ import Server from './server.ts';
 import Keyring from './keyring.ts';
 import Sidebar from "./components/dashboard/sidebar.ts";
 
+import { PlayerManager } from './managers/PlayerManager';
+import ChannelManager from './managers/ChannelManager';
+import { AudioActivityManager } from './managers/AudioActivityManager';
+
 import Notification from "../../components/events/Notification.svelte";
 import type { NoiseGateSettings } from '../bindings/NoiseGateSettings.ts';
 import type { PlayerGainStore } from '../bindings/PlayerGainStore.ts';
@@ -31,6 +35,12 @@ export default class Dashboard extends App {
     private keyring: Keyring | undefined;
     private store: Store | undefined;
     private eventUnlisteners: (() => void)[] = [];
+    private currentServerCredentials: LoginResponse | null = null;
+    
+    // Manager instances for dependency injection
+    public playerManager: PlayerManager | undefined;
+    public channelManager: ChannelManager | undefined;
+    public audioActivityManager: AudioActivityManager | undefined;
     
     async initialize() {
         const appWebview = getCurrentWebviewWindow();
@@ -58,19 +68,18 @@ export default class Dashboard extends App {
         this.store = await Store.load("store.json", { autoSave: false });
         const currentServer = await this.store.get<string>("current_server");
 
+        // Initialize managers with dependency injection
+        await this.initializeManagers();
+
         // If the audio engine is stopped for either the input or output channel, shutdown the existing one, reinitialize everything
        
-        let currentServerCredentials: LoginResponse | null = null;
         if (currentServer) {
-            await this.renderSidebar(this.store, currentServer ?? "");
-            
             this.keyring = await Keyring.new("servers");
 
             const server = new Server();
             server.setKeyring(this.keyring, currentServer);
-            currentServerCredentials = await server.getCredentials();
+            this.currentServerCredentials = await server.getCredentials();
 
-            document.getElementById("player-sidebar-avatar")?.setAttribute("src", atob(currentServerCredentials?.gamerpic ?? ""));
             const isInputStreamStopped = await invoke("is_stopped", { device: "InputDevice" }).then((stopped) => stopped as boolean);
             const isOutputStreamStopped = await invoke("is_stopped", { device: "OutputDevice" }).then((stopped) => stopped as boolean);
             if (isInputStreamStopped || isOutputStreamStopped) {
@@ -79,7 +88,7 @@ export default class Dashboard extends App {
                 await requestAudioPermissions().then(async (granted) => {
                     if (granted) {
                         info("Audio permissions are granted by ABI");
-                        await this.initializeAudioDevicesAndNetworkStream(this.store!, currentServer ?? "", currentServerCredentials);
+                        await this.initializeAudioDevicesAndNetworkStream(this.store!, currentServer ?? "", this.currentServerCredentials);
                     } else {
                         warn("Audio permissions are not granted, or need to be requested");
                     }
@@ -88,6 +97,95 @@ export default class Dashboard extends App {
             }
         }
         // Render the dashboard
+    }
+
+    /**
+     * Initialize all managers with proper dependency injection
+     */
+    private async initializeManagers(): Promise<void> {
+        if (!this.store) {
+            throw new Error('Store must be initialized before managers');
+        }
+
+        try {
+            // Load static configuration from store for DI
+            const currentPlayer = await this.store.get("current_player") as string | null;
+            const currentServer = await this.store.get("current_server") as string | null;
+            const currentUser = currentPlayer || '';
+            const serverUrl = currentServer || '';
+            
+            if (currentUser) {
+                info(`Dashboard: Loaded current user from store: ${currentUser}`);
+            } else {
+                warn('Dashboard: No current user found in store');
+            }
+            
+            if (serverUrl) {
+                info(`Dashboard: Loaded current server from store: ${serverUrl}`);
+            } else {
+                warn('Dashboard: No current server found in store');
+            }
+
+            // Initialize PlayerManager first (no dependencies)
+            this.playerManager = new PlayerManager(this.store, currentUser);
+            info('Dashboard: PlayerManager initialized');
+
+            // Initialize ChannelManager (depends on PlayerManager)
+            this.channelManager = new ChannelManager(this.playerManager, this.store, serverUrl);
+            info('Dashboard: ChannelManager initialized');
+
+            // Initialize AudioActivityManager (independent)
+            this.audioActivityManager = new AudioActivityManager(this.store);
+            await this.audioActivityManager.initialize();
+            info('Dashboard: AudioActivityManager initialized');
+        } catch (err) {
+            error(`Dashboard: Failed to initialize managers: ${err}`);
+            throw err;
+        }
+    }
+
+    /**
+     * Get managers for dependency injection into components
+     */
+    getManagers() {
+        return {
+            playerManager: this.playerManager,
+            channelManager: this.channelManager,
+            audioActivityManager: this.audioActivityManager
+        };
+    }
+
+    /**
+     * Set the player avatar after DOM is ready
+     */
+    public setPlayerAvatar(): void {
+        if (!this.currentServerCredentials) {
+            warn('Dashboard: No current server credentials available for avatar');
+            return;
+        }
+
+        // Set player avatar with proper base64 validation
+        const avatarElement = document.getElementById("player-sidebar-avatar");
+        
+        if (avatarElement && this.currentServerCredentials?.gamerpic) {
+            try {
+                info(`Dashboard: Setting player avatar for ${this.currentServerCredentials.gamertag}`);
+                const decodedAvatar = atob(this.currentServerCredentials.gamerpic);
+                avatarElement.setAttribute("src", decodedAvatar);
+                info(`Dashboard: Set player avatar for ${this.currentServerCredentials.gamertag}`);
+            } catch (err) {
+                warn(`Dashboard: Failed to decode player avatar: ${err}`);
+                // Set a default avatar or leave empty
+                avatarElement.setAttribute("src", "");
+            }
+        } else {
+            if (!avatarElement) {
+                warn(`Dashboard: Avatar element 'player-sidebar-avatar' not found in DOM`);
+            }
+            if (!this.currentServerCredentials?.gamerpic) {
+                warn(`Dashboard: No gamerpic data available`);
+            }
+        }
     }
 
     async renderSidebar(store: Store, currentServer: string): Promise<void> {
@@ -115,6 +213,12 @@ export default class Dashboard extends App {
                 device: "OutputDevice"
             }).then(async () => {
                 info("Updated current player");
+
+                // Update PlayerManager with current user
+                if (this.playerManager && credentials?.gamertag) {
+                    this.playerManager.setCurrentUser(credentials.gamertag);
+                    info(`Dashboard: Set current user in PlayerManager: ${credentials.gamertag}`);
+                }
 
                 // Load any metadata from the settings store
                 let useNoiseGate = await store.get("use_noise_gate") as boolean | null;
@@ -213,6 +317,21 @@ export default class Dashboard extends App {
     }
 
     async cleanup(): Promise<void> {
+        // Clean up managers
+        try {
+            if (this.channelManager) {
+                this.channelManager.cleanup();
+                info('Dashboard: ChannelManager cleaned up');
+            }
+            if (this.audioActivityManager) {
+                this.audioActivityManager.destroy();
+                info('Dashboard: AudioActivityManager cleaned up');
+            }
+            // PlayerManager doesn't need explicit cleanup currently
+        } catch (err) {
+            error(`Error cleaning up managers: ${err}`);
+        }
+
         // Clean up other event listeners
         this.eventUnlisteners.forEach(unlisten => {
             try {

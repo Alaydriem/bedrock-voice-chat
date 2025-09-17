@@ -1,17 +1,19 @@
-<script lang="ts">
-    import { audioActivity } from '../stores/audioActivity';
+<script lang="ts">    
+    import type { AudioActivityManager } from '../js/app/managers/AudioActivityManager';
     
     export let player: string;
     export let initialGain: number = 1.0;
     export let initialMuted: boolean = false;
     export let onGainChange: ((gain: number) => void) | undefined = undefined;
     export let onMuteToggle: ((muted: boolean) => void) | undefined = undefined;
+    export let isGroupMember: boolean = false;
+    export let audioActivityManager: AudioActivityManager;
     
     let isMuted = initialMuted;
     let gain = initialGain;
     let showVolumeSlider = false;
     
-   const cardColors = [
+    const cardColors = [
         'card-bg-primary',
         'card-bg-secondary',
         'card-bg-info',
@@ -94,18 +96,13 @@
     $: gain = initialGain;
     
     // Reactive: check if this player is currently speaking
-    $: isCurrentlySpeaking = $audioActivity.activeSpeakers[player]?.isHighlighted || false;
-    
-    // Debug logging (remove this later)
-    $: if (import.meta.env.DEV) {
-        console.log(`Player ${player} speaking state:`, isCurrentlySpeaking, $audioActivity.activeSpeakers[player]);
-    }
+    $: isCurrentlySpeaking = audioActivityManager?.isPlayerSpeaking(player) || false;
 </script>
 
 <svelte:window on:click={handleClickOutside} on:keydown={handleKeydown} />
 
 <!-- Gradient border wrapper with consistent sizing -->
-<div class="player-card-wrapper {isCurrentlySpeaking ? 'speaking' : ''}"
+<div class="player-card-wrapper {isCurrentlySpeaking ? 'speaking' : ''} {isGroupMember ? 'rounded-lg bg-gradient-to-r from-violet-400 to-purple-600 p-1' : ''}"
      data-player={player}>
     
     <!-- Inner card content -->

@@ -20,15 +20,15 @@ This is the default client that ships with Bedrock Voice Chat with the following
 
 [ ] Cross Platform Builds with Tauri for
 
-- [ ] Windows
-- [ ] Android
+- [x] Windows
+- [x] Android
 - [ ] iOS (iPhone and iPad)
 - [ ] MacOS (Experimental)
 - [ ] Linux (Experimental)
-      [ ] ASIO on Windows
-      [ ] Dedicated Group Chat / Support
-      [ ] Shared Voice Chat
-      [ ] Noise Gate Control
+      [x] ASIO on Windows
+      [x] Dedicated Group Chat / Support
+      [x] Shared Voice Chat
+      [x] Noise Gate Control
       [ ] AI Background Noise Filtering
 
 And more

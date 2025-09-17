@@ -22,6 +22,9 @@
     }
   },
   "bundle": {
+    "android": {
+       "minSdkVersion": 27
+    },
     "createUpdaterArtifacts": true,
     "resources": [
       "data.json"

@@ -53,6 +53,8 @@ impl Channel {
 pub enum ChannelEvents {
     Join,
     Leave,
+    Create,
+    Delete,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, TS)]

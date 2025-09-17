@@ -9,6 +9,7 @@ use reqwest::{
 };
 use std::error::Error;
 
+#[derive(Debug, Clone)]
 pub(crate) struct Api {
     endpoint: String,
     client: client::Client,

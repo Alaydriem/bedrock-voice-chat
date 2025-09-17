@@ -1,4 +1,5 @@
 use crate::audio::types::{AudioDevice, AudioDeviceHost, AudioDeviceType, StreamConfig};
+use crate::api::Api;
 use cpal::traits::{DeviceTrait, HostTrait};
 use serde_json::json;
 use std::sync::Arc;
@@ -11,6 +12,7 @@ pub struct AppState {
     input_audio_device: AudioDevice,
     output_audio_device: AudioDevice,
     pub current_server: Option<String>,
+    pub api_client: Option<Api>,
 }
 
 impl AppState {
@@ -23,7 +25,23 @@ impl AppState {
                 &store,
             ),
             current_server: AppState::get_current_server(&store),
+            api_client: None,
         }
+    }
+
+    /// Initialize the API client with credentials
+    pub fn initialize_api_client(&mut self, endpoint: String, ca_cert: String, pem: String) {
+        self.api_client = Some(Api::new(endpoint, ca_cert, pem));
+    }
+
+    /// Get the API client, returning an error if not initialized
+    pub fn get_api_client(&self) -> Result<&Api, String> {
+        self.api_client.as_ref().ok_or_else(|| "API client not initialized. Please log in first.".to_string())
+    }
+
+    /// Clear the API client (used during logout)
+    pub fn clear_api_client(&mut self) {
+        self.api_client = None;
     }
 
     /// Event handler for changing the audio device

@@ -60,20 +60,6 @@ pub struct JitterBufferSource {
 }
 
 impl JitterBufferSource {
-    pub fn new(
-        packet_receiver: flume::Receiver<Option<EncodedAudioFramePacket>>,
-        initial_packet: EncodedAudioFramePacket,
-        capacity: usize,
-    ) -> Result<Self, JitterBufferError> {
-        Self::new_with_activity(
-            packet_receiver,
-            initial_packet,
-            capacity,
-            String::new(),
-            None,
-        )
-    }
-
     pub fn new_with_activity(
         packet_receiver: flume::Receiver<Option<EncodedAudioFramePacket>>,
         initial_packet: EncodedAudioFramePacket,

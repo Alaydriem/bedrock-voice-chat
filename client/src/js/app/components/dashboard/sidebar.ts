@@ -1,5 +1,5 @@
 // @ts-ignore
-import murmurHash3 from "murmurHash3js";
+import murmurHash3 from "murmurhash3js";
 import { mount } from 'svelte';
 import ServerAvatarIcon from "../../../../components/dashboard/ServerAvatarIcon.svelte";
 

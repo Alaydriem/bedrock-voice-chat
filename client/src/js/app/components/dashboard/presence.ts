@@ -1,18 +1,21 @@
 import type { PlayerGainSettings } from '../../../bindings/PlayerGainSettings';
 import type { PlayerGainStore } from '../../../bindings/PlayerGainStore';
+import type { PlayerSource } from '../../../bindings/PlayerSource';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { Store } from '@tauri-apps/plugin-store';
 import { debug, info, error } from '@tauri-apps/plugin-log';
 import { invoke } from '@tauri-apps/api/core';
-import { playerStore, setTauriStore } from '../../../../stores/players';
+import type { PlayerManager } from '../../managers/PlayerManager';
 
 export class PlayerPresenceManager {
     private store: Store;
+    private playerManager: PlayerManager;
     private unlisten?: () => void;
     private isInitialized = false;
     
-    constructor(store: Store) {
+    constructor(store: Store, playerManager: PlayerManager) {
         this.store = store;
+        this.playerManager = playerManager;
     }
 
     async initialize(): Promise<void> {
@@ -22,8 +25,6 @@ export class PlayerPresenceManager {
         }
 
         debug("Initializing simplified PlayerPresenceManager...");
-        
-        setTauriStore(this.store);
         
         this.cleanup();
         
@@ -59,20 +60,22 @@ export class PlayerPresenceManager {
         info(`Processing player presence: ${playerName} - ${status}`);
         
         if (status === 'joined') {
-            if (!playerStore.has(playerName)) {
-                debug(`Adding new player: ${playerName}`);
-                const settings = await this.getPlayerSettings(playerName);
-                playerStore.add(playerName, settings);
-                
+            const settings = await this.getPlayerSettings(playerName);
+            
+            // Use source-aware addition with 'Proximity' source for audio detection
+            const success = await this.playerManager.addPlayerSource(playerName, 'Proximity', settings);
+            if (success) {
                 await this.savePlayerToStore(playerName, settings);
-            } else {
-                debug(`Player ${playerName} already exists, skipping add`);
             }
         } else if (status === 'disconnected') {
-            debug(`Removing player: ${playerName}`);
-            playerStore.remove(playerName);
-            
-            await this.removePlayerFromStore(playerName);
+            // Remove only from 'Proximity' source
+            const success = this.playerManager.removePlayerSource(playerName, 'Proximity');
+            if (success) {
+                // Only remove from persistent store if player has no remaining sources
+                if (!this.playerManager.has(playerName)) {
+                    await this.removePlayerFromStore(playerName);
+                }
+            }
         } else {
             error(`Unknown presence status: ${status} for player ${playerName}`);
         }
@@ -129,43 +132,43 @@ export class PlayerPresenceManager {
     }
     
     async updatePlayerGain(playerName: string, gain: number): Promise<void> {
-        const player = playerStore.get(playerName);
+        const player = this.playerManager.get(playerName);
         if (!player) {
             error(`Player ${playerName} not found in store`);
             return;
         }
         
         const newSettings = { ...player.settings, gain };
-        playerStore.update(playerName, newSettings);
+        this.playerManager.update(playerName, newSettings);
         await this.savePlayerToStore(playerName, newSettings);
         
         debug(`Updated ${playerName} gain to ${gain}`);
     }
     
     async updatePlayerMute(playerName: string, muted: boolean): Promise<void> {
-        const player = playerStore.get(playerName);
+        const player = this.playerManager.get(playerName);
         if (!player) {
             error(`Player ${playerName} not found in store`);
             return;
         }
         
         const newSettings = { ...player.settings, muted };
-        playerStore.update(playerName, newSettings);
+        this.playerManager.update(playerName, newSettings);
         await this.savePlayerToStore(playerName, newSettings);
         
         debug(`${muted ? 'Muted' : 'Unmuted'} ${playerName}`);
     }
     
     getActivePlayerCount(): number {
-        return playerStore.size();
+        return this.playerManager.size();
     }
     
     getActivePlayerNames(): string[] {
-        return playerStore.getAll().map((p: any) => p.name);
+        return this.playerManager.getAll().map((p: any) => p.name);
     }
     
     isPlayerActive(playerName: string): boolean {
-        return playerStore.has(playerName);
+        return this.playerManager.has(playerName);
     }
     
     cleanup(): void {

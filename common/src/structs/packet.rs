@@ -4,7 +4,6 @@ use base64::{engine::general_purpose, Engine as _};
 use serde::{Deserialize, Serialize};
 
 use super::channel::ChannelEvents;
-use async_mutex::Mutex;
 use moka::future::Cache;
 use std::sync::Arc;
 
@@ -186,11 +185,25 @@ impl QuicNetworkPacket {
         };
     }
 
+    /// Helper function to get all channels a player is in
+    async fn get_player_channels(
+        player_name: &str,
+        channel_membership: &Cache<String, std::collections::HashSet<String>>,
+    ) -> Vec<String> {
+        let mut player_channels = Vec::new();
+        for (channel_id, members) in channel_membership.iter() {
+            if members.contains(player_name) {
+                player_channels.push((*channel_id).clone());
+            }
+        }
+        player_channels
+    }
+
     /// Determines if a given PacketOwner can receive this QuicNetworkPacket
     pub async fn is_receivable(
         &mut self,
         recipient: PacketOwner,
-        channel_data: Arc<Mutex<Cache<String, String>>>,
+        channel_membership: Arc<Cache<String, std::collections::HashSet<String>>>,
         position_data: Arc<Cache<String, Player>>,
         range: f32,
     ) -> bool {
@@ -198,34 +211,44 @@ impl QuicNetworkPacket {
             PacketType::AudioFrame => match self.get_data() {
                 Some(data) => match data.to_owned().try_into() {
                     Ok(data) => {
+                        let current_player = &self.get_author();
                         let mut data: AudioFramePacket = data;
 
                         // You cannot receive your own audio packets
-                        if self.get_author().eq(&recipient.name) {
+                        if current_player.eq(&recipient.name) {
                             return false;
                         }
 
-                        let player_channels = channel_data.lock_arc().await.clone();
-                        let this_player = player_channels.get(&self.get_author()).await;
-                        let packet_author = player_channels.get(&recipient.name).await;
+                        // Check if both players are in the same channel using optimized approach
+                        let receiver_name = &recipient.name;
+                        
+                        // Get channels for both players concurrently
+                        let (sender_channels, receiver_channels) = tokio::join!(
+                            Self::get_player_channels(current_player, &channel_membership),
+                            Self::get_player_channels(receiver_name, &channel_membership)
+                        );
 
-                        // If the players are both in the same group, then the audio packet may be received by the sender
-                        if this_player.is_some()
-                            && packet_author.is_some()
-                            && this_player.eq(&packet_author)
-                        {
+                        // Check if they share any channels (O(k*m) where k,m = channels per player, typically 1-2)
+                        let players_in_same_channel = sender_channels.iter()
+                            .any(|channel| receiver_channels.contains(channel));
+
+                        // If the players are both in the same group, then the audio packet may be received
+                        if players_in_same_channel {
                             // Group audio packets defer to client sending settings, and non-spatial by default
                             if data.spatial.is_none() {
-                                data.spatial = Some(false);
                                 // Group audio packets are non-spatial
+                                data.spatial = Some(false);
                             }
                             self.data = QuicNetworkPacketData::AudioFrame(data);
                             return true;
                         }
 
-                        // Senders and recipients have different rules, recipiants _must_ exist, whereas senders can be an object or item with arbitrary data
-                        let actual_sender = position_data.get(&self.get_author()).await;
-                        let actual_recipient = position_data.get(&recipient.name).await;
+                        // Senders and recipients have different rules, recipients _must_ exist, whereas senders can be an object or item with arbitrary data
+                        // Use tokio::join! to fetch both positions concurrently
+                        let (actual_sender, actual_recipient) = tokio::join!(
+                            position_data.get(current_player),
+                            position_data.get(receiver_name)
+                        );
 
                         // Determine the sender coordinates and dimension first from the player object, then the packet data
                         let (sender_dimension, sender_coordinates) = match actual_sender {
@@ -305,8 +328,9 @@ impl QuicNetworkPacket {
                 },
                 None => false,
             },
+            PacketType::ChannelEvent => true,
             // If there are other packet types we want recipiants to receive, this should be updated
-            _ => false,
+            _ => self.is_broadcast(),
         }
     }
 }
@@ -461,6 +485,48 @@ pub struct ChannelEventPacket {
     pub event: ChannelEvents,
     pub name: String,
     pub channel: String,
+    pub channel_name: Option<String>, // Channel display name (for create/delete events)
+    pub creator: Option<String>,      // Channel creator (for create/delete events)
+    pub timestamp: Option<i64>,       // Unix timestamp in milliseconds
+}
+
+impl ChannelEventPacket {
+    /// Create a simple join/leave event (legacy format)
+    pub fn new(event: ChannelEvents, player_name: String, channel_id: String) -> Self {
+        Self {
+            event,
+            name: player_name,
+            channel: channel_id,
+            channel_name: None,
+            creator: None,
+            timestamp: None,
+        }
+    }
+
+    /// Create a full event with metadata (for create/delete events)
+    pub fn new_full(
+        event: ChannelEvents,
+        player_name: String,
+        channel_id: String,
+        channel_name: Option<String>,
+        creator: Option<String>,
+    ) -> Self {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        
+        Self {
+            event,
+            name: player_name,
+            channel: channel_id,
+            channel_name,
+            creator,
+            timestamp: Some(
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis() as i64
+            ),
+        }
+    }
 }
 
 impl TryFrom<QuicNetworkPacketData> for ChannelEventPacket {

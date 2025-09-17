@@ -11,7 +11,7 @@ use common::{
     structs::{
         audio::PlayerGainStore,
         packet::{
-            AudioFramePacket, PacketType, PlayerDataPacket, QuicNetworkPacket, ServerErrorPacket,
+            AudioFramePacket, ChannelEventPacket, PacketType, PlayerDataPacket, QuicNetworkPacket, ServerErrorPacket,
         },
     },
     Player,
@@ -254,6 +254,13 @@ impl OutputStream {
                                         )
                                         .await
                                     }
+                                    PacketType::ChannelEvent => {
+                                        OutputStream::handle_channel_event(
+                                            &packet.data,
+                                            Some(&app_handle.clone()),
+                                        )
+                                        .await
+                                    }
                                     _ => {}
                                 },
                                 Err(e) => {
@@ -406,6 +413,52 @@ impl OutputStream {
                 }
                 Err(_) => {
                     warn!("Could not decode player data packet");
+                }
+            }
+        }
+    }
+
+    // Process channel events (create, delete, join, leave)
+    async fn handle_channel_event(
+        data: &QuicNetworkPacket,
+        app_handle: Option<&tauri::AppHandle>,
+    ) {
+        if let Some(app_handle) = app_handle {
+            let channel_event: Result<ChannelEventPacket, ()> = data.data.to_owned().try_into();
+
+            match channel_event {
+                Ok(event) => {
+                    let event_type = match event.event {
+                        common::structs::channel::ChannelEvents::Create => "create",
+                        common::structs::channel::ChannelEvents::Delete => "delete", 
+                        common::structs::channel::ChannelEvents::Join => "join",
+                        common::structs::channel::ChannelEvents::Leave => "leave",
+                    };
+
+                    info!(
+                        "Channel event: {} {} in channel {} ({})",
+                        event.name,
+                        event_type,
+                        event.channel,
+                        event.channel_name.as_deref().unwrap_or("unknown")
+                    );
+
+                    if let Err(e) = app_handle.emit(
+                        crate::events::event::channel_event::CHANNEL_EVENT,
+                        crate::events::event::channel_event::ChannelEvent::new(
+                            event_type.to_string(),
+                            event.channel,
+                            event.channel_name,
+                            event.creator,
+                            event.name,
+                            event.timestamp,
+                        ),
+                    ) {
+                        error!("Failed to emit channel event: {:?}", e);
+                    }
+                }
+                Err(_) => {
+                    warn!("Could not decode channel event packet");
                 }
             }
         }
