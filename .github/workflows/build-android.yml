@@ -154,7 +154,9 @@ jobs:
           ANDROID_SYSROOT="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 
           # Generic flags bindgen & cc should use for Android cross builds
-          echo "BINDGEN_EXTRA_CLANG_ARGS=--sysroot=$ANDROID_SYSROOT -D__ANDROID_API__=27 --target=aarch64-linux-android27" >> $GITHUB_ENV
+          ANDROID_SYSROOT="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
+          # Bindgen gets sysroot and a target triple; no __ANDROID_API__ define
+          echo 'BINDGEN_EXTRA_CLANG_ARGS=--sysroot='"$ANDROID_SYSROOT"' --target=aarch64-linux-android27' >> $GITHUB_ENV
 
           # Per-target CFLAGS (so the cc crate picks up the same sysroot/API)
           echo "CFLAGS_aarch64_linux_android=--sysroot=$ANDROID_SYSROOT -D__ANDROID_API__=27 --target=aarch64-linux-android27" >> $GITHUB_ENV
@@ -167,6 +169,9 @@ jobs:
           echo "LDFLAGS_armv7_linux_androideabi=--sysroot=$ANDROID_SYSROOT" >> $GITHUB_ENV
           echo "LDFLAGS_i686_linux_android=--sysroot=$ANDROID_SYSROOT" >> $GITHUB_ENV
           echo "LDFLAGS_x86_64_linux_android=--sysroot=$ANDROID_SYSROOT" >> $GITHUB_ENV
+
+          echo "ANDROID_PLATFORM=android-27" >> $GITHUB_ENV
+          echo "CMAKE_ANDROID_API=27" >> $GITHUB_ENV
 
           # Sanity check: stdlib.h should exist here
           test -f "$ANDROID_SYSROOT/usr/include/stdlib.h" && echo "Found stdlib.h in sysroot" || (echo "Missing stdlib.h"; exit 1)
