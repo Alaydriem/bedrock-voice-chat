@@ -232,11 +232,32 @@ jobs:
           CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER: "x86_64-linux-android27-clang"
 
           # RUSTFLAGS (unchanged)
-          CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS: "--cfg s2n_quic_unstable -C link-arg=-lc++_shared -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/27"
-          CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_RUSTFLAGS: "--cfg s2n_quic_unstable -C link-arg=-lc++_shared -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/27"
-          CARGO_TARGET_I686_LINUX_ANDROID_RUSTFLAGS: "--cfg s2n_quic_unstable -C link-arg=-lc++_shared -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android/27"
-          CARGO_TARGET_X86_64_LINUX_ANDROID_RUSTFLAGS: "--cfg s2n_quic_unstable -C link-arg=-lc++_shared -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android/27"
-          CARGO_NDK_PLATFORM: "27"
+          CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS: >-
+            -Clinker=aarch64-linux-android27-clang
+            --cfg s2n_quic_unstable
+            -C link-arg=-lc++_shared
+            -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/27
+
+          # ARMv7
+          CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_RUSTFLAGS: >-
+            -Clinker=armv7a-linux-androideabi27-clang
+            --cfg s2n_quic_unstable
+            -C link-arg=-lc++_shared
+            -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/27
+
+          # x86
+          CARGO_TARGET_I686_LINUX_ANDROID_RUSTFLAGS: >-
+            -Clinker=i686-linux-android27-clang
+            --cfg s2n_quic_unstable
+            -C link-arg=-lc++_shared
+            -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android/27
+
+          # x86_64
+          CARGO_TARGET_X86_64_LINUX_ANDROID_RUSTFLAGS: >-
+            -Clinker=x86_64-linux-android27-clang
+            --cfg s2n_quic_unstable
+            -C link-arg=-lc++_shared
+            -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android/27
           ANDROID_PLATFORM: "android-27"
           CMAKE_ANDROID_API: "27"
         run: |
