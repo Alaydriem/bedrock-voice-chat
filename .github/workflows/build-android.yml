@@ -162,22 +162,52 @@ jobs:
       - name: Initialize Tauri Android project
         working-directory: ./client
         run: |
+          echo "Setting up .cargo/config.toml for Android build..."
+          cp ../.github/client/.cargo/config.toml ./src-tauri/.cargo/config.toml
           echo "Initializing Tauri Android project..."
           yarn tauri android init
           echo "Android project initialized successfully"
 
-      - name: Make Android build script executable
-        working-directory: ./client
-        run: chmod +x android-build.sh
-
       - name: Build Android (debug)
-        if: matrix.build_mode == 'debug'
         working-directory: ./client
         env:
-          # Additional environment variables that bindgen might respect
-          LIBCLANG_PATH: /usr/lib/llvm-19/lib
-        run: |         
-          ./android-build.sh debug
+          # libclang setup
+          LIBCLANG_PATH: /usr/lib/llvm-14/lib/
+          LD_LIBRARY_PATH: /usr/lib/llvm-14/lib/:$LD_LIBRARY_PATH
+          BINDGEN_EXTRA_CLANG_ARGS: "-I/usr/include -I/usr/include/x86_64-linux-gnu"
+          
+          # NDK environment setup  
+          ANDROID_NDK_HOME: "$ANDROID_NDK_ROOT"
+          
+          # Build tools
+          CMAKE_GENERATOR: "Ninja"
+          CMAKE: "cmake"
+          AWS_LC_SYS_CMAKE_GENERATOR: "Ninja" 
+          AWS_LC_SYS_CMAKE_BUILDER: "1"
+          AWS_LC_SYS_EXTERNAL_BINDGEN: "1"
+          
+          # Android NDK toolchain setup (all for API 27)
+          CC_aarch64_linux_android: "aarch64-linux-android27-clang"
+          CXX_aarch64_linux_android: "aarch64-linux-android27-clang++"
+          AR_aarch64_linux_android: "llvm-ar"
+          CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: "aarch64-linux-android27-clang"
+          
+          CC_armv7_linux_androideabi: "armv7a-linux-androideabi27-clang"
+          CXX_armv7_linux_androideabi: "armv7a-linux-androideabi27-clang++"
+          AR_armv7_linux_androideabi: "llvm-ar"
+          CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER: "armv7a-linux-androideabi27-clang"
+          
+          CC_i686_linux_android: "i686-linux-android27-clang"
+          CXX_i686_linux_android: "i686-linux-android27-clang++"
+          AR_i686_linux_android: "llvm-ar"
+          CARGO_TARGET_I686_LINUX_ANDROID_LINKER: "i686-linux-android27-clang"
+          
+          CC_x86_64_linux_android: "x86_64-linux-android27-clang"
+          CXX_x86_64_linux_android: "x86_64-linux-android27-clang++"
+          AR_x86_64_linux_android: "llvm-ar"
+          CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER: "x86_64-linux-android27-clang"
+        run: |          
+          yarn tauri android build --debug
           
       - name: Prepare Android artifacts
         working-directory: ./client

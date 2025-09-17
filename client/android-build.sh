@@ -3,7 +3,7 @@
 # Cross-platform Android build script for GitHub Actions
 # Supports both Linux and Windows (via Git Bash/MSYS2)
 
-set -e
+set e
 
 BUILD_TYPE="${1:-debug}"
 
