@@ -41,13 +41,13 @@ jobs:
       build_mode: ${{ inputs.build_mode == 'both' && '' || inputs.build_mode || '' }}
 
   # Build Android client
-  build-android:
-    name: Build Android Client
-    needs: changes
-    if: needs.changes.outputs.android == 'true' || needs.changes.outputs.common == 'true'
-    uses: ./.github/workflows/build-android.yml
-    with:
-      build_mode: ${{ inputs.build_mode == 'both' && '' || inputs.build_mode || '' }}
+  #build-android:
+  #  name: Build Android Client
+  #  needs: changes
+  #  if: needs.changes.outputs.android == 'true' || needs.changes.outputs.common == 'true'
+  #  uses: ./.github/workflows/build-android.yml
+  #  with:
+  #    build_mode: ${{ inputs.build_mode == 'both' && '' || inputs.build_mode || '' }}
 
   # Build Windows client
   build-client:

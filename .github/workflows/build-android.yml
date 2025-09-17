@@ -1,19 +1,19 @@
 name: Build Android Client
 
 on:
-  push:
-    branches: [ master ]
-    paths:
-      - 'client/**'
-      - 'common/**'
-      - '.github/workflows/build-android.yml'
-  pull_request:
-  workflow_call:
-    inputs:
-      build_mode:
-        description: 'Build mode (debug or release)'
-        required: true
-        type: string
+#  push:
+#    branches: [ master ]
+#    paths:
+#      - 'client/**'
+#      - 'common/**'
+#      - '.github/workflows/build-android.yml'
+#  pull_request:
+#  workflow_call:
+#    inputs:
+#      build_mode:
+#        description: 'Build mode (debug or release)'
+#        required: true
+#        type: string
   workflow_dispatch:
     inputs:
       build_mode:
@@ -28,7 +28,7 @@ on:
 jobs:
   build-android:
     name: Build Android Client (${{ matrix.build_mode }})
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -48,11 +48,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24'
-
-      - name: Install Yarn globally
-        run: |
-          npm i -g yarn
-          yarn --version
+          cache: 'yarn'
+          cache-dependency-path: client/yarn.lock
 
       - name: Set up Android NDK
         uses: nttld/setup-ndk@v1
@@ -273,7 +270,6 @@ jobs:
           export PATH="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
           yarn tauri info
           yarn tauri android build --debug
-          cd src-tauri && cargo clean
           
       - name: Prepare Android artifacts
         working-directory: ./client
