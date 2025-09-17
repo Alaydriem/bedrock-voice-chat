@@ -178,6 +178,7 @@ jobs:
         run: |
           echo "Setting up .cargo/config.toml for Android build..."
           cp ../.github/client/.cargo/config.toml ./src-tauri/.cargo/config.toml
+          cat ./src-tauri/.cargo/config.toml
           echo "Initializing Tauri Android project..."
           yarn tauri android init
           # Groovy
@@ -262,6 +263,7 @@ jobs:
           CMAKE_ANDROID_API: "27"
         run: |
           export PATH="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
+          yarn tauri info
           yarn tauri android build --debug
           
       - name: Prepare Android artifacts
