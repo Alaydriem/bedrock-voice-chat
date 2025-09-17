@@ -28,7 +28,7 @@ on:
 jobs:
   build-android:
     name: Build Android Client (${{ matrix.build_mode }})
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     strategy:
       fail-fast: false
       matrix:
@@ -270,6 +270,7 @@ jobs:
           export PATH="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
           yarn tauri info
           yarn tauri android build --debug
+          cd src-tauri && cargo clean
           
       - name: Prepare Android artifacts
         working-directory: ./client
