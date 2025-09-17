@@ -236,7 +236,13 @@ jobs:
           CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_RUSTFLAGS: "--cfg s2n_quic_unstable -C link-arg=-lc++_shared -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/27"
           CARGO_TARGET_I686_LINUX_ANDROID_RUSTFLAGS: "--cfg s2n_quic_unstable -C link-arg=-lc++_shared -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android/27"
           CARGO_TARGET_X86_64_LINUX_ANDROID_RUSTFLAGS: "--cfg s2n_quic_unstable -C link-arg=-lc++_shared -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android/27"
+          CARGO_NDK_PLATFORM: "27"
+          ANDROID_PLATFORM: "android-27"
+          CMAKE_ANDROID_API: "27"
         run: |
+          cargo install cargo-ndk --locked
+          cargo ndk-env
+
           export PATH="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
           yarn tauri android build --debug
           
