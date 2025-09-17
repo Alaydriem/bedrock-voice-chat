@@ -51,6 +51,11 @@ jobs:
           cache: 'yarn'
           cache-dependency-path: client/yarn.lock
 
+      - name: Install Yarn globally
+        run: |
+          npm i -g yarn
+          yarn --version
+
       - name: Set up Android NDK
         uses: nttld/setup-ndk@v1
         with:
