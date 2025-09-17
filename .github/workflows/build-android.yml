@@ -179,6 +179,15 @@ jobs:
           # NDK environment setup  
           ANDROID_NDK_HOME: "$ANDROID_NDK_ROOT"
           
+          # Bindgen configuration - CRITICAL: Only use Android NDK sysroot, no host headers
+          BINDGEN_EXTRA_CLANG_ARGS: "--sysroot=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
+          
+          # AWS_LC_SYS includes for each target (using colon-separated paths for Linux)
+          AWS_LC_SYS_INCLUDES_aarch64_linux_android: "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/20/include:$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include:$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/aarch64-linux-android"
+          AWS_LC_SYS_INCLUDES_armv7_linux_androideabi: "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/20/include:$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include:$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/arm-linux-androideabi"
+          AWS_LC_SYS_INCLUDES_i686_linux_android: "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/20/include:$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include:$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/i686-linux-android"
+          AWS_LC_SYS_INCLUDES_x86_64_linux_android: "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/20/include:$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include:$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/x86_64-linux-android"
+          
           # Build tools
           CMAKE_GENERATOR: "Ninja"
           CMAKE: "cmake"
@@ -206,7 +215,16 @@ jobs:
           CXX_x86_64_linux_android: "x86_64-linux-android27-clang++"
           AR_x86_64_linux_android: "llvm-ar"
           CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER: "x86_64-linux-android27-clang"
-        run: |         
+          
+          # RUSTFLAGS for each target
+          CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS: "--cfg s2n_quic_unstable -C link-arg=-lc++_shared -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/27"
+          CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_RUSTFLAGS: "--cfg s2n_quic_unstable -C link-arg=-lc++_shared -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/27"
+          CARGO_TARGET_I686_LINUX_ANDROID_RUSTFLAGS: "--cfg s2n_quic_unstable -C link-arg=-lc++_shared -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android/27"
+          CARGO_TARGET_X86_64_LINUX_ANDROID_RUSTFLAGS: "--cfg s2n_quic_unstable -C link-arg=-lc++_shared -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android/27"
+        run: |
+          # Add NDK tools to PATH
+          export PATH="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
+                   
           yarn tauri android build --debug
           
       - name: Prepare Android artifacts
