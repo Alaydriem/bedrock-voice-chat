@@ -197,7 +197,6 @@ export default class ChannelManager {
             // If user is already in a channel, handle movement
             const currentChannelId = get(this.currentUserChannelIdStore);
             if (currentChannelId && currentChannelId !== channelId) {
-                info(`ChannelManager: User moving from channel ${currentChannelId} to ${channelId}`);
                 await this.handleChannelMovement(currentChannelId, channelId, currentUser);
             } else if (currentChannelId === channelId) {
                 warn(`ChannelManager: User already in channel ${channelId}, skipping join`);
@@ -313,8 +312,6 @@ export default class ChannelManager {
                 }
             }
         }
-        
-        info(`ChannelManager: Finished adding existing group members for channel ${channel.name}`);
     }
 
     /**
@@ -325,17 +322,12 @@ export default class ChannelManager {
             warn('ChannelManager: PlayerManager not available for removing group members');
             return;
         }
-
-        debug(`ChannelManager: Removing all group members - reason: ${reason}`);
         
         memberNames.forEach(memberName => {
             if (memberName !== currentUser) {
                 const success = this.playerManager.removePlayerSource(memberName, 'Group');
-                debug(`ChannelManager: Removed ${memberName} from Group source - success: ${success}`);
             }
         });
-        
-        info(`ChannelManager: Finished removing ${memberNames.length - 1} group members - reason: ${reason}`);
     }
 
     /**
@@ -349,19 +341,15 @@ export default class ChannelManager {
         const oldChannel = channels.find(c => c.id === fromChannelId);
         
         if (oldChannel && this.playerManager) {
-            info(`ChannelManager: Cleaning up ${oldChannel.players.length} members from old channel ${oldChannel.name}`);
             this.removeAllGroupMembers(oldChannel.players, currentUser, 'user moving to new channel');
         }
         
         // Leave the old channel
         await this.leaveChannel(fromChannelId, currentUser);
-        
-        debug(`ChannelManager: Completed channel movement cleanup, ready to join new channel`);
     }
 
     async startListening(): Promise<void> {
         if (get(this.isListening)) {
-            debug("Channel event listener already active");
             return;
         }
 
@@ -373,8 +361,6 @@ export default class ChannelManager {
             this.eventUnlisten = await appWebview.listen('channel_event', (event: any) => {
                 this.handleChannelEvent(event);
             });
-            
-            debug("Channel event listener started successfully");
         } catch (error) {
             logError(`Failed to start channel event listener: ${error}`);
             this.handleError(error);
@@ -387,7 +373,6 @@ export default class ChannelManager {
             this.eventUnlisten = null;
         }
         this.isListeningStore.set(false);
-        debug("Channel event listener stopped");
     }
 
     private async handleChannelEvent(event: any): Promise<void> {
@@ -398,8 +383,6 @@ export default class ChannelManager {
         }
 
         const { event_type, channel_id, channel_name, creator, player_name } = payload;
-        
-        info(`Channel event: ${player_name} ${event_type} in channel ${channel_id} (${channel_name})`);
 
         // Get current user name for group membership tracking
         const currentUser = this.getCurrentUserName();
@@ -416,7 +399,6 @@ export default class ChannelManager {
                 const channelToDelete = channels.find(c => c.id === channel_id);
                 
                 if (channelToDelete && this.playerManager) {
-                    info(`ChannelManager: Channel ${channelToDelete.name} is being deleted, removing all group members`);
                     this.removeAllGroupMembers(channelToDelete.players, currentUser, 'channel deleted');
                 }
                 
@@ -426,7 +408,6 @@ export default class ChannelManager {
                 const currentChannelId = get(this.currentUserChannelIdStore);
                 if (currentChannelId === channel_id) {
                     this.currentUserChannelIdStore.set(null);
-                    info(`ChannelManager: Current user was in deleted channel, cleared current channel`);
                 }
                 break;
                 
@@ -446,20 +427,12 @@ export default class ChannelManager {
                     const channels = get(this.channels);
                     const userChannel = channels.find(c => c.players.includes(currentUser));
                     if (userChannel && userChannel.id === channel_id && player_name !== currentUser) {
-                        debug(`Adding ${player_name} to group membership (channel ${channel_name})`);
                         const success = await this.playerManager.addPlayerSource(player_name, 'Group');
-                        if (success) {
-                            debug(`Successfully added ${player_name} to Group source`);
-                        }
-                    } else if (player_name === currentUser) {
-                        debug(`Skipping group membership for current user: ${player_name}`);
                     }
                 }
                 break;
                 
-            case 'leave':
-                info(`LEAVE EVENT DEBUG: player_name=${player_name}, channel_id=${channel_id}, channel_name=${channel_name}`);
-                
+            case 'leave':                
                 // Check channel membership BEFORE removing from list
                 let wasCurrentUserInChannel = false;
                 let channelMembersBeforeLeave: string[] = [];
@@ -473,18 +446,12 @@ export default class ChannelManager {
                     if (channelBeforeLeave) {
                         channelMembersBeforeLeave = [...channelBeforeLeave.players];
                     }
-                    
-                    info(`LEAVE EVENT DEBUG: currentUser=${currentUser}, userChannelBefore=${userChannelBefore ? userChannelBefore.name : 'null'}, wasCurrentUserInChannel=${wasCurrentUserInChannel}`);
-                    info(`LEAVE EVENT DEBUG: channelMembersBeforeLeave=${channelMembersBeforeLeave.join(', ')}`);
-                } else {
-                    info(`LEAVE EVENT DEBUG: currentUser is null or undefined`);
                 }
                 
                 // Remove player from the channel's player list
                 this.channelsStore.update((channels: Channel[]) =>
                     channels.map((channel: Channel) => {
                         if (channel.id === channel_id) {
-                            info(`LEAVE EVENT DEBUG: Removing ${player_name} from channel ${channel.name} player list`);
                             return { ...channel, players: channel.players.filter((p: string) => p !== player_name) };
                         }
                         return channel;
@@ -494,25 +461,13 @@ export default class ChannelManager {
                 // Remove player from group membership if current user was in this channel
                 if (currentUser && wasCurrentUserInChannel && this.playerManager) {
                     if (player_name === currentUser) {
-                        // Current user is leaving - remove ALL other players in this channel from Group source
-                        info(`LEAVE EVENT DEBUG: Current user ${currentUser} is leaving, removing ALL other channel members from Group source`);
                         this.removeAllGroupMembers(channelMembersBeforeLeave, currentUser, 'current user leaving channel');
                         
                         // Clear current user's channel
                         this.currentUserChannelIdStore.set(null);
                     } else {
-                        // Another player is leaving - only remove them from Group source
-                        info(`LEAVE EVENT DEBUG: Other player ${player_name} is leaving, removing only them from Group source`);
                         const success = this.playerManager.removePlayerSource(player_name, 'Group');
-                        info(`LEAVE EVENT DEBUG: removePlayerSource result for ${player_name}: ${success}`);
-                        if (success) {
-                            debug(`Successfully removed ${player_name} from Group source`);
-                        } else {
-                            debug(`Failed to remove ${player_name} from Group source - player may not have Group source`);
-                        }
                     }
-                } else {
-                    info(`LEAVE EVENT DEBUG: Skipping group removal for ${player_name} - currentUser=${currentUser}, wasCurrentUserInChannel=${wasCurrentUserInChannel}`);
                 }
                 break;
                 

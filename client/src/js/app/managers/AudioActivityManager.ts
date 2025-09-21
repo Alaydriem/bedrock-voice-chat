@@ -39,8 +39,6 @@ export class AudioActivityManager {
 
         // Create readonly export
         this.audioActivity = { subscribe: this.audioActivityStore.subscribe };
-
-        info('AudioActivityManager: Initialized with reactive stores');
     }
 
     /**
@@ -48,7 +46,6 @@ export class AudioActivityManager {
      */
     async initialize(): Promise<void> {
         if (this.initialized) {
-            debug('AudioActivityManager: Already initialized');
             return;
         }
         
@@ -59,8 +56,6 @@ export class AudioActivityManager {
                 const activityData = event.payload as Record<string, number>;
                 this.processActivityUpdate(activityData);
             });
-
-            info('AudioActivityManager: Audio activity listener initialized successfully');
         } catch (e) {
             error(`AudioActivityManager: Failed to initialize audio activity listener: ${e}`);
         }
@@ -213,6 +208,5 @@ export class AudioActivityManager {
         });
 
         this.initialized = false;
-        info('AudioActivityManager: Destroyed and cleaned up');
     }
 }

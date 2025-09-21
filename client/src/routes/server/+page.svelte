@@ -8,6 +8,7 @@
     window.dispatchEvent(new CustomEvent("app:mounted"));
 
     window.App.initialize();
+    window.App.preloader();
     document.querySelector("body")?.classList.remove("has-min-sidebar");
   });    
 </script>

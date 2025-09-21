@@ -11,6 +11,7 @@
       window.dispatchEvent(new CustomEvent("app:mounted"));
       document.querySelector("body")?.classList.add("is-sidebar-open");
       window.App.initialize();
+      window.App.preloader();
     });
 </script>
 

@@ -6,7 +6,8 @@
   onMount(() => {
     window.App = new Login();
     window.dispatchEvent(new CustomEvent("app:mounted"));
-
+    window.App.preloader();
+    
     const urlParams = new URLSearchParams(window.location.search);
 
     document.querySelector("#login-form")

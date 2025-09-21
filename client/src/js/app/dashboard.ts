@@ -36,6 +36,7 @@ export default class Dashboard extends App {
     private store: Store | undefined;
     private eventUnlisteners: (() => void)[] = [];
     private currentServerCredentials: LoginResponse | null = null;
+    private popperProfile: any = null;
     
     // Manager instances for dependency injection
     public playerManager: PlayerManager | undefined;
@@ -82,16 +83,15 @@ export default class Dashboard extends App {
                 await this.shutdown();
                 await requestAudioPermissions().then(async (granted) => {
                     if (granted) {
-                        info("Audio permissions are granted by ABI");
                         await this.initializeAudioDevicesAndNetworkStream(this.store!, currentServer ?? "", this.currentServerCredentials);
                     } else {
                         warn("Audio permissions are not granted, or need to be requested");
                     }
                 });
-                
             }
         }
-        // Render the dashboard
+        
+        this.preloader();
     }
 
     /**
@@ -135,7 +135,7 @@ export default class Dashboard extends App {
     /**
      * Set the player avatar after DOM is ready
      */
-    public setPlayerAvatar(): void {
+    public setPlayerAvatar(): void {        
         if (!this.currentServerCredentials) {
             warn('Dashboard: No current server credentials available for avatar');
             return;
@@ -143,15 +143,99 @@ export default class Dashboard extends App {
 
         // Set player avatar with proper base64 validation
         const avatarElement = document.getElementById("player-sidebar-avatar");
+        const dropdownAvatarElement = document.getElementById("player-dropdown-avatar");
+        const dropdownNameElement = document.getElementById("player-dropdown-name");
+        const profileButton = document.getElementById("profile-ref");
         
         if (avatarElement && this.currentServerCredentials?.gamerpic) {
             try {
                 const decodedAvatar = atob(this.currentServerCredentials.gamerpic);
                 avatarElement.setAttribute("src", decodedAvatar);
+                
+                // Also set the dropdown avatar
+                if (dropdownAvatarElement) {
+                    dropdownAvatarElement.setAttribute("src", decodedAvatar);
+                }
             } catch (err) {
                 warn(`Dashboard: Failed to decode player avatar: ${err}`);
                 // Set a default avatar or leave empty
                 avatarElement.setAttribute("src", "");
+                if (dropdownAvatarElement) {
+                    dropdownAvatarElement.setAttribute("src", "");
+                }
+            }
+        }
+
+        // Set player name in dropdown
+        if (dropdownNameElement && this.currentServerCredentials?.gamertag) {
+            dropdownNameElement.textContent = this.currentServerCredentials.gamertag;
+        }
+
+        // Set up dropdown menu functionality
+        if (profileButton) {
+            // Use LineOne's simple Popper approach
+            const config = {
+                placement: "right-end",
+                modifiers: [
+                    {
+                        name: "offset",
+                        options: {
+                            offset: [0, 12],
+                        },
+                    },
+                ],
+            };
+
+            // Initialize with LineOne's Popper pattern
+            if (typeof (window as any).Popper !== 'undefined') {
+                this.popperProfile = new (window as any).Popper(
+                    '#profile-wrapper',
+                    '#profile-ref', 
+                    '#profile-box',
+                    config
+                );
+            }
+
+            // Just handle the logout button click
+            const logoutButton = document.getElementById('logout-button');
+            if (logoutButton) {
+                logoutButton.addEventListener("click", this.handleLogout.bind(this));
+                
+                // Store cleanup function
+                this.eventUnlisteners.push(() => {
+                    logoutButton.removeEventListener("click", this.handleLogout.bind(this));
+                    if (this.popperProfile && this.popperProfile.destroy) {
+                        this.popperProfile.destroy();
+                    }
+                });
+            }
+        }
+    }
+
+    /**
+     * Handle logout action
+     */
+    private async handleLogout(): Promise<void> {
+        try {            
+            await invoke("logout").then(async () => {
+                await this.cleanup().then(() => {
+                    window.location.href = "/login";
+                });
+            });
+            
+        } catch (err) {
+            error(`Dashboard: Logout failed: ${err}`);
+            // Show error notification
+            const notificationContainer = document.querySelector("#notification-container");
+            if (notificationContainer) {
+                mount(Notification, {
+                    target: notificationContainer,
+                    props: {
+                        title: "Logout Failed",
+                        body: "An error occurred during logout. Please try again.",
+                        level: "error"
+                    }
+                });
             }
         }
     }

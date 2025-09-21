@@ -65,6 +65,7 @@ import breakpoints from "../utils/breakpoints";
 
 // Alpine Components
 import usePopper from "../components/usePopper";
+import Popper from "../components/popper";
 import accordionItem from "../components/accordionItem";
 import navLink from "../components/navLink";
 
@@ -91,6 +92,7 @@ declare global {
         flatpickr: any;
         Quill: any;
         Tom: any;
+        Popper: any;
         loadedAlpinePlugins: Set<string>;
     }
 }
@@ -110,7 +112,8 @@ function loadAlpinePlugin(pluginName: string, plugin: any) {
 
 export default class App {
     protected isCleanedUp = false;
-    
+    protected isPreloadedHandled = false;
+
     constructor() {
         document.documentElement.classList.add("dark");
         FilePond.registerPlugin(FilePondPluginImagePreview);
@@ -129,6 +132,7 @@ export default class App {
         window.Alpine = Alpine;
         window.helpers = helpers;
         window.pages = pages;
+        window.Popper = Popper;
 
         loadAlpinePlugin("persist", persist);
         loadAlpinePlugin("collapse", collapse);
@@ -148,16 +152,6 @@ export default class App {
         Alpine.data("navLink", navLink);
 
         Alpine.start();
-
-        const preloader = document.querySelector(".app-preloader");
-        if (preloader) {
-            setTimeout(() => {
-            preloader.classList.add(
-                "animate-[cubic-bezier(0.4,0,0.2,1)_fade-out_500ms_forwards]"
-            );
-            setTimeout(() => preloader.remove(), 1000);
-            }, 150);
-        }
 
         // Register cleanup events
         this.registerCleanupEvents();
@@ -182,6 +176,19 @@ export default class App {
                     console.error('Error during cleanup:', error);
                 }
             }
+        }
+    }
+
+    protected preloader(): void {
+        const preloader = document.querySelector(".app-preloader");
+        if (preloader) {
+            setTimeout(() => {
+                preloader.classList.add(
+                    "animate-[cubic-bezier(0.4,0,0.2,1)_fade-out_500ms_forwards]"
+                );
+                setTimeout(() => preloader.remove(), 100);
+                this.isPreloadedHandled = true;
+            }, 150);
         }
     }
 
