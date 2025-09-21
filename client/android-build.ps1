@@ -60,6 +60,54 @@ $env:AWS_LC_SYS_INCLUDES_x86_64_linux_android = "$includesBase;$env:ANDROID_NDK_
 # Set sysroot for BINDGEN_EXTRA_CLANG_ARGS
 $env:BINDGEN_EXTRA_CLANG_ARGS = "--sysroot=$env:ANDROID_NDK_HOME/toolchains/llvm/prebuilt/windows-x86_64/sysroot"
 
+# Function to copy Android icons
+function Copy-AndroidIcons {
+    Write-Host "Copying custom Android icons..." -ForegroundColor Yellow
+    
+    $sourceIconsPath = "src-tauri\icons\android"
+    $targetResPath = "src-tauri\gen\android\app\src\main\res"
+    
+    if (-not (Test-Path $sourceIconsPath)) {
+        Write-Host "Warning: Source icons path not found: $sourceIconsPath" -ForegroundColor Yellow
+        return
+    }
+    
+    if (-not (Test-Path $targetResPath)) {
+        Write-Host "Warning: Target Android resources path not found: $targetResPath" -ForegroundColor Yellow
+        Write-Host "This is normal if the Android project hasn't been initialized yet." -ForegroundColor Yellow
+        return
+    }
+    
+    # Copy each mipmap directory
+    $mipmapDirs = @("mipmap-hdpi", "mipmap-mdpi", "mipmap-xhdpi", "mipmap-xxhdpi", "mipmap-xxxhdpi")
+    
+    foreach ($mipmapDir in $mipmapDirs) {
+        $sourcePath = Join-Path $sourceIconsPath $mipmapDir
+        $targetPath = Join-Path $targetResPath $mipmapDir
+        
+        if (Test-Path $sourcePath) {
+            if (-not (Test-Path $targetPath)) {
+                New-Item -ItemType Directory -Path $targetPath -Force | Out-Null
+            }
+            
+            # Copy ic_launcher.png
+            $sourceIcon = Join-Path $sourcePath "ic_launcher.png"
+            $targetIcon = Join-Path $targetPath "ic_launcher.png"
+            
+            if (Test-Path $sourceIcon) {
+                Copy-Item -Path $sourceIcon -Destination $targetIcon -Force
+                Write-Host "Copied $mipmapDir/ic_launcher.png" -ForegroundColor Green
+            } else {
+                Write-Host "Missing source icon: $sourceIcon" -ForegroundColor Red
+            }
+        } else {
+            Write-Host "Missing source directory: $sourcePath" -ForegroundColor Red
+        }
+    }
+    
+    Write-Host "Android icon copying completed." -ForegroundColor Green
+}
+
 # Build the appropriate command based on build type
 if ($BuildType -eq "release") {
     Write-Host "Building in RELEASE mode..." -ForegroundColor Yellow
@@ -71,6 +119,14 @@ if ($BuildType -eq "release") {
 
 # Execute the build
 try {
+    # First, ensure Android project is initialized
+    Write-Host "Ensuring Android project is initialized..." -ForegroundColor Yellow
+    yarn tauri android init
+    
+    # Copy custom Android icons after initialization
+    Copy-AndroidIcons
+    
+    # Now execute the actual build
     Invoke-Expression $command
     if ($LASTEXITCODE -eq 0) {
         Write-Host "`nBuild completed successfully!" -ForegroundColor Green

@@ -19,6 +19,7 @@
   let playerPresenceManager: PlayerPresenceManager | undefined;
   let swipeGesture: any = null;
   let isMobile = false;
+  let mainContentElement: HTMLElement;
   
   // Dashboard instance and managers
   let dashboardInstance: Dashboard | undefined;
@@ -35,16 +36,38 @@
   };
 
   const openSidebar = () => {
-    if (!isSidebarOpen()) {
-      document.querySelector("body")?.classList.add("is-sidebar-open");
-      document.querySelector("#sidebar-toggle")?.classList.add("active");
+    const currentlyOpen = isSidebarOpen();
+    info(`Dashboard: openSidebar called - currently open: ${currentlyOpen}`);
+    
+    if (!currentlyOpen) {
+      const body = document.querySelector("body");
+      const toggleButton = document.querySelector("#sidebar-toggle");
+      
+      body?.classList.add("is-sidebar-open");
+      toggleButton?.classList.add("active");
+      
+      info(`Dashboard: Added classes - body has is-sidebar-open: ${body?.classList.contains("is-sidebar-open")}, button has active: ${toggleButton?.classList.contains("active")}`);
+      info(`Dashboard: Sidebar opened`);
+    } else {
+      info(`Dashboard: Sidebar already open, skipping`);
     }
   };
 
   const closeSidebar = () => {
-    if (isSidebarOpen()) {
-      document.querySelector("body")?.classList.remove("is-sidebar-open");
-      document.querySelector("#sidebar-toggle")?.classList.remove("active");
+    const currentlyOpen = isSidebarOpen();
+    info(`Dashboard: closeSidebar called - currently open: ${currentlyOpen}`);
+    
+    if (currentlyOpen) {
+      const body = document.querySelector("body");
+      const toggleButton = document.querySelector("#sidebar-toggle");
+      
+      body?.classList.remove("is-sidebar-open");
+      toggleButton?.classList.remove("active");
+      
+      info(`Dashboard: Removed classes - body has is-sidebar-open: ${body?.classList.contains("is-sidebar-open")}, button has active: ${toggleButton?.classList.contains("active")}`);
+      info(`Dashboard: Sidebar closed`);
+    } else {
+      info(`Dashboard: Sidebar already closed, skipping`);
     }
   };
 
@@ -57,15 +80,95 @@
   };
 
   const toggleSidebar = () => {
-    if (isSidebarOpen()) {
+    info(`Dashboard: Hamburger toggle clicked`);
+    const currentlyOpen = isSidebarOpen();
+    info(`Dashboard: Current sidebar state - open: ${currentlyOpen}`);
+    
+    if (currentlyOpen) {
+      info(`Dashboard: Attempting to close sidebar`);
       closeSidebar();
     } else {
+      info(`Dashboard: Attempting to open sidebar`);
       openSidebar();
+    }
+    
+    // Verify the state changed
+    setTimeout(() => {
+      const newState = isSidebarOpen();
+      info(`Dashboard: After toggle - sidebar state: ${newState}`);
+    }, 100);
+  };
+
+  const setupMobileGestures = () => {
+    if (!isMobile || !isGroupChatSidebarAvailable || !mainContentElement) {
+      info(`Dashboard: Skipping gesture setup - isMobile: ${isMobile}, available: ${isGroupChatSidebarAvailable}, element: ${!!mainContentElement}`);
+      return;
+    }
+
+    info(`Dashboard: Setting up swipe gesture on bound element: ${mainContentElement.tagName}#${mainContentElement.id || 'no-id'}`);
+    
+    try {
+      swipeGesture = swipeGestureManager.create({
+        target: mainContentElement,
+        threshold: 50, // Lower threshold for easier testing
+        velocity: 0.2, // Lower velocity for easier testing
+        debug: true, // Enable debug mode
+        swipeLeft: ({ distance, velocity }: { distance: number; velocity: number }) => {
+          info(`Dashboard: Swipe left detected - closing sidebar`);
+          closeGroupChatPanel();
+        },
+        swipeRight: ({ distance, velocity }: { distance: number; velocity: number }) => {
+          info(`Dashboard: Swipe right detected - opening sidebar`);
+          openGroupChatPanel();
+        },
+        tap: ({ element }: { element: Element }) => {
+          info(`Dashboard: Tap detected on ${element.tagName}, sidebar open: ${isSidebarOpen()}`);
+          // Tap to dismiss sidebar when it's open
+          if (isSidebarOpen()) {
+            info(`Dashboard: Closing sidebar due to tap`);
+            closeGroupChatPanel();
+          }
+        }
+      });
+      
+      info(`Dashboard: Swipe gesture successfully created`);
+    } catch (error) {
+      info(`Dashboard: Error creating swipe gesture: ${error}`);
     }
   };
 
+  // Reactive statement to setup gestures when conditions are met
+  $: {
+    info(`Dashboard: Reactive statement triggered - isMobile: ${isMobile}, isGroupChatSidebarAvailable: ${isGroupChatSidebarAvailable}, mainContentElement: ${!!mainContentElement}`);
+    
+    if (isMobile && isGroupChatSidebarAvailable && mainContentElement) {
+      info(`Dashboard: All conditions met - calling setupMobileGestures`);
+      setupMobileGestures();
+    } else {
+      info(`Dashboard: Conditions not met for gesture setup`);
+    }
+  }
+
   onMount(async () => {
-    isMobile = await platformDetector.checkMobile();
+    info(`Dashboard: Starting onMount - isGroupChatSidebarAvailable: ${isGroupChatSidebarAvailable}`);
+    
+    try {
+      isMobile = await platformDetector.checkMobile();
+      info(`Dashboard: Mobile detection result: ${isMobile}`);
+    } catch (error) {
+      info(`Dashboard: Mobile detection error: ${error}`);
+      isMobile = false;
+    }
+
+    // For testing purposes, let's also log the user agent and temporarily force mobile
+    info(`Dashboard: User agent: ${navigator.userAgent}`);
+    info(`Dashboard: Screen width: ${window.innerWidth}, height: ${window.innerHeight}`);
+    
+    // TEMPORARY: Force mobile for testing on desktop
+    if (!isMobile && window.innerWidth <= 768) {
+      info(`Dashboard: Forcing mobile mode for testing (screen width <= 768)`);
+      isMobile = true;
+    }
 
     window.App = new Dashboard();
     window.dispatchEvent(new CustomEvent("app:mounted"));
@@ -113,30 +216,9 @@
         closeSidebar();
       }
     }
-
-    if (isMobile && isGroupChatSidebarAvailable) {
-      
-      setTimeout(() => {
-        const mainContent = document.querySelector('.main-content');
-        const rootElement = document.getElementById('root');
-        const targetElement = mainContent || rootElement;
-        
-        if (targetElement) {
-          swipeGesture = swipeGestureManager.create({
-            target: targetElement,
-            threshold: 50, // Lower threshold for easier testing
-            velocity: 0.2, // Lower velocity for easier testing
-            debug: true, // Enable debug mode
-            swipeLeft: ({ distance, velocity }: { distance: number; velocity: number }) => {
-              closeGroupChatPanel();
-            },
-            swipeRight: ({ distance, velocity }: { distance: number; velocity: number }) => {
-              openGroupChatPanel();
-            }
-          });
-        }
-      }, 100);
-    }
+    
+    // Note: Mobile gesture setup now handled by reactive statement
+    info(`Dashboard: onMount complete - waiting for mainContentElement binding`);
     
     // Initialize PlayerPresenceManager at page level
     try {
@@ -167,6 +249,7 @@
   <div id="main-sidebar-container" class="sidebar print:hidden"></div>
 
   <main
+    bind:this={mainContentElement}
     class="main-content chat-app h-100vh mt-0 flex flex-col w-full min-w-0 supports-[height:1dvh]:h-dvh"
   >
     <div
@@ -177,6 +260,7 @@
           <div class="ml-1 size-7">
             <button
               id="sidebar-toggle"
+              on:click={toggleSidebar}
               aria-label="Toggle sidebar"
               class="menu-toggle cursor-pointer ml-0.5 flex size-7 flex-col justify-center space-y-1.5 text-primary outline-hidden focus:outline-hidden dark:text-accent-light/80 active"
             >

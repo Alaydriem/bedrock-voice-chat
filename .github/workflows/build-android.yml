@@ -199,6 +199,55 @@ jobs:
 
           echo "Android project initialized successfully"
 
+      - name: Copy custom Android icons
+        working-directory: ./client
+        run: |
+          echo "Copying custom Android icons..."
+          
+          SOURCE_ICONS="src-tauri/icons/android"
+          TARGET_RES="src-tauri/gen/android/app/src/main/res"
+          
+          if [ ! -d "$SOURCE_ICONS" ]; then
+            echo "Warning: Source icons path not found: $SOURCE_ICONS"
+            exit 1
+          fi
+          
+          if [ ! -d "$TARGET_RES" ]; then
+            echo "Warning: Target Android resources path not found: $TARGET_RES"
+            exit 1
+          fi
+          
+          # Copy each mipmap directory
+          for MIPMAP_DIR in mipmap-hdpi mipmap-mdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
+            SOURCE_PATH="$SOURCE_ICONS/$MIPMAP_DIR"
+            TARGET_PATH="$TARGET_RES/$MIPMAP_DIR"
+            
+            if [ -d "$SOURCE_PATH" ]; then
+              mkdir -p "$TARGET_PATH"
+              
+              # Copy ic_launcher.png
+              SOURCE_ICON="$SOURCE_PATH/ic_launcher.png"
+              TARGET_ICON="$TARGET_PATH/ic_launcher.png"
+              
+              if [ -f "$SOURCE_ICON" ]; then
+                cp "$SOURCE_ICON" "$TARGET_ICON"
+                echo "  ✓ Copied $MIPMAP_DIR/ic_launcher.png"
+              else
+                echo "  ✗ Missing source icon: $SOURCE_ICON"
+                exit 1
+              fi
+            else
+              echo "  ✗ Missing source directory: $SOURCE_PATH"
+              exit 1
+            fi
+          done
+          
+          echo "Android icon copying completed."
+          
+          # Verify icons were copied
+          echo "Verifying copied icons:"
+          find "$TARGET_RES" -name "ic_launcher.png" -exec ls -la {} \;
+
       - name: Build Android (debug)
         working-directory: ./client
         env:

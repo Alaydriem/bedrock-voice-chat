@@ -1,5 +1,5 @@
 import { Gesture } from '@use-gesture/vanilla';
-import { debug } from '@tauri-apps/plugin-log';
+import { debug, info } from '@tauri-apps/plugin-log';
 
 interface SwipeData {
   distance: number;
@@ -11,6 +11,7 @@ interface SwipeGestureConfig {
   target: Element;
   swipeLeft?: (data: SwipeData) => void;
   swipeRight?: (data: SwipeData) => void;
+  tap?: (data: { element: Element }) => void;
   threshold?: number;
   velocity?: number;
   debug?: boolean;
@@ -35,6 +36,7 @@ export default class SwipeGestureManager {
       target,
       swipeLeft = () => {},
       swipeRight = () => {},
+      tap = () => {},
       threshold = 100,
       velocity = 0.3,
       debug: debugMode = false
@@ -54,7 +56,7 @@ export default class SwipeGestureManager {
         }
         
         if (debugMode) {
-          debug(`SwipeGesture: Dragging - direction: ${direction}, distance: ${distance}`);
+          info(`SwipeGesture: Dragging - direction: ${direction}, distance: ${distance}`);
         }
       },
 
@@ -65,7 +67,7 @@ export default class SwipeGestureManager {
         const horizontalVelocity = Math.abs(dragVelocity[0]);
 
         if (debugMode) {
-          debug(`SwipeGesture: Detected - direction: ${direction[0] > 0 ? 'right' : 'left'}, distance: ${horizontalDistance}, velocity: ${horizontalVelocity}`);
+          info(`SwipeGesture: Detected - direction: ${direction[0] > 0 ? 'right' : 'left'}, distance: ${horizontalDistance}, velocity: ${horizontalVelocity}`);
         }
 
         // Check thresholds
@@ -84,13 +86,22 @@ export default class SwipeGestureManager {
             swipeLeft(swipeData);
           }
         }
+      },
+
+      onClick: ({ event }) => {
+        if (debugMode) {
+          info(`SwipeGesture: Tap detected on ${target.tagName}`);
+        }
+        
+        // Call the tap handler
+        tap({ element: target });
       }
     });
 
     this.activeGestures.set(gestureId, gesture);
 
     if (debugMode) {
-      debug(`SwipeGestureManager: Gesture created for target: ${target.tagName}`);
+      info(`SwipeGestureManager: Gesture created for target: ${target.tagName}`);
     }
 
     return {
@@ -122,7 +133,7 @@ export default class SwipeGestureManager {
     if (gesture && newConfig) {
       // Note: @use-gesture/vanilla may not support dynamic config updates
       // For now, we'll log the update attempt
-      debug(`SwipeGestureManager: Update requested for gesture ${gestureId.toString()}`);
+      info(`SwipeGestureManager: Update requested for gesture ${gestureId.toString()}`);
       // To properly update, you would need to destroy and recreate the gesture
     }
   }

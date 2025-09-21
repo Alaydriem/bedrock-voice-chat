@@ -59,11 +59,6 @@ export default class Dashboard extends App {
         });
         this.eventUnlisteners.push(notificationUnlisten);
 
-        document.querySelector("#sidebar-toggle")?.addEventListener("click", (e) => {
-            const el = e.target as HTMLElement;
-            el.classList.toggle("active");
-            document.querySelector("body")?.classList.toggle("is-sidebar-open");
-        });
         
         this.store = await Store.load("store.json", { autoSave: false });
         const currentServer = await this.store.get<string>("current_server");
