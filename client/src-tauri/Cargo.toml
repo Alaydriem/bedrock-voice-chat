@@ -13,10 +13,10 @@ codegen-units = 1
 lto = true
 
 [profile.dev]
-opt-level = 1        # Basic optimizations to reduce size
-debug = 1            # Line numbers only, not full debug info
-strip = "symbols"    # Strip symbols to reduce size
-incremental = true   # Keep incremental compilation for faster rebuilds
+opt-level = 1
+debug = 1
+strip = "symbols"
+incremental = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

@@ -11,6 +11,12 @@ debug = false
 codegen-units = 1
 lto = true
 
+[profile.dev]
+opt-level = 1
+debug = 1
+strip = "symbols"
+incremental = true
+
 [lib]
 name = "migration"
 path = "src/lib.rs"

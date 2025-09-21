@@ -15,6 +15,12 @@ debug = false
 codegen-units = 1
 lto = true
 
+[profile.dev]
+opt-level = 1
+debug = 1
+strip = "symbols"
+incremental = true
+
 [dependencies]
 common = { path = "../common" }
 async-std = { version = "^1", features = ["attributes", "tokio1"] }
