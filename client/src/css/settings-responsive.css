@@ -1,0 +1,177 @@
+/* Settings Responsive Styles - Tailwind-based */
+
+/* Main content transitions */
+.settings-main-content {
+  transition: all 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  /* Mobile scrolling improvements */
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Desktop: Show main content with proper flex layout */
+@media (min-width: 768px) {
+  .settings-main-content {
+    display: block !important;
+    position: static;
+    padding: 2rem; /* p-8 */
+    background-color: transparent;
+    overflow-y: auto;
+    height: 100vh;
+  }
+}
+
+/* Mobile: Hide main content by default, show when content-visible */
+@media (max-width: 767px) {
+  .settings-main-content {
+    display: none;
+  }
+  
+  .settings-main-content.content-visible {
+    display: block !important;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 15;
+    background-color: rgb(248 250 252);
+    overflow-y: auto;
+    padding: 1rem;
+    margin: 0;
+    transform: translateX(0);
+    padding-top: calc(3.5rem + 1rem); /* Account for mobile header */
+    
+    /* Safe area support for mobile devices */
+    padding-top: calc(3.5rem + 1rem + env(safe-area-inset-top, 0));
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0));
+    padding-left: calc(1rem + env(safe-area-inset-left, 0));
+    padding-right: calc(1rem + env(safe-area-inset-right, 0));
+  }
+  
+  .dark .settings-main-content.content-visible {
+    background-color: rgb(30 41 59);
+  }
+}
+
+/* Base navigation button styles - using Tailwind transition values */
+.settings-nav-button {
+  transition: all 0.25s ease-out;
+  border: 2px solid transparent;
+  border-radius: 0.5rem; /* rounded-lg */
+}
+
+.settings-nav-button:active {
+  transform: scale(0.98);
+}
+
+/* Focus styles using Tailwind color variables */
+.settings-nav-button:focus-visible {
+  outline: 2px solid rgb(var(--color-primary));
+  outline-offset: 2px;
+  border-color: rgb(var(--color-primary) / 0.3);
+}
+
+/* Hover effects - desktop only */
+@media (min-width: 768px) {
+  .settings-nav-button:hover {
+    transform: translateX(4px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+}
+
+/* Loading states */
+.settings-loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Accessibility improvements */
+@media (prefers-reduced-motion: reduce) {
+  .settings-main-content,
+  .settings-nav-button {
+    transition: none !important;
+  }
+  
+  .settings-nav-button:hover {
+    transform: none !important;
+  }
+  
+  .settings-navigation {
+    transition: none !important;
+  }
+  
+  .settings-nav-button::before {
+    display: none;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .settings-nav-button {
+    border: 1px solid currentColor;
+  }
+  
+  .settings-mobile-header {
+    border-bottom: 2px solid currentColor;
+  }
+}
+
+/* RTL language support */
+[dir="rtl"] .settings-main-content {
+  transform: translateX(-100%);
+}
+
+[dir="rtl"] .settings-main-content.content-visible {
+  transform: translateX(0);
+}
+
+/* Navigation positioning - responsive */
+.settings-navigation {
+  transition: transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* Mobile detector element - CSS-driven responsive detection */
+.mobile-detector {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+  display: block;
+}
+
+@media (min-width: 768px) {
+  .mobile-detector {
+    display: none;
+  }
+}
+
+/* Mobile-specific positioning and transitions */
+@media (max-width: 767px) {
+  .settings-navigation.nav-slide-out {
+    transform: translateX(-100%);
+  }
+}
+
+/* Ripple effect on touch - mobile specific */
+.settings-nav-button::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(var(--color-primary) / 0.1);
+  transform: translate(-50%, -50%);
+  transition: width 0.3s, height 0.3s;
+}
+
+.settings-nav-button:active::before {
+  width: 100%;
+  height: 100%;
+}

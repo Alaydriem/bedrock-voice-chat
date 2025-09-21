@@ -9,6 +9,8 @@ $BuildType = $BuildType -replace "^--", ""
 
 Write-Host "Starting Android build in $BuildType mode..." -ForegroundColor Green
 
+$env:LIBCLANG_PATH = "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\Llvm\\x64\\lib"
+
 # Set environment variables for build tools
 $env:CMAKE_GENERATOR = "Ninja"
 $env:CMAKE = "cmake"

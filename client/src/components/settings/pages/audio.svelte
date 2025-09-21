@@ -10,21 +10,23 @@
     });
 </script>
 
-<div id="audio-settings-page" class="grid grid-cols-1 gap-4 sm:gap-5 lg:gap-6 hidden">
+<div id="audio-settings-page" class="grid grid-cols-1 gap-4 sm:gap-5 lg:gap-6 pt-4 md:pt-0">
     <!-- Audio Settings -->
-    <div class="card px- pb-4 sm:px-5">
+    <div class="card px-5 pb-4 sm:px-5">
         <div class="my-3 flex h-8n flex-col">
             <h2
                 class="font-medium tracking-wide text-slate-700 line-clamp-1 dark:text-navy-100 lg:text-base pb-2"
             >
                 Audio Settings
             </h2>
-            <p class="text-sm leading-6">
+            <!-- Desktop description -->
+            <p class="text-sm leading-6 hidden md:block">
                 Configure your audio input and audio devices. Ensure both devices are configured to run at 48Khz Stereo.
             </p>
         </div>
 
-        <div class="flex mb-4 -mx-2">
+        <!-- Audio device containers - hidden on mobile, shown on desktop -->
+        <div class="hidden md:flex mb-4 -mx-2">
             
             <div class="mt-5 flex-1 px-5" id="input-audio-device-container">
             </div>
