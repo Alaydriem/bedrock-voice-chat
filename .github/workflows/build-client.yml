@@ -110,7 +110,13 @@ jobs:
           New-Item -ItemType Directory -Path "artifacts" -Force
           
           # Determine actual build mode used
-          $BUILD_MODE = if ("${{ github.event_name }}" -eq "pull_request") { "debug" } else { "${{ inputs.build_mode }}" -eq "release" ? "release" : "debug" }
+          if ("${{ github.event_name }}" -eq "pull_request") {
+            $BUILD_MODE = "debug"
+          } elseif ("${{ inputs.build_mode }}" -eq "release") {
+            $BUILD_MODE = "release"
+          } else {
+            $BUILD_MODE = "debug"
+          }
           Write-Host "Effective build mode: $BUILD_MODE" -ForegroundColor Cyan
           
           if ($BUILD_MODE -eq "release") {
@@ -160,7 +166,13 @@ jobs:
       - name: Output artifact information
         shell: powershell
         run: |
-          $BUILD_MODE = if ("${{ github.event_name }}" -eq "pull_request") { "debug" } else { "${{ inputs.build_mode }}" -eq "release" ? "release" : "debug" }
+          if ("${{ github.event_name }}" -eq "pull_request") {
+            $BUILD_MODE = "debug"
+          } elseif ("${{ inputs.build_mode }}" -eq "release") {
+            $BUILD_MODE = "release"
+          } else {
+            $BUILD_MODE = "debug"
+          }
           Write-Host "🚀 Windows Client Build Complete!" -ForegroundColor Green
           Write-Host "🔧 Build Mode: $BUILD_MODE" -ForegroundColor Cyan
           Write-Host "🎯 Trigger: ${{ github.event_name }}" -ForegroundColor Cyan
