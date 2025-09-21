@@ -31,6 +31,26 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Detect changes
+        uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            server:
+              - 'server/**'
+            client:
+              - 'client/**'
+            common:
+              - 'common/**'
+            android:
+              - 'client/**'
+              - 'common/**'
+              - '.github/workflows/build-android.yml'
+            windows:
+              - 'client/**'
+              - 'common/**'
+              - '.github/workflows/build-client.yml'
+
   # Build server for multiple platforms
   build-server:
     name: Build Server
@@ -41,13 +61,13 @@ jobs:
       build_mode: ${{ inputs.build_mode == 'both' && '' || inputs.build_mode || '' }}
 
   # Build Android client
-  #build-android:
-  #  name: Build Android Client
-  #  needs: changes
-  #  if: needs.changes.outputs.android == 'true' || needs.changes.outputs.common == 'true'
-  #  uses: ./.github/workflows/build-android.yml
-  #  with:
-  #    build_mode: ${{ inputs.build_mode == 'both' && '' || inputs.build_mode || '' }}
+  build-android:
+    name: Build Android Client
+    needs: changes
+    if: needs.changes.outputs.android == 'true' || needs.changes.outputs.common == 'true'
+    uses: ./.github/workflows/build-android.yml
+    with:
+      build_mode: ${{ inputs.build_mode == 'both' && '' || inputs.build_mode || '' }}
 
   # Build Windows client
   build-client:
@@ -62,8 +82,8 @@ jobs:
   collect-artifacts:
     name: Collect All Artifacts
     runs-on: ubuntu-latest
-    needs: [build-server,build-client]
-    if: always() && (needs.build-server.result == 'success' || needs.build-client.result == 'success')
+    needs: [build-server, build-android, build-client]
+    if: always() && (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-client.result == 'success')
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -72,7 +92,7 @@ jobs:
 
       - name: Organize artifacts
         run: |
-          mkdir -p organized-artifacts/{server,windows}
+          mkdir -p organized-artifacts/{server,android,windows}
           
           # Organize server artifacts
           if [ -d "all-artifacts" ]; then
@@ -82,6 +102,14 @@ jobs:
               fi
             done
             
+            # Organize Android artifacts
+            find all-artifacts -name "*android*" -type d | while read dir; do
+              if [ -d "$dir" ]; then
+                mkdir -p organized-artifacts/android
+                cp -r "$dir"/* organized-artifacts/android/ 2>/dev/null || true
+              fi
+            done
+
             # Organize Windows artifacts
             find all-artifacts -name "windows-client-*" -type d | while read dir; do
               if [ -d "$dir" ]; then
@@ -142,6 +170,7 @@ jobs:
           echo "" >> build-summary.md
           echo "- **Total Artifacts:** $TOTAL_ARTIFACTS" >> build-summary.md
           echo "- **Server Status:** ${{ needs.build-server.result || 'skipped' }}" >> build-summary.md
+          echo "- **Android Status:** ${{ needs.build-android.result || 'skipped' }}" >> build-summary.md
           echo "- **Windows Status:** ${{ needs.build-client.result || 'skipped' }}" >> build-summary.md
           echo "" >> build-summary.md
           
@@ -152,6 +181,7 @@ jobs:
           echo "Individual artifact packages:" >> build-summary.md
           echo "- [Server Builds](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> build-summary.md
           echo "- [Windows Client](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> build-summary.md
+          echo "- [Android Client](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> build-summary.md
           echo "" >> build-summary.md
           echo "---" >> build-summary.md
           echo "*Artifacts are retained for 90 days*" >> build-summary.md
@@ -179,6 +209,7 @@ jobs:
           echo ""
           echo "📊 Build Results:"
           echo "   • Server: ${{ needs.build-server.result || 'skipped' }}"
+          echo "   • Android: ${{ needs.build-android.result || 'skipped' }}"
           echo "   • Windows: ${{ needs.build-client.result || 'skipped' }}"
           echo ""
           echo "📦 Total Artifacts: ${{ steps.build-summary.outputs.total_artifacts || 'unknown' }}"
