@@ -1,0 +1,45 @@
+[env]
+CPAL_ASIO_DIR = { value = "./asiosdk_2.3.3_2019-06-14", relative = true }
+
+[build]
+rustflags = ["--cfg", "s2n_quic_unstable"]
+
+# Android-specific configurations
+[target.aarch64-linux-android]
+linker = "aarch64-linux-android27-clang"
+rustflags = [
+  "-Clinker=aarch64-linux-android27-clang",
+  "--cfg","s2n_quic_unstable",
+  "-C","link-arg=-lc++_shared",
+  "-L","$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/27",
+]
+
+# armv7
+[target.armv7-linux-androideabi]
+linker = "armv7a-linux-androideabi27-clang"
+rustflags = [
+  "-Clinker=armv7a-linux-androideabi27-clang",
+  "--cfg","s2n_quic_unstable",
+  "-C","link-arg=-lc++_shared",
+  "-L","$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/27",
+]
+
+# x86 (if you actually build it)
+[target.i686-linux-android]
+linker = "i686-linux-android27-clang"
+rustflags = [
+  "-Clinker=i686-linux-android27-clang",
+  "--cfg","s2n_quic_unstable",
+  "-C","link-arg=-lc++_shared",
+  "-L","$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android/27",
+]
+
+# x86_64 (if you actually build it)
+[target.x86_64-linux-android]
+linker = "x86_64-linux-android27-clang"
+rustflags = [
+  "-Clinker=x86_64-linux-android27-clang",
+  "--cfg","s2n_quic_unstable",
+  "-C","link-arg=-lc++_shared",
+  "-L","$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android/27",
+]

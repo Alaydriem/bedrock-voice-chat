@@ -1,0 +1,20 @@
+# Cargo configuration for cross-compilation
+[target.aarch64-unknown-linux-gnu]
+linker = "aarch64-linux-gnu-gcc"
+
+[env]
+# Global environment variables for cross-compilation
+OPENSSL_STATIC = "1"
+OPENSSL_VENDORED = "1"
+PKG_CONFIG_ALLOW_CROSS = "0"
+
+# Ensure we use vendored dependencies for cross-compilation
+[build]
+# Use vendored OpenSSL when cross-compiling
+rustflags = []
+
+# Target-specific configurations
+[target.aarch64-unknown-linux-gnu.env]
+# Additional target-specific environment variables can go here
+CC = "aarch64-linux-gnu-gcc"
+CXX = "aarch64-linux-gnu-g++"

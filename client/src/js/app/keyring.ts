@@ -72,7 +72,6 @@ export default class Keyring
             })
         }
 
-        info!(`Getting password for key: ${key} (${btoa(this.server + "/" + key)})`);
         return await getPassword(btoa(this.server + "/" + key));
     }
 

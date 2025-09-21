@@ -246,7 +246,7 @@ impl QuicServerManager {
                 let mut output_stream = OutputStream::new(Some(conn_arc.clone()));
 
                 output_stream.set_caches(
-                    cache_manager.get_channel_cache(),
+                    cache_manager.get_channel_membership(),
                     cache_manager.get_player_cache(),
                     broadcast_range,
                 );

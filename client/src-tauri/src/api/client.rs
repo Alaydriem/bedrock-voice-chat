@@ -8,6 +8,7 @@ use trust_dns_resolver::TokioAsyncResolver;
 use anyhow::anyhow;
 use tauri_plugin_http::reqwest::{self, Certificate, Identity};
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Client {
     ca_cert: String,
     pem: String,

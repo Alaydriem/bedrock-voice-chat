@@ -1,0 +1,190 @@
+name: Build All Platforms
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      build_mode:
+        description: 'Build mode'
+        required: false
+        default: 'both'
+        type: choice
+        options:
+          - debug
+          - release
+          - both
+
+jobs:
+  # Determine which components have changed to optimize builds
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      server: ${{ steps.changes.outputs.server }}
+      client: ${{ steps.changes.outputs.client }}
+      common: ${{ steps.changes.outputs.common }}
+      android: ${{ steps.changes.outputs.android }}
+      windows: ${{ steps.changes.outputs.windows }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+  # Build server for multiple platforms
+  build-server:
+    name: Build Server
+    needs: changes
+    if: needs.changes.outputs.server == 'true' || needs.changes.outputs.common == 'true'
+    uses: ./.github/workflows/build-server.yml
+    with:
+      build_mode: ${{ inputs.build_mode == 'both' && '' || inputs.build_mode || '' }}
+
+  # Build Android client
+  #build-android:
+  #  name: Build Android Client
+  #  needs: changes
+  #  if: needs.changes.outputs.android == 'true' || needs.changes.outputs.common == 'true'
+  #  uses: ./.github/workflows/build-android.yml
+  #  with:
+  #    build_mode: ${{ inputs.build_mode == 'both' && '' || inputs.build_mode || '' }}
+
+  # Build Windows client
+  build-client:
+    name: Build Windows Client
+    needs: changes
+    if: needs.changes.outputs.windows == 'true' || needs.changes.outputs.common == 'true'
+    uses: ./.github/workflows/build-client.yml
+    with:
+      build_mode: ${{ inputs.build_mode == 'both' && '' || inputs.build_mode || '' }}
+
+  # Collect and organize all artifacts
+  collect-artifacts:
+    name: Collect All Artifacts
+    runs-on: ubuntu-latest
+    needs: [build-server,build-client]
+    if: always() && (needs.build-server.result == 'success' || needs.build-client.result == 'success')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all-artifacts
+
+      - name: Organize artifacts
+        run: |
+          mkdir -p organized-artifacts/{server,windows}
+          
+          # Organize server artifacts
+          if [ -d "all-artifacts" ]; then
+            find all-artifacts -name "server-*" -type d | while read dir; do
+              if [ -d "$dir" ]; then
+                cp -r "$dir"/* organized-artifacts/server/ 2>/dev/null || true
+              fi
+            done
+            
+            # Organize Windows artifacts
+            find all-artifacts -name "windows-client-*" -type d | while read dir; do
+              if [ -d "$dir" ]; then
+                cp -r "$dir"/* organized-artifacts/windows/ 2>/dev/null || true
+              fi
+            done
+          fi
+          
+          echo "Organized artifacts:"
+          find organized-artifacts -type f | sort
+
+      - name: Create build summary
+        id: build-summary
+        run: |
+          echo "# 🚀 Bedrock Voice Chat - Build Summary" > build-summary.md
+          echo "" >> build-summary.md
+          echo "**Build Date:** $(date -u)" >> build-summary.md
+          echo "**Workflow Run:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> build-summary.md
+          echo "" >> build-summary.md
+          
+          # Count total artifacts
+          TOTAL_ARTIFACTS=0
+          
+          if [ -d "organized-artifacts/server" ] && [ "$(find organized-artifacts/server -type f | wc -l)" -gt 0 ]; then
+            SERVER_COUNT=$(find organized-artifacts/server -type f | wc -l)
+            TOTAL_ARTIFACTS=$((TOTAL_ARTIFACTS + SERVER_COUNT))
+            echo "## 🖥️ Server Builds ($SERVER_COUNT files)" >> build-summary.md
+            echo "" >> build-summary.md
+            find organized-artifacts/server -type f -exec basename {} \; | sort | while read file; do
+              echo "- \`$file\`" >> build-summary.md
+            done
+            echo "" >> build-summary.md
+          fi
+          
+          if [ -d "organized-artifacts/android" ] && [ "$(find organized-artifacts/android -type f | wc -l)" -gt 0 ]; then
+            ANDROID_COUNT=$(find organized-artifacts/android -type f | wc -l)
+            TOTAL_ARTIFACTS=$((TOTAL_ARTIFACTS + ANDROID_COUNT))
+            echo "## 📱 Android Client ($ANDROID_COUNT files)" >> build-summary.md
+            echo "" >> build-summary.md
+            find organized-artifacts/android -type f -exec basename {} \; | sort | while read file; do
+              echo "- \`$file\`" >> build-summary.md
+            done
+            echo "" >> build-summary.md
+          fi
+          
+          if [ -d "organized-artifacts/windows" ] && [ "$(find organized-artifacts/windows -type f | wc -l)" -gt 0 ]; then
+            WINDOWS_COUNT=$(find organized-artifacts/windows -type f | wc -l)
+            TOTAL_ARTIFACTS=$((TOTAL_ARTIFACTS + WINDOWS_COUNT))
+            echo "## 🪟 Windows Client ($WINDOWS_COUNT files)" >> build-summary.md
+            echo "" >> build-summary.md
+            find organized-artifacts/windows -type f -exec basename {} \; | sort | while read file; do
+              echo "- \`$file\`" >> build-summary.md
+            done
+            echo "" >> build-summary.md
+          fi
+          
+          echo "## 📊 Build Statistics" >> build-summary.md
+          echo "" >> build-summary.md
+          echo "- **Total Artifacts:** $TOTAL_ARTIFACTS" >> build-summary.md
+          echo "- **Server Status:** ${{ needs.build-server.result || 'skipped' }}" >> build-summary.md
+          echo "- **Windows Status:** ${{ needs.build-client.result || 'skipped' }}" >> build-summary.md
+          echo "" >> build-summary.md
+          
+          echo "## 🔗 Download Links" >> build-summary.md
+          echo "" >> build-summary.md
+          echo "All artifacts are available in the [**bedrock-voice-chat-builds**](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) artifact package." >> build-summary.md
+          echo "" >> build-summary.md
+          echo "Individual artifact packages:" >> build-summary.md
+          echo "- [Server Builds](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> build-summary.md
+          echo "- [Windows Client](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> build-summary.md
+          echo "" >> build-summary.md
+          echo "---" >> build-summary.md
+          echo "*Artifacts are retained for 90 days*" >> build-summary.md
+          
+          cat build-summary.md
+          
+          # Set output for use in other steps
+          echo "total_artifacts=$TOTAL_ARTIFACTS" >> $GITHUB_OUTPUT
+
+      - name: Upload organized artifacts
+        uses: actions/upload-artifact@v4
+        id: upload-all
+        with:
+          name: bedrock-voice-chat-builds
+          path: |
+            organized-artifacts/
+            build-summary.md
+          retention-days: 90
+
+      - name: Final build summary
+        run: |
+          echo "🎉 ==============================================="
+          echo "🎉   BEDROCK VOICE CHAT - BUILD COMPLETE!"
+          echo "🎉 ==============================================="
+          echo ""
+          echo "📊 Build Results:"
+          echo "   • Server: ${{ needs.build-server.result || 'skipped' }}"
+          echo "   • Windows: ${{ needs.build-client.result || 'skipped' }}"
+          echo ""
+          echo "📦 Total Artifacts: ${{ steps.build-summary.outputs.total_artifacts || 'unknown' }}"
+          echo ""
+          echo "🔗 Download All Artifacts:"
+          echo "   ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo ""
+          echo "⏰ Retention Period: 90 days"
+          echo "🎉 ==============================================="

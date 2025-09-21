@@ -45,42 +45,6 @@ pub struct JitterBuffer {
 }
 
 impl JitterBuffer {
-    pub fn new(
-        packet_receiver: flume::Receiver<Option<EncodedAudioFramePacket>>,
-        initial_packet: EncodedAudioFramePacket,
-        identifier: String,
-    ) -> Result<Self, JitterBufferError> {
-        let sample_rate = initial_packet.sample_rate as u32;
-        let buffer_size_ms = initial_packet.buffer_size_ms as u64;
-
-        let buffer_capacity = ((buffer_size_ms / FRAME_MS) as usize).max(5); // Minimum 5 frames
-
-        log::info!(
-            "[{}] Creating jitter buffer with capacity: {} frames ({}ms), sample_rate: {}Hz",
-            identifier,
-            buffer_capacity,
-            buffer_size_ms,
-            sample_rate
-        );
-
-        let source = JitterBufferSource::new(packet_receiver, initial_packet, buffer_capacity)?;
-
-        Ok(Self {
-            source: Arc::new(Mutex::new(source)),
-        })
-    }
-
-    /// Create a new JitterBuffer pair (source, handle) seeded with the first packet
-    pub fn create_with_handle(
-        initial_packet: EncodedAudioFramePacket,
-        identifier: String,
-    ) -> Result<(Self, JitterBufferHandle), JitterBufferError> {
-        let (tx, rx) = flume::unbounded::<Option<EncodedAudioFramePacket>>();
-        let jitter_buffer = Self::new(rx, initial_packet, identifier)?;
-        let handle = JitterBufferHandle { tx };
-        Ok((jitter_buffer, handle))
-    }
-
     /// Create a new JitterBuffer pair with activity detection support
     pub fn create_with_handle_and_activity(
         initial_packet: EncodedAudioFramePacket,

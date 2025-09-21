@@ -1,0 +1,404 @@
+name: Build Android Client
+
+on:
+#  push:
+#    branches: [ master ]
+#    paths:
+#      - 'client/**'
+#      - 'common/**'
+#      - '.github/workflows/build-android.yml'
+#  pull_request:
+#  workflow_call:
+#    inputs:
+#      build_mode:
+#        description: 'Build mode (debug or release)'
+#        required: true
+#        type: string
+  workflow_dispatch:
+    inputs:
+      build_mode:
+        description: 'Build mode'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
+
+jobs:
+  build-android:
+    name: Build Android Client (${{ matrix.build_mode }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        build_mode: ${{ fromJSON(inputs.build_mode && format('["{0}"]', inputs.build_mode) || '["debug"]') }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'yarn'
+          cache-dependency-path: client/yarn.lock
+
+      - name: Set up Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r27c
+          add-to-path: false
+
+      - name: Set up Android SDK and build tools
+        run: |
+          # Install Android SDK components via sdkmanager
+          echo "Installing Android SDK build tools and CMake..."
+          
+          # Accept licenses
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          
+          # Install required SDK components
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+            "build-tools;34.0.0" \
+            "cmake;3.22.1" \
+            "platform-tools" \
+            "platforms;android-34"
+          
+          echo "Android SDK components installed"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: |
+            aarch64-linux-android
+            armv7-linux-androideabi
+            i686-linux-android
+            x86_64-linux-android
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            client/src-tauri
+            common
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config \
+            libssl-dev \
+            libsqlite3-dev \
+            cmake \
+            ninja-build \
+            build-essential \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libclang-dev \
+            clang \
+            llvm-dev
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /usr/local/lib/android/sdk/system-images
+          sudo apt-get clean
+          df -h
+
+      - name: Install JavaScript dependencies
+        working-directory: ./client
+        run: yarn install --frozen-lockfile
+
+      - name: Download and setup ASIO SDK
+        working-directory: ./client/src-tauri
+        run: |
+          echo "Downloading ASIO SDK..."
+          curl -L -o asiosdk.zip "https://download.steinberg.net/sdk_downloads/asiosdk_2.3.3_2019-06-14.zip"
+          unzip -q asiosdk.zip
+          ls -la
+          echo "ASIO SDK downloaded and extracted"
+
+      - name: Set up Android environment and fix LIBCLANG_PATH
+        run: |
+          # The setup-ndk action sets ANDROID_NDK_ROOT, but we need to ensure all common NDK env vars are set
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_ROOT" >> $GITHUB_ENV
+          echo "ANDROID_NDK_ROOT=$ANDROID_NDK_ROOT" >> $GITHUB_ENV
+          echo "NDK_HOME=$ANDROID_NDK_ROOT" >> $GITHUB_ENV
+          
+          # Set up Android SDK CMake
+          CMAKE_VERSION="3.22.1"
+          ANDROID_CMAKE_PATH="$ANDROID_HOME/cmake/$CMAKE_VERSION/bin"
+          if [ -d "$ANDROID_CMAKE_PATH" ]; then
+            echo "ANDROID_CMAKE_PATH=$ANDROID_CMAKE_PATH" >> $GITHUB_ENV
+            echo "CMAKE=$ANDROID_CMAKE_PATH/cmake" >> $GITHUB_ENV
+            echo "Adding Android CMake to PATH: $ANDROID_CMAKE_PATH"
+            echo "$ANDROID_CMAKE_PATH" >> $GITHUB_PATH
+          else
+            echo "Android CMake not found at $ANDROID_CMAKE_PATH, using system CMake"
+            echo "CMAKE=cmake" >> $GITHUB_ENV
+          fi
+          
+          # Set up Ninja (prefer system ninja)
+          echo "CMAKE_GENERATOR=Ninja" >> $GITHUB_ENV
+          
+          # Debug: Show what NDK variables are available
+          echo "Available NDK environment variables:"
+          echo "ANDROID_NDK_ROOT: $ANDROID_NDK_ROOT"
+          echo "ANDROID_NDK_HOME: $ANDROID_NDK_HOME"
+          echo "NDK_HOME: $NDK_HOME"
+
+          # Generic flags bindgen & cc should use for Android cross builds
+          ANDROID_SYSROOT="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
+          # Bindgen gets sysroot and a target triple; no __ANDROID_API__ define
+          echo 'BINDGEN_EXTRA_CLANG_ARGS=--sysroot='"$ANDROID_SYSROOT"' --target=aarch64-linux-android27' >> $GITHUB_ENV
+
+          # Sanity check: stdlib.h should exist here
+          test -f "$ANDROID_SYSROOT/usr/include/stdlib.h" && echo "Found stdlib.h in sysroot" || (echo "Missing stdlib.h"; exit 1)
+
+          echo "CARGO_NDK_PLATFORM=27" >> $GITHUB_ENV
+          echo "ANDROID_PLATFORM=android-27" >> $GITHUB_ENV
+          echo "CMAKE_ANDROID_API=27" >> $GITHUB_ENV
+          echo "ANDROID_MIN_SDK_VERSION=27" >> $GITHUB_ENV
+
+          # Debug: Show build tools
+          echo "Build tools verification:"
+          cmake --version || echo "CMake not found"
+          ninja --version || echo "Ninja not found"
+
+      - name: Install bindgen
+        working-directory: ./client
+        run: cargo install --force --locked bindgen-cli
+
+      - name: Initialize Tauri Android project
+        working-directory: ./client
+        run: |
+          echo "Setting up .cargo/config.toml for Android build..."
+          cp ../.github/client/.cargo/config.toml ./src-tauri/.cargo/config.toml
+          cat ./src-tauri/.cargo/config.toml
+          echo "Initializing Tauri Android project..."
+          yarn tauri android init
+          # Groovy
+          sed -i 's/minSdkVersion[[:space:]]\+[0-9]\+/minSdkVersion 27/' src-tauri/gen/android/app/build.gradle || true
+          # Kotlin DSL
+          sed -i 's/minSdk[[:space:]]*=[[:space:]]*[0-9]\+/minSdk = 27/' src-tauri/gen/android/app/build.gradle.kts || true
+
+          # Optional: also raise compileSdk/targetSdk if present
+          sed -i 's/compileSdk[[:space:]]*=[[:space:]]*[0-9]\+/compileSdk = 34/' src-tauri/gen/android/app/build.gradle.kts || true
+          sed -i 's/targetSdk[[:space:]]*=[[:space:]]*[0-9]\+/targetSdk = 34/' src-tauri/gen/android/app/build.gradle.kts || true
+
+          grep -Rn "minSdk" src-tauri/gen/android || true
+
+          echo "Android project initialized successfully"
+
+      - name: Copy custom Android icons
+        working-directory: ./client
+        run: |
+          echo "Copying custom Android icons..."
+          
+          SOURCE_ICONS="src-tauri/icons/android"
+          TARGET_RES="src-tauri/gen/android/app/src/main/res"
+          
+          if [ ! -d "$SOURCE_ICONS" ]; then
+            echo "Warning: Source icons path not found: $SOURCE_ICONS"
+            exit 1
+          fi
+          
+          if [ ! -d "$TARGET_RES" ]; then
+            echo "Warning: Target Android resources path not found: $TARGET_RES"
+            exit 1
+          fi
+          
+          # Copy each mipmap directory
+          for MIPMAP_DIR in mipmap-hdpi mipmap-mdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
+            SOURCE_PATH="$SOURCE_ICONS/$MIPMAP_DIR"
+            TARGET_PATH="$TARGET_RES/$MIPMAP_DIR"
+            
+            if [ -d "$SOURCE_PATH" ]; then
+              mkdir -p "$TARGET_PATH"
+              
+              # Copy ic_launcher.png
+              SOURCE_ICON="$SOURCE_PATH/ic_launcher.png"
+              TARGET_ICON="$TARGET_PATH/ic_launcher.png"
+              
+              if [ -f "$SOURCE_ICON" ]; then
+                cp "$SOURCE_ICON" "$TARGET_ICON"
+                echo "  ✓ Copied $MIPMAP_DIR/ic_launcher.png"
+              else
+                echo "  ✗ Missing source icon: $SOURCE_ICON"
+                exit 1
+              fi
+            else
+              echo "  ✗ Missing source directory: $SOURCE_PATH"
+              exit 1
+            fi
+          done
+          
+          echo "Android icon copying completed."
+          
+          # Verify icons were copied
+          echo "Verifying copied icons:"
+          find "$TARGET_RES" -name "ic_launcher.png" -exec ls -la {} \;
+
+      - name: Build Android (debug)
+        working-directory: ./client
+        env:
+          # libclang - keep using the system libclang 17
+          LIBCLANG_PATH: /usr/lib/llvm-17/lib/
+          LD_LIBRARY_PATH: /usr/lib/llvm-17/lib/:$LD_LIBRARY_PATH
+
+          # NDK env
+          ANDROID_NDK_HOME: "$ANDROID_NDK_ROOT"
+
+          # Toolchain
+          CMAKE_GENERATOR: "Ninja"
+          CMAKE: "cmake"
+          AWS_LC_SYS_CMAKE_GENERATOR: "Ninja"
+          AWS_LC_SYS_CMAKE_BUILDER: "1"
+          AWS_LC_SYS_EXTERNAL_BINDGEN: "1"
+
+          # Android NDK toolchain setup (API 27)
+          CC_aarch64_linux_android: "aarch64-linux-android27-clang"
+          CXX_aarch64_linux_android: "aarch64-linux-android27-clang++"
+          AR_aarch64_linux_android: "llvm-ar"
+          CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: "aarch64-linux-android27-clang"
+
+          CC_armv7_linux_androideabi: "armv7a-linux-androideabi27-clang"
+          CXX_armv7_linux_androideabi: "armv7a-linux-androideabi27-clang++"
+          AR_armv7_linux_androideabi: "llvm-ar"
+          CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER: "armv7a-linux-androideabi27-clang"
+
+          CC_i686_linux_android: "i686-linux-android27-clang"
+          CXX_i686_linux_android: "i686-linux-android27-clang++"
+          AR_i686_linux_android: "llvm-ar"
+          CARGO_TARGET_I686_LINUX_ANDROID_LINKER: "i686-linux-android27-clang"
+
+          CC_x86_64_linux_android: "x86_64-linux-android27-clang"
+          CXX_x86_64_linux_android: "x86_64-linux-android27-clang++"
+          AR_x86_64_linux_android: "llvm-ar"
+          CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER: "x86_64-linux-android27-clang"
+
+          # RUSTFLAGS (unchanged)
+          CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS: >-
+            -Clinker=aarch64-linux-android27-clang
+            --cfg s2n_quic_unstable
+            -C link-arg=-lc++_shared
+            -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/27
+
+          # ARMv7
+          CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_RUSTFLAGS: >-
+            -Clinker=armv7a-linux-androideabi27-clang
+            --cfg s2n_quic_unstable
+            -C link-arg=-lc++_shared
+            -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/27
+
+          # x86
+          CARGO_TARGET_I686_LINUX_ANDROID_RUSTFLAGS: >-
+            -Clinker=i686-linux-android27-clang
+            --cfg s2n_quic_unstable
+            -C link-arg=-lc++_shared
+            -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android/27
+
+          # x86_64
+          CARGO_TARGET_X86_64_LINUX_ANDROID_RUSTFLAGS: >-
+            -Clinker=x86_64-linux-android27-clang
+            --cfg s2n_quic_unstable
+            -C link-arg=-lc++_shared
+            -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android/27
+          ANDROID_PLATFORM: "android-27"
+          CMAKE_ANDROID_API: "27"
+        run: |
+          export PATH="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
+          yarn tauri info
+          yarn tauri android build --debug
+          
+      - name: Prepare Android artifacts
+        working-directory: ./client
+        run: |
+          echo "=== Android Build Output Investigation ==="
+          echo "Searching for all APK and AAB files..."
+          find . -name "*.apk" -o -name "*.aab" 2>/dev/null || echo "No APK/AAB files found"
+          
+          echo "=== Checking expected paths ==="
+          echo "Looking in src-tauri/gen/android/app/build/outputs/"
+          ls -la src-tauri/gen/android/app/build/outputs/ 2>/dev/null || echo "Directory not found"
+          
+          echo "=== Full directory structure ==="
+          find src-tauri/gen/android/ -type f -name "*.apk" -o -name "*.aab" 2>/dev/null || echo "No APK/AAB files in gen/android"
+          
+          mkdir -p artifacts
+          
+          # Try to find and copy any APK/AAB files
+          APK_FOUND=false
+          AAB_FOUND=false
+          
+          if [ "${{ matrix.build_mode }}" = "release" ]; then
+            echo "=== Looking for release artifacts ==="
+            # Search for release APK more broadly
+            RELEASE_APK=$(find src-tauri/gen/android/ -name "*release*.apk" 2>/dev/null | head -n1)
+            if [ -n "$RELEASE_APK" ] && [ -f "$RELEASE_APK" ]; then
+              echo "Found release APK: $RELEASE_APK"
+              cp "$RELEASE_APK" "artifacts/bvc-android-${{ matrix.build_mode }}.apk"
+              APK_FOUND=true
+            fi
+            
+            # Search for release AAB more broadly
+            RELEASE_AAB=$(find src-tauri/gen/android/ -name "*release*.aab" 2>/dev/null | head -n1)
+            if [ -n "$RELEASE_AAB" ] && [ -f "$RELEASE_AAB" ]; then
+              echo "Found release AAB: $RELEASE_AAB"
+              cp "$RELEASE_AAB" "artifacts/bvc-android-${{ matrix.build_mode }}.aab"
+              AAB_FOUND=true
+            fi
+          else
+            echo "=== Looking for debug artifacts ==="
+            # Search for debug APK more broadly
+            DEBUG_APK=$(find src-tauri/gen/android/ -name "*debug*.apk" 2>/dev/null | head -n1)
+            if [ -n "$DEBUG_APK" ] && [ -f "$DEBUG_APK" ]; then
+              echo "Found debug APK: $DEBUG_APK"
+              cp "$DEBUG_APK" "artifacts/bvc-android-${{ matrix.build_mode }}.apk"
+              APK_FOUND=true
+            fi
+            
+            # Search for debug AAB more broadly
+            DEBUG_AAB=$(find src-tauri/gen/android/ -name "*debug*.aab" 2>/dev/null | head -n1)
+            if [ -n "$DEBUG_AAB" ] && [ -f "$DEBUG_AAB" ]; then
+              echo "Found debug AAB: $DEBUG_AAB"
+              cp "$DEBUG_AAB" "artifacts/bvc-android-${{ matrix.build_mode }}.aab"
+              AAB_FOUND=true
+            fi
+          fi
+          
+          echo "=== Artifact Summary ==="
+          echo "APK found: $APK_FOUND"
+          echo "AAB found: $AAB_FOUND"
+          
+          # List final artifacts
+          echo "=== Final artifacts ==="
+          ls -la artifacts/ || echo "No artifacts directory found"
+          
+          # Count artifacts for upload validation
+          ARTIFACT_COUNT=$(find artifacts/ -type f 2>/dev/null | wc -l)
+          echo "Total artifacts: $ARTIFACT_COUNT"
+
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v4
+        id: upload-android
+        with:
+          name: android-client-${{ matrix.build_mode }}
+          path: client/artifacts/
+          retention-days: 30
+
+      - name: Output artifact information
+        run: |
+          echo "🚀 Android Build Complete!"
+          echo "📦 Artifacts uploaded as: android-client-${{ matrix.build_mode }}"
+          echo "🔗 Artifact URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "⏰ Retention: 30 days"

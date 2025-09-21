@@ -80,9 +80,49 @@ pub fn run() {
             crate::commands::network::change_network_stream,
             crate::commands::network::reset_nsm,
             // API implementation
-            crate::api::commands::api_ping
+            crate::api::commands::api_initialize_client,
+            crate::api::commands::api_ping,
+            crate::api::commands::api_create_channel,
+            crate::api::commands::api_delete_channel,
+            crate::api::commands::api_list_channels,
+            crate::api::commands::api_get_channel,
+            crate::api::commands::api_channel_event
         ])
         .setup(|app| {
+            // Set Windows timer resolution for high-precision audio timing
+            #[cfg(target_os = "windows")]
+            {
+                windows_targets::link!("winmm.dll" "system" fn timeBeginPeriod(uperiod: u32) -> u32);
+                windows_targets::link!("ntdll.dll" "system" fn NtQueryTimerResolution(
+                    minimumresolution: *mut u32,
+                    maximumresolution: *mut u32,
+                    currentresolution: *mut u32,
+                ) -> i32);
+                
+                // Check current timer resolution before setting
+                let mut min_res = 0u32;
+                let mut max_res = 0u32;
+                let mut current_res = 0u32;
+                unsafe {
+                    NtQueryTimerResolution(&mut min_res, &mut max_res, &mut current_res);
+                    let current_ms = current_res as f64 / 10_000.0;
+                    log::info!("Current Windows timer resolution: {:.2}ms", current_ms);
+                    
+                    // Set to 1ms
+                    timeBeginPeriod(1);
+                    
+                    // Verify the change
+                    NtQueryTimerResolution(&mut min_res, &mut max_res, &mut current_res);
+                    let new_ms = current_res as f64 / 10_000.0;
+                    log::info!("Set Windows timer resolution to 1ms (actual: {:.2}ms)", new_ms);
+                    
+                    if new_ms > 2.0 {
+                        log::warn!("WARNING: Timer resolution is degraded ({:.2}ms). This will cause audio jitter!", new_ms);
+                        log::warn!("Try closing other applications or restarting Windows.");
+                    }
+                }
+            }
+
             log::info!("BVC Variant {:?}", crate::commands::env::get_variant());
             let store = app.store("store.json")?;
             let handle = app.handle().clone();

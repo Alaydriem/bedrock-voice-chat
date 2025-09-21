@@ -5,14 +5,17 @@ use common::structs::packet::{
 };
 use common::Player;
 use moka::future::Cache;
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 
 /// Manages player position cache and channel membership cache
 #[derive(Clone)]
 pub struct CacheManager {
+    /// Player position cache data
     player_cache: Arc<Cache<String, Player>>,
-    channel_cache: Arc<Cache<String, String>>,
+    /// Channel membership cache (channel_id -> Set<player_names>)
+    channel_membership: Arc<Cache<String, HashSet<String>>>,
 }
 
 impl CacheManager {
@@ -24,11 +27,11 @@ impl CacheManager {
                 .build(),
         );
 
-        let channel_cache = Arc::new(Cache::builder().max_capacity(100).build());
+        let channel_membership = Arc::new(Cache::builder().max_capacity(100).build());
 
         Self {
             player_cache,
-            channel_cache,
+            channel_membership,
         }
     }
 
@@ -36,8 +39,80 @@ impl CacheManager {
         self.player_cache.clone()
     }
 
-    pub fn get_channel_cache(&self) -> Arc<Cache<String, String>> {
-        self.channel_cache.clone()
+    pub fn get_channel_membership(&self) -> Arc<Cache<String, HashSet<String>>> {
+        self.channel_membership.clone()
+    }
+
+    /// Check if two players are in the same channel
+    pub async fn are_players_in_same_channel(&self, player1: &str, player2: &str) -> bool {
+        // Check each channel's membership to see if both players are present
+        for (_, members) in self.channel_membership.iter() {
+            if members.contains(player1) && members.contains(player2) {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Get all players in a specific channel
+    pub async fn get_channel_members(&self, channel_id: &str) -> Option<HashSet<String>> {
+        self.channel_membership.get(channel_id).await
+    }
+
+    /// Add a player to a channel (creates channel if it doesn't exist)
+    pub async fn add_player_to_channel(&self, player_name: &str, channel_id: &str) {
+        let mut members = self.channel_membership
+            .get(channel_id)
+            .await
+            .unwrap_or_else(HashSet::new);
+        
+        members.insert(player_name.to_string());
+        self.channel_membership.insert(channel_id.to_string(), members).await;
+        
+        tracing::debug!("Added player {} to channel {}", player_name, channel_id);
+    }
+
+    /// Remove a player from a specific channel (cleans up empty channels)
+    pub async fn remove_player_from_channel(&self, player_name: &str, channel_id: &str) {
+        if let Some(mut members) = self.channel_membership.get(channel_id).await {
+            members.remove(player_name);
+            
+            if members.is_empty() {
+                // Remove empty channel
+                self.channel_membership.remove(channel_id).await;
+                tracing::debug!("Removed empty channel {}", channel_id);
+            } else {
+                // Update channel with remaining members
+                self.channel_membership.insert(channel_id.to_string(), members).await;
+            }
+            
+            tracing::debug!("Removed player {} from channel {}", player_name, channel_id);
+        }
+    }
+
+    /// Remove a player from all channels (used when player disconnects)
+    pub async fn remove_player_from_all_channels(&self, player_name: &str) {
+        let mut channels_to_update = Vec::new();
+        
+        // Find all channels the player is in
+        for (channel_id, members) in self.channel_membership.iter() {
+            if members.contains(player_name) {
+                let mut updated_members = members.clone();
+                updated_members.remove(player_name);
+                channels_to_update.push((channel_id.as_str().to_string(), updated_members));
+            }
+        }
+        
+        // Update or remove channels
+        for (channel_id, updated_members) in channels_to_update {
+            if updated_members.is_empty() {
+                self.channel_membership.remove(&channel_id).await;
+                tracing::debug!("Removed empty channel {} after player {} left", channel_id, player_name);
+            } else {
+                self.channel_membership.insert(channel_id.clone(), updated_members).await;
+                tracing::debug!("Updated channel {} after player {} left", channel_id, player_name);
+            }
+        }
     }
 
     /// Process packets and update caches accordingly
@@ -69,9 +144,9 @@ impl CacheManager {
 
                         match channel_data.event {
                             ChannelEvents::Join => {
-                                self.channel_cache
-                                    .insert(channel_data.name.clone(), channel_data.channel.clone())
-                                    .await;
+                                // Add player to channel membership
+                                self.add_player_to_channel(&channel_data.name, &channel_data.channel).await;
+                                
                                 tracing::info!(
                                     "Player {} joined channel {}",
                                     channel_data.name,
@@ -79,8 +154,19 @@ impl CacheManager {
                                 );
                             }
                             ChannelEvents::Leave => {
-                                self.channel_cache.remove(&channel_data.name).await;
-                                tracing::info!("Player {} left channel", channel_data.name);
+                                // Remove player from channel membership
+                                self.remove_player_from_channel(&channel_data.name, &channel_data.channel).await;
+                                
+                                tracing::info!("Player {} left channel {}", channel_data.name, channel_data.channel);
+                            }
+                            ChannelEvents::Create => {
+                                tracing::info!("Channel {} created by {}", channel_data.channel, channel_data.creator.as_deref().unwrap_or("unknown"));
+                            },
+                            ChannelEvents::Delete => {
+                                // O(1) efficient delete operation!
+                                self.channel_membership.remove(&channel_data.channel).await;
+                                
+                                tracing::info!("Channel {} deleted", channel_data.channel);
                             }
                         }
                     }
@@ -112,8 +198,12 @@ impl CacheManager {
     /// Remove a player from the cache when they disconnect
     /// This is called when a player disconnects to clean up cache entries
     pub async fn remove_player(&self, player_name: &str) -> Result<(), Error> {
+        // Remove from player position cache
         self.player_cache.remove(player_name).await;
-        self.channel_cache.remove(player_name).await;
+        
+        // Remove from all channels
+        self.remove_player_from_all_channels(player_name).await;
+        
         tracing::info!("Removed player {} from caches on disconnect", player_name);
         Ok(())
     }

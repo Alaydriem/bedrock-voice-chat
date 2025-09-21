@@ -1,0 +1,4 @@
+/* Group Component Active State */
+.group-item--active {
+  background-color: rgb(79 70 229 / 0.2);
+}

@@ -1,10 +1,167 @@
 <script lang="ts">
     import { invoke } from "@tauri-apps/api/core";
-    import { onMount } from "svelte";
+    import { info, error as logError } from '@tauri-apps/plugin-log';
+    import { onMount, onDestroy } from "svelte";
+    import { uniqueNamesGenerator, adjectives, colors, animals } from 'unique-names-generator';
+    import { Store } from '@tauri-apps/plugin-store';
+    import Keyring from '../../../js/app/keyring';
+    import GroupComponent from "./group/Component.svelte";
+    import type { Channel } from "../../../js/bindings/Channel";
+    import type { PlayerManager } from "../../../js/app/managers/PlayerManager";
+    import type ChannelManager from "../../../js/app/managers/ChannelManager";
 
-    onMount(() => {
+    // Manager props (injected via dependency injection)
+    export let playerManager: PlayerManager;
+    export let channelManager: ChannelManager;
+    export let store: Store;
+    export let serverUrl: string;
+
+    let currentUser = ""; // Will be loaded from player manager
+    let isListeningActive = false;
+
+    // Store values that will be reactively updated
+    let channels: Channel[] = [];
+    let error: string | null = null;
+    let isListening = false;
+    let isLoading = false;
+
+    // Get store objects from managers
+    $: channelsStore = channelManager?.channels;
+    $: errorStore = channelManager?.error;
+    $: isListeningStore = channelManager?.isListening;
+    $: isLoadingStore = channelManager?.isLoading;
+    $: currentUserStore = playerManager?.currentUser;
+
+    // Subscribe to stores using proper Svelte syntax
+    $: channels = channelsStore ? $channelsStore : [];
+    $: error = errorStore ? $errorStore : null;
+    $: isListening = isListeningStore ? $isListeningStore : false;
+    $: isLoading = isLoadingStore ? $isLoadingStore : false;
+    $: currentUser = currentUserStore ? $currentUserStore : "";
+
+    // Get current user's channel
+    $: currentUserChannel = channels.find((channel: Channel) => channel.players && channel.players.includes(currentUser));
+    $: userCurrentChannelId = currentUserChannel?.id || null;
+
+    const initializeApiIfNeeded = async () => {
+        try {
+            if (!serverUrl) {
+                logError("No current server configured");
+                return false;
+            }
+
+            const keyring = await Keyring.new("servers");
+            await keyring.setServer(serverUrl);
+            
+            const certificate = await keyring.get("certificate");
+            const certificateKey = await keyring.get("certificate_key");
+            const certificateCa = await keyring.get("certificate_ca");
+
+            if (!certificate || !certificateKey || !certificateCa) {
+                logError("No certificates found in keyring");
+                return false;
+            }
+
+            const cert = typeof certificateCa === 'string' ? certificateCa : new TextDecoder().decode(certificateCa);
+            const certKeyStr = typeof certificateKey === 'string' ? certificateKey : new TextDecoder().decode(certificateKey);
+            const certStr = typeof certificate === 'string' ? certificate : new TextDecoder().decode(certificate);
+            const pem = certStr + certKeyStr;
+
+            await invoke('api_initialize_client', {
+                endpoint: serverUrl,
+                cert,
+                pem
+            });
+
+            return true;
+        } catch (error) {
+            logError(`Failed to initialize API: ${error}`);
+            return false;
+        }
+    };
+
+    onMount(async () => {
         window.App.bindSidebarEvents();
+        
+        // Initialize API client if needed
+        const apiInitialized = await initializeApiIfNeeded();
+        
+        if (apiInitialized) {
+            // Start listening for channel events
+            await channelManager.startListening();
+            isListeningActive = true;
+            
+            // Initial fetch
+            channelManager.fetchChannels();
+        } else {
+            logError('Failed to initialize API, channels will not be loaded');
+        }
     });
+
+    onDestroy(() => {
+        if (isListeningActive) {
+            channelManager.stopListening();
+            isListeningActive = false;
+        }
+    });
+
+    const handleNewGroup = async () => {
+        try {
+            // Generate a random name for the new group
+            const randomName = uniqueNamesGenerator({
+                dictionaries: [adjectives, colors, animals],
+                separator: ' ',
+                style: 'capital'
+            });
+
+            // Check if user is currently in a group - leave it before joining the new one
+            if (userCurrentChannelId) {
+                const currentChannel = channels.find((c: Channel) => c.id === userCurrentChannelId);
+                
+                if (currentChannel) {
+                    // User is currently in a group - leave it (regardless of ownership)
+                    info(`User is currently in group ${currentChannel.name}, leaving before creating new group`);
+                    await channelManager.leaveChannel(userCurrentChannelId, currentUser);
+                }
+            }
+
+            // Create the new group
+            info(`Creating new group: ${randomName}`);
+            const newChannelId = await channelManager.createChannel(randomName);
+            
+            if (newChannelId) {
+                // Automatically join the newly created group
+                await channelManager.joinChannel(newChannelId, currentUser);
+                info(`Successfully created and joined group: ${randomName}`);
+            }
+        } catch (error) {
+            logError(`Failed to create new group: ${error}`);
+        }
+    };
+
+    const handleJoinGroup = async (channelId: string) => {
+        if (!currentUser) {
+            logError('No current user available');
+            return;
+        }
+        await channelManager.joinChannel(channelId, currentUser);
+    };
+
+    const handleLeaveGroup = async (channelId: string) => {
+        if (!currentUser) {
+            logError('No current user available');
+            return;
+        }
+        await channelManager.leaveChannel(channelId, currentUser);
+    };
+
+    const handleDeleteGroup = async (channelId: string) => {
+        await channelManager.deleteChannel(channelId);
+    };
+
+    const clearError = () => {
+        channelManager.clearError();
+    };
 </script>
 <div class="sidebar-panel">
     <div
@@ -26,6 +183,7 @@
             <div class="mt-2 px-4">
                 <button
                     class="btn w-full space-x-2 rounded-full border border-slate-200 py-2 font-medium text-slate-800 hover:bg-slate-150 focus:bg-slate-150 active:bg-slate-150/80 dark:border-navy-500 dark:text-navy-50 dark:hover:bg-navy-500 dark:focus:bg-navy-500 dark:active:bg-navy-500/90"
+                    on:click={handleNewGroup}
                 >
                     <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -75,92 +233,43 @@
                 </div>
                 <div
                     class="overflow-y-auto is-scrollbar-hidden min-w-0 px-2 pt-1"
+                    style="min-height: 100%"
                 >
-                    <div
-                        role="button"
-                        class="group flex space-x-2 w-full min-w-0 items-start justify-start p-2 text-xs-plus rounded-lg tracking-wide text-slate-800 outline-hidden transition-all hover:bg-slate-100 focus:bg-slate-100 dark:text-navy-100 dark:hover:bg-navy-600 dark:focus:bg-navy-600"
-                    >
-                        <div
-                            class="-mt-px flex min-w-0 flex-1 items-center justify-between gap-2 text-start"
-                        >
-                            <div class="min-w-0 flex-1 pb-2">
-                                <p
-                                    class="truncate text-slate-700 dark:text-navy-100 pb-2 pt-1"
-                                >
-                                    Example Group Voice Channel
-                                </p>
-                                <div class="flex flex-wrap -space-x-2">
-                                    <div class="avatar size-8 hover:z-10">
-                                        <div
-                                            class="is-initial rounded-full bg-info text-xs-plus uppercase text-white ring-2 ring-white dark:ring-navy-700"
-                                        >
-                                            jd
-                                        </div>
-                                    </div>
-
-                                    <div class="avatar size-8 hover:z-10">
-                                        <div
-                                            class="is-initial rounded-full bg-info text-xs-plus uppercase text-white ring-2 ring-white dark:ring-navy-700"
-                                        >
-                                            jd
-                                        </div>
-                                    </div>
-
-                                    <div class="avatar size-8 hover:z-10">
-                                        <div
-                                            class="is-initial rounded-full bg-info text-xs-plus uppercase text-white ring-2 ring-white dark:ring-navy-700"
-                                        >
-                                            jd
-                                        </div>
-                                    </div>
-
-                                    <div class="avatar size-8 hover:z-10">
-                                        <div
-                                            class="is-initial rounded-full bg-info text-xs-plus uppercase text-white ring-2 ring-white dark:ring-navy-700"
-                                        >
-                                            jd
-                                        </div>
-                                    </div>
-
-                                    <div class="avatar size-8 hover:z-10">
-                                        <div
-                                            class="is-initial rounded-full bg-info text-xs-plus uppercase text-white ring-2 ring-white dark:ring-navy-700"
-                                        >
-                                            jd
-                                        </div>
-                                    </div>
-
-                                    <div class="avatar size-8 hover:z-10">
-                                        <div
-                                            class="is-initial rounded-full bg-info text-xs-plus uppercase text-white ring-2 ring-white dark:ring-navy-700"
-                                        >
-                                            jd
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <button
-                                class="btn p-0 hover:bg-slate-300/20 focus:bg-slate-300/20 active:bg-slate-300/25 dark:hover:bg-navy-300/20 dark:focus:bg-navy-300/20 dark:active:bg-navy-300/25 opacity-0 size-5 rounded-full group-hover:opacity-100 group-focus:opacity-100 -mr-1"
+                    <!-- Error Display -->
+                    {#if error}
+                        <div class="mb-2 rounded-lg bg-red-50 p-2 text-xs text-red-600 dark:bg-red-900/20 dark:text-red-400">
+                            {error}
+                            <button 
+                                class="ml-2 text-red-700 hover:text-red-800 dark:text-red-300 dark:hover:text-red-200"
+                                on:click={clearError}
                             >
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke-width="1.5"
-                                    stroke="currentColor"
-                                    aria-hidden="true"
-                                    data-slot="icon"
-                                    class="size-4 stroke-2"
-                                >
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z"
-                                    />
-                                </svg>
+                                ×
                             </button>
                         </div>
-                    </div>
+                    {/if}
+
+                    <!-- Channel List -->
+                    {#if channels.length > 0}
+                        {#each channels as channel (channel.id)}
+                            <GroupComponent 
+                                {channel}
+                                {currentUser}
+                                {userCurrentChannelId}
+                                onJoin={handleJoinGroup}
+                                onLeave={handleLeaveGroup}
+                                onDelete={handleDeleteGroup}
+                            />
+                        {/each}
+                    {:else if isLoading}
+                        <div class="flex items-center justify-center p-4 text-xs text-slate-400 dark:text-navy-400">
+                            <div class="mr-2 size-3 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600 dark:border-navy-500 dark:border-t-navy-300"></div>
+                            Loading channels...
+                        </div>
+                    {:else}
+                        <div class="p-4 text-center text-xs text-slate-400 dark:text-navy-400">
+                            No active voice channels
+                        </div>
+                    {/if}
                 </div>
             </div>
             <div

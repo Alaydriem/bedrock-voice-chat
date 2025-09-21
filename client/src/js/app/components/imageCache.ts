@@ -5,7 +5,7 @@ import { error, debug } from '@tauri-apps/plugin-log';
 import axios from "axios";
 
 // @ts-ignore
-import murmurHash3 from "murmurHash3js";
+import murmurHash3 from "murmurhash3js";
 import type ImageCacheOptions from './imageCacheOptions';
 
 export default class ImageCache {

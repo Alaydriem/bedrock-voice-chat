@@ -35,6 +35,7 @@ pub struct SinkManager {
     sinks: Cache<Vec<u8>, PlayerSinks>,
     mixer: Arc<Mixer>,
     activity_tx: Option<flume::Sender<ActivityUpdate>>,
+    #[allow(unused)]
     app_handle: tauri::AppHandle,
 }
 

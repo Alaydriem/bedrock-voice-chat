@@ -1,6 +1,5 @@
 use crate::stream::quic::client_id_hash;
 use anyhow::Error;
-use async_mutex::Mutex;
 use bytes::Bytes;
 use common::structs::packet::QuicNetworkPacket;
 use common::traits::StreamTrait;
@@ -21,7 +20,7 @@ pub(crate) struct OutputStream {
     // Client id for enriched logging
     pub(crate) client_id: Arc<std::sync::Mutex<Option<Vec<u8>>>>,
     // Caches needed for packet filtering
-    channel_cache: Option<Arc<Mutex<Cache<String, String>>>>,
+    channel_membership: Option<Arc<Cache<String, std::collections::HashSet<String>>>>,
     player_cache: Option<Arc<Cache<String, Player>>>,
     broadcast_range: f32,
 }
@@ -34,7 +33,7 @@ impl OutputStream {
             is_stopped: Arc::new(AtomicBool::new(true)),
             player_id: Arc::new(std::sync::Mutex::new(None)),
             client_id: Arc::new(std::sync::Mutex::new(None)),
-            channel_cache: None,
+            channel_membership: None,
             player_cache: None,
             broadcast_range: 20.0, // Default value
         }
@@ -46,14 +45,12 @@ impl OutputStream {
 
     pub fn set_caches(
         &mut self,
-        channel_cache: Arc<Cache<String, String>>,
+        channel_membership: Arc<Cache<String, std::collections::HashSet<String>>>,
         player_cache: Arc<Cache<String, Player>>,
         broadcast_range: f32,
     ) {
-        // The packet.is_receivable method expects Arc<Mutex<Cache>>, but our cache manager
-        // provides Arc<Cache>. We need to clone the cache content and wrap it.
-        // Since Cache is already thread-safe, this is redundant but required by the API.
-        self.channel_cache = Some(Arc::new(Mutex::new((*channel_cache).clone())));
+        // Set up caches for packet filtering
+        self.channel_membership = Some(channel_membership);
         self.player_cache = Some(player_cache);
         self.broadcast_range = broadcast_range;
     }
@@ -95,8 +92,8 @@ impl OutputStream {
         };
 
         // If we don't have caches set up, use simple filtering
-        let (channel_cache, player_cache) = match (&self.channel_cache, &self.player_cache) {
-            (Some(cc), Some(pc)) => (cc.clone(), pc.clone()),
+        let (channel_membership, player_cache) = match (&self.channel_membership, &self.player_cache) {
+            (Some(cm), Some(pc)) => (cm.clone(), pc.clone()),
             _ => {
                 // Fallback to simple self-filtering if caches aren't available
                 match &packet.owner {
@@ -114,7 +111,7 @@ impl OutputStream {
 
         // Use the existing packet filtering logic
         packet
-            .is_receivable(recipient, channel_cache, player_cache, self.broadcast_range)
+            .is_receivable(recipient, channel_membership, player_cache, self.broadcast_range)
             .await
     }
 }

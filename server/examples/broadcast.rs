@@ -168,12 +168,26 @@ async fn client(
     tasks.push(tokio::spawn({
         let connection = connection.clone();
         async move {
-            // Windows has a sleep resolution time of ~15.6ms, which is much longer than the 5-9ms it takes to generate a "real" packet
-            // This simulates the slow generation without generating packets in us time.
+            // Windows high-resolution timing setup
             windows_targets::link!("winmm.dll" "system" fn timeBeginPeriod(uperiod: u32) -> u32);
+            windows_targets::link!("winmm.dll" "system" fn timeEndPeriod(uperiod: u32) -> u32);
+            windows_targets::link!("kernel32.dll" "system" fn QueryPerformanceCounter(lpperformancecount: *mut i64) -> i32);
+            windows_targets::link!("kernel32.dll" "system" fn QueryPerformanceFrequency(lpfrequency: *mut i64) -> i32);
+            
             unsafe {
                 timeBeginPeriod(1);
             }
+            
+            // Get high-resolution timer frequency
+            let mut frequency = 0i64;
+            let mut start_time = 0i64;
+            unsafe {
+                QueryPerformanceFrequency(&mut frequency);
+                QueryPerformanceCounter(&mut start_time);
+            }
+            
+            let target_interval_ms = 20.0;
+            let target_interval_ticks = (frequency as f64 * target_interval_ms / 1000.0) as i64;
 
             let client_id: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
 
@@ -193,6 +207,7 @@ async fn client(
             let mut spiral = Spiral::new(0.5);
             println!("Starting streaming playback from file: {}", source_file);
             let mut total_chunks = 0;
+            let mut packet_count = 0i64;
 
             for sample in sample_iter {
                 chunk_buffer.push(sample);
@@ -242,7 +257,32 @@ async fn client(
                         if let Err(e) = send_res {
                             println!("Datagram send query error: {:?}", e);
                         }
-                        tokio::time::sleep(Duration::from_millis(18)).await;
+                        
+                        // High-resolution timing instead of tokio::time::sleep
+                        packet_count += 1;
+                        let target_time = start_time + (packet_count * target_interval_ticks);
+                        
+                        loop {
+                            let mut current_time = 0i64;
+                            unsafe {
+                                QueryPerformanceCounter(&mut current_time);
+                            }
+                            
+                            if current_time >= target_time {
+                                break;
+                            }
+                            
+                            let remaining_ticks = target_time - current_time;
+                            let remaining_ms = remaining_ticks as f64 * 1000.0 / frequency as f64;
+                            
+                            if remaining_ms > 2.0 {
+                                // Use tokio sleep for longer waits to avoid spinning
+                                tokio::time::sleep(Duration::from_millis((remaining_ms - 1.0) as u64)).await;
+                            } else {
+                                // Precise spinning for the final 1-2ms
+                                tokio::task::yield_now().await;
+                            }
+                        }
                     }
                     Err(e) => {
                         println!("{}", e.to_string());
@@ -307,6 +347,11 @@ async fn client(
 
             tokio::time::sleep(Duration::from_secs(30)).await;
             println!("Send task complete");
+            
+            // Clean up Windows timer resolution
+            unsafe {
+                timeEndPeriod(1);
+            }
         }
     }));
 

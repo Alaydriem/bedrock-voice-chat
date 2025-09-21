@@ -1,7 +1,5 @@
 import { Store } from '@tauri-apps/plugin-store';
-import Sidebar from "../../components/settings/Sidebar.svelte";
-import App from './app.js';
-import { onMount, mount } from "svelte";
+import App from './app';
 
 declare global {
   interface Window {
@@ -13,15 +11,7 @@ export default class Dashboard extends App {
     private store: Store | undefined;
     
     async initialize() {
-        // Mount the sidebar
-        const mainSidebarContainer = document.getElementById(
-            "main-sidebar-container",
-        );
-        mount(Sidebar, {
-            target: mainSidebarContainer!,
-            props: {
-                activePage: "audio.svelte"
-            },
-        });
+        // Application-level initialization can go here
+        // Component mounting is now handled by Svelte template
     }
 }
