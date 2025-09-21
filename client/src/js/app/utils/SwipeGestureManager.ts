@@ -1,5 +1,5 @@
 import { Gesture } from '@use-gesture/vanilla';
-import { debug, info } from '@tauri-apps/plugin-log';
+import { info } from '@tauri-apps/plugin-log';
 
 interface SwipeData {
   distance: number;
@@ -54,10 +54,6 @@ export default class SwipeGestureManager {
         if (Math.abs(direction[0]) > Math.abs(direction[1])) {
           event.preventDefault();
         }
-        
-        if (debugMode) {
-          info(`SwipeGesture: Dragging - direction: ${direction}, distance: ${distance}`);
-        }
       },
 
       onDragEnd: ({ swipe, direction, distance, velocity: dragVelocity }) => {
@@ -66,11 +62,6 @@ export default class SwipeGestureManager {
         const horizontalDistance = Math.abs(distance[0]);
         const horizontalVelocity = Math.abs(dragVelocity[0]);
 
-        if (debugMode) {
-          info(`SwipeGesture: Detected - direction: ${direction[0] > 0 ? 'right' : 'left'}, distance: ${horizontalDistance}, velocity: ${horizontalVelocity}`);
-        }
-
-        // Check thresholds
         if (horizontalDistance >= threshold || horizontalVelocity >= velocity) {
           const swipeData: SwipeData = { 
             distance: horizontalDistance, 
@@ -88,21 +79,13 @@ export default class SwipeGestureManager {
         }
       },
 
-      onClick: ({ event }) => {
-        if (debugMode) {
-          info(`SwipeGesture: Tap detected on ${target.tagName}`);
-        }
-        
+      onClick: ({ event }) => {        
         // Call the tap handler
         tap({ element: target });
       }
     });
 
     this.activeGestures.set(gestureId, gesture);
-
-    if (debugMode) {
-      info(`SwipeGestureManager: Gesture created for target: ${target.tagName}`);
-    }
 
     return {
       id: gestureId,

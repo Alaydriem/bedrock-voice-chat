@@ -108,31 +108,13 @@ export default class Dashboard extends App {
             const currentServer = await this.store.get("current_server") as string | null;
             const currentUser = currentPlayer || '';
             const serverUrl = currentServer || '';
-            
-            if (currentUser) {
-                info(`Dashboard: Loaded current user from store: ${currentUser}`);
-            } else {
-                warn('Dashboard: No current user found in store');
-            }
-            
-            if (serverUrl) {
-                info(`Dashboard: Loaded current server from store: ${serverUrl}`);
-            } else {
-                warn('Dashboard: No current server found in store');
-            }
 
-            // Initialize PlayerManager first (no dependencies)
             this.playerManager = new PlayerManager(this.store, currentUser);
-            info('Dashboard: PlayerManager initialized');
-
-            // Initialize ChannelManager (depends on PlayerManager)
             this.channelManager = new ChannelManager(this.playerManager, this.store, serverUrl);
-            info('Dashboard: ChannelManager initialized');
 
             // Initialize AudioActivityManager (independent)
             this.audioActivityManager = new AudioActivityManager(this.store);
             await this.audioActivityManager.initialize();
-            info('Dashboard: AudioActivityManager initialized');
         } catch (err) {
             error(`Dashboard: Failed to initialize managers: ${err}`);
             throw err;
@@ -164,21 +146,12 @@ export default class Dashboard extends App {
         
         if (avatarElement && this.currentServerCredentials?.gamerpic) {
             try {
-                info(`Dashboard: Setting player avatar for ${this.currentServerCredentials.gamertag}`);
                 const decodedAvatar = atob(this.currentServerCredentials.gamerpic);
                 avatarElement.setAttribute("src", decodedAvatar);
-                info(`Dashboard: Set player avatar for ${this.currentServerCredentials.gamertag}`);
             } catch (err) {
                 warn(`Dashboard: Failed to decode player avatar: ${err}`);
                 // Set a default avatar or leave empty
                 avatarElement.setAttribute("src", "");
-            }
-        } else {
-            if (!avatarElement) {
-                warn(`Dashboard: Avatar element 'player-sidebar-avatar' not found in DOM`);
-            }
-            if (!this.currentServerCredentials?.gamerpic) {
-                warn(`Dashboard: No gamerpic data available`);
             }
         }
     }
@@ -207,12 +180,10 @@ export default class Dashboard extends App {
                 value: credentials?.gamertag ?? "",
                 device: "OutputDevice"
             }).then(async () => {
-                info("Updated current player");
 
                 // Update PlayerManager with current user
                 if (this.playerManager && credentials?.gamertag) {
                     this.playerManager.setCurrentUser(credentials.gamertag);
-                    info(`Dashboard: Set current user in PlayerManager: ${credentials.gamertag}`);
                 }
 
                 // Load any metadata from the settings store
@@ -316,11 +287,9 @@ export default class Dashboard extends App {
         try {
             if (this.channelManager) {
                 this.channelManager.cleanup();
-                info('Dashboard: ChannelManager cleaned up');
             }
             if (this.audioActivityManager) {
                 this.audioActivityManager.destroy();
-                info('Dashboard: AudioActivityManager cleaned up');
             }
             // PlayerManager doesn't need explicit cleanup currently
         } catch (err) {
