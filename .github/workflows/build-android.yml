@@ -1,19 +1,24 @@
 name: Build Android Client
 
 on:
-#  push:
-#    branches: [ master ]
-#    paths:
-#      - 'client/**'
-#      - 'common/**'
-#      - '.github/workflows/build-android.yml'
-#  pull_request:
-#  workflow_call:
-#    inputs:
-#      build_mode:
-#        description: 'Build mode (debug or release)'
-#        required: true
-#        type: string
+  push:
+    branches: [ master ]
+    paths:
+      - 'client/**'
+      - 'common/**'
+      - '.github/workflows/build-android.yml'
+  pull_request:
+    paths:
+      - 'client/**'
+      - 'common/**'
+      - '.github/workflows/build-android.yml'
+  workflow_call:
+    inputs:
+      build_mode:
+        description: 'Build mode (debug or release)'
+        required: false
+        default: 'debug'
+        type: string
   workflow_dispatch:
     inputs:
       build_mode:
@@ -27,12 +32,8 @@ on:
 
 jobs:
   build-android:
-    name: Build Android Client (${{ matrix.build_mode }})
+    name: Build Android Client (${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }})
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        build_mode: ${{ fromJSON(inputs.build_mode && format('["{0}"]', inputs.build_mode) || '["debug"]') }}
     
     steps:
       - name: Checkout code
@@ -318,87 +319,54 @@ jobs:
         run: |
           export PATH="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
           yarn tauri info
-          yarn tauri android build --debug
+          # Force debug mode for PR builds, otherwise use input parameter
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "PR detected - building in debug mode"
+            yarn tauri android build --debug
+          elif [ "${{ inputs.build_mode || 'debug' }}" = "release" ]; then
+            echo "Building in release mode"
+            yarn tauri android build --release
+          else
+            echo "Building in debug mode"
+            yarn tauri android build --debug
+          fi
           
       - name: Prepare Android artifacts
         working-directory: ./client
         run: |
-          echo "=== Android Build Output Investigation ==="
-          echo "Searching for all APK and AAB files..."
-          find . -name "*.apk" -o -name "*.aab" 2>/dev/null || echo "No APK/AAB files found"
+          # Determine actual build mode used
+          BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}"
+          echo "Effective build mode: $BUILD_MODE"
           
-          echo "=== Checking expected paths ==="
-          echo "Looking in src-tauri/gen/android/app/build/outputs/"
-          ls -la src-tauri/gen/android/app/build/outputs/ 2>/dev/null || echo "Directory not found"
+          # Use the correct path structure
+          APK_PATH="src-tauri/gen/android/app/build/outputs/apk/universal/$BUILD_MODE/app-universal-$BUILD_MODE.apk"
           
-          echo "=== Full directory structure ==="
-          find src-tauri/gen/android/ -type f -name "*.apk" -o -name "*.aab" 2>/dev/null || echo "No APK/AAB files in gen/android"
-          
-          mkdir -p artifacts
-          
-          # Try to find and copy any APK/AAB files
-          APK_FOUND=false
-          AAB_FOUND=false
-          
-          if [ "${{ matrix.build_mode }}" = "release" ]; then
-            echo "=== Looking for release artifacts ==="
-            # Search for release APK more broadly
-            RELEASE_APK=$(find src-tauri/gen/android/ -name "*release*.apk" 2>/dev/null | head -n1)
-            if [ -n "$RELEASE_APK" ] && [ -f "$RELEASE_APK" ]; then
-              echo "Found release APK: $RELEASE_APK"
-              cp "$RELEASE_APK" "artifacts/bvc-android-${{ matrix.build_mode }}.apk"
-              APK_FOUND=true
-            fi
-            
-            # Search for release AAB more broadly
-            RELEASE_AAB=$(find src-tauri/gen/android/ -name "*release*.aab" 2>/dev/null | head -n1)
-            if [ -n "$RELEASE_AAB" ] && [ -f "$RELEASE_AAB" ]; then
-              echo "Found release AAB: $RELEASE_AAB"
-              cp "$RELEASE_AAB" "artifacts/bvc-android-${{ matrix.build_mode }}.aab"
-              AAB_FOUND=true
-            fi
+          if [ -f "$APK_PATH" ]; then
+            echo "Found APK at: $APK_PATH"
+            cp "$APK_PATH" "bvc-android-$BUILD_MODE.apk"
+            echo "=== Final APK ==="
+            ls -la "bvc-android-$BUILD_MODE.apk"
           else
-            echo "=== Looking for debug artifacts ==="
-            # Search for debug APK more broadly
-            DEBUG_APK=$(find src-tauri/gen/android/ -name "*debug*.apk" 2>/dev/null | head -n1)
-            if [ -n "$DEBUG_APK" ] && [ -f "$DEBUG_APK" ]; then
-              echo "Found debug APK: $DEBUG_APK"
-              cp "$DEBUG_APK" "artifacts/bvc-android-${{ matrix.build_mode }}.apk"
-              APK_FOUND=true
-            fi
-            
-            # Search for debug AAB more broadly
-            DEBUG_AAB=$(find src-tauri/gen/android/ -name "*debug*.aab" 2>/dev/null | head -n1)
-            if [ -n "$DEBUG_AAB" ] && [ -f "$DEBUG_AAB" ]; then
-              echo "Found debug AAB: $DEBUG_AAB"
-              cp "$DEBUG_AAB" "artifacts/bvc-android-${{ matrix.build_mode }}.aab"
-              AAB_FOUND=true
-            fi
+            echo "ERROR: APK not found at expected path: $APK_PATH"
+            echo "=== Searching for any APK files ==="
+            find src-tauri/gen/android/app/build/outputs/apk -name "*.apk" -type f 2>/dev/null || echo "No APK files found"
+            exit 1
           fi
-          
-          echo "=== Artifact Summary ==="
-          echo "APK found: $APK_FOUND"
-          echo "AAB found: $AAB_FOUND"
-          
-          # List final artifacts
-          echo "=== Final artifacts ==="
-          ls -la artifacts/ || echo "No artifacts directory found"
-          
-          # Count artifacts for upload validation
-          ARTIFACT_COUNT=$(find artifacts/ -type f 2>/dev/null | wc -l)
-          echo "Total artifacts: $ARTIFACT_COUNT"
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
         id: upload-android
         with:
-          name: android-client-${{ matrix.build_mode }}
-          path: client/artifacts/
+          name: bvc-android-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}.apk
+          path: client/bvc-android-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}.apk
           retention-days: 30
 
       - name: Output artifact information
         run: |
+          BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}"
           echo "🚀 Android Build Complete!"
-          echo "📦 Artifacts uploaded as: android-client-${{ matrix.build_mode }}"
+          echo "� Build Mode: $BUILD_MODE"
+          echo "🎯 Trigger: ${{ github.event_name }}"
+          echo "�📦 Artifacts uploaded as: android-client-$BUILD_MODE"
           echo "🔗 Artifact URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           echo "⏰ Retention: 30 days"

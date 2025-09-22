@@ -14,7 +14,8 @@ on:
     inputs:
       build_mode:
         description: 'Build mode (debug or release)'
-        required: true
+        required: false
+        default: 'debug'
         type: string
   workflow_dispatch:
     inputs:
@@ -29,7 +30,7 @@ on:
 
 jobs:
   build-server:
-    name: Build Server (${{ matrix.target }} - ${{ matrix.build_mode }})
+    name: Build Server (${{ matrix.target }} - ${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -39,13 +40,11 @@ jobs:
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             artifact_name: bedrock-voice-chat-server.exe
-            build_mode: debug
             
           # Linux x64 builds
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             artifact_name: bedrock-voice-chat-server-amd64
-            build_mode: debug
 
     steps:
       - name: Checkout code
@@ -64,11 +63,11 @@ jobs:
             common
 
       - name: Install cross (for cross-compilation)
-        if: matrix.cross
+        if: false # Cross-compilation not currently used, but keeping for future
         run: cargo install cross --git https://github.com/cross-rs/cross
 
       - name: Install Linux dependencies
-        if: runner.os == 'Linux' && !matrix.cross
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -80,7 +79,7 @@ jobs:
             libasound2-dev
 
       - name: Setup cross-compilation environment
-        if: matrix.cross
+        if: false # Cross-compilation not currently used, but keeping for future
         run: |
           # Install cross-compilation toolchain and dependencies
           sudo apt-get update
@@ -91,7 +90,7 @@ jobs:
             libasound2-dev
 
       - name: Verify cross-compilation setup
-        if: matrix.cross
+        if: false # Cross-compilation not currently used, but keeping for future
         run: |
           echo "Cross-compilation environment:"
           echo "OPENSSL_STATIC=${OPENSSL_STATIC:-not set}"
@@ -106,30 +105,19 @@ jobs:
           echo "Testing aarch64 toolchain:"
           aarch64-linux-gnu-gcc --version || echo "aarch64-linux-gnu-gcc not found"
 
-      - name: Build server (cross-compilation)
-        if: matrix.cross
-        working-directory: ./server
-        env:
-          # Force vendored OpenSSL to avoid cross-compilation issues
-          OPENSSL_STATIC: "1"
-          OPENSSL_VENDORED: "1"
-          PKG_CONFIG_ALLOW_CROSS: "0"
-          # Additional environment variables for cross compilation
-          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: "aarch64-linux-gnu-gcc"
-        run: |
-          if [ "${{ matrix.build_mode }}" = "release" ]; then
-            cross build --release --target ${{ matrix.target }}
-          else
-            cross build --target ${{ matrix.target }}
-          fi
-
       - name: Build server (native)
-        if: '!matrix.cross'
+        if: true # Always build natively for now
         working-directory: ./server
         run: |
-          if [ "${{ matrix.build_mode }}" = "release" ]; then
+          # Determine actual build mode used - force debug for PRs
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "PR detected - building in debug mode"
+            cargo build --target ${{ matrix.target }}
+          elif [ "${{ inputs.build_mode || 'debug' }}" = "release" ]; then
+            echo "Building in release mode"
             cargo build --release --target ${{ matrix.target }}
           else
+            echo "Building in debug mode"
             cargo build --target ${{ matrix.target }}
           fi
         shell: bash
@@ -137,34 +125,43 @@ jobs:
       - name: Prepare artifacts
         shell: bash
         run: |
-          if [ "${{ matrix.build_mode }}" = "release" ]; then
+          # Determine actual build mode used
+          BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}"
+          echo "Effective build mode: $BUILD_MODE"
+          
+          if [ "$BUILD_MODE" = "release" ]; then
             BUILD_DIR="target/${{ matrix.target }}/release"
           else
             BUILD_DIR="target/${{ matrix.target }}/debug"
           fi
           
-          mkdir -p artifacts
-          
           if [ "${{ runner.os }}" = "Windows" ]; then
-            cp "server/${BUILD_DIR}/bedrock-voice-chat-server.exe" "artifacts/bvc-server-${{ matrix.target }}-${{ matrix.build_mode }}.exe"
+            FINAL_NAME="bvc-server-${{ matrix.target }}-$BUILD_MODE.exe"
+            cp "server/${BUILD_DIR}/bedrock-voice-chat-server.exe" "$FINAL_NAME"
           else
-            cp "server/${BUILD_DIR}/bedrock-voice-chat-server" "artifacts/bvc-server-${{ matrix.target }}-${{ matrix.build_mode }}"
+            FINAL_NAME="bvc-server-${{ matrix.target }}-$BUILD_MODE"
+            cp "server/${BUILD_DIR}/bedrock-voice-chat-server" "$FINAL_NAME"
           fi
+          
+          echo "Created artifact: $FINAL_NAME"
+          ls -la "$FINAL_NAME"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         id: upload-server
         with:
-          name: server-${{ matrix.target }}-${{ matrix.build_mode }}
-          path: artifacts/
+          name: bvc-server-${{ matrix.target }}-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}${{ runner.os == 'Windows' && '.exe' || '' }}
+          path: bvc-server-${{ matrix.target }}-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}${{ runner.os == 'Windows' && '.exe' || '' }}
           retention-days: 30
 
       - name: Output artifact information
         shell: bash
         run: |
+          BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}"
           echo "🚀 Server Build Complete!"
           echo "🎯 Target: ${{ matrix.target }}"
-          echo "🔧 Mode: ${{ matrix.build_mode }}"
-          echo "📦 Artifacts uploaded as: server-${{ matrix.target }}-${{ matrix.build_mode }}"
+          echo "🔧 Build Mode: $BUILD_MODE"
+          echo "🎯 Trigger: ${{ github.event_name }}"
+          echo "📦 Artifacts uploaded as: server-${{ matrix.target }}-$BUILD_MODE"
           echo "🔗 Artifact URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           echo "⏰ Retention: 30 days"

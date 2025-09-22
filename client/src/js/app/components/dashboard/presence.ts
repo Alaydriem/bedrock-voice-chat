@@ -33,7 +33,6 @@ export class PlayerPresenceManager {
         });
         
         this.isInitialized = true;
-        info("PlayerPresenceManager initialized successfully");
     }
     
     private async handlePresenceEvent(event: any): Promise<void> {
@@ -56,8 +55,6 @@ export class PlayerPresenceManager {
             error(`Player presence event missing status: ${JSON.stringify(payload)}`);
             return;
         }
-        
-        info(`Processing player presence: ${playerName} - ${status}`);
         
         if (status === 'joined') {
             const settings = await this.getPlayerSettings(playerName);

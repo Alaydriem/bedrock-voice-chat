@@ -12,7 +12,8 @@ on:
     inputs:
       build_mode:
         description: 'Build mode (debug or release)'
-        required: true
+        required: false
+        default: 'debug'
         type: string
   workflow_dispatch:
     inputs:
@@ -27,12 +28,8 @@ on:
 
 jobs:
   build-windows:
-    name: Build Windows Client (${{ matrix.build_mode }})
+    name: Build Windows Client (${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }})
     runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        build_mode: ${{ fromJSON(inputs.build_mode && format('["{0}"]', inputs.build_mode) || '["debug"]') }}
     
     steps:
       - name: Checkout code
@@ -91,7 +88,7 @@ jobs:
           echo "LIBCLANG_PATH=$libclangPath" >> $env:GITHUB_ENV
 
       - name: Build Windows client (debug)
-        if: matrix.build_mode == 'debug'
+        if: github.event_name == 'pull_request' || inputs.build_mode == 'debug' || inputs.build_mode == '' || inputs.build_mode == null
         working-directory: ./client
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -99,7 +96,7 @@ jobs:
         run: yarn tauri build --debug --no-bundle
 
       - name: Build Windows client (release)
-        if: matrix.build_mode == 'release'
+        if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
         working-directory: ./client
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -110,57 +107,63 @@ jobs:
         working-directory: ./client
         shell: powershell
         run: |
-          New-Item -ItemType Directory -Path "artifacts" -Force
+          # Determine actual build mode used
+          if ("${{ github.event_name }}" -eq "pull_request") {
+            $BUILD_MODE = "debug"
+          } elseif ("${{ inputs.build_mode }}" -eq "release") {
+            $BUILD_MODE = "release"
+          } else {
+            $BUILD_MODE = "debug"
+          }
+          Write-Host "Effective build mode: $BUILD_MODE" -ForegroundColor Cyan
           
-          if ("${{ matrix.build_mode }}" -eq "release") {
-            # Copy release artifacts
+          if ($BUILD_MODE -eq "release") {
+            # Copy release executable
             if (Test-Path "src-tauri\target\release\bedrock-voice-chat-client.exe") {
-              Copy-Item "src-tauri\target\release\bedrock-voice-chat-client.exe" "artifacts\bvc-windows-${{ matrix.build_mode }}.exe"
-            }
-            if (Test-Path "src-tauri\target\release\bundle\msi\*.msi") {
-              Get-ChildItem "src-tauri\target\release\bundle\msi\*.msi" | ForEach-Object {
-                Copy-Item $_.FullName "artifacts\bvc-windows-${{ matrix.build_mode }}.msi"
-              }
-            }
-            if (Test-Path "src-tauri\target\release\bundle\nsis\*.exe") {
-              Get-ChildItem "src-tauri\target\release\bundle\nsis\*.exe" | ForEach-Object {
-                Copy-Item $_.FullName "artifacts\bvc-windows-installer-${{ matrix.build_mode }}.exe"
-              }
+              Copy-Item "src-tauri\target\release\bedrock-voice-chat-client.exe" "bvc-windows-$BUILD_MODE.exe"
+              Write-Host "Copied release executable" -ForegroundColor Green
+            } else {
+              Write-Host "ERROR: Release executable not found!" -ForegroundColor Red
+              exit 1
             }
           } else {
-            # Copy debug artifacts
+            # Copy debug executable
             if (Test-Path "src-tauri\target\debug\bedrock-voice-chat-client.exe") {
-              Copy-Item "src-tauri\target\debug\bedrock-voice-chat-client.exe" "artifacts\bvc-windows-${{ matrix.build_mode }}.exe"
-            }
-            if (Test-Path "src-tauri\target\debug\bundle\msi\*.msi") {
-              Get-ChildItem "src-tauri\target\debug\bundle\msi\*.msi" | ForEach-Object {
-                Copy-Item $_.FullName "artifacts\bvc-windows-${{ matrix.build_mode }}.msi"
-              }
-            }
-            if (Test-Path "src-tauri\target\debug\bundle\nsis\*.exe") {
-              Get-ChildItem "src-tauri\target\debug\bundle\nsis\*.exe" | ForEach-Object {
-                Copy-Item $_.FullName "artifacts\bvc-windows-installer-${{ matrix.build_mode }}.exe"
-              }
+              Copy-Item "src-tauri\target\debug\bedrock-voice-chat-client.exe" "bvc-windows-$BUILD_MODE.exe"
+              Write-Host "Copied debug executable" -ForegroundColor Green
+            } else {
+              Write-Host "ERROR: Debug executable not found!" -ForegroundColor Red
+              exit 1
             }
           }
           
-          # List artifacts for debugging
-          Write-Host "Available artifacts:"
-          Get-ChildItem "artifacts" -ErrorAction SilentlyContinue | Format-Table
+          # Verify the final executable
+          if (Test-Path "bvc-windows-$BUILD_MODE.exe") {
+            Write-Host "Final executable ready:" -ForegroundColor Green
+            Get-ChildItem "bvc-windows-$BUILD_MODE.exe" | Format-List Name, Length, LastWriteTime
+          }
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         id: upload-windows
         with:
-          name: windows-client-${{ matrix.build_mode }}
-          path: client/artifacts/
+          name: bvc-windows-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}.exe
+          path: client/bvc-windows-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}.exe
           retention-days: 30
 
       - name: Output artifact information
         shell: powershell
         run: |
+          if ("${{ github.event_name }}" -eq "pull_request") {
+            $BUILD_MODE = "debug"
+          } elseif ("${{ inputs.build_mode }}" -eq "release") {
+            $BUILD_MODE = "release"
+          } else {
+            $BUILD_MODE = "debug"
+          }
           Write-Host "Windows Client Build Complete!" -ForegroundColor Green
-          Write-Host "Mode: ${{ matrix.build_mode }}" -ForegroundColor Cyan
-          Write-Host "Artifacts uploaded as: windows-client-${{ matrix.build_mode }}" -ForegroundColor Cyan
+          Write-Host "Build Mode: $BUILD_MODE" -ForegroundColor Cyan
+          Write-Host "Trigger: ${{ github.event_name }}" -ForegroundColor Cyan
+          Write-Host "Artifacts uploaded as: windows-client-$BUILD_MODE" -ForegroundColor Cyan
           Write-Host "Artifact URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" -ForegroundColor Blue
           Write-Host "Retention: 30 days" -ForegroundColor Yellow
