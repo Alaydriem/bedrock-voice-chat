@@ -227,39 +227,27 @@ export class PlayerManager {
      */
     removePlayerSource(name: string, source: PlayerSource): boolean {
         try {
-            info(`PlayerManager: REMOVE_SOURCE DEBUG: Attempting to remove ${source} source from player ${name}`);
             
             this.playersMapStore.update(map => {
                 const existing = map.get(name);
-                info(`PlayerManager: REMOVE_SOURCE DEBUG: Player ${name} exists in map: ${!!existing}`);
                 if (existing) {
-                    info(`PlayerManager: REMOVE_SOURCE DEBUG: Player ${name} current sources: [${Array.from(existing.sources).join(', ')}]`);
                     if (existing.sources.has(source)) {
                         existing.sources.delete(source);
-                        info(`PlayerManager: REMOVE_SOURCE DEBUG: Successfully removed ${source} source from player ${name}`);
                         
                         if (existing.sources.size === 0) {
                             // No more sources, remove player entirely
                             map.delete(name);
-                            info(`PlayerManager: REMOVE_SOURCE DEBUG: Player ${name} removed completely (no remaining sources)`);
                         } else {
                             // Still has other sources, keep player
                             map.set(name, { ...existing });
-                            info(`PlayerManager: REMOVE_SOURCE DEBUG: Player ${name} still has sources: [${Array.from(existing.sources).join(', ')}]`);
                         }
-                    } else {
-                        info(`PlayerManager: REMOVE_SOURCE DEBUG: Player ${name} does not have ${source} source, skipping removal`);
                     }
-                } else {
-                    info(`PlayerManager: REMOVE_SOURCE DEBUG: Player ${name} not found in map`);
                 }
                 return new Map(map);
             });
             
-            info(`PlayerManager: REMOVE_SOURCE DEBUG: Returning true for ${name}`);
             return true;
         } catch (err) {
-            error(`PlayerManager: Failed to remove ${source} source for player ${name}: ${err}`);
             return false;
         }
     }
@@ -384,8 +372,6 @@ export class PlayerManager {
                 }
                 return new Map(map);
             });
-
-            info(`PlayerManager: Loaded settings for ${Object.keys(playerGainStore).length} players from persistent store`);
         } catch (err) {
             error(`PlayerManager: Failed to load from persistent store: ${err}`);
         }

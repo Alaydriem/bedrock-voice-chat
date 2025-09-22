@@ -119,20 +119,15 @@
                 const currentChannel = channels.find((c: Channel) => c.id === userCurrentChannelId);
                 
                 if (currentChannel) {
-                    // User is currently in a group - leave it (regardless of ownership)
-                    info(`User is currently in group ${currentChannel.name}, leaving before creating new group`);
                     await channelManager.leaveChannel(userCurrentChannelId, currentUser);
                 }
             }
 
-            // Create the new group
-            info(`Creating new group: ${randomName}`);
             const newChannelId = await channelManager.createChannel(randomName);
             
             if (newChannelId) {
                 // Automatically join the newly created group
                 await channelManager.joinChannel(newChannelId, currentUser);
-                info(`Successfully created and joined group: ${randomName}`);
             }
         } catch (error) {
             logError(`Failed to create new group: ${error}`);

@@ -61,6 +61,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             // Authentication
             crate::auth::commands::server_login,
+            crate::auth::commands::logout,
             // Environment Variable Data
             crate::commands::env::get_env,
             crate::commands::env::get_variant,

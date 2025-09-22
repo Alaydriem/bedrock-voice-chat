@@ -11,6 +11,12 @@ debug = false
 codegen-units = 1
 lto = true
 
+[profile.dev]
+opt-level = 1        # Basic optimizations to reduce size
+debug = 1            # Line numbers only, not full debug info
+strip = "symbols"    # Strip symbols to reduce size
+incremental = true   # Keep incremental compilation for faster rebuilds
+
 [lib]
 # The `_lib` suffix may seem redundant but it is necessary
 # to make the lib name unique and wouldn't conflict with the bin name.
