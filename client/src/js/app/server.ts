@@ -59,7 +59,6 @@ export default class Server extends App {
     
     for (const key of keys) {
       const storedValue = await this.keyring.get(key);
-
       if (key === "keypair" || key === "signature") {
         let valueStr: string;
         if (typeof storedValue === "string") {
@@ -174,6 +173,7 @@ export default class Server extends App {
         const button = card?.querySelector("button");
         if (!button) { return; }
 
+        this.keyring!.setServer(server);
         const credentials = await this.getCredentials();
         if (!credentials) {
           error("No credentials found for server " + server + ", prompting for re-authentication");
