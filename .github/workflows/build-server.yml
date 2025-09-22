@@ -105,23 +105,6 @@ jobs:
           echo "Testing aarch64 toolchain:"
           aarch64-linux-gnu-gcc --version || echo "aarch64-linux-gnu-gcc not found"
 
-      - name: Build server (cross-compilation)
-        if: false # Cross-compilation not currently used, but keeping for future
-        working-directory: ./server
-        env:
-          # Force vendored OpenSSL to avoid cross-compilation issues
-          OPENSSL_STATIC: "1"
-          OPENSSL_VENDORED: "1"
-          PKG_CONFIG_ALLOW_CROSS: "0"
-          # Additional environment variables for cross compilation
-          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: "aarch64-linux-gnu-gcc"
-        run: |
-          if [ "${{ inputs.build_mode || 'debug' }}" = "release" ]; then
-            cross build --release --target ${{ matrix.target }}
-          else
-            cross build --target ${{ matrix.target }}
-          fi
-
       - name: Build server (native)
         if: true # Always build natively for now
         working-directory: ./server
@@ -152,20 +135,23 @@ jobs:
             BUILD_DIR="target/${{ matrix.target }}/debug"
           fi
           
-          mkdir -p artifacts
-          
           if [ "${{ runner.os }}" = "Windows" ]; then
-            cp "server/${BUILD_DIR}/bedrock-voice-chat-server.exe" "artifacts/bvc-server-${{ matrix.target }}-$BUILD_MODE.exe"
+            FINAL_NAME="bvc-server-${{ matrix.target }}-$BUILD_MODE.exe"
+            cp "server/${BUILD_DIR}/bedrock-voice-chat-server.exe" "$FINAL_NAME"
           else
-            cp "server/${BUILD_DIR}/bedrock-voice-chat-server" "artifacts/bvc-server-${{ matrix.target }}-$BUILD_MODE"
+            FINAL_NAME="bvc-server-${{ matrix.target }}-$BUILD_MODE"
+            cp "server/${BUILD_DIR}/bedrock-voice-chat-server" "$FINAL_NAME"
           fi
+          
+          echo "Created artifact: $FINAL_NAME"
+          ls -la "$FINAL_NAME"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         id: upload-server
         with:
-          name: server-${{ matrix.target }}-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
-          path: artifacts/
+          name: bvc-server-${{ matrix.target }}-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}${{ runner.os == 'Windows' && '.exe' || '' }}
+          path: bvc-server-${{ matrix.target }}-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}${{ runner.os == 'Windows' && '.exe' || '' }}
           retention-days: 30
 
       - name: Output artifact information

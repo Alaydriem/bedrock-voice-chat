@@ -159,7 +159,7 @@ jobs:
         uses: actions/upload-artifact@v4
         id: upload-windows
         with:
-          name: windows-client-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
+          name: bedrock-voice-chat-client-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
           path: client/artifacts/
           retention-days: 30
 
