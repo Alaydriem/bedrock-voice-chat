@@ -107,8 +107,6 @@ jobs:
         working-directory: ./client
         shell: powershell
         run: |
-          New-Item -ItemType Directory -Path "artifacts" -Force
-          
           # Determine actual build mode used
           if ("${{ github.event_name }}" -eq "pull_request") {
             $BUILD_MODE = "debug"
@@ -120,47 +118,37 @@ jobs:
           Write-Host "Effective build mode: $BUILD_MODE" -ForegroundColor Cyan
           
           if ($BUILD_MODE -eq "release") {
-            # Copy release artifacts
+            # Copy release executable
             if (Test-Path "src-tauri\target\release\bedrock-voice-chat-client.exe") {
-              Copy-Item "src-tauri\target\release\bedrock-voice-chat-client.exe" "artifacts\bvc-windows-$BUILD_MODE.exe"
-            }
-            if (Test-Path "src-tauri\target\release\bundle\msi\*.msi") {
-              Get-ChildItem "src-tauri\target\release\bundle\msi\*.msi" | ForEach-Object {
-                Copy-Item $_.FullName "artifacts\bvc-windows-$BUILD_MODE.msi"
-              }
-            }
-            if (Test-Path "src-tauri\target\release\bundle\nsis\*.exe") {
-              Get-ChildItem "src-tauri\target\release\bundle\nsis\*.exe" | ForEach-Object {
-                Copy-Item $_.FullName "artifacts\bvc-windows-installer-$BUILD_MODE.exe"
-              }
+              Copy-Item "src-tauri\target\release\bedrock-voice-chat-client.exe" "bvc-windows-$BUILD_MODE.exe"
+              Write-Host "Copied release executable" -ForegroundColor Green
+            } else {
+              Write-Host "ERROR: Release executable not found!" -ForegroundColor Red
+              exit 1
             }
           } else {
-            # Copy debug artifacts
+            # Copy debug executable
             if (Test-Path "src-tauri\target\debug\bedrock-voice-chat-client.exe") {
-              Copy-Item "src-tauri\target\debug\bedrock-voice-chat-client.exe" "artifacts\bvc-windows-$BUILD_MODE.exe"
-            }
-            if (Test-Path "src-tauri\target\debug\bundle\msi\*.msi") {
-              Get-ChildItem "src-tauri\target\debug\bundle\msi\*.msi" | ForEach-Object {
-                Copy-Item $_.FullName "artifacts\bvc-windows-$BUILD_MODE.msi"
-              }
-            }
-            if (Test-Path "src-tauri\target\debug\bundle\nsis\*.exe") {
-              Get-ChildItem "src-tauri\target\debug\bundle\nsis\*.exe" | ForEach-Object {
-                Copy-Item $_.FullName "artifacts\bvc-windows-installer-$BUILD_MODE.exe"
-              }
+              Copy-Item "src-tauri\target\debug\bedrock-voice-chat-client.exe" "bvc-windows-$BUILD_MODE.exe"
+              Write-Host "Copied debug executable" -ForegroundColor Green
+            } else {
+              Write-Host "ERROR: Debug executable not found!" -ForegroundColor Red
+              exit 1
             }
           }
           
-          # List artifacts for debugging
-          Write-Host "Available artifacts:"
-          Get-ChildItem "artifacts" -ErrorAction SilentlyContinue | Format-Table
+          # Verify the final executable
+          if (Test-Path "bvc-windows-$BUILD_MODE.exe") {
+            Write-Host "Final executable ready:" -ForegroundColor Green
+            Get-ChildItem "bvc-windows-$BUILD_MODE.exe" | Format-List Name, Length, LastWriteTime
+          }
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         id: upload-windows
         with:
-          name: bedrock-voice-chat-client-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
-          path: client/artifacts/
+          name: bvc-windows-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}.exe
+          path: client/bvc-windows-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}.exe
           retention-days: 30
 
       - name: Output artifact information
