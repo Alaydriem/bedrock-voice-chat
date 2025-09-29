@@ -1,17 +1,18 @@
+use super::sink_manager::SinkManager;
 use crate::audio::stream::stream_manager::AudioSinkType;
+use crate::audio::recording::RecordingProducer;
 use crate::{audio::stream::jitter_buffer::EncodedAudioFramePacket, events::ServerError};
 
-use super::sink_manager::SinkManager;
 use crate::audio::types::AudioDevice;
 use crate::AudioPacket;
 use anyhow::anyhow;
-use base64::{engine::general_purpose, Engine as _};
-use common::structs::packet::{ConnectionEventType, PlayerPresenceEvent};
+use base64::engine::{general_purpose, Engine};
 use common::{
     structs::{
         audio::PlayerGainStore,
         packet::{
-            AudioFramePacket, ChannelEventPacket, PacketType, PlayerDataPacket, QuicNetworkPacket, ServerErrorPacket,
+            AudioFramePacket, ChannelEventPacket, ConnectionEventType, PacketType, PlayerDataPacket,
+            PlayerPresenceEvent, QuicNetworkPacket, ServerErrorPacket,
         },
     },
     Player,
@@ -30,6 +31,7 @@ use std::{
 use tauri::Emitter;
 use tokio::task::{AbortHandle, JoinHandle};
 
+/// Global mute state for output stream
 static MUTE_OUTPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 
 pub(crate) struct OutputStream {
@@ -45,6 +47,8 @@ pub(crate) struct OutputStream {
     player_presence: Arc<moka::sync::Cache<String, ()>>,
     // Client ID to Player Name mapping for gain control
     client_id_to_player: Arc<moka::sync::Cache<String, String>>,
+    // Recording integration
+    recording_producer: Option<Arc<RecordingProducer>>,
 }
 
 impl common::traits::StreamTrait for OutputStream {
@@ -90,6 +94,9 @@ impl common::traits::StreamTrait for OutputStream {
 
     async fn stop(&mut self) -> Result<(), anyhow::Error> {
         _ = self.shutdown.store(true, Ordering::Relaxed);
+
+        // Note: RecordingManager is managed separately and doesn't need to be stopped here
+        // The lifecycle is controlled by the main application
 
         if let Some(sink_manager) = self.sink_manager.as_mut() {
             sink_manager.stop().await;
@@ -165,6 +172,7 @@ impl OutputStream {
         bus: Arc<flume::Receiver<AudioPacket>>,
         metadata: Arc<moka::future::Cache<String, String>>,
         app_handle: tauri::AppHandle,
+        recording_producer: Option<Arc<RecordingProducer>>,
     ) -> Self {
         let players = moka::sync::Cache::builder()
             .time_to_idle(Duration::from_secs(15 * 60))
@@ -190,6 +198,7 @@ impl OutputStream {
             playback_stream: None,
             player_presence: Arc::new(player_presence),
             client_id_to_player: Arc::new(client_id_to_player),
+            recording_producer,
         }
     }
 
@@ -210,6 +219,8 @@ impl OutputStream {
                     let player_presence = self.player_presence.clone();
                     let client_id_to_player = self.client_id_to_player.clone();
                     let app_handle = self.app_handle.clone();
+                    let recording_producer = self.recording_producer.clone();
+
                     let handle = tokio::spawn(async move {
                         #[allow(irrefutable_let_patterns)]
                         while let packet = bus.recv_async().await {
@@ -228,6 +239,7 @@ impl OutputStream {
                                             player_presence.clone(),
                                             client_id_to_player.clone(),
                                             Some(&app_handle.clone()),
+                                            recording_producer.as_ref().map(|p| (**p).clone()),
                                         )
                                         .await
                                     }
@@ -430,7 +442,7 @@ impl OutputStream {
                 Ok(event) => {
                     let event_type = match event.event {
                         common::structs::channel::ChannelEvents::Create => "create",
-                        common::structs::channel::ChannelEvents::Delete => "delete", 
+                        common::structs::channel::ChannelEvents::Delete => "delete",
                         common::structs::channel::ChannelEvents::Join => "join",
                         common::structs::channel::ChannelEvents::Leave => "leave",
                     };
@@ -472,6 +484,7 @@ impl OutputStream {
         player_presence: Arc<moka::sync::Cache<String, ()>>,
         client_id_to_player: Arc<moka::sync::Cache<String, String>>,
         app_handle: Option<&tauri::AppHandle>,
+        recording_producer: Option<crate::audio::recording::RecordingProducer>,
     ) {
         let current_player_name = match metadata.get("current_player").await {
             Some(name) => name,
@@ -517,11 +530,9 @@ impl OutputStream {
 
         match data {
             Ok(data) => {
-                // Use the packet's own sample rate, not the output device's
-                let packet_rate: u32 = data.sample_rate as u32;
-                let result = producer.send(EncodedAudioFramePacket {
+                let encoded_packet = EncodedAudioFramePacket {
                     timestamp: data.timestamp() as u64,
-                    sample_rate: packet_rate,
+                    sample_rate: data.sample_rate,
                     data: data.data,
                     route: AudioSinkType::from_spatial(match data.spatial {
                         Some(s) => s,
@@ -532,15 +543,31 @@ impl OutputStream {
                     dimension: data.dimension,
                     spatial: data.spatial,
                     owner: owner.clone(),
-                    buffer_size_ms: 120,           // Default buffer size
-                    time_between_reports_secs: 30, // Default reporting interval
-                });
+                    buffer_size_ms: 120,
+                    time_between_reports_secs: 30,
+                };
 
-                match result {
+                // Send to playback
+                match producer.send(encoded_packet.clone()) {
                     Ok(_) => {}
                     Err(e) => {
                         warn!("Could not send encoded audio frame packet: {:?}", e);
                     }
+                }
+
+                // Send to recording if producer available
+                if let Some(ref producer) = recording_producer {
+                    let recording_data = crate::audio::recording::RecordingData::OutputData {
+                        timestamp_ms: encoded_packet.timestamp,
+                        sample_rate: encoded_packet.sample_rate,
+                        opus_data: encoded_packet.data.clone(),
+                        owner: owner,
+                        coordinate: encoded_packet.coordinate,
+                        orientation: encoded_packet.orientation,
+                        dimension: encoded_packet.dimension,
+                        is_spatial: encoded_packet.spatial.unwrap_or(false),
+                    };
+                    let _ = producer.try_send(recording_data);
                 }
             }
             Err(_) => {

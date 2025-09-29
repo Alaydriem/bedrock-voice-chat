@@ -646,6 +646,7 @@ dependencies = [
  "flume",
  "log",
  "moka",
+ "nano-wal",
  "once_cell",
  "opus",
  "rand 0.9.2",
@@ -676,6 +677,7 @@ dependencies = [
  "tokio",
  "trust-dns-resolver",
  "ts-rs",
+ "uuid",
  "windows-targets 0.53.3",
 ]
 
@@ -4002,6 +4004,16 @@ dependencies = [
  "tokio",
  "tokio-util",
  "version_check",
+]
+
+[[package]]
+name = "nano-wal"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5dc4f42834bfe1b1640aaf7c71d261daf9bfec57d86fb4e817503ac63f527db7"
+dependencies = [
+ "bytes",
+ "chrono",
 ]
 
 [[package]]

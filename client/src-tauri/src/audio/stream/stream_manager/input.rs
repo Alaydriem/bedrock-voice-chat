@@ -1,4 +1,5 @@
 use super::AudioFrame;
+use crate::audio::recording::{RecordingData, RecordingProducer};
 use crate::audio::types::{AudioDevice, BUFFER_SIZE};
 use crate::{audio::stream::stream_manager::AudioFrameData, NetworkPacket};
 use anyhow::anyhow;
@@ -40,6 +41,7 @@ pub(crate) struct InputStream {
     pub metadata: Arc<moka::future::Cache<String, String>>,
     #[allow(unused)]
     app_handle: tauri::AppHandle,
+    recording_producer: Option<Arc<RecordingProducer>>,
 }
 
 impl common::traits::StreamTrait for InputStream {
@@ -137,6 +139,7 @@ impl InputStream {
         bus: Arc<flume::Sender<NetworkPacket>>,
         metadata: Arc<moka::future::Cache<String, String>>,
         app_handle: tauri::AppHandle,
+        recording_producer: Option<Arc<RecordingProducer>>,
     ) -> Self {
         Self {
             device,
@@ -145,6 +148,7 @@ impl InputStream {
             shutdown: Arc::new(AtomicBool::new(false)),
             metadata,
             app_handle: app_handle.clone(),
+            recording_producer,
         }
     }
 
@@ -387,6 +391,7 @@ impl InputStream {
 
                         let bus = self.bus.clone();
                         let notify = crate::AUDIO_INPUT_NETWORK_NOTIFY.clone();
+                        let recording_producer = self.recording_producer.clone();
                         let handle = tokio::spawn(async move {
                             #[cfg(target_os = "windows")]
                             {
@@ -423,6 +428,21 @@ impl InputStream {
                                                 Ok(s) if s.len() > 3 => s,
                                                 _ => continue, // Skip if encoding failed or insufficient data
                                             };
+
+                                            // Send to recording producer (unconditionally, let RecordingManager filter)
+                                            if let Some(ref producer) = recording_producer {
+                                                let recording_data = RecordingData::InputData {
+                                                    timestamp_ms: std::time::SystemTime::now()
+                                                        .duration_since(std::time::UNIX_EPOCH)
+                                                        .unwrap_or_default()
+                                                        .as_millis() as u64,
+                                                    sample_rate: device_config.sample_rate.0,
+                                                    pcm_data: sample_to_process.clone(),
+                                                    opus_data: encoded_data.clone(),
+                                                };
+
+                                                let _ = producer.try_send(recording_data);
+                                            }
 
                                             let packet = NetworkPacket {
                                             data: QuicNetworkPacket {

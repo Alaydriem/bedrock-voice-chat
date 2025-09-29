@@ -6,6 +6,10 @@
     import { Store } from '@tauri-apps/plugin-store';
     import Keyring from '../../../js/app/keyring';
     import GroupComponent from "./group/Component.svelte";
+    import RecordButton from "./RecordButton.svelte";
+    import RefreshButton from "./RefreshButton.svelte";
+    import MuteButton from "./MuteButton.svelte";
+    import DeafenButton from "./DeafenButton.svelte";
     import type { Channel } from "../../../js/bindings/Channel";
     import type { PlayerManager } from "../../../js/app/managers/PlayerManager";
     import type ChannelManager from "../../../js/app/managers/ChannelManager";
@@ -52,7 +56,7 @@
 
             const keyring = await Keyring.new("servers");
             await keyring.setServer(serverUrl);
-            
+
             const certificate = await keyring.get("certificate");
             const certificateKey = await keyring.get("certificate_key");
             const certificateCa = await keyring.get("certificate_ca");
@@ -81,16 +85,16 @@
     };
 
     onMount(async () => {
-        window.App.bindSidebarEvents();
-        
+        // Note: No longer calling window.App.bindSidebarEvents() since we handle events in components
+
         // Initialize API client if needed
         const apiInitialized = await initializeApiIfNeeded();
-        
+
         if (apiInitialized) {
             // Start listening for channel events
             await channelManager.startListening();
             isListeningActive = true;
-            
+
             // Initial fetch
             channelManager.fetchChannels();
         } else {
@@ -117,14 +121,14 @@
             // Check if user is currently in a group - leave it before joining the new one
             if (userCurrentChannelId) {
                 const currentChannel = channels.find((c: Channel) => c.id === userCurrentChannelId);
-                
+
                 if (currentChannel) {
                     await channelManager.leaveChannel(userCurrentChannelId, currentUser);
                 }
             }
 
             const newChannelId = await channelManager.createChannel(randomName);
-            
+
             if (newChannelId) {
                 // Automatically join the newly created group
                 await channelManager.joinChannel(newChannelId, currentUser);
@@ -234,7 +238,7 @@
                     {#if error}
                         <div class="mb-2 rounded-lg bg-red-50 p-2 text-xs text-red-600 dark:bg-red-900/20 dark:text-red-400">
                             {error}
-                            <button 
+                            <button
                                 class="ml-2 text-red-700 hover:text-red-800 dark:text-red-300 dark:hover:text-red-200"
                                 on:click={clearError}
                             >
@@ -246,7 +250,7 @@
                     <!-- Channel List -->
                     {#if channels.length > 0}
                         {#each channels as channel (channel.id)}
-                            <GroupComponent 
+                            <GroupComponent
                                 {channel}
                                 {currentUser}
                                 {userCurrentChannelId}
@@ -270,39 +274,11 @@
             <div
                 class="flex h-10 shrink-0 justify-between border-t border-slate-150 px-1.5 py-1 dark:border-navy-600"
             >
-                <button
-                    data-tooltip="Refresh"
-                    aria-label="Refresh"
-                    id="reload-audio-engine"
-                    x-tooltip.on.mouseenter="'Reload Audio Engine'"
-                    class="pl-2 pr-2 btn size-8 rounded-full p-0 hover:bg-slate-300/20 focus:bg-slate-300/20 active:bg-slate-300/25 dark:hover:bg-navy-300/20 dark:focus:bg-navy-300/20 dark:active:bg-navy-300/25"
-                >
-                    <i class="fa-solid fa-arrows-rotate"></i>
-                </button>
+                <RefreshButton disabled={false} />
                 <div class="flex">
-                    <button
-                        class="btn bg-slate-150 font-medium text-slate-800 hover:bg-slate-200 focus:bg-slate-200 active:bg-slate-200/80 dark:bg-navy-500 dark:text-navy-50 dark:hover:bg-navy-450 dark:focus:bg-navy-450 dark:active:bg-navy-450/90"
-                    >
-                        REC
-                    </button>
-                    <button
-                        data-tooltip="Toggle Deafen"
-                        aria-label="Toggle Deeafen"
-                        x-tooltip.on.mouseenter="'Mute Audio Output'"
-                        id="mute-audio-output"
-                        class="btn size-8 rounded-full p-0 hover:bg-slate-300/20 focus:bg-slate-300/20 active:bg-slate-300/25 dark:hover:bg-navy-300/20 dark:focus:bg-navy-300/20 dark:active:bg-navy-300/25"
-                    >
-                        <i class="fa-solid fa-volume-high"></i>
-                    </button>
-                    <button
-                        data-tooltip="Toggle Mute"
-                        aria-label="Toggle Mute"
-                        x-tooltip.on.mouseenter="'Mute Microphone'"
-                        id="mute-audio-input"
-                        class="btn size-8 rounded-full p-0 hover:bg-slate-300/20 focus:bg-slate-300/20 active:bg-slate-300/25 dark:hover:bg-navy-300/20 dark:focus:bg-navy-300/20 dark:active:bg-navy-300/25"
-                    >
-                        <i class="fa-solid fa-microphone"></i>
-                    </button>
+                    <RecordButton disabled={!currentUser || !isListening} />
+                    <DeafenButton disabled={false} />
+                    <MuteButton disabled={false} />
                     <button
                         data-tooltip="Help"
                         aria-label="Help"
