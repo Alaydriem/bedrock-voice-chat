@@ -56,7 +56,7 @@ export default class Server extends App {
     if (!this.keyring) {
       throw new Error("Keyring not initialized");
     }
-    
+
     for (const key of keys) {
       const storedValue = await this.keyring.get(key);
       if (key === "keypair" || key === "signature") {
@@ -79,7 +79,7 @@ export default class Server extends App {
 
   async deleteCredentials(server: string): Promise<void> {
     const keys = getLoginResponseKeys();
-    
+
     if (!this.keyring) {
       throw new Error("Keyring not initialized");
     }
@@ -92,7 +92,7 @@ export default class Server extends App {
   async initialize() {
     const store = await Store.load('store.json', { autoSave: false });
     let serverList = await store.get("server_list") as Array<{ server: string, player: string }>;
-    
+
     // If there are none, redirect to the login page.
     if (serverList == null || serverList.length === 0) {
       info("No servers found, redirecting to login page");
@@ -106,7 +106,7 @@ export default class Server extends App {
       // Ping the server and check that we're authenticated
       const server = serverList[0].server;
       await this.keyring.setServer(server);
-      
+
       const credentials = await this.getCredentials();
 
       if (!credentials) {
@@ -116,10 +116,10 @@ export default class Server extends App {
         return;
       }
 
-      await invoke("api_initialize_client", { 
+      await invoke("api_initialize_client", {
         endpoint: server,
         cert: credentials.certificate_ca,
-        pem: credentials.certificate + credentials.certificate_key 
+        pem: credentials.certificate + credentials.certificate_key
       });
 
       await invoke("api_ping")
@@ -145,7 +145,7 @@ export default class Server extends App {
       }
 
       container.innerHTML = '';
- 
+
       // Loop through the server list and create avatars
       serverList.forEach(({ server }) => {
         const bytes = new TextEncoder().encode(server);
@@ -173,8 +173,14 @@ export default class Server extends App {
         const button = card?.querySelector("button");
         if (!button) { return; }
 
-        this.keyring!.setServer(server);
-        const credentials = await this.getCredentials();
+        // Create a separate keyring instance for each server
+        const serverKeyring = await Keyring.new("servers");
+        await serverKeyring.setServer(server);
+        
+        // Create a temporary server instance with the server-specific keyring
+        const tempServer = new Server();
+        await tempServer.setKeyring(serverKeyring, server);
+        const credentials = await tempServer.getCredentials();
         if (!credentials) {
           error("No credentials found for server " + server + ", prompting for re-authentication");
           button.removeAttribute("disabled");
@@ -195,57 +201,67 @@ export default class Server extends App {
           return;
         }
 
-        await invoke("api_initialize_client", { 
+        const cert = typeof credentials.certificate_ca === 'string' ? credentials.certificate_ca : new TextDecoder().decode(credentials.certificate_ca);
+        const certKeyStr = typeof credentials.certificate_key === 'string' ? credentials.certificate_key : new TextDecoder().decode(credentials.certificate_key);
+        const certStr = typeof credentials.certificate === 'string' ? credentials.certificate : new TextDecoder().decode(credentials.certificate);
+        const pem = certStr + certKeyStr;
+
+        console.log("Initializing client for server " + server);
+        console.log(cert);
+        console.log(pem);
+        await invoke("api_initialize_client", {
           endpoint: server,
-          cert: credentials.certificate_ca,
-          pem: credentials.certificate + credentials.certificate_key 
-        });
+          cert: cert,
+          pem: pem
+        }).then(async () => {
+          await invoke("api_ping")
+            .then(async (response: any) => {
+              button.removeAttribute("disabled");
+              button.querySelector(".spinner")?.remove();
+              const message = button.querySelector("#message");
+              button.classList.remove("text-grey");
+              button.classList.remove("bg-primary");
+              button.classList.add("bg-success");
+              button.classList.add("text-white");
+              if (message) {
+                message.innerHTML = "Connect!";
+              }
 
-        await invoke("api_ping")
-          .then(async (response: any) => {
-            button.removeAttribute("disabled");
-            button.querySelector(".spinner")?.remove();
-            const message = button.querySelector("#message");
-            button.classList.remove("text-grey");
-            button.classList.remove("bg-primary");
-            button.classList.add("bg-success");
-            button.classList.add("text-white");
-            if (message) {
-              message.innerHTML = "Connect!";
-            }
+              button.addEventListener("click", async () => {
+                // If there's no credentials, redirect to the login page.
+                store.set("current_server", server);
+                await store.save();
+                window.location.href="/dashboard?server=" + server;
+              });
+            })
+            .catch(async (e) => {
+              error("Ping failed for server " + server + ": " + e);
+              button.removeAttribute("disabled");
+              button.querySelector(".spinner")?.remove();
+              button.classList.remove("text-grey");
+              button.classList.remove("bg-primary");
+              button.classList.add("bg-error");
+              button.classList.add("text-white");
+              const message = button.querySelector("#message");
+              if (message) {
+                message.innerHTML = "Re-authenticate";
+              }
 
-            button.addEventListener("click", async () => {
-              // If there's no credentials, redirect to the login page.
-              store.set("current_server", server);
-              await store.save();
-              window.location.href="/dashboard?server=" + server;
+              button.addEventListener("click", async () => {
+                // If there's no credentials, redirect to the login page.
+                window.location.href="/login?reauth=true&server=" + server;
+              });
             });
-          })
-          .catch(async (e) => {
-            error("Ping failed for server " + server + ": " + e);
-            button.removeAttribute("disabled");
-            button.querySelector(".spinner")?.remove();
-            button.classList.remove("text-grey");
-            button.classList.remove("bg-primary");
-            button.classList.add("bg-error");
-            button.classList.add("text-white");
-            const message = button.querySelector("#message");
-            if (message) {
-              message.innerHTML = "Re-authenticate";
-            }
-
-            button.addEventListener("click", async () => {
-              // If there's no credentials, redirect to the login page.
-              window.location.href="/login?reauth=true&server=" + server;
-            });
+          }).catch((e) => {
+            error("Failed to initialize client for server " + server + ": " + e);
           });
         });
       }
-      
+
         // The ping all of them and show the ones that are connectable in color vs b/w
         // If the user clicks on a colored one
             // Go to the dashboard with the current server set
-        
+
         // If the user clicks on a b/w one
             // Redirect to the login page with the domain pre-populated, then immediately jump to the login form
   }
