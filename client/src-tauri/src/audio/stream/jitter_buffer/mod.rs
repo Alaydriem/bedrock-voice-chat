@@ -1,6 +1,6 @@
 use crate::audio::stream::stream_manager::AudioSinkType;
 use base64::{engine::general_purpose, Engine as _};
-use common::{structs::packet::PacketOwner, Coordinate, Dimension, Orientation};
+use common::PlayerData;
 
 pub mod adaptive;
 pub mod audio_processor;
@@ -62,36 +62,23 @@ impl SeqClock {
 pub(crate) struct EncodedAudioFramePacket {
     pub timestamp: u64,
     pub sample_rate: u32,
-    pub data: Vec<u8>, // Opus-encoded data
+    pub data: Vec<u8>,
     pub route: AudioSinkType,
-    pub coordinate: Option<Coordinate>,
-    pub orientation: Option<Orientation>,
-    pub dimension: Option<Dimension>,
-    pub spatial: Option<bool>,
-    pub owner: Option<PacketOwner>,
-
-    // Additional fields for jitter buffer configuration
+    pub emitter: PlayerData,
+    pub listener: PlayerData,
     pub buffer_size_ms: u32,
     pub time_between_reports_secs: u64,
 }
 
 impl EncodedAudioFramePacket {
     pub fn get_author(&self) -> String {
-        match &self.owner {
-            Some(owner) => {
-                // Utilize the client ID so that the same author can receive and hear multiple incoming
-                // network streams. Without this, the audio packets for the same author across two streams
-                // come in sequence and playback sounds corrupted
-                return general_purpose::STANDARD.encode(&owner.client_id);
-            }
-            None => String::from(""),
+        if let Some(ref client_id) = self.emitter.client_id {
+            return general_purpose::STANDARD.encode(client_id);
         }
+        String::from("")
     }
 
     pub fn get_client_id(&self) -> Vec<u8> {
-        match &self.owner {
-            Some(owner) => owner.client_id.clone(),
-            None => vec![],
-        }
+        self.emitter.client_id.clone().unwrap_or_default()
     }
 }

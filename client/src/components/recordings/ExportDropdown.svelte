@@ -1,8 +1,10 @@
 <script lang="ts">
     import { onMount } from 'svelte';
+    import { info } from '@tauri-apps/plugin-log';
 
     export let sessionId: string;
-    export let onExport: (sessionId: string, withSpatial: boolean) => Promise<void>;
+    export let selectedParticipants: string[] = [];
+    export let onExport: (sessionId: string, selectedPlayers: string[], withSpatial: boolean) => Promise<void>;
     export let onDelete: (sessionId: string) => Promise<void>;
 
     let isLoading = false;
@@ -13,7 +15,8 @@
         isLoading = true;
         if (popper) popper.closePopper();
         try {
-            await onExport(sessionId, withSpatial);
+            info(`Exporting with ${selectedParticipants.length} selected participants`);
+            await onExport(sessionId, selectedParticipants, withSpatial);
         } finally {
             isLoading = false;
         }
@@ -34,10 +37,7 @@
     onMount(() => {
         // Wait for app initialization if needed
         const initializePopper = () => {
-            console.log('Checking for Popper...', { Popper: (window as any).Popper });
-
             if (wrapperRef && typeof (window as any).Popper !== 'undefined') {
-                console.log('Initializing Popper...');
                 const config = {
                     placement: 'bottom-end',
                     modifiers: [
@@ -57,7 +57,6 @@
                     config
                 );
 
-                console.log('Popper created:', popper);
                 return true;
             }
             return false;

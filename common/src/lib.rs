@@ -15,6 +15,7 @@ pub mod traits;
 
 // Re-export important types for easy access
 pub use structs::player_source::PlayerSource;
+pub use structs::recording::{PlayerData, SessionManifest};
 
 extern crate rocket;
 

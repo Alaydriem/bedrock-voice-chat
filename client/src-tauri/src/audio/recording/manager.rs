@@ -1,14 +1,13 @@
 use super::{Recorder, RawRecordingData, RecordingProducer, RecordingConsumer};
 use common::traits::StreamTrait;
-use log::{error, info};
+use log::info;
 use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
-    time::Duration,
 };
-use tauri_plugin_store::StoreExt;
+use tauri::Emitter;
 use tokio::task::AbortHandle;
 
 /// Central recording manager following NetworkStreamManager patterns
@@ -66,6 +65,9 @@ impl RecordingManager {
         self.recorder = Some(recorder);
         self.recording_state.store(true, Ordering::Relaxed);
 
+        // Emit event to notify UI components
+        self.app_handle.emit("recording:started", &session_id).ok();
+
         info!("Recording session {} started via RecordingManager", session_id);
         Ok(())
     }
@@ -83,6 +85,9 @@ impl RecordingManager {
 
         self.recorder = None;
         self.recording_state.store(false, Ordering::Relaxed);
+
+        // Emit event to notify UI components
+        self.app_handle.emit("recording:stopped", ()).ok();
 
         Ok(())
     }

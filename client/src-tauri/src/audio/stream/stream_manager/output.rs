@@ -9,13 +9,13 @@ use anyhow::anyhow;
 use base64::engine::{general_purpose, Engine};
 use common::{
     structs::{
-        audio::PlayerGainStore,
+        audio::{PlayerGainSettings, PlayerGainStore},
         packet::{
             AudioFramePacket, ChannelEventPacket, ConnectionEventType, PacketType, PlayerDataPacket,
             PlayerPresenceEvent, QuicNetworkPacket, ServerErrorPacket,
         },
     },
-    Player,
+    Player, PlayerData,
 };
 use log::{error, info, warn};
 use moka::future::Cache;
@@ -29,26 +29,6 @@ use std::{
     time::Duration,
 };
 
-/// Detect number of channels from opus packet data
-/// Opus header format: TOC byte contains channel configuration in bits 2-3
-fn detect_opus_channels(opus_data: &[u8]) -> u16 {
-    if opus_data.is_empty() {
-        return 1; // Default to mono
-    }
-
-    // First byte is the TOC (Table of Contents) byte
-    let toc_byte = opus_data[0];
-
-    // Bits 2-3 of TOC byte indicate channel configuration
-    // 0: mono, 1: stereo
-    let channel_config = (toc_byte >> 2) & 0x1;
-
-    match channel_config {
-        0 => 1, // Mono
-        1 => 2, // Stereo
-        _ => 1, // Default to mono for unexpected values
-    }
-}
 use tauri::Emitter;
 use tokio::task::{AbortHandle, JoinHandle};
 
@@ -66,10 +46,9 @@ pub(crate) struct OutputStream {
     sink_manager: Option<SinkManager>,
     playback_stream: Option<rodio::OutputStream>,
     player_presence: Arc<moka::sync::Cache<String, ()>>,
-    // Client ID to Player Name mapping for gain control
     client_id_to_player: Arc<moka::sync::Cache<String, String>>,
-    // Recording integration
     recording_producer: Option<Arc<RecordingProducer>>,
+    player_gain_cache: Arc<moka::sync::Cache<String, PlayerGainSettings>>,
 }
 
 impl common::traits::StreamTrait for OutputStream {
@@ -81,6 +60,10 @@ impl common::traits::StreamTrait for OutputStream {
             "player_gain_store" => {
                 match serde_json::from_str::<PlayerGainStore>(&value) {
                     Ok(settings) => {
+                        for (player_name, gain_settings) in &settings.0 {
+                            self.player_gain_cache.insert(player_name.clone(), gain_settings.clone());
+                        }
+
                         if let Some(sink_manager) = self.sink_manager.as_mut() {
                             let mut remapped_settings = PlayerGainStore::default();
 
@@ -207,6 +190,10 @@ impl OutputStream {
             .time_to_idle(Duration::from_secs(15 * 60))
             .build();
 
+        let player_gain_cache = moka::sync::Cache::builder()
+            .time_to_idle(Duration::from_secs(15 * 60))
+            .build();
+
         Self {
             device,
             bus,
@@ -220,6 +207,7 @@ impl OutputStream {
             player_presence: Arc::new(player_presence),
             client_id_to_player: Arc::new(client_id_to_player),
             recording_producer,
+            player_gain_cache: Arc::new(player_gain_cache),
         }
     }
 
@@ -242,6 +230,8 @@ impl OutputStream {
                     let app_handle = self.app_handle.clone();
                     let recording_producer = self.recording_producer.clone();
 
+                    let player_gain_cache = self.player_gain_cache.clone();
+
                     let handle = tokio::spawn(async move {
                         #[allow(irrefutable_let_patterns)]
                         while let packet = bus.recv_async().await {
@@ -257,6 +247,8 @@ impl OutputStream {
                                             producer.clone(),
                                             &packet.data,
                                             metadata.clone(),
+                                            players.clone(),
+                                            player_gain_cache.clone(),
                                             player_presence.clone(),
                                             client_id_to_player.clone(),
                                             Some(&app_handle.clone()),
@@ -502,6 +494,8 @@ impl OutputStream {
         producer: flume::Sender<EncodedAudioFramePacket>,
         data: &QuicNetworkPacket,
         metadata: Arc<Cache<String, String>>,
+        players: Arc<moka::sync::Cache<String, Player>>,
+        player_gain_cache: Arc<moka::sync::Cache<String, PlayerGainSettings>>,
         player_presence: Arc<moka::sync::Cache<String, ()>>,
         client_id_to_player: Arc<moka::sync::Cache<String, String>>,
         app_handle: Option<&tauri::AppHandle>,
@@ -551,6 +545,26 @@ impl OutputStream {
 
         match data {
             Ok(data) => {
+                // Create emitter PlayerData from packet owner and audio data
+                let emitter = owner
+                    .as_ref()
+                    .map(|o| PlayerData::from_packet_owner(
+                        o,
+                        &data,
+                        player_gain_cache.get(&o.name),
+                    ))
+                    .unwrap_or_else(PlayerData::unknown);
+
+                // Create listener PlayerData from current player
+                let listener = players
+                    .get(&current_player_name)
+                    .map(|p| PlayerData::from_player(
+                        &p,
+                        current_player_name.clone(),
+                        player_gain_cache.get(&current_player_name),
+                    ))
+                    .unwrap_or_else(|| PlayerData::unknown());
+
                 let encoded_packet = EncodedAudioFramePacket {
                     timestamp: data.timestamp() as u64,
                     sample_rate: data.sample_rate,
@@ -559,11 +573,8 @@ impl OutputStream {
                         Some(s) => s,
                         None => false,
                     }),
-                    coordinate: data.coordinate,
-                    orientation: data.orientation,
-                    dimension: data.dimension,
-                    spatial: data.spatial,
-                    owner: owner.clone(),
+                    emitter,
+                    listener,
                     buffer_size_ms: 120,
                     time_between_reports_secs: 30,
                 };
@@ -578,20 +589,18 @@ impl OutputStream {
 
                 // Send to recording if producer available
                 if let Some(ref producer) = recording_producer {
-                    let detected_channels = detect_opus_channels(&encoded_packet.data);
+                    // Use default channel count since detect_opus_channels was removed
                     let recording_data = RawRecordingData::OutputData {
-                        absolute_timestamp_ms: std::time::SystemTime::now()
+                        absolute_timestamp_ms: Some(std::time::SystemTime::now()
                             .duration_since(std::time::UNIX_EPOCH)
                             .unwrap_or_default()
-                            .as_millis() as u64,
+                            .as_millis() as u64),
                         opus_data: encoded_packet.data.clone(),
                         sample_rate: encoded_packet.sample_rate,
-                        channels: detected_channels,
-                        owner: owner,
-                        coordinate: encoded_packet.coordinate,
-                        orientation: encoded_packet.orientation,
-                        dimension: encoded_packet.dimension,
-                        is_spatial: encoded_packet.spatial.unwrap_or(false),
+                        channels: 1, // Default to mono
+                        emitter: encoded_packet.emitter.clone(),
+                        listener: encoded_packet.listener.clone(),
+                        is_spatial: encoded_packet.emitter.spatial.unwrap_or(false),
                     };
                     let _ = producer.try_send(recording_data);
                 }

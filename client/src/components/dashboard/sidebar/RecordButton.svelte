@@ -12,6 +12,8 @@
     let isRecording = false;
     let recordingError: string | null = null;
     let unlistenRecordingError: (() => void) | null = null;
+    let unlistenStarted: (() => void) | null = null;
+    let unlistenStopped: (() => void) | null = null;
     let isMobile = false;
 
     const platformDetector = new PlatformDetector();
@@ -54,6 +56,16 @@
         // Check if we're on mobile
         isMobile = await platformDetector.checkMobile();
 
+        // Sync with backend truth on mount
+        try {
+            isRecording = await invoke('is_recording');
+            if (isRecording) {
+                info('Synced recording state: currently recording');
+            }
+        } catch (error) {
+            logError(`Failed to query recording state: ${error}`);
+        }
+
         // Listen for recording error events from Rust
         const appWebview = getCurrentWebviewWindow();
         unlistenRecordingError = await appWebview.listen('recording_error', (event: any) => {
@@ -61,11 +73,28 @@
             recordingError = `Recording failed: ${event.payload.error}`;
             isRecording = false; // Stop recording on error
         });
+
+        // Listen to recording state changes
+        unlistenStarted = await appWebview.listen('recording:started', (event: any) => {
+            info(`Recording started event received: ${event.payload}`);
+            isRecording = true;
+        });
+
+        unlistenStopped = await appWebview.listen('recording:stopped', () => {
+            info('Recording stopped event received');
+            isRecording = false;
+        });
     });
 
     onDestroy(() => {
         if (unlistenRecordingError) {
             unlistenRecordingError();
+        }
+        if (unlistenStarted) {
+            unlistenStarted();
+        }
+        if (unlistenStopped) {
+            unlistenStopped();
         }
     });
 </script>

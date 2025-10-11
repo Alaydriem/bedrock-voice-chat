@@ -67,7 +67,7 @@ export default class RecordingSettings {
                 target: container,
                 props: {
                     recordings: this.recordings,
-                    onExport: (sessionId: string, withSpatial: boolean) => this.handleExport(sessionId, withSpatial),
+                    onExport: (sessionId: string, selectedPlayers: string[], withSpatial: boolean) => this.handleExport(sessionId, selectedPlayers, withSpatial),
                     onDelete: (sessionId: string) => this.handleDelete(sessionId)
                 }
             });
@@ -84,11 +84,14 @@ export default class RecordingSettings {
         }
     }
 
-    private async handleExport(sessionId: string, withSpatial: boolean): Promise<void> {
+    private async handleExport(sessionId: string, selectedPlayers: string[], withSpatial: boolean): Promise<void> {
         try {
-            info(`Exporting session ${sessionId} ${withSpatial ? 'with' : 'without'} spatial audio`);
-            // TODO: Implement export functionality
-            // await invoke("export_recording_session", { sessionId, withSpatial });
+            info(`Exporting session ${sessionId} with ${selectedPlayers.length} participants (spatial: ${withSpatial})`);
+            await invoke("export_recording", { 
+                sessionId, 
+                selectedPlayers, 
+                spatial: withSpatial 
+            });
         } catch (e) {
             error(`Failed to export recording: ${e}`);
         }

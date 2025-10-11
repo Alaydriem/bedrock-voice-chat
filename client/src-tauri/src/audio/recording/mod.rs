@@ -1,6 +1,6 @@
 mod manager;
 
-use common::structs::packet::PacketOwner;
+use common::structs::recording::{PlayerData, SessionManifest, RecordingHeader, InputRecordingHeader, OutputRecordingHeader};
 
 use log::{error, info};
 use serde::{Deserialize, Serialize};
@@ -26,58 +26,21 @@ pub type RecordingConsumer = flume::Receiver<RawRecordingData>;
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum RawRecordingData {
     InputData {
-        absolute_timestamp_ms: u64,
+        absolute_timestamp_ms: Option<u64>,
         opus_data: Vec<u8>,
         sample_rate: u32,
         channels: u16,
+        emitter: PlayerData,
     },
     OutputData {
-        absolute_timestamp_ms: u64,
+        absolute_timestamp_ms: Option<u64>,
         opus_data: Vec<u8>,
         sample_rate: u32,
         channels: u16,
-        owner: Option<PacketOwner>,
-        coordinate: Option<common::Coordinate>,
-        orientation: Option<common::Orientation>,
-        dimension: Option<common::Dimension>,
+        emitter: PlayerData,
+        listener: PlayerData,
         is_spatial: bool,
     },
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub enum RecordingData {
-    InputData {
-        relative_timestamp_ms: u32,
-        opus_data: Vec<u8>,
-    },
-    OutputData {
-        relative_timestamp_ms: u32,
-        opus_data: Vec<u8>,
-        owner: Option<PacketOwner>,
-        coordinate: Option<common::Coordinate>,
-        orientation: Option<common::Orientation>,
-        dimension: Option<common::Dimension>,
-        is_spatial: bool,
-    },
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct PlayerAudioConfig {
-    pub sample_rate: u32,
-    pub channels: u32,
-}
-
-/// Session manifest for reconstruction
-#[derive(Serialize, Deserialize, Clone)]
-pub struct SessionManifest {
-    pub session_id: String,
-    pub start_timestamp: u64,
-    pub end_timestamp: Option<u64>,
-    pub duration_ms: Option<u64>,
-    pub emitter_player: String,
-    pub participants: Vec<String>,
-    pub player_audio_configs: std::collections::HashMap<String, PlayerAudioConfig>,
-    pub created_at: String,
 }
 
 /// Core recorder that handles WAL storage and session management
@@ -127,7 +90,6 @@ impl Recorder {
             duration_ms: None,
             emitter_player: current_player.clone(),
             participants: Vec::new(),
-            player_audio_configs: std::collections::HashMap::new(),
             created_at: format!(
                 "{}",
                 std::time::SystemTime::now()
@@ -156,7 +118,6 @@ impl Recorder {
         let recording_consumer = self.recording_consumer.clone();
         let shutdown = self.shutdown.clone();
         let recording_path = self.recording_path.clone();
-        let session_start_timestamp = self.session_start_timestamp;  // For timestamp conversion
         let mut manifest = self.manifest.clone();
 
         let handle = tokio::spawn(async move {
@@ -171,82 +132,49 @@ impl Recorder {
                 }
             };
 
-            let mut batch_buffer: Vec<(String, RecordingData)> = Vec::new();
+            // Write initial manifest
+            if let Err(e) = Self::write_manifest(&recording_path, &manifest).await {
+                error!("Failed to write initial manifest: {:?}", e);
+            }
+
+            let mut batch_buffer: Vec<(String, RawRecordingData)> = Vec::new();
             let mut participants = HashSet::new();
-            let mut player_audio_configs = std::collections::HashMap::new();
+            let mut manifest_dirty = false;
 
             loop {
                 tokio::select! {
                     raw_recording_data = recording_consumer.recv_async() => {
                         match raw_recording_data {
-                            Ok(raw_data) => {
+                            Ok(mut raw_data) => {
                                 if shutdown.load(Ordering::Relaxed) {
                                     break;
                                 }
 
-                                let data = match raw_data {
-                                    RawRecordingData::InputData { absolute_timestamp_ms, opus_data, sample_rate, channels } => {
-                                        let relative_timestamp_ms = (absolute_timestamp_ms.saturating_sub(session_start_timestamp)) as u32;
-
-                                        let emitter_name = manifest.emitter_player.clone();
-                                        player_audio_configs.entry(emitter_name).or_insert_with(|| {
-                                            PlayerAudioConfig {
-                                                sample_rate,
-                                                channels: channels as u32,
-                                            }
-                                        });
-
-                                        RecordingData::InputData { relative_timestamp_ms, opus_data }
+                                // Convert absolute timestamp to relative and remove it for WAL storage
+                                match &mut raw_data {
+                                    RawRecordingData::InputData { absolute_timestamp_ms, .. } => {
+                                        if absolute_timestamp_ms.is_some() {
+                                            *absolute_timestamp_ms = None;
+                                        }
                                     },
-                                    RawRecordingData::OutputData {
-                                        absolute_timestamp_ms,
-                                        opus_data,
-                                        sample_rate,
-                                        channels,
-                                        owner,
-                                        coordinate,
-                                        orientation,
-                                        dimension,
-                                        is_spatial
-                                    } => {
-                                        let relative_timestamp_ms = (absolute_timestamp_ms.saturating_sub(session_start_timestamp)) as u32;
-
-                                        // Track audio config for this player
-                                        if let Some(ref owner) = owner {
-                                            let player_name = &owner.name;
-                                            player_audio_configs.entry(player_name.clone()).or_insert_with(|| {
-                                                PlayerAudioConfig {
-                                                    sample_rate,
-                                                    channels: channels as u32,
-                                                }
-                                            });
+                                    RawRecordingData::OutputData { absolute_timestamp_ms, emitter, .. } => {
+                                        if absolute_timestamp_ms.is_some() {
+                                            *absolute_timestamp_ms = None;
                                         }
 
-                                        RecordingData::OutputData {
-                                            relative_timestamp_ms,
-                                            opus_data,
-                                            owner,
-                                            coordinate,
-                                            orientation,
-                                            dimension,
-                                            is_spatial
+                                        // Track participants and mark manifest as dirty if new participant
+                                        if participants.insert(emitter.name.clone()) {
+                                            manifest_dirty = true;
                                         }
-                                    }
-                                };
-
-                                if let RecordingData::OutputData { owner, .. } = &data {
-                                    if let Some(owner) = owner {
-                                        participants.insert(owner.name.clone());
                                     }
                                 }
 
-                                let player_key = match &data {
-                                    RecordingData::InputData { .. } => manifest.emitter_player.clone(),
-                                    RecordingData::OutputData { owner, .. } => {
-                                        owner.as_ref().map(|o| o.name.clone()).unwrap_or_else(|| "unknown".to_string())
-                                    }
+                                let player_key = match &raw_data {
+                                    RawRecordingData::InputData { emitter, .. } => emitter.name.clone(),
+                                    RawRecordingData::OutputData { emitter, .. } => emitter.name.clone(),
                                 };
-                                batch_buffer.push((player_key, data));
+
+                                batch_buffer.push((player_key, raw_data));
                             }
                             Err(_) => continue,
                         }
@@ -257,6 +185,16 @@ impl Recorder {
                             if let Err(e) = Self::flush(&mut wal, &mut batch_buffer).await {
                                 error!("Failed to flush batch during timeout: {:?}", e);
                                 break;
+                            }
+                        }
+
+                        // Write manifest if participants changed
+                        if manifest_dirty {
+                            manifest.participants = participants.iter().cloned().collect();
+                            if let Err(e) = Self::write_manifest(&recording_path, &manifest).await {
+                                error!("Failed to update manifest: {:?}", e);
+                            } else {
+                                manifest_dirty = false;
                             }
                         }
                     }
@@ -284,6 +222,7 @@ impl Recorder {
                 error!("Failed final WAL sync: {:?}", e);
             }
 
+            // Update manifest with final timestamp and duration
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
@@ -293,36 +232,9 @@ impl Recorder {
             manifest.duration_ms = Some(now - manifest.start_timestamp);
             manifest.participants = participants.into_iter().collect();
 
-            manifest.player_audio_configs = player_audio_configs;
-
-            let default_audio_config = PlayerAudioConfig {
-                sample_rate: 48000,
-                channels: 1,
-            };
-
-            if !manifest.player_audio_configs.contains_key(&manifest.emitter_player) {
-                manifest.player_audio_configs.insert(
-                    manifest.emitter_player.clone(),
-                    default_audio_config.clone(),
-                );
-            }
-
-            for participant in &manifest.participants {
-                if !manifest.player_audio_configs.contains_key(participant) {
-                    manifest.player_audio_configs.insert(
-                        participant.clone(),
-                        default_audio_config.clone(),
-                    );
-                }
-            }
-
-            if let Ok(manifest_json) = serde_json::to_string_pretty(&manifest) {
-                if let Err(e) = tokio::fs::write(
-                    recording_path.join("session.json"),
-                    manifest_json
-                ).await {
-                    error!("Failed to write session manifest: {:?}", e);
-                }
+            // Write final manifest
+            if let Err(e) = Self::write_manifest(&recording_path, &manifest).await {
+                error!("Failed to write final manifest: {:?}", e);
             }
 
             info!("Recording session {} fully finalized", manifest.session_id);
@@ -331,14 +243,54 @@ impl Recorder {
         Ok(handle.abort_handle())
     }
 
+    /// Write session manifest to disk
+    async fn write_manifest(
+        recording_path: &PathBuf,
+        manifest: &SessionManifest,
+    ) -> Result<(), anyhow::Error> {
+        let manifest_json = serde_json::to_string_pretty(manifest)?;
+        tokio::fs::write(
+            recording_path.join("session.json"),
+            manifest_json
+        ).await?;
+        Ok(())
+    }
+
     /// Flush WAL to disk
     async fn flush(
         wal: &mut nano_wal::Wal,
-        batch_buffer: &mut Vec<(String, RecordingData)>,
+        batch_buffer: &mut Vec<(String, RawRecordingData)>,
     ) -> Result<(), anyhow::Error> {
         for (player_key, data) in batch_buffer.drain(..) {
-            let serialized_data = postcard::to_allocvec(&data)?;
-            wal.append_entry(&player_key, None, serialized_data.into(), false)?;
+            // Create concrete headers with metadata (identity stripped)
+            let header = match &data {
+                RawRecordingData::InputData { sample_rate, channels, emitter, .. } => {
+                    RecordingHeader::Input(InputRecordingHeader {
+                        sample_rate: *sample_rate,
+                        channels: *channels,
+                        emitter_metadata: emitter.to_metadata(),
+                    })
+                },
+                RawRecordingData::OutputData { sample_rate, channels, emitter, listener, is_spatial, .. } => {
+                    RecordingHeader::Output(OutputRecordingHeader {
+                        sample_rate: *sample_rate,
+                        channels: *channels,
+                        emitter_metadata: emitter.to_metadata(),
+                        listener_metadata: listener.to_metadata(),
+                        is_spatial: *is_spatial,
+                    })
+                }
+            };
+
+            let header_bytes = postcard::to_allocvec(&header)?;
+
+            // Content is just the Opus data
+            let content = match data {
+                RawRecordingData::InputData { opus_data, .. } => opus_data,
+                RawRecordingData::OutputData { opus_data, .. } => opus_data,
+            };
+
+            wal.append_entry(&player_key, Some(header_bytes.into()), content.into(), false)?;
         }
         wal.sync()?;
         Ok(())

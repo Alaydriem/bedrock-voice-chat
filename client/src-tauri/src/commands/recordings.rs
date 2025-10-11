@@ -1,30 +1,12 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use tauri::Manager;
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct PlayerAudioConfig {
-    pub sample_rate: u32,
-    pub channels: u32,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct SessionData {
-    pub session_id: String,
-    pub start_timestamp: u64,
-    pub end_timestamp: Option<u64>,
-    pub duration_ms: Option<u64>,
-    pub emitter_player: String,
-    pub participants: Vec<String>,
-    pub player_audio_configs: HashMap<String, PlayerAudioConfig>,
-    pub created_at: String,
-}
+use common::structs::recording::SessionManifest;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RecordingSession {
-    pub session_data: SessionData,
+    pub session_data: SessionManifest,
     pub file_size_mb: f64,
     pub recording_path: String,
 }
@@ -81,7 +63,7 @@ pub async fn get_recording_sessions(app_handle: tauri::AppHandle) -> Result<Vec<
         let session_json = fs::read_to_string(&session_json_path)
             .map_err(|e| format!("Failed to read session.json: {}", e))?;
 
-        let session_data: SessionData = serde_json::from_str(&session_json)
+        let session_data: SessionManifest = serde_json::from_str(&session_json)
             .map_err(|e| format!("Failed to parse session.json: {}", e))?;
 
         // Calculate directory size
@@ -120,6 +102,25 @@ pub async fn delete_recording_session(app_handle: tauri::AppHandle, session_id: 
 
     fs::remove_dir_all(&recordings_dir)
         .map_err(|e| format!("Failed to delete recording directory: {}", e))?;
+
+    Ok(true)
+}
+
+#[tauri::command]
+pub async fn export_recording(
+    session_id: String,
+    selected_players: Vec<String>,
+    spatial: bool,
+) -> Result<bool, String> {
+    log::info!(
+        "Export recording called - Session ID: {}, Selected Players: {:?}, Spatial: {}",
+        session_id,
+        selected_players,
+        spatial
+    );
+
+    // TODO: Implement actual export logic
+    // For now, just log the parameters and return success
 
     Ok(true)
 }

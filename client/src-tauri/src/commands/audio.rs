@@ -234,6 +234,15 @@ pub(crate) async fn get_recording_status(
     }))
 }
 
+/// Check if recording is currently active (simple boolean query)
+#[tauri::command]
+pub(crate) async fn is_recording(
+    recording_manager: State<'_, Arc<Mutex<RecordingManager>>>,
+) -> Result<bool, String> {
+    let manager = recording_manager.lock().await;
+    Ok(manager.is_recording())
+}
+
 /// Helper function to extract current player from app metadata
 async fn extract_current_player(app: &AppHandle) -> Option<String> {
     app.store("store.json").ok()?
