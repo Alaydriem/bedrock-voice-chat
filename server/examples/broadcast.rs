@@ -173,11 +173,11 @@ async fn client(
             windows_targets::link!("winmm.dll" "system" fn timeEndPeriod(uperiod: u32) -> u32);
             windows_targets::link!("kernel32.dll" "system" fn QueryPerformanceCounter(lpperformancecount: *mut i64) -> i32);
             windows_targets::link!("kernel32.dll" "system" fn QueryPerformanceFrequency(lpfrequency: *mut i64) -> i32);
-            
+
             unsafe {
                 timeBeginPeriod(1);
             }
-            
+
             // Get high-resolution timer frequency
             let mut frequency = 0i64;
             let mut start_time = 0i64;
@@ -185,7 +185,7 @@ async fn client(
                 QueryPerformanceFrequency(&mut frequency);
                 QueryPerformanceCounter(&mut start_time);
             }
-            
+
             let target_interval_ms = 20.0;
             let target_interval_ticks = (frequency as f64 * target_interval_ms / 1000.0) as i64;
 
@@ -257,24 +257,24 @@ async fn client(
                         if let Err(e) = send_res {
                             println!("Datagram send query error: {:?}", e);
                         }
-                        
+
                         // High-resolution timing instead of tokio::time::sleep
                         packet_count += 1;
                         let target_time = start_time + (packet_count * target_interval_ticks);
-                        
+
                         loop {
                             let mut current_time = 0i64;
                             unsafe {
                                 QueryPerformanceCounter(&mut current_time);
                             }
-                            
+
                             if current_time >= target_time {
                                 break;
                             }
-                            
+
                             let remaining_ticks = target_time - current_time;
                             let remaining_ms = remaining_ticks as f64 * 1000.0 / frequency as f64;
-                            
+
                             if remaining_ms > 2.0 {
                                 // Use tokio sleep for longer waits to avoid spinning
                                 tokio::time::sleep(Duration::from_millis((remaining_ms - 1.0) as u64)).await;
@@ -347,7 +347,7 @@ async fn client(
 
             tokio::time::sleep(Duration::from_secs(30)).await;
             println!("Send task complete");
-            
+
             // Clean up Windows timer resolution
             unsafe {
                 timeEndPeriod(1);

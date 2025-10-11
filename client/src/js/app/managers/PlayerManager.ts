@@ -54,7 +54,6 @@ export class PlayerManager {
      * Set the current user name
      */
     setCurrentUser(name: string): void {
-        debug(`PlayerManager: Setting current user to: ${name}`);
         this.currentUserStore.set(name);
     }
 
@@ -71,14 +70,13 @@ export class PlayerManager {
     add(name: string, settings?: PlayerGainSettings): boolean {
         try {
             const playerSettings = settings || { gain: 1.0, muted: false };
-            
+
             this.playersMapStore.update(map => {
-                map.set(name, { 
-                    name, 
-                    settings: playerSettings, 
-                    sources: new Set() 
+                map.set(name, {
+                    name,
+                    settings: playerSettings,
+                    sources: new Set()
                 });
-                debug(`PlayerManager: Added player: ${name}`);
                 return new Map(map);
             });
             return true;
@@ -95,7 +93,6 @@ export class PlayerManager {
         try {
             this.playersMapStore.update(map => {
                 const removed = map.delete(name);
-                debug(`PlayerManager: Removed player: ${name}, success: ${removed}`);
                 return new Map(map);
             });
             return true;
@@ -115,7 +112,6 @@ export class PlayerManager {
                 if (player) {
                     player.settings = { ...player.settings, ...settings };
                     map.set(name, { ...player });
-                    debug(`PlayerManager: Updated player ${name} settings: ${JSON.stringify(settings)}`);
                 } else {
                     warn(`PlayerManager: Player ${name} not found for update`);
                 }
@@ -149,7 +145,6 @@ export class PlayerManager {
      */
     clear(): void {
         this.playersMapStore.set(new Map());
-        debug('PlayerManager: Cleared all players');
     }
 
     /**
@@ -180,7 +175,6 @@ export class PlayerManager {
         try {
             const playerGainStore = await this.store.get("player_gain_store") as PlayerGainStore || {};
             const settings = playerGainStore[playerName] || { gain: 1.0, muted: false };
-            debug(`PlayerManager: Loaded settings for ${playerName}: gain=${settings.gain}, muted=${settings.muted}`);
             return settings;
         } catch (err) {
             error(`PlayerManager: Failed to load settings for ${playerName}: ${err}`);
@@ -196,22 +190,20 @@ export class PlayerManager {
         try {
             // Load settings if not provided
             const playerSettings = settings || await this.loadPlayerSettings(name);
-            
+
             this.playersMapStore.update(map => {
                 const existing = map.get(name);
                 if (existing) {
                     // Player exists, just add the source
                     existing.sources.add(source);
                     map.set(name, { ...existing });
-                    debug(`PlayerManager: Added ${source} source to existing player: ${name}`);
                 } else {
                     // New player, create with this source and loaded settings
-                    map.set(name, { 
-                        name, 
-                        settings: playerSettings, 
-                        sources: new Set([source]) 
+                    map.set(name, {
+                        name,
+                        settings: playerSettings,
+                        sources: new Set([source])
                     });
-                    debug(`PlayerManager: Created new player ${name} with ${source} source and settings: gain=${playerSettings.gain}, muted=${playerSettings.muted}`);
                 }
                 return new Map(map);
             });
@@ -227,13 +219,13 @@ export class PlayerManager {
      */
     removePlayerSource(name: string, source: PlayerSource): boolean {
         try {
-            
+
             this.playersMapStore.update(map => {
                 const existing = map.get(name);
                 if (existing) {
                     if (existing.sources.has(source)) {
                         existing.sources.delete(source);
-                        
+
                         if (existing.sources.size === 0) {
                             // No more sources, remove player entirely
                             map.delete(name);
@@ -245,7 +237,7 @@ export class PlayerManager {
                 }
                 return new Map(map);
             });
-            
+
             return true;
         } catch (err) {
             return false;
@@ -281,13 +273,12 @@ export class PlayerManager {
             // Get current player to preserve muted state
             const currentPlayer = this.get(playerName);
             const currentMuted = currentPlayer?.settings.muted || false;
-            
+
             // Update reactive store
             this.update(playerName, { gain });
 
             // Update persistent store
             await this.updatePlayerGainStore(playerName, { gain, muted: currentMuted });
-            debug(`PlayerManager: Updated gain for ${playerName} to ${gain}`);
         } catch (err) {
             error(`PlayerManager: Failed to update player gain: ${err}`);
         }
@@ -306,13 +297,12 @@ export class PlayerManager {
             // Get current player to preserve gain
             const currentPlayer = this.get(playerName);
             const currentGain = currentPlayer?.settings.gain || 1.0;
-            
+
             // Update reactive store
             this.update(playerName, { muted });
 
             // Update persistent store
             await this.updatePlayerGainStore(playerName, { gain: currentGain, muted });
-            debug(`PlayerManager: Updated mute for ${playerName} to ${muted}`);
         } catch (err) {
             error(`PlayerManager: Failed to update player mute: ${err}`);
         }
@@ -327,26 +317,24 @@ export class PlayerManager {
         try {
             // Get current store
             let playerGainStore = await this.store.get("player_gain_store") as PlayerGainStore || {};
-            
+
             // Get existing settings or defaults
             const existingSettings = playerGainStore[playerName] || { gain: 1.0, muted: false };
-            
+
             // Merge with new settings
             const updatedSettings = { ...existingSettings, ...newSettings };
             playerGainStore[playerName] = updatedSettings;
-            
+
             // Save to Tauri store
             await this.store.set("player_gain_store", playerGainStore);
             await this.store.save();
-            
+
             // Send to backend
             await invoke("update_stream_metadata", {
                 key: "player_gain_store",
                 value: JSON.stringify(playerGainStore),
                 device: "OutputDevice"
             });
-            
-            debug(`PlayerManager: Updated persistent store for ${playerName}`);
         } catch (err) {
             error(`PlayerManager: Failed to update player gain store: ${err}`);
         }
@@ -360,7 +348,7 @@ export class PlayerManager {
 
         try {
             const playerGainStore = await this.store.get("player_gain_store") as PlayerGainStore || {};
-            
+
             // Update settings for existing players
             this.playersMapStore.update(map => {
                 for (const [playerName, settings] of Object.entries(playerGainStore)) {

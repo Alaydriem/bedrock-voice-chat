@@ -79,7 +79,6 @@ export default class Dashboard extends App {
             const isInputStreamStopped = await invoke("is_stopped", { device: "InputDevice" }).then((stopped) => stopped as boolean);
             const isOutputStreamStopped = await invoke("is_stopped", { device: "OutputDevice" }).then((stopped) => stopped as boolean);
             if (isInputStreamStopped || isOutputStreamStopped) {
-                debug("Audio engine is stopped, reinitializing...");
                 await this.shutdown();
                 await requestAudioPermissions().then(async (granted) => {
                     if (granted) {

@@ -80,6 +80,9 @@ pub fn run() {
             crate::commands::audio::start_recording,
             crate::commands::audio::stop_recording,
             crate::commands::audio::get_recording_status,
+            // Recordings Management
+            crate::commands::recordings::get_recording_sessions,
+            crate::commands::recordings::delete_recording_session,
             // Stream Information
             crate::commands::network::stop_network_stream,
             crate::commands::network::change_network_stream,

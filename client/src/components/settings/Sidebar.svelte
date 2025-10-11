@@ -1,9 +1,10 @@
 <script lang="ts">
     import { mount, onMount } from "svelte";
     import audio from "../../components/settings/pages/audio.svelte";
+    import recordings from "../../components/settings/pages/recordings.svelte";
 
     export let activePage: string = "audio.svelte";
-    
+
     // Page state management
     let currentPageTitle = "Audio Settings";
 
@@ -16,6 +17,16 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 14.142M6.343 6.343L4.93 4.93a1 1 0 00-1.414 1.414l1.414 1.414a7 7 0 000 9.9L3.515 19.07a1 1 0 101.414 1.414l1.414-1.414a5 5 0 000-7.072z"/>
             </svg>`,
             component: audio
+        },
+        {
+            id: "recordings.svelte",
+            title: "Recordings",
+            icon: `<svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <circle cx="12" cy="12" r="10" stroke-width="2"/>
+                <circle cx="12" cy="12" r="3" stroke-width="2"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6l4 2"/>
+            </svg>`,
+            component: recordings
         }
         // Add more settings pages here in the future
     ];
@@ -45,16 +56,16 @@
         // CSS-driven mobile detection: check if mobile detector element is visible
         const mobileDetector = document.querySelector(".mobile-detector");
         const isMobileView = mobileDetector && window.getComputedStyle(mobileDetector).display === "block";
-        
+
         if (isMobileView) {
             const navigationElement = document.querySelector(".settings-navigation");
             const contentElement = document.querySelector(".settings-main-content");
             const mobileHeader = document.querySelector(".settings-mobile-header");
-            
+
             if (navigationElement && contentElement) {
                 navigationElement.classList.add("nav-slide-out");
                 contentElement.classList.add("content-visible");
-                
+
                 // Show mobile header when content is visible
                 if (mobileHeader) {
                     mobileHeader.classList.remove("hidden");
@@ -68,16 +79,16 @@
         // CSS-driven mobile detection: check if mobile detector element is visible
         const mobileDetector = document.querySelector(".mobile-detector");
         const isMobileView = mobileDetector && window.getComputedStyle(mobileDetector).display === "block";
-        
+
         if (isMobileView) {
             const navigationElement = document.querySelector(".settings-navigation");
             const contentElement = document.querySelector(".settings-main-content");
             const mobileHeader = document.querySelector(".settings-mobile-header");
-            
+
             if (navigationElement && contentElement) {
                 navigationElement.classList.remove("nav-slide-out");
                 contentElement.classList.remove("content-visible");
-                
+
                 // Hide mobile header when returning to navigation
                 if (mobileHeader) {
                     mobileHeader.classList.remove("flex");
@@ -103,7 +114,7 @@
 </script>
 <!-- Mobile Header - Shows when content is visible on mobile -->
 <div class="settings-mobile-header md:hidden fixed top-0 left-0 right-0 z-30 h-14 items-center justify-between bg-white px-4 border-b border-slate-150 dark:bg-navy-700 dark:border-navy-600 hidden">
-    <button 
+    <button
         class="btn size-11 rounded-full p-0 hover:bg-slate-300/20 focus:bg-slate-300/20 active:bg-slate-300/25 dark:hover:bg-navy-300/20 dark:focus:bg-navy-300/20 dark:active:bg-navy-300/25"
         on:click={handleBackToNavigation}
         aria-label="Back to settings navigation"
@@ -120,12 +131,12 @@
 <div class="mobile-detector"></div>
 
 <!-- Navigation Panel - Responsive positioning -->
-<div class="settings-navigation 
+<div class="settings-navigation
     fixed inset-0 z-10 w-full h-full
-    md:static md:z-auto md:w-80 md:h-full md:min-h-screen md:flex-shrink-0 
+    md:static md:z-auto md:w-80 md:h-full md:min-h-screen md:flex-shrink-0
     sidebar sidebar-panel">
     <div class="flex h-full grow flex-col border-r border-slate-150 bg-white dark:border-navy-700 dark:bg-navy-750">
-            
+
             <!-- Desktop Header / Mobile Navigation Header -->
             <div class="flex items-center justify-between px-4 pt-4 h-14 md:h-18">
                 <!-- Desktop: Settings Header with back button -->
@@ -138,7 +149,7 @@
                     <h1 class="text-xl font-semibold text-slate-800 dark:text-navy-100">Settings</h1>
                     <div class="size-11"></div> <!-- Spacer for center alignment -->
                 </div>
-                
+
                 <!-- Mobile: Settings Header with back button -->
                 <div class="flex md:hidden w-full items-center justify-between">
                     <a href="/dashboard" class="btn size-11 rounded-full p-0 hover:bg-slate-300/20 focus:bg-slate-300/20 active:bg-slate-300/25 dark:hover:bg-navy-300/20 dark:focus:bg-navy-300/20 dark:active:bg-navy-300/25" aria-label="Back to dashboard">
@@ -154,7 +165,7 @@
             <!-- Navigation Content -->
             <div class="nav-wrapper mt-5 h-[calc(100%-4.5rem)] overflow-x-hidden pb-6" data-simplebar>
                 <div class="my-3 mx-4 h-px bg-slate-200 dark:bg-navy-500"></div>
-                
+
                 <!-- Settings Navigation List -->
                 <ul class="flex flex-1 flex-col px-4 font-inter">
                     {#each settingsPages as page}
@@ -169,7 +180,7 @@
                                 {@html page.icon}
                             </div>
                             <span class="font-medium">{page.title}</span>
-                            
+
                             <!-- Mobile chevron -->
                             <div class="ml-auto md:hidden">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="size-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">

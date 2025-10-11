@@ -437,7 +437,6 @@ impl InputStream {
                                                         .unwrap_or_default()
                                                         .as_millis() as u64,
                                                     sample_rate: device_config.sample_rate.0,
-                                                    pcm_data: sample_to_process.clone(),
                                                     opus_data: encoded_data.clone(),
                                                 };
 

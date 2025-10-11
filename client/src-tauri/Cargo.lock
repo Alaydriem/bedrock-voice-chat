@@ -649,6 +649,7 @@ dependencies = [
  "nano-wal",
  "once_cell",
  "opus",
+ "postcard",
  "rand 0.9.2",
  "reqwest",
  "ringbuf",

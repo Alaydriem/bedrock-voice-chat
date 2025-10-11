@@ -12,7 +12,7 @@ export default class ImageCache {
     /**
      * Fetches an image from disk or from a url, caches it locally, then returns the base64 data stream.
      * @param options ImageCacheOptions
-     * @returns 
+     * @returns
      */
     async getImage(options: ImageCacheOptions): Promise<string> {
         const cacheDir = await appCacheDir() + "/images";
@@ -26,7 +26,6 @@ export default class ImageCache {
 
         // Check if the file exists on disk
         if (await exists(cachedImagePath)) {
-            debug(`Image found in cache: ${cachedImagePath}`);
             // Read the file and determine the MIME type
             const fileData = await readFile(cachedImagePath);
             const mimeType = this.getMimeType(fileData);
@@ -47,7 +46,6 @@ export default class ImageCache {
 
             // Write the image to disk
             await writeFile(cachedImagePath, imageData);
-            debug(`Image cached: ${cachedImagePath}`);
 
             // Convert the image to a data:// scheme
             const base64Data = this.arrayBufferToBase64(imageData);
@@ -61,7 +59,7 @@ export default class ImageCache {
     /**
      * Hashes the image URL using MurmurHash3 to create a unique identifier for the image
      * @param url
-     * @returns 
+     * @returns
      */
     hashImageUrl(url: string): string {
         const bytes = new TextEncoder().encode(url);
@@ -73,8 +71,8 @@ export default class ImageCache {
 
     /**
      * Determines the MIME type of the file based upon it's header signature.
-     * @param data 
-     * @returns 
+     * @param data
+     * @returns
      */
     getMimeType(data: Uint8Array | string): string {
         const bytes = typeof data === "string" ? new Uint8Array(data.split("").map((char) => char.charCodeAt(0))) : data;
@@ -95,8 +93,8 @@ export default class ImageCache {
 
     /**
      * Returns a base64 string from a Uint8Array of the image data
-     * @param blob 
-     * @returns 
+     * @param blob
+     * @returns
      */
     arrayBufferToBase64(blob: Uint8Array) {
         // Assuming 'uint8Array' is your Uint8Array
