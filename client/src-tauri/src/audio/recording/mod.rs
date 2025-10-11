@@ -1,6 +1,7 @@
 mod manager;
 
 use common::structs::packet::PacketOwner;
+
 use log::{error, info};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -18,29 +19,39 @@ use uuid::{NoContext, Timestamp, Uuid};
 
 pub use manager::RecordingManager;
 
-/// Type aliases for recording channels (following audio/network pattern)
-pub type RecordingProducer = flume::Sender<RecordingData>;
-pub type RecordingConsumer = flume::Receiver<RecordingData>;
+pub type RecordingProducer = flume::Sender<RawRecordingData>;
+pub type RecordingConsumer = flume::Receiver<RawRecordingData>;
 
-/// Data types that can be recorded
-///
-/// ## Efficiency Optimizations:
-/// - Uses only Opus-encoded data (no PCM duplication) to minimize file size
-/// - InputData stores ~50KB/sec vs ~1.3MB/sec if PCM was included
-/// - Serialized using postcard (binary) instead of JSON for ~75% size reduction
-/// - WAL files should now be ~10-20x smaller than before these optimizations
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub enum RawRecordingData {
+    InputData {
+        absolute_timestamp_ms: u64,
+        opus_data: Vec<u8>,
+        sample_rate: u32,
+        channels: u16,
+    },
+    OutputData {
+        absolute_timestamp_ms: u64,
+        opus_data: Vec<u8>,
+        sample_rate: u32,
+        channels: u16,
+        owner: Option<PacketOwner>,
+        coordinate: Option<common::Coordinate>,
+        orientation: Option<common::Orientation>,
+        dimension: Option<common::Dimension>,
+        is_spatial: bool,
+    },
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum RecordingData {
-    /// Input data from microphone (opus encoded only - no PCM duplication)
     InputData {
-        timestamp_ms: u64,
-        sample_rate: u32,
+        relative_timestamp_ms: u32,
         opus_data: Vec<u8>,
     },
-    /// Output data from remote players (encoded opus frames)
     OutputData {
-        timestamp_ms: u64,
-        sample_rate: u32,
+        relative_timestamp_ms: u32,
         opus_data: Vec<u8>,
         owner: Option<PacketOwner>,
         coordinate: Option<common::Coordinate>,
@@ -48,6 +59,12 @@ pub enum RecordingData {
         dimension: Option<common::Dimension>,
         is_spatial: bool,
     },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct PlayerAudioConfig {
+    pub sample_rate: u32,
+    pub channels: u32,
 }
 
 /// Session manifest for reconstruction
@@ -59,7 +76,7 @@ pub struct SessionManifest {
     pub duration_ms: Option<u64>,
     pub emitter_player: String,
     pub participants: Vec<String>,
-    pub sample_rate: u32,
+    pub player_audio_configs: std::collections::HashMap<String, PlayerAudioConfig>,
     pub created_at: String,
 }
 
@@ -71,6 +88,7 @@ pub struct Recorder {
     manifest: SessionManifest,
     recording_path: PathBuf,
     recording_consumer: Arc<RecordingConsumer>,
+    session_start_timestamp: u64,
     #[allow(unused)]
     app_handle: tauri::AppHandle,
 }
@@ -98,16 +116,18 @@ impl Recorder {
 
         std::fs::create_dir_all(&recording_path)?;
 
+        let start_timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_millis() as u64;
+
         let manifest = SessionManifest {
             session_id: session_id.clone(),
-            start_timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)?
-                .as_millis() as u64,
+            start_timestamp,
             end_timestamp: None,
             duration_ms: None,
             emitter_player: current_player.clone(),
             participants: Vec::new(),
-            sample_rate: 48000,
+            player_audio_configs: std::collections::HashMap::new(),
             created_at: format!(
                 "{}",
                 std::time::SystemTime::now()
@@ -124,6 +144,7 @@ impl Recorder {
             manifest,
             recording_path,
             recording_consumer,
+            session_start_timestamp: start_timestamp,
             app_handle,
         })
     }
@@ -135,6 +156,7 @@ impl Recorder {
         let recording_consumer = self.recording_consumer.clone();
         let shutdown = self.shutdown.clone();
         let recording_path = self.recording_path.clone();
+        let session_start_timestamp = self.session_start_timestamp;  // For timestamp conversion
         let mut manifest = self.manifest.clone();
 
         let handle = tokio::spawn(async move {
@@ -149,31 +171,82 @@ impl Recorder {
                 }
             };
 
-            let mut batch_buffer = Vec::new();
+            let mut batch_buffer: Vec<(String, RecordingData)> = Vec::new();
             let mut participants = HashSet::new();
+            let mut player_audio_configs = std::collections::HashMap::new();
 
             loop {
                 tokio::select! {
-                    recording_data = recording_consumer.recv_async() => {
-                        match recording_data {
-                            Ok(data) => {
+                    raw_recording_data = recording_consumer.recv_async() => {
+                        match raw_recording_data {
+                            Ok(raw_data) => {
                                 if shutdown.load(Ordering::Relaxed) {
                                     break;
                                 }
 
-                                // Track participants from output data
+                                let data = match raw_data {
+                                    RawRecordingData::InputData { absolute_timestamp_ms, opus_data, sample_rate, channels } => {
+                                        let relative_timestamp_ms = (absolute_timestamp_ms.saturating_sub(session_start_timestamp)) as u32;
+
+                                        let emitter_name = manifest.emitter_player.clone();
+                                        player_audio_configs.entry(emitter_name).or_insert_with(|| {
+                                            PlayerAudioConfig {
+                                                sample_rate,
+                                                channels: channels as u32,
+                                            }
+                                        });
+
+                                        RecordingData::InputData { relative_timestamp_ms, opus_data }
+                                    },
+                                    RawRecordingData::OutputData {
+                                        absolute_timestamp_ms,
+                                        opus_data,
+                                        sample_rate,
+                                        channels,
+                                        owner,
+                                        coordinate,
+                                        orientation,
+                                        dimension,
+                                        is_spatial
+                                    } => {
+                                        let relative_timestamp_ms = (absolute_timestamp_ms.saturating_sub(session_start_timestamp)) as u32;
+
+                                        // Track audio config for this player
+                                        if let Some(ref owner) = owner {
+                                            let player_name = &owner.name;
+                                            player_audio_configs.entry(player_name.clone()).or_insert_with(|| {
+                                                PlayerAudioConfig {
+                                                    sample_rate,
+                                                    channels: channels as u32,
+                                                }
+                                            });
+                                        }
+
+                                        RecordingData::OutputData {
+                                            relative_timestamp_ms,
+                                            opus_data,
+                                            owner,
+                                            coordinate,
+                                            orientation,
+                                            dimension,
+                                            is_spatial
+                                        }
+                                    }
+                                };
+
                                 if let RecordingData::OutputData { owner, .. } = &data {
                                     if let Some(owner) = owner {
                                         participants.insert(owner.name.clone());
                                     }
                                 }
 
-                                // Determine type for batch processing
-                                let data_type = match &data {
-                                    RecordingData::InputData { .. } => "input",
-                                    RecordingData::OutputData { .. } => "output",
+                                let player_key = match &data {
+                                    RecordingData::InputData { .. } => manifest.emitter_player.clone(),
+                                    RecordingData::OutputData { owner, .. } => {
+                                        owner.as_ref().map(|o| o.name.clone()).unwrap_or_else(|| "unknown".to_string())
+                                    }
                                 };
-                                batch_buffer.push((data_type, data));
+                                batch_buffer.push((player_key, data));
                             }
                             Err(_) => continue,
                         }
@@ -220,6 +293,29 @@ impl Recorder {
             manifest.duration_ms = Some(now - manifest.start_timestamp);
             manifest.participants = participants.into_iter().collect();
 
+            manifest.player_audio_configs = player_audio_configs;
+
+            let default_audio_config = PlayerAudioConfig {
+                sample_rate: 48000,
+                channels: 1,
+            };
+
+            if !manifest.player_audio_configs.contains_key(&manifest.emitter_player) {
+                manifest.player_audio_configs.insert(
+                    manifest.emitter_player.clone(),
+                    default_audio_config.clone(),
+                );
+            }
+
+            for participant in &manifest.participants {
+                if !manifest.player_audio_configs.contains_key(participant) {
+                    manifest.player_audio_configs.insert(
+                        participant.clone(),
+                        default_audio_config.clone(),
+                    );
+                }
+            }
+
             if let Ok(manifest_json) = serde_json::to_string_pretty(&manifest) {
                 if let Err(e) = tokio::fs::write(
                     recording_path.join("session.json"),
@@ -238,11 +334,11 @@ impl Recorder {
     /// Flush WAL to disk
     async fn flush(
         wal: &mut nano_wal::Wal,
-        batch_buffer: &mut Vec<(&str, RecordingData)>,
+        batch_buffer: &mut Vec<(String, RecordingData)>,
     ) -> Result<(), anyhow::Error> {
-        for (key, data) in batch_buffer.drain(..) {
+        for (player_key, data) in batch_buffer.drain(..) {
             let serialized_data = postcard::to_allocvec(&data)?;
-            wal.append_entry(key, None, serialized_data.into(), false)?;
+            wal.append_entry(&player_key, None, serialized_data.into(), false)?;
         }
         wal.sync()?;
         Ok(())

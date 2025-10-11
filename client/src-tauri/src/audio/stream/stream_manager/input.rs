@@ -1,5 +1,5 @@
 use super::AudioFrame;
-use crate::audio::recording::{RecordingData, RecordingProducer};
+use crate::audio::recording::{RawRecordingData, RecordingProducer};
 use crate::audio::types::{AudioDevice, BUFFER_SIZE};
 use crate::{audio::stream::stream_manager::AudioFrameData, NetworkPacket};
 use anyhow::anyhow;
@@ -431,13 +431,14 @@ impl InputStream {
 
                                             // Send to recording producer (unconditionally, let RecordingManager filter)
                                             if let Some(ref producer) = recording_producer {
-                                                let recording_data = RecordingData::InputData {
-                                                    timestamp_ms: std::time::SystemTime::now()
+                                                let recording_data = RawRecordingData::InputData {
+                                                    absolute_timestamp_ms: std::time::SystemTime::now()
                                                         .duration_since(std::time::UNIX_EPOCH)
                                                         .unwrap_or_default()
                                                         .as_millis() as u64,
-                                                    sample_rate: device_config.sample_rate.0,
                                                     opus_data: encoded_data.clone(),
+                                                    sample_rate: device_config.sample_rate.0,
+                                                    channels: device_config.channels.into(),
                                                 };
 
                                                 let _ = producer.try_send(recording_data);

@@ -1,6 +1,6 @@
 use super::sink_manager::SinkManager;
 use crate::audio::stream::stream_manager::AudioSinkType;
-use crate::audio::recording::RecordingProducer;
+use crate::audio::recording::{RawRecordingData, RecordingProducer};
 use crate::{audio::stream::jitter_buffer::EncodedAudioFramePacket, events::ServerError};
 
 use crate::audio::types::AudioDevice;
@@ -28,6 +28,27 @@ use std::{
     },
     time::Duration,
 };
+
+/// Detect number of channels from opus packet data
+/// Opus header format: TOC byte contains channel configuration in bits 2-3
+fn detect_opus_channels(opus_data: &[u8]) -> u16 {
+    if opus_data.is_empty() {
+        return 1; // Default to mono
+    }
+
+    // First byte is the TOC (Table of Contents) byte
+    let toc_byte = opus_data[0];
+
+    // Bits 2-3 of TOC byte indicate channel configuration
+    // 0: mono, 1: stereo
+    let channel_config = (toc_byte >> 2) & 0x1;
+
+    match channel_config {
+        0 => 1, // Mono
+        1 => 2, // Stereo
+        _ => 1, // Default to mono for unexpected values
+    }
+}
 use tauri::Emitter;
 use tokio::task::{AbortHandle, JoinHandle};
 
@@ -557,10 +578,15 @@ impl OutputStream {
 
                 // Send to recording if producer available
                 if let Some(ref producer) = recording_producer {
-                    let recording_data = crate::audio::recording::RecordingData::OutputData {
-                        timestamp_ms: encoded_packet.timestamp,
-                        sample_rate: encoded_packet.sample_rate,
+                    let detected_channels = detect_opus_channels(&encoded_packet.data);
+                    let recording_data = RawRecordingData::OutputData {
+                        absolute_timestamp_ms: std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_millis() as u64,
                         opus_data: encoded_packet.data.clone(),
+                        sample_rate: encoded_packet.sample_rate,
+                        channels: detected_channels,
                         owner: owner,
                         coordinate: encoded_packet.coordinate,
                         orientation: encoded_packet.orientation,

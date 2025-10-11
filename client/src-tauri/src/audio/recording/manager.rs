@@ -1,4 +1,4 @@
-use super::{Recorder, RecordingData, RecordingProducer, RecordingConsumer};
+use super::{Recorder, RawRecordingData, RecordingProducer, RecordingConsumer};
 use common::traits::StreamTrait;
 use log::{error, info};
 use std::{
@@ -28,7 +28,7 @@ impl RecordingManager {
     /// Create a new RecordingManager following NetworkStreamManager pattern
     pub fn new(app_handle: tauri::AppHandle) -> Self {
         // Create internal recording channels
-        let (recording_producer, recording_consumer) = flume::unbounded::<RecordingData>();
+        let (recording_producer, recording_consumer) = flume::unbounded::<RawRecordingData>();
 
         Self {
             recorder: None,
@@ -95,15 +95,5 @@ impl RecordingManager {
     /// Get current session ID if recording
     pub fn current_session_id(&self) -> Option<String> {
         self.recorder.as_ref().map(|r| r.session_id().to_string())
-    }
-}
-
-impl RecordingManager {
-    /// Extract current player from store
-    async fn extract_current_player(&self) -> Option<String> {
-        self.app_handle.store("store.json").ok()?
-            .get("current_player")?
-            .as_str()
-            .map(String::from)
     }
 }

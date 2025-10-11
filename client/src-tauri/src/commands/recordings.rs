@@ -1,7 +1,14 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use tauri::Manager;
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct PlayerAudioConfig {
+    pub sample_rate: u32,
+    pub channels: u32,
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SessionData {
@@ -11,7 +18,7 @@ pub struct SessionData {
     pub duration_ms: Option<u64>,
     pub emitter_player: String,
     pub participants: Vec<String>,
-    pub sample_rate: u32,
+    pub player_audio_configs: HashMap<String, PlayerAudioConfig>,
     pub created_at: String,
 }
 
