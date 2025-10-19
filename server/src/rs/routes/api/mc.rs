@@ -141,15 +141,11 @@ pub async fn position(
     let player_cache = cache_manager.get_player_cache();
 
     // Collect all cached players
-    let players = Vec::new();
+    let mut players = Vec::new();
 
-    // Unfortunately, moka doesn't have a direct "get all values" method
-    // For now, we'll return an empty list and log this limitation
-    // TODO: Consider maintaining a separate list of active players or using a different cache structure
-    tracing::info!(
-        "Position endpoint called - cache contains {} entries",
-        player_cache.entry_count()
-    );
+    for (_, player) in player_cache.iter() {
+        players.push(player.clone());
+    }
 
     // Return the collected players
     Json(players)
