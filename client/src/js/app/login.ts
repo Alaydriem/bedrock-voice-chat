@@ -43,7 +43,30 @@ export default class Login extends App {
   constructor() {
     super();
   }
-  
+
+  // Sanitize server URL to ensure https:// prefix and no trailing slash
+  private sanitizeServerUrl(url: string): string {
+    let sanitized = url.trim();
+
+    // Ensure https:// prefix
+    if (!sanitized.startsWith("https://")) {
+      if (sanitized.startsWith("http://")) {
+        // Replace http:// with https://
+        sanitized = sanitized.replace("http://", "https://");
+      } else {
+        // Add https:// prefix
+        sanitized = "https://" + sanitized;
+      }
+    }
+
+    // Remove trailing slash
+    if (sanitized.endsWith("/")) {
+      sanitized = sanitized.slice(0, -1);
+    }
+
+    return sanitized;
+  }
+
   // This is the main event handler for the form submission
   async login(event: any) {
     let form = event.currentTarget;
@@ -53,16 +76,22 @@ export default class Login extends App {
     serverUrl.classList.remove("border-error");
     errorMessage.classList.add("invisible");
 
-    info(serverUrl.value + this.CONFIG_ENDPOINT);
+    // Sanitize the server URL
+    const sanitizedUrl = this.sanitizeServerUrl(serverUrl.value);
+
+    // Update the input field with sanitized value
+    serverUrl.value = sanitizedUrl;
+
+    info(sanitizedUrl + this.CONFIG_ENDPOINT);
     // Fetch the configuration from the server and retrieve the client_id for
     // Authenticating with Microsoft
-    await fetch(serverUrl.value + this.CONFIG_ENDPOINT, {
+    await fetch(sanitizedUrl + this.CONFIG_ENDPOINT, {
       method: 'GET'
     }).then(async (response) => {
       if (response.status !== 200) {
-        throw new Error("Bedrock Voice Chat Server " + serverUrl.value + " is not reachable.");
+        throw new Error("Bedrock Voice Chat Server " + sanitizedUrl + " is not reachable.");
       }
-      info("Successfully connected to Bedrock Voice Chat Server " + serverUrl.value);
+      info("Successfully connected to Bedrock Voice Chat Server " + sanitizedUrl);
       return await response.json();
     }).then(async (response) => {
       const clientId = response.client_id;
@@ -70,12 +99,12 @@ export default class Login extends App {
       // Store some temporary tokens during the login phase.
       const store = await Store.load('store.json', { autoSave: false });
       await store.set("auth_state_token", secretState);
-      await store.set("auth_state_endpoint", serverUrl.value);
+      await store.set("auth_state_endpoint", sanitizedUrl);
       await store.save();
 
       // Open a browser Window to authenticate with Microsoft Services
       const redirectUrl = await Login.getRedirectUrl();
-      const authLoginUrl: string = 
+      const authLoginUrl: string =
         `https://login.live.com/oauth20_authorize.srf?client_id=${clientId}&response_type=code&redirect_uri=${redirectUrl}&scope=XboxLive.signin%20offline_access&state=${secretState}`;
 
       openUrl(authLoginUrl);
@@ -124,7 +153,7 @@ export default class Login extends App {
     // Verify that the state sent back from the server matches the one we generated
     if (state !== authStateToken) {
       warn("Auth State Mismatch");
-      
+
       serverUrl?.classList.add("border-error");
       errorMessage?.classList.remove("invisible");
       return;
@@ -161,7 +190,7 @@ export default class Login extends App {
               hasServer = true;
             }
           });
-          
+
           if (!hasServer) {
             serverList.push({
               "server": authStateEndpoint,
