@@ -1,7 +1,7 @@
 <script lang="ts">
     import type { Channel } from "../../../../js/bindings/Channel";
     import { debug, info } from '@tauri-apps/plugin-log';
-    
+
     export let channel: Channel;
     export let currentUser: string;
     export let userCurrentChannelId: string | null;
@@ -14,18 +14,12 @@
     $: isUserInChannel = currentUser && channel.players.includes(currentUser);
     $: shouldShowMenu = isUserInChannel;
 
-    // Debug logging for owner detection
-    $: {
-        if (currentUser && channel.creator) {
-            debug(`Channel: ${channel.name}, Creator: ${channel.creator}, CurrentUser: ${currentUser}, IsOwner: ${isOwner}, IsUserInChannel: ${isUserInChannel}, Players: ${JSON.stringify(channel.players)}`);
-        }
-    }
 
     // Sort players so owner appears first, then regular members
     $: sortedPlayers = (() => {
         const ownerInChannel = channel.players.includes(channel.creator);
         const otherMembers = channel.players.filter(player => player !== channel.creator);
-        
+
         if (ownerInChannel) {
             return [channel.creator, ...otherMembers];
         } else {
@@ -43,7 +37,7 @@
     const getAvatarClasses = (player: string) => {
         const isPlayerOwner = player === channel.creator;
         const isPlayerInChannel = channel.players.includes(player);
-        
+
         if (isPlayerOwner) {
             if (isPlayerInChannel) {
                 // Owner is in channel - purple

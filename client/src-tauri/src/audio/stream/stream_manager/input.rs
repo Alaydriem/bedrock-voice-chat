@@ -1,10 +1,12 @@
 use super::AudioFrame;
+use crate::audio::recording::{RawRecordingData, RecordingProducer};
 use crate::audio::types::{AudioDevice, BUFFER_SIZE};
 use crate::{audio::stream::stream_manager::AudioFrameData, NetworkPacket};
 use anyhow::anyhow;
 use audio_gate::NoiseGate;
 use common::structs::audio::NoiseGateSettings;
 use common::structs::packet::{AudioFramePacket, QuicNetworkPacket, QuicNetworkPacketData};
+use common::PlayerData;
 use log::{error, warn};
 use once_cell::sync::Lazy;
 use opus::Bitrate;
@@ -18,6 +20,7 @@ use std::{
     },
     time::Duration,
 };
+use tauri_plugin_store::StoreExt;
 use tokio::task::{AbortHandle, JoinHandle};
 
 /// Indicator for if the Input Stream should be muted
@@ -40,6 +43,7 @@ pub(crate) struct InputStream {
     pub metadata: Arc<moka::future::Cache<String, String>>,
     #[allow(unused)]
     app_handle: tauri::AppHandle,
+    recording_producer: Option<Arc<RecordingProducer>>,
 }
 
 impl common::traits::StreamTrait for InputStream {
@@ -108,6 +112,14 @@ impl common::traits::StreamTrait for InputStream {
 
         let (producer, consumer) = mpsc::sync_channel(1000);
 
+        // Get current player name from store before starting (fail fast if not set)
+        let store = self.app_handle.store("store.json")
+            .map_err(|e| anyhow!("Failed to access store: {}", e))?;
+
+        let current_player_name = store.get("current_player")
+            .and_then(|v| v.as_str().map(|s| s.to_string()))
+            .ok_or_else(|| anyhow!("Cannot start input stream without current_player set in store"))?;
+
         // Start the audio input listener thread
         match self.listener(producer, self.shutdown.clone()) {
             Ok(job) => jobs.push(job),
@@ -118,7 +130,7 @@ impl common::traits::StreamTrait for InputStream {
         };
 
         // Send the PCM data to the network sender
-        match self.sender(consumer, self.shutdown.clone()) {
+        match self.sender(consumer, self.shutdown.clone(), current_player_name) {
             Ok(job) => jobs.push(job),
             Err(e) => {
                 error!("input sender encountered an error: {:?}", e);
@@ -137,6 +149,7 @@ impl InputStream {
         bus: Arc<flume::Sender<NetworkPacket>>,
         metadata: Arc<moka::future::Cache<String, String>>,
         app_handle: tauri::AppHandle,
+        recording_producer: Option<Arc<RecordingProducer>>,
     ) -> Self {
         Self {
             device,
@@ -145,6 +158,7 @@ impl InputStream {
             shutdown: Arc::new(AtomicBool::new(false)),
             metadata,
             app_handle: app_handle.clone(),
+            recording_producer,
         }
     }
 
@@ -352,6 +366,7 @@ impl InputStream {
         &mut self,
         consumer: Receiver<AudioFrame>,
         shutdown: Arc<AtomicBool>,
+        current_player_name: String,
     ) -> Result<JoinHandle<()>, anyhow::Error> {
         match self.device.clone() {
             Some(device) => {
@@ -387,6 +402,8 @@ impl InputStream {
 
                         let bus = self.bus.clone();
                         let notify = crate::AUDIO_INPUT_NETWORK_NOTIFY.clone();
+                        let recording_producer = self.recording_producer.clone();
+
                         let handle = tokio::spawn(async move {
                             #[cfg(target_os = "windows")]
                             {
@@ -423,6 +440,25 @@ impl InputStream {
                                                 Ok(s) if s.len() > 3 => s,
                                                 _ => continue, // Skip if encoding failed or insufficient data
                                             };
+
+                                            // Send to recording producer (unconditionally, let RecordingManager filter)
+                                            if let Some(ref producer) = recording_producer {
+                                                let recording_data = RawRecordingData::InputData {
+                                                    absolute_timestamp_ms: Some(std::time::SystemTime::now()
+                                                        .duration_since(std::time::UNIX_EPOCH)
+                                                        .unwrap_or_default()
+                                                        .as_millis() as u64),
+                                                    opus_data: encoded_data.clone(),
+                                                    sample_rate: device_config.sample_rate.0,
+                                                    channels: device_config.channels.into(),
+                                                    emitter: PlayerData::for_input(
+                                                        current_player_name.clone(),
+                                                        None, // TODO: Add gain cache for input
+                                                    ),
+                                                };
+
+                                                let _ = producer.try_send(recording_data);
+                                            }
 
                                             let packet = NetworkPacket {
                                             data: QuicNetworkPacket {

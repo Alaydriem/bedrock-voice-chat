@@ -130,16 +130,13 @@ impl SinkManager {
                 let author = packet.get_author();
                 let author_bytes = packet.get_client_id();
 
-                // Get proper display name for activity detection
-                let display_name = match &packet.owner {
-                    Some(owner) if !owner.name.is_empty() && owner.name != "api" => {
-                        owner.name.clone()
-                    }
-                    _ => author.clone(), // Fallback to encoded client ID if no proper name
+                let display_name = match packet.emitter.name.clone() {
+                    name if !name.is_empty() && name != "api" => name,
+                    _ => author.clone(),
                 };
 
-                let emitter_pos = packet.coordinate.clone();
-                let emitter_spatial = packet.spatial.unwrap_or(false);
+                let emitter_pos = packet.emitter.coordinates.clone();
+                let emitter_spatial = packet.emitter.spatial.unwrap_or(false);
 
                 let listener_info = players
                     .get(&current_player_name)

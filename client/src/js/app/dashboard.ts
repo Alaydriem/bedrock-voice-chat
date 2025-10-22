@@ -37,15 +37,15 @@ export default class Dashboard extends App {
     private eventUnlisteners: (() => void)[] = [];
     private currentServerCredentials: LoginResponse | null = null;
     private popperProfile: any = null;
-    
+
     // Manager instances for dependency injection
     public playerManager: PlayerManager | undefined;
     public channelManager: ChannelManager | undefined;
     public audioActivityManager: AudioActivityManager | undefined;
-    
+
     async initialize() {
         const appWebview = getCurrentWebviewWindow();
-        
+
         // Handle notifications
         const notificationUnlisten = await appWebview.listen('notification', (event: { payload?: { title?: string, body?: string, level?: string } }) => {
             info(`Notification received: ${JSON.stringify(event.payload)}`);
@@ -60,7 +60,7 @@ export default class Dashboard extends App {
         });
         this.eventUnlisteners.push(notificationUnlisten);
 
-        
+
         this.store = await Store.load("store.json", { autoSave: false });
         const currentServer = await this.store.get<string>("current_server");
 
@@ -68,7 +68,7 @@ export default class Dashboard extends App {
         await this.initializeManagers();
 
         // If the audio engine is stopped for either the input or output channel, shutdown the existing one, reinitialize everything
-       
+
         if (currentServer) {
             this.keyring = await Keyring.new("servers");
 
@@ -79,7 +79,6 @@ export default class Dashboard extends App {
             const isInputStreamStopped = await invoke("is_stopped", { device: "InputDevice" }).then((stopped) => stopped as boolean);
             const isOutputStreamStopped = await invoke("is_stopped", { device: "OutputDevice" }).then((stopped) => stopped as boolean);
             if (isInputStreamStopped || isOutputStreamStopped) {
-                debug("Audio engine is stopped, reinitializing...");
                 await this.shutdown();
                 await requestAudioPermissions().then(async (granted) => {
                     if (granted) {
@@ -90,7 +89,7 @@ export default class Dashboard extends App {
                 });
             }
         }
-        
+
         this.preloader();
     }
 
@@ -135,7 +134,7 @@ export default class Dashboard extends App {
     /**
      * Set the player avatar after DOM is ready
      */
-    public setPlayerAvatar(): void {        
+    public setPlayerAvatar(): void {
         if (!this.currentServerCredentials) {
             warn('Dashboard: No current server credentials available for avatar');
             return;
@@ -146,12 +145,12 @@ export default class Dashboard extends App {
         const dropdownAvatarElement = document.getElementById("player-dropdown-avatar");
         const dropdownNameElement = document.getElementById("player-dropdown-name");
         const profileButton = document.getElementById("profile-ref");
-        
+
         if (avatarElement && this.currentServerCredentials?.gamerpic) {
             try {
                 const decodedAvatar = atob(this.currentServerCredentials.gamerpic);
                 avatarElement.setAttribute("src", decodedAvatar);
-                
+
                 // Also set the dropdown avatar
                 if (dropdownAvatarElement) {
                     dropdownAvatarElement.setAttribute("src", decodedAvatar);
@@ -190,7 +189,7 @@ export default class Dashboard extends App {
             if (typeof (window as any).Popper !== 'undefined') {
                 this.popperProfile = new (window as any).Popper(
                     '#profile-wrapper',
-                    '#profile-ref', 
+                    '#profile-ref',
                     '#profile-box',
                     config
                 );
@@ -200,7 +199,7 @@ export default class Dashboard extends App {
             const logoutButton = document.getElementById('logout-button');
             if (logoutButton) {
                 logoutButton.addEventListener("click", this.handleLogout.bind(this));
-                
+
                 // Store cleanup function
                 this.eventUnlisteners.push(() => {
                     logoutButton.removeEventListener("click", this.handleLogout.bind(this));
@@ -216,13 +215,13 @@ export default class Dashboard extends App {
      * Handle logout action
      */
     private async handleLogout(): Promise<void> {
-        try {            
+        try {
             await invoke("logout").then(async () => {
                 await this.cleanup().then(() => {
                     window.location.href = "/login";
                 });
             });
-            
+
         } catch (err) {
             error(`Dashboard: Logout failed: ${err}`);
             // Show error notification
@@ -320,7 +319,7 @@ export default class Dashboard extends App {
                 });
 
                 await this.changeNetworkStream(currentServer, credentials);
-                
+
                 await this.updateAudioDevice("OutputDevice");
                 await this.updateAudioDevice("InputDevice");
                 await invoke("change_audio_device");
@@ -352,7 +351,7 @@ export default class Dashboard extends App {
             .catch((error) => {
                 error(`Error getting audio device: ${error}`);
                 return null;
-            });        
+            });
     }
 
     async changeNetworkStream(currentServer: string, credentials: LoginResponse | null): Promise<void> {
@@ -395,48 +394,5 @@ export default class Dashboard extends App {
         await this.cleanup();
         await invoke("reset_asm");
         await invoke("reset_nsm");
-    }
-
-    async bindSidebarEvents() {
-        document.querySelector("#reload-audio-engine")?.addEventListener("click", async () => {
-            window.App.shutdown();
-            window.location.reload();
-        });
-
-        const mute_input = document.querySelector("#mute-audio-input");
-        const mute_input_fa = document.querySelector("#mute-audio-input i");
-        await invoke("mute_status", { device: "InputDevice" }).then((muted) => {
-            if (muted) {
-                mute_input_fa?.classList.add("fa-microphone-slash");
-                mute_input_fa?.classList.remove("fa-microphone");
-                mute_input_fa?.classList.add("text-error");
-            }
-        });
-        mute_input?.addEventListener("click", async (el) => {
-            invoke("mute", { device: "InputDevice" }).then(() => {
-                const i = document.querySelector("#mute-audio-input i");
-                i?.classList.toggle("fa-microphone-slash");
-                i?.classList.toggle("fa-microphone");
-                i?.classList.toggle("text-error");
-            });
-        });
-
-        const mute_output = document.querySelector("#mute-audio-output");
-        const mute_output_fa = document.querySelector("#mute-audio-output i");
-        await invoke("mute_status", { device: "OutputDevice" }).then((muted) => {
-            if (muted) {
-                mute_output_fa?.classList.add("fa-volume-xmark");
-                mute_output_fa?.classList.remove("fa-volume-high");
-                mute_output_fa?.classList.add("text-error");
-            }
-        });
-        mute_output?.addEventListener("click", async (el) => {
-            invoke("mute", { device: "OutputDevice" }).then(() => {
-                const i = document.querySelector("#mute-audio-output i");
-                i?.classList.toggle("fa-volume-xmark");
-                i?.classList.toggle("fa-volume-high");
-                i?.classList.toggle("text-error");
-            });
-        });
     }
 }

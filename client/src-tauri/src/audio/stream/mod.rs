@@ -1,11 +1,13 @@
 mod activity_detector;
-mod jitter_buffer;
+pub mod jitter_buffer;
 mod stream_manager;
 
 use crate::audio::types::{AudioDevice, AudioDeviceType};
+use crate::audio::recording::RecordingManager;
 use crate::NetworkPacket;
 use anyhow::Error;
 use std::sync::Arc;
+use tauri::async_runtime::Mutex as TauriMutex;
 
 use super::AudioPacket;
 use stream_manager::{StreamTrait, StreamTraitType};
@@ -18,6 +20,7 @@ pub(crate) struct AudioStreamManager {
     input: StreamTraitType,
     output: StreamTraitType,
     app_handle: tauri::AppHandle,
+    recording_manager: Option<Arc<TauriMutex<RecordingManager>>>,
 }
 
 impl AudioStreamManager {
@@ -27,7 +30,11 @@ impl AudioStreamManager {
         producer: Arc<flume::Sender<NetworkPacket>>,
         consumer: Arc<flume::Receiver<AudioPacket>>,
         app_handle: tauri::AppHandle,
+        recording_manager: Option<Arc<TauriMutex<RecordingManager>>>,
     ) -> Self {
+        // Producer will be extracted when streams are initialized
+        // to avoid blocking the setup function
+
         Self {
             producer: producer.clone(),
             consumer: consumer.clone(),
@@ -36,22 +43,33 @@ impl AudioStreamManager {
                 producer.clone(),
                 Arc::new(moka::future::Cache::builder().build()),
                 app_handle.clone(),
+                None, // Producer will be set when initialized
             )),
             output: StreamTraitType::Output(stream_manager::OutputStream::new(
                 None,
                 consumer.clone(),
                 Arc::new(moka::future::Cache::builder().build()),
                 app_handle.clone(),
+                None, // Producer will be set when initialized
             )),
             app_handle: app_handle.clone(),
+            recording_manager,
         }
     }
 
     /// Initializes a given input or output stream with a specific device, then starts it
-    pub fn init(&mut self, device: AudioDevice) {
+    pub async fn init(&mut self, device: AudioDevice) {
         // Stop the current stream if we're re-initializing a new one so we don't
         // have dangling thread pointers
         _ = self.stop(device.clone().io);
+
+        // Get recording producer from manager if available
+        let recording_producer = if let Some(ref rm) = self.recording_manager {
+            let manager = rm.lock().await;
+            Some(manager.get_producer())
+        } else {
+            None
+        };
 
         match device.io {
             AudioDeviceType::InputDevice => {
@@ -60,6 +78,7 @@ impl AudioStreamManager {
                     self.producer.clone(),
                     self.input.get_metadata().clone(),
                     self.app_handle.clone(),
+                    recording_producer,
                 ));
             }
             AudioDeviceType::OutputDevice => {
@@ -68,6 +87,7 @@ impl AudioStreamManager {
                     self.consumer.clone(),
                     self.output.get_metadata().clone(),
                     self.app_handle.clone(),
+                    recording_producer,
                 ));
             }
         }
@@ -81,6 +101,14 @@ impl AudioStreamManager {
         // Stop the audio strema
         _ = self.stop(device.clone());
 
+        // Get recording producer from manager if available
+        let recording_producer = if let Some(ref rm) = self.recording_manager {
+            let manager = rm.lock().await;
+            Some(manager.get_producer())
+        } else {
+            None
+        };
+
         match device {
             AudioDeviceType::InputDevice => {
                 self.input = StreamTraitType::Input(stream_manager::InputStream::new(
@@ -88,6 +116,7 @@ impl AudioStreamManager {
                     self.producer.clone(),
                     self.input.get_metadata().clone(),
                     self.app_handle.clone(),
+                    recording_producer,
                 ));
             }
             AudioDeviceType::OutputDevice => {
@@ -96,6 +125,7 @@ impl AudioStreamManager {
                     self.consumer.clone(),
                     self.output.get_metadata().clone(),
                     self.app_handle.clone(),
+                    recording_producer,
                 ));
             }
         };

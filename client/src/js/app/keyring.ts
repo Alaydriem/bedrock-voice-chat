@@ -11,12 +11,11 @@ import {
 } from 'tauri-plugin-keyring'
 import type { CredentialType, CredentialValue } from 'tauri-plugin-keyring'
 import { getIdentifier } from '@tauri-apps/api/app';
-import { info } from '@tauri-apps/plugin-log';
 
 export default class Keyring
 {
     clientName: string;
-    
+
     server: string;
 
     constructor(clientName: string) {
@@ -43,7 +42,7 @@ export default class Keyring
         if (type == null || type == undefined) {
             type = "Password";
         }
-        
+
         if (type === "Secret") {
             return await setSecret(
                 btoa(this.server + "/" + key),

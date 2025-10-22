@@ -2,9 +2,11 @@ use crate::audio::types::{AudioDevice, AudioDeviceHost, AudioDeviceType, StreamC
 use crate::api::Api;
 use cpal::traits::{DeviceTrait, HostTrait};
 use serde_json::json;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tauri::Wry;
 use tauri_plugin_store::Store;
+use tokio::sync::RwLock;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -13,6 +15,7 @@ pub struct AppState {
     output_audio_device: AudioDevice,
     pub current_server: Option<String>,
     pub api_client: Option<Api>,
+    pub server_pool: Arc<RwLock<HashMap<String, Api>>>,
 }
 
 impl AppState {
@@ -26,17 +29,35 @@ impl AppState {
             ),
             current_server: AppState::get_current_server(&store),
             api_client: None,
+            server_pool: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
-    /// Initialize the API client with credentials
-    pub fn initialize_api_client(&mut self, endpoint: String, ca_cert: String, pem: String) {
-        self.api_client = Some(Api::new(endpoint, ca_cert, pem));
+    /// Initialize the API client with credentials - DUAL MODE
+    /// Sets both the default api_client (for backwards compatibility) and adds to server_pool
+    pub async fn initialize_api_client(&mut self, endpoint: String, ca_cert: String, pem: String) {
+        let api = Api::new(endpoint.clone(), ca_cert, pem);
+
+        // 1. Set as default (legacy - for single server / dashboard)
+        self.api_client = Some(api.clone());
+        self.current_server = Some(endpoint.clone());
+
+        // 2. Add to pool (new - for multi-server selection)
+        let mut pool = self.server_pool.write().await;
+        pool.insert(endpoint, api);
     }
 
     /// Get the API client, returning an error if not initialized
     pub fn get_api_client(&self) -> Result<&Api, String> {
         self.api_client.as_ref().ok_or_else(|| "API client not initialized. Please log in first.".to_string())
+    }
+
+    /// Get API client for a specific server from pool
+    pub async fn get_api_client_for_server(&self, endpoint: &str) -> Result<Api, String> {
+        let pool = self.server_pool.read().await;
+        pool.get(endpoint)
+            .cloned()
+            .ok_or_else(|| format!("No API client initialized for server: {}", endpoint))
     }
 
     /// Clear the API client (used during logout)

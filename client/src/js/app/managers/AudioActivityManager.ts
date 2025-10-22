@@ -21,10 +21,10 @@ export class AudioActivityManager {
     // Internal reactive stores
     private audioActivityStore: Writable<AudioActivityState>;
     private store: Store;
-    
+
     // Readonly exports for components
     public readonly audioActivity: Readable<AudioActivityState>;
-    
+
     // Internal state management
     private fadeTimeouts: Record<string, number> = {};
     private initialized = false;
@@ -48,10 +48,10 @@ export class AudioActivityManager {
         if (this.initialized) {
             return;
         }
-        
+
         this.initialized = true;
-        
-        try {            
+
+        try {
             this.eventUnlisten = await listen('audio-activity', (event) => {
                 const activityData = event.payload as Record<string, number>;
                 this.processActivityUpdate(activityData);
@@ -60,7 +60,7 @@ export class AudioActivityManager {
             error(`AudioActivityManager: Failed to initialize audio activity listener: ${e}`);
         }
     }
-    
+
     /**
      * Process incoming audio activity data
      */
@@ -69,14 +69,14 @@ export class AudioActivityManager {
 
         this.audioActivityStore.update(state => {
             const newState = { ...state };
-            
+
             Object.entries(activityData).forEach(([playerName, level]) => {
                 // Clear existing timeout for this player
                 if (this.fadeTimeouts[playerName]) {
                     clearTimeout(this.fadeTimeouts[playerName]);
                     delete this.fadeTimeouts[playerName];
                 }
-                
+
                 // Update player activity
                 newState.activeSpeakers[playerName] = {
                     level,
@@ -152,8 +152,6 @@ export class AudioActivityManager {
             delete newState.activeSpeakers[playerName];
             return newState;
         });
-
-        debug(`AudioActivityManager: Cleared activity for player: ${playerName}`);
     }
 
     /**
@@ -184,8 +182,6 @@ export class AudioActivityManager {
         this.audioActivityStore.set({
             activeSpeakers: {}
         });
-
-        debug('AudioActivityManager: Cleared all audio activity');
     }
 
     /**

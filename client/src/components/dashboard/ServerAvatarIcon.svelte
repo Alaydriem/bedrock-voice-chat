@@ -1,6 +1,7 @@
-<script lang="ts">  
+<script lang="ts">
   import ImageCache from "../../js/app/components/imageCache";
   import ImageCacheOptions from "../../js/app/components/imageCacheOptions";
+  import { Store } from '@tauri-apps/plugin-store';
 
   export let id: string;
   export let server: string;
@@ -15,27 +16,34 @@
   imageCacher.getImage(avatarImageCacheOptions).then((image) => {
     document.getElementById(id)?.querySelector("#avatar-logo")?.setAttribute("src", image);
   });
+
+  async function handleServerClick(event: Event) {
+    event.preventDefault();
+    const store = await Store.load('store.json', { autoSave: false });
+    store.set("current_server", server);
+    await store.save();
+    window.location.href = "/dashboard?server=" + server;
+  }
 </script>
 {#if active}
-    <a
+    <button
     id={id}
-    href="#"
     aria-label="{server}"
     data-tooltip="Dashboard {server}"
     data-placement="right"
     class="tooltip-main-sidebar flex size-11 items-center justify-center rounded-lg bg-primary/10 text-primary outline-hidden transition-colors duration-200 hover:bg-primary/20 focus:bg-primary/20 active:bg-primary/25 dark:bg-navy-600 dark:text-accent-light dark:hover:bg-navy-450 dark:focus:bg-navy-450 dark:active:bg-navy-450/90"
     >
         <img id="avatar-logo" class="rounded-full border-2 border-white dark:border-navy-700" src="" alt="avatar">
-    </a>
+    </button>
 {:else}
-    <a
+    <button
     id={id}
-    href="/dashboard?server={server}"
+    on:click={handleServerClick}
     aria-label="{server}"
     data-tooltip="Dashboard {server}"
     data-placement="right"
     class="tooltip-main-sidebar flex size-11 items-center justify-center rounded-lg outline-hidden transition-colors duration-200 hover:bg-primary/20 focus:bg-primary/20 active:bg-primary/25 dark:hover:bg-navy-300/20 dark:focus:bg-navy-300/20 dark:active:bg-navy-300/25"
     >
         <img id="avatar-logo" class="rounded-full border-2 border-white dark:border-navy-700" src="" alt="avatar">
-    </a>
-{/if}        
+    </button>
+{/if}

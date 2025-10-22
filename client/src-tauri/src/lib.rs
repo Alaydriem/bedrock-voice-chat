@@ -8,6 +8,7 @@ use tauri::Manager;
 use tauri_plugin_store::StoreExt;
 
 use audio::AudioStreamManager;
+use audio::recording::RecordingManager;
 use network::NetworkStreamManager;
 
 use once_cell::sync::Lazy;
@@ -76,6 +77,14 @@ pub fn run() {
             crate::commands::audio::is_stopped,
             crate::commands::audio::update_stream_metadata,
             crate::commands::audio::reset_asm,
+            crate::commands::audio::start_recording,
+            crate::commands::audio::stop_recording,
+            crate::commands::audio::get_recording_status,
+            crate::commands::audio::is_recording,
+            // Recordings Management
+            crate::commands::recordings::get_recording_sessions,
+            crate::commands::recordings::delete_recording_session,
+            crate::commands::recordings::export_recording,
             // Stream Information
             crate::commands::network::stop_network_stream,
             crate::commands::network::change_network_stream,
@@ -99,7 +108,7 @@ pub fn run() {
                     maximumresolution: *mut u32,
                     currentresolution: *mut u32,
                 ) -> i32);
-                
+
                 // Check current timer resolution before setting
                 let mut min_res = 0u32;
                 let mut max_res = 0u32;
@@ -108,15 +117,15 @@ pub fn run() {
                     NtQueryTimerResolution(&mut min_res, &mut max_res, &mut current_res);
                     let current_ms = current_res as f64 / 10_000.0;
                     log::info!("Current Windows timer resolution: {:.2}ms", current_ms);
-                    
+
                     // Set to 1ms
                     timeBeginPeriod(1);
-                    
+
                     // Verify the change
                     NtQueryTimerResolution(&mut min_res, &mut max_res, &mut current_res);
                     let new_ms = current_res as f64 / 10_000.0;
                     log::info!("Set Windows timer resolution to 1ms (actual: {:.2}ms)", new_ms);
-                    
+
                     if new_ms > 2.0 {
                         log::warn!("WARNING: Timer resolution is degraded ({:.2}ms). This will cause audio jitter!", new_ms);
                         log::warn!("Try closing other applications or restarting Windows.");
@@ -167,10 +176,18 @@ pub fn run() {
             app.manage(Arc::new(quic_producer));
             app.manage(Arc::new(quic_consumer));
 
+            // This is our RecordingManager
+            // It is responsible for managing recording sessions and owns internal producer/consumer channels
+            // for both the input and output stream
+            let recording_manager = RecordingManager::new(handle.clone());
+            app.manage(Arc::new(Mutex::new(recording_manager)));
+
+            // Create AudioStreamManager with RecordingManager reference
             let audio_stream = AudioStreamManager::new(
                 handle.state::<Arc<Sender<NetworkPacket>>>().inner().clone(),
                 handle.state::<Arc<Receiver<AudioPacket>>>().inner().clone(),
                 handle.clone(),
+                Some(handle.state::<Arc<Mutex<RecordingManager>>>().inner().clone()),
             );
             app.manage(Mutex::new(audio_stream));
 

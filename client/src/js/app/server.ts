@@ -1,4 +1,4 @@
-import { info, error, warn } from '@tauri-apps/plugin-log';
+import { info, error } from '@tauri-apps/plugin-log';
 import { Store } from '@tauri-apps/plugin-store';
 import { invoke } from "@tauri-apps/api/core";
 
@@ -12,22 +12,6 @@ import App from './app.js';
 
 import { type LoginResponse } from "../bindings/LoginResponse";
 
-// Utility function to get all keys from a type at runtime
-function getLoginResponseKeys(): (keyof LoginResponse)[] {
-  // Create a sample object that satisfies the LoginResponse type
-  const sample: Record<keyof LoginResponse, any> = {
-    gamerpic: null,
-    gamertag: null,
-    keypair: null,
-    signature: null,
-    certificate: null,
-    certificate_key: null,
-    certificate_ca: null,
-    quic_connect_string: null
-  };
-  return Object.keys(sample) as (keyof LoginResponse)[];
-}
-
 declare global {
   interface Window {
     App: any;
@@ -36,7 +20,6 @@ declare global {
 
 export default class Server extends App {
 
-  private avatarSize: number = 32;
   private keyring: Keyring | undefined;
 
   constructor() {
@@ -50,13 +33,15 @@ export default class Server extends App {
 
   async getCredentials(): Promise<LoginResponse | null> {
     const response: LoginResponse = {} as LoginResponse;
-    // Get keys from the LoginResponse type dynamically
-    const keys = getLoginResponseKeys();
+    const keys: (keyof LoginResponse)[] = [
+      'gamerpic', 'gamertag', 'keypair', 'signature',
+      'certificate', 'certificate_key', 'certificate_ca', 'quic_connect_string'
+    ];
 
     if (!this.keyring) {
       throw new Error("Keyring not initialized");
     }
-    
+
     for (const key of keys) {
       const storedValue = await this.keyring.get(key);
       if (key === "keypair" || key === "signature") {
@@ -77,22 +62,10 @@ export default class Server extends App {
     return response;
   }
 
-  async deleteCredentials(server: string): Promise<void> {
-    const keys = getLoginResponseKeys();
-    
-    if (!this.keyring) {
-      throw new Error("Keyring not initialized");
-    }
-
-    for (const key of keys) {
-      await this.keyring.delete(key);
-    }
-  }
-
   async initialize() {
     const store = await Store.load('store.json', { autoSave: false });
     let serverList = await store.get("server_list") as Array<{ server: string, player: string }>;
-    
+
     // If there are none, redirect to the login page.
     if (serverList == null || serverList.length === 0) {
       info("No servers found, redirecting to login page");
@@ -100,26 +73,24 @@ export default class Server extends App {
       return;
     }
 
-    this.keyring = await Keyring.new("servers");
-
     if (serverList.length === 1) {
-      // Ping the server and check that we're authenticated
+      // Single server: quick path using default client
       const server = serverList[0].server;
+      this.keyring = await Keyring.new("servers");
       await this.keyring.setServer(server);
-      
+
       const credentials = await this.getCredentials();
 
       if (!credentials) {
         error("No credentials found for server " + server + ", redirecting to login page");
-        // If there's no credentials, redirect to the login page.
         window.location.href="/login";
         return;
       }
 
-      await invoke("api_initialize_client", { 
+      await invoke("api_initialize_client", {
         endpoint: server,
         cert: credentials.certificate_ca,
-        pem: credentials.certificate + credentials.certificate_key 
+        pem: credentials.certificate + credentials.certificate_key
       });
 
       await invoke("api_ping")
@@ -128,24 +99,18 @@ export default class Server extends App {
         })
         .catch(async (e) => {
           error("Ping failed for server " + server + ": " + e);
-          // If the ping fails, clear the credentials and redirect to the login page.
-          this.deleteCredentials(server);
-          // Delete the item from server_list
-          serverList = serverList.filter((item) => item.server !== server);
-          await store.set("server_list", serverList);
-          await store.save();
           window.location.href = "/login?reauth=true&server=" + server;
         });
     } else {
-      // If there's more than one server
+      // Multiple servers: mount components, they handle themselves
       const container = document.getElementById('server-avatar-container');
       if (!container) {
-        console.error("Container for server avatars not found");
+        error("Container for server avatars not found");
         return;
       }
 
       container.innerHTML = '';
- 
+
       // Loop through the server list and create avatars
       serverList.forEach(({ server }) => {
         const bytes = new TextEncoder().encode(server);
@@ -153,7 +118,7 @@ export default class Server extends App {
           .map((byte) => String.fromCharCode(byte))
           .join('');
         const hash = murmurHash3.x86.hash128(byteString);
-        document.getElementById(hash)?.remove();
+
         mount(ServerAvatar, {
           target: container,
           props: {
@@ -162,91 +127,6 @@ export default class Server extends App {
           },
         });
       });
-
-      serverList.forEach(async ({ server }) => {
-        const bytes = new TextEncoder().encode(server);
-        const byteString = Array.from(bytes)
-          .map((byte) => String.fromCharCode(byte))
-          .join('');
-        const hash = murmurHash3.x86.hash128(byteString);
-        const card = document.getElementById(hash);
-        const button = card?.querySelector("button");
-        if (!button) { return; }
-
-        this.keyring!.setServer(server);
-        const credentials = await this.getCredentials();
-        if (!credentials) {
-          error("No credentials found for server " + server + ", prompting for re-authentication");
-          button.removeAttribute("disabled");
-          button.querySelector(".spinner")?.remove();
-          button.classList.remove("text-grey");
-          button.classList.remove("bg-primary");
-          button.classList.add("bg-error");
-          button.classList.add("text-white");
-          const message = button.querySelector("#message");
-          if (message) {
-            message.innerHTML = "Re-authenticate";
-          }
-
-          button.addEventListener("click", async () => {
-            // If there's no credentials, redirect to the login page.
-            window.location.href="/login?reauth=true&server=" + server;
-          });
-          return;
-        }
-
-        await invoke("api_initialize_client", { 
-          endpoint: server,
-          cert: credentials.certificate_ca,
-          pem: credentials.certificate + credentials.certificate_key 
-        });
-
-        await invoke("api_ping")
-          .then(async (response: any) => {
-            button.removeAttribute("disabled");
-            button.querySelector(".spinner")?.remove();
-            const message = button.querySelector("#message");
-            button.classList.remove("text-grey");
-            button.classList.remove("bg-primary");
-            button.classList.add("bg-success");
-            button.classList.add("text-white");
-            if (message) {
-              message.innerHTML = "Connect!";
-            }
-
-            button.addEventListener("click", async () => {
-              // If there's no credentials, redirect to the login page.
-              store.set("current_server", server);
-              await store.save();
-              window.location.href="/dashboard?server=" + server;
-            });
-          })
-          .catch(async (e) => {
-            error("Ping failed for server " + server + ": " + e);
-            button.removeAttribute("disabled");
-            button.querySelector(".spinner")?.remove();
-            button.classList.remove("text-grey");
-            button.classList.remove("bg-primary");
-            button.classList.add("bg-error");
-            button.classList.add("text-white");
-            const message = button.querySelector("#message");
-            if (message) {
-              message.innerHTML = "Re-authenticate";
-            }
-
-            button.addEventListener("click", async () => {
-              // If there's no credentials, redirect to the login page.
-              window.location.href="/login?reauth=true&server=" + server;
-            });
-          });
-        });
-      }
-      
-        // The ping all of them and show the ones that are connectable in color vs b/w
-        // If the user clicks on a colored one
-            // Go to the dashboard with the current server set
-        
-        // If the user clicks on a b/w one
-            // Redirect to the login page with the domain pre-populated, then immediately jump to the login form
+    }
   }
 }

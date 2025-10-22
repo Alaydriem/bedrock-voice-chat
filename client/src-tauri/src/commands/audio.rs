@@ -1,5 +1,5 @@
 use crate::audio::types::{AudioDevice, AudioDeviceType};
-use crate::audio::AudioPacket;
+use crate::audio::{AudioPacket, RecordingManager};
 use crate::network::NetworkPacket;
 use crate::{structs::app_state::AppState, AudioStreamManager};
 use flume::{Receiver, Sender};
@@ -55,9 +55,9 @@ pub(crate) async fn change_audio_device(
     let input_device = state.get_audio_device(AudioDeviceType::InputDevice);
     let output_device = state.get_audio_device(AudioDeviceType::OutputDevice);
 
-    asm_active.init(input_device.clone());
+    asm_active.init(input_device.clone()).await;
     _ = asm_active.start(input_device.clone().io).await;
-    asm_active.init(output_device.clone());
+    asm_active.init(output_device.clone()).await;
     _ = asm_active.start(output_device.clone().io).await;
 
     drop(asm_active);
@@ -96,6 +96,7 @@ pub(crate) async fn reset_asm(
         handle.state::<Arc<Sender<NetworkPacket>>>().inner().clone(),
         handle.state::<Arc<Receiver<AudioPacket>>>().inner().clone(),
         handle.clone(),
+        Some(handle.state::<Arc<tauri::async_runtime::Mutex<crate::audio::recording::RecordingManager>>>().inner().clone()),
     )));
 
     Ok(())
@@ -182,4 +183,70 @@ pub(crate) async fn is_stopped(
         Ok(status) => Ok(status),
         Err(_) => Err(()),
     }
+}
+
+/// Start recording session
+#[tauri::command]
+pub(crate) async fn start_recording(
+    app: AppHandle,
+    recording_manager: State<'_, Arc<Mutex<RecordingManager>>>,
+) -> Result<String, String> {
+    let current_player = extract_current_player(&app).await
+        .ok_or_else(|| "No current player set for recording".to_string())?;
+
+    let mut manager = recording_manager.lock().await;
+    match manager.start_recording(current_player).await {
+        Ok(_) => {
+            if let Some(session_id) = manager.current_session_id() {
+                Ok(session_id)
+            } else {
+                Err("Recording started but no session ID available".to_string())
+            }
+        },
+        Err(e) => Err(format!("Failed to start recording: {:?}", e)),
+    }
+}
+
+/// Stop current recording session
+#[tauri::command]
+pub(crate) async fn stop_recording(
+    recording_manager: State<'_, Arc<Mutex<RecordingManager>>>,
+) -> Result<(), String> {
+    let mut manager = recording_manager.lock().await;
+    match manager.stop_recording().await {
+        Ok(_) => Ok(()),
+        Err(e) => Err(format!("Failed to stop recording: {:?}", e)),
+    }
+}
+
+/// Get current recording status
+#[tauri::command]
+pub(crate) async fn get_recording_status(
+    recording_manager: State<'_, Arc<Mutex<RecordingManager>>>,
+) -> Result<serde_json::Value, String> {
+    let manager = recording_manager.lock().await;
+    let is_recording = manager.is_recording();
+    let session_id = manager.current_session_id();
+
+    Ok(serde_json::json!({
+        "is_recording": is_recording,
+        "session_id": session_id
+    }))
+}
+
+/// Check if recording is currently active (simple boolean query)
+#[tauri::command]
+pub(crate) async fn is_recording(
+    recording_manager: State<'_, Arc<Mutex<RecordingManager>>>,
+) -> Result<bool, String> {
+    let manager = recording_manager.lock().await;
+    Ok(manager.is_recording())
+}
+
+/// Helper function to extract current player from app metadata
+async fn extract_current_player(app: &AppHandle) -> Option<String> {
+    app.store("store.json").ok()?
+        .get("current_player")?
+        .as_str()
+        .map(String::from)
 }

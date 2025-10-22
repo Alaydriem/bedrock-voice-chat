@@ -22,18 +22,15 @@ use rocket_db_pools::deadpool_redis::redis::AsyncCommands;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 use sea_orm_rocket::Connection as SeaOrmConnection;
 
+const PLAYERS_PER_CHUNK: usize = 30;
+
 /// Stores player position data and online status from Minecraft Bedrock into Redis
 #[post("/mc", data = "<positions>")]
 pub async fn update_position(
-    // Guard the request so it's only accepted if we have a valid access token
     _access_token: MCAccessToken,
-    // Database connection
     db: SeaOrmConnection<'_, AppDb>,
-    // The player position data
     positions: Json<Vec<common::Player>>,
-    // Configuration
     config: &State<ApplicationConfigServer>,
-    // Webhook receiver, which is how we communicate with the QUIC server
     webhook_receiver: &State<WebhookReceiver>,
 ) -> Status {
     let conn = db.into_inner();
@@ -45,9 +42,13 @@ pub async fn update_position(
         }
     };
 
-    // Iterate through each of the players
-    for player in positions.0.clone() {
+    let mut player_buffer = Vec::with_capacity(PLAYERS_PER_CHUNK);
+
+    // Single loop through all players
+    for player in positions.0 {
         let player_name = &player.name;
+
+        // Database operations
         match player::Entity::find()
             .filter(player::Column::Gamertag.eq(player_name))
             .one(conn)
@@ -75,7 +76,6 @@ pub async fn update_position(
                             }
                         };
 
-                    // We didn't get a record, so create one
                     let p = player::ActiveModel {
                         id: ActiveValue::NotSet,
                         gamertag: ActiveValue::Set(Some(player_name.clone())),
@@ -89,7 +89,6 @@ pub async fn update_position(
                         updated_at: ActiveValue::Set(Utc::now().timestamp() as u32),
                     };
 
-                    // Insert the record
                     match p.insert(conn).await {
                         Ok(_) => {}
                         Err(e) => {
@@ -104,14 +103,29 @@ pub async fn update_position(
             },
             Err(e) => {
                 tracing::error!("Failed to connect to database: {}", e.to_string());
-
-                // There's nothing we can do for this player if this happens, continue
                 continue;
             }
         }
+
+        // Add player to buffer
+        player_buffer.push(player);
+
+        // Send chunk when buffer is full
+        if player_buffer.len() >= PLAYERS_PER_CHUNK {
+            send_player_chunk(&player_buffer, webhook_receiver).await;
+            player_buffer.clear();
+        }
     }
 
-    // Broadcast the player position to QUIC
+    // Send any remaining players
+    if !player_buffer.is_empty() {
+        send_player_chunk(&player_buffer, webhook_receiver).await;
+    }
+
+    Status::Ok
+}
+
+async fn send_player_chunk(players: &[common::Player], webhook_receiver: &WebhookReceiver) {
     let packet = QuicNetworkPacket {
         owner: Some(PacketOwner {
             name: String::from("api"),
@@ -119,15 +133,13 @@ pub async fn update_position(
         }),
         packet_type: PacketType::PlayerData,
         data: QuicNetworkPacketData::PlayerData(PlayerDataPacket {
-            players: positions.0,
+            players: players.to_vec(),
         }),
     };
 
-    // Send packet to QUIC server via webhook receiver
     if let Err(e) = webhook_receiver.send_packet(packet).await {
-        tracing::error!("Failed to send packet to QUIC server: {}", e);
+        tracing::error!("Failed to send packet chunk to QUIC server: {}", e);
     }
-    return Status::Ok;
 }
 
 #[get("/mc")]
@@ -141,15 +153,11 @@ pub async fn position(
     let player_cache = cache_manager.get_player_cache();
 
     // Collect all cached players
-    let players = Vec::new();
+    let mut players = Vec::new();
 
-    // Unfortunately, moka doesn't have a direct "get all values" method
-    // For now, we'll return an empty list and log this limitation
-    // TODO: Consider maintaining a separate list of active players or using a different cache structure
-    tracing::info!(
-        "Position endpoint called - cache contains {} entries",
-        player_cache.entry_count()
-    );
+    for (_, player) in player_cache.iter() {
+        players.push(player.clone());
+    }
 
     // Return the collected players
     Json(players)
