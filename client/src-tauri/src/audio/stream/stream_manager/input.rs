@@ -7,7 +7,7 @@ use audio_gate::NoiseGate;
 use common::structs::audio::NoiseGateSettings;
 use common::structs::packet::{AudioFramePacket, QuicNetworkPacket, QuicNetworkPacketData};
 use common::PlayerData;
-use log::{error, warn};
+use log::{error, info, debug, warn};
 use once_cell::sync::Lazy;
 use opus::Bitrate;
 use rodio::cpal::traits::StreamTrait as CpalStreamTrait;
@@ -15,7 +15,6 @@ use rodio::DeviceTrait;
 use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc::{self, Receiver, SyncSender},
         Arc, Mutex,
     },
     time::Duration,
@@ -110,7 +109,7 @@ impl common::traits::StreamTrait for InputStream {
 
         let mut jobs = vec![];
 
-        let (producer, consumer) = mpsc::sync_channel(1000);
+        let (producer, consumer) = flume::bounded::<AudioFrame>(1000);
 
         // Get current player name from store before starting (fail fast if not set)
         let store = self.app_handle.store("store.json")
@@ -165,7 +164,7 @@ impl InputStream {
     // Produces raw PCM data and sends it to the network consumer
     fn listener(
         &mut self,
-        producer: SyncSender<AudioFrame>,
+        producer: flume::Sender<AudioFrame>,
         shutdown: Arc<AtomicBool>,
     ) -> Result<JoinHandle<()>, anyhow::Error> {
         match self.device.clone() {
@@ -213,7 +212,15 @@ impl InputStream {
                                 warn!("an error occured on the stream: {}", error);
                             };
 
+                            let mut callback_count = 0u64;
+                            let mut sent_count = 0u64;
+
                             let mut process_fn = move |data: &[f32]| {
+                                callback_count += 1;
+                                if callback_count == 1 || callback_count % 100 == 0 {
+                                    debug!("[INPUT] CPAL callback #{}, sent {} frames so far", callback_count, sent_count);
+                                }
+
                                 let pcm: Vec<f32>;
                                 // If the noise gate is enabled, process data through it
                                 if USE_NOISE_GATE.load(Ordering::Relaxed) {
@@ -258,9 +265,15 @@ impl InputStream {
                                     let audio_frame_data = AudioFrameData { pcm };
 
                                     match producer.try_send(AudioFrame::F32(audio_frame_data)) {
-                                        Ok(()) => {}
+                                        Ok(()) => {
+                                            sent_count += 1;
+                                        }
                                         Err(_e) => {}
                                     }
+                                } else if callback_count % 100 == 0 {
+                                    debug!("[INPUT] Skipping send - pcm_sendable={}, muted={}",
+                                          pcm_sendable,
+                                          MUTE_INPUT_STREAM.load(Ordering::Relaxed));
                                 }
                             };
 
@@ -364,7 +377,7 @@ impl InputStream {
 
     fn sender(
         &mut self,
-        consumer: Receiver<AudioFrame>,
+        consumer: flume::Receiver<AudioFrame>,
         shutdown: Arc<AtomicBool>,
         current_player_name: String,
     ) -> Result<JoinHandle<()>, anyhow::Error> {
@@ -401,7 +414,6 @@ impl InputStream {
                         };
 
                         let bus = self.bus.clone();
-                        let notify = crate::AUDIO_INPUT_NETWORK_NOTIFY.clone();
                         let recording_producer = self.recording_producer.clone();
 
                         let handle = tokio::spawn(async move {
@@ -414,21 +426,19 @@ impl InputStream {
                             }
                             let tx = bus.clone();
                             #[allow(irrefutable_let_patterns)]
-                            while let sample = consumer.recv() {
+                            while let Ok(sample) = consumer.recv_async().await {
                                 if shutdown.load(Ordering::Relaxed) {
                                     warn!("Audio Input stream, quic sender received shutdown signal, and is now terminating.");
                                     break;
                                 }
 
-                                match sample {
-                                    Ok(sample) => {
-                                        let mut raw_sample = match sample.f32() {
-                                            Some(sample) => sample.pcm,
-                                            None => continue,
-                                        };
+                                let mut raw_sample = match sample.f32() {
+                                    Some(sample) => sample.pcm,
+                                    None => continue,
+                                };
 
-                                        data_stream.append(&mut raw_sample);
-                                        while data_stream.len() >= (BUFFER_SIZE as usize * 4) {
+                                data_stream.append(&mut raw_sample);
+                                while data_stream.len() >= BUFFER_SIZE as usize {
                                             let sample_to_process: Vec<f32> = data_stream
                                                 .drain(0..BUFFER_SIZE as usize)
                                                 .collect();
@@ -475,17 +485,8 @@ impl InputStream {
                                             }
                                         };
 
-                                            if let Err(e) = tx.send_async(packet).await {
-                                                error!("Sending audio frame to Quic network thread failed: {:?}", e);
-                                            } else {
-                                                notify.notify_waiters();
-                                                notify.notified().await;
-                                            }
-                                        }
-                                    }
-                                    Err(_e) => {
-                                        // We're intentionaly supressing this error because the channel could not
-                                        // yet be established -- since this is syncronous this'll throw constantly otherwise
+                                    if let Err(e) = tx.send_async(packet).await {
+                                        error!("Sending audio frame to Quic network thread failed: {:?}", e);
                                     }
                                 }
                             }

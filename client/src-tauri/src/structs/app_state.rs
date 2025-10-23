@@ -33,7 +33,7 @@ impl AppState {
         }
     }
 
-    /// Initialize the API client with credentials - DUAL MODE
+    /// Initialize the API client with credentials
     /// Sets both the default api_client (for backwards compatibility) and adds to server_pool
     pub async fn initialize_api_client(&mut self, endpoint: String, ca_cert: String, pem: String) {
         let api = Api::new(endpoint.clone(), ca_cert, pem);

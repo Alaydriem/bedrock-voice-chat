@@ -221,7 +221,7 @@ impl QuicNetworkPacket {
 
                         // Check if both players are in the same channel using optimized approach
                         let receiver_name = &recipient.name;
-                        
+
                         // Get channels for both players concurrently
                         let (sender_channels, receiver_channels) = tokio::join!(
                             Self::get_player_channels(current_player, &channel_membership),
@@ -512,7 +512,7 @@ impl ChannelEventPacket {
         creator: Option<String>,
     ) -> Self {
         use std::time::{SystemTime, UNIX_EPOCH};
-        
+
         Self {
             event,
             name: player_name,

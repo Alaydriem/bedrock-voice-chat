@@ -82,8 +82,6 @@ impl common::traits::StreamTrait for OutputStream {
                 Err(e) => { error!("Failed to serialize DEBUG packet: {:?}", e); }
             }
 
-            let notify = crate::AUDIO_INPUT_NETWORK_NOTIFY.clone();
-            let mut buffer: Vec<QuicNetworkPacket> = Vec::new();
             let mut error_count = 0;
             #[allow(irrefutable_let_patterns)]
             while let packet = rx.recv_async().await {
@@ -95,34 +93,31 @@ impl common::traits::StreamTrait for OutputStream {
                         }
 
                         let mut quic_network_packet = network_packet.data;
-
                         quic_network_packet.owner = packet_owner.clone();
-                        buffer.push(quic_network_packet);
 
-                        // 4 packets should be 20ms of audio
-                        while buffer.len() >= 4 {
-                            for pkt in buffer.drain(..) {
-                                match pkt.to_datagram() {
-                                    Ok(bytes) => {
-                                        let payload = Bytes::from(bytes);
-                                        let send_res = connection.datagram_mut(|dg: &mut s2n_quic::provider::datagram::default::Sender| dg.send_datagram(payload.clone()));
-                                        if let Err(e) = send_res { error_count += 1; if error_count == 100 { _ = app_handle.emit(crate::events::event::notification::EVENT_NOTIFICATION, crate::events::event::notification::Notification::new(
-                                                "High Network Datagram Errors!".to_string(),
-                                                "BVC is currently having difficulties connecting to the server. Audio packets may be delayed or out of sync. A restart is recommended.".to_string(),
-                                                Some("error".to_string()),
-                                                Some(e.to_string()),
-                                                None,
-                                                None
-                                            )); }
-                                        } else { error_count = 0; }
+                        // Send immediately for real-time performance
+                        match quic_network_packet.to_datagram() {
+                            Ok(bytes) => {
+                                let payload = Bytes::from(bytes);
+                                let send_res = connection.datagram_mut(|dg: &mut s2n_quic::provider::datagram::default::Sender| dg.send_datagram(payload.clone()));
+                                if let Err(e) = send_res {
+                                    error_count += 1;
+                                    if error_count == 100 {
+                                        _ = app_handle.emit(crate::events::event::notification::EVENT_NOTIFICATION, crate::events::event::notification::Notification::new(
+                                            "High Network Datagram Errors!".to_string(),
+                                            "BVC is currently having difficulties connecting to the server. Audio packets may be delayed or out of sync. A restart is recommended.".to_string(),
+                                            Some("error".to_string()),
+                                            Some(e.to_string()),
+                                            None,
+                                            None
+                                        ));
                                     }
-                                    Err(e) => { error!("{}", e.to_string()); }
+                                } else {
+                                    error_count = 0;
                                 }
                             }
+                            Err(e) => { error!("{}", e.to_string()); }
                         }
-
-                        notify.notify_waiters();
-                        notify.notified().await;
                     }
                     Err(e) => {
                         error!("QuicNetworkPacket was not valid? {}", e.to_string());

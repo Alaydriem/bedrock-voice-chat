@@ -12,7 +12,7 @@ pub(crate) async fn server_login(
     redirect: String,
 ) -> Result<LoginResponse, bool> {
     let login_result = login::server_login(server.clone(), code, redirect).await;
-    
+
     // If login is successful, initialize the API client
     if let Ok(ref response) = login_result {
         let mut state = app_state.lock().await;
@@ -20,9 +20,9 @@ pub(crate) async fn server_login(
             server,
             response.certificate_ca.clone(),
             response.certificate.clone() + &response.certificate_key.clone(),
-        );
+        ).await;
     }
-    
+
     login_result
 }
 
@@ -32,21 +32,21 @@ pub(crate) async fn logout(
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
     let mut state = app_state.lock().await;
-    
+
     // Get the current server before clearing it
     let current_server = state.current_server.clone();
-    
+
     // Clear the API client
     state.clear_api_client();
-    
+
     // Get store and clear current session data
     let store = app_handle.store("store.json")
         .map_err(|e| format!("Failed to access store: {}", e))?;
-    
+
     // Remove current_server and current_player from store
     store.delete("current_server");
     store.delete("current_player");
-    
+
     // Remove the current server from server_list
     if let Some(current_server_url) = current_server {
         if let Some(server_list_value) = store.get("server_list") {
@@ -57,7 +57,7 @@ pub(crate) async fn logout(
                         .and_then(|v| v.as_str())
                         .map_or(true, |server_url| server_url != current_server_url)
                 });
-                
+
                 // Save the updated server list
                 let updated_list = serde_json::to_value(server_list)
                     .map_err(|e| format!("Failed to serialize server list: {}", e))?;
@@ -65,12 +65,12 @@ pub(crate) async fn logout(
             }
         }
     }
-    
+
     // Save the store
     store.save().map_err(|e| format!("Failed to save store: {}", e))?;
-    
+
     // Clear the current_server in AppState
     state.current_server = None;
-    
+
     Ok(())
 }

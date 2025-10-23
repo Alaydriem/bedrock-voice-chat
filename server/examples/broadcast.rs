@@ -11,6 +11,7 @@ use hound;
 use rodio::Decoder;
 use s2n_quic::{client::Connect, Client, Connection};
 use std::io::BufWriter;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use std::{error::Error, net::SocketAddr};
@@ -43,11 +44,18 @@ impl Iterator for Spiral {
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = std::env::args().collect();
+
+    if args.len() < 6 {
+        eprintln!("Usage: {} <player_name> <audio_file> <server_addr> <server_name> <api_token>", args[0]);
+        std::process::exit(1);
+    }
+
     let result = client(
         args[1].to_string().parse::<String>().unwrap(),
         args[2].to_string().parse::<String>().unwrap(),
         args[3].to_string().parse::<String>().unwrap(),
         args[4].to_string().parse::<String>().unwrap(),
+        args[5].to_string(), // API token
     )
     .await;
     println!("{:?}", result);
@@ -58,6 +66,7 @@ async fn client(
     source_file: String,
     socket_addr: String,
     server_name: String,
+    api_token: String,
 ) -> Result<(), Box<dyn Error>> {
     _ = s2n_quic::provider::tls::rustls::rustls::crypto::aws_lc_rs::default_provider()
         .install_default();
@@ -88,14 +97,80 @@ async fn client(
 
     println!("I am client: {}", id);
     let addr: SocketAddr = socket_addr.parse()?;
-    let connect = Connect::new(addr).with_server_name(server_name);
+    let connect = Connect::new(addr).with_server_name(server_name.clone());
     let mut connection = client.connect(connect).await?;
 
     connection.keep_alive(true)?;
 
     let connection = Arc::new(connection);
 
+    // Create shutdown signal for API update task
+    let api_shutdown = Arc::new(AtomicBool::new(false));
+
     let mut tasks = Vec::new();
+
+    // API Position Update Task
+    tasks.push(tokio::spawn({
+        let api_shutdown = api_shutdown.clone();
+        let player_name = id.clone();
+        let api_token_clone = api_token.clone();
+        let server_name_clone = server_name.clone();
+
+        async move {
+            // Build API URL using server_name instead of socket address
+            let api_url = format!("https://{}/api/mc", server_name_clone);
+
+            let client = reqwest::Client::builder()
+                .danger_accept_invalid_certs(true) // For self-signed certs
+                .build()
+                .unwrap();
+
+            println!("Starting API position updates to: {}", api_url);
+
+            while !api_shutdown.load(Ordering::Relaxed) {
+                let payload = serde_json::json!([{
+                    "name": player_name,
+                    "dimension": "overworld",
+                    "coordinates": {
+                        "x": 336.0,
+                        "y": 78.0,
+                        "z": -690.0
+                    },
+                    "orientation": {
+                        "x": 0,
+                        "y": 120
+                    },
+                    "deafen": false
+                }]);
+
+                match client
+                    .post(&api_url)
+                    .header("X-MC-Access-Token", &api_token_clone)
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json")
+                    .header("User-Agent", "BVC-Broadcast-Client/0.1")
+                    .json(&payload)
+                    .send()
+                    .await
+                {
+                    Ok(response) => {
+                        if !response.status().is_success() {
+                            eprintln!("[API] Position update failed: {}", response.status());
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("[API] Request error: {}", e);
+                    }
+                }
+
+                // Wait 5 seconds before next update
+                tokio::time::sleep(Duration::from_secs(5)).await;
+            }
+
+            println!("[API] Position update task terminated");
+        }
+    }));
+
     tasks.push(tokio::spawn({
         let connection = connection.clone();
         async move {
@@ -113,13 +188,50 @@ async fn client(
             let writer = BufWriter::new(file);
             let mut wav_writer = hound::WavWriter::new(writer, spec).unwrap();
 
+            // Simple gap detection: track last packet timestamp
+            let mut last_packet_timestamp: Option<i64> = None;
+            let expected_packet_interval_ms = 10; // Packets arrive every ~10ms
+            let gap_threshold_ms = 50; // Detect gaps > 50ms (indicates silence/pause)
+
+            println!("Waiting for incoming datagrams...");
             while let Ok(bytes) = recv_one_datagram(&connection).await {
                 match QuicNetworkPacket::from_datagram(&bytes) {
                     Ok(packet) => {
+                        if count < 5 {
+                            println!("Packet {} type: {:?}", count, packet.packet_type);
+                        }
                         if let PacketType::AudioFrame = packet.packet_type {
                             let data: Result<AudioFramePacket, ()> =
                                 packet.data.to_owned().try_into();
                             if let Ok(frame) = data {
+                                let packet_timestamp = frame.timestamp();
+
+                                // Check for gap between packets
+                                if let Some(last_ts) = last_packet_timestamp {
+                                    let time_since_last = packet_timestamp - last_ts;
+                                    let gap_ms = time_since_last - expected_packet_interval_ms;
+
+                                    if gap_ms > gap_threshold_ms {
+                                        println!(
+                                            "[GAP DETECTED] Packet {}: {}ms gap detected, inserting {:.2}ms of silence",
+                                            count,
+                                            time_since_last,
+                                            gap_ms
+                                        );
+
+                                        // Insert silence: gap_ms * 48 samples/ms, stereo (2 channels)
+                                        let silence_samples_mono = (gap_ms as f32 * 48.0) as usize;
+                                        for _ in 0..silence_samples_mono {
+                                            // Write silence to both L and R channels
+                                            let _ = wav_writer.write_sample(0.0f32);
+                                            let _ = wav_writer.write_sample(0.0f32);
+                                        }
+                                    }
+                                }
+
+                                last_packet_timestamp = Some(packet_timestamp);
+
+                                // Decode and write actual audio data
                                 let mut out = vec![0.0; 960];
                                 let out_len =
                                     match decoder.decode_float(&frame.data, &mut out, false) {
@@ -136,12 +248,13 @@ async fn client(
                                             println!("Wav write sample error: {:?}", e);
                                         }
                                     }
+
+                                    count += 1;
                                     if count == 1000 {
                                         break;
                                     }
-                                    count += 1;
                                     if count % 100 == 0 {
-                                        println!("{:?}", count);
+                                        println!("Processed {} packets", count);
                                     }
                                 }
                             }
@@ -155,7 +268,7 @@ async fn client(
                     }
                 }
             }
-            println!("Receiving loop ended");
+            println!("Receiving loop ended - processed {} packets", count);
 
             if let Err(e) = wav_writer.finalize() {
                 println!("Wav write final error: {:?}", e);
@@ -167,6 +280,7 @@ async fn client(
 
     tasks.push(tokio::spawn({
         let connection = connection.clone();
+        let api_shutdown = api_shutdown.clone();
         async move {
             // Windows high-resolution timing setup
             windows_targets::link!("winmm.dll" "system" fn timeBeginPeriod(uperiod: u32) -> u32);
@@ -235,9 +349,9 @@ async fn client(
                             s.clone(),
                             48000,
                             Some(common::Coordinate {
-                                x: 335.0,
+                                x: 336.0,
                                 y: 78.0,
-                                z: -689.0,
+                                z: -690.0,
                             }),
                             None,
                             Some(common::Dimension::Overworld),
@@ -248,6 +362,9 @@ async fn client(
 
                 match packet.to_datagram() {
                     Ok(rs) => {
+                        if packet_count == 0 {
+                            println!("Sending first audio packet...");
+                        }
                         let payload = Bytes::from(rs);
                         let send_res = connection.datagram_mut(
                             |dg: &mut s2n_quic::provider::datagram::default::Sender| {
@@ -347,6 +464,9 @@ async fn client(
 
             tokio::time::sleep(Duration::from_secs(30)).await;
             println!("Send task complete");
+
+            // Signal API update task to shutdown
+            api_shutdown.store(true, Ordering::Relaxed);
 
             // Clean up Windows timer resolution
             unsafe {
