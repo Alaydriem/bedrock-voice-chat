@@ -236,60 +236,61 @@ impl OutputStream {
                         #[allow(irrefutable_let_patterns)]
                         while let packet = bus.recv_async().await {
                             if shutdown.load(Ordering::Relaxed) {
-                                warn!("Output listener handler stopped.");
                                 break;
                             }
 
                             match packet {
-                                Ok(packet) => match packet.data.get_packet_type() {
-                                    PacketType::AudioFrame => {
-                                        OutputStream::handle_audio_data(
-                                            producer.clone(),
-                                            &packet.data,
-                                            metadata.clone(),
-                                            players.clone(),
-                                            player_gain_cache.clone(),
-                                            player_presence.clone(),
-                                            client_id_to_player.clone(),
-                                            Some(&app_handle.clone()),
-                                            recording_producer.as_ref().map(|p| (**p).clone()),
-                                        )
-                                        .await
+                                Ok(packet) => {
+
+                                    match packet.data.get_packet_type() {
+                                        PacketType::AudioFrame => {
+                                            OutputStream::handle_audio_data(
+                                                producer.clone(),
+                                                &packet.data,
+                                                metadata.clone(),
+                                                players.clone(),
+                                                player_gain_cache.clone(),
+                                                player_presence.clone(),
+                                                client_id_to_player.clone(),
+                                                Some(&app_handle.clone()),
+                                                recording_producer.as_ref().map(|p| (**p).clone()),
+                                            )
+                                            .await
+                                        }
+                                        PacketType::PlayerData => {
+                                            OutputStream::handle_player_data(
+                                                players.clone(),
+                                                &packet.data,
+                                            )
+                                            .await
+                                        }
+                                        PacketType::ServerError => {
+                                            OutputStream::handle_server_error(
+                                                &packet.data,
+                                                Some(&app_handle.clone()),
+                                            )
+                                            .await
+                                        }
+                                        PacketType::PlayerPresence => {
+                                            OutputStream::handle_player_presence(
+                                                &packet.data,
+                                                metadata.clone(),
+                                                Some(&app_handle.clone()),
+                                                player_presence.clone(),
+                                            )
+                                            .await
+                                        }
+                                        PacketType::ChannelEvent => {
+                                            OutputStream::handle_channel_event(
+                                                &packet.data,
+                                                Some(&app_handle.clone()),
+                                            )
+                                            .await
+                                        }
+                                        _ => {}
                                     }
-                                    PacketType::PlayerData => {
-                                        OutputStream::handle_player_data(
-                                            players.clone(),
-                                            &packet.data,
-                                        )
-                                        .await
-                                    }
-                                    PacketType::ServerError => {
-                                        OutputStream::handle_server_error(
-                                            &packet.data,
-                                            Some(&app_handle.clone()),
-                                        )
-                                        .await
-                                    }
-                                    PacketType::PlayerPresence => {
-                                        OutputStream::handle_player_presence(
-                                            &packet.data,
-                                            metadata.clone(),
-                                            Some(&app_handle.clone()),
-                                            player_presence.clone(),
-                                        )
-                                        .await
-                                    }
-                                    PacketType::ChannelEvent => {
-                                        OutputStream::handle_channel_event(
-                                            &packet.data,
-                                            Some(&app_handle.clone()),
-                                        )
-                                        .await
-                                    }
-                                    _ => {}
                                 },
-                                Err(e) => {
-                                    warn!("Failed to receive packet: {:?}", e);
+                                Err(_e) => {
                                 }
                             }
                         }

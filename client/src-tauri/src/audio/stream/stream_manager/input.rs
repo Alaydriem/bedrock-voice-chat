@@ -258,11 +258,20 @@ impl InputStream {
                                     // Send data through the gate normally
                                     pcm = data.to_vec();
                                 }
-                                let pcm_sendable = pcm.iter().all(|&e| f32::abs(e) == 0.0);
+
+                                let mono_pcm = if device_config.channels == 2 {
+                                    pcm.chunks_exact(2)
+                                        .map(|lr| (lr[0] + lr[1]) / 2.0)
+                                        .collect()
+                                } else {
+                                    pcm
+                                };
+
+                                let pcm_sendable = mono_pcm.iter().all(|&e| f32::abs(e) == 0.0);
 
                                 // Only send audio frame data if our filters haven't cut data out
                                 if !pcm_sendable && !MUTE_INPUT_STREAM.load(Ordering::Relaxed) {
-                                    let audio_frame_data = AudioFrameData { pcm };
+                                    let audio_frame_data = AudioFrameData { pcm: mono_pcm };
 
                                     match producer.try_send(AudioFrame::F32(audio_frame_data)) {
                                         Ok(()) => {

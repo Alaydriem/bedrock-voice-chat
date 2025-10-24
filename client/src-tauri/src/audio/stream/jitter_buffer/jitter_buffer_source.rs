@@ -289,7 +289,7 @@ impl Source for JitterBufferSource {
     }
 
     fn channels(&self) -> u16 {
-        1 // Mono
+        1
     }
 
     fn sample_rate(&self) -> u32 {

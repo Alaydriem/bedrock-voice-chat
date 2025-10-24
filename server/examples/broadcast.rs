@@ -242,8 +242,14 @@ async fn client(
                                         }
                                     };
                                 if out_len > 0 {
-                                    for &sample in &out {
+                                    // Decode is mono (960 samples), but WAV is stereo - duplicate each sample to L and R
+                                    for &sample in &out[..out_len] {
                                         let clamped_sample = sample.clamp(-1.0, 1.0);
+                                        // Write to Left channel
+                                        if let Err(e) = wav_writer.write_sample(clamped_sample) {
+                                            println!("Wav write sample error: {:?}", e);
+                                        }
+                                        // Write to Right channel (same as left for mono source)
                                         if let Err(e) = wav_writer.write_sample(clamped_sample) {
                                             println!("Wav write sample error: {:?}", e);
                                         }
@@ -306,9 +312,7 @@ async fn client(
             let client_id: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
 
             let mut encoder =
-                opus::Encoder::new(48000, opus::Channels::Stereo, opus::Application::Voip).unwrap();
-
-            _ = encoder.set_force_channels(Some(opus::Channels::Mono));
+                opus::Encoder::new(48000, opus::Channels::Mono, opus::Application::Voip).unwrap();
             _ = encoder.set_bitrate(opus::Bitrate::Bits(32_000));
 
             println!("Starting new stream event.");
@@ -331,13 +335,21 @@ async fn client(
                 }
 
                 let chunk_f32: Vec<f32> = chunk_buffer.drain(..1920).collect();
-                let chunk: Vec<i16> = chunk_f32
+
+                let mono_chunk_f32: Vec<f32> = chunk_f32
+                    .chunks_exact(2)
+                    .map(|lr| (lr[0] + lr[1]) / 2.0)
+                    .collect();
+
+                let mono_chunk: Vec<i16> = mono_chunk_f32
                     .iter()
                     .map(|s| (s * i16::MAX as f32).clamp(i16::MIN as f32, i16::MAX as f32) as i16)
                     .collect();
+
                 let (_x, _y) = spiral.next().unwrap();
                 total_chunks = total_chunks + 1920;
-                let s = encoder.encode_vec(&chunk, 960).unwrap();
+
+                let s = encoder.encode_vec(&mono_chunk, 960).unwrap();
                 let packet = QuicNetworkPacket {
                     owner: Some(common::structs::packet::PacketOwner {
                         name: id.clone(),

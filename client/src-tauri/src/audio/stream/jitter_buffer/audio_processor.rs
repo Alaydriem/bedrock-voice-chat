@@ -91,7 +91,6 @@ impl AudioProcessor {
                 .decode_float(opus_data, &mut self.decode_buffer, false)
             {
                 Ok(samples) => {
-                    self.decode_error_count = 0;
                     samples
                 }
                 Err(e) => {

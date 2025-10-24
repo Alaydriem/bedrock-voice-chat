@@ -7,8 +7,6 @@ use super::jitter_buffer_source::{JitterBufferError, JitterBufferSource};
 use super::EncodedAudioFramePacket;
 use common::{Coordinate, Orientation};
 
-const FRAME_MS: u64 = 20;
-
 #[derive(Debug, Clone)]
 pub struct SpatialAudioData {
     #[allow(dead_code)]

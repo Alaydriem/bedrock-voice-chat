@@ -5,7 +5,7 @@ use std::time::Duration;
 use flume::Receiver;
 use log::{info, warn};
 use moka::sync::Cache;
-use rodio::{mixer::Mixer, Sink, SpatialSink};
+use rodio::{mixer::Mixer, Sink, SpatialSink, Source};
 use tauri::Emitter;
 use tokio::task::JoinHandle;
 
@@ -16,6 +16,72 @@ use crate::audio::stream::stream_manager::audio_sink::AudioSink;
 use crate::audio::stream::ActivityUpdate;
 use common::structs::audio::{PlayerGainSettings, PlayerGainStore};
 use common::{Coordinate, Player};
+
+/// Converts a mono Source to stereo by duplicating each sample to both L and R channels
+struct MonoToStereo<S>
+where
+    S: Source<Item = f32>,
+{
+    inner: S,
+    pending_sample: Option<f32>,
+}
+
+impl<S> MonoToStereo<S>
+where
+    S: Source<Item = f32>,
+{
+    fn new(source: S) -> Self {
+        Self {
+            inner: source,
+            pending_sample: None,
+        }
+    }
+}
+
+impl<S> Iterator for MonoToStereo<S>
+where
+    S: Source<Item = f32>,
+{
+    type Item = f32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // If we have a pending sample, return it as the R channel
+        if let Some(sample) = self.pending_sample.take() {
+            return Some(sample);
+        }
+
+        // Get next sample from mono source
+        if let Some(sample) = self.inner.next() {
+            // Store it for R channel
+            self.pending_sample = Some(sample);
+            // Return it as L channel
+            Some(sample)
+        } else {
+            None
+        }
+    }
+}
+
+impl<S> Source for MonoToStereo<S>
+where
+    S: Source<Item = f32>,
+{
+    fn current_span_len(&self) -> Option<usize> {
+        self.inner.current_span_len().map(|len| len * 2)
+    }
+
+    fn channels(&self) -> u16 {
+        2
+    }
+
+    fn sample_rate(&self) -> u32 {
+        self.inner.sample_rate()
+    }
+
+    fn total_duration(&self) -> Option<Duration> {
+        self.inner.total_duration()
+    }
+}
 
 #[derive(Clone, Default)]
 struct PlayerSinks {
@@ -215,7 +281,9 @@ impl SinkManager {
                         ) {
                             Ok((jitter_buffer, handle)) => {
                                 if let Some(spatial_sink) = &bundle.spatial {
-                                    spatial_sink.append(jitter_buffer);
+                                    // Convert mono jitter buffer to stereo for proper playback
+                                    let stereo_source = MonoToStereo::new(jitter_buffer);
+                                    spatial_sink.append(stereo_source);
                                 }
                                 bundle.spatial_handle = Some(handle.clone());
                             }
@@ -264,7 +332,9 @@ impl SinkManager {
                         ) {
                             Ok((jitter_buffer, handle)) => {
                                 if let Some(normal_sink) = &bundle.normal {
-                                    normal_sink.append(jitter_buffer);
+                                    // Convert mono jitter buffer to stereo for proper playback
+                                    let stereo_source = MonoToStereo::new(jitter_buffer);
+                                    normal_sink.append(stereo_source);
                                 }
                                 bundle.normal_handle = Some(handle.clone());
                             }
