@@ -44,8 +44,9 @@ pub(crate) struct OutputStream {
     pub metadata: Arc<Cache<String, String>>,
     app_handle: tauri::AppHandle,
     sink_manager: Option<SinkManager>,
-    playback_stream: Option<rodio::OutputStream>,
+    playback_stream: Option<rodi7o::OutputStream>,
     player_presence: Arc<moka::sync::Cache<String, ()>>,
+    player_presence_debounce: Arc<moka::sync::Cache<String, ()>>,
     client_id_to_player: Arc<moka::sync::Cache<String, String>>,
     recording_producer: Option<Arc<RecordingProducer>>,
     player_gain_cache: Arc<moka::sync::Cache<String, PlayerGainSettings>>,
@@ -183,15 +184,19 @@ impl OutputStream {
             .build();
 
         let player_presence = moka::sync::Cache::builder()
-            .time_to_idle(Duration::from_secs(15 * 60))
+            .time_to_idle(Duration::from_secs(3 * 60))
+            .build();
+
+        let player_presence_debounce = moka::sync::Cache::builder()
+            .time_to_live(Duration::from_secs(3))
             .build();
 
         let client_id_to_player = moka::sync::Cache::builder()
-            .time_to_idle(Duration::from_secs(15 * 60))
+            .time_to_idle(Duration::from_secs(3 * 60))
             .build();
 
         let player_gain_cache = moka::sync::Cache::builder()
-            .time_to_idle(Duration::from_secs(15 * 60))
+            .time_to_idle(Duration::from_secs(3 * 60))
             .build();
 
         Self {
@@ -205,6 +210,7 @@ impl OutputStream {
             sink_manager: None,
             playback_stream: None,
             player_presence: Arc::new(player_presence),
+            player_presence_debounce: Arc::new(player_presence_debounce),
             client_id_to_player: Arc::new(client_id_to_player),
             recording_producer,
             player_gain_cache: Arc::new(player_gain_cache),
@@ -226,6 +232,7 @@ impl OutputStream {
                     let bus = self.bus.clone();
 
                     let player_presence = self.player_presence.clone();
+                    let player_presence_debounce = self.player_presence_debounce.clone();
                     let client_id_to_player = self.client_id_to_player.clone();
                     let app_handle = self.app_handle.clone();
                     let recording_producer = self.recording_producer.clone();
@@ -251,6 +258,7 @@ impl OutputStream {
                                                 players.clone(),
                                                 player_gain_cache.clone(),
                                                 player_presence.clone(),
+                                                player_presence_debounce.clone(),
                                                 client_id_to_player.clone(),
                                                 Some(&app_handle.clone()),
                                                 recording_producer.as_ref().map(|p| (**p).clone()),
@@ -277,6 +285,7 @@ impl OutputStream {
                                                 metadata.clone(),
                                                 Some(&app_handle.clone()),
                                                 player_presence.clone(),
+                                                player_presence_debounce.clone(),
                                             )
                                             .await
                                         }
@@ -399,6 +408,7 @@ impl OutputStream {
         metadata: Arc<Cache<String, String>>,
         app_handle: Option<&tauri::AppHandle>,
         player_presence: Arc<moka::sync::Cache<String, ()>>,
+        player_presence_debounce: Arc<moka::sync::Cache<String, ()>>,
     ) {
         let current_player_name = match metadata.get("current_player").await {
             Some(name) => name,
@@ -418,23 +428,36 @@ impl OutputStream {
                     match data.event_type {
                         ConnectionEventType::Connected => {
                             player_presence.insert(data.player_name.clone(), ());
+
+                            // Only emit if not recently debounced
+                            if player_presence_debounce.get(&data.player_name).is_none() {
+                                player_presence_debounce.insert(data.player_name.clone(), ());
+
+                                if let Err(e) = app_handle.emit(
+                                    crate::events::event::player_presence::PLAYER_PRESENCE,
+                                    crate::events::event::player_presence::Presence::new(
+                                        data.player_name.clone(),
+                                        String::from("joined"),
+                                    ),
+                                ) {
+                                    error!("Failed to emit player presence event: {:?}", e);
+                                }
+                            }
                         }
                         ConnectionEventType::Disconnected => {
                             player_presence.remove(&data.player_name);
-                        }
-                    }
+                            player_presence_debounce.remove(&data.player_name);
 
-                    if let Err(e) = app_handle.emit(
-                        crate::events::event::player_presence::PLAYER_PRESENCE,
-                        crate::events::event::player_presence::Presence::new(
-                            data.player_name,
-                            match data.event_type {
-                                ConnectionEventType::Connected => String::from("joined"),
-                                ConnectionEventType::Disconnected => String::from("disconnected"),
-                            },
-                        ),
-                    ) {
-                        error!("Failed to emit player presence event: {:?}", e);
+                            if let Err(e) = app_handle.emit(
+                                crate::events::event::player_presence::PLAYER_PRESENCE,
+                                crate::events::event::player_presence::Presence::new(
+                                    data.player_name.clone(),
+                                    String::from("disconnected"),
+                                ),
+                            ) {
+                                error!("Failed to emit player presence event: {:?}", e);
+                            }
+                        }
                     }
                 }
                 Err(_) => {
@@ -498,6 +521,7 @@ impl OutputStream {
         players: Arc<moka::sync::Cache<String, Player>>,
         player_gain_cache: Arc<moka::sync::Cache<String, PlayerGainSettings>>,
         player_presence: Arc<moka::sync::Cache<String, ()>>,
+        player_presence_debounce: Arc<moka::sync::Cache<String, ()>>,
         client_id_to_player: Arc<moka::sync::Cache<String, String>>,
         app_handle: Option<&tauri::AppHandle>,
         recording_producer: Option<crate::audio::recording::RecordingProducer>,
@@ -519,8 +543,12 @@ impl OutputStream {
 
             // Don't emit events for ourselves
             if !player_name.eq(&current_player_name) && !player_name.is_empty() {
-                if player_presence.get(player_name).is_none() {
-                    player_presence.insert(player_name.clone(), ());
+                // Always update the presence cache
+                player_presence.insert(player_name.clone(), ());
+
+                // Only emit if not recently debounced
+                if player_presence_debounce.get(player_name).is_none() {
+                    player_presence_debounce.insert(player_name.clone(), ());
 
                     // Emit synthetic presence event for new player detected via audio
                     if let Some(app_handle) = app_handle {
