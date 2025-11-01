@@ -44,7 +44,7 @@ pub(crate) struct OutputStream {
     pub metadata: Arc<Cache<String, String>>,
     app_handle: tauri::AppHandle,
     sink_manager: Option<SinkManager>,
-    playback_stream: Option<rodi7o::OutputStream>,
+    playback_stream: Option<rodio::OutputStream>,
     player_presence: Arc<moka::sync::Cache<String, ()>>,
     player_presence_debounce: Arc<moka::sync::Cache<String, ()>>,
     client_id_to_player: Arc<moka::sync::Cache<String, String>>,
