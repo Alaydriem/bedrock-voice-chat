@@ -4,7 +4,7 @@ import { info, error, warn, debug } from '@tauri-apps/plugin-log';
 import { Store } from '@tauri-apps/plugin-store';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { invoke } from "@tauri-apps/api/core";
-import { onOpenUrl } from "@tauri-apps/plugin-deep-link";
+import { onOpenUrl, getCurrent } from "@tauri-apps/plugin-deep-link";
 import { type LoginResponse } from "../bindings/LoginResponse";
 import Keyring from "./keyring.ts";
 import App from './app.js';
@@ -22,14 +22,30 @@ declare global {
 // This will only handle deep links for the ://auth endpoint.
 // @todo: How do we _de-register_ this event handler?
 if (!window.LoginDeepLinkRegistered) {
+  // Handle deep links when app is already running
   await onOpenUrl(async (urls) => {
-    window.LoginDeepLinkRegistered = true;
-    urls.forEach(async (url) => {
+    info(`Deep link received (app running): ${urls.length} URL(s)`);
+    for (const url of urls) {
+      info(`Processing deep link: ${url}`);
       if (url.startsWith(await Login.getRedirectUrl())) {
         await Login.openDeepLink(url);
       }
-    });
+    }
   });
+
+  // Handle deep links that cold-started the app (critical for Android OAuth flow)
+  const currentUrls = await getCurrent();
+  if (currentUrls && currentUrls.length > 0) {
+    info(`Deep link received (cold start): ${currentUrls.length} URL(s)`);
+    for (const url of currentUrls) {
+      info(`Processing cold start deep link: ${url}`);
+      if (url.startsWith(await Login.getRedirectUrl())) {
+        await Login.openDeepLink(url);
+      }
+    }
+  }
+
+  window.LoginDeepLinkRegistered = true;
 }
 
 export default class Login extends App {
@@ -97,7 +113,10 @@ export default class Login extends App {
       const clientId = response.client_id;
       const secretState = self.crypto.randomUUID();
       // Store some temporary tokens during the login phase.
-      const store = await Store.load('store.json', { autoSave: false });
+      const store = await Store.load("store.json", {
+          autoSave: false,
+          defaults: {}
+      });
       await store.set("auth_state_token", secretState);
       await store.set("auth_state_endpoint", sanitizedUrl);
       await store.save();
@@ -117,7 +136,10 @@ export default class Login extends App {
 
   // This will return all the "correct" OAuth2 redirect URLs that are platform specific
   static async getRedirectUrl() {
-    const store = await Store.load('store.json', { autoSave: false });
+    const store = await Store.load("store.json", {
+        autoSave: false,
+        defaults: {}
+    });
     const androidSignatureHash = await store.get("android_signature_hash");
 
     const redirectUrl = (() => {
@@ -134,25 +156,31 @@ export default class Login extends App {
 
   // This is our event handler for the ://auth deep link event
   static async openDeepLink(url: string) {
-    // Setup some variables
-    const form = document.querySelector("#login-form");
-    const serverUrl = form?.querySelector("#bvc-server-input");
-    const errorMessage = form?.querySelector("#bvc-server-input-error-message");
+    info(`openDeepLink called with URL: ${url}`);
 
     // Fetch the temporary variables from our store.json
-    const store = await Store.load('store.json', { autoSave: false });
+    const store = await Store.load("store.json", {
+        autoSave: false,
+        defaults: {}
+    });
     const authStateToken = await store.get<string>("auth_state_token");
     const authStateEndpoint = await store.get<string>("auth_state_endpoint");
+
+    info(`Store values - authStateToken: ${authStateToken ? 'exists' : 'missing'}, authStateEndpoint: ${authStateEndpoint || 'missing'}`);
+
     const code = new URL(url).searchParams.get("code");
     const state = new URL(url).searchParams.get("state");
 
-    await store.delete("auth_state_token");
-    await store.delete("auth_state_endpoint");
-    await store.save();
+    info(`URL params - code: ${code ? 'exists' : 'missing'}, state: ${state || 'missing'}`);
 
     // Verify that the state sent back from the server matches the one we generated
     if (state !== authStateToken) {
-      warn("Auth State Mismatch");
+      error(`Auth State Mismatch - Expected: ${authStateToken}, Got: ${state}`);
+
+      // Try to update UI if DOM is ready, but don't fail silently
+      const form = document.querySelector("#login-form");
+      const serverUrl = form?.querySelector("#bvc-server-input");
+      const errorMessage = form?.querySelector("#bvc-server-input-error-message");
 
       serverUrl?.classList.add("border-error");
       errorMessage?.classList.remove("invisible");
@@ -207,14 +235,24 @@ export default class Login extends App {
           await store.set("server_list", serverList);
         }
 
+        // Clean up temporary auth tokens after successful login
+        await store.delete("auth_state_token");
+        await store.delete("auth_state_endpoint");
         await store.save();
+
         window.location.href = "/dashboard";
       } else {
         throw new Error("authStateEndpoint is undefined");
       }
     }).catch((e) => {
-      warn(e);
-      warn(JSON.stringify(e));
+      error(`Login failed: ${e}`);
+      error(`Login error details: ${JSON.stringify(e)}`);
+
+      // Try to update UI if DOM is ready, but don't fail silently
+      const form = document.querySelector("#login-form");
+      const serverUrl = form?.querySelector("#bvc-server-input");
+      const errorMessage = form?.querySelector("#bvc-server-input-error-message");
+
       serverUrl?.classList.add("border-error");
       errorMessage?.classList.remove("invisible");
     });

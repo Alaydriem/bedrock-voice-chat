@@ -63,7 +63,10 @@ export default class Server extends App {
   }
 
   async initialize() {
-    const store = await Store.load('store.json', { autoSave: false });
+    const store = await Store.load("store.json", {
+        autoSave: false,
+        defaults: {}
+    });
     let serverList = await store.get("server_list") as Array<{ server: string, player: string }>;
 
     // If there are none, redirect to the login page.

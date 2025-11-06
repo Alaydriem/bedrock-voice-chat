@@ -69,7 +69,7 @@ moka = { version = "^0.12", features = [
     "async-trait",
     "sync",
 ] }
-s2n-quic = { version = "=1.63.0", default-features = false, features = [
+s2n-quic = { version = "=1.68.0", default-features = false, features = [
     "provider-address-token-default",
     "provider-tls-rustls",
     "provider-event-tracing",

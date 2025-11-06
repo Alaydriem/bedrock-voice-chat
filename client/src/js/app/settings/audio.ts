@@ -25,10 +25,13 @@ export default class AudioSettings  {
     }
 
     async initialize(): Promise<boolean> {
-        this.store = await Store.load("store.json", { autoSave: false });
-        
+        this.store = await Store.load("store.json", {
+            autoSave: false,
+            defaults: {}
+        });
+
         const isMobile = await this.platformDetector.checkMobile();
-        
+
         // Don't load the devices options on mobile
         if (!isMobile) {
             document.getElementById("audio-settings-page")?.classList.remove("hidden");
@@ -64,7 +67,7 @@ export default class AudioSettings  {
                         defaultOption: currentInputDevice.display_name,
                     }
                 });
-                
+
                 const currentOutputDevice = await invoke<AudioDevice>("get_audio_device", { io: "OutputDevice" });
                 mount(selectSvelte, {
                     target: document.getElementById("output-audio-device-container")!,
@@ -144,7 +147,7 @@ export default class AudioSettings  {
             });
 
             // Enable the settings with the default values
-            let noiseGateSettings = await this.store?.get("noise_gate_settings") as { 
+            let noiseGateSettings = await this.store?.get("noise_gate_settings") as {
                 open_threshold: number,
                 close_threshold: number,
                 release_rate: number,
@@ -229,7 +232,7 @@ export default class AudioSettings  {
                 });
             }
         });
-        
+
         // Return whether device containers should be shown (true for desktop, false for mobile)
         return !isMobile;
     }

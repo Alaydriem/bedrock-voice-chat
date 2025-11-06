@@ -19,7 +19,10 @@
 
   async function handleServerClick(event: Event) {
     event.preventDefault();
-    const store = await Store.load('store.json', { autoSave: false });
+    const store = await Store.load("store.json", {
+        autoSave: false,
+        defaults: {}
+    });
     store.set("current_server", server);
     await store.save();
     window.location.href = "/dashboard?server=" + server;

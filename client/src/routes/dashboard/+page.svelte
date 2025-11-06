@@ -20,13 +20,13 @@
   let swipeGesture: any = null;
   let isMobile = false;
   let mainContentElement: HTMLElement;
-  
+
   // Dashboard instance and managers
   let dashboardInstance: Dashboard | undefined;
   let playerManager: any = undefined;
   let channelManager: any = undefined;
   let audioActivityManager: any = undefined;
-  
+
   // Initialize utilities
   const platformDetector = new PlatformDetector();
   const swipeGestureManager = new SwipeGestureManager();
@@ -37,11 +37,11 @@
 
   const openSidebar = () => {
     const currentlyOpen = isSidebarOpen();
-    
+
     if (!currentlyOpen) {
       const body = document.querySelector("body");
       const toggleButton = document.querySelector("#sidebar-toggle");
-      
+
       body?.classList.add("is-sidebar-open");
       toggleButton?.classList.add("active");
     }
@@ -49,11 +49,11 @@
 
   const closeSidebar = () => {
     const currentlyOpen = isSidebarOpen();
-    
+
     if (currentlyOpen) {
       const body = document.querySelector("body");
       const toggleButton = document.querySelector("#sidebar-toggle");
-      
+
       body?.classList.remove("is-sidebar-open");
       toggleButton?.classList.remove("active");
     }
@@ -69,13 +69,13 @@
 
   const toggleSidebar = () => {
     const currentlyOpen = isSidebarOpen();
-    
+
     if (currentlyOpen) {
       closeSidebar();
     } else {
       openSidebar();
     }
-    
+
     // Verify the state changed
     setTimeout(() => {
       const newState = isSidebarOpen();
@@ -86,7 +86,7 @@
     if (!isMobile || !isGroupChatSidebarAvailable || !mainContentElement) {
       return;
     }
-    
+
     try {
       swipeGesture = swipeGestureManager.create({
         target: mainContentElement,
@@ -118,13 +118,13 @@
     }
   }
 
-  onMount(async () => {    
+  onMount(async () => {
     try {
       isMobile = await platformDetector.checkMobile();
     } catch (error) {
       isMobile = false;
     }
-    
+
     if (!isMobile && window.innerWidth <= 768) {
       isMobile = true;
     }
@@ -134,13 +134,16 @@
 
     // Initialize the Dashboard first to get managers
     await window.App.initialize();
-    
+
     // Get managers and store from the Dashboard instance
     const managers = window.App.getManagers();
     playerManager = managers.playerManager;
     channelManager = managers.channelManager;
     audioActivityManager = managers.audioActivityManager;
-    const store = await Store.load("store.json", { autoSave: false });
+    const store =await Store.load("store.json", {
+        autoSave: false,
+        defaults: {}
+    });
     const serverUrl = await store.get<string>("current_server") || "";
 
     const mainSidebarContainer = document.getElementById(
@@ -166,7 +169,7 @@
 
       // Now that MainSidebar is mounted, we can render the server links
       await window.App.renderSidebar(store, serverUrl);
-      
+
       // Set the player avatar now that the DOM element exists
       window.App.setPlayerAvatar();
 
@@ -175,12 +178,12 @@
         closeSidebar();
       }
     }
-    
+
     // Initialize PlayerPresenceManager at page level
     try {
       playerPresenceManager = new PlayerPresenceManager(store, playerManager);
       await playerPresenceManager.initialize();
-      
+
       // Make presence manager available to child components via context
       //setContext('presenceManager', playerPresenceManager);
     } catch (err) {
@@ -193,7 +196,7 @@
     if (swipeGesture) {
       swipeGesture.destroy();
     }
-    
+
     // Clean up PlayerPresenceManager when page is destroyed
     if (playerPresenceManager) {
       playerPresenceManager.cleanup();
@@ -234,7 +237,7 @@
     <div id="notification-container" class="notification-container"></div>
     <!-- Player Presence List - Now using reactive Svelte component -->
     {#if playerManager && audioActivityManager}
-      <PlayerPresenceList 
+      <PlayerPresenceList
         {playerManager}
         {audioActivityManager}
       />

@@ -24,10 +24,14 @@ import type { PlayerGainStore } from '../bindings/PlayerGainStore.ts';
 
 import {
   requestPermission,
+  checkPermission,
   startForegroundService,
   stopForegroundService,
   updateNotification,
-  PermissionType
+  PermissionType,
+  type ServiceResponse,
+  type PermissionRequest,
+  type PermissionResponse
 } from 'tauri-plugin-audio-permissions';
 
 declare global {
@@ -67,7 +71,10 @@ export default class Dashboard extends App {
         this.eventUnlisteners.push(notificationUnlisten);
 
 
-        this.store = await Store.load("store.json", { autoSave: false });
+        this.store = await Store.load("store.json", {
+            autoSave: false,
+            defaults: {}
+        });
         const currentServer = await this.store.get<string>("current_server");
 
         // Initialize managers with dependency injection
@@ -86,51 +93,65 @@ export default class Dashboard extends App {
             const isOutputStreamStopped = await invoke("is_stopped", { device: "OutputDevice" }).then((stopped) => stopped as boolean);
 
             // Stop foreground service on mobile only
-            const isMobile = await this.platformDetector.checkMobile();
-            if (isMobile) {
-                await stopForegroundService().then(async (result) => {
-                    if (!result.stopped) {
-                        warn("Foreground service was not running.");
-                    }
-                });
-            }
+            await stopForegroundService().then(async (result: ServiceResponse) => {
+                if (!result.stopped) {
+                    warn("Foreground service was not running.");
+                }
+            });
 
             if (isInputStreamStopped || isOutputStreamStopped) {
                 await this.shutdown();
-                await requestPermission({ permissionType: PermissionType.Audio}).then(async (audioGranted) => {
-                    if (audioGranted) {
-                        if (isMobile) {
-                            // Mobile: request notification permission and start foreground service
-                            await requestPermission({ permissionType: PermissionType.Notification }).then(async (notificationGranted) => {
-                                if (notificationGranted) {
-                                    await startForegroundService().then(async (serviceResult) => {
-                                        if (serviceResult.started) {
-                                            await this.initializeAudioDevicesAndNetworkStream(this.store!, currentServer ?? "", this.currentServerCredentials);
-                                            await updateNotification({
-                                                title: "Bedrock Voice Chat",
-                                                message: "In public voice chat"
-                                            });
-                                        } else {
-                                            warn("Foreground service could not be started.");
-                                            window.location.href = "/error?code=SERV01";
-                                            return;
-                                        }
-                                    });
-                                } else {
-                                    warn("Notification permissions are not granted, or need to be requested");
-                                    window.location.href = "/error?code=PERM2";
-                                    return;
-                                }
-                            });
-                        } else {
-                            // Desktop: just initialize audio without foreground service
-                            await this.initializeAudioDevicesAndNetworkStream(this.store!, currentServer ?? "", this.currentServerCredentials);
-                        }
-                    } else {
-                        warn("Audio permissions are not granted, or need to be requested");
+
+                // Check audio permission first
+                info("Checking audio permission...");
+                const audioPermission = await checkPermission({ permissionType: PermissionType.Audio });
+
+                if (!audioPermission.granted) {
+                    info("Audio permission not granted, requesting...");
+                    const audioGranted = await requestPermission({ permissionType: PermissionType.Audio });
+
+                    if (!audioGranted.granted) {
+                        warn("Audio permission denied");
                         window.location.href = "/error?code=PERM1";
                         return;
                     }
+                }
+
+                info("Audio permission granted, checking notification permission...");
+
+                // Check notification permission sequentially after audio permission
+                const notificationPermission = await checkPermission({ permissionType: PermissionType.Notification });
+
+                if (!notificationPermission.granted) {
+                    info("Notification permission not granted, requesting...");
+                    const notificationGranted = await requestPermission({ permissionType: PermissionType.Notification });
+
+                    if (!notificationGranted.granted) {
+                        warn("Notification permission denied - notifications may not be visible");
+                        // Don't error out for notification permission, just log warning
+                    }
+                }
+
+                info("Permissions complete, starting foreground service...");
+
+                // Start foreground service only after permissions are handled
+                const serviceResult: ServiceResponse = await startForegroundService();
+
+                if (!serviceResult.started) {
+                    warn("Foreground service could not be started.");
+                    window.location.href = "/error?code=SERV01";
+                    return;
+                }
+
+                info("Foreground service started successfully, initializing audio...");
+
+                // Initialize audio devices and network stream
+                await this.initializeAudioDevicesAndNetworkStream(this.store!, currentServer ?? "", this.currentServerCredentials);
+
+                // Update notification
+                await updateNotification({
+                    title: "Bedrock Voice Chat",
+                    message: "In public voice chat"
                 });
             }
         }
