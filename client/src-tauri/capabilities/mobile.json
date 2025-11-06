@@ -7,6 +7,7 @@
     "log:default",
     "core:event:default",
     "deep-link:default",
-    "os:default"
+    "os:default",
+    "audio-permissions:mobile-audio-permissions"
   ]
 }

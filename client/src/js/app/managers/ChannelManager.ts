@@ -8,6 +8,8 @@ import type { ChannelEvent } from '../../bindings/ChannelEvent';
 import type { ChannelEvents } from '../../bindings/ChannelEvents';
 import type { PlayerSource } from '../../bindings/PlayerSource';
 import type { PlayerManager } from './PlayerManager';
+import { updateNotification } from 'tauri-plugin-audio-permissions';
+import PlatformDetector from '../utils/PlatformDetector';
 
 interface ChannelStoreState {
     channels: Channel[];
@@ -28,6 +30,7 @@ export default class ChannelManager {
     private errorStore: Writable<string | null>;
     private store: Store;
     private serverUrl: string;
+    private platformDetector: PlatformDetector = new PlatformDetector();
 
     // Event management
     private eventUnlisten: (() => void) | null = null;
@@ -220,6 +223,14 @@ export default class ChannelManager {
                     })
                 );
 
+                // Update notification on mobile only
+                const isMobile = await this.platformDetector.checkMobile();
+                if (isMobile) {
+                    await updateNotification({
+                        title: "Bedrock Voice Chat",
+                        message: "In public group channel"
+                    });
+                }
                 // Add existing group members to PlayerManager
                 await this.addExistingGroupMembers(channelId, currentUser);
             }
@@ -248,6 +259,14 @@ export default class ChannelManager {
             });
 
             if (success) {
+                // Update notification on mobile only
+                const isMobile = await this.platformDetector.checkMobile();
+                if (isMobile) {
+                    await updateNotification({
+                        title: "Bedrock Voice Chat",
+                        message: "In public voice chat"
+                    });
+                }
                 // Update local state optimistically
                 const currentChannelId = get(this.currentUserChannelIdStore);
                 if (currentChannelId === channelId) {

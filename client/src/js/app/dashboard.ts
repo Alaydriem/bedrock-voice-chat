@@ -12,6 +12,7 @@ import App from './app.js';
 import Server from './server.ts';
 import Keyring from './keyring.ts';
 import Sidebar from "./components/dashboard/sidebar.ts";
+import PlatformDetector from './utils/PlatformDetector.ts';
 
 import { PlayerManager } from './managers/PlayerManager';
 import ChannelManager from './managers/ChannelManager';
@@ -22,7 +23,11 @@ import type { NoiseGateSettings } from '../bindings/NoiseGateSettings.ts';
 import type { PlayerGainStore } from '../bindings/PlayerGainStore.ts';
 
 import {
-    requestPermission as requestAudioPermissions
+  requestPermission,
+  startForegroundService,
+  stopForegroundService,
+  updateNotification,
+  PermissionType
 } from 'tauri-plugin-audio-permissions';
 
 declare global {
@@ -37,6 +42,7 @@ export default class Dashboard extends App {
     private eventUnlisteners: (() => void)[] = [];
     private currentServerCredentials: LoginResponse | null = null;
     private popperProfile: any = null;
+    private platformDetector: PlatformDetector = new PlatformDetector();
 
     // Manager instances for dependency injection
     public playerManager: PlayerManager | undefined;
@@ -78,13 +84,52 @@ export default class Dashboard extends App {
 
             const isInputStreamStopped = await invoke("is_stopped", { device: "InputDevice" }).then((stopped) => stopped as boolean);
             const isOutputStreamStopped = await invoke("is_stopped", { device: "OutputDevice" }).then((stopped) => stopped as boolean);
+
+            // Stop foreground service on mobile only
+            const isMobile = await this.platformDetector.checkMobile();
+            if (isMobile) {
+                await stopForegroundService().then(async (result) => {
+                    if (!result.stopped) {
+                        warn("Foreground service was not running.");
+                    }
+                });
+            }
+
             if (isInputStreamStopped || isOutputStreamStopped) {
                 await this.shutdown();
-                await requestAudioPermissions().then(async (granted) => {
-                    if (granted) {
-                        await this.initializeAudioDevicesAndNetworkStream(this.store!, currentServer ?? "", this.currentServerCredentials);
+                await requestPermission({ permissionType: PermissionType.Audio}).then(async (audioGranted) => {
+                    if (audioGranted) {
+                        if (isMobile) {
+                            // Mobile: request notification permission and start foreground service
+                            await requestPermission({ permissionType: PermissionType.Notification }).then(async (notificationGranted) => {
+                                if (notificationGranted) {
+                                    await startForegroundService().then(async (serviceResult) => {
+                                        if (serviceResult.started) {
+                                            await this.initializeAudioDevicesAndNetworkStream(this.store!, currentServer ?? "", this.currentServerCredentials);
+                                            await updateNotification({
+                                                title: "Bedrock Voice Chat",
+                                                message: "In public voice chat"
+                                            });
+                                        } else {
+                                            warn("Foreground service could not be started.");
+                                            window.location.href = "/error?code=SERV01";
+                                            return;
+                                        }
+                                    });
+                                } else {
+                                    warn("Notification permissions are not granted, or need to be requested");
+                                    window.location.href = "/error?code=PERM2";
+                                    return;
+                                }
+                            });
+                        } else {
+                            // Desktop: just initialize audio without foreground service
+                            await this.initializeAudioDevicesAndNetworkStream(this.store!, currentServer ?? "", this.currentServerCredentials);
+                        }
                     } else {
                         warn("Audio permissions are not granted, or need to be requested");
+                        window.location.href = "/error?code=PERM1";
+                        return;
                     }
                 });
             }
@@ -170,9 +215,7 @@ export default class Dashboard extends App {
             dropdownNameElement.textContent = this.currentServerCredentials.gamertag;
         }
 
-        // Set up dropdown menu functionality
         if (profileButton) {
-            // Use LineOne's simple Popper approach
             const config = {
                 placement: "right-end",
                 modifiers: [
@@ -185,7 +228,6 @@ export default class Dashboard extends App {
                 ],
             };
 
-            // Initialize with LineOne's Popper pattern
             if (typeof (window as any).Popper !== 'undefined') {
                 this.popperProfile = new (window as any).Popper(
                     '#profile-wrapper',
@@ -195,12 +237,10 @@ export default class Dashboard extends App {
                 );
             }
 
-            // Just handle the logout button click
             const logoutButton = document.getElementById('logout-button');
             if (logoutButton) {
                 logoutButton.addEventListener("click", this.handleLogout.bind(this));
 
-                // Store cleanup function
                 this.eventUnlisteners.push(() => {
                     logoutButton.removeEventListener("click", this.handleLogout.bind(this));
                     if (this.popperProfile && this.popperProfile.destroy) {
@@ -223,7 +263,6 @@ export default class Dashboard extends App {
             });
 
         } catch (err) {
-            error(`Dashboard: Logout failed: ${err}`);
             // Show error notification
             const notificationContainer = document.querySelector("#notification-container");
             if (notificationContainer) {
