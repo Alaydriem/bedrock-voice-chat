@@ -119,17 +119,13 @@ export default class Dashboard extends App {
 
                 info("Audio permission granted, checking notification permission...");
 
-                // Check notification permission sequentially after audio permission
-                const notificationPermission = await checkPermission({ permissionType: PermissionType.Notification });
+                info("Notification permission not granted, requesting...");
+                const notificationGranted = await requestPermission({ permissionType: PermissionType.Notification });
 
-                if (!notificationPermission.granted) {
-                    info("Notification permission not granted, requesting...");
-                    const notificationGranted = await requestPermission({ permissionType: PermissionType.Notification });
-
-                    if (!notificationGranted.granted) {
-                        warn("Notification permission denied - notifications may not be visible");
-                        // Don't error out for notification permission, just log warning
-                    }
+                if (!notificationGranted.granted) {
+                    warn("Notification permission denied - notifications may not be visible");
+                    window.location.href = "/error?code=PERM2";
+                    return;
                 }
 
                 info("Permissions complete, starting foreground service...");

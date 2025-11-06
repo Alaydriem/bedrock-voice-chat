@@ -1,7 +1,10 @@
 param(
     [Parameter(Position=0)]
     [ValidateSet("debug", "release", "--debug", "--release")]
-    [string]$BuildType = "debug"
+    [string]$BuildType = "debug",
+
+    [Parameter(Position=1)]
+    [string]$Target = ""
 )
 
 # Normalize the build type parameter (remove -- prefix if present)
@@ -108,13 +111,19 @@ function Copy-AndroidIcons {
     Write-Host "Android icon copying completed." -ForegroundColor Green
 }
 
-# Build the appropriate command based on build type
+# Build the appropriate command based on build type and target
+$targetParam = ""
+if ($Target -ne "") {
+    $targetParam = " --target $Target"
+    Write-Host "Building for target: $Target" -ForegroundColor Cyan
+}
+
 if ($BuildType -eq "release") {
     Write-Host "Building in RELEASE mode..." -ForegroundColor Yellow
-    $command = "yarn tauri android build"
+    $command = "yarn tauri android build$targetParam"
 } else {
     Write-Host "Building in DEBUG mode..." -ForegroundColor Yellow
-    $command = "yarn tauri android build --debug"
+    $command = "yarn tauri android build --debug$targetParam"
 }
 
 # Execute the build
