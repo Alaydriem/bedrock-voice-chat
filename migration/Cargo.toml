@@ -4,25 +4,11 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 
-[profile.release]
-opt-level = 3
-strip = true
-debug = false
-codegen-units = 1
-lto = true
-
-[profile.dev]
-opt-level = 1
-debug = 1
-strip = "symbols"
-incremental = true
-
 [lib]
 name = "migration"
 path = "src/lib.rs"
 
 [dependencies]
-common = { path = "./../common" }
 async-std = { version = "^1", features = ["attributes", "tokio1"] }
 sea-orm = { version = "^1.1", features = [
     "sqlx-mysql",

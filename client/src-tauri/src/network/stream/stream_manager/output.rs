@@ -2,7 +2,7 @@ use crate::NetworkPacket;
 use bytes::Bytes;
 use common::structs::packet::{DebugPacket, PacketOwner, QuicNetworkPacket};
 use log::{error, info, warn};
-use s2n_quic::Connection;
+use common::s2n_quic::Connection;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
@@ -77,7 +77,7 @@ impl common::traits::StreamTrait for OutputStream {
                 Ok(bytes) => {
                     info!("Sent debug packet to server.");
                     let payload = Bytes::from(bytes);
-                    if let Err(e) = connection.datagram_mut(|dg: &mut s2n_quic::provider::datagram::default::Sender| dg.send_datagram(payload.clone())) { error!("Debug datagram send error: {:?}", e); }
+                    if let Err(e) = connection.datagram_mut(|dg: &mut common::s2n_quic::provider::datagram::default::Sender| dg.send_datagram(payload.clone())) { error!("Debug datagram send error: {:?}", e); }
                 }
                 Err(e) => { error!("Failed to serialize DEBUG packet: {:?}", e); }
             }
@@ -99,7 +99,7 @@ impl common::traits::StreamTrait for OutputStream {
                         match quic_network_packet.to_datagram() {
                             Ok(bytes) => {
                                 let payload = Bytes::from(bytes);
-                                let send_res = connection.datagram_mut(|dg: &mut s2n_quic::provider::datagram::default::Sender| dg.send_datagram(payload.clone()));
+                                let send_res = connection.datagram_mut(|dg: &mut common::s2n_quic::provider::datagram::default::Sender| dg.send_datagram(payload.clone()));
                                 if let Err(e) = send_res {
                                     error_count += 1;
                                     if error_count == 100 {

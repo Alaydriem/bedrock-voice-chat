@@ -4,6 +4,7 @@ import { relaunch } from "@tauri-apps/plugin-process";
 import { warn, debug, trace, info, error } from "@tauri-apps/plugin-log";
 import { match, Pattern } from "ts-pattern";
 import App from "./app.ts";
+import { deepLinkManager } from "./deepLinkManager.ts";
 
 declare global {
   interface Window {
@@ -14,7 +15,17 @@ declare global {
 export default class Splash extends App {
   constructor() {
     super();
+    this.initializeDeepLinks();
     this.update();
+  }
+
+  private async initializeDeepLinks() {
+    try {
+      await deepLinkManager.initialize();
+      info("Deep link manager initialized in Splash");
+    } catch (e) {
+      error(`Failed to initialize deep link manager: ${e}`);
+    }
   }
 
   update() {

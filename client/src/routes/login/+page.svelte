@@ -3,16 +3,42 @@
   import Login from "../../js/app/login.ts";
   import { onMount } from 'svelte';
 
-  onMount(() => {
+  onMount(async () => {
     window.App = new Login();
     window.dispatchEvent(new CustomEvent("app:mounted"));
+
+    // Initialize and check for pending deep link callbacks
+    await window.App.initialize();
+
     window.App.preloader();
-    
+
     const urlParams = new URLSearchParams(window.location.search);
 
     document.querySelector("#login-form")
       ?.addEventListener("submit", (e) => {
         window.App.login(e);
+    });
+
+    // Auto-format the server URL when the input loses focus
+    const serverInput = document.querySelector("#bvc-server-input") as HTMLInputElement;
+    serverInput?.addEventListener("blur", () => {
+      if (serverInput.value.trim()) {
+        let formatted = serverInput.value.trim();
+
+        // Add https:// prefix if not present
+        if (!formatted.startsWith("https://") && !formatted.startsWith("http://")) {
+          formatted = "https://" + formatted;
+        } else if (formatted.startsWith("http://")) {
+          formatted = formatted.replace("http://", "https://");
+        }
+
+        // Remove trailing slash
+        if (formatted.endsWith("/")) {
+          formatted = formatted.slice(0, -1);
+        }
+
+        serverInput.value = formatted;
+      }
     });
 
     if (urlParams.has("server")) {
@@ -68,7 +94,11 @@
                     id="bvc-server-input"
                     class="form-input w-full rounded-r-lg border border-slate-300 bg-transparent px-3 py-2 placeholder:text-slate-400/70 hover:z-10 hover:border-slate-400 focus:z-10 focus:border-primary dark:border-navy-450 dark:hover:border-navy-400 dark:focus:border-accent"
                     placeholder="bvc.alaydriem.com"
-                    type="text"
+                    type="url"
+                    autocorrect="off"
+                    autocapitalize="none"
+                    spellcheck="false"
+                    autocomplete="url"
                   />
                 </label>
                 <span

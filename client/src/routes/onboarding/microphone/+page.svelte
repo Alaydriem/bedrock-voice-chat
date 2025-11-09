@@ -2,17 +2,14 @@
     import "../../../css/app.css";
     import { onMount } from 'svelte';
     import Onboarding from '../../../js/app/onboarding';
-    import {
-        checkPermission,
-        requestPermission,
-        PermissionType,
-        type PermissionResponse
-    } from 'tauri-plugin-audio-permissions';
+    import { PermissionType } from 'tauri-plugin-audio-permissions';
+    import { checkPermissionStatus, requestPermissionWithTimeout } from '../../../js/app/utils/permissionHelpers';
 
     let onboarding: Onboarding;
     let permissionGranted = false;
     let permissionDenied = false;
     let isChecking = false;
+    let permissionError = false;
 
     onMount(async () => {
         onboarding = new Onboarding();
@@ -41,9 +38,7 @@
 
     async function checkCurrentPermission() {
         try {
-            const response: PermissionResponse = await checkPermission({
-                permissionType: PermissionType.Audio
-            });
+            const response = await checkPermissionStatus(PermissionType.Audio);
             permissionGranted = response.granted;
         } catch (error) {
             console.error('Error checking microphone permission:', error);
@@ -54,11 +49,13 @@
     async function handleRequestPermission() {
         isChecking = true;
         permissionDenied = false;
+        permissionError = false;
 
         try {
-            const response: PermissionResponse = await requestPermission({
-                permissionType: PermissionType.Audio
-            });
+            const response = await requestPermissionWithTimeout(
+                PermissionType.Audio,
+                10000 // 10 second timeout
+            );
 
             if (response.granted) {
                 permissionGranted = true;
@@ -72,7 +69,11 @@
             }
         } catch (error) {
             console.error('Error requesting microphone permission:', error);
-            permissionDenied = true;
+            if (error instanceof Error && error.message.includes('timeout')) {
+                permissionError = true;
+            } else {
+                permissionDenied = true;
+            }
         } finally {
             isChecking = false;
         }
@@ -103,6 +104,13 @@
             <div class="alert bg-warning/10 text-warning border border-warning/20 rounded-lg p-4 mb-6 text-sm">
                 <i class="fas fa-exclamation-triangle mr-2"></i>
                 Please enable microphone access in your device settings to continue.
+            </div>
+            {/if}
+
+            {#if permissionError}
+            <div class="alert bg-error/10 text-error border border-error/20 rounded-lg p-4 mb-6 text-sm">
+                <i class="fas fa-times-circle mr-2"></i>
+                Permission request timed out. Please try again or check your device settings.
             </div>
             {/if}
         </div>

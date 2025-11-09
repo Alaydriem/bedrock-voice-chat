@@ -1,0 +1,6 @@
+[env]
+LIBCLANG_PATH = { value = "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\Llvm\\x64\\lib", relative = false }
+CPAL_ASIO_DIR = { value = "./../../client/src-tauri/asiosdk_2.3.3_2019-06-14", relative = true }
+
+[build]
+rustflags = ["--cfg", "s2n_quic_unstable"]

@@ -9,9 +9,14 @@ pub mod certificates;
 
 pub mod consts;
 pub mod request;
+#[cfg(feature = "quic")]
 pub mod rustls;
 pub mod structs;
 pub mod traits;
+
+// Re-export s2n-quic when feature is enabled
+#[cfg(feature = "quic")]
+pub use s2n_quic;
 
 // Re-export important types for easy access
 pub use structs::player_source::PlayerSource;

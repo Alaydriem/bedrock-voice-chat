@@ -7,7 +7,7 @@ use core::{
     task::{Context, Poll},
 };
 use log::{error, warn};
-use s2n_quic::Connection;
+use common::s2n_quic::Connection;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
@@ -125,7 +125,7 @@ impl<'c> Future for RecvDatagram<'c> {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self
             .conn
-            .datagram_mut(|r: &mut s2n_quic::provider::datagram::default::Receiver| {
+            .datagram_mut(|r: &mut common::s2n_quic::provider::datagram::default::Receiver| {
                 r.poll_recv_datagram(cx)
             }) {
             Ok(Poll::Ready(Ok(bytes))) => Poll::Ready(Ok(bytes)),

@@ -4,18 +4,6 @@ version = "0.1.13"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-[profile.release]
-opt-level = 3
-strip = true
-debug = false
-codegen-units = 1
-lto = true
-
-[profile.dev]
-opt-level = 1        # Basic optimizations to reduce size
-debug = 1            # Line numbers only, not full debug info
-strip = "symbols"    # Strip symbols to reduce size
-incremental = true   # Keep incremental compilation for faster rebuilds
 
 [lib]
 # The `_lib` suffix may seem redundant but it is necessary
@@ -24,6 +12,15 @@ incremental = true   # Keep incremental compilation for faster rebuilds
 name = "common"
 crate-type = ["staticlib", "cdylib", "rlib"]
 path = "./src/lib.rs"
+
+[features]
+default = []
+
+# Heavy optional features
+quic = ["s2n-quic"]
+audio = ["rodio"]
+templates = ["rocket_dyn_templates"]
+browser = ["webbrowser"]
 
 [dependencies]
 nanoid = { version = "^0.4" }
@@ -40,15 +37,14 @@ async-trait = { version = "^0.1" }
 async-mutex = { version = "^1.4" }
 rand = { version = "^0.9" }
 reqwest = { version = "0.12", features = ["rustls-tls", "json", "multipart"],  default-features = false }
-webbrowser = { version = "^1" }
+webbrowser = { version = "^1", optional = true }
 rocket = { version = "^0.5", default-features = false, features = [
     "http2",
     "tls",
     "json",
     "mtls",
 ] }
-rocket_db_pools = { version = "^0.2", features = ["deadpool_redis"] }
-rocket_dyn_templates = { version = "^0.2", features = ["handlebars"] }
+rocket_dyn_templates = { version = "^0.2", features = ["handlebars"], optional = true }
 sea-orm = { version = "^1.1", features = [
     "sqlx-mysql",
     "runtime-tokio-rustls",
@@ -74,9 +70,9 @@ s2n-quic = { version = "=1.68.0", default-features = false, features = [
     "provider-tls-rustls",
     "provider-event-tracing",
     "unstable-provider-datagram",
-] }
+], optional = true }
 
-rodio = { version = "^0.21" }
+rodio = { version = "^0.21", optional = true }
 postcard = { version = "^1.1", features = [ "use-std", "postcard-derive" ] }
 residua-zigzag = { version = "^0.1", package = "residua-zigzag" }
 leb128 = { version = "^0.2" }

@@ -2,17 +2,14 @@
     import "../../../css/app.css";
     import { onMount } from 'svelte';
     import Onboarding from '../../../js/app/onboarding';
-    import {
-        checkPermission,
-        requestPermission,
-        PermissionType,
-        type PermissionResponse
-    } from 'tauri-plugin-audio-permissions';
+    import { PermissionType } from 'tauri-plugin-audio-permissions';
+    import { checkPermissionStatus, requestPermissionWithTimeout } from '../../../js/app/utils/permissionHelpers';
 
     let onboarding: Onboarding;
     let permissionGranted = false;
     let permissionDenied = false;
     let isChecking = false;
+    let permissionError = false;
 
     onMount(async () => {
         onboarding = new Onboarding();
@@ -24,6 +21,7 @@
             return;
         }
 
+        // Check current permission status
         await checkCurrentPermission();
 
         // If permission already granted, auto-complete and proceed
@@ -38,9 +36,7 @@
 
     async function checkCurrentPermission() {
         try {
-            const response: PermissionResponse = await checkPermission({
-                permissionType: PermissionType.Notification
-            });
+            const response = await checkPermissionStatus(PermissionType.Notification);
             permissionGranted = response.granted;
         } catch (error) {
             console.error('Error checking notification permission:', error);
@@ -51,11 +47,13 @@
     async function handleRequestPermission() {
         isChecking = true;
         permissionDenied = false;
+        permissionError = false;
 
         try {
-            const response: PermissionResponse = await requestPermission({
-                permissionType: PermissionType.Notification
-            });
+            const response = await requestPermissionWithTimeout(
+                PermissionType.Notification,
+                10000 // 10 second timeout
+            );
 
             if (response.granted) {
                 permissionGranted = true;
@@ -68,7 +66,29 @@
             }
         } catch (error) {
             console.error('Error requesting notification permission:', error);
-            permissionDenied = true;
+
+            // On timeout or error, re-check permission status in case it was actually granted
+            try {
+                const statusCheck = await checkPermissionStatus(PermissionType.Notification);
+                if (statusCheck.granted) {
+                    // Permission was actually granted, proceed
+                    permissionGranted = true;
+                    await onboarding.completeStep('notifications');
+                    setTimeout(() => {
+                        onboarding.navigateToNext();
+                    }, 500);
+                    return;
+                }
+            } catch (recheckError) {
+                console.error('Error rechecking permission status:', recheckError);
+            }
+
+            // If we get here, permission was not granted
+            if (error instanceof Error && error.message.includes('timeout')) {
+                permissionError = true;
+            } else {
+                permissionDenied = true;
+            }
         } finally {
             isChecking = false;
         }
@@ -99,6 +119,13 @@
             <div class="alert bg-warning/10 text-warning border border-warning/20 rounded-lg p-4 mb-6 text-sm">
                 <i class="fas fa-exclamation-triangle mr-2"></i>
                 Please enable notifications in your device settings to continue.
+            </div>
+            {/if}
+
+            {#if permissionError}
+            <div class="alert bg-error/10 text-error border border-error/20 rounded-lg p-4 mb-6 text-sm">
+                <i class="fas fa-times-circle mr-2"></i>
+                Permission request timed out. Please try again or check your device settings.
             </div>
             {/if}
         </div>

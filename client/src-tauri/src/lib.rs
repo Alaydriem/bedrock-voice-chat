@@ -192,7 +192,7 @@ pub fn run() {
             app.manage(Mutex::new(audio_stream));
 
             // This is necessary to setup s2n_quic. It doesn't need to be called elsewhere
-            _ = s2n_quic::provider::tls::rustls::rustls::crypto::aws_lc_rs::default_provider()
+            _ = common::s2n_quic::provider::tls::rustls::rustls::crypto::aws_lc_rs::default_provider()
                 .install_default();
 
             let network_stream = NetworkStreamManager::new(

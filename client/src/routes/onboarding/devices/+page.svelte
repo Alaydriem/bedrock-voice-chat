@@ -3,7 +3,6 @@
     import { onMount } from 'svelte';
     import Onboarding from '../../../js/app/onboarding';
     import AudioDeviceSelector from '../../../components/audio/AudioDeviceSelector.svelte';
-    import PlatformDetector from '../../../js/app/utils/PlatformDetector';
 
     let onboarding: Onboarding;
 
@@ -17,14 +16,7 @@
             return;
         }
 
-        const platformDetector = new PlatformDetector();
-        const isMobile = await platformDetector.checkMobile();
-
-        if (isMobile) {
-            await handleContinue();
-            return;
-        }
-
+        // Mobile devices are handled by +page.ts and never reach here
         onboarding.preloader();
     });
 

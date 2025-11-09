@@ -645,7 +645,6 @@ dependencies = [
  "rodio",
  "ron",
  "rustls-pemfile 2.2.0",
- "s2n-quic",
  "sea-orm",
  "sea-orm-rocket",
  "semver",
@@ -1070,7 +1069,7 @@ dependencies = [
 
 [[package]]
 name = "common"
-version = "0.1.2"
+version = "0.1.13"
 dependencies = [
  "anyhow",
  "async-mutex",
@@ -1090,9 +1089,7 @@ dependencies = [
  "reqwest",
  "residua-zigzag",
  "rocket",
- "rocket_db_pools",
  "rocket_dyn_templates",
- "rodio",
  "ron",
  "rustls-pemfile 2.2.0",
  "s2n-quic",
@@ -1105,7 +1102,6 @@ dependencies = [
  "tracing",
  "ts-rs",
  "typetag",
- "webbrowser",
 ]
 
 [[package]]
@@ -1175,16 +1171,6 @@ name = "core-foundation"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "91e195e091a93c46f7102ec7818a2aa394e1e1771c3ab4825963fa03e45afb8f"
-dependencies = [
- "core-foundation-sys",
- "libc",
-]
-
-[[package]]
-name = "core-foundation"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2a6cd9ae233e7f62ba4e9353e81a88df7fc8a5987b8d445b4d90c879bd156f6"
 dependencies = [
  "core-foundation-sys",
  "libc",
@@ -3023,7 +3009,6 @@ name = "migration"
 version = "0.1.0"
 dependencies = [
  "async-std",
- "common",
  "sea-orm",
  "sea-orm-migration",
 ]
@@ -3442,7 +3427,6 @@ version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3e0adef53c21f888deb4fa59fc59f7eb17404926ee8a6f59f5df0fd7f9f3272"
 dependencies = [
- "bitflags 2.10.0",
  "objc2",
 ]
 
@@ -5082,7 +5066,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "897b2245f0b511c87893af39b033e5ca9cce68824c4d7e7630b5a1d339658d02"
 dependencies = [
  "bitflags 2.10.0",
- "core-foundation 0.9.4",
+ "core-foundation",
  "core-foundation-sys",
  "libc",
  "security-framework-sys",
@@ -6586,22 +6570,6 @@ checksum = "5a6580f308b1fad9207618087a65c04e7a10bc77e02c8e84e9b00dd4b12fa0bb"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
-]
-
-[[package]]
-name = "webbrowser"
-version = "1.0.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "00f1243ef785213e3a32fa0396093424a3a6ea566f9948497e5a2309261a4c97"
-dependencies = [
- "core-foundation 0.10.1",
- "jni",
- "log",
- "ndk-context",
- "objc2",
- "objc2-foundation",
- "url",
- "web-sys",
 ]
 
 [[package]]
