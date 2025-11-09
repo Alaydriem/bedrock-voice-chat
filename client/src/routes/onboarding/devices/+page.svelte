@@ -20,7 +20,7 @@
         const platformDetector = new PlatformDetector();
         const isMobile = await platformDetector.checkMobile();
         if (isMobile) {
-            handleContinue();
+            await handleContinue();
             return;
         }
 
