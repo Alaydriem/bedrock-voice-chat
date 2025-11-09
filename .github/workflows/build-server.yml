@@ -28,6 +28,8 @@ on:
           - debug
           - release
 
+permissions:
+  contents: read
 jobs:
   build-server:
     name: Build Server (${{ matrix.target }} - ${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }})
