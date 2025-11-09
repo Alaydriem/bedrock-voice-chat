@@ -66,6 +66,66 @@ pub(crate) fn get_cpal_hosts() -> Result<Vec<rodio::cpal::platform::Host>, anyho
     return Ok(hosts);
 }
 
+fn process_devices(
+    host: &cpal::Host,
+    device_type: AudioDeviceType,
+    device_map: &mut Vec<AudioDevice>,
+) {
+    let (devices_result, type_name): (Result<_, cpal::DevicesError>, &str) = match device_type {
+        AudioDeviceType::InputDevice => (host.input_devices(), "Input"),
+        AudioDeviceType::OutputDevice => (host.output_devices(), "Output"),
+    };
+
+    match devices_result {
+        Ok(devices) => {
+            for device in devices {
+                let stream_configs: Vec<SupportedStreamConfigRange> = match device_type {
+                    AudioDeviceType::InputDevice => match device.supported_input_configs() {
+                        Ok(cfg) => cfg.map(|s| s).collect(),
+                        Err(_) => Vec::new(),
+                    },
+                    AudioDeviceType::OutputDevice => match device.supported_output_configs() {
+                        Ok(cfg) => cfg.map(|s| s).collect(),
+                        Err(_) => Vec::new(),
+                    },
+                };
+
+                // We need a valid config
+                if stream_configs.len() == 0 {
+                    continue;
+                }
+
+                // Check if device supports 48000 or 44100 sample rates
+                let supports_required_sample_rates = stream_configs.iter().any(|config| {
+                    config.try_with_sample_rate(cpal::SampleRate(48000)).is_some()
+                        || config.try_with_sample_rate(cpal::SampleRate(44100)).is_some()
+                });
+
+                if !supports_required_sample_rates {
+                    continue;
+                }
+
+                for audio_device in get_device_name(
+                    device_type.clone(),
+                    &host,
+                    &device,
+                    stream_configs,
+                ) {
+                    device_map.push(audio_device);
+                }
+            }
+        }
+        Err(e) => {
+            warn!(
+                "{} devices for [{}] are not available. {}",
+                type_name,
+                host.id().name(),
+                e.to_string()
+            );
+        }
+    }
+}
+
 pub fn get_devices() -> Result<HashMap<String, Vec<AudioDevice>>, ()> {
     let hosts = match get_cpal_hosts() {
         Ok(hosts) => hosts,
@@ -80,69 +140,8 @@ pub fn get_devices() -> Result<HashMap<String, Vec<AudioDevice>>, ()> {
     for host in hosts {
         let mut device_map = Vec::<AudioDevice>::new();
 
-        match host.input_devices() {
-            Ok(devices) => {
-                for device in devices {
-                    let stream_configs = match device.supported_input_configs() {
-                        Ok(cfg) => cfg.map(|s| s).collect(),
-                        Err(_) => Vec::new(),
-                    };
-
-                    // We need a valid input
-                    if stream_configs.len() == 0 {
-                        continue;
-                    }
-
-                    for audio_device in get_device_name(
-                        AudioDeviceType::InputDevice,
-                        &host,
-                        &device,
-                        stream_configs,
-                    ) {
-                        device_map.push(audio_device);
-                    }
-                }
-            }
-            Err(e) => {
-                warn!(
-                    "Input devices for [{}] are not available. {}",
-                    host.id().name(),
-                    e.to_string()
-                );
-            }
-        }
-
-        match host.output_devices() {
-            Ok(devices) => {
-                for device in devices {
-                    let stream_configs = match device.supported_output_configs() {
-                        Ok(cfg) => cfg.map(|s| s).collect(),
-                        Err(_) => Vec::new(),
-                    };
-
-                    // We need a valid input
-                    if stream_configs.len() == 0 {
-                        continue;
-                    }
-
-                    for audio_device in get_device_name(
-                        AudioDeviceType::OutputDevice,
-                        &host,
-                        &device,
-                        stream_configs,
-                    ) {
-                        device_map.push(audio_device);
-                    }
-                }
-            }
-            Err(e) => {
-                warn!(
-                    "Otuput devices for [{}] are not available. {}",
-                    host.id().name(),
-                    e.to_string()
-                );
-            }
-        }
+        process_devices(&host, AudioDeviceType::InputDevice, &mut device_map);
+        process_devices(&host, AudioDeviceType::OutputDevice, &mut device_map);
 
         devices.insert(host.id().name().to_string(), device_map);
     }

@@ -60,9 +60,7 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: |
-            server
-            common
+          workspaces: "."
 
       - name: Install cross (for cross-compilation)
         if: false # Cross-compilation not currently used, but keeping for future
@@ -139,10 +137,10 @@ jobs:
           
           if [ "${{ runner.os }}" = "Windows" ]; then
             FINAL_NAME="bvc-server-${{ matrix.target }}-$BUILD_MODE.exe"
-            cp "server/${BUILD_DIR}/bedrock-voice-chat-server.exe" "$FINAL_NAME"
+            cp "${BUILD_DIR}/bedrock-voice-chat-server.exe" "$FINAL_NAME"
           else
             FINAL_NAME="bvc-server-${{ matrix.target }}-$BUILD_MODE"
-            cp "server/${BUILD_DIR}/bedrock-voice-chat-server" "$FINAL_NAME"
+            cp "${BUILD_DIR}/bedrock-voice-chat-server" "$FINAL_NAME"
           fi
           
           echo "Created artifact: $FINAL_NAME"

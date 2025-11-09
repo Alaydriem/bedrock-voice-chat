@@ -36,7 +36,7 @@ jobs:
   build-android:
     name: Build Android Client (${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }})
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -64,17 +64,17 @@ jobs:
         run: |
           # Install Android SDK components via sdkmanager
           echo "Installing Android SDK build tools and CMake..."
-          
+
           # Accept licenses
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-          
+
           # Install required SDK components
           $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
             "build-tools;34.0.0" \
             "cmake;3.22.1" \
             "platform-tools" \
             "platforms;android-34"
-          
+
           echo "Android SDK components installed"
 
       - name: Install Rust toolchain
@@ -83,15 +83,11 @@ jobs:
           targets: |
             aarch64-linux-android
             armv7-linux-androideabi
-            i686-linux-android
-            x86_64-linux-android
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: |
-            client/src-tauri
-            common
+          workspaces: "."
 
       - name: Install system dependencies
         run: |
@@ -136,7 +132,7 @@ jobs:
           echo "ANDROID_NDK_HOME=$ANDROID_NDK_ROOT" >> $GITHUB_ENV
           echo "ANDROID_NDK_ROOT=$ANDROID_NDK_ROOT" >> $GITHUB_ENV
           echo "NDK_HOME=$ANDROID_NDK_ROOT" >> $GITHUB_ENV
-          
+
           # Set up Android SDK CMake
           CMAKE_VERSION="3.22.1"
           ANDROID_CMAKE_PATH="$ANDROID_HOME/cmake/$CMAKE_VERSION/bin"
@@ -149,10 +145,10 @@ jobs:
             echo "Android CMake not found at $ANDROID_CMAKE_PATH, using system CMake"
             echo "CMAKE=cmake" >> $GITHUB_ENV
           fi
-          
+
           # Set up Ninja (prefer system ninja)
           echo "CMAKE_GENERATOR=Ninja" >> $GITHUB_ENV
-          
+
           # Debug: Show what NDK variables are available
           echo "Available NDK environment variables:"
           echo "ANDROID_NDK_ROOT: $ANDROID_NDK_ROOT"
@@ -206,32 +202,32 @@ jobs:
         working-directory: ./client
         run: |
           echo "Copying custom Android icons..."
-          
+
           SOURCE_ICONS="src-tauri/icons/android"
           TARGET_RES="src-tauri/gen/android/app/src/main/res"
-          
+
           if [ ! -d "$SOURCE_ICONS" ]; then
             echo "Warning: Source icons path not found: $SOURCE_ICONS"
             exit 1
           fi
-          
+
           if [ ! -d "$TARGET_RES" ]; then
             echo "Warning: Target Android resources path not found: $TARGET_RES"
             exit 1
           fi
-          
+
           # Copy each mipmap directory
           for MIPMAP_DIR in mipmap-hdpi mipmap-mdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
             SOURCE_PATH="$SOURCE_ICONS/$MIPMAP_DIR"
             TARGET_PATH="$TARGET_RES/$MIPMAP_DIR"
-            
+
             if [ -d "$SOURCE_PATH" ]; then
               mkdir -p "$TARGET_PATH"
-              
+
               # Copy ic_launcher.png
               SOURCE_ICON="$SOURCE_PATH/ic_launcher.png"
               TARGET_ICON="$TARGET_PATH/ic_launcher.png"
-              
+
               if [ -f "$SOURCE_ICON" ]; then
                 cp "$SOURCE_ICON" "$TARGET_ICON"
                 echo "  ✓ Copied $MIPMAP_DIR/ic_launcher.png"
@@ -244,9 +240,9 @@ jobs:
               exit 1
             fi
           done
-          
+
           echo "Android icon copying completed."
-          
+
           # Verify icons were copied
           echo "Verifying copied icons:"
           find "$TARGET_RES" -name "ic_launcher.png" -exec ls -la {} \;
@@ -279,16 +275,6 @@ jobs:
           AR_armv7_linux_androideabi: "llvm-ar"
           CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER: "armv7a-linux-androideabi27-clang"
 
-          CC_i686_linux_android: "i686-linux-android27-clang"
-          CXX_i686_linux_android: "i686-linux-android27-clang++"
-          AR_i686_linux_android: "llvm-ar"
-          CARGO_TARGET_I686_LINUX_ANDROID_LINKER: "i686-linux-android27-clang"
-
-          CC_x86_64_linux_android: "x86_64-linux-android27-clang"
-          CXX_x86_64_linux_android: "x86_64-linux-android27-clang++"
-          AR_x86_64_linux_android: "llvm-ar"
-          CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER: "x86_64-linux-android27-clang"
-
           # RUSTFLAGS (unchanged)
           CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS: >-
             -Clinker=aarch64-linux-android27-clang
@@ -303,19 +289,6 @@ jobs:
             -C link-arg=-lc++_shared
             -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/27
 
-          # x86
-          CARGO_TARGET_I686_LINUX_ANDROID_RUSTFLAGS: >-
-            -Clinker=i686-linux-android27-clang
-            --cfg s2n_quic_unstable
-            -C link-arg=-lc++_shared
-            -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android/27
-
-          # x86_64
-          CARGO_TARGET_X86_64_LINUX_ANDROID_RUSTFLAGS: >-
-            -Clinker=x86_64-linux-android27-clang
-            --cfg s2n_quic_unstable
-            -C link-arg=-lc++_shared
-            -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android/27
           ANDROID_PLATFORM: "android-27"
           CMAKE_ANDROID_API: "27"
         run: |
@@ -332,17 +305,17 @@ jobs:
             echo "Building in debug mode"
             yarn tauri android build --debug
           fi
-          
+
       - name: Prepare Android artifacts
         working-directory: ./client
         run: |
           # Determine actual build mode used
           BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}"
           echo "Effective build mode: $BUILD_MODE"
-          
+
           # Use the correct path structure
           APK_PATH="src-tauri/gen/android/app/build/outputs/apk/universal/$BUILD_MODE/app-universal-$BUILD_MODE.apk"
-          
+
           if [ -f "$APK_PATH" ]; then
             echo "Found APK at: $APK_PATH"
             cp "$APK_PATH" "bvc-android-$BUILD_MODE.apk"

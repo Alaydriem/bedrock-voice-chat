@@ -52,9 +52,7 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: |
-            client/src-tauri
-            common
+          workspaces: "."
 
       - name: Install JavaScript dependencies
         working-directory: ./client
@@ -121,8 +119,8 @@ jobs:
           
           if ($BUILD_MODE -eq "release") {
             # Copy release executable
-            if (Test-Path "src-tauri\target\release\bedrock-voice-chat-client.exe") {
-              Copy-Item "src-tauri\target\release\bedrock-voice-chat-client.exe" "bvc-windows-$BUILD_MODE.exe"
+            if (Test-Path "..\target\release\bedrock-voice-chat-client.exe") {
+              Copy-Item "..\target\release\bedrock-voice-chat-client.exe" "bvc-windows-$BUILD_MODE.exe"
               Write-Host "Copied release executable" -ForegroundColor Green
             } else {
               Write-Host "ERROR: Release executable not found!" -ForegroundColor Red
@@ -130,8 +128,8 @@ jobs:
             }
           } else {
             # Copy debug executable
-            if (Test-Path "src-tauri\target\debug\bedrock-voice-chat-client.exe") {
-              Copy-Item "src-tauri\target\debug\bedrock-voice-chat-client.exe" "bvc-windows-$BUILD_MODE.exe"
+            if (Test-Path "..\target\debug\bedrock-voice-chat-client.exe") {
+              Copy-Item "..\target\debug\bedrock-voice-chat-client.exe" "bvc-windows-$BUILD_MODE.exe"
               Write-Host "Copied debug executable" -ForegroundColor Green
             } else {
               Write-Host "ERROR: Debug executable not found!" -ForegroundColor Red
