@@ -1,4 +1,6 @@
 name: Build All Platforms
+permissions:
+  contents: read
 
 on:
   push:
