@@ -1,4 +1,6 @@
 name: Build Android Client
+permissions:
+  contents: read
 
 on:
   push:
