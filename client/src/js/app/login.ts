@@ -20,7 +20,6 @@ declare global {
 // This should only register _once_ on page load. Without this onOpenUrl _seems_ to get called
 // multiple times (especially during dev mode) or page refresh
 // This will only handle deep links for the ://auth endpoint.
-// @todo: How do we _de-register_ this event handler?
 if (!window.LoginDeepLinkRegistered) {
   // Handle deep links when app is already running
   await onOpenUrl(async (urls) => {
@@ -240,7 +239,7 @@ export default class Login extends App {
         await store.delete("auth_state_endpoint");
         await store.save();
 
-        window.location.href = "/dashboard";
+        window.location.href = "/onboarding/dashboard";
       } else {
         throw new Error("authStateEndpoint is undefined");
       }

@@ -13,6 +13,7 @@ import Server from './server.ts';
 import Keyring from './keyring.ts';
 import Sidebar from "./components/dashboard/sidebar.ts";
 import PlatformDetector from './utils/PlatformDetector.ts';
+import Onboarding from './onboarding';
 
 import { PlayerManager } from './managers/PlayerManager';
 import ChannelManager from './managers/ChannelManager';
@@ -29,9 +30,7 @@ import {
   stopForegroundService,
   updateNotification,
   PermissionType,
-  type ServiceResponse,
-  type PermissionRequest,
-  type PermissionResponse
+  type ServiceResponse
 } from 'tauri-plugin-audio-permissions';
 
 declare global {
@@ -46,7 +45,7 @@ export default class Dashboard extends App {
     private eventUnlisteners: (() => void)[] = [];
     private currentServerCredentials: LoginResponse | null = null;
     private popperProfile: any = null;
-    private platformDetector: PlatformDetector = new PlatformDetector();
+    private onboarding: Onboarding | undefined;
 
     // Manager instances for dependency injection
     public playerManager: PlayerManager | undefined;
@@ -54,6 +53,26 @@ export default class Dashboard extends App {
     public audioActivityManager: AudioActivityManager | undefined;
 
     async initialize() {
+        this.store = await Store.load("store.json", {
+            autoSave: false,
+            defaults: {}
+        });
+
+        // Check onboarding status before proceeding
+        this.onboarding = new Onboarding(this.store);
+        await this.onboarding.initialize();
+
+        info("Onboarding Status: " + this.onboarding.isComplete());
+        if (!this.onboarding.isComplete()) {
+            const nextStep = this.onboarding.getNextStep();
+            info(`Redirecting to onboarding: ${nextStep}`);
+            if (nextStep) {
+                window.location.href = nextStep;
+                return;
+            }
+        }
+
+
         const appWebview = getCurrentWebviewWindow();
 
         // Handle notifications
@@ -69,12 +88,6 @@ export default class Dashboard extends App {
             });
         });
         this.eventUnlisteners.push(notificationUnlisten);
-
-
-        this.store = await Store.load("store.json", {
-            autoSave: false,
-            defaults: {}
-        });
         const currentServer = await this.store.get<string>("current_server");
 
         // Initialize managers with dependency injection
@@ -107,20 +120,12 @@ export default class Dashboard extends App {
                 const audioPermission = await checkPermission({ permissionType: PermissionType.Audio });
 
                 if (!audioPermission.granted) {
-                    info("Audio permission not granted, requesting...");
-                    const audioGranted = await requestPermission({ permissionType: PermissionType.Audio });
-
-                    if (!audioGranted.granted) {
-                        warn("Audio permission denied");
-                        window.location.href = "/error?code=PERM1";
-                        return;
-                    }
+                    warn("Audio permission denied");
+                    window.location.href = "/error?code=PERM1";
+                    return;
                 }
 
-                info("Audio permission granted, checking notification permission...");
-
-                info("Notification permission not granted, requesting...");
-                const notificationGranted = await requestPermission({ permissionType: PermissionType.Notification });
+                const notificationGranted = await checkPermission({ permissionType: PermissionType.Notification });
 
                 if (!notificationGranted.granted) {
                     warn("Notification permission denied - notifications may not be visible");
@@ -128,9 +133,6 @@ export default class Dashboard extends App {
                     return;
                 }
 
-                info("Permissions complete, starting foreground service...");
-
-                // Start foreground service only after permissions are handled
                 const serviceResult: ServiceResponse = await startForegroundService();
 
                 if (!serviceResult.started) {
@@ -138,8 +140,6 @@ export default class Dashboard extends App {
                     window.location.href = "/error?code=SERV01";
                     return;
                 }
-
-                info("Foreground service started successfully, initializing audio...");
 
                 // Initialize audio devices and network stream
                 await this.initializeAudioDevicesAndNetworkStream(this.store!, currentServer ?? "", this.currentServerCredentials);

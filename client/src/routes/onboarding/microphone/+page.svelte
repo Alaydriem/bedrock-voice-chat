@@ -1,0 +1,124 @@
+<script lang="ts">
+    import "../../../css/app.css";
+    import { onMount } from 'svelte';
+    import Onboarding from '../../../js/app/onboarding';
+    import {
+        checkPermission,
+        requestPermission,
+        PermissionType,
+        type PermissionResponse
+    } from 'tauri-plugin-audio-permissions';
+
+    let onboarding: Onboarding;
+    let permissionGranted = false;
+    let permissionDenied = false;
+    let isChecking = false;
+
+    onMount(async () => {
+        onboarding = new Onboarding();
+        await onboarding.initialize();
+
+        // If already complete, navigate to next
+        const state = onboarding.getCurrentState();
+        if (state.microphone) {
+            await onboarding.navigateToNext();
+            return;
+        }
+
+        // Check current permission status
+        await checkCurrentPermission();
+
+        // If permission already granted, auto-complete and proceed
+        if (permissionGranted) {
+            await onboarding.completeStep('microphone');
+            await onboarding.navigateToNext();
+            return;
+        }
+
+        // Fade out preloader
+        onboarding.preloader();
+    });
+
+    async function checkCurrentPermission() {
+        try {
+            const response: PermissionResponse = await checkPermission({
+                permissionType: PermissionType.Audio
+            });
+            permissionGranted = response.granted;
+        } catch (error) {
+            console.error('Error checking microphone permission:', error);
+            permissionGranted = false;
+        }
+    }
+
+    async function handleRequestPermission() {
+        isChecking = true;
+        permissionDenied = false;
+
+        try {
+            const response: PermissionResponse = await requestPermission({
+                permissionType: PermissionType.Audio
+            });
+
+            if (response.granted) {
+                permissionGranted = true;
+                await onboarding.completeStep('microphone');
+                // Auto-proceed after brief delay
+                setTimeout(() => {
+                    onboarding.navigateToNext();
+                }, 500);
+            } else {
+                permissionDenied = true;
+            }
+        } catch (error) {
+            console.error('Error requesting microphone permission:', error);
+            permissionDenied = true;
+        } finally {
+            isChecking = false;
+        }
+    }
+</script>
+
+<main class="grid w-full place-items-center min-h-dvh bg-slate-50 dark:bg-navy-900 p-4">
+    <div class="card w-full max-w-md p-8">
+        <div class="flex justify-center mb-6">
+            <div class="flex items-center justify-center w-20 h-20 rounded-full {permissionGranted ? 'bg-success/10' : 'bg-slate-200 dark:bg-navy-700'}">
+                <i class="fas {permissionGranted ? 'fa-microphone text-success' : 'fa-microphone-slash text-slate-600 dark:text-navy-300'} text-3xl"></i>
+            </div>
+        </div>
+
+        <div class="text-center">
+            <h1 class="text-2xl font-semibold mb-4 text-slate-900 dark:text-navy-50">
+                {permissionGranted ? 'Microphone Access Granted' : 'Microphone Access Required'}
+            </h1>
+            <p class="text-slate-600 dark:text-navy-200 mb-6">
+                {#if permissionGranted}
+                    You're all set! Voice chat requires microphone access to transmit your audio.
+                {:else}
+                    To use voice chat, we need permission to access your microphone. Your audio is only transmitted when you're speaking and not muted
+                {/if}
+            </p>
+
+            {#if permissionDenied}
+            <div class="alert bg-warning/10 text-warning border border-warning/20 rounded-lg p-4 mb-6 text-sm">
+                <i class="fas fa-exclamation-triangle mr-2"></i>
+                Please enable microphone access in your device settings to continue.
+            </div>
+            {/if}
+        </div>
+
+        <button
+            on:click={handleRequestPermission}
+            disabled={isChecking}
+            class="btn w-full bg-primary hover:bg-primary-focus focus:bg-primary-focus active:bg-primary-focus/90 dark:bg-accent dark:hover:bg-accent-focus dark:focus:bg-accent-focus dark:active:bg-accent/90 text-white font-semibold py-3 disabled:opacity-50"
+        >
+            {#if isChecking}
+                <span class="spinner h-5 w-5 mr-2"></span>
+                Checking...
+            {:else}
+                <i class="fas fa-microphone mr-2"></i>
+                Grant Microphone Access
+            {/if}
+        </button>
+    </div>
+</main>
