@@ -186,13 +186,13 @@ jobs:
           echo "Initializing Tauri Android project..."
           yarn tauri android init
           # Groovy
-          sed -i 's/minSdkVersion[[:space:]]\+[0-9]\+/minSdkVersion 27/' src-tauri/gen/android/app/build.gradle || true
+          sed -i 's/minSdkVersion[[:space:]]\+[0-9]\+/minSdkVersion 35/' src-tauri/gen/android/app/build.gradle || true
           # Kotlin DSL
-          sed -i 's/minSdk[[:space:]]*=[[:space:]]*[0-9]\+/minSdk = 27/' src-tauri/gen/android/app/build.gradle.kts || true
+          sed -i 's/minSdk[[:space:]]*=[[:space:]]*[0-9]\+/minSdk = 35/' src-tauri/gen/android/app/build.gradle.kts || true
 
           # Optional: also raise compileSdk/targetSdk if present
-          sed -i 's/compileSdk[[:space:]]*=[[:space:]]*[0-9]\+/compileSdk = 34/' src-tauri/gen/android/app/build.gradle.kts || true
-          sed -i 's/targetSdk[[:space:]]*=[[:space:]]*[0-9]\+/targetSdk = 34/' src-tauri/gen/android/app/build.gradle.kts || true
+          sed -i 's/compileSdk[[:space:]]*=[[:space:]]*[0-9]\+/compileSdk = 36/' src-tauri/gen/android/app/build.gradle.kts || true
+          sed -i 's/targetSdk[[:space:]]*=[[:space:]]*[0-9]\+/targetSdk = 36/' src-tauri/gen/android/app/build.gradle.kts || true
 
           grep -Rn "minSdk" src-tauri/gen/android || true
 

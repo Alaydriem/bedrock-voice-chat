@@ -1,4 +1,4 @@
-import { family } from '@tauri-apps/plugin-os';
+import { platform } from '@tauri-apps/plugin-os';
 
 export default class PlatformDetector {
   private isMobile: boolean | null = null;
@@ -9,9 +9,9 @@ export default class PlatformDetector {
     }
 
     try {
-      const osFamily = await family();
-      const familyStr = String(osFamily).toLowerCase();
-      this.isMobile = familyStr.includes('ios') || familyStr.includes('android');
+      const family = await platform();
+      const typeStr = String(family).toLowerCase();
+      this.isMobile = typeStr.includes('ios') || typeStr.includes('android');
       return this.isMobile;
     } catch (error) {
       this.isMobile = false;
