@@ -1,4 +1,6 @@
 name: Build Windows Client
+permissions:
+  contents: read
 
 on:
   push:
