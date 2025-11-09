@@ -4,6 +4,7 @@
     import Onboarding from '../../../js/app/onboarding';
     import AudioDeviceSelector from '../../../components/audio/AudioDeviceSelector.svelte';
     import PlatformDetector from "../../../js/app/utils/PlatformDetector";
+    import { info } from "@tauri-apps/plugin-log";
 
     let onboarding: Onboarding;
 
@@ -19,9 +20,10 @@
 
         const platformDetector = new PlatformDetector();
         const isMobile = await platformDetector.checkMobile();
+        info("Devices Onboarding isMobile: " + isMobile);
         if (isMobile) {
+            info("Redirecting to next page.");
             await handleContinue();
-            return;
         }
 
         // Mobile devices are handled by +page.ts and never reach here
