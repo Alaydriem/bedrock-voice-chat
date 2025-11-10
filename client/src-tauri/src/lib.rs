@@ -142,19 +142,43 @@ pub fn run() {
                 app.deep_link().register_all()?;
             }
 
-            // Register event handler for incoming deep links
+            // Register event handler for incoming deep links (when app is already running)
             let app_handle = handle.clone();
             app.deep_link().on_open_url(move |event| {
+                info!("on_open_url callback fired");
                 for url in event.urls() {
-                    info!("Processing deep link URL: {}", url);
+                    info!("Processing deep link URL from on_open_url: {}", url);
                     let deep_link = DeepLink::new(url.to_string());
                     if let Err(e) = deep_link.handle(&app_handle) {
                         error!("Failed to handle deep link: {}", e);
                     } else {
-                        info!("Successfully handled deep link");
+                        info!("Successfully handled deep link from on_open_url");
                     }
                 }
             });
+
+            // Check for deep links that cold-started the app
+            let app_handle2 = handle.clone();
+            match app.deep_link().get_current() {
+                Ok(urls) => match urls {
+                    Some(urls) => {
+                        for url in &urls {
+                            let deep_link = DeepLink::new(url.to_string());
+                            if let Err(e) = deep_link.handle(&app_handle2) {
+                                error!("Failed to handle cold-start deep link: {}", e);
+                            } else {
+                                info!("Successfully handled cold-start deep link");
+                            }
+                        }
+                    },
+                    None => {
+                        warn!("No cold-start deep links found or error");
+                    }
+                }
+                Err(e) => {
+                    warn!("No cold-start deep links found or error: {}", e);
+                }
+            }
 
             // Handle updates for desktop applications
             #[cfg(desktop)]
