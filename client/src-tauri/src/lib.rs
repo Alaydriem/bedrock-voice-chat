@@ -6,11 +6,14 @@ use std::sync::Arc;
 use tauri::async_runtime::Mutex;
 use tauri::Manager;
 use tauri_plugin_store::StoreExt;
-
+use tauri_plugin_deep_link::DeepLinkExt;
+use tauri_plugin_log::log::{info, error, warn};
 use audio::AudioStreamManager;
 use audio::recording::RecordingManager;
 use network::NetworkStreamManager;
 
+use common::structs::DeepLink;
+use deep_links::DeepLinkHandler;
 use once_cell::sync::Lazy;
 use tokio::sync::Notify;
 
@@ -19,14 +22,13 @@ mod audio;
 mod auth;
 mod commands;
 mod core;
+mod deep_links;
 mod events;
 mod network;
 mod structs;
 
 pub(crate) static AUDIO_INPUT_NETWORK_NOTIFY: Lazy<Arc<Notify>> =
     Lazy::new(|| Arc::new(Notify::new()));
-pub(crate) static ANDROID_SIGNATURE_TEST_HASH: &str = "test-2jmj7l5rSw0yVb%2FvlWAYkK%2FYBwk%3D";
-pub(crate) static ANDROID_SIGNATURE_LIVE_HASH: &str = "live-2jmj7l5rSw0yVb%2FvlWAYkK%2FYBwk%3D";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -109,55 +111,56 @@ pub fn run() {
                     currentresolution: *mut u32,
                 ) -> i32);
 
-                // Check current timer resolution before setting
                 let mut min_res = 0u32;
                 let mut max_res = 0u32;
                 let mut current_res = 0u32;
                 unsafe {
                     NtQueryTimerResolution(&mut min_res, &mut max_res, &mut current_res);
                     let current_ms = current_res as f64 / 10_000.0;
-                    log::info!("Current Windows timer resolution: {:.2}ms", current_ms);
+                    info!("Current Windows timer resolution: {:.2}ms", current_ms);
 
-                    // Set to 1ms
                     timeBeginPeriod(1);
 
-                    // Verify the change
                     NtQueryTimerResolution(&mut min_res, &mut max_res, &mut current_res);
                     let new_ms = current_res as f64 / 10_000.0;
-                    log::info!("Set Windows timer resolution to 1ms (actual: {:.2}ms)", new_ms);
+                    info!("Set Windows timer resolution to 1ms (actual: {:.2}ms)", new_ms);
 
                     if new_ms > 2.0 {
-                        log::warn!("WARNING: Timer resolution is degraded ({:.2}ms). This will cause audio jitter!", new_ms);
-                        log::warn!("Try closing other applications or restarting Windows.");
+                        warn!("WARNING: Timer resolution is degraded ({:.2}ms). This will cause audio jitter!", new_ms);
+                        warn!("Try closing other applications or restarting Windows.");
                     }
                 }
             }
 
-            log::info!("BVC Variant {:?}", crate::commands::env::get_variant());
+            info!("BVC Variant {:?}", crate::commands::env::get_variant());
             let store = app.store("store.json")?;
             let handle = app.handle().clone();
-            // On Windows, and Linux, circumvent non-installed desktop application deep link
-            // url handling by force registering them with the system
+
+            // Register deep links for Desktop targets
             #[cfg(any(windows, target_os = "linux"))]
             {
-                use tauri_plugin_deep_link::DeepLinkExt;
                 app.deep_link().register_all()?;
             }
+
+            // Register event handler for incoming deep links
+            let app_handle = handle.clone();
+            app.deep_link().on_open_url(move |event| {
+                for url in event.urls() {
+                    info!("Processing deep link URL: {}", url);
+                    let deep_link = DeepLink::new(url.to_string());
+                    if let Err(e) = deep_link.handle(&app_handle) {
+                        error!("Failed to handle deep link: {}", e);
+                    } else {
+                        info!("Successfully handled deep link");
+                    }
+                }
+            });
 
             // Handle updates for desktop applications
             #[cfg(desktop)]
             {
                 handle.plugin(tauri_plugin_updater::Builder::new().build())?;
             }
-
-            let android_signature_hash: String;
-            if cfg!(dev) {
-                android_signature_hash = ANDROID_SIGNATURE_TEST_HASH.to_string();
-            } else {
-                android_signature_hash = ANDROID_SIGNATURE_LIVE_HASH.to_string();
-            }
-
-            store.set("android_signature_hash".to_string(), android_signature_hash);
 
             let app_state = AppState::new(store.clone());
             app.manage(Mutex::new(app_state));

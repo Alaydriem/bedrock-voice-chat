@@ -1,10 +1,8 @@
-import { platform } from "@tauri-apps/plugin-os";
 import { check, Update } from "@tauri-apps/plugin-updater";
-import { relaunch } from "@tauri-apps/plugin-process";
-import { warn, debug, trace, info, error } from "@tauri-apps/plugin-log";
+import { info, error } from "@tauri-apps/plugin-log";
 import { match, Pattern } from "ts-pattern";
-import App from "./app.ts";
-import { deepLinkManager } from "./deepLinkManager.ts";
+import PlatformDetector from "./utils/PlatformDetector.ts";
+import BVCApp from "./BVCApp.ts";
 
 declare global {
   interface Window {
@@ -12,26 +10,24 @@ declare global {
   }
 }
 
-export default class Splash extends App {
+export default class Splash extends BVCApp {
+  private platformDetector: PlatformDetector | undefined;
   constructor() {
     super();
-    this.initializeDeepLinks();
-    this.update();
+    this.platformDetector = new PlatformDetector();
   }
 
-  private async initializeDeepLinks() {
-    try {
-      await deepLinkManager.initialize();
-      info("Deep link manager initialized in Splash");
-    } catch (e) {
-      error(`Failed to initialize deep link manager: ${e}`);
-    }
+  async initialize() {
+    await this.initializeDeepLinks();
+    await this.update();
   }
 
-  update() {
-    if (this.isMobile()) {
+  async update() {
+    const isMobile = await this.platformDetector?.checkMobile();
+    if (isMobile) {
       // If this is a mobile app, then redirect to the server page
       window.location.href = "/server";
+      return;
     } else {
       // Otherwise, perfrom a self update check
       const update = async () => {
@@ -60,10 +56,5 @@ export default class Splash extends App {
           window.location.href = "/server";
         });
     }
-  }
-
-  isMobile() {
-    const currentPlatform = platform();
-    return currentPlatform === "ios" || currentPlatform === "android";
   }
 }

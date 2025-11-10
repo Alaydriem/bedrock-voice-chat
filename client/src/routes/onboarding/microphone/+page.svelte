@@ -15,7 +15,6 @@
         onboarding = new Onboarding();
         await onboarding.initialize();
 
-        // If already complete, navigate to next
         const state = onboarding.getCurrentState();
         if (state.microphone) {
             await onboarding.navigateToNext();
@@ -32,7 +31,6 @@
             return;
         }
 
-        // Fade out preloader
         onboarding.preloader();
     });
 
@@ -60,7 +58,6 @@
             if (response.granted) {
                 permissionGranted = true;
                 await onboarding.completeStep('microphone');
-                // Auto-proceed after brief delay
                 setTimeout(() => {
                     onboarding.navigateToNext();
                 }, 500);
@@ -69,6 +66,24 @@
             }
         } catch (error) {
             console.error('Error requesting microphone permission:', error);
+
+            // On timeout or error, re-check permission status in case it was actually granted
+            try {
+                const statusCheck = await checkPermissionStatus(PermissionType.Audio);
+                if (statusCheck.granted) {
+                    // Permission was actually granted, proceed
+                    permissionGranted = true;
+                    await onboarding.completeStep('microphone');
+                    setTimeout(() => {
+                        onboarding.navigateToNext();
+                    }, 500);
+                    return;
+                }
+            } catch (recheckError) {
+                console.error('Error rechecking permission status:', recheckError);
+            }
+
+            // If we get here, permission was not granted
             if (error instanceof Error && error.message.includes('timeout')) {
                 permissionError = true;
             } else {
@@ -84,7 +99,7 @@
     <div class="card w-full max-w-md p-8">
         <div class="flex justify-center mb-6">
             <div class="flex items-center justify-center w-20 h-20 rounded-full {permissionGranted ? 'bg-success/10' : 'bg-slate-200 dark:bg-navy-700'}">
-                <i class="fas {permissionGranted ? 'fa-microphone text-success' : 'fa-microphone-slash text-slate-600 dark:text-navy-300'} text-3xl"></i>
+                <i class="fas {permissionGranted ? 'fa-bell text-success' : 'fa-bell-slash text-slate-600 dark:text-navy-300'} text-3xl"></i>
             </div>
         </div>
 
@@ -103,7 +118,7 @@
             {#if permissionDenied}
             <div class="alert bg-warning/10 text-warning border border-warning/20 rounded-lg p-4 mb-6 text-sm">
                 <i class="fas fa-exclamation-triangle mr-2"></i>
-                Please enable microphone access in your device settings to continue.
+                Please enable audio recording in your device settings to continue.
             </div>
             {/if}
 
@@ -124,7 +139,7 @@
                 <span class="spinner h-5 w-5 mr-2"></span>
                 Checking...
             {:else}
-                <i class="fas fa-microphone mr-2"></i>
+                <i class="fas fa-bell mr-2"></i>
                 Grant Microphone Access
             {/if}
         </button>

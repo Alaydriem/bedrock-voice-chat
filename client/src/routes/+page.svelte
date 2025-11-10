@@ -4,8 +4,9 @@
 
     import { onMount } from 'svelte';
 
-    onMount(() => {
+    onMount(async () => {
         window.App = new Splash();
+        await window.App.initialize();
         window.dispatchEvent(new CustomEvent("app:mounted"));
     });
 </script>

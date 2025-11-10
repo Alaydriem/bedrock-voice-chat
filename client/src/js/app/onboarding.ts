@@ -1,9 +1,9 @@
-import App from "./app";
+import BVCApp from "./BVCApp";
 import { Store } from "@tauri-apps/plugin-store";
 import type { OnboardingState } from "../bindings/OnboardingState";
 import { info } from "@tauri-apps/plugin-log";
 
-export default class Onboarding extends App {
+export default class Onboarding extends BVCApp {
     private store: Store | null = null;
     private state: OnboardingState;
     private readonly STORE_KEY = "onboarding_state";

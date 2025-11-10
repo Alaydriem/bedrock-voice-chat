@@ -2,8 +2,8 @@ import { fetch } from '@tauri-apps/plugin-http';
 import { info, error, warn, debug } from '@tauri-apps/plugin-log';
 import { Store } from '@tauri-apps/plugin-store';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import App from './app.js';
-import { deepLinkManager } from './deepLinkManager.ts';
+import { platform } from '@tauri-apps/plugin-os';
+import BVCApp from './BVCApp.ts';
 
 declare global {
   interface Window {
@@ -11,7 +11,7 @@ declare global {
   }
 }
 
-export default class Login extends App {
+export default class Login extends BVCApp {
   // This is the endpoint that the API configuration can be retrieved from
   readonly CONFIG_ENDPOINT= "/api/config";
   // This is the POST endpoint for authenticating with the server
@@ -25,14 +25,7 @@ export default class Login extends App {
 
   // Initialize login page and check for pending deep link callbacks
   async initialize() {
-    // Ensure deep link manager is initialized (defensive - should already be done in splash)
-    await deepLinkManager.initialize();
-
-    // Check if there's a pending auth callback from a deep link
-    if (await deepLinkManager.hasPendingCallback()) {
-      info("Login page: Found pending deep link callback, processing...");
-      await deepLinkManager.processPendingCallback();
-    }
+    await this.initializeDeepLinks();
   }
 
   // Sanitize server URL to ensure https:// prefix and no trailing slash
@@ -97,7 +90,7 @@ export default class Login extends App {
       await store.save();
 
       // Open a browser Window to authenticate with Microsoft Services
-      const redirectUrl = await deepLinkManager.getRedirectUrl();
+      const redirectUrl = this.getRedirectUrl();
       const authLoginUrl: string =
         `https://login.live.com/oauth20_authorize.srf?client_id=${clientId}&response_type=code&redirect_uri=${redirectUrl}&scope=XboxLive.signin%20offline_access&state=${secretState}`;
 
@@ -107,5 +100,14 @@ export default class Login extends App {
       serverUrl.classList.add("border-error");
       errorMessage.classList.remove("invisible");
     });
+  }
+
+  private getRedirectUrl(): string {
+    switch (platform()) {
+      case "windows": return "bedrock-voice-chat://auth";
+      case "android": return "bedrock-voice-chat://auth";
+      case "ios": return "msauth.com.alaydriem.bvc.client://auth";
+      default: throw new Error("Unsupported platform");
+    }
   }
 }

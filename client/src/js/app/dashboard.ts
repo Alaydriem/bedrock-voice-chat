@@ -8,11 +8,10 @@ import { mount } from "svelte";
 
 import type { AudioDevice } from "../../js/bindings/AudioDevice.ts";
 import type { LoginResponse } from "../../js/bindings/LoginResponse.ts";
-import App from './app.js';
+import BVCApp from "./BVCApp";
 import Server from './server.ts';
 import Keyring from './keyring.ts';
 import Sidebar from "./components/dashboard/sidebar.ts";
-import PlatformDetector from './utils/PlatformDetector.ts';
 import Onboarding from './onboarding';
 
 import { PlayerManager } from './managers/PlayerManager';
@@ -24,7 +23,6 @@ import type { NoiseGateSettings } from '../bindings/NoiseGateSettings.ts';
 import type { PlayerGainStore } from '../bindings/PlayerGainStore.ts';
 
 import {
-  requestPermission,
   checkPermission,
   startForegroundService,
   stopForegroundService,
@@ -39,7 +37,7 @@ declare global {
   }
 }
 
-export default class Dashboard extends App {
+export default class Dashboard extends BVCApp {
     private keyring: Keyring | undefined;
     private store: Store | undefined;
     private eventUnlisteners: (() => void)[] = [];
