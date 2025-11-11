@@ -8,19 +8,6 @@ publish = false
 name = "entity"
 path = "src/lib.rs"
 
-[profile.release]
-opt-level = 3
-strip = true
-debug = false
-codegen-units = 1
-lto = true
-
-[profile.dev]
-opt-level = 1
-debug = 1
-strip = "symbols"
-incremental = true
-
 [dependencies]
 common = { path = "../common" }
 async-std = { version = "^1", features = ["attributes", "tokio1"] }

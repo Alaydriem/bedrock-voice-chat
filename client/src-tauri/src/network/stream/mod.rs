@@ -3,8 +3,8 @@ mod stream_manager;
 use crate::AudioPacket;
 use crate::NetworkPacket;
 use common::structs::packet::PacketOwner;
-use s2n_quic::client::Connect;
-use s2n_quic::Client;
+use common::s2n_quic::client::Connect;
+use common::s2n_quic::Client;
 use std::error::Error;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -66,7 +66,7 @@ impl NetworkStreamManager {
         )
         .await?;
 
-        let dg_endpoint = s2n_quic::provider::datagram::default::Endpoint::builder()
+        let dg_endpoint = common::s2n_quic::provider::datagram::default::Endpoint::builder()
             .with_send_capacity(1024)
             .expect("send cap > 0")
             .with_recv_capacity(1024)

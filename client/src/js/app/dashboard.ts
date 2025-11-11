@@ -8,10 +8,11 @@ import { mount } from "svelte";
 
 import type { AudioDevice } from "../../js/bindings/AudioDevice.ts";
 import type { LoginResponse } from "../../js/bindings/LoginResponse.ts";
-import App from './app.js';
+import BVCApp from "./BVCApp";
 import Server from './server.ts';
 import Keyring from './keyring.ts';
 import Sidebar from "./components/dashboard/sidebar.ts";
+import Onboarding from './onboarding';
 
 import { PlayerManager } from './managers/PlayerManager';
 import ChannelManager from './managers/ChannelManager';
@@ -22,7 +23,12 @@ import type { NoiseGateSettings } from '../bindings/NoiseGateSettings.ts';
 import type { PlayerGainStore } from '../bindings/PlayerGainStore.ts';
 
 import {
-    requestPermission as requestAudioPermissions
+  checkPermission,
+  startForegroundService,
+  stopForegroundService,
+  updateNotification,
+  PermissionType,
+  type ServiceResponse
 } from 'tauri-plugin-audio-permissions';
 
 declare global {
@@ -31,12 +37,13 @@ declare global {
   }
 }
 
-export default class Dashboard extends App {
+export default class Dashboard extends BVCApp {
     private keyring: Keyring | undefined;
     private store: Store | undefined;
     private eventUnlisteners: (() => void)[] = [];
     private currentServerCredentials: LoginResponse | null = null;
     private popperProfile: any = null;
+    private onboarding: Onboarding | undefined;
 
     // Manager instances for dependency injection
     public playerManager: PlayerManager | undefined;
@@ -44,6 +51,26 @@ export default class Dashboard extends App {
     public audioActivityManager: AudioActivityManager | undefined;
 
     async initialize() {
+        this.store = await Store.load("store.json", {
+            autoSave: false,
+            defaults: {}
+        });
+
+        // Check onboarding status before proceeding
+        this.onboarding = new Onboarding(this.store);
+        await this.onboarding.initialize();
+
+        info("Onboarding Status: " + this.onboarding.isComplete());
+        if (!this.onboarding.isComplete()) {
+            const nextStep = this.onboarding.getNextStep();
+            info(`Redirecting to onboarding: ${nextStep}`);
+            if (nextStep) {
+                window.location.href = nextStep;
+                return;
+            }
+        }
+
+
         const appWebview = getCurrentWebviewWindow();
 
         // Handle notifications
@@ -59,9 +86,6 @@ export default class Dashboard extends App {
             });
         });
         this.eventUnlisteners.push(notificationUnlisten);
-
-
-        this.store = await Store.load("store.json", { autoSave: false });
         const currentServer = await this.store.get<string>("current_server");
 
         // Initialize managers with dependency injection
@@ -78,14 +102,50 @@ export default class Dashboard extends App {
 
             const isInputStreamStopped = await invoke("is_stopped", { device: "InputDevice" }).then((stopped) => stopped as boolean);
             const isOutputStreamStopped = await invoke("is_stopped", { device: "OutputDevice" }).then((stopped) => stopped as boolean);
+
+            // Stop foreground service on mobile only
+            await stopForegroundService().then(async (result: ServiceResponse) => {
+                if (!result.stopped) {
+                    warn("Foreground service was not running.");
+                }
+            });
+
             if (isInputStreamStopped || isOutputStreamStopped) {
                 await this.shutdown();
-                await requestAudioPermissions().then(async (granted) => {
-                    if (granted) {
-                        await this.initializeAudioDevicesAndNetworkStream(this.store!, currentServer ?? "", this.currentServerCredentials);
-                    } else {
-                        warn("Audio permissions are not granted, or need to be requested");
-                    }
+
+                // Check audio permission first
+                info("Checking audio permission...");
+                const audioPermission = await checkPermission({ permissionType: PermissionType.Audio });
+
+                if (!audioPermission.granted) {
+                    warn("Audio permission denied");
+                    window.location.href = "/error?code=PERM1";
+                    return;
+                }
+
+                const notificationGranted = await checkPermission({ permissionType: PermissionType.Notification });
+
+                if (!notificationGranted.granted) {
+                    warn("Notification permission denied - notifications may not be visible");
+                    window.location.href = "/error?code=PERM2";
+                    return;
+                }
+
+                const serviceResult: ServiceResponse = await startForegroundService();
+
+                if (!serviceResult.started) {
+                    warn("Foreground service could not be started.");
+                    window.location.href = "/error?code=SERV01";
+                    return;
+                }
+
+                // Initialize audio devices and network stream
+                await this.initializeAudioDevicesAndNetworkStream(this.store!, currentServer ?? "", this.currentServerCredentials);
+
+                // Update notification
+                await updateNotification({
+                    title: "Bedrock Voice Chat",
+                    message: "In public voice chat"
                 });
             }
         }
@@ -170,9 +230,7 @@ export default class Dashboard extends App {
             dropdownNameElement.textContent = this.currentServerCredentials.gamertag;
         }
 
-        // Set up dropdown menu functionality
         if (profileButton) {
-            // Use LineOne's simple Popper approach
             const config = {
                 placement: "right-end",
                 modifiers: [
@@ -185,7 +243,6 @@ export default class Dashboard extends App {
                 ],
             };
 
-            // Initialize with LineOne's Popper pattern
             if (typeof (window as any).Popper !== 'undefined') {
                 this.popperProfile = new (window as any).Popper(
                     '#profile-wrapper',
@@ -195,12 +252,10 @@ export default class Dashboard extends App {
                 );
             }
 
-            // Just handle the logout button click
             const logoutButton = document.getElementById('logout-button');
             if (logoutButton) {
                 logoutButton.addEventListener("click", this.handleLogout.bind(this));
 
-                // Store cleanup function
                 this.eventUnlisteners.push(() => {
                     logoutButton.removeEventListener("click", this.handleLogout.bind(this));
                     if (this.popperProfile && this.popperProfile.destroy) {
@@ -223,7 +278,6 @@ export default class Dashboard extends App {
             });
 
         } catch (err) {
-            error(`Dashboard: Logout failed: ${err}`);
             // Show error notification
             const notificationContainer = document.querySelector("#notification-container");
             if (notificationContainer) {

@@ -1,12 +1,18 @@
 <script lang="ts">
     import { onMount } from "svelte";
-    import AudioSettings from "../../../js/app/settings/audio";
-    
-    let showDeviceContainers = false;
-    
+    import { Store } from '@tauri-apps/plugin-store';
+    import AudioDeviceSelector from '../../audio/AudioDeviceSelector.svelte';
+    import NoiseGateSettings from '../../audio/NoiseGateSettings.svelte';
+
+    let store: Store | undefined = $state(undefined);
+    let isReady = $state(false);
+
     onMount(async () => {
-        const settings = new AudioSettings();
-        showDeviceContainers = await settings.initialize();
+        store = await Store.load("store.json", {
+            autoSave: false,
+            defaults: {}
+        });
+        isReady = true;
     });
 </script>
 
@@ -25,19 +31,16 @@
             </p>
         </div>
 
-        <!-- Audio device containers - hidden on mobile, shown on desktop -->
-        <div class="hidden md:flex mb-4 -mx-2">
-            
-            <div class="mt-5 flex-1 px-5" id="input-audio-device-container">
-            </div>
-            <div
-                id="audio-device-select-spinner"
-                class="justify-center spinner size-7 animate-spin rounded-full border-[3px] border-warning/30 border-r-warning"
-            ></div>
-
-            <div class="mt-5 flex-1 px-5" id="output-audio-device-container">
-            </div>
-        </div>
+        {#if isReady}
+        <!-- Audio device selector component -->
+        <AudioDeviceSelector
+            layoutMode="horizontal"
+            containerClass="hidden md:flex mb-4 -mx-2"
+            deviceContainerClass="mt-5 flex-1 px-5"
+            showLoadingText={false}
+            {store}
+            eventScope="#audio-settings-page"
+        />
 
         <div class="my-4 h-px  bg-slate-200 dark:bg-navy-500"></div>
 
@@ -52,28 +55,14 @@
             </p>
         </div>
 
-        <div class="flex mb-4 -mx-2 flex-col">
-            <label class="inline-flex items-center space-x-2 pb-2">
-                <input
-                disabled
-                id="noise-suppression-rs-toggle"
-                class="form-switch h-5 w-10 rounded-full bg-slate-300 before:rounded-full before:bg-slate-50 checked:bg-primary checked:before:bg-white dark:bg-navy-900 dark:before:bg-navy-300 dark:checked:bg-accent dark:checked:before:bg-white"
-                type="checkbox"
-                />
-                <span x-tooltip.light="'A standard noise gate modeled after OBS\' Noise Gate Filter. Effective, but requires manual tuning for your environment.'">Noise Gate RS</span>
-            </label>
-
-            <div id="noise-gate-audio-controls" class="hidden pt-5 pb-5 flex flex-row justify-evenly">
-
-            </div>
-            <label class="inline-flex items-center space-x-2 pb-2 pt-2">
-                <input
-                disabled
-                class="form-switch h-5 w-10 rounded-full bg-slate-300 before:rounded-full before:bg-slate-50 checked:bg-primary checked:before:bg-white dark:bg-navy-900 dark:before:bg-navy-300 dark:checked:bg-accent dark:checked:before:bg-white"
-                type="checkbox"
-                />
-                <span x-tooltip.light="'Experimental. A more advanced filtering neural network.'">Deep Filter Net</span>
-            </label>
-        </div>
+        <!-- Noise gate settings component -->
+        <NoiseGateSettings
+            toggleStyle="switch"
+            knobsContainerClass="pt-5 pb-5 flex flex-row justify-evenly"
+            showDescription={false}
+            showDeepFilterNet={true}
+            {store}
+        />
+        {/if}
     </div>
 </div>

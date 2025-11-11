@@ -5,7 +5,7 @@ use common::structs::packet::QuicNetworkPacket;
 use common::traits::StreamTrait;
 use common::Player;
 use moka::future::Cache;
-use s2n_quic::Connection;
+use common::s2n_quic::Connection;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::broadcast;
@@ -144,7 +144,7 @@ impl StreamTrait for OutputStream {
                     Ok(bytes) => {
                         let payload = Bytes::from(bytes);
                         let send_res = connection.datagram_mut(
-                            |dg: &mut s2n_quic::provider::datagram::default::Sender| {
+                            |dg: &mut common::s2n_quic::provider::datagram::default::Sender| {
                                 dg.send_datagram(payload.clone())
                             },
                         );

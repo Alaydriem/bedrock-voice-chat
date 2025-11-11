@@ -1,7 +1,10 @@
 param(
     [Parameter(Position=0)]
     [ValidateSet("debug", "release", "--debug", "--release")]
-    [string]$BuildType = "debug"
+    [string]$BuildType = "debug",
+
+    [Parameter(Position=1)]
+    [string]$Target = ""
 )
 
 # Normalize the build type parameter (remove -- prefix if present)
@@ -63,37 +66,37 @@ $env:BINDGEN_EXTRA_CLANG_ARGS = "--sysroot=$env:ANDROID_NDK_HOME/toolchains/llvm
 # Function to copy Android icons
 function Copy-AndroidIcons {
     Write-Host "Copying custom Android icons..." -ForegroundColor Yellow
-    
+
     $sourceIconsPath = "src-tauri\icons\android"
     $targetResPath = "src-tauri\gen\android\app\src\main\res"
-    
+
     if (-not (Test-Path $sourceIconsPath)) {
         Write-Host "Warning: Source icons path not found: $sourceIconsPath" -ForegroundColor Yellow
         return
     }
-    
+
     if (-not (Test-Path $targetResPath)) {
         Write-Host "Warning: Target Android resources path not found: $targetResPath" -ForegroundColor Yellow
         Write-Host "This is normal if the Android project hasn't been initialized yet." -ForegroundColor Yellow
         return
     }
-    
+
     # Copy each mipmap directory
     $mipmapDirs = @("mipmap-hdpi", "mipmap-mdpi", "mipmap-xhdpi", "mipmap-xxhdpi", "mipmap-xxxhdpi")
-    
+
     foreach ($mipmapDir in $mipmapDirs) {
         $sourcePath = Join-Path $sourceIconsPath $mipmapDir
         $targetPath = Join-Path $targetResPath $mipmapDir
-        
+
         if (Test-Path $sourcePath) {
             if (-not (Test-Path $targetPath)) {
                 New-Item -ItemType Directory -Path $targetPath -Force | Out-Null
             }
-            
+
             # Copy ic_launcher.png
             $sourceIcon = Join-Path $sourcePath "ic_launcher.png"
             $targetIcon = Join-Path $targetPath "ic_launcher.png"
-            
+
             if (Test-Path $sourceIcon) {
                 Copy-Item -Path $sourceIcon -Destination $targetIcon -Force
                 Write-Host "Copied $mipmapDir/ic_launcher.png" -ForegroundColor Green
@@ -104,17 +107,23 @@ function Copy-AndroidIcons {
             Write-Host "Missing source directory: $sourcePath" -ForegroundColor Red
         }
     }
-    
+
     Write-Host "Android icon copying completed." -ForegroundColor Green
 }
 
-# Build the appropriate command based on build type
+# Build the appropriate command based on build type and target
+$targetParam = ""
+if ($Target -ne "") {
+    $targetParam = " --target $Target"
+    Write-Host "Building for target: $Target" -ForegroundColor Cyan
+}
+
 if ($BuildType -eq "release") {
     Write-Host "Building in RELEASE mode..." -ForegroundColor Yellow
-    $command = "yarn tauri android build"
+    $command = "yarn tauri android build$targetParam"
 } else {
     Write-Host "Building in DEBUG mode..." -ForegroundColor Yellow
-    $command = "yarn tauri android build --debug"
+    $command = "yarn tauri android build --debug$targetParam"
 }
 
 # Execute the build
@@ -122,15 +131,15 @@ try {
     # First, ensure Android project is initialized
     Write-Host "Ensuring Android project is initialized..." -ForegroundColor Yellow
     yarn tauri android init
-    
+
     # Copy custom Android icons after initialization
     Copy-AndroidIcons
-    
+
     # Now execute the actual build
     Invoke-Expression $command
     if ($LASTEXITCODE -eq 0) {
         Write-Host "`nBuild completed successfully!" -ForegroundColor Green
-        
+
         if ($BuildType -eq "release") {
             Write-Host "Release APK: src-tauri\gen\android\app\build\outputs\apk\universal\release\app-universal-release.apk" -ForegroundColor Cyan
             Write-Host "Release AAB: src-tauri\gen\android\app\build\outputs\bundle\universalRelease\app-universal-release.aab" -ForegroundColor Cyan

@@ -1,5 +1,4 @@
 import { info, error } from '@tauri-apps/plugin-log';
-import { Store } from '@tauri-apps/plugin-store';
 import { invoke } from "@tauri-apps/api/core";
 
 // @ts-ignore
@@ -8,7 +7,7 @@ import { mount } from 'svelte';
 import ServerAvatar from '../../components/ServerAvatar.svelte';
 
 import Keyring from "./keyring.ts";
-import App from './app.js';
+import BVCApp from './BVCApp.ts';
 
 import { type LoginResponse } from "../bindings/LoginResponse";
 
@@ -18,7 +17,7 @@ declare global {
   }
 }
 
-export default class Server extends App {
+export default class Server extends BVCApp {
 
   private keyring: Keyring | undefined;
 
@@ -63,7 +62,9 @@ export default class Server extends App {
   }
 
   async initialize() {
-    const store = await Store.load('store.json', { autoSave: false });
+    await this.initializeDeepLinks();
+
+    const store = await this.getStore();
     let serverList = await store.get("server_list") as Array<{ server: string, player: string }>;
 
     // If there are none, redirect to the login page.

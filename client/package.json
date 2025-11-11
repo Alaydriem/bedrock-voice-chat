@@ -42,10 +42,10 @@
     "@popperjs/core": "^2.11",
     "@sveltejs/adapter-static": "^3.0",
     "@sveltejs/kit": "^2.15",
-    "@sveltejs/vite-plugin-svelte": "^5.0",
+    "@sveltejs/vite-plugin-svelte": "^6",
     "@tailwindcss/postcss": "^4.0",
     "@tauri-apps/cli": "^2",
-    "@types/node": "^22.13",
+    "@types/node": "^24",
     "alpinejs": "^3.14",
     "apexcharts": "^4.4",
     "autoprefixer": "^10.4",
@@ -74,7 +74,7 @@
     "tippy.js": "^6.3",
     "toastify-js": "^1.12",
     "tom-select": "^2.4",
-    "typescript": "~5.8",
+    "typescript": "~5.9",
     "vite": "^6.0"
   }
 }

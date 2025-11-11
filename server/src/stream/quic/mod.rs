@@ -24,7 +24,7 @@ use crate::config::ApplicationConfig;
 use anyhow;
 use common::structs::packet::QuicNetworkPacket;
 use common::traits::StreamTrait;
-use s2n_quic::Server;
+use common::s2n_quic::Server;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
@@ -120,7 +120,7 @@ impl QuicServerManager {
             } else {
                 self.config.voice.datagram_recv_capacity
             };
-            let builder = s2n_quic::provider::datagram::default::Endpoint::builder()
+            let builder = common::s2n_quic::provider::datagram::default::Endpoint::builder()
                 .with_send_capacity(send_cap)
                 .expect("datagram send capacity must be > 0")
                 .with_recv_capacity(recv_cap)
@@ -129,7 +129,7 @@ impl QuicServerManager {
         };
 
         let server = Server::builder()
-            .with_event(s2n_quic::provider::event::tracing::Subscriber::default())?
+            .with_event(common::s2n_quic::provider::event::tracing::Subscriber::default())?
             .with_tls(provider)?
             .with_io(bind_addr.as_str())?
             .with_datagram(dg_endpoint)?

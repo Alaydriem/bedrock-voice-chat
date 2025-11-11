@@ -122,7 +122,10 @@
   async function handleClick() {
     if (buttonMessage === "Connect!") {
       const { Store } = await import('@tauri-apps/plugin-store');
-      const store = await Store.load('store.json', { autoSave: false });
+      const store = await Store.load("store.json", {
+          autoSave: false,
+          defaults: {}
+      });
       await store.set("current_server", server);
       await store.save();
       window.location.href = `/dashboard?server=${server}`;
