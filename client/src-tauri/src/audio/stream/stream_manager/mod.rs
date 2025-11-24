@@ -4,6 +4,7 @@ mod output;
 mod sink_manager;
 
 use std::sync::Arc;
+use common::structs::audio::StreamEvent;
 
 use crate::audio::types::AudioDevice;
 
@@ -104,10 +105,10 @@ impl StreamTraitType {
         }
     }
 
-    pub fn mute(&self) {
+    pub fn toggle(&self, event: StreamEvent) {
         match self {
-            Self::Input(stream) => stream.mute(),
-            Self::Output(stream) => stream.mute(),
+            Self::Input(stream) => stream.toggle(event),
+            Self::Output(stream) => stream.toggle(event)
         }
     }
 

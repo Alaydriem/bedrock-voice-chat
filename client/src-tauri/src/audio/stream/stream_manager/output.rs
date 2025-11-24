@@ -9,7 +9,7 @@ use anyhow::anyhow;
 use base64::engine::{general_purpose, Engine};
 use common::{
     structs::{
-        audio::{PlayerGainSettings, PlayerGainStore},
+        audio::{PlayerGainSettings, PlayerGainStore, StreamEvent},
         packet::{
             AudioFramePacket, ChannelEventPacket, ConnectionEventType, PacketType, PlayerDataPacket,
             PlayerPresenceEvent, QuicNetworkPacket, ServerErrorPacket,
@@ -34,6 +34,7 @@ use tokio::task::{AbortHandle, JoinHandle};
 
 /// Global mute state for output stream
 static MUTE_OUTPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
+static RECORD_OUTPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 
 pub(crate) struct OutputStream {
     pub device: Option<AudioDevice>,
@@ -56,8 +57,11 @@ impl common::traits::StreamTrait for OutputStream {
     async fn metadata(&mut self, key: String, value: String) -> Result<(), anyhow::Error> {
         match key.as_str() {
             "mute" => {
-                self.mute();
-            }
+                self.toggle(StreamEvent::Mute);
+            },
+            "record" => {
+                self.toggle(StreamEvent::Record);
+            },
             "player_gain_store" => {
                 match serde_json::from_str::<PlayerGainStore>(&value) {
                     Ok(settings) => {
@@ -594,8 +598,9 @@ impl OutputStream {
                     ))
                     .unwrap_or_else(|| PlayerData::unknown());
 
+                let timestamp = data.timestamp() as u64;
                 let encoded_packet = EncodedAudioFramePacket {
-                    timestamp: data.timestamp() as u64,
+                    timestamp: timestamp,
                     sample_rate: data.sample_rate,
                     data: data.data,
                     route: AudioSinkType::from_spatial(match data.spatial {
@@ -616,22 +621,23 @@ impl OutputStream {
                     }
                 }
 
-                // Send to recording if producer available
-                if let Some(ref producer) = recording_producer {
-                    // Use default channel count since detect_opus_channels was removed
-                    let recording_data = RawRecordingData::OutputData {
-                        absolute_timestamp_ms: Some(std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .unwrap_or_default()
-                            .as_millis() as u64),
-                        opus_data: encoded_packet.data.clone(),
-                        sample_rate: encoded_packet.sample_rate,
-                        channels: 1, // Default to mono
-                        emitter: encoded_packet.emitter.clone(),
-                        listener: encoded_packet.listener.clone(),
-                        is_spatial: encoded_packet.emitter.spatial.unwrap_or(false),
-                    };
-                    let _ = producer.try_send(recording_data);
+                if RECORD_OUTPUT_STREAM.load(Ordering::Relaxed) {
+                    if let Some(ref producer) = recording_producer {
+                        // Use default channel count since detect_opus_channels was removed
+                        let recording_data = RawRecordingData::OutputData {
+                            absolute_timestamp_ms: Some(std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .unwrap_or_default()
+                                .as_millis() as u64),
+                            opus_data: encoded_packet.data.clone(),
+                            sample_rate: encoded_packet.sample_rate,
+                            channels: 1, // Default to mono
+                            emitter: encoded_packet.emitter.clone(),
+                            listener: encoded_packet.listener.clone(),
+                            is_spatial: encoded_packet.emitter.spatial.unwrap_or(false),
+                        };
+                        let _ = producer.try_send(recording_data);
+                    }
                 }
             }
             Err(_) => {
@@ -673,11 +679,19 @@ impl OutputStream {
         }
     }
 
-    pub fn mute(&self) {
-        let current_state = MUTE_OUTPUT_STREAM.load(Ordering::Relaxed);
-        MUTE_OUTPUT_STREAM.store(!current_state, Ordering::Relaxed);
-        if let Some(sink_manager) = self.sink_manager.as_ref() {
-            sink_manager.update_global_mute(!current_state);
+    pub fn toggle(&self, event: StreamEvent) {
+        match event {
+            StreamEvent::Mute => {
+               let current_state = MUTE_OUTPUT_STREAM.load(Ordering::Relaxed);
+                MUTE_OUTPUT_STREAM.store(!current_state, Ordering::Relaxed);
+                if let Some(sink_manager) = self.sink_manager.as_ref() {
+                    sink_manager.update_global_mute(!current_state);
+                }
+            },
+            StreamEvent::Record => {
+                let current_state = RECORD_OUTPUT_STREAM.load(Ordering::Relaxed);
+                RECORD_OUTPUT_STREAM.store(!current_state, Ordering::Relaxed);
+            }
         }
     }
 

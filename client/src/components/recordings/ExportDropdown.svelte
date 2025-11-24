@@ -110,6 +110,7 @@
 
     <div data-popper-box class="min-w-[180px] rounded-lg border border-slate-150 bg-white py-1.5 font-inter shadow-lg dark:border-navy-500 dark:bg-navy-700 opacity-0 invisible transition-all duration-200 absolute z-50" style="transform: translate3d(0, 0, 0);">
         <ul>
+            <!-- @todo: Spatial Exports are not yet supported
             <li>
                 <button
                     class="flex w-full items-center space-x-2 px-3 py-2 text-left text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-800 dark:text-navy-300 dark:hover:bg-navy-600 dark:hover:text-navy-100"
@@ -121,15 +122,27 @@
                     <span>Export with Spatial</span>
                 </button>
             </li>
+            -->
             <li>
                 <button
-                    class="flex w-full items-center space-x-2 px-3 py-2 text-left text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-800 dark:text-navy-300 dark:hover:bg-navy-600 dark:hover:text-navy-100"
-                    on:click={() => handleExport(false)}
+                    class="flex w-full items-center space-x-2 px-3 py-2 text-left transition-colors"
+                    class:text-slate-800={selectedParticipants.length > 0}
+                    class:hover:bg-slate-100={selectedParticipants.length > 0}
+                    class:hover:text-slate-900={selectedParticipants.length > 0}
+                    class:dark:text-navy-100={selectedParticipants.length > 0}
+                    class:dark:hover:bg-navy-600={selectedParticipants.length > 0}
+                    class:dark:hover:text-white={selectedParticipants.length > 0}
+                    class:text-slate-400={selectedParticipants.length === 0}
+                    class:dark:text-navy-400={selectedParticipants.length === 0}
+                    class:cursor-not-allowed={selectedParticipants.length === 0}
+                    class:opacity-50={selectedParticipants.length === 0}
+                    disabled={selectedParticipants.length === 0}
+                    on:click={() => selectedParticipants.length > 0 && handleExport(false)}
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" class="size-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/>
                     </svg>
-                    <span>Export without Spatial</span>
+                    <span>Export</span>
                 </button>
             </li>
             <li>

@@ -3,6 +3,9 @@ use std::fs;
 use std::path::PathBuf;
 use tauri::Manager;
 use common::structs::recording::SessionManifest;
+use crate::audio::recording::renderer::{AudioRenderer, BwavRenderer};
+use tauri_plugin_opener::OpenerExt;
+use log::{info, error, debug, warn};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RecordingSession {
@@ -81,7 +84,6 @@ pub async fn get_recording_sessions(app_handle: tauri::AppHandle) -> Result<Vec<
         sessions.push(recording_session);
     }
 
-    // Sort by start timestamp (newest first)
     sessions.sort_by(|a, b| b.session_data.start_timestamp.cmp(&a.session_data.start_timestamp));
 
     Ok(sessions)
@@ -111,6 +113,7 @@ pub async fn export_recording(
     session_id: String,
     selected_players: Vec<String>,
     spatial: bool,
+    app_handle: tauri::AppHandle
 ) -> Result<bool, String> {
     log::info!(
         "Export recording called - Session ID: {}, Selected Players: {:?}, Spatial: {}",
@@ -119,8 +122,41 @@ pub async fn export_recording(
         spatial
     );
 
-    // TODO: Implement actual export logic
-    // For now, just log the parameters and return success
+    let rec_path = app_handle
+        .path()
+        .app_local_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?
+        .join("recordings")
+        .join(&session_id);
+
+    let session_path = rec_path.clone();
+    let render_path = rec_path.join("renders");
+    let _ = fs::create_dir_all(render_path.clone().to_path_buf());
+    let render_path_for_open = render_path.clone();
+
+    let task = tokio::spawn(async move {
+        for player in selected_players {
+            let mut renderer = BwavRenderer::new();
+            let output_path = render_path.join(format!("{}.wav", &player));
+            match renderer.render(&session_path, &player, &output_path) {
+                Ok(()) => {
+                    info!("Renderer {}", &player);
+                },
+                Err(e) => {
+                    error!("Error rendering audio {}", e);
+                }
+            }
+        }
+    });
+
+    match task.await {
+        Ok(()) => {
+            let _ = app_handle.opener().open_path(render_path_for_open.to_string_lossy().to_string(), None::<&str>);
+        },
+        Err(e) => {
+            error!("JoinHandler for Recording failed to join, {}", e);
+        }
+    };
 
     Ok(true)
 }

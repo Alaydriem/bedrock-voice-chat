@@ -1,9 +1,12 @@
 <script lang="ts">
     export let participants: string[] = [];
+    export let initialSelectedParticipants: string[] = [];
     export let onSelectionChange: (selectedParticipants: string[]) => void = () => {};
 
-    // Initialize with all participants selected
-    let selectedParticipants = new Set<string>(participants);
+    // Initialize with provided selected participants or all participants if not provided
+    let selectedParticipants = new Set<string>(
+        initialSelectedParticipants.length > 0 ? initialSelectedParticipants : participants
+    );
 
     // Reactive statement to notify parent when selection changes
     $: {
@@ -11,12 +14,13 @@
     }
 
     function toggleParticipant(participant: string) {
-        if (selectedParticipants.has(participant)) {
-            selectedParticipants.delete(participant);
+        const newSet = new Set(selectedParticipants);
+        if (newSet.has(participant)) {
+            newSet.delete(participant);
         } else {
-            selectedParticipants.add(participant);
+            newSet.add(participant);
         }
-        selectedParticipants = selectedParticipants; // Trigger reactivity
+        selectedParticipants = newSet; // Trigger reactivity
     }
 
     function selectAll() {
@@ -25,10 +29,6 @@
 
     function deselectAll() {
         selectedParticipants = new Set();
-    }
-
-    function isSelected(participant: string): boolean {
-        return selectedParticipants.has(participant);
     }
 </script>
 
@@ -60,7 +60,7 @@
             <label class="inline-flex w-full cursor-pointer items-center space-x-2 rounded-lg px-2 py-1.5 hover:bg-slate-100 dark:hover:bg-navy-600">
                 <input
                     type="checkbox"
-                    checked={isSelected(participant)}
+                    checked={selectedParticipants.has(participant)}
                     on:change={() => toggleParticipant(participant)}
                     class="form-checkbox size-5 rounded border-slate-400/70 bg-slate-100 checked:bg-primary checked:border-primary checked:hover:bg-primary-focus checked:focus:bg-primary-focus dark:border-navy-400 dark:bg-navy-700 dark:checked:bg-accent dark:checked:border-accent dark:checked:hover:bg-accent-focus dark:checked:focus:bg-accent-focus"
                 />

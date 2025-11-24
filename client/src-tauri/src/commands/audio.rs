@@ -2,6 +2,7 @@ use crate::audio::types::{AudioDevice, AudioDeviceType};
 use crate::audio::{AudioPacket, RecordingManager};
 use crate::network::NetworkPacket;
 use crate::{structs::app_state::AppState, AudioStreamManager};
+use common::structs::audio::StreamEvent;
 use flume::{Receiver, Sender};
 use log::info;
 use std::sync::Arc;
@@ -156,7 +157,18 @@ pub(crate) async fn mute(
     asm: State<'_, Mutex<AudioStreamManager>>,
 ) -> Result<(), ()> {
     let mut asm = asm.lock().await;
-    _ = asm.mute(&device).await;
+    _ = asm.toggle(&device, StreamEvent::Mute).await;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) async fn record(
+    asm: State<'_, Mutex<AudioStreamManager>>,
+) -> Result<(), ()> {
+    let mut asm = asm.lock().await;
+    _ = asm.toggle(&AudioDeviceType::InputDevice, StreamEvent::Record).await;
+    _ = asm.toggle(&AudioDeviceType::OutputDevice, StreamEvent::Record).await;
 
     Ok(())
 }
@@ -190,9 +202,12 @@ pub(crate) async fn is_stopped(
 pub(crate) async fn start_recording(
     app: AppHandle,
     recording_manager: State<'_, Arc<Mutex<RecordingManager>>>,
+    asm: State<'_, Mutex<AudioStreamManager>>,
 ) -> Result<String, String> {
     let current_player = extract_current_player(&app).await
         .ok_or_else(|| "No current player set for recording".to_string())?;
+
+    let _ = record(asm.clone()).await;
 
     let mut manager = recording_manager.lock().await;
     match manager.start_recording(current_player).await {
@@ -211,10 +226,14 @@ pub(crate) async fn start_recording(
 #[tauri::command]
 pub(crate) async fn stop_recording(
     recording_manager: State<'_, Arc<Mutex<RecordingManager>>>,
+    asm: State<'_, Mutex<AudioStreamManager>>
 ) -> Result<(), String> {
+    let _ = record(asm.clone()).await;
     let mut manager = recording_manager.lock().await;
     match manager.stop_recording().await {
-        Ok(_) => Ok(()),
+        Ok(()) => {
+            Ok(())
+        },
         Err(e) => Err(format!("Failed to stop recording: {:?}", e)),
     }
 }

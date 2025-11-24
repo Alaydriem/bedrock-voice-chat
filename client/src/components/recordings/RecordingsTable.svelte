@@ -81,20 +81,9 @@
         info(`New expandedSessions: ${JSON.stringify(expandedSessions)}`);
     }
 
-    function isExpanded(sessionId: string): boolean {
-        const expanded = expandedSessions.includes(sessionId);
-        return expanded;
-    }
-
     function handleSelectionChange(sessionId: string, selectedParticipants: string[]) {
         selectedParticipantsMap.set(sessionId, selectedParticipants);
         selectedParticipantsMap = selectedParticipantsMap; // Trigger reactivity
-    }
-
-    function getSelectedParticipants(sessionId: string): string[] {
-        const selected = selectedParticipantsMap.get(sessionId) || [];
-        info(`getSelectedParticipants for ${sessionId}: ${JSON.stringify(selected)}`);
-        return selected;
     }
 </script>
 
@@ -128,7 +117,7 @@
                             >
                                 <svg
                                     xmlns="http://www.w3.org/2000/svg"
-                                    class="size-4 transition-transform duration-200 {isExpanded(recording.session_data.session_id) ? 'rotate-180' : ''}"
+                                    class="size-4 transition-transform duration-200 {expandedSessions.includes(recording.session_data.session_id) ? 'rotate-180' : ''}"
                                     fill="none"
                                     viewBox="0 0 24 24"
                                     stroke="currentColor"
@@ -153,18 +142,19 @@
                     <td class="whitespace-nowrap px-4 py-3 lg:px-5">
                         <ExportDropdown
                             sessionId={recording.session_data.session_id}
-                            selectedParticipants={getSelectedParticipants(recording.session_data.session_id)}
+                            selectedParticipants={selectedParticipantsMap.get(recording.session_data.session_id) || getAllParticipants(recording)}
                             {onExport}
                             {onDelete}
                         />
                     </td>
                 </tr>
-                {#if isExpanded(recording.session_data.session_id)}
+                {#if expandedSessions.includes(recording.session_data.session_id)}
                     <tr class="border-b border-slate-200 bg-slate-50 dark:border-navy-500 dark:bg-navy-700">
                         <td colspan="4" class="px-0 py-0">
                             <div class="overflow-hidden transition-all duration-300 ease-in-out">
                                 <ParticipantSelector
                                     participants={getAllParticipants(recording)}
+                                    initialSelectedParticipants={selectedParticipantsMap.get(recording.session_data.session_id) || getAllParticipants(recording)}
                                     onSelectionChange={(selected) => handleSelectionChange(recording.session_data.session_id, selected)}
                                 />
                             </div>

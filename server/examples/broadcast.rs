@@ -9,7 +9,7 @@ use core::{
 };
 use hound;
 use rodio::Decoder;
-use s2n_quic::{client::Connect, Client, Connection};
+use common::s2n_quic::{client::Connect, Client, Connection};
 use std::io::BufWriter;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -68,7 +68,7 @@ async fn client(
     server_name: String,
     api_token: String,
 ) -> Result<(), Box<dyn Error>> {
-    _ = s2n_quic::provider::tls::rustls::rustls::crypto::aws_lc_rs::default_provider()
+    _ = common::s2n_quic::provider::tls::rustls::rustls::crypto::aws_lc_rs::default_provider()
         .install_default();
 
     let ca_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test_certs/ca.crt");
@@ -81,7 +81,7 @@ async fn client(
 
     let provider = common::rustls::MtlsProvider::new(ca, cert, key).await?;
 
-    let dg_endpoint = s2n_quic::provider::datagram::default::Endpoint::builder()
+    let dg_endpoint = common::s2n_quic::provider::datagram::default::Endpoint::builder()
         .with_send_capacity(1024)
         .expect("send cap > 0")
         .with_recv_capacity(1024)
@@ -379,7 +379,7 @@ async fn client(
                         }
                         let payload = Bytes::from(rs);
                         let send_res = connection.datagram_mut(
-                            |dg: &mut s2n_quic::provider::datagram::default::Sender| {
+                            |dg: &mut common::s2n_quic::provider::datagram::default::Sender| {
                                 dg.send_datagram(payload.clone())
                             },
                         );
@@ -460,7 +460,7 @@ async fn client(
                     Ok(rs) => {
                         let payload = Bytes::from(rs);
                         let send_res = connection.datagram_mut(
-                            |dg: &mut s2n_quic::provider::datagram::default::Sender| {
+                            |dg: &mut common::s2n_quic::provider::datagram::default::Sender| {
                                 dg.send_datagram(payload.clone())
                             },
                         );
@@ -507,7 +507,7 @@ impl<'c> Future for RecvDatagram<'c> {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self
             .conn
-            .datagram_mut(|r: &mut s2n_quic::provider::datagram::default::Receiver| {
+            .datagram_mut(|r: &mut common::s2n_quic::provider::datagram::default::Receiver| {
                 r.poll_recv_datagram(cx)
             }) {
             Ok(Poll::Ready(Ok(bytes))) => Poll::Ready(Ok(bytes)),
