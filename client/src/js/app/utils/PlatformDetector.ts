@@ -19,6 +19,23 @@ export default class PlatformDetector {
     }
   }
 
+  async isWindows(): Promise<boolean> {
+    if (this.isMobile) {
+      return false;
+    }
+
+    try {
+      const family = await platform();
+      const typeStr = String(family).toLowerCase();
+      if (typeStr.includes("windows")) {
+        return true;
+      }
+    } catch (error) {
+    }
+
+    return false;
+  }
+
   reset(): void {
     this.isMobile = null;
   }

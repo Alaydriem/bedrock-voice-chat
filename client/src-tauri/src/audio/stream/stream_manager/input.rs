@@ -275,7 +275,16 @@ impl InputStream {
 
                                 // Only send audio frame data if our filters haven't cut data out
                                 if !pcm_sendable && !MUTE_INPUT_STREAM.load(Ordering::Relaxed) {
-                                    let audio_frame_data = AudioFrameData { pcm: mono_pcm };
+                                    // Capture timestamp at audio capture time for accurate recording timecode
+                                    let captured_at_ms = std::time::SystemTime::now()
+                                        .duration_since(std::time::UNIX_EPOCH)
+                                        .unwrap_or_default()
+                                        .as_millis() as u64;
+
+                                    let audio_frame_data = AudioFrameData {
+                                        pcm: mono_pcm,
+                                        captured_at_ms,
+                                    };
 
                                     match producer.try_send(AudioFrame::F32(audio_frame_data)) {
                                         Ok(()) => {
@@ -438,6 +447,9 @@ impl InputStream {
                                 }
                             }
                             let tx = bus.clone();
+
+                            let mut first_sample_timestamp_ms: Option<u64> = None;
+
                             #[allow(irrefutable_let_patterns)]
                             while let Ok(sample) = consumer.recv_async().await {
                                 if shutdown.load(Ordering::Relaxed) {
@@ -445,10 +457,16 @@ impl InputStream {
                                     break;
                                 }
 
-                                let mut raw_sample = match sample.f32() {
-                                    Some(sample) => sample.pcm,
+                                let sample_data = match sample.f32() {
+                                    Some(sample) => sample,
                                     None => continue,
                                 };
+
+                                if data_stream.is_empty() {
+                                    first_sample_timestamp_ms = Some(sample_data.captured_at_ms);
+                                }
+
+                                let mut raw_sample = sample_data.pcm;
 
                                 data_stream.append(&mut raw_sample);
                                 while data_stream.len() >= BUFFER_SIZE as usize {
@@ -461,16 +479,15 @@ impl InputStream {
                                         sample_to_process.len() * 4,
                                     ) {
                                         Ok(s) if s.len() > 3 => s,
-                                        _ => continue, // Skip if encoding failed or insufficient data
+                                        _ => continue,
                                     };
 
                                     if RECORD_INPUT_STREAM.load(Ordering::Relaxed) {
                                         if let Some(ref producer) = recording_producer {
+                                            // Use the timestamp from when the first sample was captured
+                                            // This ensures the recording timestamp matches actual capture time
                                             let recording_data = RawRecordingData::InputData {
-                                                absolute_timestamp_ms: Some(std::time::SystemTime::now()
-                                                    .duration_since(std::time::UNIX_EPOCH)
-                                                    .unwrap_or_default()
-                                                    .as_millis() as u64),
+                                                absolute_timestamp_ms: first_sample_timestamp_ms,
                                                 opus_data: encoded_data.clone(),
                                                 sample_rate: device_config.sample_rate.0,
                                                 channels: device_config.channels.into(),
@@ -482,6 +499,12 @@ impl InputStream {
 
                                             let _ = producer.try_send(recording_data);
                                         }
+                                    }
+
+                                    // Reset first sample timestamp after processing this buffer
+                                    // The next buffer will get a new timestamp from the first sample
+                                    if data_stream.is_empty() {
+                                        first_sample_timestamp_ms = None;
                                     }
 
                                     let packet = NetworkPacket {

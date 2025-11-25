@@ -1,10 +1,12 @@
 use log::error;
 use rodio::Source;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use super::jitter_buffer_source::{JitterBufferError, JitterBufferSource};
 use super::EncodedAudioFramePacket;
+use crate::audio::recording::RecordingProducer;
 use common::{Coordinate, Orientation};
 
 #[derive(Debug, Clone)]
@@ -43,12 +45,14 @@ pub struct JitterBuffer {
 }
 
 impl JitterBuffer {
-    /// Create a new JitterBuffer pair with activity detection support
+    /// Create a new JitterBuffer pair with activity detection and recording support
     pub fn create_with_handle_and_activity(
         initial_packet: EncodedAudioFramePacket,
         identifier: String,
         player_name: String,
         activity_tx: Option<flume::Sender<crate::audio::stream::ActivityUpdate>>,
+        recording_producer: Option<RecordingProducer>,
+        recording_enabled: Arc<AtomicBool>,
     ) -> Result<(Self, JitterBufferHandle), JitterBufferError> {
         let (tx, rx) = flume::unbounded::<Option<EncodedAudioFramePacket>>();
 
@@ -71,6 +75,8 @@ impl JitterBuffer {
             buffer_capacity,
             player_name,
             activity_tx,
+            recording_producer,
+            recording_enabled,
         )?;
 
         let jitter_buffer = Self {

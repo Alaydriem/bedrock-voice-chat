@@ -40,10 +40,13 @@ export default class AudioSettings  {
                 let inputDevices = Array<AudioDevice>();
                 let outputDevices = Array<AudioDevice>();
 
-                const deviceTypes = [
-                    "WASAPI",
-                    //"ASIO",
+                let deviceTypes = [
+                    "WASAPI"
                 ];
+
+                if (await this.platformDetector.isWindows()) {
+                    deviceTypes.push("ASIO");
+                }
 
                 deviceTypes.forEach((type) => {
                     if (devices[type]) {

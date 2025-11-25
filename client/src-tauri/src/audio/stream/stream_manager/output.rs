@@ -1,6 +1,6 @@
 use super::sink_manager::SinkManager;
 use crate::audio::stream::stream_manager::AudioSinkType;
-use crate::audio::recording::{RawRecordingData, RecordingProducer};
+use crate::audio::recording::RecordingProducer;
 use crate::{audio::stream::jitter_buffer::EncodedAudioFramePacket, events::ServerError};
 
 use crate::audio::types::AudioDevice;
@@ -34,7 +34,6 @@ use tokio::task::{AbortHandle, JoinHandle};
 
 /// Global mute state for output stream
 static MUTE_OUTPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
-static RECORD_OUTPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 
 pub(crate) struct OutputStream {
     pub device: Option<AudioDevice>,
@@ -51,6 +50,8 @@ pub(crate) struct OutputStream {
     client_id_to_player: Arc<moka::sync::Cache<String, String>>,
     recording_producer: Option<Arc<RecordingProducer>>,
     player_gain_cache: Arc<moka::sync::Cache<String, PlayerGainSettings>>,
+    // Recording state - shared with SinkManager for post-jitter-buffer recording
+    recording_enabled: Arc<AtomicBool>,
 }
 
 impl common::traits::StreamTrait for OutputStream {
@@ -218,6 +219,7 @@ impl OutputStream {
             client_id_to_player: Arc::new(client_id_to_player),
             recording_producer,
             player_gain_cache: Arc::new(player_gain_cache),
+            recording_enabled: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -239,7 +241,6 @@ impl OutputStream {
                     let player_presence_debounce = self.player_presence_debounce.clone();
                     let client_id_to_player = self.client_id_to_player.clone();
                     let app_handle = self.app_handle.clone();
-                    let recording_producer = self.recording_producer.clone();
 
                     let player_gain_cache = self.player_gain_cache.clone();
 
@@ -265,7 +266,6 @@ impl OutputStream {
                                                 player_presence_debounce.clone(),
                                                 client_id_to_player.clone(),
                                                 Some(&app_handle.clone()),
-                                                recording_producer.as_ref().map(|p| (**p).clone()),
                                             )
                                             .await
                                         }
@@ -368,6 +368,8 @@ impl OutputStream {
                                 Arc::new(StdMutex::new(PlayerGainStore::default())),
                                 Arc::new(mixer.clone()),
                                 self.app_handle.clone(),
+                                self.recording_producer.as_ref().map(|p| (**p).clone()),
+                                self.recording_enabled.clone(),
                             );
 
                             self.sink_manager = Some(sink_manager);
@@ -528,7 +530,6 @@ impl OutputStream {
         player_presence_debounce: Arc<moka::sync::Cache<String, ()>>,
         client_id_to_player: Arc<moka::sync::Cache<String, String>>,
         app_handle: Option<&tauri::AppHandle>,
-        recording_producer: Option<crate::audio::recording::RecordingProducer>,
     ) {
         let current_player_name = match metadata.get("current_player").await {
             Some(name) => name,
@@ -613,30 +614,11 @@ impl OutputStream {
                     time_between_reports_secs: 30,
                 };
 
-                // Send to playback
+                // Send to playback - recording is now handled post-jitter-buffer in JitterBufferSource
                 match producer.send(encoded_packet.clone()) {
                     Ok(_) => {}
                     Err(e) => {
                         warn!("Could not send encoded audio frame packet: {:?}", e);
-                    }
-                }
-
-                if RECORD_OUTPUT_STREAM.load(Ordering::Relaxed) {
-                    if let Some(ref producer) = recording_producer {
-                        // Use default channel count since detect_opus_channels was removed
-                        let recording_data = RawRecordingData::OutputData {
-                            absolute_timestamp_ms: Some(std::time::SystemTime::now()
-                                .duration_since(std::time::UNIX_EPOCH)
-                                .unwrap_or_default()
-                                .as_millis() as u64),
-                            opus_data: encoded_packet.data.clone(),
-                            sample_rate: encoded_packet.sample_rate,
-                            channels: 1, // Default to mono
-                            emitter: encoded_packet.emitter.clone(),
-                            listener: encoded_packet.listener.clone(),
-                            is_spatial: encoded_packet.emitter.spatial.unwrap_or(false),
-                        };
-                        let _ = producer.try_send(recording_data);
                     }
                 }
             }
@@ -689,8 +671,10 @@ impl OutputStream {
                 }
             },
             StreamEvent::Record => {
-                let current_state = RECORD_OUTPUT_STREAM.load(Ordering::Relaxed);
-                RECORD_OUTPUT_STREAM.store(!current_state, Ordering::Relaxed);
+                // Toggle recording state - this AtomicBool is shared with SinkManager
+                // and JitterBufferSources for post-jitter-buffer recording
+                let current_state = self.recording_enabled.load(Ordering::SeqCst);
+                self.recording_enabled.store(!current_state, Ordering::SeqCst);
             }
         }
     }

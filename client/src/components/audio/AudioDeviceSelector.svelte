@@ -48,10 +48,13 @@
         try {
             const devices = await invoke<Record<string, AudioDevice[]>>("get_devices");
 
-            const deviceTypes = [
-                "WASAPI",
-                //"ASIO"
+            let deviceTypes = [
+                "WASAPI"
             ];
+
+            if (await platformDetector.isWindows()) {
+                deviceTypes.push("ASIO");
+            }
 
             deviceTypes.forEach((type) => {
                 if (devices[type]) {
