@@ -1,4 +1,5 @@
 mod manager;
+pub mod renderer;
 
 use common::structs::recording::{PlayerData, SessionManifest, RecordingHeader, InputRecordingHeader, OutputRecordingHeader};
 
@@ -80,21 +81,18 @@ impl Recorder {
         std::fs::create_dir_all(&recording_path)?;
 
         let start_timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)?
-            .as_millis() as u64;
+            .duration_since(std::time::UNIX_EPOCH)?;
 
         let manifest = SessionManifest {
             session_id: session_id.clone(),
-            start_timestamp,
+            start_timestamp: start_timestamp.as_millis() as u64,
             end_timestamp: None,
             duration_ms: None,
             emitter_player: current_player.clone(),
             participants: Vec::new(),
             created_at: format!(
                 "{}",
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default()
+                start_timestamp
                     .as_secs()
             ),
         };
@@ -106,7 +104,7 @@ impl Recorder {
             manifest,
             recording_path,
             recording_consumer,
-            session_start_timestamp: start_timestamp,
+            session_start_timestamp: start_timestamp.as_millis() as u64,
             app_handle,
         })
     }
@@ -119,6 +117,7 @@ impl Recorder {
         let shutdown = self.shutdown.clone();
         let recording_path = self.recording_path.clone();
         let mut manifest = self.manifest.clone();
+        let session_start_timestamp = self.session_start_timestamp;
 
         let handle = tokio::spawn(async move {
             let mut wal = match nano_wal::Wal::new(
@@ -147,19 +146,22 @@ impl Recorder {
                         match raw_recording_data {
                             Ok(mut raw_data) => {
                                 if shutdown.load(Ordering::Relaxed) {
+                                    // Flush the batch buffer of anything we have
+                                    let _ = Self::flush(&mut wal, &mut batch_buffer).await;
                                     break;
                                 }
 
-                                // Convert absolute timestamp to relative and remove it for WAL storage
+                                // Convert absolute timestamp to relative for WAL storage
+                                // First packet becomes timestamp 0, all others relative to that
                                 match &mut raw_data {
                                     RawRecordingData::InputData { absolute_timestamp_ms, .. } => {
-                                        if absolute_timestamp_ms.is_some() {
-                                            *absolute_timestamp_ms = None;
+                                        if let Some(abs_ts) = absolute_timestamp_ms {
+                                            *absolute_timestamp_ms = Some(abs_ts.saturating_sub(session_start_timestamp));
                                         }
                                     },
                                     RawRecordingData::OutputData { absolute_timestamp_ms, emitter, .. } => {
-                                        if absolute_timestamp_ms.is_some() {
-                                            *absolute_timestamp_ms = None;
+                                        if let Some(abs_ts) = absolute_timestamp_ms {
+                                            *absolute_timestamp_ms = Some(abs_ts.saturating_sub(session_start_timestamp));
                                         }
 
                                         // Track participants and mark manifest as dirty if new participant
@@ -262,19 +264,21 @@ impl Recorder {
         batch_buffer: &mut Vec<(String, RawRecordingData)>,
     ) -> Result<(), anyhow::Error> {
         for (player_key, data) in batch_buffer.drain(..) {
-            // Create concrete headers with metadata (identity stripped)
+            // Create concrete headers with metadata and timestamps
             let header = match &data {
-                RawRecordingData::InputData { sample_rate, channels, emitter, .. } => {
+                RawRecordingData::InputData { sample_rate, channels, absolute_timestamp_ms, emitter, .. } => {
                     RecordingHeader::Input(InputRecordingHeader {
                         sample_rate: *sample_rate,
                         channels: *channels,
+                        relative_timestamp_ms: *absolute_timestamp_ms,
                         emitter_metadata: emitter.to_metadata(),
                     })
                 },
-                RawRecordingData::OutputData { sample_rate, channels, emitter, listener, is_spatial, .. } => {
+                RawRecordingData::OutputData { sample_rate, channels, absolute_timestamp_ms, emitter, listener, is_spatial, .. } => {
                     RecordingHeader::Output(OutputRecordingHeader {
                         sample_rate: *sample_rate,
                         channels: *channels,
+                        relative_timestamp_ms: absolute_timestamp_ms.unwrap_or(0),
                         emitter_metadata: emitter.to_metadata(),
                         listener_metadata: listener.to_metadata(),
                         is_spatial: *is_spatial,

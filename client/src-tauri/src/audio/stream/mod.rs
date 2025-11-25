@@ -6,6 +6,7 @@ use crate::audio::types::{AudioDevice, AudioDeviceType};
 use crate::audio::recording::RecordingManager;
 use crate::NetworkPacket;
 use anyhow::Error;
+use common::structs::audio::StreamEvent;
 use std::sync::Arc;
 use tauri::async_runtime::Mutex as TauriMutex;
 
@@ -187,10 +188,10 @@ impl AudioStreamManager {
         }
     }
 
-    pub async fn mute(&mut self, device: &AudioDeviceType) -> Result<(), Error> {
+    pub async fn toggle(&mut self, device: &AudioDeviceType, event: StreamEvent) -> Result<(), Error> {
         match device {
-            AudioDeviceType::InputDevice => self.input.mute(),
-            AudioDeviceType::OutputDevice => self.output.mute(),
+            AudioDeviceType::InputDevice => self.input.toggle(event),
+            AudioDeviceType::OutputDevice => self.output.toggle(event),
         };
 
         Ok(())

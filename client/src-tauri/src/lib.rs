@@ -18,7 +18,7 @@ use once_cell::sync::Lazy;
 use tokio::sync::Notify;
 
 mod api;
-mod audio;
+pub mod audio;
 mod auth;
 mod commands;
 mod core;

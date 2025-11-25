@@ -137,6 +137,7 @@ pub struct SessionManifest {
 pub struct InputRecordingHeader {
     pub sample_rate: u32,
     pub channels: u16,
+    pub relative_timestamp_ms: Option<u64>,
     pub emitter_metadata: PlayerMetadata,
 }
 
@@ -145,6 +146,7 @@ pub struct InputRecordingHeader {
 pub struct OutputRecordingHeader {
     pub sample_rate: u32,
     pub channels: u16,
+    pub relative_timestamp_ms: u64,
     pub emitter_metadata: PlayerMetadata,
     pub listener_metadata: PlayerMetadata,
     pub is_spatial: bool,

@@ -4,7 +4,7 @@ use crate::audio::types::{AudioDevice, BUFFER_SIZE};
 use crate::{audio::stream::stream_manager::AudioFrameData, NetworkPacket};
 use anyhow::anyhow;
 use audio_gate::NoiseGate;
-use common::structs::audio::NoiseGateSettings;
+use common::structs::audio::{NoiseGateSettings, StreamEvent};
 use common::structs::packet::{AudioFramePacket, QuicNetworkPacket, QuicNetworkPacketData};
 use common::PlayerData;
 use log::{error, info, debug, warn};
@@ -25,6 +25,7 @@ use tokio::task::{AbortHandle, JoinHandle};
 /// Indicator for if the Input Stream should be muted
 /// If this i
 static MUTE_INPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
+static RECORD_INPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 static USE_NOISE_GATE: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 static UPDATE_NOISE_GATE_SETTINGS: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 static NOISE_GATE_SETTINGS: Lazy<Mutex<serde_json::Value>> = Lazy::new(|| {
@@ -51,8 +52,11 @@ impl common::traits::StreamTrait for InputStream {
         match key.as_str() {
             // Toggle Mute
             "mute" => {
-                self.mute();
-            }
+                self.toggle(StreamEvent::Mute);
+            },
+            "record" => {
+                self.toggle(StreamEvent::Record);
+            },
             // Toggle Noise Gate
             "use_noise_gate" => {
                 match value.as_str() {
@@ -271,7 +275,16 @@ impl InputStream {
 
                                 // Only send audio frame data if our filters haven't cut data out
                                 if !pcm_sendable && !MUTE_INPUT_STREAM.load(Ordering::Relaxed) {
-                                    let audio_frame_data = AudioFrameData { pcm: mono_pcm };
+                                    // Capture timestamp at audio capture time for accurate recording timecode
+                                    let captured_at_ms = std::time::SystemTime::now()
+                                        .duration_since(std::time::UNIX_EPOCH)
+                                        .unwrap_or_default()
+                                        .as_millis() as u64;
+
+                                    let audio_frame_data = AudioFrameData {
+                                        pcm: mono_pcm,
+                                        captured_at_ms,
+                                    };
 
                                     match producer.try_send(AudioFrame::F32(audio_frame_data)) {
                                         Ok(()) => {
@@ -434,6 +447,9 @@ impl InputStream {
                                 }
                             }
                             let tx = bus.clone();
+
+                            let mut first_sample_timestamp_ms: Option<u64> = None;
+
                             #[allow(irrefutable_let_patterns)]
                             while let Ok(sample) = consumer.recv_async().await {
                                 if shutdown.load(Ordering::Relaxed) {
@@ -441,58 +457,70 @@ impl InputStream {
                                     break;
                                 }
 
-                                let mut raw_sample = match sample.f32() {
-                                    Some(sample) => sample.pcm,
+                                let sample_data = match sample.f32() {
+                                    Some(sample) => sample,
                                     None => continue,
                                 };
 
+                                if data_stream.is_empty() {
+                                    first_sample_timestamp_ms = Some(sample_data.captured_at_ms);
+                                }
+
+                                let mut raw_sample = sample_data.pcm;
+
                                 data_stream.append(&mut raw_sample);
                                 while data_stream.len() >= BUFFER_SIZE as usize {
-                                            let sample_to_process: Vec<f32> = data_stream
-                                                .drain(0..BUFFER_SIZE as usize)
-                                                .collect();
+                                    let sample_to_process: Vec<f32> = data_stream
+                                        .drain(0..BUFFER_SIZE as usize)
+                                        .collect();
 
-                                            let encoded_data = match encoder.encode_vec_float(
-                                                &sample_to_process,
-                                                sample_to_process.len() * 4,
-                                            ) {
-                                                Ok(s) if s.len() > 3 => s,
-                                                _ => continue, // Skip if encoding failed or insufficient data
+                                    let encoded_data = match encoder.encode_vec_float(
+                                        &sample_to_process,
+                                        sample_to_process.len() * 4,
+                                    ) {
+                                        Ok(s) if s.len() > 3 => s,
+                                        _ => continue,
+                                    };
+
+                                    if RECORD_INPUT_STREAM.load(Ordering::Relaxed) {
+                                        if let Some(ref producer) = recording_producer {
+                                            // Use the timestamp from when the first sample was captured
+                                            // This ensures the recording timestamp matches actual capture time
+                                            let recording_data = RawRecordingData::InputData {
+                                                absolute_timestamp_ms: first_sample_timestamp_ms,
+                                                opus_data: encoded_data.clone(),
+                                                sample_rate: device_config.sample_rate.0,
+                                                channels: device_config.channels.into(),
+                                                emitter: PlayerData::for_input(
+                                                    current_player_name.clone(),
+                                                    None, // TODO: Add gain cache for input
+                                                ),
                                             };
 
-                                            // Send to recording producer (unconditionally, let RecordingManager filter)
-                                            if let Some(ref producer) = recording_producer {
-                                                let recording_data = RawRecordingData::InputData {
-                                                    absolute_timestamp_ms: Some(std::time::SystemTime::now()
-                                                        .duration_since(std::time::UNIX_EPOCH)
-                                                        .unwrap_or_default()
-                                                        .as_millis() as u64),
-                                                    opus_data: encoded_data.clone(),
-                                                    sample_rate: device_config.sample_rate.0,
-                                                    channels: device_config.channels.into(),
-                                                    emitter: PlayerData::for_input(
-                                                        current_player_name.clone(),
-                                                        None, // TODO: Add gain cache for input
-                                                    ),
-                                                };
+                                            let _ = producer.try_send(recording_data);
+                                        }
+                                    }
 
-                                                let _ = producer.try_send(recording_data);
-                                            }
+                                    // Reset first sample timestamp after processing this buffer
+                                    // The next buffer will get a new timestamp from the first sample
+                                    if data_stream.is_empty() {
+                                        first_sample_timestamp_ms = None;
+                                    }
 
-                                            let packet = NetworkPacket {
-                                            data: QuicNetworkPacket {
-                                                packet_type: common::structs::packet::PacketType::AudioFrame,
-                                                owner: None, // This will be populated on the network side
-                                                data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
-                                                    encoded_data.clone(),
-                                                    device_config.sample_rate.0,
-                                                    None,
-                                                    None,
-                                                    None,
-                                                    None
-                                                ))
-                                            }
-                                        };
+                                    let packet = NetworkPacket {
+                                        data: QuicNetworkPacket {
+                                            packet_type: common::structs::packet::PacketType::AudioFrame,
+                                            owner: None, // This will be populated on the network side
+                                            data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
+                                                encoded_data.clone(),
+                                                device_config.sample_rate.0,
+                                                None,
+                                                None,
+                                                None,
+                                                None
+                                            ))
+                                        }
+                                    };
 
                                     if let Err(e) = tx.send_async(packet).await {
                                         error!("Sending audio frame to Quic network thread failed: {:?}", e);
@@ -514,9 +542,17 @@ impl InputStream {
         };
     }
 
-    pub fn mute(&self) {
-        let current_state = MUTE_INPUT_STREAM.load(Ordering::Relaxed);
-        MUTE_INPUT_STREAM.store(!current_state, Ordering::Relaxed);
+    pub fn toggle(&self, event: StreamEvent) {
+        match event {
+            StreamEvent::Mute => {
+                let current_state = MUTE_INPUT_STREAM.load(Ordering::Relaxed);
+                MUTE_INPUT_STREAM.store(!current_state, Ordering::Relaxed);
+            },
+            StreamEvent::Record => {
+                let current_state = RECORD_INPUT_STREAM.load(Ordering::Relaxed);
+                RECORD_INPUT_STREAM.store(!current_state, Ordering::Relaxed);
+            }
+        }
     }
 
     pub fn mute_status(&self) -> bool {

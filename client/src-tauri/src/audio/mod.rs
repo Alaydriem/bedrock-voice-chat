@@ -1,7 +1,7 @@
 use common::structs::packet::QuicNetworkPacket;
 
 pub(crate) mod device;
-pub(crate) mod recording;
+pub mod recording;
 pub(crate) mod types;
 
 mod stream;
