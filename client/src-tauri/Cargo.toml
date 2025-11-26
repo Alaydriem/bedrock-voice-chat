@@ -66,6 +66,9 @@ bwavfile = "2.0.1"
 chrono = "^0.4"
 async-trait = "^0.1"
 
+# MP4 muxing with Opus support
+shiguredo_mp4 = "2025.3.0"
+
 # Desktop Targets
 [target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]
 tauri-plugin-single-instance =  { version = "^2.3", features = ["deep-link"] }

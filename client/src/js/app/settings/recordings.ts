@@ -91,7 +91,7 @@ export default class RecordingSettings {
                 sessionId,
                 selectedPlayers,
                 spatial: withSpatial,
-                format: "Bwav"
+                format: "Mp4Opus"
             });
         } catch (e) {
             error(`Failed to export recording: ${e}`);
