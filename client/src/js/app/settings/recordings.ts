@@ -87,10 +87,11 @@ export default class RecordingSettings {
     private async handleExport(sessionId: string, selectedPlayers: string[], withSpatial: boolean): Promise<void> {
         try {
             info(`Exporting session ${sessionId} with ${selectedPlayers.length} participants (spatial: ${withSpatial})`);
-            await invoke("export_recording", { 
-                sessionId, 
-                selectedPlayers, 
-                spatial: withSpatial 
+            await invoke("export_recording", {
+                sessionId,
+                selectedPlayers,
+                spatial: withSpatial,
+                format: "Bwav"
             });
         } catch (e) {
             error(`Failed to export recording: ${e}`);
