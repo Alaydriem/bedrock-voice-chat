@@ -7,7 +7,7 @@ import LoadingState from '../../../components/recordings/LoadingState.svelte';
 import EmptyState from '../../../components/recordings/EmptyState.svelte';
 
 import type { RecordingSession } from '../../bindings/RecordingSession';
-import type { SessionData } from '../../bindings/SessionData';
+import type { AudioFormat } from '../../bindings/AudioFormat';
 
 declare global {
   interface Window {
@@ -87,10 +87,11 @@ export default class RecordingSettings {
     private async handleExport(sessionId: string, selectedPlayers: string[], withSpatial: boolean): Promise<void> {
         try {
             info(`Exporting session ${sessionId} with ${selectedPlayers.length} participants (spatial: ${withSpatial})`);
-            await invoke("export_recording", { 
-                sessionId, 
-                selectedPlayers, 
-                spatial: withSpatial 
+            await invoke("export_recording", {
+                sessionId,
+                selectedPlayers,
+                spatial: withSpatial,
+                format: "Mp4Opus"
             });
         } catch (e) {
             error(`Failed to export recording: ${e}`);

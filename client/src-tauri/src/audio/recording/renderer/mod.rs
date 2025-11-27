@@ -1,16 +1,54 @@
+mod stream;
 mod bwav;
+mod mp4;
 
+use async_trait::async_trait;
 use common::structs::recording::{RecordingHeader, SessionManifest};
-use std::fs::{self, File};
-use std::io::Read;
+use common::structs::AudioFormat;
+use std::fs;
 use std::path::Path;
-use log::{info, debug, warn, error};
+use log::debug;
 
-pub use bwav::BwavRenderer;
+use crate::audio::recording::renderer::{
+    bwav::BwavRenderer,
+    mp4::Mp4Renderer,
+    stream::{
+        opus::{OpusChunk, OpusPacketStream, OpusStreamInfo, SilenceEncoder},
+        pcm::{PcmChunk, PcmStream, PcmStreamInfo}
+    }
+};
+
+/// Extension trait for AudioFormat that provides rendering capabilities
+#[async_trait]
+pub trait AudioFormatRenderer {
+    /// Render audio from a session to the specified output path
+    async fn render(
+        &self,
+        session_path: &Path,
+        player_name: &str,
+        output_path: &Path,
+    ) -> Result<(), anyhow::Error>;
+}
+
+#[async_trait]
+impl AudioFormatRenderer for AudioFormat {
+    async fn render(
+        &self,
+        session_path: &Path,
+        player_name: &str,
+        output_path: &Path,
+    ) -> Result<(), anyhow::Error> {
+        match self {
+            AudioFormat::Bwav => BwavRenderer::new().render(session_path, player_name, output_path).await,
+            AudioFormat::Mp4Opus => Mp4Renderer::new().render(session_path, player_name, output_path).await,
+        }
+    }
+}
 
 /// Trait for rendering audio from WAL recordings to various file formats
+#[async_trait]
 pub trait AudioRenderer {
-    fn render(
+    async fn render(
         &mut self,
         session_path: &Path,
         player_name: &str,
@@ -51,6 +89,14 @@ impl SessionInfo {
     }
 }
 
+/// Raw WAL entry containing Opus packet and metadata
+#[derive(Debug)]
+pub struct WalEntry {
+    pub header: RecordingHeader,
+    pub opus_data: Vec<u8>,
+    pub relative_timestamp_ms: u64,
+}
+
 /// WAL audio reader that decodes Opus frames and handles silence gaps
 pub struct WalAudioReader {
     entries: Vec<WalEntry>,
@@ -58,13 +104,6 @@ pub struct WalAudioReader {
     decoder: Option<opus::Decoder>,
     decoder_config: Option<(u32, u16)>,
     session_info: SessionInfo,
-}
-
-#[derive(Debug)]
-struct WalEntry {
-    header: RecordingHeader,
-    opus_data: Vec<u8>,
-    relative_timestamp_ms: u64,
 }
 
 impl WalAudioReader {
@@ -82,6 +121,29 @@ impl WalAudioReader {
             decoder_config: None,
             session_info,
         })
+    }
+
+    /// Get the next raw WAL entry without decoding
+    pub fn next_raw_entry(&mut self) -> Option<&WalEntry> {
+        if self.current_index >= self.entries.len() {
+            return None;
+        }
+
+        let entry = &self.entries[self.current_index];
+        self.current_index += 1;
+        Some(entry)
+    }
+
+    /// Peek at the next raw WAL entry without advancing
+    pub fn peek_raw_entry(&self) -> Option<&WalEntry> {
+        self.entries.get(self.current_index)
+    }
+
+    /// Reset the reader to the beginning
+    pub fn reset(&mut self) {
+        self.current_index = 0;
+        self.decoder = None;
+        self.decoder_config = None;
     }
 
     /// Get the next decoded audio frame, inserting silence if needed
@@ -143,9 +205,6 @@ impl WalAudioReader {
         let prev_entry = &self.entries[self.current_index - 1];
         let next_entry = &self.entries[self.current_index];
 
-        static CALL_COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-        let call_num = CALL_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-
         let time_gap_ms = next_entry.relative_timestamp_ms
             .saturating_sub(prev_entry.relative_timestamp_ms)
             .saturating_sub(OPUS_FRAME_MS);
@@ -173,6 +232,11 @@ impl WalAudioReader {
 
     pub fn session_info(&self) -> &SessionInfo {
         &self.session_info
+    }
+
+    /// Get total number of entries
+    pub fn entry_count(&self) -> usize {
+        self.entries.len()
     }
 
     /// Read WAL entries with headers by parsing segment files directly
@@ -294,13 +358,4 @@ impl WalAudioReader {
 
         Ok(entries)
     }
-}
-
-/// Convenience function to render using default bwav renderer
-pub fn render_to_bwav(
-    session_path: &Path,
-    player_name: &str,
-    output_path: &Path,
-) -> Result<(), anyhow::Error> {
-    BwavRenderer::new().render(session_path, player_name, output_path)
 }

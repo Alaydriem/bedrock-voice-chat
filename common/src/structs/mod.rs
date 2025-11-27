@@ -8,4 +8,5 @@ pub mod player_source;
 pub mod recording;
 
 // Re-export commonly used types
+pub use audio::AudioFormat;
 pub use events::DeepLink;

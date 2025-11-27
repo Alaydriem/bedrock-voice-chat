@@ -3,9 +3,10 @@ use std::fs;
 use std::path::PathBuf;
 use tauri::Manager;
 use common::structs::recording::SessionManifest;
-use crate::audio::recording::renderer::{AudioRenderer, BwavRenderer};
+use crate::audio::recording::renderer::AudioFormatRenderer;
+use common::structs::AudioFormat;
 use tauri_plugin_opener::OpenerExt;
-use log::{info, error, debug, warn};
+use log::{info, error};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RecordingSession {
@@ -113,13 +114,15 @@ pub async fn export_recording(
     session_id: String,
     selected_players: Vec<String>,
     spatial: bool,
+    format: AudioFormat,
     app_handle: tauri::AppHandle
 ) -> Result<bool, String> {
     log::info!(
-        "Export recording called - Session ID: {}, Selected Players: {:?}, Spatial: {}",
+        "Export recording called - Session ID: {}, Selected Players: {:?}, Spatial: {}, Format: {:?}",
         session_id,
         selected_players,
-        spatial
+        spatial,
+        format
     );
 
     let rec_path = app_handle
@@ -136,14 +139,13 @@ pub async fn export_recording(
 
     let task = tokio::spawn(async move {
         for player in selected_players {
-            let mut renderer = BwavRenderer::new();
-            let output_path = render_path.join(format!("{}.wav", &player));
-            match renderer.render(&session_path, &player, &output_path) {
+            let output_path = render_path.join(format!("{}.{}", &player, format.extension()));
+            match format.render(&session_path, &player, &output_path).await {
                 Ok(()) => {
-                    info!("Renderer {}", &player);
+                    info!("Rendered {}", &player);
                 },
                 Err(e) => {
-                    error!("Error rendering audio {}", e);
+                    error!("Error rendering audio for {}: {}", &player, e);
                 }
             }
         }

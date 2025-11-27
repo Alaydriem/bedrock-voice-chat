@@ -777,6 +777,7 @@ version = "0.1.13"
 dependencies = [
  "anyhow",
  "async-mutex",
+ "async-trait",
  "audio-gate",
  "base64 0.22.1",
  "bwavfile",
@@ -799,6 +800,7 @@ dependencies = [
  "rust-argon2",
  "serde",
  "serde_json",
+ "shiguredo_mp4",
  "spmc",
  "tauri",
  "tauri-build",
@@ -7717,6 +7719,12 @@ checksum = "f40ca3c46823713e0d4209592e8d6e826aa57e928f09752619fc696c499637f6"
 dependencies = [
  "lazy_static",
 ]
+
+[[package]]
+name = "shiguredo_mp4"
+version = "2025.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "adfa51877d6594d64423219290a7d22575f93c165c75e471ed76bee44991822d"
 
 [[package]]
 name = "shlex"

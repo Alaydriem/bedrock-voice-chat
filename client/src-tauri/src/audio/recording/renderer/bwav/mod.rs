@@ -1,8 +1,8 @@
-use super::{AudioRenderer, WalAudioReader};
+use crate::audio::recording::renderer::{AudioRenderer, PcmChunk, PcmStream, SessionInfo};
+use async_trait::async_trait;
 use bwavfile::{Bext, WaveFmt, WaveWriter};
 use chrono::{DateTime, Datelike, Local, TimeZone};
 use std::path::Path;
-use log::{info, debug, warn, error};
 
 /// BWav audio renderer that outputs PCM BWav files
 pub struct BwavRenderer {
@@ -13,14 +13,15 @@ impl BwavRenderer {
     /// Create a new BWav renderer with default settings
     pub fn new() -> Self {
         Self {
-            bits_per_sample: 32, // f32 samples
+            // f32 samples
+            bits_per_sample: 32,
         }
     }
 
     /// Create Bext metadata from session info
     fn create_bext(
         &self,
-        session_info: &super::SessionInfo,
+        session_info: &SessionInfo,
         player_name: &str,
         sample_rate: u32,
         first_frame_relative_timestamp_ms: u64,
@@ -63,7 +64,6 @@ impl BwavRenderer {
             ),
         }
     }
-
 }
 
 impl Default for BwavRenderer {
@@ -72,67 +72,58 @@ impl Default for BwavRenderer {
     }
 }
 
+#[async_trait]
 impl AudioRenderer for BwavRenderer {
-    fn render(
+    async fn render(
         &mut self,
         session_path: &Path,
         player_name: &str,
         output_path: &Path,
     ) -> Result<(), anyhow::Error> {
-        let mut reader = WalAudioReader::new(session_path, player_name)?;
-        let first_frame = reader.next_frame()?
-            .ok_or_else(|| anyhow::anyhow!("No audio data found for player: {}", player_name))?;
+        let stream = PcmStream::new(session_path, player_name)?;
 
-        let channels = first_frame.channels;
-        let sample_rate = first_frame.sample_rate;
+        let info = stream.info()
+            .ok_or_else(|| anyhow::anyhow!("No audio data found for player: {}", player_name))?
+            .clone();
 
-        let format = if channels == 1 {
-            WaveFmt::new_pcm_mono(sample_rate, self.bits_per_sample)
+        let format = if info.channels == 1 {
+            WaveFmt::new_pcm_mono(info.sample_rate, self.bits_per_sample)
         } else {
-            WaveFmt::new_pcm_stereo(sample_rate, self.bits_per_sample)
+            WaveFmt::new_pcm_stereo(info.sample_rate, self.bits_per_sample)
         };
 
         let mut writer = WaveWriter::create(output_path, format)?;
 
         let bext = self.create_bext(
-            reader.session_info(),
+            &info.session_info,
             player_name,
-            sample_rate,
-            first_frame.relative_timestamp_ms,
+            info.sample_rate,
+            info.first_frame_timestamp_ms,
         );
         writer.write_broadcast_metadata(&bext)?;
 
         let mut frame_writer = writer.audio_frame_writer()?;
-
-        frame_writer.write_frames(first_frame.pcm_data.as_slice())?;
-
-        let mut frames_processed = 1;
+        let mut frames_processed = 0;
         let mut silence_chunks_written = 0;
 
-        let mut loop_iterations = 0;
-        loop {
-            loop_iterations += 1;
-            if let Some(mut remaining_silence) = reader.calculate_silence_before_next() {
-                const MAX_SILENCE_CHUNK_SAMPLES: usize = 48000 * 60;
-
-                let mut silence_chunks_in_this_gap = 0;
-                while remaining_silence > 0 {
-                    let chunk_size = remaining_silence.min(MAX_SILENCE_CHUNK_SAMPLES);
-                    let silence: Vec<f32> = vec![0.0; chunk_size];
-                    frame_writer.write_frames(silence.as_slice())?;
-                    remaining_silence -= chunk_size;
-                    silence_chunks_written += 1;
-                    silence_chunks_in_this_gap += 1;
-                }
-            }
-
-            match reader.next_frame()? {
-                Some(frame) => {
-                    frame_writer.write_frames(frame.pcm_data.as_slice())?;
+        // Consume the PCM stream
+        for chunk in stream {
+            match chunk? {
+                PcmChunk::Audio(samples) => {
+                    frame_writer.write_frames(&samples)?;
                     frames_processed += 1;
                 }
-                None => {
-                    break;
+                PcmChunk::Silence(total_samples) => {
+                    // Write silence in chunks to avoid huge allocations
+                    const MAX_SILENCE_CHUNK_SAMPLES: usize = 48000 * 60;
+                    let mut remaining = total_samples;
+                    while remaining > 0 {
+                        let chunk_size = remaining.min(MAX_SILENCE_CHUNK_SAMPLES);
+                        let silence: Vec<f32> = vec![0.0; chunk_size];
+                        frame_writer.write_frames(&silence)?;
+                        remaining -= chunk_size;
+                        silence_chunks_written += 1;
+                    }
                 }
             }
         }
