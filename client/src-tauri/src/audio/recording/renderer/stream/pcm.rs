@@ -1,4 +1,4 @@
-use super::{SessionInfo, WalAudioReader};
+use crate::audio::recording::renderer::{SessionInfo, WalAudioReader};
 use std::path::Path;
 
 /// Chunk of PCM audio data

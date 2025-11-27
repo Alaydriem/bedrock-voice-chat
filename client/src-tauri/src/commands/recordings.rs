@@ -3,7 +3,8 @@ use std::fs;
 use std::path::PathBuf;
 use tauri::Manager;
 use common::structs::recording::SessionManifest;
-use crate::audio::recording::renderer::AudioFormat;
+use crate::audio::recording::renderer::AudioFormatRenderer;
+use common::structs::AudioFormat;
 use tauri_plugin_opener::OpenerExt;
 use log::{info, error};
 

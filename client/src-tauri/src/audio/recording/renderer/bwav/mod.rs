@@ -1,4 +1,4 @@
-use super::{AudioRenderer, PcmChunk, PcmStream, SessionInfo};
+use crate::audio::recording::renderer::{AudioRenderer, PcmChunk, PcmStream, SessionInfo};
 use async_trait::async_trait;
 use bwavfile::{Bext, WaveFmt, WaveWriter};
 use chrono::{DateTime, Datelike, Local, TimeZone};
@@ -13,7 +13,8 @@ impl BwavRenderer {
     /// Create a new BWav renderer with default settings
     pub fn new() -> Self {
         Self {
-            bits_per_sample: 32, // f32 samples
+            // f32 samples
+            bits_per_sample: 32,
         }
     }
 
@@ -81,7 +82,6 @@ impl AudioRenderer for BwavRenderer {
     ) -> Result<(), anyhow::Error> {
         let stream = PcmStream::new(session_path, player_name)?;
 
-        // Get stream info (sample rate, channels, timestamps)
         let info = stream.info()
             .ok_or_else(|| anyhow::anyhow!("No audio data found for player: {}", player_name))?
             .clone();

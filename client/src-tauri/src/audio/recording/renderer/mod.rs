@@ -1,43 +1,38 @@
+mod stream;
 mod bwav;
 mod mp4;
-mod opus_stream;
-mod pcm_stream;
-mod timecode;
 
 use async_trait::async_trait;
 use common::structs::recording::{RecordingHeader, SessionManifest};
-use serde::{Deserialize, Serialize};
+use common::structs::AudioFormat;
 use std::fs;
 use std::path::Path;
 use log::debug;
-use ts_rs::TS;
 
-pub use bwav::BwavRenderer;
-pub use mp4::Mp4Renderer;
-pub use opus_stream::{OpusChunk, OpusPacketStream, OpusStreamInfo, SilenceEncoder};
-pub use pcm_stream::{PcmChunk, PcmStream, PcmStreamInfo};
+use crate::audio::recording::renderer::{
+    bwav::BwavRenderer,
+    mp4::Mp4Renderer,
+    stream::{
+        opus::{OpusChunk, OpusPacketStream, OpusStreamInfo, SilenceEncoder},
+        pcm::{PcmChunk, PcmStream, PcmStreamInfo}
+    }
+};
 
-/// Audio output format selection
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, TS)]
-#[ts(export, export_to = "./../../src/js/bindings/")]
-pub enum AudioFormat {
-    /// Broadcast WAV with BEXT metadata (uncompressed PCM)
-    Bwav,
-    /// MP4/M4A with Opus audio (compressed, lossless passthrough)
-    Mp4Opus,
+/// Extension trait for AudioFormat that provides rendering capabilities
+#[async_trait]
+pub trait AudioFormatRenderer {
+    /// Render audio from a session to the specified output path
+    async fn render(
+        &self,
+        session_path: &Path,
+        player_name: &str,
+        output_path: &Path,
+    ) -> Result<(), anyhow::Error>;
 }
 
-impl AudioFormat {
-    /// Returns the file extension for this format (without dot)
-    pub fn extension(&self) -> &'static str {
-        match self {
-            AudioFormat::Bwav => "wav",
-            AudioFormat::Mp4Opus => "m4a",
-        }
-    }
-
-    /// Render audio from a session to the specified output path
-    pub async fn render(
+#[async_trait]
+impl AudioFormatRenderer for AudioFormat {
+    async fn render(
         &self,
         session_path: &Path,
         player_name: &str,

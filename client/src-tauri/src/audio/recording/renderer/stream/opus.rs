@@ -1,4 +1,4 @@
-use super::{SessionInfo, WalAudioReader};
+use crate::audio::recording::renderer::{SessionInfo, WalAudioReader};
 use std::path::Path;
 
 /// Chunk of raw Opus data for lossless muxing
@@ -19,13 +19,9 @@ pub enum OpusChunk {
 /// Stream metadata extracted from first packet
 #[derive(Debug, Clone)]
 pub struct OpusStreamInfo {
-    /// Sample rate (always 48000 for Opus)
     pub sample_rate: u32,
-    /// Channel count (1 or 2)
     pub channels: u16,
-    /// Timestamp of first packet relative to session start
     pub first_packet_timestamp_ms: u64,
-    /// Session metadata from session.json
     pub session_info: SessionInfo,
 }
 
@@ -127,9 +123,8 @@ impl Iterator for OpusPacketStream {
 
         // Check for gap
         if let Some(last_ts) = self.last_timestamp_ms {
-            let expected_next = last_ts + 20; // 20ms per packet
+            let expected_next = last_ts + 20;
             if timestamp_ms > expected_next + 30 {
-                // Gap detected (with 30ms jitter tolerance)
                 let gap_ms = timestamp_ms - expected_next;
                 log::debug!("Gap detected: {}ms at timestamp {}ms", gap_ms, timestamp_ms);
 

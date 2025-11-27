@@ -1,7 +1,7 @@
 use std::env;
 use std::path::Path;
 
-use bvc_client_lib::audio::recording::renderer::AudioFormat;
+use bvc_client_lib::audio::recording::renderer::{AudioFormat, AudioFormatRenderer};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

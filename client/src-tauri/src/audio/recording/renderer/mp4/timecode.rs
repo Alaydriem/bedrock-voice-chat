@@ -22,7 +22,7 @@
 //! │           └── stco
 //! ```
 
-use super::OpusStreamInfo;
+use crate::audio::recording::renderer::stream::opus::OpusStreamInfo;
 use chrono::{DateTime, Datelike, Local, TimeZone, Timelike};
 
 /// Timecode information derived from session start

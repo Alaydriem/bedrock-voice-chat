@@ -9,7 +9,9 @@
 //! - Professional timecode track (tmcd) for NLE compatibility
 //! - User data box (udta) with session metadata
 
-use super::timecode::{create_timecode_sample, create_timecode_track, create_user_data_box};
+mod timecode;
+
+use timecode::{create_timecode_sample, create_timecode_track, create_user_data_box};
 use super::{AudioRenderer, OpusChunk, OpusPacketStream, OpusStreamInfo};
 use async_trait::async_trait;
 use shiguredo_mp4::boxes::{AudioSampleEntryFields, DopsBox, OpusBox, SampleEntry};

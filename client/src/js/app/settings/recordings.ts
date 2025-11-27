@@ -7,7 +7,7 @@ import LoadingState from '../../../components/recordings/LoadingState.svelte';
 import EmptyState from '../../../components/recordings/EmptyState.svelte';
 
 import type { RecordingSession } from '../../bindings/RecordingSession';
-import type { SessionData } from '../../bindings/SessionData';
+import type { AudioFormat } from '../../bindings/AudioFormat';
 
 declare global {
   interface Window {
