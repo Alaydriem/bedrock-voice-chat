@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::audio::types::{AudioDevice, AudioDeviceHost, AudioDeviceType};
+use crate::audio::types::{get_best_sample_rate, AudioDevice, AudioDeviceHost, AudioDeviceType};
 use anyhow::anyhow;
 use cpal::{
     traits::{DeviceTrait, HostTrait},
@@ -95,11 +95,10 @@ fn process_devices(
                     continue;
                 }
 
-                // Check if device supports 48000 or 44100 sample rates
-                let supports_required_sample_rates = stream_configs.iter().any(|config| {
-                    config.try_with_sample_rate(cpal::SampleRate(48000)).is_some()
-                        || config.try_with_sample_rate(cpal::SampleRate(44100)).is_some()
-                });
+                // Check if device supports any of our required sample rates (48kHz or 44.1kHz)
+                let supports_required_sample_rates = stream_configs
+                    .iter()
+                    .any(|config| get_best_sample_rate(config).is_some());
 
                 if !supports_required_sample_rates {
                     continue;

@@ -186,7 +186,7 @@ pub fn run() {
                 handle.plugin(tauri_plugin_updater::Builder::new().build())?;
             }
 
-            let app_state = AppState::new(store.clone());
+            let app_state = AppState::new(store.clone(), handle.clone());
             app.manage(Mutex::new(app_state));
 
             // This is our audio producer and consumer

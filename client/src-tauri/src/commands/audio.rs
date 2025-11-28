@@ -12,38 +12,39 @@ use tauri::{AppHandle, Manager, State};
 use tauri_plugin_store::StoreExt;
 
 /// Returns the active audio device for the given device type
+/// For input devices, this lazily initializes the device if permissions are granted
 #[tauri::command]
 pub(crate) async fn get_audio_device(
     io: AudioDeviceType,
     state: State<'_, Mutex<AppState>>,
-) -> Result<AudioDevice, ()> {
-    let state = state.lock().await;
-
-    return Ok(state.get_audio_device(io));
+) -> Result<AudioDevice, String> {
+    let mut state = state.lock().await;
+    state.get_audio_device(io)
 }
 
 /// Sets the audio device for a given device type in the application store state
+/// For input devices, this verifies permissions before allowing the change
 #[tauri::command]
 pub(crate) async fn set_audio_device(
     device: AudioDevice,
     app: AppHandle,
     state: State<'_, Mutex<AppState>>,
     asm: State<'_, Mutex<AudioStreamManager>>,
-) -> Result<(), ()> {
+) -> Result<(), String> {
     let mut state = state.lock().await;
     _ = update_current_player(app.clone(), asm.clone());
-    state.change_audio_device(device.clone());
-    Ok(())
+    state.change_audio_device(device.clone())
 }
 
 /// Hard resets the audio stream manager with the new devices
+/// For input devices, this lazily initializes the device if permissions are granted
 #[tauri::command]
 pub(crate) async fn change_audio_device(
     app: AppHandle,
     state: State<'_, Mutex<AppState>>,
     asm: State<'_, Mutex<AudioStreamManager>>,
-) -> Result<(), ()> {
-    let state = state.lock().await;
+) -> Result<(), String> {
+    let mut state = state.lock().await;
 
     // Reset the AudioStreamManager
     _ = reset_asm(app.clone(), asm.clone()).await;
@@ -53,8 +54,9 @@ pub(crate) async fn change_audio_device(
     let mut asm_active = asm.lock().await;
 
     // Reinitialize the input and output devices
-    let input_device = state.get_audio_device(AudioDeviceType::InputDevice);
-    let output_device = state.get_audio_device(AudioDeviceType::OutputDevice);
+    // Input device will be lazily initialized here if permissions are granted
+    let input_device = state.get_audio_device(AudioDeviceType::InputDevice)?;
+    let output_device = state.get_audio_device(AudioDeviceType::OutputDevice)?;
 
     asm_active.init(input_device.clone()).await;
     _ = asm_active.start(input_device.clone().io).await;

@@ -11,6 +11,19 @@ use ts_rs::TS;
 
 pub const BUFFER_SIZE: u32 = 960;
 
+/// Supported sample rates in order of preference (highest first)
+pub const SUPPORTED_SAMPLE_RATES: [u32; 2] = [48000, 44100];
+
+/// Returns the best supported sample rate for a config, preferring higher rates
+pub fn get_best_sample_rate(config: &SupportedStreamConfigRange) -> Option<u32> {
+    for rate in SUPPORTED_SAMPLE_RATES {
+        if config.try_with_sample_rate(SampleRate(rate)).is_some() {
+            return Some(rate);
+        }
+    }
+    None
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "./../../src/js/bindings/")]
 pub enum AudioDeviceType {
@@ -140,18 +153,20 @@ impl AudioDevice {
     }
 
     /// Converts cpal SupportedStreamConfigs into a Vec of Samples and Bitrates we are
-    /// willing to support, 48kHz, and f32, i16, and i32 samples
+    /// willing to support: 48kHz or 44.1kHz (preferring 48kHz), and f32, i16, and i32 samples
     pub fn to_stream_config(
         supported_stream_configs: Vec<SupportedStreamConfigRange>,
     ) -> Vec<StreamConfig> {
         let mut stream_configs = Vec::<StreamConfig>::new();
 
         for c in supported_stream_configs {
-            if c.max_sample_rate().eq(&SampleRate(48000))
-                && (c.sample_format().eq(&rodio::cpal::SampleFormat::F32)
-                    || c.sample_format().eq(&rodio::cpal::SampleFormat::I32)
-                    || c.sample_format().eq(&rodio::cpal::SampleFormat::I16))
-            {
+            // Check if config supports one of our required sample rates and has a valid format
+            let best_sample_rate = get_best_sample_rate(&c);
+            let has_valid_format = c.sample_format().eq(&rodio::cpal::SampleFormat::F32)
+                || c.sample_format().eq(&rodio::cpal::SampleFormat::I32)
+                || c.sample_format().eq(&rodio::cpal::SampleFormat::I16);
+
+            if let (Some(sample_rate), true) = (best_sample_rate, has_valid_format) {
                 let (buffer_size_min, buffer_size_max) = match c.buffer_size() {
                     rodio::cpal::SupportedBufferSize::Range { min, max } => {
                         (min.to_owned(), max.to_owned())
@@ -161,7 +176,7 @@ impl AudioDevice {
 
                 stream_configs.push(StreamConfig {
                     channels: c.channels(),
-                    sample_rate: c.max_sample_rate().0,
+                    sample_rate,
                     sample_format: match c.sample_format() {
                         SampleFormat::F32 => "f32",
                         SampleFormat::I16 => "i16",
@@ -174,6 +189,9 @@ impl AudioDevice {
                 });
             }
         }
+
+        // Sort by sample rate descending so 48kHz configs come first
+        stream_configs.sort_by(|a, b| b.sample_rate.cmp(&a.sample_rate));
 
         stream_configs
     }

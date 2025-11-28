@@ -178,15 +178,23 @@ impl InputStream {
 
                     let handle = match cpal_device {
                         Some(cpal_device) => tokio::spawn(async move {
+                            /// CoreAudio on iOS should use the default buffer size to
+                            /// Otherwise the InputStream fails to initialize
+                            #[cfg(target_os = "ios")]
+                            let buffer_size = cpal::BufferSize::Default;
+
+                            #[cfg(not(target_os = "ios"))]
+                            let buffer_size = cpal::BufferSize::Fixed(crate::audio::types::BUFFER_SIZE);
+
                             let cpal_device = cpal_device.clone();
                             let device = device.clone();
                             let device_config = rodio::cpal::StreamConfig {
                                 channels: config.channels(),
                                 sample_rate: config.sample_rate(),
-                                buffer_size: cpal::BufferSize::Fixed(
-                                    crate::audio::types::BUFFER_SIZE,
-                                ),
+                                buffer_size,
                             };
+
+                            log::info!("Stream Config: {:?} {:?}", config.channels(), config.sample_rate());
 
                             let settings = NOISE_GATE_SETTINGS.lock().unwrap();
                             let noise_gate_settings =
@@ -407,6 +415,14 @@ impl InputStream {
             Some(device) => {
                 match device.get_stream_config() {
                     Ok(config) => {
+                        /// CoreAudio on iOS should use the default buffer size to
+                        /// Otherwise the InputStream fails to initialize
+                        #[cfg(target_os = "ios")]
+                        let buffer_size = cpal::BufferSize::Default;
+
+                        #[cfg(not(target_os = "ios"))]
+                        let buffer_size = cpal::BufferSize::Fixed(crate::audio::types::BUFFER_SIZE);
+
                         let device_config = rodio::cpal::StreamConfig {
                             channels: match config.channels() {
                                 1 => 1,
@@ -414,7 +430,7 @@ impl InputStream {
                                 _ => 1,
                             },
                             sample_rate: config.sample_rate(),
-                            buffer_size: cpal::BufferSize::Fixed(crate::audio::types::BUFFER_SIZE),
+                            buffer_size,
                         };
 
                         let mut data_stream = Vec::<f32>::new();
