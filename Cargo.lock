@@ -8710,7 +8710,7 @@ dependencies = [
 [[package]]
 name = "tauri-plugin-audio-permissions"
 version = "0.1.2"
-source = "git+https://github.com/charlesportwoodii/tauri-plugin-audio-permissions#0f6ce7317f51693c45d2375e47485738c0e757af"
+source = "git+https://github.com/charlesportwoodii/tauri-plugin-audio-permissions#c7331c9dd3b729de51d56f418c893e204abafcf8"
 dependencies = [
  "block",
  "cocoa",

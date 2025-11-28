@@ -28,7 +28,9 @@ import {
   stopForegroundService,
   updateNotification,
   PermissionType,
-  type ServiceResponse
+  isServiceRunning,
+  type ServiceResponse,
+  type ServiceStatusResponse
 } from 'tauri-plugin-audio-permissions';
 
 declare global {
@@ -103,13 +105,6 @@ export default class Dashboard extends BVCApp {
             const isInputStreamStopped = await invoke("is_stopped", { device: "InputDevice" }).then((stopped) => stopped as boolean);
             const isOutputStreamStopped = await invoke("is_stopped", { device: "OutputDevice" }).then((stopped) => stopped as boolean);
 
-            // Stop foreground service on mobile only
-            await stopForegroundService().then(async (result: ServiceResponse) => {
-                if (!result.stopped) {
-                    warn("Foreground service was not running.");
-                }
-            });
-
             if (isInputStreamStopped || isOutputStreamStopped) {
                 await this.shutdown();
 
@@ -131,12 +126,17 @@ export default class Dashboard extends BVCApp {
                     return;
                 }
 
-                const serviceResult: ServiceResponse = await startForegroundService();
+                // On mobile we need a running background service to allow microphone capture if the
+                // application is backgrounded.
+                const isServiceRunningResult: ServiceStatusResponse = await isServiceRunning();
+                if (!isServiceRunningResult.running) {
+                    const serviceResult: ServiceResponse = await startForegroundService();
 
-                if (!serviceResult.started) {
-                    warn("Foreground service could not be started.");
-                    window.location.href = "/error?code=SERV01";
-                    return;
+                    if (!serviceResult.started) {
+                        warn("Foreground service could not be started.");
+                        window.location.href = "/error?code=SERV01";
+                        return;
+                    }
                 }
 
                 // Initialize audio devices and network stream
