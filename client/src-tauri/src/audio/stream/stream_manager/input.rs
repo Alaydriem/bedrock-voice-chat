@@ -9,7 +9,7 @@ use common::structs::packet::{AudioFramePacket, QuicNetworkPacket, QuicNetworkPa
 use common::PlayerData;
 use log::{error, info, debug, warn};
 use once_cell::sync::Lazy;
-use opus::Bitrate;
+use opus2::Bitrate;
 use rodio::cpal::traits::StreamTrait as CpalStreamTrait;
 use rodio::DeviceTrait;
 use std::{
@@ -420,10 +420,10 @@ impl InputStream {
                         let mut data_stream = Vec::<f32>::new();
 
                         // Create the opus encoder
-                        let mut encoder = match opus::Encoder::new(
+                        let mut encoder = match opus2::Encoder::new(
                             device_config.sample_rate.0.into(),
-                            opus::Channels::Mono,
-                            opus::Application::Voip,
+                            opus2::Channels::Mono,
+                            opus2::Application::Voip,
                         ) {
                             Ok(mut encoder) => {
                                 _ = encoder.set_bitrate(Bitrate::Bits(32_000));

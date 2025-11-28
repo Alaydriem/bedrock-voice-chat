@@ -170,7 +170,7 @@ impl Iterator for OpusPacketStream {
 
 /// Generates Opus-encoded silence packets
 pub struct SilenceEncoder {
-    encoder: opus::Encoder,
+    encoder: opus2::Encoder,
     sample_rate: u32,
     channels: u16,
     frame_size: usize,
@@ -179,14 +179,14 @@ pub struct SilenceEncoder {
 impl SilenceEncoder {
     pub fn new(sample_rate: u32, channels: u16) -> Result<Self, anyhow::Error> {
         let channels_enum = if channels == 1 {
-            opus::Channels::Mono
+            opus2::Channels::Mono
         } else {
-            opus::Channels::Stereo
+            opus2::Channels::Stereo
         };
 
         let mut encoder =
-            opus::Encoder::new(sample_rate, channels_enum, opus::Application::Audio)?;
-        encoder.set_bitrate(opus::Bitrate::Bits(64000))?;
+            opus2::Encoder::new(sample_rate, channels_enum, opus2::Application::Audio)?;
+        encoder.set_bitrate(opus2::Bitrate::Bits(64000))?;
 
         // 20ms frame size
         let frame_size = (sample_rate as usize * 20) / 1000;

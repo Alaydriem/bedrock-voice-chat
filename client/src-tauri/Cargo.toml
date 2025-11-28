@@ -33,7 +33,7 @@ rodio = { version = "^0.21" }
 bytes = { version = "^1.10" }
 async-mutex = { version = "^1.4" }
 moka = { version = "^0.12", features = ["future", "sync"] }
-opus = { git = "https://github.com/SpaceManiac/opus-rs", rev ="834381efeaa864d06925e849992341926d358879" }
+opus2 = { version = "^0.3" }
 ron = { version = "^0.11" }
 audio-gate = { version = "^0.1" }
 flume = { version = "^0.11" }
