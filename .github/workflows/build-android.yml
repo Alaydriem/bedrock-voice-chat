@@ -63,35 +63,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Java 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: 'yarn'
-          cache-dependency-path: client/yarn.lock
-
       - name: Set up Android NDK
         uses: nttld/setup-ndk@v1
         with:
           ndk-version: r27c
           add-to-path: false
 
-      - name: Set up Android SDK and build tools
+      - name: Set up Android SDK CMake
         run: |
-          echo "Installing Android SDK build tools and CMake..."
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-            "build-tools;34.0.0" \
-            "cmake;3.22.1" \
-            "platform-tools" \
-            "platforms;android-34"
-          echo "Android SDK components installed"
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "cmake;3.22.1"
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -110,29 +91,13 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             pkg-config \
             libssl-dev \
-            libsqlite3-dev \
             cmake \
             ninja-build \
             build-essential \
-            libwebkit2gtk-4.1-dev \
-            libgtk-3-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
             libclang-dev \
             clang \
             llvm-dev
           sudo apt-get clean
-
-      - name: Install JavaScript dependencies
-        working-directory: ./client
-        run: yarn install --frozen-lockfile
-
-      - name: Download and setup ASIO SDK
-        working-directory: ./client/src-tauri
-        run: |
-          curl -L -o asiosdk.zip "https://download.steinberg.net/sdk_downloads/asiosdk_2.3.3_2019-06-14.zip"
-          unzip -q asiosdk.zip
-          echo "ASIO SDK downloaded and extracted"
 
       - name: Set up Android environment
         run: |
@@ -165,14 +130,12 @@ jobs:
         working-directory: ./client
         run: cargo install --force --locked bindgen-cli
 
-      - name: Initialize Tauri Android project
-        working-directory: ./client
+      - name: Setup cargo config for Android
         run: |
-          cp ../.github/client/.cargo/config.toml ./src-tauri/.cargo/config.toml
-          yarn tauri android init
+          mkdir -p client/src-tauri/.cargo
+          cp .github/client/.cargo/config.toml client/src-tauri/.cargo/config.toml
 
       - name: Build native library for ${{ matrix.target }}
-        working-directory: ./client
         env:
           LIBCLANG_PATH: /usr/lib/llvm-17/lib/
           LD_LIBRARY_PATH: /usr/lib/llvm-17/lib/:$LD_LIBRARY_PATH
@@ -182,10 +145,6 @@ jobs:
           AWS_LC_SYS_CMAKE_GENERATOR: "Ninja"
           AWS_LC_SYS_CMAKE_BUILDER: "1"
           AWS_LC_SYS_EXTERNAL_BINDGEN: "1"
-          CC_${{ matrix.rust_target }}: "${{ matrix.cc }}"
-          CXX_${{ matrix.rust_target }}: "${{ matrix.cxx }}"
-          AR_${{ matrix.rust_target }}: "llvm-ar"
-          CARGO_TARGET_${{ matrix.rust_target }}_LINKER: "${{ matrix.linker }}"
           ANDROID_PLATFORM: "android-27"
           CMAKE_ANDROID_API: "27"
         run: |
@@ -198,12 +157,15 @@ jobs:
             export CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_RUSTFLAGS="-Clinker=${{ matrix.linker }} --cfg s2n_quic_unstable -C link-arg=-lc++_shared -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/${{ matrix.lib_dir }}/27"
           fi
 
-          echo "Building ${{ matrix.target }} in ${{ env.BUILD_MODE }} mode"
+          echo "Building ${{ matrix.target }} in ${{ env.BUILD_MODE }} mode using cargo directly"
           if [ "${{ env.BUILD_MODE }}" = "release" ]; then
-            yarn tauri android build --release --target ${{ matrix.target }}
+            cargo build --target ${{ matrix.rust_target }} --release --lib -p bedrock-voice-chat-client
           else
-            yarn tauri android build --debug --target ${{ matrix.target }}
+            cargo build --target ${{ matrix.rust_target }} --lib -p bedrock-voice-chat-client
           fi
+
+          echo "=== Built library ==="
+          ls -la target/${{ matrix.rust_target }}/${{ env.BUILD_MODE }}/libbvc_client_lib.so
 
       - name: Upload native library artifact
         uses: actions/upload-artifact@v4
