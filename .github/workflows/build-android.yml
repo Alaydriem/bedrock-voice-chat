@@ -41,6 +41,28 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Free disk space
+        run: |
+          echo "=== Disk space before cleanup ==="
+          df -h
+          # Remove large pre-installed packages to free up disk space
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /usr/local/lib/android/sdk/system-images
+          sudo rm -rf /usr/local/lib/android/sdk/ndk
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo rm -rf /opt/hostedtoolcache/go
+          sudo rm -rf /usr/local/graalvm
+          sudo rm -rf /usr/local/.ghcup
+          sudo rm -rf /usr/share/swift
+          sudo rm -rf /opt/az
+          sudo rm -rf /usr/share/az
+          sudo rm -rf /usr/share/miniconda
+          sudo rm -rf /usr/local/lib/heroku
+          echo "=== Disk space after cleanup ==="
+          df -h
+
       - name: Set up Java 21
         uses: actions/setup-java@v4
         with:
@@ -106,12 +128,7 @@ jobs:
             libclang-dev \
             clang \
             llvm-dev
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/share/boost
-          sudo rm -rf /usr/local/lib/android/sdk/system-images
           sudo apt-get clean
-          df -h
 
       - name: Install JavaScript dependencies
         working-directory: ./client
@@ -247,13 +264,6 @@ jobs:
           echo "Verifying copied icons:"
           find "$TARGET_RES" -name "ic_launcher.png" -exec ls -la {} \;
 
-      - name: Use client workspace (excludes server dependencies)
-        run: |
-          echo "Swapping to client-only workspace to exclude server dependencies..."
-          mv Cargo.toml Cargo-server.toml
-          mv Cargo-client.toml Cargo.toml
-          echo "Client workspace activated"
-
       - name: Build Android (debug)
         working-directory: ./client
         env:
@@ -302,15 +312,16 @@ jobs:
           export PATH="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
           yarn tauri info
           # Force debug mode for PR builds, otherwise use input parameter
+          # Only build ARM targets (aarch64, armv7) - skip x86/x86_64 emulator targets to save disk space
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "PR detected - building in debug mode"
-            yarn tauri android build --debug
+            yarn tauri android build --debug --target aarch64 armv7
           elif [ "${{ inputs.build_mode || 'debug' }}" = "release" ]; then
             echo "Building in release mode"
-            yarn tauri android build --release
+            yarn tauri android build --release --target aarch64 armv7
           else
             echo "Building in debug mode"
-            yarn tauri android build --debug
+            yarn tauri android build --debug --target aarch64 armv7
           fi
 
       - name: Prepare Android artifacts

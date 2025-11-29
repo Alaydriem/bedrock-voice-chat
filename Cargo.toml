@@ -1,5 +1,5 @@
 [workspace]
-members = ["common", "entity", "migration", "server", "client/src-tauri"]
+members = ["common", "client/src-tauri"]
 resolver = "2"
 
 [profile.release]
@@ -8,10 +8,10 @@ strip = true
 debug = false
 codegen-units = 1
 lto = true
-incremental = false  # Incremental disabled for release builds
+incremental = false
 
 [profile.dev]
 opt-level = 1
 debug = 1
 strip = "symbols"
-incremental = true  # Incremental enabled for faster debug builds
+incremental = true

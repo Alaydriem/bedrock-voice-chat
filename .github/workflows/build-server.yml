@@ -6,8 +6,6 @@ on:
     paths:
       - 'server/**'
       - 'common/**'
-      - 'migration/**'
-      - 'entity/**'
       - '.github/workflows/build-server.yml'
   pull_request:
   workflow_call:
@@ -60,7 +58,7 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "."
+          workspaces: "./server"
 
       - name: Install cross (for cross-compilation)
         if: false # Cross-compilation not currently used, but keeping for future
@@ -128,13 +126,13 @@ jobs:
           # Determine actual build mode used
           BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}"
           echo "Effective build mode: $BUILD_MODE"
-          
+
           if [ "$BUILD_MODE" = "release" ]; then
-            BUILD_DIR="target/${{ matrix.target }}/release"
+            BUILD_DIR="server/target/${{ matrix.target }}/release"
           else
-            BUILD_DIR="target/${{ matrix.target }}/debug"
+            BUILD_DIR="server/target/${{ matrix.target }}/debug"
           fi
-          
+
           if [ "${{ runner.os }}" = "Windows" ]; then
             FINAL_NAME="bvc-server-${{ matrix.target }}-$BUILD_MODE.exe"
             cp "${BUILD_DIR}/bedrock-voice-chat-server.exe" "$FINAL_NAME"
@@ -142,7 +140,7 @@ jobs:
             FINAL_NAME="bvc-server-${{ matrix.target }}-$BUILD_MODE"
             cp "${BUILD_DIR}/bedrock-voice-chat-server" "$FINAL_NAME"
           fi
-          
+
           echo "Created artifact: $FINAL_NAME"
           ls -la "$FINAL_NAME"
 

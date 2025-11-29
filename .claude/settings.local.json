@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(cargo check:*)",
-      "Bash(cargo tree:*)"
+      "Bash(cargo tree:*)",
+      "Bash(dir:*)",
+      "Bash(yarn tauri android build --help:*)"
     ],
     "deny": [],
     "ask": []
