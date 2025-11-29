@@ -34,8 +34,34 @@ on:
 
 jobs:
   build-android:
-    name: Build Android Client (${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }})
+    name: Build Android (${{ matrix.arch }}, ${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: aarch64
+            rust_target: aarch64-linux-android
+            rust_target_underscore: aarch64_linux_android
+            tauri_target: aarch64
+            jni_dir: arm64-v8a
+            bindgen_target: aarch64-linux-android27
+            cc: aarch64-linux-android27-clang
+            cxx: aarch64-linux-android27-clang++
+            linker: aarch64-linux-android27-clang
+            sysroot_lib: aarch64-linux-android
+            cargo_target_upper: AARCH64_LINUX_ANDROID
+          - arch: armv7
+            rust_target: armv7-linux-androideabi
+            rust_target_underscore: armv7_linux_androideabi
+            tauri_target: armv7
+            jni_dir: armeabi-v7a
+            bindgen_target: armv7a-linux-androideabi27
+            cc: armv7a-linux-androideabi27-clang
+            cxx: armv7a-linux-androideabi27-clang++
+            linker: armv7a-linux-androideabi27-clang
+            sysroot_lib: arm-linux-androideabi
+            cargo_target_upper: ARMV7_LINUX_ANDROIDEABI
 
     steps:
       - name: Checkout code
@@ -80,9 +106,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: |
-            aarch64-linux-android
-            armv7-linux-androideabi
+          targets: ${{ matrix.rust_target }}
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -117,15 +141,6 @@ jobs:
         working-directory: ./client
         run: yarn install --frozen-lockfile
 
-      - name: Download and setup ASIO SDK
-        working-directory: ./client/src-tauri
-        run: |
-          echo "Downloading ASIO SDK..."
-          curl -L -o asiosdk.zip "https://download.steinberg.net/sdk_downloads/asiosdk_2.3.3_2019-06-14.zip"
-          unzip -q asiosdk.zip
-          ls -la
-          echo "ASIO SDK downloaded and extracted"
-
       - name: Set up Android environment and fix LIBCLANG_PATH
         run: |
           # The setup-ndk action sets ANDROID_NDK_ROOT, but we need to ensure all common NDK env vars are set
@@ -158,7 +173,7 @@ jobs:
           # Generic flags bindgen & cc should use for Android cross builds
           ANDROID_SYSROOT="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
           # Bindgen gets sysroot and a target triple; no __ANDROID_API__ define
-          echo 'BINDGEN_EXTRA_CLANG_ARGS=--sysroot='"$ANDROID_SYSROOT"' --target=aarch64-linux-android27' >> $GITHUB_ENV
+          echo 'BINDGEN_EXTRA_CLANG_ARGS=--sysroot='"$ANDROID_SYSROOT"' --target=${{ matrix.bindgen_target }}' >> $GITHUB_ENV
 
           # Sanity check: stdlib.h should exist here
           test -f "$ANDROID_SYSROOT/usr/include/stdlib.h" && echo "Found stdlib.h in sysroot" || (echo "Missing stdlib.h"; exit 1)
@@ -167,6 +182,16 @@ jobs:
           echo "ANDROID_PLATFORM=android-27" >> $GITHUB_ENV
           echo "CMAKE_ANDROID_API=27" >> $GITHUB_ENV
           echo "ANDROID_MIN_SDK_VERSION=27" >> $GITHUB_ENV
+
+          # Set architecture-specific environment variables using matrix values
+          echo "CC_${{ matrix.rust_target_underscore }}=${{ matrix.cc }}" >> $GITHUB_ENV
+          echo "CXX_${{ matrix.rust_target_underscore }}=${{ matrix.cxx }}" >> $GITHUB_ENV
+          echo "AR_${{ matrix.rust_target_underscore }}=llvm-ar" >> $GITHUB_ENV
+          echo "CARGO_TARGET_${{ matrix.cargo_target_upper }}_LINKER=${{ matrix.linker }}" >> $GITHUB_ENV
+
+          # Set RUSTFLAGS for this architecture
+          SYSROOT_LIB_PATH="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/${{ matrix.sysroot_lib }}/27"
+          echo "CARGO_TARGET_${{ matrix.cargo_target_upper }}_RUSTFLAGS=-Clinker=${{ matrix.linker }} --cfg s2n_quic_unstable -C link-arg=-lc++_shared -L $SYSROOT_LIB_PATH" >> $GITHUB_ENV
 
           # Debug: Show build tools
           echo "Build tools verification:"
@@ -230,13 +255,13 @@ jobs:
 
               if [ -f "$SOURCE_ICON" ]; then
                 cp "$SOURCE_ICON" "$TARGET_ICON"
-                echo "  ✓ Copied $MIPMAP_DIR/ic_launcher.png"
+                echo "Copied $MIPMAP_DIR/ic_launcher.png"
               else
-                echo "  ✗ Missing source icon: $SOURCE_ICON"
+                echo "Missing source icon: $SOURCE_ICON"
                 exit 1
               fi
             else
-              echo "  ✗ Missing source directory: $SOURCE_PATH"
+              echo "Missing source directory: $SOURCE_PATH"
               exit 1
             fi
           done
@@ -247,7 +272,7 @@ jobs:
           echo "Verifying copied icons:"
           find "$TARGET_RES" -name "ic_launcher.png" -exec ls -la {} \;
 
-      - name: Build Android (debug)
+      - name: Build Android (${{ matrix.arch }})
         working-directory: ./client
         env:
           # libclang - keep using the system libclang 17
@@ -264,31 +289,6 @@ jobs:
           AWS_LC_SYS_CMAKE_BUILDER: "1"
           AWS_LC_SYS_EXTERNAL_BINDGEN: "1"
 
-          # Android NDK toolchain setup (API 27)
-          CC_aarch64_linux_android: "aarch64-linux-android27-clang"
-          CXX_aarch64_linux_android: "aarch64-linux-android27-clang++"
-          AR_aarch64_linux_android: "llvm-ar"
-          CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: "aarch64-linux-android27-clang"
-
-          CC_armv7_linux_androideabi: "armv7a-linux-androideabi27-clang"
-          CXX_armv7_linux_androideabi: "armv7a-linux-androideabi27-clang++"
-          AR_armv7_linux_androideabi: "llvm-ar"
-          CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER: "armv7a-linux-androideabi27-clang"
-
-          # RUSTFLAGS (unchanged)
-          CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS: >-
-            -Clinker=aarch64-linux-android27-clang
-            --cfg s2n_quic_unstable
-            -C link-arg=-lc++_shared
-            -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/27
-
-          # ARMv7
-          CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_RUSTFLAGS: >-
-            -Clinker=armv7a-linux-androideabi27-clang
-            --cfg s2n_quic_unstable
-            -C link-arg=-lc++_shared
-            -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/27
-
           ANDROID_PLATFORM: "android-27"
           CMAKE_ANDROID_API: "27"
         run: |
@@ -297,19 +297,159 @@ jobs:
           # Force debug mode for PR builds, otherwise use input parameter
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "PR detected - building in debug mode"
-            yarn tauri android build --debug --target aarch64 armv7
+            yarn tauri android build --debug --target ${{ matrix.tauri_target }}
           elif [ "${{ inputs.build_mode || 'debug' }}" = "release" ]; then
             echo "Building in release mode"
-            yarn tauri android build --release --target aarch64 armv7
+            yarn tauri android build --release --target ${{ matrix.tauri_target }}
           else
             echo "Building in debug mode"
-            yarn tauri android build --debug --target aarch64 armv7
+            yarn tauri android build --debug --target ${{ matrix.tauri_target }}
+          fi
+
+      - name: Upload Rust libraries
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-libs-${{ matrix.arch }}-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
+          path: client/src-tauri/gen/android/app/src/main/jniLibs/${{ matrix.jni_dir }}/
+          retention-days: 1
+
+  combine-apk:
+    name: Build Universal APK (${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }})
+    runs-on: ubuntu-latest
+    needs: build-android
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'yarn'
+          cache-dependency-path: client/yarn.lock
+
+      - name: Set up Android SDK and build tools
+        run: |
+          echo "Installing Android SDK build tools..."
+
+          # Accept licenses
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+          # Install required SDK components
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+            "build-tools;34.0.0" \
+            "platform-tools" \
+            "platforms;android-34"
+
+          echo "Android SDK components installed"
+
+      - name: Install JavaScript dependencies
+        working-directory: ./client
+        run: yarn install --frozen-lockfile
+
+      - name: Initialize Tauri Android project
+        working-directory: ./client
+        run: |
+          echo "Setting up .cargo/config.toml for Android build..."
+          cp ../.github/client/.cargo/config.toml ./src-tauri/.cargo/config.toml
+          echo "Initializing Tauri Android project..."
+          yarn tauri android init
+          # Groovy
+          sed -i 's/minSdkVersion[[:space:]]\+[0-9]\+/minSdkVersion 35/' src-tauri/gen/android/app/build.gradle || true
+          # Kotlin DSL
+          sed -i 's/minSdk[[:space:]]*=[[:space:]]*[0-9]\+/minSdk = 35/' src-tauri/gen/android/app/build.gradle.kts || true
+
+          # Optional: also raise compileSdk/targetSdk if present
+          sed -i 's/compileSdk[[:space:]]*=[[:space:]]*[0-9]\+/compileSdk = 36/' src-tauri/gen/android/app/build.gradle.kts || true
+          sed -i 's/targetSdk[[:space:]]*=[[:space:]]*[0-9]\+/targetSdk = 36/' src-tauri/gen/android/app/build.gradle.kts || true
+
+          echo "Android project initialized successfully"
+
+      - name: Copy custom Android icons
+        working-directory: ./client
+        run: |
+          echo "Copying custom Android icons..."
+
+          SOURCE_ICONS="src-tauri/icons/android"
+          TARGET_RES="src-tauri/gen/android/app/src/main/res"
+
+          if [ ! -d "$SOURCE_ICONS" ]; then
+            echo "Warning: Source icons path not found: $SOURCE_ICONS"
+            exit 1
+          fi
+
+          if [ ! -d "$TARGET_RES" ]; then
+            echo "Warning: Target Android resources path not found: $TARGET_RES"
+            exit 1
+          fi
+
+          # Copy each mipmap directory
+          for MIPMAP_DIR in mipmap-hdpi mipmap-mdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
+            SOURCE_PATH="$SOURCE_ICONS/$MIPMAP_DIR"
+            TARGET_PATH="$TARGET_RES/$MIPMAP_DIR"
+
+            if [ -d "$SOURCE_PATH" ]; then
+              mkdir -p "$TARGET_PATH"
+
+              # Copy ic_launcher.png
+              SOURCE_ICON="$SOURCE_PATH/ic_launcher.png"
+              TARGET_ICON="$TARGET_PATH/ic_launcher.png"
+
+              if [ -f "$SOURCE_ICON" ]; then
+                cp "$SOURCE_ICON" "$TARGET_ICON"
+                echo "Copied $MIPMAP_DIR/ic_launcher.png"
+              else
+                echo "Missing source icon: $SOURCE_ICON"
+                exit 1
+              fi
+            else
+              echo "Missing source directory: $SOURCE_PATH"
+              exit 1
+            fi
+          done
+
+          echo "Android icon copying completed."
+
+      - name: Download aarch64 libraries
+        uses: actions/download-artifact@v4
+        with:
+          name: rust-libs-aarch64-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
+          path: client/src-tauri/gen/android/app/src/main/jniLibs/arm64-v8a/
+
+      - name: Download armv7 libraries
+        uses: actions/download-artifact@v4
+        with:
+          name: rust-libs-armv7-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
+          path: client/src-tauri/gen/android/app/src/main/jniLibs/armeabi-v7a/
+
+      - name: Verify downloaded libraries
+        working-directory: ./client
+        run: |
+          echo "=== Downloaded library files ==="
+          find src-tauri/gen/android/app/src/main/jniLibs -name "*.so" -exec ls -la {} \;
+
+      - name: Build Universal APK with Gradle
+        working-directory: ./client/src-tauri/gen/android
+        run: |
+          BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}"
+          echo "Building universal APK in $BUILD_MODE mode..."
+
+          if [ "$BUILD_MODE" = "release" ]; then
+            ./gradlew assembleUniversalRelease
+          else
+            ./gradlew assembleUniversalDebug
           fi
 
       - name: Prepare Android artifacts
         working-directory: ./client
         run: |
-          # Determine actual build mode used
           BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}"
           echo "Effective build mode: $BUILD_MODE"
 
@@ -339,9 +479,9 @@ jobs:
       - name: Output artifact information
         run: |
           BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}"
-          echo "🚀 Android Build Complete!"
-          echo "� Build Mode: $BUILD_MODE"
-          echo "🎯 Trigger: ${{ github.event_name }}"
-          echo "�📦 Artifacts uploaded as: android-client-$BUILD_MODE"
-          echo "🔗 Artifact URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          echo "⏰ Retention: 30 days"
+          echo "Android Build Complete!"
+          echo "Build Mode: $BUILD_MODE"
+          echo "Trigger: ${{ github.event_name }}"
+          echo "Artifacts uploaded as: bvc-android-$BUILD_MODE.apk"
+          echo "Artifact URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "Retention: 30 days"
