@@ -13,16 +13,14 @@
   import PlatformDetector from "../../js/app/utils/PlatformDetector";
   import SwipeGestureManager from "../../js/app/utils/SwipeGestureManager";
 
-  import { info, error, debug } from '@tauri-apps/plugin-log';
-  import { onMount, onDestroy, mount, setContext } from "svelte";
+  import { error } from '@tauri-apps/plugin-log';
+  import { onMount, onDestroy, mount } from "svelte";
 
   let playerPresenceManager: PlayerPresenceManager | undefined;
   let swipeGesture: any = null;
   let isMobile = false;
   let mainContentElement: HTMLElement;
 
-  // Dashboard instance and managers
-  let dashboardInstance: Dashboard | undefined;
   let playerManager: any = undefined;
   let channelManager: any = undefined;
   let audioActivityManager: any = undefined;
@@ -121,6 +119,7 @@
   onMount(async () => {
     try {
       isMobile = await platformDetector.checkMobile();
+      document.querySelector("body")!.style = "min-height: 101dvh !important;";
     } catch (error) {
       isMobile = false;
     }
