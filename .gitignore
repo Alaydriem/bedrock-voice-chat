@@ -12,3 +12,4 @@ config.hcl
 *.sqlite3
 *.sqlite
 target
+.claude
