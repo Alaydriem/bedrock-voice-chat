@@ -147,25 +147,18 @@ jobs:
           AWS_LC_SYS_EXTERNAL_BINDGEN: "1"
           ANDROID_PLATFORM: "android-27"
           CMAKE_ANDROID_API: "27"
-          # Fix CMake FindThreads for Android cross-compilation
-          # On Android, pthreads are part of libc, not a separate library
-          CMAKE_THREAD_LIBS_INIT: ""
-          CMAKE_HAVE_THREADS_LIBRARY: "1"
-          CMAKE_USE_WIN32_THREADS_INIT: "0"
-          CMAKE_USE_PTHREADS_INIT: "1"
-          THREADS_PREFER_PTHREAD_FLAG: "OFF"
+          # Android NDK toolchain for cc crate (aarch64)
+          CC_aarch64_linux_android: "aarch64-linux-android27-clang"
+          CXX_aarch64_linux_android: "aarch64-linux-android27-clang++"
+          AR_aarch64_linux_android: "llvm-ar"
+          CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: "aarch64-linux-android27-clang"
+          # Android NDK toolchain for cc crate (armv7)
+          CC_armv7_linux_androideabi: "armv7a-linux-androideabi27-clang"
+          CXX_armv7_linux_androideabi: "armv7a-linux-androideabi27-clang++"
+          AR_armv7_linux_androideabi: "llvm-ar"
+          CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER: "armv7a-linux-androideabi27-clang"
         run: |
           export PATH="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
-
-          # Use Android NDK toolchain file for CMake
-          export CMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_ROOT/build/cmake/android.toolchain.cmake"
-
-          # Set Android ABI for CMake
-          if [ "${{ matrix.target }}" = "aarch64" ]; then
-            export ANDROID_ABI="arm64-v8a"
-          else
-            export ANDROID_ABI="armeabi-v7a"
-          fi
 
           # Set RUSTFLAGS for this target
           if [ "${{ matrix.target }}" = "aarch64" ]; then
