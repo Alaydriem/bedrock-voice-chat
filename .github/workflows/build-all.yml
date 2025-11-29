@@ -27,6 +27,7 @@ jobs:
       client: ${{ steps.changes.outputs.client }}
       common: ${{ steps.changes.outputs.common }}
       android: ${{ steps.changes.outputs.android }}
+      ios: ${{ steps.changes.outputs.ios }}
       build_mode: ${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
     steps:
       - name: Checkout code
@@ -54,6 +55,11 @@ jobs:
               - 'common/**'
               - '.github/workflows/build-android.yml'
               - '.github/workflows/build-all.yml'
+            ios:
+              - 'client/**'
+              - 'common/**'
+              - '.github/workflows/build-ios.yml'
+              - '.github/workflows/build-all.yml'
             common:
               - 'common/**'
 
@@ -63,8 +69,9 @@ jobs:
           echo "Server: ${{ steps.changes.outputs.server }}"
           echo "Client: ${{ steps.changes.outputs.client }}"
           echo "Android: ${{ steps.changes.outputs.android }}"
+          echo "iOS: ${{ steps.changes.outputs.ios }}"
           echo "Common: ${{ steps.changes.outputs.common }}"
-          
+
           # Determine build mode
           BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}"
           echo "Build mode: $BUILD_MODE"
@@ -88,6 +95,15 @@ jobs:
     with:
       build_mode: ${{ needs.changes.outputs.build_mode }}
 
+  # Build iOS client
+  build-ios:
+    name: Build iOS Client (${{ needs.changes.outputs.build_mode }})
+    needs: changes
+    if: needs.changes.outputs.ios == 'true' || needs.changes.outputs.client == 'true' || needs.changes.outputs.common == 'true'
+    uses: ./.github/workflows/build-ios.yml
+    with:
+      build_mode: ${{ needs.changes.outputs.build_mode }}
+
   # Build Windows client
   build-client:
     name: Build Windows Client (${{ needs.changes.outputs.build_mode }})
@@ -101,8 +117,8 @@ jobs:
   collect-artifacts:
     name: Collect All Artifacts
     runs-on: ubuntu-latest
-    needs: [build-server, build-android, build-client]
-    if: always() && (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-client.result == 'success')
+    needs: [build-server, build-android, build-ios, build-client]
+    if: always() && (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-ios.result == 'success' || needs.build-client.result == 'success')
     steps:
       - name: Create build summary
         id: build-summary
@@ -113,10 +129,11 @@ jobs:
           echo "**Workflow Run:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> build-summary.md
           echo "" >> build-summary.md
           
-          echo "## � Build Results" >> build-summary.md
+          echo "## Build Results" >> build-summary.md
           echo "" >> build-summary.md
           echo "- **Server Status:** ${{ needs.build-server.result || 'skipped' }}" >> build-summary.md
           echo "- **Android Status:** ${{ needs.build-android.result || 'skipped' }}" >> build-summary.md
+          echo "- **iOS Status:** ${{ needs.build-ios.result || 'skipped' }}" >> build-summary.md
           echo "- **Windows Status:** ${{ needs.build-client.result || 'skipped' }}" >> build-summary.md
           echo "" >> build-summary.md
           
@@ -137,7 +154,13 @@ jobs:
             echo "- [android-debug](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) - Android APK/AAB files" >> build-summary.md
             echo "" >> build-summary.md
           fi
-          
+
+          if [ "${{ needs.build-ios.result }}" = "success" ]; then
+            echo "### 📱 iOS Client" >> build-summary.md
+            echo "- [ios-debug](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) - iOS build validated" >> build-summary.md
+            echo "" >> build-summary.md
+          fi
+
           if [ "${{ needs.build-client.result }}" = "success" ]; then
             echo "### 🪟 Windows Client" >> build-summary.md
             echo "- [windows-debug](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) - Windows EXE/MSI/Installer" >> build-summary.md
@@ -160,28 +183,32 @@ jobs:
 
       - name: Final build summary
         run: |
-          echo "🎉 ==============================================="
-          echo "🎉   BEDROCK VOICE CHAT - BUILD COMPLETE!"
-          echo "🎉 ==============================================="
+          echo "==============================================="
+          echo "   BEDROCK VOICE CHAT - BUILD COMPLETE!"
+          echo "==============================================="
           echo ""
-          echo "📊 Build Results:"
-          echo "   • Server: ${{ needs.build-server.result || 'skipped' }}"
-          echo "   • Android: ${{ needs.build-android.result || 'skipped' }}"
-          echo "   • Windows: ${{ needs.build-client.result || 'skipped' }}"
+          echo "Build Results:"
+          echo "   - Server: ${{ needs.build-server.result || 'skipped' }}"
+          echo "   - Android: ${{ needs.build-android.result || 'skipped' }}"
+          echo "   - iOS: ${{ needs.build-ios.result || 'skipped' }}"
+          echo "   - Windows: ${{ needs.build-client.result || 'skipped' }}"
           echo ""
-          echo "📦 Individual Artifact Downloads:"
+          echo "Individual Artifact Downloads:"
           echo "   Each component has its own package with original filenames:"
           echo ""
           if [ "${{ needs.build-server.result }}" = "success" ]; then
-            echo "   🖥️  Server: x86_64-pc-windows-msvc-debug & x86_64-unknown-linux-gnu-debug"
+            echo "   Server: x86_64-pc-windows-msvc-debug & x86_64-unknown-linux-gnu-debug"
           fi
           if [ "${{ needs.build-android.result }}" = "success" ]; then
-            echo "   📱 Android: android-debug (contains .apk/.aab files)"
+            echo "   Android: android-debug (contains .apk/.aab files)"
+          fi
+          if [ "${{ needs.build-ios.result }}" = "success" ]; then
+            echo "   iOS: ios-debug (build validated)"
           fi
           if [ "${{ needs.build-client.result }}" = "success" ]; then
-            echo "   🪟 Windows: windows-debug (contains .exe/.msi files)"
+            echo "   Windows: windows-debug (contains .exe/.msi files)"
           fi
           echo ""
-          echo "🔗 Download from: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          echo "⏰ Retention Period: 30 days"
-          echo "🎉 ==============================================="
+          echo "Download from: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "Retention Period: 30 days"
+          echo "==============================================="

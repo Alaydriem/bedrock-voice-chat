@@ -223,56 +223,7 @@ jobs:
 
           echo "Android project initialized successfully"
 
-      - name: Copy custom Android icons
-        working-directory: ./client
-        run: |
-          echo "Copying custom Android icons..."
-
-          SOURCE_ICONS="src-tauri/icons/android"
-          TARGET_RES="src-tauri/gen/android/app/src/main/res"
-
-          if [ ! -d "$SOURCE_ICONS" ]; then
-            echo "Warning: Source icons path not found: $SOURCE_ICONS"
-            exit 1
-          fi
-
-          if [ ! -d "$TARGET_RES" ]; then
-            echo "Warning: Target Android resources path not found: $TARGET_RES"
-            exit 1
-          fi
-
-          # Copy each mipmap directory
-          for MIPMAP_DIR in mipmap-hdpi mipmap-mdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
-            SOURCE_PATH="$SOURCE_ICONS/$MIPMAP_DIR"
-            TARGET_PATH="$TARGET_RES/$MIPMAP_DIR"
-
-            if [ -d "$SOURCE_PATH" ]; then
-              mkdir -p "$TARGET_PATH"
-
-              # Copy ic_launcher.png
-              SOURCE_ICON="$SOURCE_PATH/ic_launcher.png"
-              TARGET_ICON="$TARGET_PATH/ic_launcher.png"
-
-              if [ -f "$SOURCE_ICON" ]; then
-                cp "$SOURCE_ICON" "$TARGET_ICON"
-                echo "Copied $MIPMAP_DIR/ic_launcher.png"
-              else
-                echo "Missing source icon: $SOURCE_ICON"
-                exit 1
-              fi
-            else
-              echo "Missing source directory: $SOURCE_PATH"
-              exit 1
-            fi
-          done
-
-          echo "Android icon copying completed."
-
-          # Verify icons were copied
-          echo "Verifying copied icons:"
-          find "$TARGET_RES" -name "ic_launcher.png" -exec ls -la {} \;
-
-      - name: Build Android (${{ matrix.arch }})
+      - name: Build Rust library (${{ matrix.arch }})
         working-directory: ./client
         env:
           # libclang - keep using the system libclang 17
@@ -293,24 +244,33 @@ jobs:
           CMAKE_ANDROID_API: "27"
         run: |
           export PATH="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
-          yarn tauri info
           # Force debug mode for PR builds, otherwise use input parameter
+          # Use --apk false --aab false to skip Gradle, only build Rust library
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "PR detected - building in debug mode"
-            yarn tauri android build --debug --target ${{ matrix.tauri_target }}
+            yarn tauri android build --debug --target ${{ matrix.tauri_target }} --apk false --aab false
           elif [ "${{ inputs.build_mode || 'debug' }}" = "release" ]; then
             echo "Building in release mode"
-            yarn tauri android build --release --target ${{ matrix.tauri_target }}
+            yarn tauri android build --release --target ${{ matrix.tauri_target }} --apk false --aab false
           else
             echo "Building in debug mode"
-            yarn tauri android build --debug --target ${{ matrix.tauri_target }}
+            yarn tauri android build --debug --target ${{ matrix.tauri_target }} --apk false --aab false
           fi
 
-      - name: Upload Rust libraries
+      - name: Upload Rust libraries (armv7 only)
         uses: actions/upload-artifact@v4
+        if: matrix.arch == 'armv7'
         with:
-          name: rust-libs-${{ matrix.arch }}-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
+          name: rust-libs-armv7-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
           path: client/src-tauri/gen/android/app/src/main/jniLibs/${{ matrix.jni_dir }}/
+          retention-days: 1
+
+      - name: Upload gen/android folder (aarch64 only, includes aarch64 libs)
+        uses: actions/upload-artifact@v4
+        if: matrix.arch == 'aarch64'
+        with:
+          name: gen-android-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
+          path: client/src-tauri/gen/android/
           retention-days: 1
 
   combine-apk:
@@ -350,78 +310,11 @@ jobs:
 
           echo "Android SDK components installed"
 
-      - name: Install JavaScript dependencies
-        working-directory: ./client
-        run: yarn install --frozen-lockfile
-
-      - name: Initialize Tauri Android project
-        working-directory: ./client
-        run: |
-          echo "Setting up .cargo/config.toml for Android build..."
-          cp ../.github/client/.cargo/config.toml ./src-tauri/.cargo/config.toml
-          echo "Initializing Tauri Android project..."
-          yarn tauri android init
-          # Groovy
-          sed -i 's/minSdkVersion[[:space:]]\+[0-9]\+/minSdkVersion 35/' src-tauri/gen/android/app/build.gradle || true
-          # Kotlin DSL
-          sed -i 's/minSdk[[:space:]]*=[[:space:]]*[0-9]\+/minSdk = 35/' src-tauri/gen/android/app/build.gradle.kts || true
-
-          # Optional: also raise compileSdk/targetSdk if present
-          sed -i 's/compileSdk[[:space:]]*=[[:space:]]*[0-9]\+/compileSdk = 36/' src-tauri/gen/android/app/build.gradle.kts || true
-          sed -i 's/targetSdk[[:space:]]*=[[:space:]]*[0-9]\+/targetSdk = 36/' src-tauri/gen/android/app/build.gradle.kts || true
-
-          echo "Android project initialized successfully"
-
-      - name: Copy custom Android icons
-        working-directory: ./client
-        run: |
-          echo "Copying custom Android icons..."
-
-          SOURCE_ICONS="src-tauri/icons/android"
-          TARGET_RES="src-tauri/gen/android/app/src/main/res"
-
-          if [ ! -d "$SOURCE_ICONS" ]; then
-            echo "Warning: Source icons path not found: $SOURCE_ICONS"
-            exit 1
-          fi
-
-          if [ ! -d "$TARGET_RES" ]; then
-            echo "Warning: Target Android resources path not found: $TARGET_RES"
-            exit 1
-          fi
-
-          # Copy each mipmap directory
-          for MIPMAP_DIR in mipmap-hdpi mipmap-mdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
-            SOURCE_PATH="$SOURCE_ICONS/$MIPMAP_DIR"
-            TARGET_PATH="$TARGET_RES/$MIPMAP_DIR"
-
-            if [ -d "$SOURCE_PATH" ]; then
-              mkdir -p "$TARGET_PATH"
-
-              # Copy ic_launcher.png
-              SOURCE_ICON="$SOURCE_PATH/ic_launcher.png"
-              TARGET_ICON="$TARGET_PATH/ic_launcher.png"
-
-              if [ -f "$SOURCE_ICON" ]; then
-                cp "$SOURCE_ICON" "$TARGET_ICON"
-                echo "Copied $MIPMAP_DIR/ic_launcher.png"
-              else
-                echo "Missing source icon: $SOURCE_ICON"
-                exit 1
-              fi
-            else
-              echo "Missing source directory: $SOURCE_PATH"
-              exit 1
-            fi
-          done
-
-          echo "Android icon copying completed."
-
-      - name: Download aarch64 libraries
+      - name: Download gen/android folder (from aarch64 build)
         uses: actions/download-artifact@v4
         with:
-          name: rust-libs-aarch64-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
-          path: client/src-tauri/gen/android/app/src/main/jniLibs/arm64-v8a/
+          name: gen-android-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
+          path: client/src-tauri/gen/android/
 
       - name: Download armv7 libraries
         uses: actions/download-artifact@v4
