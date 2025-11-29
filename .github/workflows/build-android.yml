@@ -200,9 +200,9 @@ jobs:
 
           echo "Building ${{ matrix.target }} in ${{ env.BUILD_MODE }} mode"
           if [ "${{ env.BUILD_MODE }}" = "release" ]; then
-            yarn tauri android android-studio-script --release --target ${{ matrix.target }}
+            yarn tauri android build --release --target ${{ matrix.target }}
           else
-            yarn tauri android android-studio-script --target ${{ matrix.target }}
+            yarn tauri android build --debug --target ${{ matrix.target }}
           fi
 
       - name: Upload native library artifact
