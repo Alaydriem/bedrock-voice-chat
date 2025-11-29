@@ -40,11 +40,16 @@ jobs:
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             artifact_name: bedrock-voice-chat-server.exe
-            
+
           # Linux x64 builds
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             artifact_name: bedrock-voice-chat-server-amd64
+
+          # Linux arm64 builds (native runner)
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-24.04-arm
+            artifact_name: bedrock-voice-chat-server-arm64
 
     steps:
       - name: Checkout code
