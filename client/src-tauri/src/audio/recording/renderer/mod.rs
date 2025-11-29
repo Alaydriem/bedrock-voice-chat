@@ -13,8 +13,8 @@ use crate::audio::recording::renderer::{
     bwav::BwavRenderer,
     mp4::Mp4Renderer,
     stream::{
-        opus::{OpusChunk, OpusPacketStream, OpusStreamInfo, SilenceEncoder},
-        pcm::{PcmChunk, PcmStream, PcmStreamInfo}
+        opus::{OpusChunk, OpusPacketStream, OpusStreamInfo},
+        pcm::{PcmChunk, PcmStream}
     }
 };
 

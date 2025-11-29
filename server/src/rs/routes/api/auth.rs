@@ -4,11 +4,7 @@ use anyhow::anyhow;
 use common::{
     auth::xbl::ProfileResponse,
     ncryptflib as ncryptf,
-    pool::seaorm::AppDb,
-    structs::{
-        config::{LoginRequest, LoginResponse},
-        ncryptf_json::JsonMessage,
-    },
+    structs::config::{LoginRequest, LoginResponse},
 };
 use rocket::{http::Status, serde::json::Json, State};
 
@@ -17,6 +13,8 @@ use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use sea_orm_rocket::Connection as SeaOrmConnection;
 
 use crate::config::ApplicationConfigServer;
+use crate::rs::pool::AppDb;
+use crate::rs::structs::ncryptf_json::JsonMessage;
 
 /// Authenticates the Player to Xbox Live to grab their gamertag and other identifying information
 #[post("/auth", data = "<payload>")]

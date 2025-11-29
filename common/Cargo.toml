@@ -17,15 +17,23 @@ path = "./src/lib.rs"
 default = []
 
 # Heavy optional features
-quic = ["s2n-quic"]
+quic = ["s2n-quic", "rustls-pemfile"]
 audio = ["rodio"]
-templates = ["rocket_dyn_templates"]
+templates = ["rocket_dyn_templates", "server"]
 browser = ["webbrowser"]
+
+# Server-only feature - enables rocket, sea-orm, and related deps
+server = [
+    "rocket",
+    "sea-orm",
+    "sea-orm-rocket",
+    "ncryptf-rs/rocket",
+]
 
 [dependencies]
 nanoid = { version = "^0.4" }
 chrono = { version = "^0.4", features = ["serde"] }
-ncryptf-rs = { version = "^0.5", features = ["rocket", "client"] }
+ncryptf-rs = { version = "^0.5", features = ["client"] }
 tokio = { version = "^1.38", features = ["full"] }
 anyhow = { version = "^1.0" }
 serde = { version = "^1", features = ["derive"] }
@@ -38,42 +46,46 @@ async-mutex = { version = "^1.4" }
 rand = { version = "^0.9" }
 reqwest = { version = "0.12", features = ["rustls-tls", "json", "multipart"],  default-features = false }
 webbrowser = { version = "^1", optional = true }
-rocket = { version = "^0.5", default-features = false, features = [
-    "http2",
-    "tls",
-    "json",
-    "mtls",
-] }
-rocket_dyn_templates = { version = "^0.2", features = ["handlebars"], optional = true }
-sea-orm = { version = "^1.1", features = [
-    "sqlx-mysql",
-    "runtime-tokio-rustls",
-    "macros",
-    "sqlx-sqlite",
-] }
-sea-orm-rocket = { version = "^0.5" }
 ts-rs = { version = "^11.0" }
 erased-serde = { version = "^0.4" }
 typetag = { version = "^0.2" }
 dyn-clone = { version = "^1.0" }
 ron = { version = "^0.10" }
-rcgen = { version = "^0.13", features = ["x509-parser"] }
-rustls-pemfile = { version = "^2.0" }
 moka = { version = "^0.12", features = [
     "future",
     "async-lock",
     "async-trait",
     "sync",
 ] }
+postcard = { version = "^1.1", features = [ "use-std", "postcard-derive" ] }
+residua-zigzag = { version = "^0.1", package = "residua-zigzag" }
+leb128 = { version = "^0.2" }
+serde_bytes = { version = "^0.11" }
+
+# Optional: QUIC support
 s2n-quic = { version = "=1.68.0", default-features = false, features = [
     "provider-address-token-default",
     "provider-tls-rustls",
     "provider-event-tracing",
     "unstable-provider-datagram",
 ], optional = true }
+rustls-pemfile = { version = "^2.0", optional = true }
 
+# Optional: Audio support
 rodio = { version = "^0.21", optional = true }
-postcard = { version = "^1.1", features = [ "use-std", "postcard-derive" ] }
-residua-zigzag = { version = "^0.1", package = "residua-zigzag" }
-leb128 = { version = "^0.2" }
-serde_bytes = { version = "^0.11" }
+
+# Optional: Server-only dependencies
+rocket = { version = "^0.5", optional = true, default-features = false, features = [
+    "http2",
+    "tls",
+    "json",
+    "mtls",
+] }
+rocket_dyn_templates = { version = "^0.2", features = ["handlebars"], optional = true }
+sea-orm = { version = "^1.1", optional = true, features = [
+    "sqlx-mysql",
+    "runtime-tokio-rustls",
+    "macros",
+    "sqlx-sqlite",
+] }
+sea-orm-rocket = { version = "^0.5", optional = true }

@@ -7,7 +7,7 @@ use audio_gate::NoiseGate;
 use common::structs::audio::{NoiseGateSettings, StreamEvent};
 use common::structs::packet::{AudioFramePacket, QuicNetworkPacket, QuicNetworkPacketData};
 use common::PlayerData;
-use log::{error, info, debug, warn};
+use log::{error, debug, warn};
 use once_cell::sync::Lazy;
 use opus2::Bitrate;
 use rodio::cpal::traits::StreamTrait as CpalStreamTrait;

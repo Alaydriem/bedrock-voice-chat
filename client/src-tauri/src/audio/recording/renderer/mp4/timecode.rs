@@ -36,46 +36,11 @@ pub struct TimecodeInfo {
     pub seconds: u8,
     /// Frames within second (based on pseudo-framerate)
     pub frames: u8,
-    /// Total samples since midnight
-    pub sample_offset: u64,
     /// Frames per second equivalent (for 20ms audio frames = 50 fps)
     pub frames_per_second: u8,
 }
 
 impl TimecodeInfo {
-    /// Calculate timecode from relative milliseconds (offset from session start)
-    ///
-    /// For NLE alignment, all clips from the same session use session start as 00:00:00:00.
-    /// Each clip's timecode is its relative offset from that point.
-    pub fn from_relative_ms(relative_ms: u64, sample_rate: u32) -> Self {
-        // For audio, we treat 20ms frames as "video frames"
-        // 48kHz with 960 sample frames = 50 "frames" per second
-        let frame_duration_samples = (sample_rate * 20) / 1000; // 960 for 48kHz
-        let frames_per_second = (sample_rate / frame_duration_samples) as u8; // 50
-
-        // Convert milliseconds to time components
-        let total_seconds = relative_ms / 1000;
-        let hours = ((total_seconds / 3600) % 24) as u8;
-        let minutes = ((total_seconds / 60) % 60) as u8;
-        let seconds = (total_seconds % 60) as u8;
-
-        // Sub-second frames from milliseconds
-        let ms_in_second = (relative_ms % 1000) as u32;
-        let frames = ((ms_in_second * frames_per_second as u32) / 1000) as u8;
-
-        // Total samples from start
-        let sample_offset = (relative_ms * sample_rate as u64) / 1000;
-
-        Self {
-            hours,
-            minutes,
-            seconds,
-            frames,
-            sample_offset,
-            frames_per_second,
-        }
-    }
-
     /// Calculate timecode from Unix timestamp (milliseconds) - legacy
     #[allow(dead_code)]
     pub fn from_timestamp(timestamp_ms: u64, sample_rate: u32) -> Self {
@@ -106,7 +71,6 @@ impl TimecodeInfo {
             minutes,
             seconds,
             frames,
-            sample_offset,
             frames_per_second,
         }
     }
@@ -496,7 +460,6 @@ mod tests {
             minutes: 30,
             seconds: 45,
             frames: 25,
-            sample_offset: 0,
             frames_per_second: 50,
         };
 

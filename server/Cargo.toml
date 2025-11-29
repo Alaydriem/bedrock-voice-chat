@@ -8,7 +8,8 @@ edition = "2021"
 build = "build.rs"
 
 [dependencies]
-common = { path = "./../common", features = ["quic", "templates"] }
+common = { path = "./../common", features = ["quic", "templates", "server"] }
+time = { version = "0.3", features = ["std"] }
 entity = { path = "./../entity" }
 migration = { path = "./../migration" }
 tokio = { version = "^1", features = ["full"] }

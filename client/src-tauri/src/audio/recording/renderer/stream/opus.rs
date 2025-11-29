@@ -171,7 +171,6 @@ impl Iterator for OpusPacketStream {
 /// Generates Opus-encoded silence packets
 pub struct SilenceEncoder {
     encoder: opus2::Encoder,
-    sample_rate: u32,
     channels: u16,
     frame_size: usize,
 }
@@ -193,7 +192,6 @@ impl SilenceEncoder {
 
         Ok(Self {
             encoder,
-            sample_rate,
             channels,
             frame_size,
         })

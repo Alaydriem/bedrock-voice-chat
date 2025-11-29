@@ -4,8 +4,7 @@ use anyhow::anyhow;
 use rcgen::{
     Certificate, CertificateParams, DistinguishedName, ExtendedKeyUsagePurpose, KeyPair, SanType,
 };
-use rocket::time::Duration;
-use rocket::time::OffsetDateTime;
+use time::{Duration, OffsetDateTime};
 
 /// Creates a signs a certificate with a given CA.
 pub fn sign_cert_with_ca(

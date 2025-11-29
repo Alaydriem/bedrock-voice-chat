@@ -247,6 +247,13 @@ jobs:
           echo "Verifying copied icons:"
           find "$TARGET_RES" -name "ic_launcher.png" -exec ls -la {} \;
 
+      - name: Use client workspace (excludes server dependencies)
+        run: |
+          echo "Swapping to client-only workspace to exclude server dependencies..."
+          mv Cargo.toml Cargo-server.toml
+          mv Cargo-client.toml Cargo.toml
+          echo "Client workspace activated"
+
       - name: Build Android (debug)
         working-directory: ./client
         env:

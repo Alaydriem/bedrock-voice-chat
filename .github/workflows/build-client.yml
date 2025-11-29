@@ -87,6 +87,14 @@ jobs:
           Write-Host "Setting LIBCLANG_PATH to: $libclangPath"
           echo "LIBCLANG_PATH=$libclangPath" >> $env:GITHUB_ENV
 
+      - name: Use client workspace (excludes server dependencies)
+        shell: powershell
+        run: |
+          Write-Host "Swapping to client-only workspace to exclude server dependencies..."
+          Move-Item Cargo.toml Cargo-server.toml
+          Move-Item Cargo-client.toml Cargo.toml
+          Write-Host "Client workspace activated"
+
       - name: Build Windows client (debug)
         if: github.event_name == 'pull_request' || inputs.build_mode == 'debug' || inputs.build_mode == '' || inputs.build_mode == null
         working-directory: ./client

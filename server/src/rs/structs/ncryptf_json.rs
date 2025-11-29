@@ -1,4 +1,4 @@
-use ncryptf::rocket::{Json, JsonResponse};
+use common::ncryptflib::rocket::{Json, JsonResponse};
 use rocket::http::Status;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

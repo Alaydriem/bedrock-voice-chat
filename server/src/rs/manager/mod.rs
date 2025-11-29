@@ -1,13 +1,11 @@
 use crate::{
     config::ApplicationConfig,
+    rs::pool::AppDb,
     rs::routes,
     stream::quic::{CacheManager, WebhookReceiver},
 };
 use anyhow::Error;
-use common::{
-    ncryptflib as ncryptf,
-    pool::seaorm::AppDb,
-};
+use common::ncryptflib as ncryptf;
 use migration::{Migrator, MigratorTrait};
 use moka::future::Cache;
 use rocket::http::Method;
@@ -15,6 +13,9 @@ use rocket::{self, routes};
 use rocket_cors::{AllowedOrigins, CorsOptions};
 use sea_orm_rocket::Database;
 use std::sync::{Arc, Mutex};
+
+// Generate the ncryptf encryption key route at module level
+ncryptf::ek_route!();
 
 /// Manager for the Rocket HTTP server
 pub struct RocketManager {
@@ -43,8 +44,6 @@ impl RocketManager {
     /// Starts the Rocket HTTP server - this is the main entry point
     pub async fn start(&self) -> Result<(), Error> {
         tracing::info!("Starting Rocket HTTP server manager");
-
-        ncryptf::ek_route!();
 
         match self.config.get_rocket_config() {
             Ok(figment) => {

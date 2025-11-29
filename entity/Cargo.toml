@@ -9,7 +9,7 @@ name = "entity"
 path = "src/lib.rs"
 
 [dependencies]
-common = { path = "../common" }
+common = { path = "../common", features = ["server"] }
 async-std = { version = "^1", features = ["attributes", "tokio1"] }
 async-trait = { version = "^0.1" }
 serde = { version = "^1", features = ["derive"] }
@@ -26,3 +26,4 @@ sea-orm = { version = "^1.1", features = [
 sea-orm-rocket = { version = "^0.5" }
 tokio = { version = "^1" }
 rcgen = { version = "^0.13", features = ["x509-parser"] }
+time = { version = "0.3", features = ["std"] }
