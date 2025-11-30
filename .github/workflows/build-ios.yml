@@ -145,17 +145,28 @@ jobs:
         run: |
           yarn tauri info
 
-          # Force debug mode for PR builds, otherwise use input parameter
+          # Determine build configuration
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "PR detected - building in debug mode"
-            yarn tauri ios build --target aarch64
+            CONFIG="debug"
           elif [ "${{ inputs.build_mode || 'debug' }}" = "release" ]; then
-            echo "Building in release mode"
-            yarn tauri ios build --target aarch64 --release
+            CONFIG="release"
           else
-            echo "Building in debug mode"
-            yarn tauri ios build --target aarch64
+            CONFIG="debug"
           fi
+
+          echo "Building in $CONFIG mode"
+
+          # Use xcodebuild directly to just build (not archive/export) for CI validation
+          xcodebuild \
+            -workspace src-tauri/gen/apple/bedrock-voice-chat-client.xcodeproj/project.xcworkspace \
+            -scheme bedrock-voice-chat-client_iOS \
+            -sdk iphoneos \
+            -configuration "$CONFIG" \
+            -destination "generic/platform=iOS" \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build
 
       - name: Build summary
         run: |

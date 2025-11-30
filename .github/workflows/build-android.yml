@@ -257,20 +257,11 @@ jobs:
             yarn tauri android build --debug --target ${{ matrix.tauri_target }} --apk false --aab false
           fi
 
-      - name: Upload Rust libraries (armv7 only)
+      - name: Upload Rust library (${{ matrix.arch }})
         uses: actions/upload-artifact@v4
-        if: matrix.arch == 'armv7'
         with:
-          name: rust-libs-armv7-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
-          path: client/src-tauri/gen/android/app/src/main/jniLibs/${{ matrix.jni_dir }}/
-          retention-days: 1
-
-      - name: Upload gen/android folder (aarch64 only, includes aarch64 libs)
-        uses: actions/upload-artifact@v4
-        if: matrix.arch == 'aarch64'
-        with:
-          name: gen-android-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
-          path: client/src-tauri/gen/android/
+          name: rust-libs-${{ matrix.arch }}-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
+          path: client/src-tauri/gen/android/app/src/main/jniLibs/${{ matrix.jni_dir }}/libbvc_client_lib.so
           retention-days: 1
 
   combine-apk:
@@ -295,28 +286,70 @@ jobs:
           cache: 'yarn'
           cache-dependency-path: client/yarn.lock
 
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        # No cross-compilation targets needed - just for tauri android init (cargo metadata)
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "."
+
       - name: Set up Android SDK and build tools
         run: |
           echo "Installing Android SDK build tools..."
-
-          # Accept licenses
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-
-          # Install required SDK components
           $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
             "build-tools;34.0.0" \
             "platform-tools" \
             "platforms;android-34"
-
           echo "Android SDK components installed"
 
-      - name: Download gen/android folder (from aarch64 build)
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+
+      - name: Install JavaScript dependencies
+        working-directory: ./client
+        run: yarn install --frozen-lockfile
+
+      - name: Build frontend
+        working-directory: ./client
+        run: yarn build
+
+      - name: Initialize Tauri Android project
+        working-directory: ./client
+        run: |
+          echo "Setting up .cargo/config.toml for Android build..."
+          cp ../.github/client/.cargo/config.toml ./src-tauri/.cargo/config.toml
+
+          echo "Initializing Tauri Android project..."
+          yarn tauri android init
+
+          # Apply SDK version patches
+          sed -i 's/minSdkVersion[[:space:]]\+[0-9]\+/minSdkVersion 35/' src-tauri/gen/android/app/build.gradle || true
+          sed -i 's/minSdk[[:space:]]*=[[:space:]]*[0-9]\+/minSdk = 35/' src-tauri/gen/android/app/build.gradle.kts || true
+          sed -i 's/compileSdk[[:space:]]*=[[:space:]]*[0-9]\+/compileSdk = 36/' src-tauri/gen/android/app/build.gradle.kts || true
+          sed -i 's/targetSdk[[:space:]]*=[[:space:]]*[0-9]\+/targetSdk = 36/' src-tauri/gen/android/app/build.gradle.kts || true
+
+          echo "Android project initialized successfully"
+          echo "Generated tauri.settings.gradle:"
+          cat src-tauri/gen/android/tauri.settings.gradle
+
+      - name: Download aarch64 library
         uses: actions/download-artifact@v4
         with:
-          name: gen-android-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
-          path: client/src-tauri/gen/android/
+          name: rust-libs-aarch64-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
+          path: client/src-tauri/gen/android/app/src/main/jniLibs/arm64-v8a/
 
-      - name: Download armv7 libraries
+      - name: Download armv7 library
         uses: actions/download-artifact@v4
         with:
           name: rust-libs-armv7-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
@@ -335,10 +368,11 @@ jobs:
           echo "Building universal APK in $BUILD_MODE mode..."
 
           chmod +x ./gradlew
+          # Skip Rust build tasks - we already have the pre-built .so files
           if [ "$BUILD_MODE" = "release" ]; then
-            ./gradlew assembleUniversalRelease
+            ./gradlew assembleUniversalRelease -x rustBuildUniversalRelease
           else
-            ./gradlew assembleUniversalDebug
+            ./gradlew assembleUniversalDebug -x rustBuildUniversalDebug
           fi
 
       - name: Prepare Android artifacts
@@ -347,7 +381,6 @@ jobs:
           BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}"
           echo "Effective build mode: $BUILD_MODE"
 
-          # Use the correct path structure
           APK_PATH="src-tauri/gen/android/app/build/outputs/apk/universal/$BUILD_MODE/app-universal-$BUILD_MODE.apk"
 
           if [ -f "$APK_PATH" ]; then
