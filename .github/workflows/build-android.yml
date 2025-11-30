@@ -334,6 +334,7 @@ jobs:
           BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}"
           echo "Building universal APK in $BUILD_MODE mode..."
 
+          chmod +x ./gradlew
           if [ "$BUILD_MODE" = "release" ]; then
             ./gradlew assembleUniversalRelease
           else

@@ -76,6 +76,23 @@ jobs:
           yarn tauri ios init
           echo "iOS project initialized successfully"
 
+      - name: Disable code signing for CI
+        working-directory: ./client
+        run: |
+          echo "Disabling code signing for CI build..."
+          PBXPROJ="src-tauri/gen/apple/bedrock-voice-chat-client.xcodeproj/project.pbxproj"
+
+          # Disable code signing in the Xcode project
+          sed -i '' 's/CODE_SIGN_IDENTITY = "[^"]*"/CODE_SIGN_IDENTITY = "-"/g' "$PBXPROJ"
+          sed -i '' 's/DEVELOPMENT_TEAM = "[^"]*"/DEVELOPMENT_TEAM = ""/g' "$PBXPROJ"
+
+          # Ensure CODE_SIGNING_REQUIRED and CODE_SIGNING_ALLOWED are set to NO
+          if ! grep -q "CODE_SIGNING_REQUIRED" "$PBXPROJ"; then
+            sed -i '' 's/CLANG_ENABLE_MODULES = YES;/CLANG_ENABLE_MODULES = YES;\n\t\t\t\tCODE_SIGNING_REQUIRED = NO;\n\t\t\t\tCODE_SIGNING_ALLOWED = NO;/g' "$PBXPROJ"
+          fi
+
+          echo "Code signing disabled"
+
       - name: Copy custom iOS icons
         working-directory: ./client
         run: |
