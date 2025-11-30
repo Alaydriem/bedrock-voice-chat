@@ -140,33 +140,24 @@ jobs:
           echo "Contents:"
           cat "$TARGET_PLIST"
 
-      - name: Build iOS (aarch64)
+      - name: Build frontend
         working-directory: ./client
+        run: yarn build
+
+      - name: Build Rust for iOS (aarch64)
+        working-directory: ./client/src-tauri
         run: |
-          yarn tauri info
-
-          # Determine build configuration
+          # Determine build mode
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            CONFIG="debug"
+            echo "PR detected - building in debug mode"
+            cargo build --target aarch64-apple-ios
           elif [ "${{ inputs.build_mode || 'debug' }}" = "release" ]; then
-            CONFIG="release"
+            echo "Building in release mode"
+            cargo build --target aarch64-apple-ios --release
           else
-            CONFIG="debug"
+            echo "Building in debug mode"
+            cargo build --target aarch64-apple-ios
           fi
-
-          echo "Building in $CONFIG mode"
-
-          # Use xcodebuild directly to just build (not archive/export) for CI validation
-          xcodebuild \
-            -workspace src-tauri/gen/apple/bedrock-voice-chat-client.xcodeproj/project.xcworkspace \
-            -scheme bedrock-voice-chat-client_iOS \
-            -sdk iphoneos \
-            -configuration "$CONFIG" \
-            -destination "generic/platform=iOS" \
-            CODE_SIGN_IDENTITY="-" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            build
 
       - name: Build summary
         run: |
