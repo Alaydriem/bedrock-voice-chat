@@ -7,9 +7,9 @@ use audio_gate::NoiseGate;
 use common::structs::audio::{NoiseGateSettings, StreamEvent};
 use common::structs::packet::{AudioFramePacket, QuicNetworkPacket, QuicNetworkPacketData};
 use common::PlayerData;
-use log::{error, info, debug, warn};
+use log::{error, debug, warn};
 use once_cell::sync::Lazy;
-use opus::Bitrate;
+use opus2::Bitrate;
 use rodio::cpal::traits::StreamTrait as CpalStreamTrait;
 use rodio::DeviceTrait;
 use std::{
@@ -178,15 +178,23 @@ impl InputStream {
 
                     let handle = match cpal_device {
                         Some(cpal_device) => tokio::spawn(async move {
+                            /// CoreAudio on iOS should use the default buffer size to
+                            /// Otherwise the InputStream fails to initialize
+                            #[cfg(target_os = "ios")]
+                            let buffer_size = cpal::BufferSize::Default;
+
+                            #[cfg(not(target_os = "ios"))]
+                            let buffer_size = cpal::BufferSize::Fixed(crate::audio::types::BUFFER_SIZE);
+
                             let cpal_device = cpal_device.clone();
                             let device = device.clone();
                             let device_config = rodio::cpal::StreamConfig {
                                 channels: config.channels(),
                                 sample_rate: config.sample_rate(),
-                                buffer_size: cpal::BufferSize::Fixed(
-                                    crate::audio::types::BUFFER_SIZE,
-                                ),
+                                buffer_size,
                             };
+
+                            log::info!("Stream Config: {:?} {:?}", config.channels(), config.sample_rate());
 
                             let settings = NOISE_GATE_SETTINGS.lock().unwrap();
                             let noise_gate_settings =
@@ -407,6 +415,14 @@ impl InputStream {
             Some(device) => {
                 match device.get_stream_config() {
                     Ok(config) => {
+                        /// CoreAudio on iOS should use the default buffer size to
+                        /// Otherwise the InputStream fails to initialize
+                        #[cfg(target_os = "ios")]
+                        let buffer_size = cpal::BufferSize::Default;
+
+                        #[cfg(not(target_os = "ios"))]
+                        let buffer_size = cpal::BufferSize::Fixed(crate::audio::types::BUFFER_SIZE);
+
                         let device_config = rodio::cpal::StreamConfig {
                             channels: match config.channels() {
                                 1 => 1,
@@ -414,16 +430,16 @@ impl InputStream {
                                 _ => 1,
                             },
                             sample_rate: config.sample_rate(),
-                            buffer_size: cpal::BufferSize::Fixed(crate::audio::types::BUFFER_SIZE),
+                            buffer_size,
                         };
 
                         let mut data_stream = Vec::<f32>::new();
 
                         // Create the opus encoder
-                        let mut encoder = match opus::Encoder::new(
+                        let mut encoder = match opus2::Encoder::new(
                             device_config.sample_rate.0.into(),
-                            opus::Channels::Mono,
-                            opus::Application::Voip,
+                            opus2::Channels::Mono,
+                            opus2::Application::Voip,
                         ) {
                             Ok(mut encoder) => {
                                 _ = encoder.set_bitrate(Bitrate::Bits(32_000));

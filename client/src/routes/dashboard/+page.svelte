@@ -13,16 +13,14 @@
   import PlatformDetector from "../../js/app/utils/PlatformDetector";
   import SwipeGestureManager from "../../js/app/utils/SwipeGestureManager";
 
-  import { info, error, debug } from '@tauri-apps/plugin-log';
-  import { onMount, onDestroy, mount, setContext } from "svelte";
+  import { error } from '@tauri-apps/plugin-log';
+  import { onMount, onDestroy, mount } from "svelte";
 
   let playerPresenceManager: PlayerPresenceManager | undefined;
   let swipeGesture: any = null;
   let isMobile = false;
   let mainContentElement: HTMLElement;
 
-  // Dashboard instance and managers
-  let dashboardInstance: Dashboard | undefined;
   let playerManager: any = undefined;
   let channelManager: any = undefined;
   let audioActivityManager: any = undefined;
@@ -121,6 +119,7 @@
   onMount(async () => {
     try {
       isMobile = await platformDetector.checkMobile();
+      document.querySelector("body")!.style = "min-height: 101dvh !important;";
     } catch (error) {
       isMobile = false;
     }
@@ -204,12 +203,12 @@
   });
 </script>
 
-<div id="root" class="min-h-100vh cloak flex grow bg-slate-50 dark:bg-navy-900">
+<div id="root" class="h-100vh cloak flex grow bg-slate-50 dark:bg-navy-900 overflow-hidden max-w-[100vw] supports-[height:1dvh]:h-dvh">
   <div id="main-sidebar-container" class="sidebar print:hidden"></div>
 
   <main
     bind:this={mainContentElement}
-    class="main-content chat-app h-100vh mt-0 flex flex-col w-full min-w-0 supports-[height:1dvh]:h-dvh"
+    class="main-content chat-app h-100vh mt-0 flex flex-col w-full min-w-0 overflow-hidden supports-[height:1dvh]:h-dvh"
   >
     <div
       class="chat-header relative z-10 flex h-[61px] w-full shrink-0 items-center justify-between border-b border-slate-150 bg-white px-[calc(var(--margin-x)-.5rem)] shadow-xs transition-[padding,width] duration-[.25s] dark:border-navy-700 dark:bg-navy-800"

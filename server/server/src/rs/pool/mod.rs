@@ -1,10 +1,10 @@
-use rocket;
 use sea_orm::{self, ConnectOptions};
 use sea_orm_rocket::{self, rocket::figment::Figment, Config, Database};
 
 use async_trait::async_trait;
 use std::time::Duration;
 use tracing::log::LevelFilter;
+
 #[derive(Database, Debug)]
 #[database("app")]
 pub struct AppDb(SeaOrmPool);

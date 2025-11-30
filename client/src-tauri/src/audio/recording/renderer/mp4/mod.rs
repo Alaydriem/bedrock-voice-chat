@@ -232,8 +232,6 @@ impl AudioRenderer for Mp4Renderer {
         let opus_box = self.create_opus_box(&info);
         let mut first_sample = true;
         let mut total_samples: u64 = 0;
-        let mut packets_written = 0u64;
-        let mut silence_packets_written = 0u64;
 
         // Process all packets
         for chunk in stream {
@@ -250,7 +248,6 @@ impl AudioRenderer for Mp4Renderer {
                         info.sample_rate,
                     )?;
                     total_samples += duration_samples as u64;
-                    packets_written += 1;
                 }
                 OpusChunk::Silence { data, duration_samples } => {
                     self.write_sample(
@@ -264,7 +261,6 @@ impl AudioRenderer for Mp4Renderer {
                         info.sample_rate,
                     )?;
                     total_samples += duration_samples as u64;
-                    silence_packets_written += 1;
                 }
             }
         }
@@ -282,23 +278,13 @@ impl AudioRenderer for Mp4Renderer {
         // Create timecode sample data
         let timecode_sample = create_timecode_sample(&info);
 
-        // Find moov box and calculate where timecode data will go (after moov)
-        let mut moov_offset = 0u64;
         let mut timecode_data_offset = 0u64;
 
         for (offset, bytes) in finalized.offset_and_bytes_pairs() {
             if bytes.len() >= 8 && &bytes[4..8] == b"moov" {
-                moov_offset = offset;
-
                 // Calculate modified moov size to know where timecode goes
                 let original_content = &bytes[8..];
                 let audio_tref = create_tref_to_timecode(2);
-                let modified_content = inject_tref_into_audio_trak(original_content, &audio_tref);
-
-                // We'll calculate final offset after we know timecode_track size
-                // For now, estimate based on original moov + extras
-                // Timecode track size is approximately 400 bytes, udta ~200
-                // But we need exact offset, so we'll calculate properly below
                 break;
             }
         }

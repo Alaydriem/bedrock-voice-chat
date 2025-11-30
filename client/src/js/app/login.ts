@@ -103,11 +103,6 @@ export default class Login extends BVCApp {
   }
 
   private getRedirectUrl(): string {
-    switch (platform()) {
-      case "windows": return "bedrock-voice-chat://auth";
-      case "android": return "bedrock-voice-chat://auth";
-      case "ios": return "msauth.com.alaydriem.bvc.client://auth";
-      default: throw new Error("Unsupported platform");
-    }
+    return 'bedrock-voice-chat://auth';
   }
 }

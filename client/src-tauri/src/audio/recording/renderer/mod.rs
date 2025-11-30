@@ -13,8 +13,8 @@ use crate::audio::recording::renderer::{
     bwav::BwavRenderer,
     mp4::Mp4Renderer,
     stream::{
-        opus::{OpusChunk, OpusPacketStream, OpusStreamInfo, SilenceEncoder},
-        pcm::{PcmChunk, PcmStream, PcmStreamInfo}
+        opus::{OpusChunk, OpusPacketStream, OpusStreamInfo},
+        pcm::{PcmChunk, PcmStream}
     }
 };
 
@@ -101,7 +101,7 @@ pub struct WalEntry {
 pub struct WalAudioReader {
     entries: Vec<WalEntry>,
     current_index: usize,
-    decoder: Option<opus::Decoder>,
+    decoder: Option<opus2::Decoder>,
     decoder_config: Option<(u32, u16)>,
     session_info: SessionInfo,
 }
@@ -166,9 +166,9 @@ impl WalAudioReader {
         };
 
         if needs_new_decoder {
-            self.decoder = Some(opus::Decoder::new(
+            self.decoder = Some(opus2::Decoder::new(
                 sample_rate,
-                if channels == 1 { opus::Channels::Mono } else { opus::Channels::Stereo }
+                if channels == 1 { opus2::Channels::Mono } else { opus2::Channels::Stereo }
             )?);
             self.decoder_config = Some((sample_rate, channels));
         }

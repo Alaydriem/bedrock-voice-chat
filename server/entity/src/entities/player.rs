@@ -6,7 +6,7 @@ use common::ncryptflib as ncryptf;
 use rcgen::CertificateParams;
 
 use anyhow::anyhow;
-use common::{RocketDuration as Duration, RocketOffsetDateTime as OffsetDateTime};
+use time::{Duration, OffsetDateTime};
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
 #[sea_orm(table_name = "player")]

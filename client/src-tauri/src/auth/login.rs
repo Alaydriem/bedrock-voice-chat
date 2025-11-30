@@ -1,10 +1,13 @@
-use common::{
-    ncryptflib::rocket::base64,
-    structs::{
-        config::{LoginRequest, LoginResponse},
-        ncryptf_json::JsonMessage,
-    },
-};
+use common::structs::config::{LoginRequest, LoginResponse};
+use serde::{Deserialize, Serialize};
+
+/// Client-side JsonMessage for deserializing server responses
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct JsonMessage<T> {
+    pub status: u16,
+    pub data: Option<T>,
+    pub message: Option<String>,
+}
 
 use tauri_plugin_http::reqwest::{
     header::{HeaderMap, HeaderValue},

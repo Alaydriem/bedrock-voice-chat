@@ -4,7 +4,7 @@ param(
     [string]$BuildType = "debug",
 
     [Parameter(Position=1)]
-    [string]$Target = ""
+    [string]$Target = " --target aarch64 armv7"
 )
 
 # Normalize the build type parameter (remove -- prefix if present)

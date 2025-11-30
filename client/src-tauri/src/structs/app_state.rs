@@ -4,14 +4,16 @@ use cpal::traits::{DeviceTrait, HostTrait};
 use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tauri::Wry;
+use tauri::{AppHandle, Wry};
+use tauri_plugin_audio_permissions::{AudioPermissionsExt, PermissionRequest, PermissionType};
 use tauri_plugin_store::Store;
 use tokio::sync::RwLock;
 
 #[derive(Clone)]
 pub struct AppState {
     store: Arc<Store<Wry>>,
-    input_audio_device: AudioDevice,
+    app_handle: AppHandle,
+    input_audio_device: Option<AudioDevice>,
     output_audio_device: AudioDevice,
     pub current_server: Option<String>,
     pub api_client: Option<Api>,
@@ -19,10 +21,13 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(store: Arc<Store<Wry>>) -> Self {
+    pub fn new(store: Arc<Store<Wry>>, app_handle: AppHandle) -> Self {
         Self {
             store: store.clone(),
-            input_audio_device: AppState::setup_audio_device(AudioDeviceType::InputDevice, &store),
+            app_handle,
+            // Don't initialize input device at startup - defer until permissions are granted
+            // This prevents iOS from prompting for microphone permission on app launch
+            input_audio_device: None,
             output_audio_device: AppState::setup_audio_device(
                 AudioDeviceType::OutputDevice,
                 &store,
@@ -66,7 +71,25 @@ impl AppState {
     }
 
     /// Event handler for changing the audio device
-    pub fn change_audio_device(&mut self, device: AudioDevice) {
+    /// For input devices, this verifies permissions before allowing the change
+    pub fn change_audio_device(&mut self, device: AudioDevice) -> Result<(), String> {
+        match device.io {
+            AudioDeviceType::InputDevice => {
+                let request = PermissionRequest {
+                    permission_type: PermissionType::Audio,
+                };
+                let response = self.app_handle
+                    .audio_permissions()
+                    .check_permission(request)
+                    .map_err(|e| format!("Permission check failed: {}", e))?;
+
+                if !response.granted {
+                    return Err("Audio permission not granted".to_string());
+                }
+            },
+            _ => {}
+        }
+
         // Create a copy of the device so we can escape certain values
         // @todo!() fix this in the data we get from typescript
         let device: AudioDevice = AudioDevice {
@@ -91,16 +114,42 @@ impl AppState {
 
         // Update the current state
         match device.io {
-            AudioDeviceType::InputDevice => self.input_audio_device = device.clone(),
+            AudioDeviceType::InputDevice => self.input_audio_device = Some(device.clone()),
             AudioDeviceType::OutputDevice => self.output_audio_device = device.clone(),
         }
+
+        Ok(())
     }
 
     /// Returns the current audio device information for the given device type
-    pub fn get_audio_device(&self, io: AudioDeviceType) -> AudioDevice {
+    /// For input devices, this lazily initializes the device if permissions are granted
+    pub fn get_audio_device(&mut self, io: AudioDeviceType) -> Result<AudioDevice, String> {
         match io {
-            AudioDeviceType::InputDevice => self.input_audio_device.clone(),
-            AudioDeviceType::OutputDevice => self.output_audio_device.clone(),
+            AudioDeviceType::InputDevice => {
+                // Lazy initialization for input device
+                if self.input_audio_device.is_none() {
+                    // Check if we have permission (doesn't prompt, just checks)
+                    let request = PermissionRequest {
+                        permission_type: PermissionType::Audio,
+                    };
+                    let response = self.app_handle
+                        .audio_permissions()
+                        .check_permission(request)
+                        .map_err(|e| format!("Permission check failed: {}", e))?;
+
+                    if !response.granted {
+                        return Err("Audio permission not granted".to_string());
+                    }
+
+                    // Permission granted - initialize device now
+                    self.input_audio_device = Some(Self::setup_audio_device(
+                        AudioDeviceType::InputDevice,
+                        &self.store,
+                    ));
+                }
+                Ok(self.input_audio_device.clone().unwrap())
+            }
+            AudioDeviceType::OutputDevice => Ok(self.output_audio_device.clone()),
         }
     }
 

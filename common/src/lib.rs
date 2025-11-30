@@ -2,10 +2,7 @@ pub mod ncryptflib;
 
 pub mod auth;
 pub mod encoding;
-pub mod pool;
-pub mod redis;
 pub use serde::{Deserialize, Serialize};
-pub mod certificates;
 
 pub mod consts;
 pub mod request;
@@ -21,11 +18,6 @@ pub use s2n_quic;
 // Re-export important types for easy access
 pub use structs::player_source::PlayerSource;
 pub use structs::recording::{PlayerData, SessionManifest};
-
-extern crate rocket;
-
-pub use rocket::time::Duration as RocketDuration;
-pub use rocket::time::OffsetDateTime as RocketOffsetDateTime;
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum Dimension {

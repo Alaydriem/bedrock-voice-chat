@@ -8,14 +8,11 @@ use std::{
     },
 };
 use tauri::Emitter;
-use tokio::task::AbortHandle;
 
 /// Central recording manager following NetworkStreamManager patterns
 pub struct RecordingManager {
     recorder: Option<Recorder>,
     recording_state: Arc<AtomicBool>,
-    jobs: Vec<AbortHandle>,
-    shutdown: Arc<AtomicBool>,
     app_handle: tauri::AppHandle,
 
     // Recording channels (owned by manager)
@@ -32,8 +29,6 @@ impl RecordingManager {
         Self {
             recorder: None,
             recording_state: Arc::new(AtomicBool::new(false)),
-            jobs: Vec::new(),
-            shutdown: Arc::new(AtomicBool::new(false)),
             app_handle,
             recording_producer: Arc::new(recording_producer),
             recording_consumer: Arc::new(recording_consumer),

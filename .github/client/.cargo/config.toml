@@ -43,3 +43,7 @@ rustflags = [
   "-C","link-arg=-lc++_shared",
   "-L","$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android/27",
 ]
+
+# iOS-specific configurations
+[target.aarch64-apple-ios]
+rustflags = ["--cfg", "s2n_quic_unstable"]

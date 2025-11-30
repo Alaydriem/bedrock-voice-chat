@@ -1,121 +1,17 @@
-[package]
-name = "bedrock-voice-chat-server"
-authors = ["Charles R. Portwood II <charlesportwoodii@erianna.com>"]
-description = "Bedrock Voice Chat is a voice chat server for Minecraft Bedrock edition."
-repository = "https://github.com/alaydriem/bedrock-voice-chat"
-version = "0.0.3"
-edition = "2021"
-build = "build.rs"
+[workspace]
+members = ["server", "entity", "migration"]
+resolver = "2"
 
-[dependencies]
-common = { path = "./../common", features = ["quic", "templates"] }
-entity = { path = "./../entity" }
-migration = { path = "./../migration" }
-tokio = { version = "^1", features = ["full"] }
-rocket = { version = "^0.5", default-features = false, features = [
-    "http2",
-    "tls",
-    "json",
-    "mtls",
-] }
-rocket_db_pools = { version = "^0.2", features = ["deadpool_redis"] }
-rocket_dyn_templates = { version = "^0.2", features = ["handlebars"] }
-sea-orm = { version = "^1.1", features = [
-    "sqlx-mysql",
-    "runtime-tokio-rustls",
-    "macros",
-    "sqlx-sqlite",
-] }
-sea-orm-rocket = { version = "^0.5" }
-clap = { version = "^4.5", features = ["derive", "env", "wrap_help"] }
-hcl-rs = { version = "^0.18" }
-anyhow = { version = "^1.0" }
-serde = { version = "^1", features = ["derive"] }
-serde_json = { version = "^1", features = ["raw_value"] }
-async-stream = { version = "^0.3" }
-async-trait = { version = "^0.1" }
-reqwest = { version = "^0.12", default-features = false, features = [
-    "json",
-    "rustls-tls",
-    "brotli",
-    "gzip",
-    "stream",
-    "blocking",
-    "native-tls",
-] }
-tracing = { version = "^0.1" }
-tracing-subscriber = { version = "^0.3" }
-tracing-appender = { version = "^0.2" }
-base64 = { version = "^0.22" }
-faccess = { version = "^0.2" }
-bytes = { version = "^1.6" }
-async-mutex = { version = "^1.4" }
-rand = { version = "^0.9" }
-ron = { version = "^0.10" }
-rcgen = { version = "^0.13", features = ["x509-parser"] }
-rustls-pemfile = { version = "^2.0" }
-deadqueue = { version = "^0.2" }
-async-once-cell = { version = "^0.5" }
-moka = { version = "^0.12", features = [
-    "future",
-    "async-lock",
-    "async-trait",
-    "sync",
-] }
-async-channel = { version = "^2.3" }
-windows-targets = { version = "^0.53" }
-nanoid = { version = "^0.4" }
-blake3 = { version = "^1.8" }
-hex = { version = "^0.4" }
-redcon = { version = "^0.1" }
-zeromq = { version = "0.5.0-pre", default-features = false, features = [
-    "tokio-runtime",
-    "all-transport",
-] }
-rocket_cors = "0.6.0"
-semver = "1.0.26"
-cached = { version = "^0.56" }
+[profile.release]
+opt-level = 3
+strip = true
+debug = false
+codegen-units = 1
+lto = true
+incremental = false  # Incremental disabled for release builds
 
-[build-dependencies]
-built = { version = "^0.7", features = ["git2", "chrono", "semver"] }
-
-[dev-dependencies]
-windows = { version = "0.56.0", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_System_WindowsProgramming"] }
-opus = { git = "https://github.com/SpaceManiac/opus-rs", rev ="834381efeaa864d06925e849992341926d358879" }
-rodio = { version = "^0.21" }
-async-ringbuf = { version = "^0.3" }
-ringbuf = { version = "0.4" }
-hound = "^3.5"
-read-process-memory = "0.1.6"
-proc_mem = "0.1.6"
-
-[package.metadata.deb]
-maintainer = "Charles R. Portwood II <charlesportwoodii@erianna.com>"
-copyright = "2022 - Present, Charles R. Portwood II <charlesportwoodii@erianna.com>"
-extended-description = """bvc-server is a voice chat server for Minecraft Bedrock Edition."""
-depends = "$auto"
-section = "utility"
-priority = "optional"
-revision = "__REVISION__"
-assets = [
-    [
-        "target/release/bvc-server",
-        "usr/local/bin/",
-        "755",
-    ],
-    [
-        "../README.md",
-        "usr/share/doc/bvc-server/README",
-        "644",
-    ],
-    [
-        "templates/**/*",
-        "etc/bvc-server/templates/",
-        "644",
-    ],
-    [
-        ".systemd/bvc-server.service",
-        "etc/systemd/system/bvc-server.service",
-        "644",
-    ],
-]
+[profile.dev]
+opt-level = 1
+debug = 1
+strip = "symbols"
+incremental = true  # Incremental enabled for faster debug builds

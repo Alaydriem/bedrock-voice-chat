@@ -49,9 +49,6 @@
             const useNoiseGate = await store.get<boolean>("use_noise_gate");
             noiseGateEnabled = useNoiseGate || false;
 
-            console.log("NoiseGate - useNoiseGate from store:", useNoiseGate);
-            console.log("NoiseGate - noiseGateEnabled:", noiseGateEnabled);
-
             // Set isLoading to false first so the DOM renders
             isLoading = false;
 
@@ -61,13 +58,15 @@
                 await mountKnobs();
             }
         } catch (error) {
-            console.error("NoiseGateSettings initialization error:", error);
             isLoading = false;
         }
     });
 
-    async function handleToggle() {
-        noiseGateEnabled = !noiseGateEnabled;
+    async function handleToggle(event: Event) {
+        // Get the new value from the checkbox input directly
+        const target = event.target as HTMLInputElement;
+        noiseGateEnabled = target.checked;
+
         await store.set("use_noise_gate", noiseGateEnabled);
         await invoke("update_stream_metadata", {
             key: "use_noise_gate",
@@ -84,12 +83,10 @@
     }
 
     async function mountKnobs() {
-        console.log("mountKnobs called");
         // Wait for DOM to update and unhide the container
         await new Promise(resolve => setTimeout(resolve, 100));
 
         let noiseGateSettings = await store.get("noise_gate_settings") as NoiseGateSettingsType | null;
-        console.log("NoiseGate settings from store:", noiseGateSettings);
 
         if (!noiseGateSettings) {
             noiseGateSettings = {
@@ -99,19 +96,15 @@
                 attack_rate: 10,
                 hold_time: 50
             };
-            console.log("Using default noise gate settings");
         }
 
         const container = document.getElementById("noise-gate-audio-controls");
-        console.log("Container found:", container);
         if (!container) {
-            console.error("noise-gate-audio-controls container not found!");
             return;
         }
 
         // Clear container first
         container.innerHTML = '';
-        console.log("Container cleared, mounting knobs...");
 
         try {
             mount(Knob, {
@@ -128,7 +121,6 @@
                     store: store
                 }
             });
-            console.log("Mounted: Open Threshold");
 
             mount(Knob, {
                 target: container,
@@ -144,7 +136,6 @@
                     store: store
                 }
             });
-            console.log("Mounted: Close Threshold");
 
             mount(Knob, {
                 target: container,
@@ -160,7 +151,6 @@
                     store: store
                 }
             });
-            console.log("Mounted: Attack Rate");
 
             mount(Knob, {
                 target: container,
@@ -176,7 +166,6 @@
                     store: store
                 }
             });
-            console.log("Mounted: Hold time");
 
             mount(Knob, {
                 target: container,
@@ -192,10 +181,7 @@
                     store: store
                 }
             });
-            console.log("Mounted: Release Rate");
-            console.log("All knobs mounted successfully!");
         } catch (error) {
-            console.error("Error mounting knobs:", error);
         }
     }
 </script>
@@ -207,15 +193,15 @@
     </div>
     {:else}
     <div class="flex mb-4 -mx-2 flex-col">
-        <label class="inline-flex items-center space-x-2 pb-2">
+        <label class="inline-flex items-center space-x-2 pb-2 cursor-pointer touch-manipulation">
             <input
                 id="noise-suppression-rs-toggle"
                 type="checkbox"
-                bind:checked={noiseGateEnabled}
-                on:change={handleToggle}
-                class={toggleStyle === "switch"
+                checked={noiseGateEnabled}
+                onchange={handleToggle}
+                class="{toggleStyle === "switch"
                     ? "form-switch h-5 w-10 rounded-full bg-slate-300 before:rounded-full before:bg-slate-50 checked:bg-primary checked:before:bg-white dark:bg-navy-900 dark:before:bg-navy-300 dark:checked:bg-accent dark:checked:before:bg-white"
-                    : "form-checkbox h-5 w-5 rounded border-slate-300 bg-transparent checked:border-primary checked:bg-primary hover:border-primary focus:border-primary dark:border-navy-400 dark:checked:border-accent dark:checked:bg-accent dark:hover:border-accent dark:focus:border-accent"}
+                    : "form-checkbox h-5 w-5 rounded border-slate-300 bg-transparent checked:border-primary checked:bg-primary hover:border-primary focus:border-primary dark:border-navy-400 dark:checked:border-accent dark:checked:bg-accent dark:hover:border-accent dark:focus:border-accent"} touch-manipulation"
             />
             <span x-tooltip.light="'A standard noise gate modeled after OBS\' Noise Gate Filter. Effective, but requires manual tuning for your environment.'">
                 Noise Gate RS

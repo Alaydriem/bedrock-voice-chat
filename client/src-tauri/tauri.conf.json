@@ -42,8 +42,7 @@
   "plugins": {
     "deep-link": {
       "mobile": [
-        { "scheme": ["bedrock-voice-chat"] },
-        { "host": "bvc.alaydriem.com", "scheme": ["https"], "pathPrefix": ["auth"] }
+        { "scheme": ["bedrock-voice-chat"] }
       ],
       "desktop": {
         "schemes": ["bedrock-voice-chat"]

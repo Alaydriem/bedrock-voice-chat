@@ -1,4 +1,4 @@
-use common::ncryptflib::rocket::ExportableEncryptionKeyData;
+use common::ncryptflib::ExportableEncryptionKeyData;
 
 use std::time::Duration;
 use tauri_plugin_http::reqwest;

@@ -1,5 +1,5 @@
 use log::warn;
-use opus::{Channels, Decoder};
+use opus2::{Channels, Decoder};
 use ringbuf::{
     traits::{Consumer, Producer, Split},
     HeapRb,
@@ -9,7 +9,7 @@ const MAX_OPUS_FRAME_MS: usize = 480; // worst-case single decode span
 
 #[derive(Debug)]
 pub enum AudioProcessorError {
-    DecoderError(opus::Error),
+    DecoderError(opus2::Error),
     RingBufferFull,
 }
 

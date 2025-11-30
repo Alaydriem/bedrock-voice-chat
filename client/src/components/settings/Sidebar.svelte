@@ -2,11 +2,16 @@
     import { mount, onMount } from "svelte";
     import audio from "../../components/settings/pages/audio.svelte";
     import recordings from "../../components/settings/pages/recordings.svelte";
+    import PlatformDetector from "../../js/app/utils/PlatformDetector.ts";
 
     export let activePage: string = "audio.svelte";
 
+    let isMobile = false;
+
     // Page state management
     let currentPageTitle = "Audio Settings";
+
+    const platformDetector = new PlatformDetector();
 
     // Available settings pages
     const settingsPages = [
@@ -30,6 +35,11 @@
         }
         // Add more settings pages here in the future
     ];
+
+    // Reactive filtered pages - hide recordings on mobile
+    $: visiblePages = isMobile
+        ? settingsPages.filter(p => p.id !== "recordings.svelte")
+        : settingsPages;
 
     function mountPage(page: string, target: Document | Element | ShadowRoot) {
         const pageConfig = settingsPages.find(p => p.id === page);
@@ -98,7 +108,7 @@
         }
     }
 
-    onMount(() => {
+    onMount(async () => {
         // Mount initial page ONCE - no duplicates
         const mainElement = document.querySelector("main.settings-main-content");
         if (mainElement) {
@@ -109,6 +119,12 @@
         const pageConfig = settingsPages.find(p => p.id === activePage);
         if (pageConfig) {
             currentPageTitle = pageConfig.title;
+        }
+
+        try {
+            isMobile = await platformDetector.checkMobile();
+        } catch (error) {
+            isMobile = false;
         }
     });
 </script>
@@ -168,7 +184,7 @@
 
                 <!-- Settings Navigation List -->
                 <ul class="flex flex-1 flex-col px-4 font-inter">
-                    {#each settingsPages as page}
+                    {#each visiblePages as page}
                     <li class="nav-item">
                         <button
                             class="settings-nav-button flex w-full items-center space-x-3 py-3 px-4 text-left tracking-wide outline-hidden transition-all duration-300 ease-in-out rounded-lg hover:bg-slate-100 focus:bg-slate-100 dark:hover:bg-navy-600 dark:focus:bg-navy-600 min-h-[44px] md:min-h-0 relative overflow-hidden

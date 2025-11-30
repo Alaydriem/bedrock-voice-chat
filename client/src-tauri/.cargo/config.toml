@@ -16,3 +16,7 @@ linker = "i686-linux-android27-clang.cmd"
 
 [target.x86_64-linux-android]
 linker = "x86_64-linux-android27-clang.cmd"
+
+# iOS-specific configurations
+[target.aarch64-apple-ios]
+rustflags = ["--cfg", "s2n_quic_unstable"]

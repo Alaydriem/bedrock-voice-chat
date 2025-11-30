@@ -175,7 +175,7 @@ async fn client(
         let connection = connection.clone();
         async move {
             let mut count = 0;
-            let mut decoder = opus::Decoder::new(48000, opus::Channels::Mono).unwrap();
+            let mut decoder = opus2::Decoder::new(48000, opus2::Channels::Mono).unwrap();
 
             let spec = hound::WavSpec {
                 channels: 2,
@@ -312,8 +312,8 @@ async fn client(
             let client_id: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
 
             let mut encoder =
-                opus::Encoder::new(48000, opus::Channels::Mono, opus::Application::Voip).unwrap();
-            _ = encoder.set_bitrate(opus::Bitrate::Bits(32_000));
+                opus2::Encoder::new(48000, opus2::Channels::Mono, opus2::Application::Voip).unwrap();
+            _ = encoder.set_bitrate(opus2::Bitrate::Bits(32_000));
 
             println!("Starting new stream event.");
             let file = BufReader::new(File::open(source_file.clone()).unwrap());

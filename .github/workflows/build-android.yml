@@ -297,13 +297,13 @@ jobs:
           # Force debug mode for PR builds, otherwise use input parameter
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "PR detected - building in debug mode"
-            yarn tauri android build --debug
+            yarn tauri android build --debug --target aarch64 armv7
           elif [ "${{ inputs.build_mode || 'debug' }}" = "release" ]; then
             echo "Building in release mode"
-            yarn tauri android build --release
+            yarn tauri android build --release --target aarch64 armv7
           else
             echo "Building in debug mode"
-            yarn tauri android build --debug
+            yarn tauri android build --debug --target aarch64 armv7
           fi
 
       - name: Prepare Android artifacts
@@ -339,9 +339,9 @@ jobs:
       - name: Output artifact information
         run: |
           BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}"
-          echo "🚀 Android Build Complete!"
-          echo "� Build Mode: $BUILD_MODE"
-          echo "🎯 Trigger: ${{ github.event_name }}"
-          echo "�📦 Artifacts uploaded as: android-client-$BUILD_MODE"
-          echo "🔗 Artifact URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          echo "⏰ Retention: 30 days"
+          echo "Android Build Complete!"
+          echo "Build Mode: $BUILD_MODE"
+          echo "Trigger: ${{ github.event_name }}"
+          echo "Artifacts uploaded as: android-client-$BUILD_MODE"
+          echo "Artifact URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "Retention: 30 days"

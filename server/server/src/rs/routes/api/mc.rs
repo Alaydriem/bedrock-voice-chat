@@ -6,17 +6,16 @@ use rocket::{http::Status, serde::json::Json, State};
 
 use sea_orm::ActiveValue;
 
-use common::certificates::{get_root_ca, sign_cert_with_ca};
+use crate::rs::certificates::{get_root_ca, sign_cert_with_ca};
 use common::ncryptflib::rocket::Utc;
 use entity::player;
 
 use crate::{
     config::ApplicationConfigServer,
     rs::guards::MCAccessToken,
+    rs::pool::AppDb,
     stream::quic::{CacheManager, WebhookReceiver},
 };
-
-use common::pool::seaorm::AppDb;
 #[allow(unused_imports)] // for rust-analyzer
 use rocket_db_pools::deadpool_redis::redis::AsyncCommands;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};

@@ -14,8 +14,6 @@ use network::NetworkStreamManager;
 
 use common::structs::DeepLink;
 use deep_links::DeepLinkHandler;
-use once_cell::sync::Lazy;
-use tokio::sync::Notify;
 
 mod api;
 pub mod audio;
@@ -26,9 +24,6 @@ mod deep_links;
 mod events;
 mod network;
 mod structs;
-
-pub(crate) static AUDIO_INPUT_NETWORK_NOTIFY: Lazy<Arc<Notify>> =
-    Lazy::new(|| Arc::new(Notify::new()));
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -186,7 +181,7 @@ pub fn run() {
                 handle.plugin(tauri_plugin_updater::Builder::new().build())?;
             }
 
-            let app_state = AppState::new(store.clone());
+            let app_state = AppState::new(store.clone(), handle.clone());
             app.manage(Mutex::new(app_state));
 
             // This is our audio producer and consumer

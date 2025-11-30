@@ -29,6 +29,7 @@
 /* Basic styles */
 html {
   @apply h-full overflow-x-hidden [text-rendering:optimizeLegibility] [-webkit-tap-highlight-color:transparent];
+  overscroll-behavior: none;
 }
 
 html.dark {
@@ -42,6 +43,8 @@ html.dark {
 
 body {
   @apply bg-slate-50 font-sans text-sm leading-5 text-slate-500 antialiased [text-rendering:optimizeLegibility] dark:bg-navy-900 dark:text-navy-200 dark:[color-scheme:dark];
+  overflow-x: hidden;
+  overscroll-behavior: none;
 }
 
 body.is-monochrome::before {
@@ -86,9 +89,12 @@ body.is-monochrome::before {
 
 /* Sidebar */
 .main-sidebar {
-  @apply fixed top-0 left-0 h-full w-[var(--main-sidebar-width)] shrink-0 translate-x-0 transform-gpu transition-transform duration-200 ease-in;
+  @apply fixed top-0 left-0 w-[var(--main-sidebar-width)] shrink-0 translate-x-0 transform-gpu transition-transform duration-200 ease-in;
   /* Higher z-index to stay on top of sidebar panel */
   z-index: 50;
+  /* iOS safe area support - dvh accounts for dynamic viewport on mobile */
+  height: 100vh;
+  height: 100dvh;
 }
 
 /* Remove this rule since main sidebar should always be visible */
@@ -97,9 +103,12 @@ body.is-monochrome::before {
 } */
 
 .sidebar-panel {
-  @apply fixed top-0 left-0 h-full w-[calc(var(--main-sidebar-width)+var(--sidebar-panel-width))] -translate-x-full transform-gpu shadow-soft transition-transform delay-150 duration-[.25s] ease-in dark:shadow-navy-900/60;
+  @apply fixed top-0 left-0 w-[calc(var(--main-sidebar-width)+var(--sidebar-panel-width))] -translate-x-full transform-gpu shadow-soft transition-transform delay-150 duration-[.25s] ease-in dark:shadow-navy-900/60;
   /* Lower z-index so it slides underneath main sidebar */
   z-index: 40;
+  /* iOS safe area support - dvh accounts for dynamic viewport on mobile */
+  height: 100vh;
+  height: 100dvh;
 }
 
 .is-sidebar-open .sidebar-panel {
