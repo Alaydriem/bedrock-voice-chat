@@ -18,11 +18,14 @@ Bedrock Voice Chat is an client app + addon for Minecraft Bedrock edition that p
 
 - Support for WSAPI + ASIO inputs
 - Proximity Chat with Positional Audio
-- Desktop + Mobile app support for iOS and Android
+- Group Chats for persistent audio
+- Works on Desktop (Windows 10/11), iOS, and Android
 - Client Audio Controls (muting, deafening, individual volume slider)
 - Audio Recording to separate audio tracks for later download/processing with Timecode support
 - Noise Suppression, Audio Amplification
-- TLS with message + package encryption via libsodium // ncryptf (X25519 + XSalsa20-Poly1305).
+- Voice Detection
+- Fully Encrypted
+- Opus Audio Codec
 - And More
 
 ## How you can Support
