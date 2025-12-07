@@ -110,7 +110,7 @@
           <div class="text-center">
             <img
               class="mx-auto h-32 w-32"
-              src="/images/app-logo.png"
+              src="/images/app-logo-transparent.png"
               alt="Bedrock Voice Chat Logo"
             />
             <div class="mt-4">

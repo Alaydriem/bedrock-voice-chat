@@ -32,7 +32,7 @@ jobs:
   build-windows:
     name: Build Windows Client (${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }})
     runs-on: windows-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -83,9 +83,13 @@ jobs:
             Write-Host "Warning: Could not find Visual Studio LLVM lib directory, using default"
             $libclangPath = "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\x64\lib"
           }
-          
+
           Write-Host "Setting LIBCLANG_PATH to: $libclangPath"
           echo "LIBCLANG_PATH=$libclangPath" >> $env:GITHUB_ENV
+
+      - name: Build Icons
+        working-directory: ./client
+        run: yarn tauri icon 'static/images/app-logo.png' -o src-tauri/icons
 
       - name: Build Windows client (debug)
         if: github.event_name == 'pull_request' || inputs.build_mode == 'debug' || inputs.build_mode == '' || inputs.build_mode == null
@@ -116,7 +120,7 @@ jobs:
             $BUILD_MODE = "debug"
           }
           Write-Host "Effective build mode: $BUILD_MODE" -ForegroundColor Cyan
-          
+
           if ($BUILD_MODE -eq "release") {
             # Copy release executable
             if (Test-Path "..\target\release\bedrock-voice-chat-client.exe") {
@@ -136,7 +140,7 @@ jobs:
               exit 1
             }
           }
-          
+
           # Verify the final executable
           if (Test-Path "bvc-windows-$BUILD_MODE.exe") {
             Write-Host "Final executable ready:" -ForegroundColor Green

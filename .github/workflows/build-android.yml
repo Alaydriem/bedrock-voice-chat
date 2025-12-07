@@ -198,9 +198,10 @@ jobs:
 
           echo "Android project initialized successfully"
 
-      - name: Copy custom Android icons
+      - name: Build Icons
         working-directory: ./client
         run: |
+          yarn tauri icon static/images/app-logo.png -o src-tauri/icons
           echo "Copying custom Android icons..."
 
           SOURCE_ICONS="src-tauri/icons/android"

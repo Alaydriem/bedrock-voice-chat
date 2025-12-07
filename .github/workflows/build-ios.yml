@@ -93,12 +93,13 @@ jobs:
 
           echo "Code signing disabled"
 
-      - name: Copy custom iOS icons
+      - name: Build Icons
         working-directory: ./client
         run: |
+          yarn tauri icon 'static/images/app-logo.png' -o src-tauri/icons
           echo "Copying custom iOS icons..."
 
-          SOURCE_ICONS="src-tauri/icons/Assets.xcassets"
+          SOURCE_ICONS="src-tauri/icons/ios"
           TARGET_ASSETS="src-tauri/gen/apple/bedrock-voice-chat-client_iOS/Assets.xcassets"
 
           if [ ! -d "$SOURCE_ICONS" ]; then

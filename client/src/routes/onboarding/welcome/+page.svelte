@@ -28,7 +28,7 @@
 <main class="grid w-full place-items-center min-h-dvh bg-slate-50 dark:bg-navy-900 p-4">
     <div class="card w-full max-w-md p-8">
         <div class="flex justify-center mb-8">
-            <img src="/images/app-logo.png" alt="Bedrock Voice Chat" class="h-20" />
+            <img src="/images/app-logo-transparent.png" alt="Bedrock Voice Chat" class="h-20" />
         </div>
 
         <div class="text-center">

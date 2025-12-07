@@ -13,3 +13,4 @@ config.hcl
 *.sqlite
 target
 .claude
+upload-keystore.jks

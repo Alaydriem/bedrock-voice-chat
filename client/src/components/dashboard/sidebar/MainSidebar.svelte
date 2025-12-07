@@ -5,8 +5,8 @@
         <div class="flex pt-4">
             <a id="dashboard-link" href="/dashboard">
                 <img
-                    class="size-11 transition-transform duration-500 ease-in-out hover:rotate-[360deg]"
-                    src="images/app-logo.png"
+                    class="size-11 transition-transform duration-500 ease-in-out"
+                    src="images/app-logo-transparent.png"
                     alt="logo"
                 />
             </a>
@@ -56,7 +56,7 @@
                         class="absolute right-0 size-3.5 rounded-full border-2 border-white bg-success dark:border-navy-700"
                     ></span>
                 </button>
-                
+
                 <!-- Profile Dropdown Box -->
                 <div id="profile-box" class="popper-root fixed">
                     <div
