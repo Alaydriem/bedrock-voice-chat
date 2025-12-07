@@ -23,7 +23,11 @@
   },
   "bundle": {
     "android": {
-       "minSdkVersion": 27
+       "minSdkVersion": 35
+    },
+    "iOS": {
+      "minimumSystemVersion": "26.0",
+      "infoPlist": "./Info.plist"
     },
     "createUpdaterArtifacts": true,
     "resources": [
