@@ -96,7 +96,6 @@ jobs:
       - name: Build Icons
         working-directory: ./client
         run: |
-          yarn tauri icon 'static/images/app-logo.png' -o src-tauri/icons
           echo "Copying custom iOS icons..."
 
           SOURCE_ICONS="src-tauri/icons/ios"
