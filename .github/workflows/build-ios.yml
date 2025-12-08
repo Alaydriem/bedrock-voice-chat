@@ -98,7 +98,7 @@ jobs:
         run: |
           echo "Copying custom iOS icons..."
 
-          SOURCE_ICONS="src-tauri/icons/ios"
+          SOURCE_ICONS="src-tauri/icons/Assets.xcassets"
           TARGET_ASSETS="src-tauri/gen/apple/bedrock-voice-chat-client_iOS/Assets.xcassets"
 
           if [ ! -d "$SOURCE_ICONS" ]; then
