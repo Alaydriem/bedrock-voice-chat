@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "bedrock-voice-chat-client",
+  "productName": "Bedrock Voice Chat",
   "version": "0.1.0",
   "identifier": "com.alaydriem.bvc.client",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "bedrock-voice-chat-client",
+        "title": "Bedrock Voice Chat",
         "width": 1355,
         "height": 800
       }
