@@ -43,7 +43,9 @@ jobs:
 
       - name: Build with Gradle
         working-directory: ./mods/java
-        run: ./gradlew build --no-daemon
+        run: |
+          chmod +x gradlew
+          ./gradlew build --no-daemon
 
       - name: Get mod version
         id: mod-version
