@@ -1,0 +1,89 @@
+name: Build Java Mod
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'mods/java/**'
+      - '.github/workflows/build-java-mod.yml'
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-java-mod:
+    name: Build Fabric Mod
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Build with Gradle
+        working-directory: ./mods/java
+        run: ./gradlew build --no-daemon
+
+      - name: Get mod version
+        id: mod-version
+        working-directory: ./mods/java
+        run: |
+          VERSION=$(grep "mod_version" gradle.properties | cut -d'=' -f2)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Mod version: $VERSION"
+
+      - name: Prepare artifact
+        shell: bash
+        run: |
+          cd mods/java
+          JAR_FILE=$(find build/libs -name "*.jar" -type f | head -n 1)
+          if [ -z "$JAR_FILE" ]; then
+            echo "❌ No JAR file found!"
+            exit 1
+          fi
+
+          echo "Found JAR: $JAR_FILE"
+          ls -lh "$JAR_FILE"
+
+          # Copy to a consistent name for artifact upload
+          cp "$JAR_FILE" ../../bedrock-voice-chat-${{ steps.mod-version.outputs.version }}.jar
+
+          echo "✅ Prepared artifact: bedrock-voice-chat-${{ steps.mod-version.outputs.version }}.jar"
+
+      - name: Upload JAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bedrock-voice-chat-fabric-${{ steps.mod-version.outputs.version }}
+          path: bedrock-voice-chat-${{ steps.mod-version.outputs.version }}.jar
+          retention-days: 30
+
+      - name: Output artifact information
+        shell: bash
+        run: |
+          echo "🚀 Fabric Mod Build Complete!"
+          echo "📦 Version: ${{ steps.mod-version.outputs.version }}"
+          echo "🎯 Trigger: ${{ github.event_name }}"
+          echo "📦 Artifact: bedrock-voice-chat-fabric-${{ steps.mod-version.outputs.version }}"
+          echo "🔗 Artifact URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "⏰ Retention: 30 days"

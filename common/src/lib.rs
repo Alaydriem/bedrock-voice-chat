@@ -20,6 +20,14 @@ pub use structs::player_source::PlayerSource;
 pub use structs::recording::{PlayerData, SessionManifest};
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+pub enum Game {
+    #[serde(rename = "minecraft")]
+    Minecraft,
+    #[serde(rename = "Hytale")]
+    Hytale,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum Dimension {
     #[serde(rename = "overworld")]
     Overworld,
@@ -59,4 +67,10 @@ pub struct Player {
     pub deafen: bool,
     pub coordinates: Coordinate,
     pub orientation: Orientation,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct GameData {
+    pub game: Option<Game>,
+    pub players: Vec<Player>,
 }

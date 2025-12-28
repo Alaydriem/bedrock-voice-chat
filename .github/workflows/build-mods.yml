@@ -1,0 +1,141 @@
+name: Build All Mods
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'mods/**'
+      - '.github/workflows/build-mods.yml'
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-java-mod:
+    name: Build Fabric Mod
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Build with Gradle
+        working-directory: ./mods/java
+        run: ./gradlew build --no-daemon
+
+      - name: Get mod version
+        id: mod-version
+        working-directory: ./mods/java
+        run: |
+          VERSION=$(grep "mod_version" gradle.properties | cut -d'=' -f2)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Prepare artifact
+        shell: bash
+        run: |
+          cd mods/java
+          JAR_FILE=$(find build/libs -name "*.jar" -type f | head -n 1)
+          cp "$JAR_FILE" ../../bedrock-voice-chat-fabric-${{ steps.mod-version.outputs.version }}.jar
+
+      - name: Upload JAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bedrock-voice-chat-fabric-${{ steps.mod-version.outputs.version }}
+          path: bedrock-voice-chat-fabric-${{ steps.mod-version.outputs.version }}.jar
+          retention-days: 30
+
+  build-bds-pack:
+    name: Build BDS Addon Pack
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Enable Corepack for Yarn
+        run: corepack enable
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            mods/bds/node_modules
+            ~/.yarn/berry/cache
+          key: ${{ runner.os }}-bds-${{ hashFiles('mods/bds/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bds-
+
+      - name: Install dependencies
+        working-directory: ./mods/bds
+        run: yarn install --immutable
+
+      - name: Get pack version
+        id: pack-version
+        working-directory: ./mods/bds
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build and bundle
+        working-directory: ./mods/bds
+        run: yarn pack
+
+      - name: Prepare artifact
+        shell: bash
+        run: |
+          cd mods/bds
+          MCPACK_FILE=$(find . -maxdepth 1 -name "*.mcpack" -type f | head -n 1)
+          cp "$MCPACK_FILE" ../../bedrock-voice-chat-bds-${{ steps.pack-version.outputs.version }}.mcpack
+
+      - name: Upload mcpack artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bedrock-voice-chat-bds-${{ steps.pack-version.outputs.version }}
+          path: bedrock-voice-chat-bds-${{ steps.pack-version.outputs.version }}.mcpack
+          retention-days: 30
+
+  summary:
+    name: Build Summary
+    runs-on: ubuntu-latest
+    needs: [build-java-mod, build-bds-pack]
+    if: always()
+
+    steps:
+      - name: Build Summary
+        shell: bash
+        run: |
+          echo "🚀 All Mods Build Complete!"
+          echo ""
+          echo "✅ Fabric Mod (Java): bedrock-voice-chat-fabric"
+          echo "✅ BDS Pack (Bedrock): bedrock-voice-chat-bds"
+          echo ""
+          echo "🎯 Trigger: ${{ github.event_name }}"
+          echo "🔗 Artifacts URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "⏰ Retention: 30 days"

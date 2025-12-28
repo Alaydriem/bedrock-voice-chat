@@ -28,7 +28,7 @@ const PLAYERS_PER_CHUNK: usize = 30;
 pub async fn update_position(
     _access_token: MCAccessToken,
     db: SeaOrmConnection<'_, AppDb>,
-    positions: Json<Vec<common::Player>>,
+    positions: Json<common::GameData>,
     config: &State<ApplicationConfigServer>,
     webhook_receiver: &State<WebhookReceiver>,
 ) -> Status {
@@ -44,7 +44,7 @@ pub async fn update_position(
     let mut player_buffer = Vec::with_capacity(PLAYERS_PER_CHUNK);
 
     // Single loop through all players
-    for player in positions.0 {
+    for player in positions.0.players {
         let player_name = &player.name;
 
         // Database operations
