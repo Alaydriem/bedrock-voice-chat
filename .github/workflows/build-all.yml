@@ -64,11 +64,11 @@ jobs:
               - '.github/workflows/build-all.yml'
             java-mod:
               - 'mods/java/**'
-              - '.github/workflows/build-java-mod.yml'
+              - '.github/workflows/build-mod-java.yml'
               - '.github/workflows/build-all.yml'
             bds-pack:
               - 'mods/bds/**'
-              - '.github/workflows/build-bds-pack.yml'
+              - '.github/workflows/build-mod-bds.yml'
               - '.github/workflows/build-all.yml'
             common:
               - 'common/**'
@@ -154,7 +154,7 @@ jobs:
           echo "**Build Date:** $(date -u)" >> build-summary.md
           echo "**Workflow Run:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> build-summary.md
           echo "" >> build-summary.md
-          
+
           echo "## Build Results" >> build-summary.md
           echo "" >> build-summary.md
           echo "- **Server Status:** ${{ needs.build-server.result || 'skipped' }}" >> build-summary.md
@@ -164,19 +164,19 @@ jobs:
           echo "- **Java Mod Status:** ${{ needs.build-java-mod.result || 'skipped' }}" >> build-summary.md
           echo "- **BDS Pack Status:** ${{ needs.build-bds-pack.result || 'skipped' }}" >> build-summary.md
           echo "" >> build-summary.md
-          
+
           echo "## 🔗 Individual Artifact Downloads" >> build-summary.md
           echo "" >> build-summary.md
           echo "Each component has its own artifact package with original filenames preserved:" >> build-summary.md
           echo "" >> build-summary.md
-          
+
           if [ "${{ needs.build-server.result }}" = "success" ]; then
             echo "### 🖥️ Server Builds" >> build-summary.md
             echo "- [x86_64-pc-windows-msvc-debug](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) - Windows Server (.exe)" >> build-summary.md
             echo "- [x86_64-unknown-linux-gnu-debug](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) - Linux Server" >> build-summary.md
             echo "" >> build-summary.md
           fi
-          
+
           if [ "${{ needs.build-android.result }}" = "success" ]; then
             echo "### 📱 Android Client" >> build-summary.md
             echo "- [android-debug](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) - Android APK/AAB files" >> build-summary.md
@@ -211,7 +211,7 @@ jobs:
           echo "*All artifacts retain their original filenames with proper extensions*" >> build-summary.md
           echo "" >> build-summary.md
           echo "*Artifacts are retained for 30 days*" >> build-summary.md
-          
+
           cat build-summary.md
 
       - name: Upload build summary
