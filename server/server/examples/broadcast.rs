@@ -128,7 +128,7 @@ async fn client(
             println!("Starting API position updates to: {}", api_url);
 
             while !api_shutdown.load(Ordering::Relaxed) {
-                let payload = serde_json::json!([{
+                let payload = serde_json::json!({"game": "minecraft", "players":[{
                     "name": player_name,
                     "dimension": "overworld",
                     "coordinates": {
@@ -141,7 +141,7 @@ async fn client(
                         "y": 120
                     },
                     "deafen": false
-                }]);
+                }]});
 
                 match client
                     .post(&api_url)
