@@ -28,12 +28,10 @@ public class BedrockVoiceChatMod implements ModInitializer {
             return;
         }
 
-        // Initialize HTTP client (Java 11+ built-in)
         httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(1))
             .build();
 
-        // Register server tick event for 5-tick intervals
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             tickCounter++;
             if (tickCounter >= 5) {
@@ -42,6 +40,6 @@ public class BedrockVoiceChatMod implements ModInitializer {
             }
         });
 
-        LOGGER.info("Bedrock Voice Chat initialized successfully");
+        LOGGER.info("Bedrock Voice Chat will connect to: {}", config.getBvcServer());
     }
 }

@@ -14,4 +14,10 @@ public class Coordinates {
         this.y = pos.y;
         this.z = pos.z;
     }
+
+    public Coordinates(double x, double y, double z) {
+        this.x = x;
+        this.y = y;
+        this.z = z;
+    }
 }

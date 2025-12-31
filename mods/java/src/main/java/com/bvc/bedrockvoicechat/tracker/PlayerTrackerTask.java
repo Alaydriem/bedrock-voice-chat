@@ -1,6 +1,7 @@
 package com.bvc.bedrockvoicechat.tracker;
 
 import com.bvc.bedrockvoicechat.config.ModConfig;
+import com.bvc.bedrockvoicechat.dto.Payload;
 import com.bvc.bedrockvoicechat.dto.Player;
 import com.bvc.bedrockvoicechat.network.HttpRequestHandler;
 import net.minecraft.server.MinecraftServer;
@@ -12,21 +13,18 @@ import java.util.List;
 
 public class PlayerTrackerTask {
     public static void execute(MinecraftServer server, ModConfig config, HttpClient httpClient) {
-        // Get all online players
         List<ServerPlayerEntity> players = server.getPlayerManager().getPlayerList();
 
-        // Only send if 2+ players online (matches BDS)
-        if (players.size() <= 1) {
+        if (players.size() < Math.min(config.getMinimumPlayers(), 2)) {
             return;
         }
 
-        // Collect player data using Player DTO
         List<Player> playerDataList = new ArrayList<>();
         for (ServerPlayerEntity player : players) {
             playerDataList.add(new Player(player));
         }
 
-        // Send data asynchronously
-        HttpRequestHandler.sendPlayerData(playerDataList, config, httpClient);
+        Payload payload = new Payload(playerDataList);
+        HttpRequestHandler.sendPlayerData(payload, config, httpClient);
     }
 }

@@ -12,7 +12,6 @@ public class ModConfig {
     private String accessToken;
     private Integer minimumPlayers = 2;
 
-    // Validation method
     public boolean isValid() {
         return bvcServer != null && !bvcServer.isBlank() &&
                accessToken != null && !accessToken.isBlank();

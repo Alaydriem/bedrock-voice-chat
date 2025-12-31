@@ -18,14 +18,12 @@ public class ConfigManager {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     public static ModConfig load() {
-        // Check if config exists
         if (!Files.exists(CONFIG_PATH)) {
             LOGGER.warn("Config not found, creating default config");
             createDefaultConfig();
             return new ModConfig();
         }
 
-        // Read and parse JSON
         try (Reader reader = Files.newBufferedReader(CONFIG_PATH)) {
             return GSON.fromJson(reader, ModConfig.class);
         } catch (Exception e) {

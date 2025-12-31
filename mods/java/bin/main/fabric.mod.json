@@ -2,18 +2,15 @@
   "schemaVersion": 1,
   "id": "bedrock-voice-chat",
   "version": "${version}",
-  "name": "BedrockVoiceChat",
+  "name": "Bedrock Voice Chat",
   "description": "Server-side player position tracking for proximity voice chat",
-  "authors": ["BVC Team"],
-  "license": "MIT",
+  "authors": ["Charles R. Portwood II (Alaydriem) <charlesportwoodii@erianna.com>"],
+  "license": "",
   "icon": "app-logo.png",
-
   "environment": "server",
-
   "entrypoints": {
     "main": ["com.bvc.bedrockvoicechat.BedrockVoiceChatMod"]
   },
-
   "depends": {
     "fabricloader": ">=0.16.0",
     "minecraft": ">=1.21",
