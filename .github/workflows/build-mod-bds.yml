@@ -1,0 +1,92 @@
+name: Build BDS Pack
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'mods/bds/**'
+      - '.github/workflows/build-bds-pack.yml'
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-bds-pack:
+    name: Build BDS Addon Pack
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Enable Corepack for Yarn
+        run: corepack enable
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            mods/bds/node_modules
+            ~/.yarn/berry/cache
+          key: ${{ runner.os }}-bds-${{ hashFiles('mods/bds/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bds-
+
+      - name: Install dependencies
+        working-directory: ./mods/bds
+        run: yarn install --immutable
+
+      - name: Get pack version
+        id: pack-version
+        working-directory: ./mods/bds
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Pack version: $VERSION"
+
+      - name: Bundle zip
+        working-directory: ./mods/bds
+        run: yarn run pack
+
+      - name: Verify zip creation
+        shell: bash
+        run: |
+          cd mods/bds
+          ZIP_FILE=$(find . -maxdepth 1 -name "*.zip" -type f | head -n 1)
+          if [ -z "$ZIP_FILE" ]; then
+            echo "❌ No .zip file found!"
+            exit 1
+          fi
+
+          echo "Found zip: $ZIP_FILE"
+          ls -lh "$ZIP_FILE"
+
+          # Copy to a consistent name for artifact upload
+          cp "$ZIP_FILE" ../../bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.zip
+
+          echo "✅ Prepared artifact: bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.zip"
+
+      - name: Upload zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bedrock-voice-chat-bds-${{ steps.pack-version.outputs.version }}
+          path: bedrock-voice-chat-bds${{ steps.pack-version.outputs.version }}.zip
+          retention-days: 30
+
+      - name: Output artifact information
+        shell: bash
+        run: |
+          echo "🚀 BDS Pack Build Complete!"
+          echo "📦 Version: ${{ steps.pack-version.outputs.version }}"
+          echo "🎯 Trigger: ${{ github.event_name }}"
+          echo "📦 Artifact: bedrock-voice-chat-bds-${{ steps.pack-version.outputs.version }}"
+          echo "🔗 Artifact URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "⏰ Retention: 30 days"

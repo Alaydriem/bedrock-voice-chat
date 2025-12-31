@@ -14,3 +14,4 @@ config.hcl
 target
 .claude
 upload-keystore.jks
+*.pem

@@ -118,7 +118,7 @@ async fn client(
 
         async move {
             // Build API URL using server_name instead of socket address
-            let api_url = format!("https://{}/api/mc", server_name_clone);
+            let api_url = format!("https://{}/api/position", server_name_clone);
 
             let client = reqwest::Client::builder()
                 .danger_accept_invalid_certs(true) // For self-signed certs
@@ -128,7 +128,7 @@ async fn client(
             println!("Starting API position updates to: {}", api_url);
 
             while !api_shutdown.load(Ordering::Relaxed) {
-                let payload = serde_json::json!([{
+                let payload = serde_json::json!({"game": "minecraft", "players":[{
                     "name": player_name,
                     "dimension": "overworld",
                     "coordinates": {
@@ -141,7 +141,7 @@ async fn client(
                         "y": 120
                     },
                     "deafen": false
-                }]);
+                }]});
 
                 match client
                     .post(&api_url)
