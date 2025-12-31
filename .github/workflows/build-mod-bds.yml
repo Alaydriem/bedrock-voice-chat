@@ -50,15 +50,11 @@ jobs:
         run: |
           VERSION=$(node -p "require('./package.json').version")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "📦 Pack version: $VERSION"
-
-      - name: Build TypeScript
-        working-directory: ./mods/bds
-        run: yarn build
+          echo "Pack version: $VERSION"
 
       - name: Bundle zip
         working-directory: ./mods/bds
-        run: yarn bundle
+        run: yarn run pack
 
       - name: Verify zip creation
         shell: bash
