@@ -130,14 +130,14 @@ jobs:
     name: Build Java Mod
     needs: changes
     if: needs.changes.outputs.java-mod == 'true'
-    uses: ./.github/workflows/build-java-mod.yml
+    uses: ./.github/workflows/build-mod-java.yml
 
   # Build BDS Pack
   build-bds-pack:
     name: Build BDS Pack
     needs: changes
     if: needs.changes.outputs.bds-pack == 'true'
-    uses: ./.github/workflows/build-bds-pack.yml
+    uses: ./.github/workflows/build-mod-bds.yml
 
   # Collect and organize all artifacts
   collect-artifacts:
