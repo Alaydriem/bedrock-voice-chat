@@ -56,33 +56,33 @@ jobs:
         working-directory: ./mods/bds
         run: yarn build
 
-      - name: Bundle mcpack
+      - name: Bundle zip
         working-directory: ./mods/bds
         run: yarn bundle
 
-      - name: Verify mcpack creation
+      - name: Verify zip creation
         shell: bash
         run: |
           cd mods/bds
-          MCPACK_FILE=$(find . -maxdepth 1 -name "*.mcpack" -type f | head -n 1)
-          if [ -z "$MCPACK_FILE" ]; then
-            echo "❌ No .mcpack file found!"
+          ZIP_FILE=$(find . -maxdepth 1 -name "*.zip" -type f | head -n 1)
+          if [ -z "$ZIP_FILE" ]; then
+            echo "❌ No .zip file found!"
             exit 1
           fi
 
-          echo "Found mcpack: $MCPACK_FILE"
-          ls -lh "$MCPACK_FILE"
+          echo "Found zip: $ZIP_FILE"
+          ls -lh "$ZIP_FILE"
 
           # Copy to a consistent name for artifact upload
-          cp "$MCPACK_FILE" ../../bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.mcpack
+          cp "$ZIP_FILE" ../../bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.zip
 
-          echo "✅ Prepared artifact: bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.mcpack"
+          echo "✅ Prepared artifact: bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.zip"
 
-      - name: Upload mcpack artifact
+      - name: Upload zip artifact
         uses: actions/upload-artifact@v4
         with:
           name: bedrock-voice-chat-bds-${{ steps.pack-version.outputs.version }}
-          path: bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.mcpack
+          path: bedrock-voice-chat-bds${{ steps.pack-version.outputs.version }}.zip
           retention-days: 30
 
       - name: Output artifact information

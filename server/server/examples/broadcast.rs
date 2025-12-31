@@ -118,7 +118,7 @@ async fn client(
 
         async move {
             // Build API URL using server_name instead of socket address
-            let api_url = format!("https://{}/api/mc", server_name_clone);
+            let api_url = format!("https://{}/api/position", server_name_clone);
 
             let client = reqwest::Client::builder()
                 .danger_accept_invalid_certs(true) // For self-signed certs

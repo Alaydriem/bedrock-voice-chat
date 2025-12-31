@@ -1,13 +1,13 @@
 mod auth;
 mod channel;
 mod config;
-mod mc;
+mod positions;
 mod ping;
 
 pub use auth::authenticate;
 pub use config::get_config;
-pub use mc::position;
-pub use mc::update_position;
+pub use positions::position;
+pub use positions::update_position;
 pub use ping::pong;
 
 pub use channel::channel_list;

@@ -24,7 +24,7 @@ public class HttpRequestHandler {
 
         // Build HTTP request
         HttpRequest request = HttpRequest.newBuilder()
-            .uri(URI.create(config.getBvcServer() + "/api/mc"))
+            .uri(URI.create(config.getBvcServer() + "/api/position"))
             .timeout(Duration.ofSeconds(1))
             .header("Content-Type", "application/json")
             .header("X-MC-Access-Token", config.getAccessToken())

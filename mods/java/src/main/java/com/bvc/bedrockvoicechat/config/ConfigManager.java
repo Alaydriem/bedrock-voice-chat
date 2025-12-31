@@ -38,6 +38,7 @@ public class ConfigManager {
         ModConfig defaultConfig = new ModConfig();
         defaultConfig.setBvcServer("");
         defaultConfig.setAccessToken("");
+        defaultConfig.setMinimumPlayers(2);
 
         try (Writer writer = Files.newBufferedWriter(CONFIG_PATH)) {
             GSON.toJson(defaultConfig, writer);

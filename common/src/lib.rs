@@ -23,7 +23,7 @@ pub use structs::recording::{PlayerData, SessionManifest};
 pub enum Game {
     #[serde(rename = "minecraft")]
     Minecraft,
-    #[serde(rename = "Hytale")]
+    #[serde(rename = "hytale")]
     Hytale,
 }
 

@@ -8,8 +8,9 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 public class ModConfig {
-    private String bvcServer;      // Base URL (e.g., "https://api.example.com")
-    private String accessToken;     // Authentication token
+    private String bvcServer;
+    private String accessToken;
+    private Integer minimumPlayers = 2;
 
     // Validation method
     public boolean isValid() {

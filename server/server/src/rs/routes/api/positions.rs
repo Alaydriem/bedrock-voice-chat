@@ -24,7 +24,7 @@ use sea_orm_rocket::Connection as SeaOrmConnection;
 const PLAYERS_PER_CHUNK: usize = 30;
 
 /// Stores player position data and online status from Minecraft Bedrock into Redis
-#[post("/mc", data = "<positions>")]
+#[post("/position", data = "<positions>")]
 pub async fn update_position(
     _access_token: MCAccessToken,
     db: SeaOrmConnection<'_, AppDb>,
@@ -141,7 +141,7 @@ async fn send_player_chunk(players: &[common::Player], webhook_receiver: &Webhoo
     }
 }
 
-#[get("/mc")]
+#[get("/position")]
 pub async fn position(
     // Guard the request so it's only accepted if we have a valid access token
     _access_token: MCAccessToken,
