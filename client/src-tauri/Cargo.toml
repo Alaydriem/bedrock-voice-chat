@@ -4,6 +4,7 @@ version = "0.1.14"
 description = "Bedrock Voice Chat Client"
 authors = ["Charles R. Portwood II"]
 edition = "2024"
+default-run = "bedrock-voice-chat-client"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

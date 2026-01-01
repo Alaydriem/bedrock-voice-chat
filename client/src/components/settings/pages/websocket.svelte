@@ -114,8 +114,8 @@
 
 <div class="grid grid-cols-1 gap-4 sm:gap-5 lg:gap-6 pt-4 md:pt-0">
     <div class="card px-5 pb-4 sm:px-5">
-        <div class="my-3 flex h-8 flex-col">
-            <h2 class="font-medium tracking-wide text-slate-700 line-clamp-1 dark:text-navy-100 lg:text-base pb-2">
+        <div class="my-3 flex flex-col">
+            <h2 class="font-medium tracking-wide text-slate-700 dark:text-navy-100 lg:text-base pb-2">
                 WebSocket Server
             </h2>
             <p class="text-sm leading-6 hidden md:block">
@@ -163,7 +163,7 @@
                     <button
                         class="btn bg-primary font-medium text-white hover:bg-primary-focus
                                dark:bg-accent dark:hover:bg-accent-focus"
-                        on:click={handleGenerateKey}
+                        onclick={handleGenerateKey}
                     >
                         Generate
                     </button>
@@ -174,20 +174,23 @@
 
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2">
-                    <span class="text-sm font-medium">Server Status:</span>
+                    <span class="text-sm font-medium">Enable WebSocket Server</span>
                     {#if isRunning}
                         <span class="badge bg-success text-white">Running</span>
                     {:else}
                         <span class="badge bg-slate-300 text-slate-700 dark:bg-navy-500">Stopped</span>
                     {/if}
                 </div>
-                <button
-                    class="btn {isRunning ? 'bg-error hover:bg-error-focus' : 'bg-success hover:bg-success-focus'} font-medium text-white
-                           dark:{isRunning ? 'bg-error dark:hover:bg-error-focus' : 'bg-success dark:hover:bg-success-focus'}"
-                    on:click={handleToggleServer}
-                >
-                    {isRunning ? 'Stop Server' : 'Start Server'}
-                </button>
+                <label class="inline-flex items-center space-x-2 cursor-pointer">
+                    <input
+                        type="checkbox"
+                        checked={isRunning}
+                        onchange={handleToggleServer}
+                        class="form-switch h-5 w-10 rounded-full bg-slate-300 before:rounded-full before:bg-slate-50
+                               checked:bg-primary checked:before:bg-white dark:bg-navy-900 dark:before:bg-navy-300
+                               dark:checked:bg-accent dark:checked:before:bg-white"
+                    />
+                </label>
             </div>
         </div>
         {/if}

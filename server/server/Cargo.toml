@@ -19,7 +19,6 @@ rocket = { version = "^0.5", default-features = false, features = [
     "json",
     "mtls",
 ] }
-rocket_db_pools = { version = "^0.2", features = ["deadpool_redis"] }
 rocket_dyn_templates = { version = "^0.2", features = ["handlebars"] }
 sea-orm = { version = "^1.1", features = [
     "sqlx-mysql",

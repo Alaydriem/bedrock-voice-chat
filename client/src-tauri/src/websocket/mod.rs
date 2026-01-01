@@ -67,10 +67,6 @@ impl StreamTrait for WebSocketManager {
             return Err(anyhow::anyhow!("WebSocket server is not enabled"));
         }
 
-        if config.key.is_empty() {
-            return Err(anyhow::anyhow!("Encryption key is required"));
-        }
-
         let handle = self.start_server_loop().await?;
         self.abort_handle = Some(handle);
 
@@ -185,6 +181,13 @@ impl WebSocketManager {
                     DeviceType::Input => "input",
                     DeviceType::Output => "output",
                 };
+
+                // Emit event to notify frontend of mute state change
+                let event_name = match device {
+                    DeviceType::Input => "mute:input",
+                    DeviceType::Output => "mute:output",
+                };
+                app_handle.emit(event_name, status).ok();
 
                 Ok(ResponseData::Mute(MuteData {
                     device: device_str.to_string(),

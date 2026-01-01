@@ -1,13 +1,10 @@
 use sea_orm::{self, ConnectOptions};
-use sea_orm_rocket::{self, rocket::figment::Figment, Config, Database};
+use sea_orm_rocket::{self, rocket::figment::Figment, Config};
 
 use async_trait::async_trait;
+use std::ops::{Deref, DerefMut};
 use std::time::Duration;
 use tracing::log::LevelFilter;
-
-#[derive(Database, Debug)]
-#[database("app")]
-pub struct AppDb(SeaOrmPool);
 
 #[derive(Debug, Clone)]
 pub struct SeaOrmPool {
@@ -40,4 +37,32 @@ impl sea_orm_rocket::Pool for SeaOrmPool {
     fn borrow(&self) -> &Self::Connection {
         &self.conn
     }
+}
+
+#[derive(Debug)]
+pub struct AppDb(SeaOrmPool);
+
+impl From<SeaOrmPool> for AppDb {
+    fn from(pool: SeaOrmPool) -> Self {
+        AppDb(pool)
+    }
+}
+
+impl Deref for AppDb {
+    type Target = SeaOrmPool;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for AppDb {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl sea_orm_rocket::Database for AppDb {
+    const NAME: &'static str = "app";
+    type Pool = SeaOrmPool;
 }

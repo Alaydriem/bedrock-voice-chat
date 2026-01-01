@@ -17,8 +17,6 @@ use crate::{
     rs::pool::AppDb,
     stream::quic::{CacheManager, WebhookReceiver},
 };
-#[allow(unused_imports)] // for rust-analyzer
-use rocket_db_pools::deadpool_redis::redis::AsyncCommands;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 use sea_orm_rocket::Connection as SeaOrmConnection;
 use std::collections::HashSet;
