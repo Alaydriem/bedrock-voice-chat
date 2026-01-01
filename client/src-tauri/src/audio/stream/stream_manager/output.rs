@@ -15,8 +15,9 @@ use common::{
             PlayerPresenceEvent, QuicNetworkPacket, ServerErrorPacket,
         },
     },
-    Player, PlayerData,
+    PlayerEnum, RecordingPlayerData,
 };
+use common::traits::player_data::PlayerData;
 use log::{error, info, warn};
 use moka::future::Cache;
 use once_cell::sync::Lazy;
@@ -38,7 +39,7 @@ static MUTE_OUTPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false
 pub(crate) struct OutputStream {
     pub device: Option<AudioDevice>,
     pub bus: Arc<flume::Receiver<AudioPacket>>,
-    players: Arc<moka::sync::Cache<String, Player>>,
+    players: Arc<moka::sync::Cache<String, PlayerEnum>>,
     jobs: Vec<AbortHandle>,
     shutdown: Arc<AtomicBool>,
     pub metadata: Arc<Cache<String, String>>,
@@ -229,7 +230,7 @@ impl OutputStream {
         &mut self,
         producer: flume::Sender<EncodedAudioFramePacket>,
         shutdown: Arc<AtomicBool>,
-        players: Arc<moka::sync::Cache<String, Player>>,
+        players: Arc<moka::sync::Cache<String, PlayerEnum>>,
         metadata: Arc<Cache<String, String>>,
     ) -> Result<JoinHandle<()>, anyhow::Error> {
         match self.device.clone() {
@@ -327,7 +328,7 @@ impl OutputStream {
         consumer: flume::Receiver<EncodedAudioFramePacket>,
         _shutdown: Arc<AtomicBool>,
         metadata: Arc<Cache<String, String>>,
-        players: Arc<moka::sync::Cache<String, Player>>,
+        players: Arc<moka::sync::Cache<String, PlayerEnum>>,
     ) -> Result<JoinHandle<()>, anyhow::Error> {
         let current_player_name = match metadata.get("current_player").await {
             Some(name) => name,
@@ -524,7 +525,7 @@ impl OutputStream {
         producer: flume::Sender<EncodedAudioFramePacket>,
         data: &QuicNetworkPacket,
         metadata: Arc<Cache<String, String>>,
-        players: Arc<moka::sync::Cache<String, Player>>,
+        players: Arc<moka::sync::Cache<String, PlayerEnum>>,
         player_gain_cache: Arc<moka::sync::Cache<String, PlayerGainSettings>>,
         player_presence: Arc<moka::sync::Cache<String, ()>>,
         player_presence_debounce: Arc<moka::sync::Cache<String, ()>>,
@@ -579,25 +580,25 @@ impl OutputStream {
 
         match data {
             Ok(data) => {
-                // Create emitter PlayerData from packet owner and audio data
+                // Create emitter RecordingPlayerData from packet owner and audio data
                 let emitter = owner
                     .as_ref()
-                    .map(|o| PlayerData::from_packet_owner(
+                    .map(|o| RecordingPlayerData::from_packet_owner(
                         o,
                         &data,
                         player_gain_cache.get(&o.name),
                     ))
-                    .unwrap_or_else(PlayerData::unknown);
+                    .unwrap_or_else(RecordingPlayerData::unknown);
 
-                // Create listener PlayerData from current player
+                // Create listener RecordingPlayerData from current player
                 let listener = players
                     .get(&current_player_name)
-                    .map(|p| PlayerData::from_player(
+                    .map(|p| RecordingPlayerData::from_player_enum(
                         &p,
                         current_player_name.clone(),
                         player_gain_cache.get(&current_player_name),
                     ))
-                    .unwrap_or_else(|| PlayerData::unknown());
+                    .unwrap_or_else(|| RecordingPlayerData::unknown());
 
                 let timestamp = data.timestamp() as u64;
                 let encoded_packet = EncodedAudioFramePacket {
@@ -632,14 +633,15 @@ impl OutputStream {
     // The data we can receive can be _any_ valid QuicNetworkPacket, which is good because
     // We need the positional information that is pulsed by the server
     async fn handle_player_data(
-        player_data: Arc<moka::sync::Cache<String, Player>>,
+        player_data: Arc<moka::sync::Cache<String, PlayerEnum>>,
         data: &QuicNetworkPacket,
     ) {
         let data: Result<PlayerDataPacket, ()> = data.data.to_owned().try_into();
         match data {
             Ok(data) => {
                 for player in data.players {
-                    player_data.insert(player.name.clone(), player);
+                    let player_name = player.get_name().to_string();
+                    player_data.insert(player_name, player);
                 }
             }
             Err(_) => {

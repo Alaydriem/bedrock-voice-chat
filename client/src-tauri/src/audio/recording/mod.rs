@@ -1,7 +1,7 @@
 mod manager;
 pub mod renderer;
 
-use common::structs::recording::{PlayerData, SessionManifest, RecordingHeader, InputRecordingHeader, OutputRecordingHeader};
+use common::structs::recording::{RecordingPlayerData, SessionManifest, RecordingHeader, InputRecordingHeader, OutputRecordingHeader};
 
 use log::{error, info};
 use serde::{Deserialize, Serialize};
@@ -31,15 +31,15 @@ pub enum RawRecordingData {
         opus_data: Vec<u8>,
         sample_rate: u32,
         channels: u16,
-        emitter: PlayerData,
+        emitter: RecordingPlayerData,
     },
     OutputData {
         absolute_timestamp_ms: Option<u64>,
         opus_data: Vec<u8>,
         sample_rate: u32,
         channels: u16,
-        emitter: PlayerData,
-        listener: PlayerData,
+        emitter: RecordingPlayerData,
+        listener: RecordingPlayerData,
         is_spatial: bool,
     },
 }

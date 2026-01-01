@@ -23,6 +23,7 @@ pub struct RocketManager {
     webhook_receiver: WebhookReceiver,
     channel_cache: Arc<async_mutex::Mutex<Cache<String, common::structs::channel::Channel>>>,
     cache_manager: CacheManager,
+    registered_players_cache: routes::api::RegisteredPlayersCache,
 }
 
 impl RocketManager {
@@ -38,6 +39,7 @@ impl RocketManager {
             webhook_receiver,
             channel_cache,
             cache_manager,
+            registered_players_cache: routes::api::RegisteredPlayersCache::new(),
         }
     }
 
@@ -70,6 +72,7 @@ impl RocketManager {
                     .manage(self.webhook_receiver.clone())
                     .manage(self.channel_cache.clone())
                     .manage(self.cache_manager.clone())
+                    .manage(self.registered_players_cache.clone())
                     .attach(AppDb::init())
                     .attach(cors.to_cors().unwrap())
                     .attach(rocket::fairing::AdHoc::try_on_ignite("Migrations", migrate))

@@ -2,6 +2,7 @@ use common::ncryptflib as ncryptf;
 use common::structs::packet::{
     PacketOwner, PacketType, PlayerDataPacket, QuicNetworkPacket, QuicNetworkPacketData,
 };
+use common::traits::player_data::PlayerData;
 use rocket::{http::Status, serde::json::Json, State};
 
 use sea_orm::ActiveValue;
@@ -20,17 +21,46 @@ use crate::{
 use rocket_db_pools::deadpool_redis::redis::AsyncCommands;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 use sea_orm_rocket::Connection as SeaOrmConnection;
+use std::collections::HashSet;
+use moka::sync::Cache;
+use std::time::Duration;
+
+/// Cache of registered player names to avoid repeated database queries
+#[derive(Clone)]
+pub struct RegisteredPlayersCache {
+    cache: Cache<String, bool>,
+}
+
+impl RegisteredPlayersCache {
+    pub fn new() -> Self {
+        Self {
+            cache: Cache::builder()
+                .time_to_live(Duration::from_secs(86400)) // 1 day
+                .max_capacity(512)
+                .build(),
+        }
+    }
+
+    pub fn contains(&self, player_name: &str) -> bool {
+        self.cache.get(player_name).is_some()
+    }
+
+    pub fn insert(&self, player_name: String) {
+        self.cache.insert(player_name, true);
+    }
+}
 
 const PLAYERS_PER_CHUNK: usize = 30;
 
-/// Stores player position data and online status from Minecraft Bedrock into Redis
+/// Stores player position data
 #[post("/position", data = "<positions>")]
 pub async fn update_position(
     _access_token: MCAccessToken,
     db: SeaOrmConnection<'_, AppDb>,
-    positions: Json<common::GameData>,
+    positions: Json<common::GameDataCollection>,
     config: &State<ApplicationConfigServer>,
     webhook_receiver: &State<WebhookReceiver>,
+    registered_players: &State<RegisteredPlayersCache>,
 ) -> Status {
     let conn = db.into_inner();
     let (root_certificate, keypair) = match get_root_ca(config.tls.certs_path.clone()) {
@@ -41,21 +71,47 @@ pub async fn update_position(
         }
     };
 
-    let mut player_buffer = Vec::with_capacity(PLAYERS_PER_CHUNK);
+    // Collect all player names and filter out those we know are registered
+    let all_players: Vec<_> = positions.0.players.clone();
+    let player_names: Vec<String> = all_players
+        .iter()
+        .map(|p| p.get_name().to_string())
+        .collect();
 
-    // Single loop through all players
-    for player in positions.0.players {
-        let player_name = &player.name;
+    // Filter out players already in cache
+    let players_to_check: Vec<String> = player_names
+        .iter()
+        .filter(|name| !registered_players.contains(name))
+        .cloned()
+        .collect();
 
-        // Database operations
+    // If there are players to check, do a single batch query
+    if !players_to_check.is_empty() {
         match player::Entity::find()
-            .filter(player::Column::Gamertag.eq(player_name))
-            .one(conn)
+            .filter(player::Column::Gamertag.is_in(players_to_check.clone()))
+            .all(conn)
             .await
         {
-            Ok(record) => match record {
-                Some(_) => {}
-                None => {
+            Ok(existing_players) => {
+                // Collect existing player names
+                let existing_names: HashSet<String> = existing_players
+                    .iter()
+                    .filter_map(|p| p.gamertag.clone())
+                    .collect();
+
+                // Add existing players to cache
+                for name in &existing_names {
+                    registered_players.insert(name.clone());
+                }
+
+                // Find players that don't exist in DB
+                let new_players: Vec<String> = players_to_check
+                    .into_iter()
+                    .filter(|name| !existing_names.contains(name))
+                    .collect();
+
+                // Create new player records
+                for player_name in new_players {
                     let kp = ncryptf::Keypair::new();
                     let signature = ncryptf::Signature::new();
 
@@ -66,14 +122,17 @@ pub async fn update_position(
                     sgv.append(&mut signature.get_public_key());
                     sgv.append(&mut signature.get_secret_key());
 
-                    let (cert, key) =
-                        match sign_cert_with_ca(&root_certificate, &keypair, &player_name) {
-                            Ok((cert, key)) => (cert, key),
-                            Err(e) => {
-                                tracing::error!("{}", e.to_string());
-                                continue;
-                            }
-                        };
+                    let (cert, key) = match sign_cert_with_ca(
+                        &root_certificate,
+                        &keypair,
+                        player_name.as_str(),
+                    ) {
+                        Ok((cert, key)) => (cert, key),
+                        Err(e) => {
+                            tracing::error!("{}", e.to_string());
+                            continue;
+                        }
+                    };
 
                     let p = player::ActiveModel {
                         id: ActiveValue::NotSet,
@@ -89,27 +148,30 @@ pub async fn update_position(
                     };
 
                     match p.insert(conn).await {
-                        Ok(_) => {}
+                        Ok(_) => {
+                            // Add to cache after successful insert
+                            registered_players.insert(player_name.clone());
+                        }
                         Err(e) => {
                             tracing::error!(
                                 "Unable to insert record into database. {}",
                                 e.to_string()
                             );
-                            continue;
                         }
                     }
                 }
-            },
+            }
             Err(e) => {
-                tracing::error!("Failed to connect to database: {}", e.to_string());
-                continue;
+                tracing::error!("Failed to query database: {}", e.to_string());
             }
         }
+    }
 
-        // Add player to buffer
+    // Send players to webhook receiver in chunks
+    let mut player_buffer = Vec::with_capacity(PLAYERS_PER_CHUNK);
+    for player in all_players {
         player_buffer.push(player);
 
-        // Send chunk when buffer is full
         if player_buffer.len() >= PLAYERS_PER_CHUNK {
             send_player_chunk(&player_buffer, webhook_receiver).await;
             player_buffer.clear();
@@ -124,7 +186,7 @@ pub async fn update_position(
     Status::Ok
 }
 
-async fn send_player_chunk(players: &[common::Player], webhook_receiver: &WebhookReceiver) {
+async fn send_player_chunk(players: &[common::PlayerEnum], webhook_receiver: &WebhookReceiver) {
     let packet = QuicNetworkPacket {
         owner: Some(PacketOwner {
             name: String::from("api"),
@@ -147,7 +209,7 @@ pub async fn position(
     _access_token: MCAccessToken,
     // Cache manager state for accessing player positions
     cache_manager: &State<CacheManager>,
-) -> Json<Vec<common::Player>> {
+) -> Json<Vec<common::PlayerEnum>> {
     // Get all current player positions from the cache
     let player_cache = cache_manager.get_player_cache();
 

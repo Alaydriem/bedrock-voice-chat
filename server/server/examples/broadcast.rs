@@ -197,9 +197,6 @@ async fn client(
             while let Ok(bytes) = recv_one_datagram(&connection).await {
                 match QuicNetworkPacket::from_datagram(&bytes) {
                     Ok(packet) => {
-                        if count < 5 {
-                            println!("Packet {} type: {:?}", count, packet.packet_type);
-                        }
                         if let PacketType::AudioFrame = packet.packet_type {
                             let data: Result<AudioFramePacket, ()> =
                                 packet.data.to_owned().try_into();

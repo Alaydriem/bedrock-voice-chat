@@ -3,7 +3,7 @@ use anyhow::Error;
 use bytes::Bytes;
 use common::structs::packet::QuicNetworkPacket;
 use common::traits::StreamTrait;
-use common::Player;
+use common::PlayerEnum;
 use moka::future::Cache;
 use common::s2n_quic::Connection;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -21,7 +21,7 @@ pub(crate) struct OutputStream {
     pub(crate) client_id: Arc<std::sync::Mutex<Option<Vec<u8>>>>,
     // Caches needed for packet filtering
     channel_membership: Option<Arc<Cache<String, std::collections::HashSet<String>>>>,
-    player_cache: Option<Arc<Cache<String, Player>>>,
+    player_cache: Option<Arc<Cache<String, PlayerEnum>>>,
     broadcast_range: f32,
 }
 
@@ -46,7 +46,7 @@ impl OutputStream {
     pub fn set_caches(
         &mut self,
         channel_membership: Arc<Cache<String, std::collections::HashSet<String>>>,
-        player_cache: Arc<Cache<String, Player>>,
+        player_cache: Arc<Cache<String, PlayerEnum>>,
         broadcast_range: f32,
     ) {
         // Set up caches for packet filtering

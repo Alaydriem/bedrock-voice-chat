@@ -1,11 +1,12 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
-use crate::{Coordinate, Orientation, Dimension};
+use crate::{Coordinate, Orientation};
+use crate::game_data::Dimension;
 use crate::structs::audio::PlayerGainSettings;
 use crate::structs::packet::{PacketOwner, AudioFramePacket};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct PlayerData {
+pub struct RecordingPlayerData {
     pub name: String,
     pub client_id: Option<Vec<u8>>,
     pub coordinates: Option<Coordinate>,
@@ -15,7 +16,7 @@ pub struct PlayerData {
     pub gain_settings: Option<PlayerGainSettings>,
 }
 
-impl PlayerData {
+impl RecordingPlayerData {
     /// Create PlayerData from packet owner and audio frame data
     pub fn from_packet_owner(
         owner: &PacketOwner,
@@ -45,6 +46,26 @@ impl PlayerData {
             coordinates: Some(player.coordinates.clone()),
             orientation: Some(player.orientation.clone()),
             dimension: Some(player.dimension.clone()),
+            spatial: None,
+            gain_settings,
+        }
+    }
+
+    /// Create RecordingPlayerData from PlayerEnum cache entry (for listener)
+    pub fn from_player_enum(
+        player: &crate::PlayerEnum,
+        player_name: String,
+        gain_settings: Option<PlayerGainSettings>,
+    ) -> Self {
+        use crate::traits::player_data::PlayerData;
+
+        Self {
+            name: player_name,
+            client_id: None,
+            coordinates: Some(player.get_position().clone()),
+            orientation: Some(player.get_orientation().clone()),
+            // Extract dimension if this is a Minecraft player
+            dimension: player.as_minecraft().map(|mc| mc.dimension.clone()),
             spatial: None,
             gain_settings,
         }
@@ -102,13 +123,13 @@ pub struct PlayerMetadata {
 }
 
 impl PlayerMetadata {
-    /// Reconstitute full PlayerData by adding back identity
+    /// Reconstitute full RecordingPlayerData by adding back identity
     pub fn with_identity(
         self,
         name: String,
         client_id: Option<Vec<u8>>,
-    ) -> PlayerData {
-        PlayerData {
+    ) -> RecordingPlayerData {
+        RecordingPlayerData {
             name,
             client_id,
             coordinates: self.coordinates,
@@ -195,7 +216,7 @@ impl RecordingHeader {
     }
 }
 
-impl From<&crate::Player> for PlayerData {
+impl From<&crate::Player> for RecordingPlayerData {
     fn from(player: &crate::Player) -> Self {
         Self {
             name: player.name.clone(),
