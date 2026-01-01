@@ -347,6 +347,19 @@ async fn client(
                 total_chunks = total_chunks + 1920;
 
                 let s = encoder.encode_vec(&mono_chunk, 960).unwrap();
+
+                let test_player = common::players::MinecraftPlayer {
+                    name: id.clone(),
+                    coordinates: common::Coordinate {
+                        x: 336.0,
+                        y: 78.0,
+                        z: -690.0,
+                    },
+                    orientation: common::Orientation { x: 0.0, y: 0.0 },
+                    dimension: common::Dimension::Overworld,
+                    deafen: false,
+                };
+
                 let packet = QuicNetworkPacket {
                     owner: Some(common::structs::packet::PacketOwner {
                         name: id.clone(),
@@ -357,13 +370,7 @@ async fn client(
                         common::structs::packet::AudioFramePacket::new(
                             s.clone(),
                             48000,
-                            Some(common::Coordinate {
-                                x: 336.0,
-                                y: 78.0,
-                                z: -690.0,
-                            }),
-                            None,
-                            Some(common::Dimension::Overworld),
+                            Some(common::PlayerEnum::Minecraft(test_player)),
                             None,
                         ),
                     ),
@@ -431,6 +438,19 @@ async fn client(
                 let s = encoder
                     .encode_vec(&final_chunk, final_chunk.len() * 4)
                     .unwrap();
+
+                let final_test_player = common::players::MinecraftPlayer {
+                    name: id.clone(),
+                    coordinates: common::Coordinate {
+                        x: 335.0,
+                        y: 78.0,
+                        z: -689.0,
+                    },
+                    orientation: common::Orientation { x: 0.0, y: 0.0 },
+                    dimension: common::Dimension::Overworld,
+                    deafen: false,
+                };
+
                 let packet = QuicNetworkPacket {
                     owner: Some(common::structs::packet::PacketOwner {
                         name: id.clone(),
@@ -441,13 +461,7 @@ async fn client(
                         common::structs::packet::AudioFramePacket::new(
                             s.clone(),
                             48000,
-                            Some(common::Coordinate {
-                                x: 335.0,
-                                y: 78.0,
-                                z: -689.0,
-                            }),
-                            None,
-                            Some(common::Dimension::Overworld),
+                            Some(common::PlayerEnum::Minecraft(final_test_player)),
                             None,
                         ),
                     ),

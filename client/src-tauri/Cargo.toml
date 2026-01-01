@@ -1,6 +1,6 @@
 [package]
 name = "bedrock-voice-chat-client"
-version = "0.1.14"
+version = "0.1.15"
 description = "Bedrock Voice Chat Client"
 authors = ["Charles R. Portwood II"]
 edition = "2024"

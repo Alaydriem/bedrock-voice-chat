@@ -1,7 +1,5 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
-use crate::{Coordinate, Orientation};
-use crate::game_data::Dimension;
 use crate::structs::audio::PlayerGainSettings;
 use crate::structs::packet::{PacketOwner, AudioFramePacket};
 
@@ -9,9 +7,7 @@ use crate::structs::packet::{PacketOwner, AudioFramePacket};
 pub struct RecordingPlayerData {
     pub name: String,
     pub client_id: Option<Vec<u8>>,
-    pub coordinates: Option<Coordinate>,
-    pub orientation: Option<Orientation>,
-    pub dimension: Option<Dimension>,
+    pub player_data: Option<crate::PlayerEnum>,
     pub spatial: Option<bool>,
     pub gain_settings: Option<PlayerGainSettings>,
 }
@@ -26,9 +22,7 @@ impl RecordingPlayerData {
         Self {
             name: owner.name.clone(),
             client_id: Some(owner.client_id.clone()),
-            coordinates: audio_data.coordinate.clone(),
-            orientation: audio_data.orientation.clone(),
-            dimension: audio_data.dimension.clone(),
+            player_data: audio_data.sender.clone(),
             spatial: audio_data.spatial,
             gain_settings,
         }
@@ -40,12 +34,12 @@ impl RecordingPlayerData {
         player_name: String,
         gain_settings: Option<PlayerGainSettings>,
     ) -> Self {
+        // Convert legacy Player to MinecraftPlayer, then to PlayerEnum
+        let mc_player = crate::players::MinecraftPlayer::from(player.clone());
         Self {
             name: player_name,
             client_id: None,
-            coordinates: Some(player.coordinates.clone()),
-            orientation: Some(player.orientation.clone()),
-            dimension: Some(player.dimension.clone()),
+            player_data: Some(crate::PlayerEnum::Minecraft(mc_player)),
             spatial: None,
             gain_settings,
         }
@@ -57,15 +51,10 @@ impl RecordingPlayerData {
         player_name: String,
         gain_settings: Option<PlayerGainSettings>,
     ) -> Self {
-        use crate::traits::player_data::PlayerData;
-
         Self {
             name: player_name,
             client_id: None,
-            coordinates: Some(player.get_position().clone()),
-            orientation: Some(player.get_orientation().clone()),
-            // Extract dimension if this is a Minecraft player
-            dimension: player.as_minecraft().map(|mc| mc.dimension.clone()),
+            player_data: Some(player.clone()),
             spatial: None,
             gain_settings,
         }
@@ -76,9 +65,7 @@ impl RecordingPlayerData {
         Self {
             name: "unknown".to_string(),
             client_id: None,
-            coordinates: None,
-            orientation: None,
-            dimension: None,
+            player_data: None,
             spatial: None,
             gain_settings: None,
         }
@@ -92,9 +79,7 @@ impl RecordingPlayerData {
         Self {
             name: player_name,
             client_id: None,
-            coordinates: None,
-            orientation: None,
-            dimension: None,
+            player_data: None,
             spatial: None,
             gain_settings,
         }
@@ -103,9 +88,7 @@ impl RecordingPlayerData {
     /// Extract metadata (strip name/client_id) for WAL header storage
     pub fn to_metadata(&self) -> PlayerMetadata {
         PlayerMetadata {
-            coordinates: self.coordinates.clone(),
-            orientation: self.orientation.clone(),
-            dimension: self.dimension.clone(),
+            player_data: self.player_data.clone(),
             spatial: self.spatial,
             gain_settings: self.gain_settings.clone(),
         }
@@ -115,9 +98,7 @@ impl RecordingPlayerData {
 /// Lightweight metadata without identity fields (for WAL headers)
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PlayerMetadata {
-    pub coordinates: Option<Coordinate>,
-    pub orientation: Option<Orientation>,
-    pub dimension: Option<Dimension>,
+    pub player_data: Option<crate::PlayerEnum>,
     pub spatial: Option<bool>,
     pub gain_settings: Option<PlayerGainSettings>,
 }
@@ -132,9 +113,7 @@ impl PlayerMetadata {
         RecordingPlayerData {
             name,
             client_id,
-            coordinates: self.coordinates,
-            orientation: self.orientation,
-            dimension: self.dimension,
+            player_data: self.player_data,
             spatial: self.spatial,
             gain_settings: self.gain_settings,
         }
@@ -218,12 +197,12 @@ impl RecordingHeader {
 
 impl From<&crate::Player> for RecordingPlayerData {
     fn from(player: &crate::Player) -> Self {
+        // Convert legacy Player to MinecraftPlayer, then to PlayerEnum
+        let mc_player = crate::players::MinecraftPlayer::from(player.clone());
         Self {
             name: player.name.clone(),
             client_id: None,
-            coordinates: Some(player.coordinates.clone()),
-            orientation: Some(player.orientation.clone()),
-            dimension: Some(player.dimension.clone()),
+            player_data: Some(crate::PlayerEnum::Minecraft(mc_player)),
             spatial: None,
             gain_settings: None,
         }

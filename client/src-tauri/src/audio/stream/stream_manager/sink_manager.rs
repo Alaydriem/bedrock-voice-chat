@@ -212,7 +212,10 @@ impl SinkManager {
                     _ => author.clone(),
                 };
 
-                let emitter_pos = packet.emitter.coordinates.clone();
+                let emitter_pos = packet.emitter.player_data.as_ref().map(|p| {
+                    use common::traits::player_data::PlayerData;
+                    p.get_position().clone()
+                });
                 let emitter_spatial = packet.emitter.spatial.unwrap_or(false);
 
                 let listener_info = players

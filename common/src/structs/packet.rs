@@ -1,5 +1,3 @@
-use crate::{Coordinate, Orientation};
-use crate::game_data::Dimension;
 use anyhow::{anyhow, Error};
 use base64::{engine::general_purpose, Engine as _};
 use serde::{Deserialize, Serialize};
@@ -129,30 +127,15 @@ impl QuicNetworkPacket {
                     let data: Result<AudioFramePacket, ()> = data.try_into();
 
                     match data {
-                        Ok(mut data) => match data.coordinate {
-                            Some(_) => {}
-                            None => match player_data.get(&self.get_author()).await {
-                                Some(position) => {
-                                    use crate::traits::player_data::PlayerData;
-                                    data.coordinate = Some(position.get_position().clone());
-                                    data.orientation = Some(position.get_orientation().clone());
-
-                                    // Handle game specific data
-                                    match position.get_game() {
-                                        crate::Game::Minecraft => {
-                                            if let Some(mc_player) = position.as_minecraft() {
-                                                data.dimension = Some(mc_player.dimension.clone());
-                                            }
-                                        },
-                                        _ => {}
-                                    }
-
+                        Ok(mut data) => {
+                            if data.sender.is_none() {
+                                if let Some(sender_player) = player_data.get(&self.get_author()).await {
+                                    data.sender = Some(sender_player);
                                     let audio_frame: QuicNetworkPacketData =
                                         QuicNetworkPacketData::AudioFrame(data);
                                     self.data = audio_frame;
                                 }
-                                None => {}
-                            },
+                            }
                         },
                         Err(_) => {
                             tracing::error!("Could not downcast reference packet to audio frame");
@@ -255,30 +238,32 @@ impl QuicNetworkPacket {
                             return true;
                         }
 
-                        // Senders and recipients have different rules, recipients _must_ exist, whereas senders can be an object or item with arbitrary data
-                        // Use tokio::join! to fetch both positions concurrently
+                        // Get sender and recipient PlayerEnum
                         let (actual_sender, actual_recipient) = tokio::join!(
-                            position_data.get(current_player),
+                            async {
+                                // Try sender field from packet first, then cache
+                                if let Some(sender) = data.sender.clone() {
+                                    Some(sender)
+                                } else {
+                                    position_data.get(current_player).await
+                                }
+                            },
                             position_data.get(receiver_name)
                         );
 
-                        // If both sender and recipient are in cache, use game-specific communication logic
+                        // Use can_communicate_with() for spatial logic
                         if let (Some(sender), Some(recipient)) = (&actual_sender, &actual_recipient) {
-                            // Use game-aware communication check - delegates to game-specific logic
                             if !sender.can_communicate_with(recipient, range) {
                                 return false;
                             }
 
-                            // Players can communicate - continue with spatial logic below
-                            let spatial = data.spatial.clone();
-                            match spatial {
+                            // Handle spatial flag (Note: Some(false) rejected here because we're NOT in a channel)
+                            match data.spatial {
                                 Some(true) => {
                                     self.data = QuicNetworkPacketData::AudioFrame(data);
                                     return true;
                                 }
-                                Some(false) => {
-                                    return false;
-                                }
+                                Some(false) => return false,  // Rejected: non-channel spatial=false not allowed
                                 None => {
                                     data.spatial = Some(true);
                                     self.data = QuicNetworkPacketData::AudioFrame(data);
@@ -287,67 +272,12 @@ impl QuicNetworkPacket {
                             }
                         }
 
-                        // Fallback: sender not in cache, use packet data (for objects/items)
-                        let (sender_dimension, sender_coordinates) = match actual_sender {
-                            Some(_) => unreachable!(), // Already handled above
-                            None => {
-                                let dimension = data.dimension.clone();
-                                let coordinates = data.coordinate.clone();
-                                if dimension.is_none() || coordinates.is_none() {
-                                    // Sender position is unknown; only allow if explicitly non-spatial
-                                    match data.spatial {
-                                        Some(false) => return true,        // Non-spatial audio is allowed
-                                        Some(true) | None => return false, // Spatial audio requires sender position
-                                    }
-                                }
-                                (dimension.unwrap(), coordinates.unwrap())
-                            }
-                        };
-
-                        match actual_recipient {
-                            Some(recipiant) => {
-                                use crate::traits::player_data::PlayerData;
-
-                                // For Minecraft players, check dimension compatibility
-                                if let Some(mc_recipient) = recipiant.as_minecraft() {
-                                    if !mc_recipient.dimension.eq(&sender_dimension) {
-                                        return false;
-                                    }
-                                }
-
-                                let recipient_pos = recipiant.get_position();
-                                let dx = sender_coordinates.x - recipient_pos.x;
-                                let dy = sender_coordinates.y - recipient_pos.y;
-                                let dz = sender_coordinates.z - recipient_pos.z;
-                                let distance = (dx * dx + dy * dy + dz * dz).sqrt();
-
-                                // Return true if the players are within spatial range of the other player
-                                let proximity = 1.73 * range;
-
-                                let spatial = data.spatial.clone();
-                                match spatial {
-                                    // If the client explicitly wants their audio to be spatial, then calculate the distance and return if they are in range
-                                    Some(true) => {
-                                        return distance <= proximity;
-                                    }
-                                    // If the client explicitly set their audio to be broadcast
-                                    // Then there is a client implementation issue
-                                    Some(false) => {
-                                        return false;
-                                    }
-                                    // If the client did not set their audio to be spatially received
-                                    // Then make it spatial, and return if in range
-                                    None => {
-                                        data.spatial = Some(true);
-                                        self.data = QuicNetworkPacketData::AudioFrame(data);
-                                        return distance <= proximity;
-                                    }
-                                }
-                            }
-                            None => {
-                                return false;
-                            }
-                        };
+                        // Fallback: sender or recipient not in cache
+                        // Only allow explicitly non-spatial audio (matches current behavior)
+                        match data.spatial {
+                            Some(false) => return true,
+                            _ => return false,
+                        }
                     }
                     Err(_) => {
                         tracing::error!("Failed to decode audio frame data");
@@ -410,9 +340,7 @@ pub struct AudioFramePacket {
     #[serde(with = "serde_bytes")]
     pub data: Vec<u8>,
 
-    pub coordinate: Option<Coordinate>,
-    pub orientation: Option<Orientation>,
-    pub dimension: Option<Dimension>,
+    pub sender: Option<crate::PlayerEnum>,
     pub spatial: Option<bool>,
 }
 
@@ -432,9 +360,7 @@ impl AudioFramePacket {
     pub fn new(
         data: Vec<u8>,
         sample_rate: u32,
-        coordinate: Option<Coordinate>,
-        orientation: Option<Orientation>,
-        dimension: Option<Dimension>,
+        sender: Option<crate::PlayerEnum>,
         spatial: Option<bool>,
     ) -> Self {
         let timestamp = std::time::SystemTime::now()
@@ -449,9 +375,7 @@ impl AudioFramePacket {
             encoded_timestamp: crate::encoding::encode_zigzag_varint_i64(timestamp),
             sample_rate,
             data,
-            coordinate,
-            orientation,
-            dimension,
+            sender,
             spatial,
         }
     }

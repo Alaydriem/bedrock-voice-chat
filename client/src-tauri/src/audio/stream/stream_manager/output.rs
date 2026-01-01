@@ -644,11 +644,6 @@ impl OutputStream {
             Ok(data) => {
                 for player in data.players {
                     let player_name = player.get_name().to_string();
-                    log::info!(
-                        "Inserting player '{}' (game: {:?}) into cache",
-                        player_name,
-                        player.get_game()
-                    );
                     player_data.insert(player_name, player);
                 }
             }

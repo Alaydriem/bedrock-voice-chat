@@ -136,21 +136,28 @@ mod tests {
     #[test]
     fn test_audio_frame_packet_creation() {
         use crate::structs::packet::AudioFramePacket;
-        use crate::Coordinate;
+        use crate::{Coordinate, Orientation};
         use crate::game_data::Dimension;
+        use crate::players::MinecraftPlayer;
+        use crate::PlayerEnum;
 
         // Create a test audio frame packet
         let test_data = vec![1, 2, 3, 4, 5];
-        let packet = AudioFramePacket::new(
-            test_data.clone(),
-            48000,
-            Some(Coordinate {
+        let test_player = MinecraftPlayer {
+            name: "test_player".to_string(),
+            coordinates: Coordinate {
                 x: 100.0,
                 y: 50.0,
                 z: 200.0,
-            }),
-            None,
-            Some(Dimension::Overworld),
+            },
+            orientation: Orientation { x: 0.0, y: 0.0 },
+            dimension: Dimension::Overworld,
+            deafen: false,
+        };
+        let packet = AudioFramePacket::new(
+            test_data.clone(),
+            48000,
+            Some(PlayerEnum::Minecraft(test_player)),
             Some(true),
         );
 
@@ -180,21 +187,28 @@ mod tests {
         use crate::structs::packet::{
             AudioFramePacket, PacketOwner, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
         };
-        use crate::Coordinate;
+        use crate::{Coordinate, Orientation};
         use crate::game_data::Dimension;
+        use crate::players::MinecraftPlayer;
+        use crate::PlayerEnum;
 
         // Create a test audio frame
         let test_data = vec![0x01, 0x02, 0x03, 0x04]; // Small test audio data
-        let audio_packet = AudioFramePacket::new(
-            test_data.clone(),
-            48000,
-            Some(Coordinate {
+        let test_player2 = MinecraftPlayer {
+            name: "test_player".to_string(),
+            coordinates: Coordinate {
                 x: 100.0,
                 y: 50.0,
                 z: 200.0,
-            }),
-            None,
-            Some(Dimension::Overworld),
+            },
+            orientation: Orientation { x: 0.0, y: 0.0 },
+            dimension: Dimension::Overworld,
+            deafen: false,
+        };
+        let audio_packet = AudioFramePacket::new(
+            test_data.clone(),
+            48000,
+            Some(PlayerEnum::Minecraft(test_player2)),
             Some(true),
         );
 

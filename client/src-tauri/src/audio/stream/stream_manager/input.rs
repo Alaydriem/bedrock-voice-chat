@@ -530,10 +530,8 @@ impl InputStream {
                                             data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
                                                 encoded_data.clone(),
                                                 device_config.sample_rate.0,
-                                                None,
-                                                None,
-                                                None,
-                                                None
+                                                None,  // sender (enriched by server)
+                                                None   // spatial
                                             ))
                                         }
                                     };
