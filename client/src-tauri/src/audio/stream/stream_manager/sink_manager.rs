@@ -212,7 +212,10 @@ impl SinkManager {
                     _ => author.clone(),
                 };
 
-                let emitter_pos = packet.emitter.coordinates.clone();
+                let emitter_pos = packet.emitter.player_data.as_ref().map(|p| {
+                    use common::traits::player_data::PlayerData;
+                    p.get_position().clone()
+                });
                 let emitter_spatial = packet.emitter.spatial.unwrap_or(false);
 
                 let listener_info = players
@@ -224,8 +227,15 @@ impl SinkManager {
                     });
 
                 if listener_info.is_none() {
-                    log::warn!("Listener {} not found in player cache (cache size: {})",
-                              current_player_name, players.entry_count());
+                    let cached_players: Vec<String> = players.iter()
+                        .map(|(k, _)| k.as_ref().clone())
+                        .collect();
+                    log::warn!(
+                        "Listener '{}' not found in player cache (cache size: {}, cached players: {:?})",
+                        current_player_name,
+                        players.entry_count(),
+                        cached_players
+                    );
                 }
 
                 let use_spatial =

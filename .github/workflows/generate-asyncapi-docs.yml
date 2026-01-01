@@ -1,0 +1,93 @@
+name: Generate AsyncAPI Documentation
+permissions:
+  contents: write
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'client/src-tauri/src/websocket/**'
+      - 'client/src-tauri/src/bin/generate_asyncapi_docs.rs'
+      - '.github/workflows/generate-asyncapi-docs.yml'
+  pull_request:
+    paths:
+      - 'client/src-tauri/src/websocket/**'
+      - 'client/src-tauri/src/bin/generate_asyncapi_docs.rs'
+  workflow_dispatch:
+
+jobs:
+  generate-docs:
+    name: Generate AsyncAPI Documentation
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'yarn'
+          cache-dependency-path: client/yarn.lock
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "."
+
+      - name: Install JavaScript dependencies
+        working-directory: ./client
+        run: yarn install --frozen-lockfile
+
+      - name: Download and setup ASIO SDK
+        working-directory: ./client/src-tauri
+        shell: powershell
+        run: |
+          Write-Host "Downloading ASIO SDK..."
+          Invoke-WebRequest -Uri "https://download.steinberg.net/sdk_downloads/asiosdk_2.3.3_2019-06-14.zip" -OutFile "asiosdk.zip"
+          Expand-Archive -Path "asiosdk.zip" -DestinationPath "." -Force
+          Get-ChildItem -Path "." -Name
+          Write-Host "ASIO SDK downloaded and extracted"
+
+      - name: Set up LIBCLANG environment
+        shell: powershell
+        run: |
+          # Set LIBCLANG_PATH to Visual Studio Community 2022 LLVM lib directory
+          $libclangPath = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm\x64\lib"
+          if (-not (Test-Path $libclangPath)) {
+            $libclangPath = "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Tools\Llvm\x64\lib"
+          }
+          if (-not (Test-Path $libclangPath)) {
+            $libclangPath = "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\x64\lib"
+          }
+          if (-not (Test-Path $libclangPath)) {
+            Write-Host "Warning: Could not find Visual Studio LLVM lib directory, using default"
+            $libclangPath = "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\x64\lib"
+          }
+
+          Write-Host "Setting LIBCLANG_PATH to: $libclangPath"
+          echo "LIBCLANG_PATH=$libclangPath" >> $env:GITHUB_ENV
+
+      - name: Generate AsyncAPI documentation
+        working-directory: ./client
+        run: yarn asyncapi-docs
+
+      - name: Upload AsyncAPI documentation
+        uses: actions/upload-artifact@v4
+        with:
+          name: asyncapi-documentation
+          path: docs/websocket-api.yaml
+          retention-days: 90
+
+      - name: Documentation generation complete
+        shell: bash
+        run: |
+          echo "AsyncAPI Documentation Generated!"
+          echo "Documentation uploaded as artifact"
+          echo "Artifact URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

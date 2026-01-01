@@ -104,7 +104,7 @@
 <div class="relative">
     <button
         class={buttonClass}
-        on:click={handleRecordToggle}
+        onclick={handleRecordToggle}
         {disabled}
         title={buttonTitle}
     >
@@ -121,7 +121,7 @@
             {recordingError}
             <button
                 class="ml-1 hover:text-red-200"
-                on:click={clearError}
+                onclick={clearError}
                 aria-label="Dismiss error"
             >
                 ×

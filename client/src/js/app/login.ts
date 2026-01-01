@@ -2,7 +2,6 @@ import { fetch } from '@tauri-apps/plugin-http';
 import { info, error, warn, debug } from '@tauri-apps/plugin-log';
 import { Store } from '@tauri-apps/plugin-store';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { platform } from '@tauri-apps/plugin-os';
 import BVCApp from './BVCApp.ts';
 
 declare global {

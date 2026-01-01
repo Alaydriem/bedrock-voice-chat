@@ -1,9 +1,10 @@
 [package]
 name = "bedrock-voice-chat-client"
-version = "0.1.14"
+version = "0.1.15"
 description = "Bedrock Voice Chat Client"
 authors = ["Charles R. Portwood II"]
 edition = "2024"
+default-run = "bedrock-voice-chat-client"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -36,11 +37,13 @@ moka = { version = "^0.12", features = ["future", "sync"] }
 opus2 = { version = "^0.3" }
 ron = { version = "^0.12" }
 audio-gate = { version = "^0.1" }
-flume = { version = "^0.11" }
+flume = { version = "^0.12" }
+futures-util = "^0.3"
+tokio-tungstenite = "^0.28"
 trust-dns-resolver = { version = "^0.23", features = ["tokio-runtime", "tokio-rustls", "rustls", "serde"] }
 ts-rs = { version = "^11.0" }
 ringbuf = "^0.4"
-
+schemars = { version = "^1.0", features = ["derive"] }
 tauri = { version = "^2", features = ["rustls-tls"] }
 tauri-plugin-opener = "^2"
 tauri-plugin-deep-link = "^2"
@@ -82,3 +85,16 @@ cpal = { version = "^0.16", features = ["asio", "asio-sys"] }
 [target."cfg(any(target_os = \"android\", target_os = \"ios\"))".dependencies]
 cpal = { version = "^0.16" }
 
+[dev-dependencies]
+
+[features]
+asyncapi-docs = ["dep:serde_yaml"]
+
+[dependencies.serde_yaml]
+version = "^0.9"
+optional = true
+
+[[bin]]
+name = "generate-asyncapi-docs"
+path = "src/bin/generate_asyncapi_docs.rs"
+required-features = ["asyncapi-docs"]

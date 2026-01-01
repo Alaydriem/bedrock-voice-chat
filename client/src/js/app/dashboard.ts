@@ -13,6 +13,7 @@ import Server from './server.ts';
 import Keyring from './keyring.ts';
 import Sidebar from "./components/dashboard/sidebar.ts";
 import Onboarding from './onboarding';
+import PlatformDetector from './utils/PlatformDetector';
 
 import { PlayerManager } from './managers/PlayerManager';
 import ChannelManager from './managers/ChannelManager';
@@ -51,12 +52,14 @@ export default class Dashboard extends BVCApp {
     public playerManager: PlayerManager | undefined;
     public channelManager: ChannelManager | undefined;
     public audioActivityManager: AudioActivityManager | undefined;
+    public platformDetector: PlatformDetector | undefined;
 
     async initialize() {
         this.store = await Store.load("store.json", {
             autoSave: false,
             defaults: {}
         });
+        this.platformDetector = new PlatformDetector();
 
         // Check onboarding status before proceeding
         this.onboarding = new Onboarding(this.store);
@@ -71,7 +74,6 @@ export default class Dashboard extends BVCApp {
                 return;
             }
         }
-
 
         const appWebview = getCurrentWebviewWindow();
 
@@ -93,8 +95,20 @@ export default class Dashboard extends BVCApp {
         // Initialize managers with dependency injection
         await this.initializeManagers();
 
-        // If the audio engine is stopped for either the input or output channel, shutdown the existing one, reinitialize everything
+        // Start the websocket server if on desktop and is enabled
+        if (!await this.platformDetector.checkMobile()) {
+            await invoke<boolean>('is_websocket_running').then(async (isRunning) => {
+                if (!isRunning) {
+                    await invoke('start_websocket_server').catch((e) => {
+                        error(`Error starting WebSocket server: ${e}`);
+                    });
+                }
+            }).catch((e) => {
+                error(`Error auto-starting WebSocket server: ${e}`);
+            });
+        }
 
+        // If the audio engine is stopped for either the input or output channel, shutdown the existing one, reinitialize everything
         if (currentServer) {
             this.keyring = await Keyring.new("servers");
 

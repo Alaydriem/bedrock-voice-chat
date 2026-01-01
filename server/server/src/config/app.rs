@@ -12,7 +12,6 @@ use tracing::Level;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ApplicationConfig {
     pub database: ApplicationConfigDatabase,
-    pub redis: ApplicationConfigRedis,
     pub server: ApplicationConfigServer,
     pub log: ApplicationConfigLogger,
     pub voice: ApplicationConfigVoice,
@@ -28,16 +27,6 @@ pub struct ApplicationConfigDatabase {
     pub password: Option<String>,
     #[serde(default)]
     pub port: Option<u32>,
-}
-
-/// Database configuration for Redis
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ApplicationConfigRedis {
-    #[serde(default)]
-    pub database: String,
-    pub host: String,
-    #[serde(default)]
-    pub port: u32,
 }
 
 /// Common server configuration
@@ -120,11 +109,6 @@ pub struct ApplicationConfigLogger {
 impl Default for ApplicationConfig {
     fn default() -> Self {
         ApplicationConfig {
-            redis: ApplicationConfigRedis {
-                database: String::from(""),
-                host: String::from("127.0.0.1"),
-                port: 6379,
-            },
             database: ApplicationConfigDatabase {
                 scheme: String::from("sqlite3"),
                 database: String::from("/etc/bvc/bvc.sqlite3"),
@@ -261,20 +245,6 @@ impl ApplicationConfig {
                     connect_timeout: 3,
                     idle_timeout: Some(1),
                     sqlx_logging: false,
-                },
-            ))
-            .merge((
-                "databases.cache",
-                rocket_db_pools::Config {
-                    url: format!(
-                        "redis://{}:{}/{}",
-                        self.redis.host, self.redis.port, self.redis.database
-                    ),
-                    min_connections: None,
-                    max_connections: 1024,
-                    connect_timeout: 3,
-                    idle_timeout: None,
-                    extensions: None,
                 },
             ));
 

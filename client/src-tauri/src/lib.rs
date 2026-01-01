@@ -24,6 +24,7 @@ mod deep_links;
 mod events;
 mod network;
 mod structs;
+pub mod websocket;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -93,7 +94,13 @@ pub fn run() {
             crate::api::commands::api_delete_channel,
             crate::api::commands::api_list_channels,
             crate::api::commands::api_get_channel,
-            crate::api::commands::api_channel_event
+            crate::api::commands::api_channel_event,
+            // WebSocket Server
+            crate::commands::websocket::update_websocket_config,
+            crate::commands::websocket::start_websocket_server,
+            crate::commands::websocket::stop_websocket_server,
+            crate::commands::websocket::is_websocket_running,
+            crate::commands::websocket::generate_encryption_key
         ])
         .setup(|app| {
             // Set Windows timer resolution for high-precision audio timing
@@ -212,6 +219,10 @@ pub fn run() {
                 Some(handle.state::<Arc<Mutex<RecordingManager>>>().inner().clone()),
             );
             app.manage(Mutex::new(audio_stream));
+
+            // Initialize WebSocketManager
+            let ws_manager = websocket::WebSocketManager::new(handle.clone());
+            app.manage(Mutex::new(ws_manager));
 
             // This is necessary to setup s2n_quic. It doesn't need to be called elsewhere
             _ = common::s2n_quic::provider::tls::rustls::rustls::crypto::aws_lc_rs::default_provider()
