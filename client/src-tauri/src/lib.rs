@@ -24,7 +24,6 @@ mod deep_links;
 mod events;
 mod network;
 mod structs;
-#[cfg(desktop)]
 pub mod websocket;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

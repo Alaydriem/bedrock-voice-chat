@@ -45,6 +45,35 @@ jobs:
         working-directory: ./client
         run: yarn install --frozen-lockfile
 
+      - name: Download and setup ASIO SDK
+        working-directory: ./client/src-tauri
+        shell: powershell
+        run: |
+          Write-Host "Downloading ASIO SDK..."
+          Invoke-WebRequest -Uri "https://download.steinberg.net/sdk_downloads/asiosdk_2.3.3_2019-06-14.zip" -OutFile "asiosdk.zip"
+          Expand-Archive -Path "asiosdk.zip" -DestinationPath "." -Force
+          Get-ChildItem -Path "." -Name
+          Write-Host "ASIO SDK downloaded and extracted"
+
+      - name: Set up LIBCLANG environment
+        shell: powershell
+        run: |
+          # Set LIBCLANG_PATH to Visual Studio Community 2022 LLVM lib directory
+          $libclangPath = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm\x64\lib"
+          if (-not (Test-Path $libclangPath)) {
+            $libclangPath = "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Tools\Llvm\x64\lib"
+          }
+          if (-not (Test-Path $libclangPath)) {
+            $libclangPath = "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\x64\lib"
+          }
+          if (-not (Test-Path $libclangPath)) {
+            Write-Host "Warning: Could not find Visual Studio LLVM lib directory, using default"
+            $libclangPath = "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\x64\lib"
+          }
+
+          Write-Host "Setting LIBCLANG_PATH to: $libclangPath"
+          echo "LIBCLANG_PATH=$libclangPath" >> $env:GITHUB_ENV
+
       - name: Generate AsyncAPI documentation
         working-directory: ./client
         run: yarn asyncapi-docs

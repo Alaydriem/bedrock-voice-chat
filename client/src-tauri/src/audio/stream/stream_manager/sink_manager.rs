@@ -224,8 +224,15 @@ impl SinkManager {
                     });
 
                 if listener_info.is_none() {
-                    log::warn!("Listener {} not found in player cache (cache size: {})",
-                              current_player_name, players.entry_count());
+                    let cached_players: Vec<String> = players.iter()
+                        .map(|(k, _)| k.as_ref().clone())
+                        .collect();
+                    log::warn!(
+                        "Listener '{}' not found in player cache (cache size: {}, cached players: {:?})",
+                        current_player_name,
+                        players.entry_count(),
+                        cached_players
+                    );
                 }
 
                 let use_spatial =

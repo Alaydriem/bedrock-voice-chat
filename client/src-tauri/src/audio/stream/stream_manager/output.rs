@@ -331,7 +331,10 @@ impl OutputStream {
         players: Arc<moka::sync::Cache<String, PlayerEnum>>,
     ) -> Result<JoinHandle<()>, anyhow::Error> {
         let current_player_name = match metadata.get("current_player").await {
-            Some(name) => name,
+            Some(name) => {
+                log::info!("Starting playback for current player: '{}'", name);
+                name
+            },
             None => return Err(anyhow!("Playback stream cannot start without a player name set. Hint: .metadata('current_player', String) first."))
         };
 
@@ -641,6 +644,11 @@ impl OutputStream {
             Ok(data) => {
                 for player in data.players {
                     let player_name = player.get_name().to_string();
+                    log::info!(
+                        "Inserting player '{}' (game: {:?}) into cache",
+                        player_name,
+                        player.get_game()
+                    );
                     player_data.insert(player_name, player);
                 }
             }
