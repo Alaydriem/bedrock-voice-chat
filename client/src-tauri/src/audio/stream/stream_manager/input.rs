@@ -6,7 +6,7 @@ use anyhow::anyhow;
 use audio_gate::NoiseGate;
 use common::structs::audio::{NoiseGateSettings, StreamEvent};
 use common::structs::packet::{AudioFramePacket, QuicNetworkPacket, QuicNetworkPacketData};
-use common::PlayerData;
+use common::RecordingPlayerData;
 use log::{error, debug, warn};
 use once_cell::sync::Lazy;
 use opus2::Bitrate;
@@ -507,7 +507,7 @@ impl InputStream {
                                                 opus_data: encoded_data.clone(),
                                                 sample_rate: device_config.sample_rate.0,
                                                 channels: device_config.channels.into(),
-                                                emitter: PlayerData::for_input(
+                                                emitter: RecordingPlayerData::for_input(
                                                     current_player_name.clone(),
                                                     None, // TODO: Add gain cache for input
                                                 ),

@@ -3,6 +3,7 @@
   "version": "0.0.2",
   "description": "TypeScript scripts for Bedrock Voice Chat addon",
   "private": true,
+  "license": "BSD-3-Clause",
   "scripts": {
     "package": "node build.js",
     "watch": "tsc --watch",

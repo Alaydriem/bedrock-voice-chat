@@ -136,7 +136,8 @@ mod tests {
     #[test]
     fn test_audio_frame_packet_creation() {
         use crate::structs::packet::AudioFramePacket;
-        use crate::{Coordinate, Dimension};
+        use crate::Coordinate;
+        use crate::game_data::Dimension;
 
         // Create a test audio frame packet
         let test_data = vec![1, 2, 3, 4, 5];
@@ -179,7 +180,8 @@ mod tests {
         use crate::structs::packet::{
             AudioFramePacket, PacketOwner, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
         };
-        use crate::{Coordinate, Dimension};
+        use crate::Coordinate;
+        use crate::game_data::Dimension;
 
         // Create a test audio frame
         let test_data = vec![0x01, 0x02, 0x03, 0x04]; // Small test audio data

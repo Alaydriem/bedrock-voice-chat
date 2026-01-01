@@ -1,6 +1,6 @@
 use crate::audio::stream::stream_manager::AudioSinkType;
 use base64::{engine::general_purpose, Engine as _};
-use common::PlayerData;
+use common::RecordingPlayerData as PlayerData;
 
 pub mod adaptive;
 pub mod audio_processor;

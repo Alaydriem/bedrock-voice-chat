@@ -10,6 +10,8 @@ pub mod request;
 pub mod rustls;
 pub mod structs;
 pub mod traits;
+pub mod players;
+pub mod game_data;
 
 // Re-export s2n-quic when feature is enabled
 #[cfg(feature = "quic")]
@@ -17,7 +19,12 @@ pub use s2n_quic;
 
 // Re-export important types for easy access
 pub use structs::player_source::PlayerSource;
-pub use structs::recording::{PlayerData, SessionManifest};
+pub use structs::recording::{RecordingPlayerData, SessionManifest};
+
+// Re-export new player system types
+pub use players::{GenericPlayer, MinecraftPlayer, PlayerEnum};
+pub use game_data::{GameDataCollection, Dimension};
+pub use traits::player_data::{PlayerData as PlayerDataTrait, SpatialPlayer};
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum Game {
@@ -25,16 +32,6 @@ pub enum Game {
     Minecraft,
     #[serde(rename = "hytale")]
     Hytale,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
-pub enum Dimension {
-    #[serde(rename = "overworld")]
-    Overworld,
-    #[serde(rename = "the_end")]
-    TheEnd,
-    #[serde(rename = "nether")]
-    TheNether,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

@@ -3,7 +3,7 @@ use common::structs::channel::ChannelEvents;
 use common::structs::packet::{
     ChannelEventPacket, PacketType, PlayerDataPacket, QuicNetworkPacket,
 };
-use common::Player;
+use common::PlayerEnum;
 use moka::future::Cache;
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -13,7 +13,7 @@ use std::time::Duration;
 #[derive(Clone)]
 pub struct CacheManager {
     /// Player position cache data
-    player_cache: Arc<Cache<String, Player>>,
+    player_cache: Arc<Cache<String, PlayerEnum>>,
     /// Channel membership cache (channel_id -> Set<player_names>)
     channel_membership: Arc<Cache<String, HashSet<String>>>,
 }
@@ -35,7 +35,7 @@ impl CacheManager {
         }
     }
 
-    pub fn get_player_cache(&self) -> Arc<Cache<String, Player>> {
+    pub fn get_player_cache(&self) -> Arc<Cache<String, PlayerEnum>> {
         self.player_cache.clone()
     }
 
@@ -123,10 +123,12 @@ impl CacheManager {
                     let data: Result<PlayerDataPacket, ()> = data.to_owned().try_into();
                     if let Ok(player_data) = data {
                         for player in player_data.players {
+                            use common::traits::player_data::PlayerData;
+                            let player_name = player.get_name().to_string();
                             self.player_cache
-                                .insert(player.name.clone(), player.clone())
+                                .insert(player_name.clone(), player.clone())
                                 .await;
-                            tracing::debug!("Updated player position cache for: {}", player.name);
+                            tracing::debug!("Updated player position cache for: {}", player_name);
                         }
                     }
                 }

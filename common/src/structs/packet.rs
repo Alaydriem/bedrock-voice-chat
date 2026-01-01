@@ -1,4 +1,5 @@
-use crate::{Coordinate, Dimension, Orientation, Player};
+use crate::{Coordinate, Orientation};
+use crate::game_data::Dimension;
 use anyhow::{anyhow, Error};
 use base64::{engine::general_purpose, Engine as _};
 use serde::{Deserialize, Serialize};
@@ -120,7 +121,7 @@ impl QuicNetworkPacket {
     }
 
     // Updates the coordinates for a given packet with the player position data
-    pub async fn update_coordinates(&mut self, player_data: Arc<Cache<String, Player>>) {
+    pub async fn update_coordinates(&mut self, player_data: Arc<Cache<String, crate::PlayerEnum>>) {
         match self.get_packet_type() {
             PacketType::AudioFrame => match self.get_data() {
                 Some(data) => {
@@ -132,9 +133,20 @@ impl QuicNetworkPacket {
                             Some(_) => {}
                             None => match player_data.get(&self.get_author()).await {
                                 Some(position) => {
-                                    data.coordinate = Some(position.coordinates);
-                                    data.dimension = Some(position.dimension);
-                                    data.orientation = Some(position.orientation);
+                                    use crate::traits::player_data::PlayerData;
+                                    data.coordinate = Some(position.get_position().clone());
+                                    data.orientation = Some(position.get_orientation().clone());
+
+                                    // Handle game specific data
+                                    match position.get_game() {
+                                        crate::Game::Minecraft => {
+                                            if let Some(mc_player) = position.as_minecraft() {
+                                                data.dimension = Some(mc_player.dimension.clone());
+                                            }
+                                        },
+                                        _ => {}
+                                    }
+
                                     let audio_frame: QuicNetworkPacketData =
                                         QuicNetworkPacketData::AudioFrame(data);
                                     self.data = audio_frame;
@@ -204,7 +216,7 @@ impl QuicNetworkPacket {
         &mut self,
         recipient: PacketOwner,
         channel_membership: Arc<Cache<String, std::collections::HashSet<String>>>,
-        position_data: Arc<Cache<String, Player>>,
+        position_data: Arc<Cache<String, crate::PlayerEnum>>,
         range: f32,
     ) -> bool {
         match self.get_packet_type() {
@@ -250,9 +262,34 @@ impl QuicNetworkPacket {
                             position_data.get(receiver_name)
                         );
 
-                        // Determine the sender coordinates and dimension first from the player object, then the packet data
+                        // If both sender and recipient are in cache, use game-specific communication logic
+                        if let (Some(sender), Some(recipient)) = (&actual_sender, &actual_recipient) {
+                            // Use game-aware communication check - delegates to game-specific logic
+                            if !sender.can_communicate_with(recipient, range) {
+                                return false;
+                            }
+
+                            // Players can communicate - continue with spatial logic below
+                            let spatial = data.spatial.clone();
+                            match spatial {
+                                Some(true) => {
+                                    self.data = QuicNetworkPacketData::AudioFrame(data);
+                                    return true;
+                                }
+                                Some(false) => {
+                                    return false;
+                                }
+                                None => {
+                                    data.spatial = Some(true);
+                                    self.data = QuicNetworkPacketData::AudioFrame(data);
+                                    return true;
+                                }
+                            }
+                        }
+
+                        // Fallback: sender not in cache, use packet data (for objects/items)
                         let (sender_dimension, sender_coordinates) = match actual_sender {
-                            Some(sender) => (sender.dimension, sender.coordinates),
+                            Some(_) => unreachable!(), // Already handled above
                             None => {
                                 let dimension = data.dimension.clone();
                                 let coordinates = data.coordinate.clone();
@@ -269,17 +306,22 @@ impl QuicNetworkPacket {
 
                         match actual_recipient {
                             Some(recipiant) => {
-                                // if they aren't in the same dimension, then they can't hear each other
-                                if !recipiant.dimension.eq(&sender_dimension) {
-                                    return false;
+                                use crate::traits::player_data::PlayerData;
+
+                                // For Minecraft players, check dimension compatibility
+                                if let Some(mc_recipient) = recipiant.as_minecraft() {
+                                    if !mc_recipient.dimension.eq(&sender_dimension) {
+                                        return false;
+                                    }
                                 }
 
-                                let dx = sender_coordinates.x - recipiant.coordinates.x;
-                                let dy = sender_coordinates.y - recipiant.coordinates.y;
-                                let dz = sender_coordinates.z - recipiant.coordinates.z;
+                                let recipient_pos = recipiant.get_position();
+                                let dx = sender_coordinates.x - recipient_pos.x;
+                                let dy = sender_coordinates.y - recipient_pos.y;
+                                let dz = sender_coordinates.z - recipient_pos.z;
                                 let distance = (dx * dx + dy * dy + dz * dz).sqrt();
 
-                                // Return true of the players are within spatial range of the other player
+                                // Return true if the players are within spatial range of the other player
                                 let proximity = 1.73 * range;
 
                                 let spatial = data.spatial.clone();
@@ -447,7 +489,7 @@ impl AudioFramePacket {
 /// General Player Positioning data
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PlayerDataPacket {
-    pub players: Vec<crate::Player>,
+    pub players: Vec<crate::PlayerEnum>,
 }
 
 impl TryFrom<QuicNetworkPacketData> for PlayerDataPacket {

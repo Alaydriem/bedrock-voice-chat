@@ -16,7 +16,8 @@ use crate::audio::stream::jitter_buffer::{
 use crate::audio::stream::stream_manager::audio_sink::AudioSink;
 use crate::audio::stream::ActivityUpdate;
 use common::structs::audio::{PlayerGainSettings, PlayerGainStore};
-use common::{Coordinate, Player};
+use common::{Coordinate, PlayerEnum};
+use common::traits::player_data::PlayerData;
 
 /// Converts a mono Source to stereo by duplicating each sample to both L and R channels
 struct MonoToStereo<S>
@@ -96,7 +97,7 @@ pub struct SinkManager {
     consumer: Option<Receiver<EncodedAudioFramePacket>>,
     shutdown: Arc<AtomicBool>,
     global_mute: Arc<AtomicBool>,
-    players: Cache<String, Player>,
+    players: Cache<String, PlayerEnum>,
     current_player_name: String,
     player_gain_store: Arc<StdMutex<PlayerGainStore>>,
     sinks: Cache<Vec<u8>, PlayerSinks>,
@@ -112,7 +113,7 @@ pub struct SinkManager {
 impl SinkManager {
     pub fn new(
         consumer: Receiver<EncodedAudioFramePacket>,
-        players: Cache<String, Player>,
+        players: Cache<String, PlayerEnum>,
         current_player_name: String,
         player_gain_store: Arc<StdMutex<PlayerGainStore>>,
         mixer: Arc<Mixer>,
@@ -216,7 +217,16 @@ impl SinkManager {
 
                 let listener_info = players
                     .get(&current_player_name)
-                    .map(|player| (player.coordinates.clone(), player.orientation.clone()));
+                    .map(|player| {
+                        let pos = player.get_position().clone();
+                        let orient = player.get_orientation().clone();
+                        (pos, orient)
+                    });
+
+                if listener_info.is_none() {
+                    log::warn!("Listener {} not found in player cache (cache size: {})",
+                              current_player_name, players.entry_count());
+                }
 
                 let use_spatial =
                     emitter_spatial && listener_info.is_some() && emitter_pos.is_some();
@@ -259,6 +269,13 @@ impl SinkManager {
 
                     let (listener_coordinate, listener_orientation) = listener_info.unwrap();
                     let emitter_coordinate = emitter_pos.unwrap();
+
+                    // Calculate actual distance for logging
+                    let dx = emitter_coordinate.x - listener_coordinate.x;
+                    let dy = emitter_coordinate.y - listener_coordinate.y;
+                    let dz = emitter_coordinate.z - listener_coordinate.z;
+                    let actual_distance = (dx * dx + dy * dy + dz * dz).sqrt();
+
                     let spatial_data: SpatialAudioData =
                         JitterBuffer::calculate_virtual_listener_audio_data(
                             &emitter_coordinate,

@@ -5,7 +5,7 @@
   "name": "Bedrock Voice Chat",
   "description": "Server-side player position tracking for proximity voice chat",
   "authors": ["Charles R. Portwood II (Alaydriem) <charlesportwoodii@erianna.com>"],
-  "license": "",
+  "license": "BDS-3-Clause",
   "icon": "app-logo.png",
   "environment": "server",
   "entrypoints": {

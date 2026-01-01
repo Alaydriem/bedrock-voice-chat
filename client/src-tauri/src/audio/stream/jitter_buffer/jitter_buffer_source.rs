@@ -12,7 +12,7 @@ use super::EncodedAudioFramePacket;
 use crate::audio::recording::{RawRecordingData, RecordingProducer};
 use crate::audio::stream::activity_detector::ActivityUpdate;
 use crate::audio::stream::stream_manager::AudioSinkType;
-use common::PlayerData;
+use common::RecordingPlayerData;
 
 #[derive(Debug)]
 pub enum JitterBufferError {
@@ -41,8 +41,8 @@ impl From<AudioProcessorError> for JitterBufferError {
 #[derive(Clone)]
 struct PendingRecording {
     opus_data: Vec<u8>,
-    emitter: PlayerData,
-    listener: PlayerData,
+    emitter: RecordingPlayerData,
+    listener: RecordingPlayerData,
     sample_rate: u32,
     is_spatial: bool,
     samples_remaining: usize,
