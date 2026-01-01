@@ -27,7 +27,7 @@ sea-orm = { version = "^1.1", features = [
     "macros",
     "sqlx-sqlite",
 ] }
-sea-orm-rocket = { version = "^0.5" }
+sea-orm-rocket = { version = "^0.6" }
 clap = { version = "^4.5", features = ["derive", "env", "wrap_help"] }
 hcl-rs = { version = "^0.19" }
 anyhow = { version = "^1.0" }
@@ -41,8 +41,7 @@ reqwest = { version = "^0.12", default-features = false, features = [
     "brotli",
     "gzip",
     "stream",
-    "blocking",
-    "native-tls",
+    "blocking"
 ] }
 tracing = { version = "^0.1" }
 tracing-subscriber = { version = "^0.3" }
