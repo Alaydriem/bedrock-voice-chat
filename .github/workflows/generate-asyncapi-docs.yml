@@ -17,8 +17,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  generate-docs:
-    name: Generate AsyncAPI Documentation
+  generate-yaml:
+    name: Generate AsyncAPI YAML
     runs-on: windows-latest
 
     steps:
@@ -75,20 +75,39 @@ jobs:
           Write-Host "Setting LIBCLANG_PATH to: $libclangPath"
           echo "LIBCLANG_PATH=$libclangPath" >> $env:GITHUB_ENV
 
-      - name: Generate AsyncAPI documentation
+      - name: Generate AsyncAPI YAML
         working-directory: ./client
         run: yarn asyncapi-docs
 
-      - name: Generating HTML from my AsyncAPI document
-        uses: asyncapi/cli@v2.16.0
+      - name: Upload AsyncAPI YAML
+        uses: actions/upload-artifact@v4
+        with:
+          name: asyncapi-yaml
+          path: docs/websocket-api.yaml
+          retention-days: 1
+
+  generate-html-and-deploy:
+    name: Generate HTML and Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    needs: generate-yaml
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+
+    steps:
+      - name: Download AsyncAPI YAML
+        uses: actions/download-artifact@v4
+        with:
+          name: asyncapi-yaml
+          path: docs
+
+      - name: Generate HTML from AsyncAPI spec
+        uses: asyncapi/github-action-for-cli@v3
         with:
           command: generate
-          filepath: ./docs/websocket-api.yaml
-          template: "@asyncapi/html-template@0.9.0" #In case of template from npm. Or can use a link.
-          output: ./docs/websocket-api-html
+          filepath: docs/websocket-api.yaml
+          template: '@asyncapi/html-template'
+          output: docs/websocket-api-html
 
       - name: Deploy to GitHub Pages
-        if: github.ref == 'refs/heads/master'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -97,8 +116,6 @@ jobs:
           keep_files: true
 
       - name: Documentation generation complete
-        shell: bash
         run: |
-          echo "AsyncAPI Documentation Generated!"
-          echo "Documentation deployed to GitHub Pages"
+          echo "AsyncAPI Documentation Generated and Deployed!"
           echo "URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/websocket"
