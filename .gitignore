@@ -15,4 +15,4 @@ target
 .claude
 upload-keystore.jks
 *.pem
-docs/websocket-api.yaml
+docs

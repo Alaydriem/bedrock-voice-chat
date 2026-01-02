@@ -1,4 +1,5 @@
 name: Generate AsyncAPI Documentation
+
 permissions:
   contents: write
 
@@ -78,16 +79,26 @@ jobs:
         working-directory: ./client
         run: yarn asyncapi-docs
 
-      - name: Upload AsyncAPI documentation
-        uses: actions/upload-artifact@v4
+      - name: Generate HTML from AsyncAPI spec
+        uses: asyncapi/github-action-for-cli@v3
         with:
-          name: asyncapi-documentation
-          path: docs/websocket-api.yaml
-          retention-days: 90
+          command: generate
+          filepath: docs/websocket-api.yaml
+          template: '@asyncapi/html-template'
+          output: docs/websocket-api-html
+
+      - name: Deploy to GitHub Pages
+        if: github.ref == 'refs/heads/master'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs/websocket-api-html
+          destination_dir: websocket
+          keep_files: true
 
       - name: Documentation generation complete
         shell: bash
         run: |
           echo "AsyncAPI Documentation Generated!"
-          echo "Documentation uploaded as artifact"
-          echo "Artifact URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "Documentation deployed to GitHub Pages"
+          echo "URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/websocket"
