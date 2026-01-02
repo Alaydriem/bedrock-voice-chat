@@ -79,13 +79,13 @@ jobs:
         working-directory: ./client
         run: yarn asyncapi-docs
 
-      - name: Generate HTML from AsyncAPI spec
-        uses: asyncapi/github-action-for-cli@v3
+      - name: Generating HTML from my AsyncAPI document
+        uses: asyncapi/cli@v2.16.0
         with:
           command: generate
-          filepath: docs/websocket-api.yaml
-          template: '@asyncapi/html-template'
-          output: docs/websocket-api-html
+          filepath: ./docs/websocket-api.yaml
+          template: "@asyncapi/html-template@0.9.0" #In case of template from npm. Or can use a link.
+          output: ./docs/websocket-api-html
 
       - name: Deploy to GitHub Pages
         if: github.ref == 'refs/heads/master'
