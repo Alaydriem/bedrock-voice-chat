@@ -80,10 +80,10 @@ tauri-plugin-process = "^2.3"
 
 [target."cfg(any(target_os = \"windows\"))".dependencies]
 windows-targets = "^0.53.0"
-cpal = { version = "^0.16", features = ["asio", "asio-sys"] }
+cpal = { version = "^0.17", features = ["asio"] }
 
 [target."cfg(any(target_os = \"android\", target_os = \"ios\"))".dependencies]
-cpal = { version = "^0.16" }
+cpal = { version = "^0.17" }
 
 [dev-dependencies]
 

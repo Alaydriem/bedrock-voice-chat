@@ -62,13 +62,9 @@ fn get_devices() {
         match host.input_devices() {
             Ok(devices) => {
                 for device in devices {
-                    let name = match device.name() {
-                        Ok(name) => name,
-                        Err(e) => {
-                            println!("{}", e.to_string());
-                            continue;
-                        }
-                    };
+                    let name = device.description().unwrap_or_else(|| {
+                        device.id().unwrap_or_else(|_| "unknown".to_string())
+                    });
 
                     println!("[{}] {}", host.id().name(), name);
                 }
