@@ -161,10 +161,15 @@ jobs:
         shell: bash
         run: |
           BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}"
-          echo "🚀 Server Build Complete!"
-          echo "🎯 Target: ${{ matrix.target }}"
-          echo "🔧 Build Mode: $BUILD_MODE"
-          echo "🎯 Trigger: ${{ github.event_name }}"
-          echo "📦 Artifacts uploaded as: server-${{ matrix.target }}-$BUILD_MODE"
-          echo "🔗 Artifact URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          echo "⏰ Retention: 30 days"
+          {
+            echo "## Server Build Complete"
+            echo ""
+            echo "| Name | Value |"
+            echo "| ---- | ----- |"
+            echo "| Target | ${{ matrix.target }} |"
+            echo "| Build Mode | $BUILD_MODE |"
+            echo "| Trigger | ${{ github.event_name }} |"
+            echo "| Artifact | bvc-server-${{ matrix.target }}-$BUILD_MODE |"
+            echo "| Artifact URL | [View Run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) |"
+            echo "| Retention | 30 days |"
+          } >> $GITHUB_STEP_SUMMARY

@@ -162,7 +162,13 @@ jobs:
       - name: Build summary
         run: |
           BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}"
-          echo "iOS Build Complete!"
-          echo "Build Mode: $BUILD_MODE"
-          echo "Trigger: ${{ github.event_name }}"
-          echo "Target: aarch64-apple-ios"
+          {
+            echo "## iOS Build Complete"
+            echo ""
+            echo "| Name | Value |"
+            echo "| ---- | ----- |"
+            echo "| Build Mode | $BUILD_MODE |"
+            echo "| Trigger | ${{ github.event_name }} |"
+            echo "| Target | aarch64-apple-ios |"
+            echo "| Artifact URL | [View Run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) |"
+          } >> $GITHUB_STEP_SUMMARY

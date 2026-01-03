@@ -62,7 +62,7 @@ jobs:
           cd mods/bds
           ZIP_FILE=$(find . -maxdepth 1 -name "*.zip" -type f | head -n 1)
           if [ -z "$ZIP_FILE" ]; then
-            echo "❌ No .zip file found!"
+            echo "No .zip file found!"
             exit 1
           fi
 
@@ -72,7 +72,7 @@ jobs:
           # Copy to a consistent name for artifact upload
           cp "$ZIP_FILE" ../../bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.zip
 
-          echo "✅ Prepared artifact: bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.zip"
+          echo "Prepared artifact: bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.zip"
 
       - name: Upload zip artifact
         uses: actions/upload-artifact@v4
@@ -84,9 +84,14 @@ jobs:
       - name: Output artifact information
         shell: bash
         run: |
-          echo "🚀 BDS Pack Build Complete!"
-          echo "📦 Version: ${{ steps.pack-version.outputs.version }}"
-          echo "🎯 Trigger: ${{ github.event_name }}"
-          echo "📦 Artifact: bedrock-voice-chat-bds-${{ steps.pack-version.outputs.version }}"
-          echo "🔗 Artifact URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          echo "⏰ Retention: 30 days"
+          {
+            echo "## BDS Pack Build Complete"
+            echo ""
+            echo "| Name | Value |"
+            echo "| ---- | ----- |"
+            echo "| Version | ${{ steps.pack-version.outputs.version }} |"
+            echo "| Trigger | ${{ github.event_name }} |"
+            echo "| Artifact | bedrock-voice-chat-bds-${{ steps.pack-version.outputs.version }} |"
+            echo "| Artifact URL | [View Run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) |"
+            echo "| Retention | 30 days |"
+          } >> $GITHUB_STEP_SUMMARY

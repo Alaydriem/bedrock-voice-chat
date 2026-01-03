@@ -230,13 +230,13 @@ jobs:
 
               if [ -f "$SOURCE_ICON" ]; then
                 cp "$SOURCE_ICON" "$TARGET_ICON"
-                echo "  ✓ Copied $MIPMAP_DIR/ic_launcher.png"
+                echo "Copied $MIPMAP_DIR/ic_launcher.png"
               else
-                echo "  ✗ Missing source icon: $SOURCE_ICON"
+                echo "Missing source icon: $SOURCE_ICON"
                 exit 1
               fi
             else
-              echo "  ✗ Missing source directory: $SOURCE_PATH"
+              echo "Missing source directory: $SOURCE_PATH"
               exit 1
             fi
           done
@@ -339,9 +339,14 @@ jobs:
       - name: Output artifact information
         run: |
           BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}"
-          echo "Android Build Complete!"
-          echo "Build Mode: $BUILD_MODE"
-          echo "Trigger: ${{ github.event_name }}"
-          echo "Artifacts uploaded as: android-client-$BUILD_MODE"
-          echo "Artifact URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          echo "Retention: 30 days"
+          {
+            echo "## Android Build Complete"
+            echo ""
+            echo "| Name | Value |"
+            echo "| ---- | ----- |"
+            echo "| Build Mode | $BUILD_MODE |"
+            echo "| Trigger | ${{ github.event_name }} |"
+            echo "| Artifact | bvc-android-$BUILD_MODE.apk |"
+            echo "| Artifact URL | [View Run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) |"
+            echo "| Retention | 30 days |"
+          } >> $GITHUB_STEP_SUMMARY

@@ -61,25 +61,25 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Build with Gradle
-        working-directory: ./mods/java
-        run: |
-          chmod +x gradlew
-          ./gradlew build --no-daemon
-
       - name: Get mod version
         id: mod-version
         working-directory: ./mods/java
         run: |
           if [ -n "${{ inputs.version }}" ]; then
             VERSION="${{ inputs.version }}"
-            echo "📦 Using provided version: $VERSION"
+            echo "Using provided version: $VERSION"
           else
             VERSION=$(grep "mod_version" gradle.properties | cut -d'=' -f2)
-            echo "📦 Using gradle.properties version: $VERSION"
+            echo "Using gradle.properties version: $VERSION"
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "artifact-name=bedrock-voice-chat-fabric-$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build with Gradle
+        working-directory: ./mods/java
+        run: |
+          chmod +x gradlew
+          ./gradlew build --no-daemon -Pmod_version=${{ steps.mod-version.outputs.version }}
 
       - name: Prepare artifact
         shell: bash
@@ -87,7 +87,7 @@ jobs:
           cd mods/java
           JAR_FILE=$(find build/libs -name "*.jar" -type f | head -n 1)
           if [ -z "$JAR_FILE" ]; then
-            echo "❌ No JAR file found!"
+            echo "No JAR file found!"
             exit 1
           fi
 
@@ -97,7 +97,7 @@ jobs:
           # Copy to a consistent name for artifact upload
           cp "$JAR_FILE" ../../bedrock-voice-chat-${{ steps.mod-version.outputs.version }}.jar
 
-          echo "✅ Prepared artifact: bedrock-voice-chat-${{ steps.mod-version.outputs.version }}.jar"
+          echo "Prepared artifact: bedrock-voice-chat-${{ steps.mod-version.outputs.version }}.jar"
 
       - name: Upload JAR artifact
         uses: actions/upload-artifact@v4
@@ -109,9 +109,14 @@ jobs:
       - name: Output artifact information
         shell: bash
         run: |
-          echo "🚀 Fabric Mod Build Complete!"
-          echo "📦 Version: ${{ steps.mod-version.outputs.version }}"
-          echo "🎯 Trigger: ${{ github.event_name }}"
-          echo "📦 Artifact: bedrock-voice-chat-fabric-${{ steps.mod-version.outputs.version }}"
-          echo "🔗 Artifact URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          echo "⏰ Retention: 30 days"
+          {
+            echo "## Fabric Mod Build Complete"
+            echo ""
+            echo "| Name | Value |"
+            echo "| ---- | ----- |"
+            echo "| Version | ${{ steps.mod-version.outputs.version }} |"
+            echo "| Trigger | ${{ github.event_name }} |"
+            echo "| Artifact | bedrock-voice-chat-fabric-${{ steps.mod-version.outputs.version }} |"
+            echo "| Artifact URL | [View Run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) |"
+            echo "| Retention | 30 days |"
+          } >> $GITHUB_STEP_SUMMARY

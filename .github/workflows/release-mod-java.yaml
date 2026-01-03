@@ -79,9 +79,8 @@ jobs:
               echo "| Browse files     | [${{ steps.semantic-release.outputs.new_release_git_tag }}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/tree/${{ steps.semantic-release.outputs.new_release_git_tag }}) |"
               echo "| Commit           | [${{ steps.semantic-release.outputs.new_release_git_head }}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${{ steps.semantic-release.outputs.new_release_git_head }}) |"
               echo "| Dry Run          | ${{ inputs.dry-run && ':white_check_mark: Yes' || ':x: No' }} |"
-              echo
 
-              echo ":warning: _Links to the new version ${{ steps.semantic-release.outputs.new_release_version }} will be working only if the release is created"
+              echo ":warning: Links to the new version ${{ steps.semantic-release.outputs.new_release_version }} will be working only if the release is created"
           } >> $GITHUB_STEP_SUMMARY
 
   build-mod:

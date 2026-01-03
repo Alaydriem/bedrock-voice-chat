@@ -161,12 +161,18 @@ jobs:
           } else {
             $BUILD_MODE = "debug"
           }
-          Write-Host "Windows Client Build Complete!" -ForegroundColor Green
-          Write-Host "Build Mode: $BUILD_MODE" -ForegroundColor Cyan
-          Write-Host "Trigger: ${{ github.event_name }}" -ForegroundColor Cyan
-          Write-Host "Artifacts uploaded as: windows-client-$BUILD_MODE" -ForegroundColor Cyan
-          Write-Host "Artifact URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" -ForegroundColor Blue
-          Write-Host "Retention: 30 days" -ForegroundColor Yellow
+          $summary = @"
+          ## Windows Client Build Complete
+
+          | Name | Value |
+          | ---- | ----- |
+          | Build Mode | $BUILD_MODE |
+          | Trigger | ${{ github.event_name }} |
+          | Artifact | bvc-windows-$BUILD_MODE.exe |
+          | Artifact URL | [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |
+          | Retention | 30 days |
+          "@
+          $summary | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
       - name: Generate AsyncAPI YAML
         working-directory: ./client
