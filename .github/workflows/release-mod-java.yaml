@@ -24,7 +24,7 @@ defaults:
 jobs:
   prepare-release:
     name: Prepare Release
-    runs-on: default
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions: write-all
     outputs:
@@ -95,7 +95,7 @@ jobs:
     name: Publish to Modrinth
     needs: [prepare-release, build-mod]
     if: ${{ needs.prepare-release.outputs.new_release_published == 'true' && !inputs.dry-run }}
-    runs-on: ubuntu
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Download artifact
