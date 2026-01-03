@@ -1,4 +1,4 @@
-package com.bvc.bedrockvoicechat.config;
+package com.alaydriem.bedrockvoicechat.config;
 
 import lombok.Getter;
 import lombok.NoArgsConstructor;

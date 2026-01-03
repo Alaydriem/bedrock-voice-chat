@@ -1,7 +1,7 @@
-package com.bvc.bedrockvoicechat.network;
+package com.alaydriem.bedrockvoicechat.network;
 
-import com.bvc.bedrockvoicechat.config.ModConfig;
-import com.bvc.bedrockvoicechat.dto.Payload;
+import com.alaydriem.bedrockvoicechat.config.ModConfig;
+import com.alaydriem.bedrockvoicechat.dto.Payload;
 import com.google.gson.Gson;
 
 import java.net.URI;

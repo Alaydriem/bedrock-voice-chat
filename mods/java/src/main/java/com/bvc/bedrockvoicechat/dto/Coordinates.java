@@ -1,4 +1,4 @@
-package com.bvc.bedrockvoicechat.dto;
+package com.alaydriem.bedrockvoicechat.dto;
 
 import lombok.Getter;
 import net.minecraft.util.math.Vec3d;

@@ -1,8 +1,8 @@
-package com.bvc.bedrockvoicechat;
+package com.alaydriem.bedrockvoicechat;
 
-import com.bvc.bedrockvoicechat.config.ConfigManager;
-import com.bvc.bedrockvoicechat.config.ModConfig;
-import com.bvc.bedrockvoicechat.tracker.PlayerTrackerTask;
+import com.alaydriem.bedrockvoicechat.config.ConfigManager;
+import com.alaydriem.bedrockvoicechat.config.ModConfig;
+import com.alaydriem.bedrockvoicechat.tracker.PlayerTrackerTask;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import org.slf4j.Logger;

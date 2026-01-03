@@ -1,4 +1,4 @@
-package com.bvc.bedrockvoicechat.config;
+package com.alaydriem.bedrockvoicechat.config;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;

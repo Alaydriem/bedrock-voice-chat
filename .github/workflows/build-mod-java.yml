@@ -8,7 +8,24 @@ on:
       - '.github/workflows/build-java-mod.yml'
   pull_request:
   workflow_call:
+    inputs:
+      version:
+        description: 'Version to build (overrides gradle.properties)'
+        required: false
+        type: string
+    outputs:
+      version:
+        description: 'The version that was built'
+        value: ${{ jobs.build-java-mod.outputs.version }}
+      artifact-name:
+        description: 'Name of the uploaded artifact'
+        value: ${{ jobs.build-java-mod.outputs.artifact-name }}
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (leave empty to use gradle.properties)'
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -17,6 +34,9 @@ jobs:
   build-java-mod:
     name: Build Fabric Mod
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.mod-version.outputs.version }}
+      artifact-name: ${{ steps.mod-version.outputs.artifact-name }}
 
     steps:
       - name: Checkout code
@@ -51,9 +71,15 @@ jobs:
         id: mod-version
         working-directory: ./mods/java
         run: |
-          VERSION=$(grep "mod_version" gradle.properties | cut -d'=' -f2)
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+            echo "📦 Using provided version: $VERSION"
+          else
+            VERSION=$(grep "mod_version" gradle.properties | cut -d'=' -f2)
+            echo "📦 Using gradle.properties version: $VERSION"
+          fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "📦 Mod version: $VERSION"
+          echo "artifact-name=bedrock-voice-chat-fabric-$VERSION" >> $GITHUB_OUTPUT
 
       - name: Prepare artifact
         shell: bash

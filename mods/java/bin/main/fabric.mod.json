@@ -5,11 +5,11 @@
   "name": "Bedrock Voice Chat",
   "description": "Server-side player position tracking for proximity voice chat",
   "authors": ["Charles R. Portwood II (Alaydriem) <charlesportwoodii@erianna.com>"],
-  "license": "BDS-3-Clause",
+  "license": "",
   "icon": "app-logo.png",
   "environment": "server",
   "entrypoints": {
-    "main": ["com.bvc.bedrockvoicechat.BedrockVoiceChatMod"]
+    "main": ["com.alaydriem.bedrockvoicechat.BedrockVoiceChatMod"]
   },
   "depends": {
     "fabricloader": ">=0.16.0",

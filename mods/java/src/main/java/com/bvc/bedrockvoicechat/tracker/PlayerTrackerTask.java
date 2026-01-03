@@ -1,9 +1,9 @@
-package com.bvc.bedrockvoicechat.tracker;
+package com.alaydriem.bedrockvoicechat.tracker;
 
-import com.bvc.bedrockvoicechat.config.ModConfig;
-import com.bvc.bedrockvoicechat.dto.Payload;
-import com.bvc.bedrockvoicechat.dto.Player;
-import com.bvc.bedrockvoicechat.network.HttpRequestHandler;
+import com.alaydriem.bedrockvoicechat.config.ModConfig;
+import com.alaydriem.bedrockvoicechat.dto.Payload;
+import com.alaydriem.bedrockvoicechat.dto.Player;
+import com.alaydriem.bedrockvoicechat.network.HttpRequestHandler;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 

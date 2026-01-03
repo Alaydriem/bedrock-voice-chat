@@ -28,15 +28,15 @@ fn main() {
     let spec = json!({
         "asyncapi": "3.0.0",
         "info": {
-            "title": "BVC WebSocket API",
+            "title": "Bedrock Voice Chat WebSocket API",
             "version": "1.0.0",
-            "description": "WebSocket API for controlling Bedrock Voice Chat client via Stream Deck and other integrations"
+            "description": "A local WebSocket API for controlling Bedrock Voice Chat client via Stream Deck and other integrations"
         },
         "servers": {
-            "production": {
-                "host": "localhost:9595",
+            "local": {
+                "host": "127.0.0.1:9595",
                 "protocol": "ws",
-                "description": "Local WebSocket server"
+                "description": "Local websocket server running from Bedrock Voice Chat client"
             }
         },
         "channels": {
@@ -104,8 +104,6 @@ fn main() {
         .expect("Failed to write AsyncAPI spec");
 
     println!("✓ Generated AsyncAPI spec at: {:?}", output_path.canonicalize().unwrap());
-    println!("  To generate HTML docs, run:");
-    println!("  npx @asyncapi/generator ../../docs/websocket-api.yaml @asyncapi/html-template -o ../../docs/websocket-api-html");
 }
 
 fn extract_def(schema_value: &Value, def_name: &str) -> Value {
