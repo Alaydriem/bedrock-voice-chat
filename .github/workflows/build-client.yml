@@ -193,12 +193,7 @@ jobs:
           path: docs
 
       - name: Generate HTML from AsyncAPI spec
-        uses: asyncapi/github-action-for-cli@v3.1.1
-        with:
-          command: generate
-          filepath: docs/websocket-api.yaml
-          template: '@asyncapi/html-template'
-          output: docs/websocket-api-html
+        run: npx -y @asyncapi/generator@2 docs/websocket-api.yaml @asyncapi/html-template -o docs/websocket-api-html --force-write -p singleFile=true
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
