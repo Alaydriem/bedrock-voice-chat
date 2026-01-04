@@ -40,13 +40,12 @@ jobs:
           show-progress: false
           ref: ${{ github.ref }}
 
-      - name: Configure beta prerelease
+      - name: Checkout beta branch for prerelease
         if: ${{ inputs.release-type == 'beta' }}
-        working-directory: ./mods/java
         run: |
-          echo "Configuring semantic-release for beta prerelease..."
-          cp .releaserc-beta.json .releaserc.json
-          cat .releaserc.json
+          echo "Creating local beta branch for prerelease..."
+          git checkout -b beta
+          echo "Current branch: $(git branch --show-current)"
 
       - name: Semantic Release
         id: semantic-release
