@@ -159,6 +159,13 @@ jobs:
             cargo build --target aarch64-apple-ios
           fi
 
+      - name: Upload iOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
+          path: client/src-tauri/target/aarch64-apple-ios/${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}/
+          retention-days: 7
+
       - name: Build summary
         run: |
           BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}"
@@ -170,5 +177,4 @@ jobs:
             echo "| Build Mode | $BUILD_MODE |"
             echo "| Trigger | ${{ github.event_name }} |"
             echo "| Target | aarch64-apple-ios |"
-            echo "| Artifact URL | [View Run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) |"
           } >> $GITHUB_STEP_SUMMARY
