@@ -2,6 +2,7 @@
   "tagFormat": "java-mod-v${version}",
   "branches": [
     "+([0-9])?(.{+([0-9]),x}).x",
+    "master",
     "main",
     "next",
     "next-major",

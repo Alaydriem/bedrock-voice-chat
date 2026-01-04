@@ -63,20 +63,7 @@ jobs:
         uses: cycjimmy/semantic-release-action@v4
         with:
           working_directory: ./mods/java
-          repository_url: ${{ github.repository }}
           dry_run: ${{ inputs.dry-run }}
-          branches: |
-            [
-              '+([0-9])?(.{+([0-9]),x}).x',
-              'master',
-              'main',
-              'next',
-              'next-major',
-              {
-                name: 'beta',
-                prerelease: true
-              }
-            ]
           extra_plugins: |
             @semantic-release/changelog
             @semantic-release/git
