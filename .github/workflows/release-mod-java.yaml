@@ -8,14 +8,6 @@ on:
           Dry run the release creation (simulate)
         type: boolean
         default: false
-      release-type:
-        description: >
-          Type of release to create
-        type: choice
-        options:
-          - release
-          - beta
-        default: release
 
 defaults:
   run:
@@ -40,13 +32,6 @@ jobs:
           show-progress: false
           ref: ${{ github.ref }}
 
-      - name: Checkout beta branch for prerelease
-        if: ${{ inputs.release-type == 'beta' }}
-        run: |
-          echo "Creating local beta branch for prerelease..."
-          git checkout -b beta
-          echo "Current branch: $(git branch --show-current)"
-
       - name: Semantic Release
         id: semantic-release
         uses: cycjimmy/semantic-release-action@v4
@@ -69,7 +54,7 @@ jobs:
               echo "| Name | Value |"
               echo "| ---- | ----- |"
               echo "| Release | [${{ steps.semantic-release.outputs.new_release_version }}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${{ steps.semantic-release.outputs.new_release_git_tag }}) |"
-              echo "| Release Type | ${{ inputs.release-type }} |"
+              echo "| Release Type | ${{ github.ref_name == 'beta' && 'beta' || 'release' }} |"
               echo "| Old Version | [${{ steps.semantic-release.outputs.last_release_git_tag }}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${{ steps.semantic-release.outputs.last_release_git_tag }}) |"
               echo "| Diff | [${{ steps.semantic-release.outputs.last_release_git_tag }}...${{ steps.semantic-release.outputs.new_release_git_tag }}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/${{ steps.semantic-release.outputs.last_release_git_tag }}...${{ steps.semantic-release.outputs.new_release_git_tag }}) |"
               echo "| Browse files | [${{ steps.semantic-release.outputs.new_release_git_tag }}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/tree/${{ steps.semantic-release.outputs.new_release_git_tag }}) |"
@@ -123,4 +108,4 @@ jobs:
             fabric
           game-versions: |-
             1.21.4
-          channel: ${{ inputs.release-type == 'beta' && 'beta' || 'release' }}
+          channel: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}
