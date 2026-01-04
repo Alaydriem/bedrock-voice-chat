@@ -40,6 +40,24 @@ jobs:
           show-progress: false
           ref: ${{ github.ref }}
 
+      - name: Configure beta prerelease
+        if: ${{ inputs.release-type == 'beta' }}
+        working-directory: ./mods/java
+        run: |
+          echo "Configuring semantic-release for beta prerelease..."
+          # Update .releaserc.json to mark master/main as prerelease branches
+          jq '.branches = [
+            "+([0-9])?(.{+([0-9]),x}).x",
+            {"name": "master", "prerelease": "beta"},
+            {"name": "main", "prerelease": "beta"},
+            "next",
+            "next-major",
+            {"name": "beta", "prerelease": true},
+            {"name": "alpha", "prerelease": true}
+          ]' .releaserc.json > .releaserc.tmp && mv .releaserc.tmp .releaserc.json
+          echo "Updated .releaserc.json:"
+          cat .releaserc.json
+
       - name: Semantic Release
         id: semantic-release
         uses: cycjimmy/semantic-release-action@v4
@@ -70,17 +88,19 @@ jobs:
         run: |
           # Generate a GitHub summary
           {
-              echo "Modrith Release information ${{ steps.semantic-release.outputs.new_release_version }}"
-              echo "| Name             | Value      |"
-              echo "| -----------------| ---------- |"
-              echo "| Release          | [${{ steps.semantic-release.outputs.new_release_version }}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${{ steps.semantic-release.outputs.new_release_git_tag }}) |"
-              echo "| Old Version      | [${{ steps.semantic-release.outputs.last_release_git_tag }}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${{ steps.semantic-release.outputs.last_release_git_tag }}) |"
-              echo "| Diff             | [${{ steps.semantic-release.outputs.last_release_git_tag }}...${{ steps.semantic-release.outputs.new_release_git_tag }}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/${{ steps.semantic-release.outputs.last_release_git_tag }}...${{ steps.semantic-release.outputs.new_release_git_tag }}) |"
-              echo "| Browse files     | [${{ steps.semantic-release.outputs.new_release_git_tag }}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/tree/${{ steps.semantic-release.outputs.new_release_git_tag }}) |"
-              echo "| Commit           | [${{ steps.semantic-release.outputs.new_release_git_head }}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${{ steps.semantic-release.outputs.new_release_git_head }}) |"
-              echo "| Dry Run          | ${{ inputs.dry-run && ':white_check_mark: Yes' || ':x: No' }} |"
-
-              echo ":warning: Links to the new version ${{ steps.semantic-release.outputs.new_release_version }} will be working only if the release is created"
+              echo "## Modrinth Release ${{ steps.semantic-release.outputs.new_release_version }}"
+              echo ""
+              echo "| Name | Value |"
+              echo "| ---- | ----- |"
+              echo "| Release | [${{ steps.semantic-release.outputs.new_release_version }}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${{ steps.semantic-release.outputs.new_release_git_tag }}) |"
+              echo "| Release Type | ${{ inputs.release-type }} |"
+              echo "| Old Version | [${{ steps.semantic-release.outputs.last_release_git_tag }}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${{ steps.semantic-release.outputs.last_release_git_tag }}) |"
+              echo "| Diff | [${{ steps.semantic-release.outputs.last_release_git_tag }}...${{ steps.semantic-release.outputs.new_release_git_tag }}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/${{ steps.semantic-release.outputs.last_release_git_tag }}...${{ steps.semantic-release.outputs.new_release_git_tag }}) |"
+              echo "| Browse files | [${{ steps.semantic-release.outputs.new_release_git_tag }}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/tree/${{ steps.semantic-release.outputs.new_release_git_tag }}) |"
+              echo "| Commit | [${{ steps.semantic-release.outputs.new_release_git_head }}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${{ steps.semantic-release.outputs.new_release_git_head }}) |"
+              echo "| Dry Run | ${{ inputs.dry-run && 'Yes' || 'No' }} |"
+              echo ""
+              echo "> **Note:** Links to the new version will only work after the release is created"
           } >> $GITHUB_STEP_SUMMARY
 
   build-mod:
@@ -113,7 +133,7 @@ jobs:
           token: ${{ secrets.MODRITH_PAT }}
           project: ${{ secrets.MODRITH_ID }}
           files: ./artifacts/bedrock-voice-chat-${{ needs.prepare-release.outputs.new_release_version }}.jar
-          primary-file: ./artifacts/bedrock-voice-chat-${{ needs.prepare-release.outputs.new_release_version }}.jar
+          primary-file: bedrock-voice-chat-${{ needs.prepare-release.outputs.new_release_version }}.jar
           version: ${{ needs.prepare-release.outputs.new_release_version }}
           name: Bedrock Voice Chat ${{ needs.prepare-release.outputs.new_release_version }}
           changelog: ${{ needs.prepare-release.outputs.new_release_notes }}
