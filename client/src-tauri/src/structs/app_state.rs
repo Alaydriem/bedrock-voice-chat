@@ -156,8 +156,9 @@ impl AppState {
     /// Retrieves the current audio device, defaults to `default`,
     /// Which is the system audio driver default
     fn setup_audio_device(io: AudioDeviceType, store: &Arc<Store<Wry>>) -> AudioDevice {
-        let (name, host, stream_configs, display_name) = match store.get(io.to_string()) {
+        let (id, name, host, stream_configs, display_name) = match store.get(io.to_string()) {
             Some(s) => (
+                s.get("id").map(|v| v.to_string().replace('\"', "")),
                 s.get("name").unwrap().to_string().replace('\"', ""),
                 serde_json::from_str::<AudioDeviceHost>(
                     s.get("host").unwrap().to_string().as_str(),
@@ -193,16 +194,20 @@ impl AppState {
                 let stream_config = AudioDevice::to_stream_config(default_configs);
 
                 (
+                    default_device.id().ok(),
                     "default".to_string(),
                     AudioDeviceHost::try_from(default_host.id()).unwrap(),
                     stream_config,
-                    default_device.name().unwrap(),
+                    default_device.description().unwrap_or_else(||
+                        default_device.id().unwrap_or_else(|_| "default".to_string())
+                    ),
                 )
             }
         };
 
         AudioDevice {
             io,
+            id,
             name,
             host,
             stream_configs,
