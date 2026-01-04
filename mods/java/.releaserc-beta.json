@@ -1,0 +1,35 @@
+{
+  "tagFormat": "java-mod-v${version}",
+  "branches": [
+    "+([0-9])?(.{+([0-9]),x}).x",
+    {"name": "master", "prerelease": "beta"},
+    {"name": "beta", "prerelease": true},
+    {"name": "alpha", "prerelease": true}
+  ],
+  "plugins": [
+    [
+      "@semantic-release/commit-analyzer",
+      {
+        "releaseRules": [
+          {"type": "perf", "release": "patch"},
+          {"type": "refactor", "release": "patch"},
+          {"type": "revert", "release": "patch"},
+          {"type": "chore", "release": "patch"},
+          {"type": "docs", "release": "patch"}
+        ]
+      }
+    ],
+    "@semantic-release/release-notes-generator",
+    "@semantic-release/changelog",
+    [
+      "@semantic-release/github",
+      {
+        "successComment": false,
+        "failComment": false,
+        "labels": false,
+        "releaseLabels": false,
+        "discussionCategoryName": false
+      }
+    ]
+  ]
+}
