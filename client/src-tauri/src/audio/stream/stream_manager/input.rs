@@ -10,8 +10,7 @@ use common::RecordingPlayerData;
 use log::{error, debug, warn};
 use once_cell::sync::Lazy;
 use opus2::Bitrate;
-use rodio::cpal::traits::StreamTrait as CpalStreamTrait;
-use rodio::DeviceTrait;
+use cpal::traits::{StreamTrait as CpalStreamTrait, DeviceTrait};
 use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -113,7 +112,7 @@ impl common::traits::StreamTrait for InputStream {
 
         let mut jobs = vec![];
 
-        let (producer, consumer) = flume::bounded::<AudioFrame>(1000);
+        let (producer, consumer) = flume::bounded::<AudioFrame>(50);
 
         // Get current player name from store before starting (fail fast if not set)
         let store = self.app_handle.store("store.json")
@@ -174,7 +173,7 @@ impl InputStream {
         match self.device.clone() {
             Some(device) => match device.get_stream_config() {
                 Ok(config) => {
-                    let cpal_device: Option<rodio::cpal::Device> = device.clone().into();
+                    let cpal_device: Option<cpal::Device> = device.clone().into();
 
                     let handle = match cpal_device {
                         Some(cpal_device) => tokio::spawn(async move {
@@ -188,7 +187,7 @@ impl InputStream {
 
                             let cpal_device = cpal_device.clone();
                             let device = device.clone();
-                            let device_config = rodio::cpal::StreamConfig {
+                            let device_config = cpal::StreamConfig {
                                 channels: config.channels(),
                                 sample_rate: config.sample_rate(),
                                 buffer_size,
@@ -220,8 +219,22 @@ impl InputStream {
 
                             drop(settings);
 
-                            let error_fn = move |error| {
-                                warn!("an error occured on the stream: {}", error);
+                            let error_fn = {
+                                let device_name = device.display_name.clone();
+                                move |err| {
+                                    // Enhanced error logging for CPAL 0.17 variants
+                                    match err {
+                                        cpal::StreamError::DeviceNotAvailable => {
+                                            error!("Device '{}' disconnected during stream", device_name);
+                                        },
+                                        cpal::StreamError::BackendSpecific { err } => {
+                                            error!("Backend error for '{}': {}", device_name, err);
+                                        },
+                                        _ => {
+                                            warn!("Stream error on '{}': {:?}", device_name, err);
+                                        }
+                                    }
+                                }
                             };
 
                             let mut callback_count = 0u64;
@@ -308,7 +321,7 @@ impl InputStream {
                             };
 
                             let stream = match config.sample_format() {
-                                rodio::cpal::SampleFormat::F32 => cpal_device.build_input_stream(
+                                cpal::SampleFormat::F32 => cpal_device.build_input_stream(
                                     &device_config,
                                     move |data: &[f32], _: &cpal::InputCallbackInfo| {
                                         process_fn(&data);
@@ -316,7 +329,7 @@ impl InputStream {
                                     error_fn,
                                     None,
                                 ),
-                                rodio::cpal::SampleFormat::I32 => cpal_device.build_input_stream(
+                                cpal::SampleFormat::I32 => cpal_device.build_input_stream(
                                     &device_config,
                                     move |data: &[i32], _: &cpal::InputCallbackInfo| {
                                         const SCALE: f32 = 2147483648.0; // 2^31 to normalize properly
@@ -329,7 +342,7 @@ impl InputStream {
                                     error_fn,
                                     None,
                                 ),
-                                rodio::cpal::SampleFormat::I16 => cpal_device.build_input_stream(
+                                cpal::SampleFormat::I16 => cpal_device.build_input_stream(
                                     &device_config,
                                     move |data: &[i16], _: &cpal::InputCallbackInfo| {
                                         const SCALE: f32 = 32768.0; // 2^15 to normalize properly
@@ -350,33 +363,26 @@ impl InputStream {
 
                             match stream {
                                 Ok(stream) => {
-                                    _ = stream.play().unwrap();
+                                    stream.play().unwrap();
 
-                                    // Get the current thread handle
-                                    let thread = std::thread::current();
-
-                                    // Spawn a thread that will unpark when shutdown is triggered
+                                    // Store stream in Arc to keep it alive
+                                    let stream_holder = Arc::new(Mutex::new(Some(stream)));
+                                    let stream_for_cleanup = stream_holder.clone();
                                     let shutdown_clone = shutdown.clone();
-                                    let thread_clone = thread.clone();
-                                    std::thread::spawn(move || {
+                                    let device_name = device.display_name.clone();
+                                    let device_io = device.io.clone();
+
+                                    tokio::spawn(async move {
                                         while !shutdown_clone.load(Ordering::Relaxed) {
-                                            std::thread::sleep(Duration::from_millis(100));
+                                            tokio::time::sleep(Duration::from_millis(100)).await;
                                         }
-                                        thread_clone.unpark();
+
+                                        // Graceful shutdown
+                                        if let Some(stream) = stream_for_cleanup.lock().unwrap().take() {
+                                            let _ = stream.pause();
+                                            warn!("{} {} ended.", device_io.to_string(), device_name);
+                                        }
                                     });
-
-                                    // Park the current thread until shutdown
-                                    std::thread::park();
-
-                                    stream.pause().unwrap();
-
-                                    warn!(
-                                        "{} {} ended.",
-                                        device.io.to_string(),
-                                        device.display_name
-                                    );
-                                    drop(stream);
-                                    return;
                                 }
                                 Err(e) => {
                                     error!("{:?}", e);
@@ -423,7 +429,7 @@ impl InputStream {
                         #[cfg(not(target_os = "ios"))]
                         let buffer_size = cpal::BufferSize::Fixed(crate::audio::types::BUFFER_SIZE);
 
-                        let device_config = rodio::cpal::StreamConfig {
+                        let device_config = cpal::StreamConfig {
                             channels: match config.channels() {
                                 1 => 1,
                                 2 => 2,
