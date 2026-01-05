@@ -1,3 +1,4 @@
 *.mcpack
 *.mcaddon
 node_modules/
+*.zip

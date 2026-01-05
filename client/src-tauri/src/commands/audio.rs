@@ -45,13 +45,10 @@ pub(crate) async fn change_audio_device(
     asm: State<'_, Mutex<AudioStreamManager>>,
 ) -> Result<(), String> {
     let mut state = state.lock().await;
+    let mut asm_active = asm.lock().await;
 
     // Reset the AudioStreamManager
-    _ = reset_asm(app.clone(), asm.clone()).await;
-
-    // Fetch the new Audio Stream Manager instance
-    let asm = app.state::<Mutex<AudioStreamManager>>();
-    let mut asm_active = asm.lock().await;
+    _ = asm_active.reset().await;
 
     // Reinitialize the input and output devices
     // Input device will be lazily initialized here if permissions are granted
@@ -64,7 +61,6 @@ pub(crate) async fn change_audio_device(
     _ = asm_active.start(output_device.clone().io).await;
 
     drop(asm_active);
-    let asm = app.state::<Mutex<AudioStreamManager>>();
 
     _ = update_current_player(app.clone(), asm.clone());
 
@@ -86,22 +82,10 @@ pub(crate) async fn update_stream_metadata(
 
 #[tauri::command]
 pub(crate) async fn reset_asm(
-    handle: AppHandle,
     asm: State<'_, Mutex<AudioStreamManager>>,
 ) -> Result<(), ()> {
     let mut asm = asm.lock().await;
-    _ = asm.stop(AudioDeviceType::OutputDevice).await;
-    _ = asm.stop(AudioDeviceType::InputDevice).await;
-
-    _ = tokio::time::sleep(Duration::from_millis(100)).await;
-
-    handle.manage(Mutex::new(AudioStreamManager::new(
-        handle.state::<Arc<Sender<NetworkPacket>>>().inner().clone(),
-        handle.state::<Arc<Receiver<AudioPacket>>>().inner().clone(),
-        handle.clone(),
-        Some(handle.state::<Arc<tauri::async_runtime::Mutex<crate::audio::recording::RecordingManager>>>().inner().clone()),
-    )));
-
+    _ = asm.reset().await;
     Ok(())
 }
 
@@ -270,4 +254,13 @@ async fn extract_current_player(app: &AppHandle) -> Option<String> {
         .get("current_player")?
         .as_str()
         .map(String::from)
+}
+
+/// Returns the list of currently tracked players from the output stream's presence cache
+#[tauri::command]
+pub(crate) async fn get_current_players(
+    asm: State<'_, Mutex<AudioStreamManager>>,
+) -> Result<Vec<String>, ()> {
+    let asm = asm.lock().await;
+    Ok(asm.get_current_players())
 }

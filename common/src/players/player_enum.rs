@@ -1,6 +1,7 @@
-use crate::{Coordinate, Game, Orientation};
+use crate::errors::CommunicationError;
 use crate::players::{GenericPlayer, MinecraftPlayer};
 use crate::traits::player_data::{PlayerData, SpatialPlayer};
+use crate::{Coordinate, Game, Orientation};
 use serde::{Deserialize, Serialize};
 
 /// Type-safe enum for storing heterogeneous player types
@@ -61,10 +62,17 @@ impl SpatialPlayer for PlayerEnum {}
 impl PlayerEnum {
     /// Dispatch to game-specific can_communicate_with implementation
     /// Each game type knows how to handle its own spatial logic
-    pub fn can_communicate_with(&self, other: &PlayerEnum, range: f32) -> bool {
+    pub fn can_communicate_with(
+        &self,
+        other: &PlayerEnum,
+        range: f32,
+    ) -> Result<(), CommunicationError> {
         // Players from different games can't communicate
         if self.get_game() != other.get_game() {
-            return false;
+            return Err(CommunicationError::GameMismatch {
+                sender_game: self.get_game(),
+                recipient_game: other.get_game(),
+            });
         }
 
         // Dispatch to the game-specific implementation
@@ -73,14 +81,14 @@ impl PlayerEnum {
                 if let PlayerEnum::Minecraft(mc_other) = other {
                     mc_self.can_communicate_with(mc_other, range)
                 } else {
-                    false
+                    unreachable!("Game mismatch already checked above")
                 }
             }
             PlayerEnum::Generic(gen_self) => {
                 if let PlayerEnum::Generic(gen_other) = other {
                     gen_self.can_communicate_with(gen_other, range)
                 } else {
-                    false
+                    unreachable!("Game mismatch already checked above")
                 }
             }
         }

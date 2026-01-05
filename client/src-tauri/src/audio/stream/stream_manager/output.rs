@@ -687,4 +687,12 @@ impl OutputStream {
     pub fn mute_status(&self) -> bool {
         MUTE_OUTPUT_STREAM.load(Ordering::Relaxed)
     }
+
+    /// Returns the list of currently tracked players from the presence cache
+    pub fn get_current_players(&self) -> Vec<String> {
+        self.player_presence
+            .iter()
+            .map(|(name, _)| (*name).clone())
+            .collect()
+    }
 }

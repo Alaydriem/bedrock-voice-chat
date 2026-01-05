@@ -109,68 +109,6 @@ async fn client(
 
     let mut tasks = Vec::new();
 
-    // API Position Update Task
-    tasks.push(tokio::spawn({
-        let api_shutdown = api_shutdown.clone();
-        let player_name = id.clone();
-        let api_token_clone = api_token.clone();
-        let server_name_clone = server_name.clone();
-
-        async move {
-            // Build API URL using server_name instead of socket address
-            let api_url = format!("https://{}/api/position", server_name_clone);
-
-            let client = reqwest::Client::builder()
-                .danger_accept_invalid_certs(true) // For self-signed certs
-                .build()
-                .unwrap();
-
-            println!("Starting API position updates to: {}", api_url);
-
-            while !api_shutdown.load(Ordering::Relaxed) {
-                let payload = serde_json::json!({"game": "minecraft", "players":[{
-                    "name": player_name,
-                    "dimension": "overworld",
-                    "coordinates": {
-                        "x": 336.0,
-                        "y": 78.0,
-                        "z": -690.0
-                    },
-                    "orientation": {
-                        "x": 0,
-                        "y": 120
-                    },
-                    "deafen": false
-                }]});
-
-                match client
-                    .post(&api_url)
-                    .header("X-MC-Access-Token", &api_token_clone)
-                    .header("Content-Type", "application/json")
-                    .header("Accept", "application/json")
-                    .header("User-Agent", "BVC-Broadcast-Client/0.1")
-                    .json(&payload)
-                    .send()
-                    .await
-                {
-                    Ok(response) => {
-                        if !response.status().is_success() {
-                            eprintln!("[API] Position update failed: {}", response.status());
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("[API] Request error: {}", e);
-                    }
-                }
-
-                // Wait 5 seconds before next update
-                tokio::time::sleep(Duration::from_secs(5)).await;
-            }
-
-            println!("[API] Position update task terminated");
-        }
-    }));
-
     tasks.push(tokio::spawn({
         let connection = connection.clone();
         async move {
@@ -348,18 +286,7 @@ async fn client(
 
                 let s = encoder.encode_vec(&mono_chunk, 960).unwrap();
 
-                let test_player = common::players::MinecraftPlayer {
-                    name: id.clone(),
-                    coordinates: common::Coordinate {
-                        x: 336.0,
-                        y: 78.0,
-                        z: -690.0,
-                    },
-                    orientation: common::Orientation { x: 0.0, y: 0.0 },
-                    dimension: common::Dimension::Overworld,
-                    deafen: false,
-                };
-
+                // Don't include sender - let server use position from cache (updated by API task)
                 let packet = QuicNetworkPacket {
                     owner: Some(common::structs::packet::PacketOwner {
                         name: id.clone(),
@@ -370,8 +297,8 @@ async fn client(
                         common::structs::packet::AudioFramePacket::new(
                             s.clone(),
                             48000,
-                            Some(common::PlayerEnum::Minecraft(test_player)),
-                            None,
+                            None, // Use position from server cache
+                            None, // Default spatial behavior
                         ),
                     ),
                 };
@@ -439,18 +366,7 @@ async fn client(
                     .encode_vec(&final_chunk, final_chunk.len() * 4)
                     .unwrap();
 
-                let final_test_player = common::players::MinecraftPlayer {
-                    name: id.clone(),
-                    coordinates: common::Coordinate {
-                        x: 335.0,
-                        y: 78.0,
-                        z: -689.0,
-                    },
-                    orientation: common::Orientation { x: 0.0, y: 0.0 },
-                    dimension: common::Dimension::Overworld,
-                    deafen: false,
-                };
-
+                // Don't include sender - let server use position from cache
                 let packet = QuicNetworkPacket {
                     owner: Some(common::structs::packet::PacketOwner {
                         name: id.clone(),
@@ -461,8 +377,8 @@ async fn client(
                         common::structs::packet::AudioFramePacket::new(
                             s.clone(),
                             48000,
-                            Some(common::PlayerEnum::Minecraft(final_test_player)),
-                            None,
+                            None, // Use position from server cache
+                            None, // Default spatial behavior
                         ),
                     ),
                 };

@@ -156,6 +156,11 @@ export default class Dashboard extends BVCApp {
                 // Initialize audio devices and network stream
                 await this.initializeAudioDevicesAndNetworkStream(this.store!, currentServer ?? "", this.currentServerCredentials);
 
+                // Re-initialize AudioActivityManager since shutdown() destroyed it
+                if (this.audioActivityManager) {
+                    await this.audioActivityManager.initialize();
+                }
+
                 // Update notification
                 await updateNotification({
                     title: "Bedrock Voice Chat",

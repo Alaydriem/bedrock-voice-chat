@@ -1,6 +1,8 @@
-<script lang="ts">    
+<script lang="ts">
+    import { onDestroy } from 'svelte';
+    import { info } from '@tauri-apps/plugin-log';
     import type { AudioActivityManager } from '../js/app/managers/AudioActivityManager';
-    
+
     export let player: string;
     export let initialGain: number = 1.0;
     export let initialMuted: boolean = false;
@@ -8,11 +10,11 @@
     export let onMuteToggle: ((muted: boolean) => void) | undefined = undefined;
     export let isGroupMember: boolean = false;
     export let audioActivityManager: AudioActivityManager;
-    
+
     let isMuted = initialMuted;
     let gain = initialGain;
     let showVolumeSlider = false;
-    
+
     const cardColors = [
         'card-bg-primary',
         'card-bg-secondary',
@@ -39,7 +41,7 @@
         'card-bg-ivory',
         'card-bg-electric-blue'
     ];
-        
+
     // Function to get consistent random color for a player (deterministic based on name)
     function getPlayerCardColor(playerName: string): string {
         let hash = 0;
@@ -50,53 +52,75 @@
         }
         return cardColors[Math.abs(hash) % cardColors.length];
     }
-    
+
     const randomCardColor = getPlayerCardColor(player);
-    
+
     function toggleMute() {
         isMuted = !isMuted;
         if (onMuteToggle) {
             onMuteToggle(isMuted);
         }
     }
-    
+
     function updateGain() {
         if (onGainChange) {
             onGainChange(gain);
         }
     }
-    
+
     function toggleVolumeSlider() {
         showVolumeSlider = !showVolumeSlider;
     }
-    
+
     // Close volume slider when clicking outside the popover or button
     function handleClickOutside(event: MouseEvent) {
-        if (showVolumeSlider && event.target instanceof Element && 
-            !event.target.closest('.volume-popover') && 
+        if (showVolumeSlider && event.target instanceof Element &&
+            !event.target.closest('.volume-popover') &&
             !event.target.closest('.volume-button')) {
             showVolumeSlider = false;
         }
     }
-    
+
     // Close volume slider when pressing ESC key
     function handleKeydown(event: KeyboardEvent) {
         if (showVolumeSlider && event.key === 'Escape') {
             showVolumeSlider = false;
         }
     }
-    
+
     // Reactive statement to update volume icon based on level
-    $: volumeIcon = gain === 0 ? 'fa-volume-off' : 
-                   gain < 0.5 ? 'fa-volume-down' : 
+    $: volumeIcon = gain === 0 ? 'fa-volume-off' :
+                   gain < 0.5 ? 'fa-volume-down' :
                    'fa-volume-up';
-    
+
     // Reactive: update internal state when props change
     $: isMuted = initialMuted;
     $: gain = initialGain;
-    
-    // Reactive: check if this player is currently speaking
-    $: isCurrentlySpeaking = audioActivityManager?.isPlayerSpeaking(player) || false;
+
+    // Subscribe to audio activity store for reactive updates
+    let isCurrentlySpeaking = false;
+    let unsubscribeActivity: (() => void) | undefined;
+
+    $: {
+        // Cleanup previous subscription when audioActivityManager changes
+        if (unsubscribeActivity) {
+            unsubscribeActivity();
+            unsubscribeActivity = undefined;
+        }
+
+        if (audioActivityManager?.audioActivity) {
+            unsubscribeActivity = audioActivityManager.audioActivity.subscribe(state => {
+                const newValue = state?.activeSpeakers[player]?.isHighlighted || false;
+                isCurrentlySpeaking = newValue;
+            });
+        }
+    }
+
+    onDestroy(() => {
+        if (unsubscribeActivity) {
+            unsubscribeActivity();
+        }
+    });
 </script>
 
 <svelte:window on:click={handleClickOutside} on:keydown={handleKeydown} />
@@ -104,13 +128,13 @@
 <!-- Gradient border wrapper with consistent sizing -->
 <div class="player-card-wrapper {isCurrentlySpeaking ? 'speaking' : ''} {isGroupMember ? 'rounded-lg bg-gradient-to-r from-violet-400 to-purple-600 p-1' : ''}"
      data-player={player}>
-    
+
     <!-- Inner card content -->
     <div class="card player-card items-center text-center pb-5">
-        
+
         <!-- Random background color overlay -->
         <div class="player-card-overlay {randomCardColor}"></div>
-        
+
         <!-- Avatar with status indicator -->
         <div class="avatar w-20 h-20 mask is-octagon relative mx-auto mt-6">
             <div class="is-initial bg-gray-600 text-white flex items-center justify-center text-lg font-semibold">
@@ -118,11 +142,11 @@
             </div>
         </div>
         <!-- Status indicator - positioned absolutely relative to the avatar container -->
-        <div class="absolute top-5 right-1/2 transform translate-x-8 w-4 h-4 rounded-full border-2 border-white 
-                    {isMuted ? 'bg-red-500' : 'bg-green-500'} 
+        <div class="absolute top-5 right-1/2 transform translate-x-8 w-4 h-4 rounded-full border-2 border-white
+                    {isMuted ? 'bg-red-500' : 'bg-green-500'}
                     dark:border-navy-700 z-20">
         </div>
-        
+
         <!-- Player name -->
         <h3 class="mt-4 text-sm font-medium text-navy-100 dark:text-navy-100 px-2 truncate">{player}</h3>
 
@@ -130,15 +154,15 @@
     {#if showVolumeSlider}
         <div class="volume-popover">
             <div class="flex items-center space-x-3">
-                <input 
-                    type="range" 
-                    min="0" 
-                    max="1.5" 
-                    step="0.05" 
+                <input
+                    type="range"
+                    min="0"
+                    max="1.5"
+                    step="0.05"
                     bind:value={gain}
                     on:input={updateGain}
                     disabled={isMuted}
-                    class="flex-1 h-2 rounded-lg appearance-none cursor-pointer 
+                    class="flex-1 h-2 rounded-lg appearance-none cursor-pointer
                             bg-slate-700 border border-slate-600
                             {isMuted ? 'opacity-50' : ''}"
                 />
@@ -158,10 +182,10 @@
                         aria-label={isMuted ? `Unmute ${player}` : `Mute ${player}`}>
                     <i class="fas fa-microphone{isMuted ? '-slash' : ''} text-xs"></i>
                 </button>
-                
+
                 <!-- Divider -->
                 <div class="control-pill-divider"></div>
-                
+
                 <!-- Volume button (right side) -->
                 <button class="control-pill-button volume-button text-slate-300 {showVolumeSlider ? 'bg-slate-700' : ''}"
                         class:text-slate-500={isMuted}

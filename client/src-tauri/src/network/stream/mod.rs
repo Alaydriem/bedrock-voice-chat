@@ -113,4 +113,29 @@ impl NetworkStreamManager {
 
         Ok(())
     }
+
+    /// Resets the network stream manager by stopping all streams and recreating them
+    pub async fn reset(&mut self) -> Result<(), anyhow::Error> {
+        // Stop both streams concurrently
+        let (_, _) = tokio::join!(
+            self.input.stop(),
+            self.output.stop()
+        );
+
+        // Recreate streams without connection (will be reconnected later)
+        self.input = StreamTraitType::Input(stream_manager::InputStream::new(
+            self.producer.clone(),
+            None,
+            self.app_handle.clone(),
+        ));
+
+        self.output = StreamTraitType::Output(stream_manager::OutputStream::new(
+            self.consumer.clone(),
+            None,
+            None,
+            self.app_handle.clone(),
+        ));
+
+        Ok(())
+    }
 }

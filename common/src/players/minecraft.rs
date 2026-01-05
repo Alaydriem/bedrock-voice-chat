@@ -1,6 +1,7 @@
-use crate::{Coordinate, Game, Orientation};
+use crate::errors::{CommunicationError, MinecraftCommunicationError};
 use crate::game_data::Dimension;
 use crate::traits::player_data::{PlayerData, SpatialPlayer};
+use crate::{Coordinate, Game, Orientation};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -41,13 +42,30 @@ impl PlayerData for MinecraftPlayer {
 impl SpatialPlayer for MinecraftPlayer {}
 
 impl MinecraftPlayer {
-    pub fn can_communicate_with(&self, other: &MinecraftPlayer, range: f32) -> bool {
+    pub fn can_communicate_with(
+        &self,
+        other: &MinecraftPlayer,
+        range: f32,
+    ) -> Result<(), CommunicationError> {
         if !self.dimension.eq(&other.dimension) {
-            return false;
+            return Err(CommunicationError::minecraft(
+                MinecraftCommunicationError::DimensionMismatch {
+                    sender: self.dimension.clone(),
+                    recipient: other.dimension.clone(),
+                },
+            ));
         }
 
         let proximity = 1.73 * range;
-        self.distance_to(other) <= proximity
+        let distance = self.distance_to(other);
+        if distance > proximity {
+            return Err(CommunicationError::OutOfRange {
+                distance,
+                max_range: proximity,
+            });
+        }
+
+        Ok(())
     }
 }
 

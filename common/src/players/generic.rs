@@ -1,5 +1,6 @@
-use crate::{Coordinate, Game, Orientation};
+use crate::errors::CommunicationError;
 use crate::traits::player_data::{PlayerData, SpatialPlayer};
+use crate::{Coordinate, Game, Orientation};
 use serde::{Deserialize, Serialize};
 
 /// Generic player implementation for games that don't need special spatial logic
@@ -38,7 +39,18 @@ impl PlayerData for GenericPlayer {
 impl SpatialPlayer for GenericPlayer {}
 
 impl GenericPlayer {
-    pub fn can_communicate_with(&self, other: &GenericPlayer, range: f32) -> bool {
-        self.distance_to(other) <= range
+    pub fn can_communicate_with(
+        &self,
+        other: &GenericPlayer,
+        range: f32,
+    ) -> Result<(), CommunicationError> {
+        let distance = self.distance_to(other);
+        if distance > range {
+            return Err(CommunicationError::OutOfRange {
+                distance,
+                max_range: range,
+            });
+        }
+        Ok(())
     }
 }
