@@ -205,4 +205,50 @@ impl AudioStreamManager {
 
         Ok(status)
     }
+
+    /// Resets the audio stream manager by stopping all streams and recreating them
+    /// This is used when a full reset is needed (e.g., after page refresh)
+    pub async fn reset(&mut self) -> Result<(), Error> {
+        // Stop both streams concurrently
+        let (_, _) = tokio::join!(
+            self.input.stop(),
+            self.output.stop()
+        );
+
+        // Get recording producer from manager if available
+        let recording_producer = if let Some(ref rm) = self.recording_manager {
+            let manager = rm.lock().await;
+            Some(manager.get_producer())
+        } else {
+            None
+        };
+
+        // Recreate input stream, preserving metadata
+        self.input = StreamTraitType::Input(stream_manager::InputStream::new(
+            None,
+            self.producer.clone(),
+            self.input.get_metadata().clone(),
+            self.app_handle.clone(),
+            recording_producer.clone(),
+        ));
+
+        // Recreate output stream, preserving metadata
+        self.output = StreamTraitType::Output(stream_manager::OutputStream::new(
+            None,
+            self.consumer.clone(),
+            self.output.get_metadata().clone(),
+            self.app_handle.clone(),
+            recording_producer,
+        ));
+
+        Ok(())
+    }
+
+    /// Returns the list of currently tracked players from the output stream's presence cache
+    pub fn get_current_players(&self) -> Vec<String> {
+        match &self.output {
+            StreamTraitType::Output(stream) => stream.get_current_players(),
+            _ => vec![],
+        }
+    }
 }

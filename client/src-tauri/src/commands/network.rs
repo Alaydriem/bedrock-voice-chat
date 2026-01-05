@@ -97,22 +97,9 @@ pub(crate) async fn change_network_stream(
 
 #[tauri::command]
 pub(crate) async fn reset_nsm(
-    handle: AppHandle,
     nsm: State<'_, Mutex<NetworkStreamManager>>,
 ) -> Result<(), ()> {
     let mut nsm = nsm.lock().await;
-    _ = nsm.stop().await;
-
-    _ = tokio::time::sleep(Duration::from_millis(100)).await;
-
-    handle.manage(Mutex::new(NetworkStreamManager::new(
-        handle.state::<Arc<Sender<AudioPacket>>>().inner().clone(),
-        handle
-            .state::<Arc<Receiver<NetworkPacket>>>()
-            .inner()
-            .clone(),
-        handle.clone(),
-    )));
-
+    _ = nsm.reset().await;
     Ok(())
 }

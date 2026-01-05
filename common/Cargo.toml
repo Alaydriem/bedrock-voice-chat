@@ -61,6 +61,7 @@ postcard = { version = "^1.1", features = [ "use-std", "postcard-derive" ] }
 residua-zigzag = { version = "^0.1", package = "residua-zigzag" }
 leb128 = { version = "^0.2" }
 serde_bytes = { version = "^0.11" }
+thiserror = { version = "^2" }
 
 # Optional: QUIC support
 s2n-quic = { version = "=1.71.0", default-features = false, features = [

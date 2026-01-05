@@ -12,6 +12,7 @@ export class PlayerPresenceManager {
     private playerManager: PlayerManager;
     private unlisten?: () => void;
     private isInitialized = false;
+    private syncInterval?: ReturnType<typeof setInterval>;
 
     constructor(store: Store, playerManager: PlayerManager) {
         this.store = store;
@@ -29,7 +30,56 @@ export class PlayerPresenceManager {
             this.handlePresenceEvent(event);
         });
 
+        // Initial sync from backend
+        await this.syncCurrentPlayers();
+
+        // Periodic sync every 30 seconds as safety net
+        this.syncInterval = setInterval(() => this.syncCurrentPlayers(), 10000);
+
         this.isInitialized = true;
+    }
+
+    private async syncCurrentPlayers(): Promise<void> {
+        try {
+            const backendPlayers = new Set(await invoke<string[]>("get_current_players"));
+            const frontendPlayers = this.playerManager.getAll();
+            const frontendPlayerNames = new Set(frontendPlayers.map(p => p.name));
+
+            // Calculate differences
+            const toAdd: string[] = [];
+            const toRemove: string[] = [];
+
+            for (const playerName of backendPlayers) {
+                // Only add if not already present with Proximity source
+                if (!this.playerManager.hasPlayerSource(playerName, 'Proximity')) {
+                    toAdd.push(playerName);
+                }
+            }
+
+            for (const playerName of frontendPlayerNames) {
+                // Only remove Proximity source if backend doesn't have them
+                if (!backendPlayers.has(playerName) && this.playerManager.hasPlayerSource(playerName, 'Proximity')) {
+                    toRemove.push(playerName);
+                }
+            }
+
+            // Skip if no changes needed
+            if (toAdd.length === 0 && toRemove.length === 0) {
+                return;
+            }
+
+            // Apply changes
+            for (const playerName of toAdd) {
+                const settings = await this.getPlayerSettings(playerName);
+                await this.playerManager.addPlayerSource(playerName, 'Proximity', settings);
+            }
+
+            for (const playerName of toRemove) {
+                this.playerManager.removePlayerSource(playerName, 'Proximity');
+            }
+        } catch (err) {
+            error(`Failed to sync current players: ${err}`);
+        }
     }
 
     private async handlePresenceEvent(event: any): Promise<void> {
@@ -158,6 +208,11 @@ export class PlayerPresenceManager {
     }
 
     cleanup(): void {
+        if (this.syncInterval) {
+            clearInterval(this.syncInterval);
+            this.syncInterval = undefined;
+        }
+
         if (this.unlisten) {
             try {
                 this.unlisten();

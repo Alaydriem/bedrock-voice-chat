@@ -2,6 +2,7 @@ pub mod ncryptflib;
 
 pub mod auth;
 pub mod encoding;
+pub mod errors;
 pub use serde::{Deserialize, Serialize};
 
 pub mod consts;
@@ -12,6 +13,9 @@ pub mod structs;
 pub mod traits;
 pub mod players;
 pub mod game_data;
+
+// Re-export error types
+pub use errors::{CommunicationError, GameError, MinecraftCommunicationError, GenericCommunicationError};
 
 // Re-export s2n-quic when feature is enabled
 #[cfg(feature = "quic")]

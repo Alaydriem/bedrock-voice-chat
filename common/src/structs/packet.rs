@@ -253,7 +253,8 @@ impl QuicNetworkPacket {
 
                         // Use can_communicate_with() for spatial logic
                         if let (Some(sender), Some(recipient)) = (&actual_sender, &actual_recipient) {
-                            if !sender.can_communicate_with(recipient, range) {
+                            if let Err(e) = sender.can_communicate_with(recipient, range) {
+                                tracing::debug!("Audio packet rejected: {}", e);
                                 return false;
                             }
 
@@ -263,7 +264,7 @@ impl QuicNetworkPacket {
                                     self.data = QuicNetworkPacketData::AudioFrame(data);
                                     return true;
                                 }
-                                Some(false) => return false,  // Rejected: non-channel spatial=false not allowed
+                                Some(false) => return false,
                                 None => {
                                     data.spatial = Some(true);
                                     self.data = QuicNetworkPacketData::AudioFrame(data);
@@ -272,6 +273,7 @@ impl QuicNetworkPacket {
                             }
                         }
 
+                        tracing::debug!("Could not find position data for sender or recipient");
                         // Fallback: sender or recipient not in cache
                         // Only allow explicitly non-spatial audio (matches current behavior)
                         match data.spatial {
