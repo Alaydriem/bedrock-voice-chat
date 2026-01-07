@@ -8,6 +8,11 @@ on:
         required: false
         default: false
         type: boolean
+      draft:
+        description: 'Create as draft release (tag created, GH release is draft)'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -39,6 +44,26 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      - name: Configure draft release
+        if: inputs.draft == true
+        run: |
+          # Update .releaserc.json to create draft release
+          node -e "
+            const fs = require('fs');
+            const config = JSON.parse(fs.readFileSync('.releaserc.json', 'utf8'));
+            // Find and update @semantic-release/github plugin
+            config.plugins = config.plugins.map(plugin => {
+              if (Array.isArray(plugin) && plugin[0] === '@semantic-release/github') {
+                plugin[1] = { ...plugin[1], draftRelease: true };
+              } else if (plugin === '@semantic-release/github') {
+                return ['@semantic-release/github', { draftRelease: true }];
+              }
+              return plugin;
+            });
+            fs.writeFileSync('.releaserc.json', JSON.stringify(config, null, 2));
+            console.log('Updated .releaserc.json for draft release');
+          "
+
       - name: Run semantic-release
         id: semantic
         uses: cycjimmy/semantic-release-action@v4
@@ -64,6 +89,7 @@ jobs:
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Dry run: ${{ inputs.dry_run }}" >> $GITHUB_STEP_SUMMARY
+          echo "Draft: ${{ inputs.draft }}" >> $GITHUB_STEP_SUMMARY
 
   # Job 2: Build all platforms in release mode (includes Android signing)
   build-all:
