@@ -21,7 +21,7 @@ permissions:
   pull-requests: write
 
 env:
-  NODE_VERSION: 'lts'
+  NODE_VERSION: '25'
 
 jobs:
   # Job 1: Determine if there's a release and get the version
