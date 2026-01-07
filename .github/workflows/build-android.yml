@@ -113,6 +113,12 @@ jobs:
           sudo apt-get clean
           df -h
 
+      - name: Configure git to use HTTPS instead of SSH
+        run: |
+          git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git config --global url."https://github.com/".insteadOf "git+ssh://git@github.com/"
+
       - name: Install JavaScript dependencies
         working-directory: ./client
         run: yarn install --frozen-lockfile
