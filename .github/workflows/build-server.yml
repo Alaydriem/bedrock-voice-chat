@@ -29,6 +29,8 @@ on:
 
 permissions:
   contents: read
+  packages: write
+
 jobs:
   build-server:
     name: Build Server (${{ matrix.target }} - ${{ github.event_name == 'pull_request' && 'debug' || startsWith(github.ref, 'refs/tags/') && 'release' || inputs.build_mode || 'debug' }})
