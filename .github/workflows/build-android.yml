@@ -306,7 +306,7 @@ jobs:
             yarn tauri android build --debug --target aarch64 armv7
           elif [ "${{ inputs.build_mode || 'debug' }}" = "release" ]; then
             echo "Building in release mode"
-            yarn tauri android build --release --target aarch64 armv7
+            yarn tauri android build --target aarch64 armv7
           else
             echo "Building in debug mode"
             yarn tauri android build --debug --target aarch64 armv7
