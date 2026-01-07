@@ -97,6 +97,7 @@ jobs:
     uses: ./.github/workflows/build-server.yml
     with:
       build_mode: ${{ needs.changes.outputs.build_mode }}
+    secrets: inherit
 
   # Build Android client
   build-android:
@@ -106,6 +107,7 @@ jobs:
     uses: ./.github/workflows/build-android.yml
     with:
       build_mode: ${{ needs.changes.outputs.build_mode }}
+    secrets: inherit
 
   # Build iOS client
   build-ios:
@@ -115,6 +117,7 @@ jobs:
     uses: ./.github/workflows/build-ios.yml
     with:
       build_mode: ${{ needs.changes.outputs.build_mode }}
+    secrets: inherit
 
   # Build Windows client
   build-client:
@@ -124,6 +127,7 @@ jobs:
     uses: ./.github/workflows/build-client.yml
     with:
       build_mode: ${{ needs.changes.outputs.build_mode }}
+    secrets: inherit
 
   # Build Java (Fabric) Mod
   build-java-mod:
@@ -131,6 +135,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.java-mod == 'true'
     uses: ./.github/workflows/build-mod-java.yml
+    secrets: inherit
 
   # Build BDS Pack
   build-bds-pack:
@@ -138,6 +143,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.bds-pack == 'true'
     uses: ./.github/workflows/build-mod-bds.yml
+    secrets: inherit
 
   # Collect and organize all artifacts
   collect-artifacts:

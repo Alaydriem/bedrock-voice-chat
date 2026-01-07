@@ -91,31 +91,51 @@ jobs:
           echo "Dry run: ${{ inputs.dry_run }}" >> $GITHUB_STEP_SUMMARY
           echo "Draft: ${{ inputs.draft }}" >> $GITHUB_STEP_SUMMARY
 
-  # Job 2: Build all platforms in release mode (includes Android signing)
-  build-all:
-    name: Build All Platforms
+  # Job 2: Build server (release mode)
+  build-server:
+    name: Build Server (release)
     needs: prepare-release
     if: needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false
-    uses: ./.github/workflows/build-all-release.yml
+    uses: ./.github/workflows/build-server.yml
     with:
-      version: ${{ needs.prepare-release.outputs.new_version }}
+      build_mode: release
     secrets: inherit
 
-  # Job 3: Build Docker image
+  # Job 3: Build Android (release mode, includes signing)
+  build-android:
+    name: Build Android (release)
+    needs: prepare-release
+    if: needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false
+    uses: ./.github/workflows/build-android.yml
+    with:
+      build_mode: release
+    secrets: inherit
+
+  # Job 4: Build Windows client (release mode)
+  build-client:
+    name: Build Windows (release)
+    needs: prepare-release
+    if: needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false
+    uses: ./.github/workflows/build-client.yml
+    with:
+      build_mode: release
+    secrets: inherit
+
+  # Job 5: Build Docker image
   build-docker:
     name: Build Docker Image
-    needs: [prepare-release, build-all]
+    needs: [prepare-release, build-server]
     if: needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false
     uses: ./.github/workflows/build-server-docker.yml
     with:
       version: v${{ needs.prepare-release.outputs.new_version }}
     secrets: inherit
 
-  # Job 4: Upload release assets to GitHub
+  # Job 6: Upload release assets to GitHub
   upload-assets:
     name: Upload Release Assets
-    needs: [prepare-release, build-all, build-docker]
-    if: always() && needs.prepare-release.outputs.new_release == 'true' && needs.build-all.result == 'success' && inputs.dry_run == false
+    needs: [prepare-release, build-server, build-android, build-client, build-docker]
+    if: always() && needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false && (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-client.result == 'success')
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
