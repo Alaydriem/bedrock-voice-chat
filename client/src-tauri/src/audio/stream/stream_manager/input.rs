@@ -227,13 +227,18 @@ impl InputStream {
                             let mut callback_count = 0u64;
                             let mut sent_count = 0u64;
 
+                            // Pre-allocate buffer for in-place processing (max stereo size)
+                            let mut pcm_buffer: Vec<f32> = vec![0.0; 960 * 2];
+
                             let mut process_fn = move |data: &[f32]| {
                                 callback_count += 1;
                                 if callback_count == 1 || callback_count % 100 == 0 {
                                     debug!("[INPUT] CPAL callback #{}, sent {} frames so far", callback_count, sent_count);
                                 }
 
-                                let pcm: Vec<f32>;
+                                let len = data.len();
+                                pcm_buffer[..len].copy_from_slice(data);
+
                                 // If the noise gate is enabled, process data through it
                                 if USE_NOISE_GATE.load(Ordering::Relaxed) {
                                     // If there is a pending update, apply it, then disable the lock check
@@ -264,19 +269,17 @@ impl InputStream {
                                         UPDATE_NOISE_GATE_SETTINGS.store(false, Ordering::Relaxed);
                                     }
 
-                                    // Process the frame through the gate
-                                    pcm = gate.process_frame(&data);
-                                } else {
-                                    // Send data through the gate normally
-                                    pcm = data.to_vec();
+                                    // Process the frame in-place through the gate
+                                    gate.process_frame(&mut pcm_buffer[..len]);
                                 }
 
-                                let mono_pcm = if device_config.channels == 2 {
-                                    pcm.chunks_exact(2)
+                                // Convert to mono if stereo (single allocation for channel transfer)
+                                let mono_pcm: Vec<f32> = if device_config.channels == 2 {
+                                    pcm_buffer[..len].chunks_exact(2)
                                         .map(|lr| (lr[0] + lr[1]) / 2.0)
                                         .collect()
                                 } else {
-                                    pcm
+                                    pcm_buffer[..len].to_vec()
                                 };
 
                                 let pcm_sendable = mono_pcm.iter().all(|&e| f32::abs(e) == 0.0);
@@ -443,6 +446,13 @@ impl InputStream {
                         ) {
                             Ok(mut encoder) => {
                                 _ = encoder.set_bitrate(Bitrate::Bits(32_000));
+
+                                // Lower complexity on mobile for battery/heat savings
+                                #[cfg(any(target_os = "android", target_os = "ios"))]
+                                {
+                                    _ = encoder.set_complexity(7);
+                                }
+
                                 encoder
                             }
                             Err(e) => {

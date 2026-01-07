@@ -21,14 +21,31 @@ if (!version) {
 
 /**
  * Calculate Android versionCode from semantic version
- * Formula: major * 10000 + minor * 100 + patch
- * For prerelease versions (e.g., 1.0.0-beta.1), uses core version only
+ * Formula: major * 1000000 + minor * 10000 + patch * 1000 + type * 100 + prerelease_num
+ *
+ * Type values: 1=beta, 2=rc, 3=release
+ * This ensures: beta.N < beta.N+1 < release < next_patch.beta.1
  */
 function calculateVersionCode(version) {
-  const cleanVersion = version.split('-')[0];
-  const parts = cleanVersion.split('.').map(Number);
-  const [major = 0, minor = 0, patch = 0] = parts;
-  return major * 10000 + minor * 100 + patch;
+  const [core, prerelease] = version.split('-');
+  const [major = 0, minor = 0, patch = 0] = core.split('.').map(Number);
+
+  let type = 3; // release
+  let prereleaseNum = 0;
+
+  if (prerelease) {
+    const match = prerelease.match(/^(alpha|beta|rc)\.?(\d+)?$/);
+    if (match) {
+      const channel = match[1];
+      prereleaseNum = parseInt(match[2]) || 1;
+
+      if (channel === 'alpha') type = 0;
+      else if (channel === 'beta') type = 1;
+      else if (channel === 'rc') type = 2;
+    }
+  }
+
+  return major * 1000000 + minor * 10000 + patch * 1000 + type * 100 + prereleaseNum;
 }
 
 /**
