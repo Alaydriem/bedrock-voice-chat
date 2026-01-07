@@ -1,0 +1,212 @@
+name: Create Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (no actual release)'
+        required: false
+        default: false
+        type: boolean
+      draft:
+        description: 'Create as draft release (tag created, GH release is draft)'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  packages: write
+  issues: write
+  pull-requests: write
+
+env:
+  NODE_VERSION: 'lts'
+
+jobs:
+  # Job 1: Determine if there's a release and get the version
+  prepare-release:
+    name: Prepare Release
+    runs-on: ubuntu-latest
+    outputs:
+      new_release: ${{ steps.semantic.outputs.new_release_published }}
+      new_version: ${{ steps.semantic.outputs.new_release_version }}
+      new_tag: ${{ steps.semantic.outputs.new_release_git_tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Configure draft release
+        if: inputs.draft == true
+        run: |
+          # Update .releaserc.json to create draft release
+          node -e "
+            const fs = require('fs');
+            const config = JSON.parse(fs.readFileSync('.releaserc.json', 'utf8'));
+            // Find and update @semantic-release/github plugin
+            config.plugins = config.plugins.map(plugin => {
+              if (Array.isArray(plugin) && plugin[0] === '@semantic-release/github') {
+                plugin[1] = { ...plugin[1], draftRelease: true };
+              } else if (plugin === '@semantic-release/github') {
+                return ['@semantic-release/github', { draftRelease: true }];
+              }
+              return plugin;
+            });
+            fs.writeFileSync('.releaserc.json', JSON.stringify(config, null, 2));
+            console.log('Updated .releaserc.json for draft release');
+          "
+
+      - name: Run semantic-release
+        id: semantic
+        uses: cycjimmy/semantic-release-action@v4
+        with:
+          dry_run: ${{ inputs.dry_run }}
+          extra_plugins: |
+            @semantic-release/changelog
+            @semantic-release/exec
+            @semantic-release/git
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release summary
+        run: |
+          echo "## Semantic Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.semantic.outputs.new_release_published }}" = "true" ]; then
+            echo "New release: **v${{ steps.semantic.outputs.new_release_version }}**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Tag: \`${{ steps.semantic.outputs.new_release_git_tag }}\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No new release needed based on commits." >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Dry run: ${{ inputs.dry_run }}" >> $GITHUB_STEP_SUMMARY
+          echo "Draft: ${{ inputs.draft }}" >> $GITHUB_STEP_SUMMARY
+
+  # Job 2: Build server (release mode)
+  build-server:
+    name: Build Server (release)
+    needs: prepare-release
+    if: needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false
+    uses: ./.github/workflows/build-server.yml
+    with:
+      build_mode: release
+    secrets: inherit
+
+  # Job 3: Build Android (release mode, includes signing)
+  build-android:
+    name: Build Android (release)
+    needs: prepare-release
+    if: needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false
+    uses: ./.github/workflows/build-android.yml
+    with:
+      build_mode: release
+    secrets: inherit
+
+  # Job 4: Build Windows client (release mode)
+  build-client:
+    name: Build Windows (release)
+    needs: prepare-release
+    if: needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false
+    uses: ./.github/workflows/build-client.yml
+    with:
+      build_mode: release
+    secrets: inherit
+
+  # Job 5: Build Docker image
+  build-docker:
+    name: Build Docker Image
+    needs: [prepare-release, build-server]
+    if: needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false
+    uses: ./.github/workflows/build-server-docker.yml
+    with:
+      version: v${{ needs.prepare-release.outputs.new_version }}
+    secrets: inherit
+
+  # Job 6: Upload release assets to GitHub
+  upload-assets:
+    name: Upload Release Assets
+    needs: [prepare-release, build-server, build-android, build-client, build-docker]
+    if: always() && needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false && (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-client.result == 'success')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: List all artifacts
+        run: |
+          echo "=== All downloaded artifacts ==="
+          find ./artifacts -type f -ls
+
+      - name: Prepare release files
+        run: |
+          mkdir -p release-files
+          VERSION="${{ needs.prepare-release.outputs.new_version }}"
+
+          # Server binaries
+          if [ -f ./artifacts/bvc-server-x86_64-pc-windows-msvc-release/bvc-server-x86_64-pc-windows-msvc-release.exe ]; then
+            cp ./artifacts/bvc-server-x86_64-pc-windows-msvc-release/bvc-server-x86_64-pc-windows-msvc-release.exe ./release-files/bvc-server-windows-x64.exe
+          fi
+
+          if [ -f ./artifacts/bvc-server-x86_64-unknown-linux-gnu-release/bvc-server-x86_64-unknown-linux-gnu-release ]; then
+            cp ./artifacts/bvc-server-x86_64-unknown-linux-gnu-release/bvc-server-x86_64-unknown-linux-gnu-release ./release-files/bvc-server-linux-x64
+          fi
+
+          if [ -f ./artifacts/bvc-server-aarch64-unknown-linux-gnu-release/bvc-server-aarch64-unknown-linux-gnu-release ]; then
+            cp ./artifacts/bvc-server-aarch64-unknown-linux-gnu-release/bvc-server-aarch64-unknown-linux-gnu-release ./release-files/bvc-server-linux-arm64
+          fi
+
+          # Windows client
+          if [ -f "./artifacts/bvc-windows-release.exe/bvc-windows-release.exe" ]; then
+            cp "./artifacts/bvc-windows-release.exe/bvc-windows-release.exe" ./release-files/bvc-client-windows-x64.exe
+          fi
+
+          # Signed Android artifacts (from build-android.yml)
+          if [ -f "./artifacts/bvc-android-release-signed.apk/bvc-android-release-signed.apk" ]; then
+            cp "./artifacts/bvc-android-release-signed.apk/bvc-android-release-signed.apk" ./release-files/bvc-android-${VERSION}.apk
+          fi
+
+          if [ -f "./artifacts/bvc-android-release-signed.aab/bvc-android-release-signed.aab" ]; then
+            cp "./artifacts/bvc-android-release-signed.aab/bvc-android-release-signed.aab" ./release-files/bvc-android-${VERSION}.aab
+          fi
+
+          echo "=== Release files prepared ==="
+          ls -la ./release-files/
+
+      - name: Upload assets to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.prepare-release.outputs.new_version }}
+          files: ./release-files/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release summary
+        run: |
+          VERSION="${{ needs.prepare-release.outputs.new_version }}"
+          echo "## Release Assets Uploaded" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Version: **v${VERSION}**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Uploaded Files" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          for file in ./release-files/*; do
+            if [ -f "$file" ]; then
+              echo "- \`$(basename $file)\`" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Docker Images" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ghcr.io/alaydriem/bedrock-voice-chat/server:v${VERSION}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ghcr.io/alaydriem/bedrock-voice-chat/server:latest\`" >> $GITHUB_STEP_SUMMARY

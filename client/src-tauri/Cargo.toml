@@ -36,7 +36,7 @@ async-mutex = { version = "^1.4" }
 moka = { version = "^0.12", features = ["future", "sync"] }
 opus2 = { version = "^0.3" }
 ron = { version = "^0.12" }
-audio-gate = { version = "^0.1" }
+audio-gate = { version = "^0.2" }
 flume = { version = "^0.12" }
 futures-util = "^0.3"
 tokio-tungstenite = "^0.28"
@@ -88,13 +88,10 @@ cpal = { version = "^0.16" }
 [dev-dependencies]
 
 [features]
-asyncapi-docs = ["dep:serde_yaml"]
 
 [dependencies.serde_yaml]
 version = "^0.9"
-optional = true
 
 [[bin]]
 name = "generate-asyncapi-docs"
 path = "src/bin/generate_asyncapi_docs.rs"
-required-features = ["asyncapi-docs"]
