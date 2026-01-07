@@ -1,11 +1,21 @@
-#![cfg(desktop)]
+// This binary is only useful on desktop, but we need a main() for all targets
+#[cfg(not(desktop))]
+fn main() {
+    eprintln!("AsyncAPI docs generation is only supported on desktop platforms");
+}
 
-use schemars::{schema_for, JsonSchema};
+#[cfg(desktop)]
+use schemars::schema_for;
+#[cfg(desktop)]
 use bvc_client_lib::websocket::structs::*;
+#[cfg(desktop)]
 use serde_json::{json, Value};
+#[cfg(desktop)]
 use std::fs;
+#[cfg(desktop)]
 use std::path::Path;
 
+#[cfg(desktop)]
 fn main() {
     // Generate JSON schemas for our types
     let command_schema_value = serde_json::to_value(&schema_for!(Command)).unwrap();
@@ -106,6 +116,7 @@ fn main() {
     println!("✓ Generated AsyncAPI spec at: {:?}", output_path.canonicalize().unwrap());
 }
 
+#[cfg(desktop)]
 fn extract_def(schema_value: &Value, def_name: &str) -> Value {
     let mut def = schema_value.get("$defs")
         .and_then(|defs| defs.get(def_name))
@@ -118,6 +129,7 @@ fn extract_def(schema_value: &Value, def_name: &str) -> Value {
     def
 }
 
+#[cfg(desktop)]
 fn remove_defs(mut schema_value: Value) -> Value {
     // Remove $defs from schema and update references to point to components
     if let Some(obj) = schema_value.as_object_mut() {
@@ -130,6 +142,7 @@ fn remove_defs(mut schema_value: Value) -> Value {
     schema_value
 }
 
+#[cfg(desktop)]
 fn update_refs(value: &mut Value) {
     match value {
         Value::Object(map) => {

@@ -57,22 +57,22 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: bvc-server-x86_64-unknown-linux-gnu-${{ inputs.build_mode }}
-          path: binaries/amd64
+          path: server/binaries/amd64
 
       - name: Download arm64 artifact
         uses: actions/download-artifact@v4
         with:
           name: bvc-server-aarch64-unknown-linux-gnu-${{ inputs.build_mode }}
-          path: binaries/arm64
+          path: server/binaries/arm64
 
       - name: Prepare binaries
         run: |
-          mv binaries/amd64/bvc-server-x86_64-unknown-linux-gnu-${{ inputs.build_mode }} binaries/amd64/bvc-server
-          mv binaries/arm64/bvc-server-aarch64-unknown-linux-gnu-${{ inputs.build_mode }} binaries/arm64/bvc-server
-          chmod +x binaries/amd64/bvc-server
-          chmod +x binaries/arm64/bvc-server
-          ls -la binaries/amd64/
-          ls -la binaries/arm64/
+          mv server/binaries/amd64/bvc-server-x86_64-unknown-linux-gnu-${{ inputs.build_mode }} server/binaries/amd64/bvc-server
+          mv server/binaries/arm64/bvc-server-aarch64-unknown-linux-gnu-${{ inputs.build_mode }} server/binaries/arm64/bvc-server
+          chmod +x server/binaries/amd64/bvc-server
+          chmod +x server/binaries/arm64/bvc-server
+          ls -la server/binaries/amd64/
+          ls -la server/binaries/arm64/
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
