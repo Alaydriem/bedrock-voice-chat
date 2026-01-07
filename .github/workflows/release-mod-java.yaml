@@ -1,4 +1,4 @@
-name: Modrith Release
+name: Modrinth Release
 
 on:
   workflow_dispatch:
