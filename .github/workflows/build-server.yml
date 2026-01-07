@@ -181,11 +181,8 @@ jobs:
   build-docker:
     name: Build Docker Image
     needs: build-server
-    if: startsWith(github.ref, 'refs/tags/v')
     uses: ./.github/workflows/build-server-docker.yml
     with:
       version: ${{ github.ref_name }}
       push: ${{ startsWith(github.ref, 'refs/tags/v') }}
-    permissions:
-      contents: read
-      packages: write
+    secrets: inherit
