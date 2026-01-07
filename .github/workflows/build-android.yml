@@ -320,7 +320,13 @@ jobs:
           echo "Effective build mode: $BUILD_MODE"
 
           # Use the correct path structure for APK
-          APK_PATH="src-tauri/gen/android/app/build/outputs/apk/universal/$BUILD_MODE/app-universal-$BUILD_MODE.apk"
+          # Debug builds produce: app-universal-debug.apk
+          # Release builds produce: app-universal-release-unsigned.apk
+          if [ "$BUILD_MODE" = "release" ]; then
+            APK_PATH="src-tauri/gen/android/app/build/outputs/apk/universal/$BUILD_MODE/app-universal-$BUILD_MODE-unsigned.apk"
+          else
+            APK_PATH="src-tauri/gen/android/app/build/outputs/apk/universal/$BUILD_MODE/app-universal-$BUILD_MODE.apk"
+          fi
 
           if [ -f "$APK_PATH" ]; then
             echo "Found APK at: $APK_PATH"

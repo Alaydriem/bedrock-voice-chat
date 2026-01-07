@@ -78,7 +78,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: bedrock-voice-chat-bds-${{ steps.pack-version.outputs.version }}
-          path: bedrock-voice-chat-bds${{ steps.pack-version.outputs.version }}.zip
+          path: bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.zip
           retention-days: 30
 
       - name: Output artifact information

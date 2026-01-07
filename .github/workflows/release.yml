@@ -44,6 +44,13 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      - name: Generate GitHub App token
+        id: generate-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
       - name: Configure draft release
         if: inputs.draft == true
         run: |
@@ -74,7 +81,7 @@ jobs:
             @semantic-release/exec
             @semantic-release/git
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
 
       - name: Release summary
         run: |
@@ -121,27 +128,51 @@ jobs:
       build_mode: release
     secrets: inherit
 
-  # Job 5: Build Docker image
-  build-docker:
-    name: Build Docker Image
-    needs: [prepare-release, build-server]
+  # Job 5: Build Java Fabric Mod
+  build-mod-java:
+    name: Build Java Mod
+    needs: prepare-release
     if: needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false
-    uses: ./.github/workflows/build-server-docker.yml
+    uses: ./.github/workflows/build-mod-java.yml
     with:
-      version: v${{ needs.prepare-release.outputs.new_version }}
+      version: ${{ needs.prepare-release.outputs.new_version }}
     secrets: inherit
 
-  # Job 6: Upload release assets to GitHub
+  # Job 6: Build BDS Pack
+  build-mod-bds:
+    name: Build BDS Pack
+    needs: prepare-release
+    if: needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false
+    uses: ./.github/workflows/build-mod-bds.yml
+    secrets: inherit
+
+  # Job 7: Upload release assets to GitHub
   upload-assets:
     name: Upload Release Assets
-    needs: [prepare-release, build-server, build-android, build-client, build-docker]
-    if: always() && needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false && (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-client.result == 'success')
+    needs: [prepare-release, build-server, build-android, build-client, build-mod-java, build-mod-bds]
+    if: always() && needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false && (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-client.result == 'success' || needs.build-mod-java.result == 'success' || needs.build-mod-bds.result == 'success')
     runs-on: ubuntu-latest
     steps:
-      - name: Download all artifacts
+      - name: Generate GitHub App token
+        id: generate-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Download release artifacts
         uses: actions/download-artifact@v4
         with:
           path: ./artifacts
+          pattern: bvc-*
+          merge-multiple: false
+
+      - name: Download mod artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+          pattern: bedrock-voice-chat-*
+          merge-multiple: false
 
       - name: List all artifacts
         run: |
@@ -180,6 +211,24 @@ jobs:
             cp "./artifacts/bvc-android-release-signed.aab/bvc-android-release-signed.aab" ./release-files/bvc-android-${VERSION}.aab
           fi
 
+          # Java Fabric Mod
+          JAVA_MOD_DIR="./artifacts/bedrock-voice-chat-fabric-${VERSION}"
+          if [ -d "$JAVA_MOD_DIR" ]; then
+            JAR_FILE=$(find "$JAVA_MOD_DIR" -name "*.jar" -type f | head -n 1)
+            if [ -n "$JAR_FILE" ]; then
+              cp "$JAR_FILE" ./release-files/bvc-fabric-mod-${VERSION}.jar
+            fi
+          fi
+
+          # BDS Pack
+          BDS_PACK_DIR=$(find ./artifacts -maxdepth 1 -type d -name "bedrock-voice-chat-bds-*" | head -n 1)
+          if [ -d "$BDS_PACK_DIR" ]; then
+            ZIP_FILE=$(find "$BDS_PACK_DIR" -name "*.zip" -type f | head -n 1)
+            if [ -n "$ZIP_FILE" ]; then
+              cp "$ZIP_FILE" ./release-files/bvc-bds-pack-${VERSION}.zip
+            fi
+          fi
+
           echo "=== Release files prepared ==="
           ls -la ./release-files/
 
@@ -189,7 +238,7 @@ jobs:
           tag_name: v${{ needs.prepare-release.outputs.new_version }}
           files: ./release-files/*
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
 
       - name: Release summary
         run: |
