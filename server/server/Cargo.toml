@@ -3,7 +3,7 @@ name = "bedrock-voice-chat-server"
 authors = ["Charles R. Portwood II <charlesportwoodii@erianna.com>"]
 description = "Bedrock Voice Chat is a voice chat server for Minecraft Bedrock edition."
 repository = "https://github.com/alaydriem/bedrock-voice-chat"
-version = "0.0.5"
+version = "1.0.0-beta.1"
 edition = "2024"
 build = "build.rs"
 
