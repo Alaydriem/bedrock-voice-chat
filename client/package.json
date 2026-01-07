@@ -10,7 +10,7 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "tauri": "tauri",
-    "asyncapi-docs": "cd src-tauri && cargo run --bin generate-asyncapi-docs --features asyncapi-docs"
+    "asyncapi-docs": "cd src-tauri && cargo run --bin generate-asyncapi-docs"
   },
   "license": "UNLICENSED",
   "dependencies": {

@@ -7,6 +7,11 @@ on:
         description: 'Version tag for the image'
         required: true
         type: string
+      build_mode:
+        description: 'Build mode (debug or release)'
+        required: false
+        default: 'release'
+        type: string
       push:
         description: 'Push the image to the registry'
         required: false
@@ -18,6 +23,14 @@ on:
         description: 'Version tag (e.g., v1.0.0)'
         required: true
         type: string
+      build_mode:
+        description: 'Build mode'
+        required: false
+        default: 'release'
+        type: choice
+        options:
+          - debug
+          - release
       push:
         description: 'Push the image to the registry'
         required: false
@@ -43,19 +56,19 @@ jobs:
       - name: Download amd64 artifact
         uses: actions/download-artifact@v4
         with:
-          name: bvc-server-x86_64-unknown-linux-gnu-release
+          name: bvc-server-x86_64-unknown-linux-gnu-${{ inputs.build_mode }}
           path: binaries/amd64
 
       - name: Download arm64 artifact
         uses: actions/download-artifact@v4
         with:
-          name: bvc-server-aarch64-unknown-linux-gnu-release
+          name: bvc-server-aarch64-unknown-linux-gnu-${{ inputs.build_mode }}
           path: binaries/arm64
 
       - name: Prepare binaries
         run: |
-          mv binaries/amd64/bvc-server-x86_64-unknown-linux-gnu-release binaries/amd64/bvc-server
-          mv binaries/arm64/bvc-server-aarch64-unknown-linux-gnu-release binaries/arm64/bvc-server
+          mv binaries/amd64/bvc-server-x86_64-unknown-linux-gnu-${{ inputs.build_mode }} binaries/amd64/bvc-server
+          mv binaries/arm64/bvc-server-aarch64-unknown-linux-gnu-${{ inputs.build_mode }} binaries/arm64/bvc-server
           chmod +x binaries/amd64/bvc-server
           chmod +x binaries/arm64/bvc-server
           ls -la binaries/amd64/
