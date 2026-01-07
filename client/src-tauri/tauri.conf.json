@@ -24,7 +24,7 @@
   "bundle": {
     "android": {
        "minSdkVersion": 35,
-       "versionCode": 1001
+       "versionCode": 1003
     },
     "iOS": {
       "minimumSystemVersion": "26.0",

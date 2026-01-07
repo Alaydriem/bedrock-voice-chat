@@ -1,0 +1,60 @@
+name: Build All Platforms (Release)
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'Version being released'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  # Build server for multiple platforms (release mode)
+  build-server:
+    name: Build Server (release)
+    uses: ./.github/workflows/build-server.yml
+    with:
+      build_mode: release
+    secrets: inherit
+
+  # Build Android client (release mode)
+  build-android:
+    name: Build Android Client (release)
+    uses: ./.github/workflows/build-android.yml
+    with:
+      build_mode: release
+    secrets: inherit
+
+  # Build Windows client (release mode)
+  build-client:
+    name: Build Windows Client (release)
+    uses: ./.github/workflows/build-client.yml
+    with:
+      build_mode: release
+    secrets: inherit
+
+  # Note: iOS is excluded as it lacks signing/distribution setup
+
+  # Summary job
+  build-summary:
+    name: Build Summary
+    runs-on: ubuntu-latest
+    needs: [build-server, build-android, build-client]
+    if: always()
+    steps:
+      - name: Create release build summary
+        run: |
+          echo "# Release Build Summary - v${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Build Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Component | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "| --------- | ------ |" >> $GITHUB_STEP_SUMMARY
+          echo "| Server | ${{ needs.build-server.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Android | ${{ needs.build-android.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Windows | ${{ needs.build-client.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "All builds completed in **release** mode for version **v${{ inputs.version }}**" >> $GITHUB_STEP_SUMMARY

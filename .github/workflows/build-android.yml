@@ -313,7 +313,7 @@ jobs:
           BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}"
           echo "Effective build mode: $BUILD_MODE"
 
-          # Use the correct path structure
+          # Use the correct path structure for APK
           APK_PATH="src-tauri/gen/android/app/build/outputs/apk/universal/$BUILD_MODE/app-universal-$BUILD_MODE.apk"
 
           if [ -f "$APK_PATH" ]; then
@@ -328,13 +328,100 @@ jobs:
             exit 1
           fi
 
-      - name: Upload Android artifacts
+          # For release builds, also copy the AAB (Android App Bundle)
+          if [ "$BUILD_MODE" = "release" ]; then
+            AAB_PATH="src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab"
+            if [ -f "$AAB_PATH" ]; then
+              echo "Found AAB at: $AAB_PATH"
+              cp "$AAB_PATH" "bvc-android-$BUILD_MODE.aab"
+              echo "=== Final AAB ==="
+              ls -la "bvc-android-$BUILD_MODE.aab"
+            else
+              echo "WARNING: AAB not found at expected path: $AAB_PATH"
+              echo "=== Searching for any AAB files ==="
+              find src-tauri/gen/android/app/build/outputs/bundle -name "*.aab" -type f 2>/dev/null || echo "No AAB files found"
+            fi
+          fi
+
+      - name: Upload Android APK artifact
         uses: actions/upload-artifact@v4
         id: upload-android
         with:
           name: bvc-android-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}.apk
           path: client/bvc-android-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}.apk
           retention-days: 30
+
+      - name: Upload Android AAB artifact (unsigned)
+        if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
+        uses: actions/upload-artifact@v4
+        id: upload-android-aab
+        with:
+          name: bvc-android-release.aab
+          path: client/bvc-android-release.aab
+          retention-days: 30
+
+      - name: Sign Android APK
+        if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
+        working-directory: ./client
+        run: |
+          echo "Decoding keystore..."
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > upload-keystore.jks
+
+          echo "Signing APK..."
+          $ANDROID_HOME/build-tools/34.0.0/apksigner sign \
+            --ks upload-keystore.jks \
+            --ks-pass pass:${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }} \
+            --ks-key-alias ${{ secrets.ANDROID_KEY_ALIAS }} \
+            --key-pass pass:${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }} \
+            --out bvc-android-release-signed.apk \
+            bvc-android-release.apk
+
+          echo "Verifying APK signature..."
+          $ANDROID_HOME/build-tools/34.0.0/apksigner verify --verbose bvc-android-release-signed.apk
+
+          echo "=== Signed APK ==="
+          ls -la bvc-android-release-signed.apk
+
+      - name: Sign Android AAB
+        if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
+        working-directory: ./client
+        run: |
+          echo "Decoding keystore..."
+          if [ ! -f upload-keystore.jks ]; then
+            echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > upload-keystore.jks
+          fi
+
+          echo "Signing AAB..."
+          jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 \
+            -keystore upload-keystore.jks \
+            -storepass ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }} \
+            -keypass ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }} \
+            bvc-android-release.aab \
+            ${{ secrets.ANDROID_KEY_ALIAS }}
+
+          mv bvc-android-release.aab bvc-android-release-signed.aab
+
+          echo "Verifying AAB signature..."
+          jarsigner -verify -verbose bvc-android-release-signed.aab
+
+          echo "=== Signed AAB ==="
+          ls -la bvc-android-release-signed.aab
+
+      - name: Upload signed APK artifact
+        if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bvc-android-release-signed.apk
+          path: client/bvc-android-release-signed.apk
+          retention-days: 90
+
+      - name: Upload signed AAB artifact
+        if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bvc-android-release-signed.aab
+          path: client/bvc-android-release-signed.aab
+          retention-days: 90
 
       - name: Output artifact information
         run: |

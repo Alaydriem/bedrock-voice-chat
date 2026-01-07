@@ -3,6 +3,7 @@ name: Build Server
 on:
   push:
     branches: [ master ]
+    tags: ['v*']
     paths:
       - 'server/**'
       - 'common/**'
@@ -30,7 +31,7 @@ permissions:
   contents: read
 jobs:
   build-server:
-    name: Build Server (${{ matrix.target }} - ${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }})
+    name: Build Server (${{ matrix.target }} - ${{ github.event_name == 'pull_request' && 'debug' || startsWith(github.ref, 'refs/tags/') && 'release' || inputs.build_mode || 'debug' }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -112,10 +113,13 @@ jobs:
         if: true # Always build natively for now
         working-directory: ./server
         run: |
-          # Determine actual build mode used - force debug for PRs
+          # Determine actual build mode used - force debug for PRs, release for tags
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "PR detected - building in debug mode"
             cargo build --target ${{ matrix.target }}
+          elif [ "${{ startsWith(github.ref, 'refs/tags/') }}" = "true" ]; then
+            echo "Tag detected - building in release mode"
+            cargo build --release --target ${{ matrix.target }}
           elif [ "${{ inputs.build_mode || 'debug' }}" = "release" ]; then
             echo "Building in release mode"
             cargo build --release --target ${{ matrix.target }}
@@ -129,7 +133,7 @@ jobs:
         shell: bash
         run: |
           # Determine actual build mode used
-          BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}"
+          BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || startsWith(github.ref, 'refs/tags/') && 'release' || inputs.build_mode || 'debug' }}"
           echo "Effective build mode: $BUILD_MODE"
 
           if [ "$BUILD_MODE" = "release" ]; then
@@ -153,14 +157,14 @@ jobs:
         uses: actions/upload-artifact@v4
         id: upload-server
         with:
-          name: bvc-server-${{ matrix.target }}-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}${{ runner.os == 'Windows' && '.exe' || '' }}
-          path: bvc-server-${{ matrix.target }}-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}${{ runner.os == 'Windows' && '.exe' || '' }}
+          name: bvc-server-${{ matrix.target }}-${{ github.event_name == 'pull_request' && 'debug' || startsWith(github.ref, 'refs/tags/') && 'release' || inputs.build_mode || 'debug' }}${{ runner.os == 'Windows' && '.exe' || '' }}
+          path: bvc-server-${{ matrix.target }}-${{ github.event_name == 'pull_request' && 'debug' || startsWith(github.ref, 'refs/tags/') && 'release' || inputs.build_mode || 'debug' }}${{ runner.os == 'Windows' && '.exe' || '' }}
           retention-days: 30
 
       - name: Output artifact information
         shell: bash
         run: |
-          BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}"
+          BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || startsWith(github.ref, 'refs/tags/') && 'release' || inputs.build_mode || 'debug' }}"
           {
             echo "## Server Build Complete"
             echo ""
@@ -173,3 +177,14 @@ jobs:
             echo "| Artifact URL | [View Run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) |"
             echo "| Retention | 30 days |"
           } >> $GITHUB_STEP_SUMMARY
+
+  build-docker:
+    name: Build Docker Image
+    needs: build-server
+    if: startsWith(github.ref, 'refs/tags/v')
+    uses: ./.github/workflows/build-server-docker.yml
+    with:
+      version: ${{ github.ref_name }}
+    permissions:
+      contents: read
+      packages: write

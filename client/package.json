@@ -52,6 +52,7 @@
     "apexcharts": "^4.4",
     "autoprefixer": "^10.4",
     "axios": "^1.8",
+    "baseline-browser-mapping": "^2.9.11",
     "cleave.js": "^1.6",
     "dayjs": "^1.11",
     "filepond": "^4.32",
