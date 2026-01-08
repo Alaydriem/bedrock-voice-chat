@@ -81,7 +81,7 @@ function Copy-AndroidIcons {
         return
     }
 
-    # Copy each mipmap directory
+    # Copy each mipmap directory (excluding mipmap-anydpi-v26 to use regular PNG icons instead of adaptive)
     $mipmapDirs = @("mipmap-hdpi", "mipmap-mdpi", "mipmap-xhdpi", "mipmap-xxhdpi", "mipmap-xxxhdpi")
 
     foreach ($mipmapDir in $mipmapDirs) {
@@ -93,19 +93,32 @@ function Copy-AndroidIcons {
                 New-Item -ItemType Directory -Path $targetPath -Force | Out-Null
             }
 
-            # Copy ic_launcher.png
-            $sourceIcon = Join-Path $sourcePath "ic_launcher.png"
-            $targetIcon = Join-Path $targetPath "ic_launcher.png"
+            # Copy PNG icon files
+            $iconFiles = @(
+                "ic_launcher.png",
+                "ic_launcher_round.png",
+                "ic_launcher_foreground.png"
+            )
 
-            if (Test-Path $sourceIcon) {
-                Copy-Item -Path $sourceIcon -Destination $targetIcon -Force
-                Write-Host "Copied $mipmapDir/ic_launcher.png" -ForegroundColor Green
-            } else {
-                Write-Host "Missing source icon: $sourceIcon" -ForegroundColor Red
+            foreach ($iconFile in $iconFiles) {
+                $sourceIcon = Join-Path $sourcePath $iconFile
+                $targetIcon = Join-Path $targetPath $iconFile
+
+                if (Test-Path $sourceIcon) {
+                    Copy-Item -Path $sourceIcon -Destination $targetIcon -Force
+                    Write-Host "Copied $mipmapDir/$iconFile" -ForegroundColor Green
+                }
             }
         } else {
             Write-Host "Missing source directory: $sourcePath" -ForegroundColor Red
         }
+    }
+
+    # Remove mipmap-anydpi-v26 to disable adaptive icons (use regular PNGs instead)
+    $anydpiPath = Join-Path $targetResPath "mipmap-anydpi-v26"
+    if (Test-Path $anydpiPath) {
+        Remove-Item -Path $anydpiPath -Recurse -Force
+        Write-Host "Removed mipmap-anydpi-v26 (using regular PNG icons)" -ForegroundColor Yellow
     }
 
     Write-Host "Android icon copying completed." -ForegroundColor Green

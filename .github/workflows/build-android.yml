@@ -222,7 +222,7 @@ jobs:
             exit 1
           fi
 
-          # Copy each mipmap directory
+          # Copy each mipmap directory (excluding mipmap-anydpi-v26 to use regular PNG icons instead of adaptive)
           for MIPMAP_DIR in mipmap-hdpi mipmap-mdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
             SOURCE_PATH="$SOURCE_ICONS/$MIPMAP_DIR"
             TARGET_PATH="$TARGET_RES/$MIPMAP_DIR"
@@ -230,28 +230,34 @@ jobs:
             if [ -d "$SOURCE_PATH" ]; then
               mkdir -p "$TARGET_PATH"
 
-              # Copy ic_launcher.png
-              SOURCE_ICON="$SOURCE_PATH/ic_launcher.png"
-              TARGET_ICON="$TARGET_PATH/ic_launcher.png"
+              # Copy PNG icon files
+              for ICON_FILE in ic_launcher.png ic_launcher_round.png ic_launcher_foreground.png; do
+                SOURCE_ICON="$SOURCE_PATH/$ICON_FILE"
+                TARGET_ICON="$TARGET_PATH/$ICON_FILE"
 
-              if [ -f "$SOURCE_ICON" ]; then
-                cp "$SOURCE_ICON" "$TARGET_ICON"
-                echo "Copied $MIPMAP_DIR/ic_launcher.png"
-              else
-                echo "Missing source icon: $SOURCE_ICON"
-                exit 1
-              fi
+                if [ -f "$SOURCE_ICON" ]; then
+                  cp "$SOURCE_ICON" "$TARGET_ICON"
+                  echo "Copied $MIPMAP_DIR/$ICON_FILE"
+                fi
+              done
             else
               echo "Missing source directory: $SOURCE_PATH"
               exit 1
             fi
           done
 
+          # Remove mipmap-anydpi-v26 to disable adaptive icons (use regular PNGs instead)
+          ANYDPI_PATH="$TARGET_RES/mipmap-anydpi-v26"
+          if [ -d "$ANYDPI_PATH" ]; then
+            rm -rf "$ANYDPI_PATH"
+            echo "Removed mipmap-anydpi-v26 (using regular PNG icons)"
+          fi
+
           echo "Android icon copying completed."
 
           # Verify icons were copied
           echo "Verifying copied icons:"
-          find "$TARGET_RES" -name "ic_launcher.png" -exec ls -la {} \;
+          find "$TARGET_RES" -name "ic_launcher*" -exec ls -la {} \;
 
       - name: Build Android (debug)
         working-directory: ./client
