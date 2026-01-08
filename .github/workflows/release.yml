@@ -11,7 +11,7 @@ on:
       draft:
         description: 'Create as draft release (tag created, GH release is draft)'
         required: false
-        default: false
+        default: true
         type: boolean
 
 permissions:
@@ -185,8 +185,8 @@ jobs:
           VERSION="${{ needs.prepare-release.outputs.new_version }}"
 
           # Server binaries
-          if [ -f ./artifacts/bvc-server-x86_64-pc-windows-msvc-release/bvc-server-x86_64-pc-windows-msvc-release.exe ]; then
-            cp ./artifacts/bvc-server-x86_64-pc-windows-msvc-release/bvc-server-x86_64-pc-windows-msvc-release.exe ./release-files/bvc-server-windows-x64.exe
+          if [ -f "./artifacts/bvc-server-x86_64-pc-windows-msvc-release.exe/bvc-server-x86_64-pc-windows-msvc-release.exe" ]; then
+            cp "./artifacts/bvc-server-x86_64-pc-windows-msvc-release.exe/bvc-server-x86_64-pc-windows-msvc-release.exe" ./release-files/bvc-server-windows-x64.exe
           fi
 
           if [ -f ./artifacts/bvc-server-x86_64-unknown-linux-gnu-release/bvc-server-x86_64-unknown-linux-gnu-release ]; then
@@ -205,10 +205,6 @@ jobs:
           # Signed Android artifacts (from build-android.yml)
           if [ -f "./artifacts/bvc-android-release-signed.apk/bvc-android-release-signed.apk" ]; then
             cp "./artifacts/bvc-android-release-signed.apk/bvc-android-release-signed.apk" ./release-files/bvc-android-${VERSION}.apk
-          fi
-
-          if [ -f "./artifacts/bvc-android-release-signed.aab/bvc-android-release-signed.aab" ]; then
-            cp "./artifacts/bvc-android-release-signed.aab/bvc-android-release-signed.aab" ./release-files/bvc-android-${VERSION}.aab
           fi
 
           # Java Fabric Mod
@@ -237,6 +233,8 @@ jobs:
         with:
           tag_name: v${{ needs.prepare-release.outputs.new_version }}
           files: ./release-files/*
+          draft: ${{ inputs.draft }}
+          prerelease: ${{ contains(needs.prepare-release.outputs.new_version, '-') }}
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
 
