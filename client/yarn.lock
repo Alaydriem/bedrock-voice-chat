@@ -489,9 +489,9 @@
   integrity sha512-7D9lYFWJmB7zxZyTE/qxjksvMqzMuYrrsyh1f4AlZqeZeACPRySjbC3aFiY55wb1tWUaKOQG9PVbm74JcN2Iew==
 
 "@sveltejs/kit@^2.49":
-  version "2.49.3"
-  resolved "https://registry.yarnpkg.com/@sveltejs/kit/-/kit-2.49.3.tgz#ba94d820b2be9849827329b6ce22f4e025496ea5"
-  integrity sha512-luTmE2Isk9GRJnitqanLoByKBiyLdfLpV2qV9a25JMxjbQt919TVqG8pibJDkxTvX9+w2k/9IL7o+/RtG++3QA==
+  version "2.49.4"
+  resolved "https://registry.yarnpkg.com/@sveltejs/kit/-/kit-2.49.4.tgz#f1ddd9e5592a05efb8c93d061e1ee890c11473a8"
+  integrity sha512-JFtOqDoU0DI/+QSG8qnq5bKcehVb3tCHhOG4amsSYth5/KgO4EkJvi42xSAiyKmXAAULW1/Zdb6lkgGEgSxdZg==
   dependencies:
     "@standard-schema/spec" "^1.0.0"
     "@sveltejs/acorn-typescript" "^1.0.5"
@@ -515,9 +515,9 @@
     obug "^2.1.0"
 
 "@sveltejs/vite-plugin-svelte@^6":
-  version "6.2.2"
-  resolved "https://registry.yarnpkg.com/@sveltejs/vite-plugin-svelte/-/vite-plugin-svelte-6.2.2.tgz#f20fd20763a4d0c0920532a282a866b8b361e0a2"
-  integrity sha512-9P/0sA/+lWxvRmJFGmVVoVQFeCIktv9bNju1Gc8h1Ptf/UeWCfVgpSy0CDdozVpQWfTvBZblttjrvo6ICxujdg==
+  version "6.2.4"
+  resolved "https://registry.yarnpkg.com/@sveltejs/vite-plugin-svelte/-/vite-plugin-svelte-6.2.4.tgz#f3a1dac0eba70a053bd750e1a15f7fb1ae71fa4f"
+  integrity sha512-ou/d51QSdTyN26D7h6dSpusAKaZkAiGM55/AKYi+9AGZw7q85hElbjK3kEyzXHhLSnRISHOYzVge6x0jRZ7DXA==
   dependencies:
     "@sveltejs/vite-plugin-svelte-inspector" "^5.0.0"
     deepmerge "^4.3.1"
@@ -748,30 +748,30 @@
     "@tauri-apps/cli-win32-x64-msvc" "2.9.6"
 
 "@tauri-apps/plugin-deep-link@^2":
-  version "2.4.5"
-  resolved "https://registry.yarnpkg.com/@tauri-apps/plugin-deep-link/-/plugin-deep-link-2.4.5.tgz#7b0cfdf1265c248340126764a85ae70f8f525dc8"
-  integrity sha512-Zf2RTj1D9IQQ45/jqW8XTKvql24HqlPjcpv0mV/O2jHQkNe11HOTZBVj6IK37qs+MWV7xZzcmazx/QVZnhAwaQ==
+  version "2.4.6"
+  resolved "https://registry.yarnpkg.com/@tauri-apps/plugin-deep-link/-/plugin-deep-link-2.4.6.tgz#328fe1c682949e86d79f092a123b9b414d8aea76"
+  integrity sha512-UUOSt0U5juK20uhO2MoHZX/IPblkrhUh+VPtIeu3RwtzI0R9Em3Auzfg/PwcZ9Pv8mLne3cQ4p9CFXD6WxqCZA==
   dependencies:
     "@tauri-apps/api" "^2.8.0"
 
 "@tauri-apps/plugin-fs@^2":
-  version "2.4.4"
-  resolved "https://registry.yarnpkg.com/@tauri-apps/plugin-fs/-/plugin-fs-2.4.4.tgz#b5111e02ca8b632588ff192bb0be6dd4eb2c9a63"
-  integrity sha512-MTorXxIRmOnOPT1jZ3w96vjSuScER38ryXY88vl5F0uiKdnvTKKTtaEjTEo8uPbl4e3gnUtfsDVwC7h77GQLvQ==
+  version "2.4.5"
+  resolved "https://registry.yarnpkg.com/@tauri-apps/plugin-fs/-/plugin-fs-2.4.5.tgz#4b32b6de32e2ee735632bff356fab09fcc281b42"
+  integrity sha512-dVxWWGE6VrOxC7/jlhyE+ON/Cc2REJlM35R3PJX3UvFw2XwYhLGQVAIyrehenDdKjotipjYEVc4YjOl3qq90fA==
   dependencies:
     "@tauri-apps/api" "^2.8.0"
 
 "@tauri-apps/plugin-http@^2":
-  version "2.5.4"
-  resolved "https://registry.yarnpkg.com/@tauri-apps/plugin-http/-/plugin-http-2.5.4.tgz#998a9cd02efa006fcbeddd92e8e51434ff3804dd"
-  integrity sha512-/i4U/9za3mrytTgfRn5RHneKubZE/dwRmshYwyMvNRlkWjvu1m4Ma72kcbVJMZFGXpkbl+qLyWMGrihtWB76Zg==
+  version "2.5.5"
+  resolved "https://registry.yarnpkg.com/@tauri-apps/plugin-http/-/plugin-http-2.5.5.tgz#66b8ba307d2b3882017f95ec1c09e3b957a92505"
+  integrity sha512-4hTS7AIBLmj8opDM3s8muEp7PBJQEiGDFvFF4fdMscQCOwhzXJf5hIZEHC867eH2Ck145Oce+H0AU0G/k9TbNg==
   dependencies:
     "@tauri-apps/api" "^2.8.0"
 
 "@tauri-apps/plugin-log@^2", "@tauri-apps/plugin-log@^2.7.0":
-  version "2.7.1"
-  resolved "https://registry.yarnpkg.com/@tauri-apps/plugin-log/-/plugin-log-2.7.1.tgz#2bade235293e0548816d10c29456a457abe59f51"
-  integrity sha512-jdb+o0wxQc8PjnLktgGpOs9Dh1YupaOGDXzO+Y8peA1UZ1ep3eXv4E1oiJ7nIQVN0XUFDDhnn3aBszl8ijhR+A==
+  version "2.8.0"
+  resolved "https://registry.yarnpkg.com/@tauri-apps/plugin-log/-/plugin-log-2.8.0.tgz#8fe98a8bdf6b5ab987d77e702b9797a1941a3f4b"
+  integrity sha512-a+7rOq3MJwpTOLLKbL8d0qGZ85hgHw5pNOWusA9o3cf7cEgtYHiGY/+O8fj8MvywQIGqFv0da2bYQDlrqLE7rw==
   dependencies:
     "@tauri-apps/api" "^2.8.0"
 
@@ -783,9 +783,9 @@
     "@tauri-apps/api" "^2.8.0"
 
 "@tauri-apps/plugin-opener@~2":
-  version "2.5.2"
-  resolved "https://registry.yarnpkg.com/@tauri-apps/plugin-opener/-/plugin-opener-2.5.2.tgz#6e2127d0ad7627a16103215ed596e4fa42bda199"
-  integrity sha512-ei/yRRoCklWHImwpCcDK3VhNXx+QXM9793aQ64YxpqVF0BDuuIlXhZgiAkc15wnPVav+IbkYhmDJIv5R326Mew==
+  version "2.5.3"
+  resolved "https://registry.yarnpkg.com/@tauri-apps/plugin-opener/-/plugin-opener-2.5.3.tgz#09f8fe143567839cc491f4f8fde21caa0f1a8b89"
+  integrity sha512-CCcUltXMOfUEArbf3db3kCE7Ggy1ExBEBl51Ko2ODJ6GDYHRp1nSNlQm5uNCFY5k7/ufaK5Ib3Du/Zir19IYQQ==
   dependencies:
     "@tauri-apps/api" "^2.8.0"
 
@@ -804,9 +804,9 @@
     "@tauri-apps/api" "^2.8.0"
 
 "@tauri-apps/plugin-store@^2":
-  version "2.4.1"
-  resolved "https://registry.yarnpkg.com/@tauri-apps/plugin-store/-/plugin-store-2.4.1.tgz#5e2d3362e41861d2fa79a3f1a78c091e12963236"
-  integrity sha512-ckGSEzZ5Ii4Hf2D5x25Oqnm2Zf9MfDWAzR+volY0z/OOBz6aucPKEY0F649JvQ0Vupku6UJo7ugpGRDOFOunkA==
+  version "2.4.2"
+  resolved "https://registry.yarnpkg.com/@tauri-apps/plugin-store/-/plugin-store-2.4.2.tgz#70a0bc9ef62b45e2b1bff2ecb0afed2a42b22519"
+  integrity sha512-0ClHS50Oq9HEvLPhNzTNFxbWVOqoAp3dRvtewQBeqfIQ0z5m3JRnOISIn2ZVPCrQC0MyGyhTS9DWhHjpigQE7A==
   dependencies:
     "@tauri-apps/api" "^2.8.0"
 
@@ -835,9 +835,9 @@
   integrity sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==
 
 "@types/node@^25":
-  version "25.0.3"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-25.0.3.tgz#79b9ac8318f373fbfaaf6e2784893efa9701f269"
-  integrity sha512-W609buLVRVmeW693xKfzHeIV6nJGGz98uCPfeXI1ELMLXVeKYZ9m15fAMSaUPBHYLGFsVRcMmSCksQOrZV9BYA==
+  version "25.0.6"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-25.0.6.tgz#5ca3c46f2b256b59128f433426e42d464765dab1"
+  integrity sha512-NNu0sjyNxpoiW3YuVFfNz7mxSQ+S4X2G28uqg2s+CzoqoQjLPsWSbsFFyztIAqt2vb8kfEAsJNepMGPTxFDx3Q==
   dependencies:
     undici-types "~7.16.0"
 
@@ -935,9 +935,9 @@ axobject-query@^4.1.0:
   integrity sha512-qIj0G9wZbMGNLjLmg1PT6v2mE9AH2zlnADJD/2tC6E00hgmhUOfEB6greHPAfLRSufHqROIUTkw6E+M3lH0PTQ==
 
 baseline-browser-mapping@^2.9.0, baseline-browser-mapping@^2.9.11:
-  version "2.9.11"
-  resolved "https://registry.yarnpkg.com/baseline-browser-mapping/-/baseline-browser-mapping-2.9.11.tgz#53724708c8db5f97206517ecfe362dbe5181deea"
-  integrity sha512-Sg0xJUNDU1sJNGdfGWhVHX0kkZ+HWcvmVymJbj6NSgZZmW/8S9Y2HQ5euytnIgakgxN6papOAWiwDo1ctFDcoQ==
+  version "2.9.14"
+  resolved "https://registry.yarnpkg.com/baseline-browser-mapping/-/baseline-browser-mapping-2.9.14.tgz#3b6af0bc032445bca04de58caa9a87cfe921cbb3"
+  integrity sha512-B0xUquLkiGLgHhpPBqvl7GWegWBUNuujQ6kXd/r1U38ElPT6Ok8KZ8e+FpUGEc2ZoRQUzq/aUnaKFc/svWUGSg==
 
 braces@^3.0.3:
   version "3.0.3"
@@ -966,9 +966,9 @@ call-bind-apply-helpers@^1.0.1, call-bind-apply-helpers@^1.0.2:
     function-bind "^1.1.2"
 
 caniuse-lite@^1.0.30001759, caniuse-lite@^1.0.30001760:
-  version "1.0.30001762"
-  resolved "https://registry.yarnpkg.com/caniuse-lite/-/caniuse-lite-1.0.30001762.tgz#e4dbfeda63d33258cdde93e53af2023a13ba27d4"
-  integrity sha512-PxZwGNvH7Ak8WX5iXzoK1KPZttBXNPuaOvI2ZYU7NrlM+d9Ov+TUvlLOBNGzVXAntMSMMlJPd+jY6ovrVjSmUw==
+  version "1.0.30001764"
+  resolved "https://registry.yarnpkg.com/caniuse-lite/-/caniuse-lite-1.0.30001764.tgz#03206c56469f236103b90f9ae10bcb8b9e1f6005"
+  integrity sha512-9JGuzl2M+vPL+pz70gtMF9sHdMFbY9FJaQBi186cHKH3pSzDvzoUJUPV6fqiKIMyXbud9ZLg4F3Yza1vJ1+93g==
 
 chokidar@^4.0.0, chokidar@^4.0.1:
   version "4.0.3"
@@ -1778,7 +1778,7 @@ tapable@^2.2.0:
 
 "tauri-plugin-keyring@git+https://github.com/charlesportwoodii/tauri-plugin-keyring.git":
   version "0.1.0"
-  resolved "git+https://github.com/charlesportwoodii/tauri-plugin-keyring.git#924e80fc60813ac11374517690cc0cd2f2b5e3ff"
+  resolved "git+https://github.com/charlesportwoodii/tauri-plugin-keyring.git#3a3c4ef662951cb97d840dcf0f015a467c7654f0"
   dependencies:
     "@tauri-apps/api" "^2.0.0"
     "@tauri-apps/plugin-log" "^2.7.0"
@@ -1862,9 +1862,9 @@ util-deprecate@^1.0.2:
   integrity sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==
 
 vite@^7.3:
-  version "7.3.0"
-  resolved "https://registry.yarnpkg.com/vite/-/vite-7.3.0.tgz#066c7a835993a66e82004eac3e185d0d157fd658"
-  integrity sha512-dZwN5L1VlUBewiP6H9s2+B3e3Jg96D0vzN+Ry73sOefebhYr9f94wwkMNN/9ouoU8pV1BqA1d1zGk8928cx0rg==
+  version "7.3.1"
+  resolved "https://registry.yarnpkg.com/vite/-/vite-7.3.1.tgz#7f6cfe8fb9074138605e822a75d9d30b814d6507"
+  integrity sha512-w+N7Hifpc3gRjZ63vYBXA56dvvRlNWRczTdmCBBa+CotUzAPf5b7YMdMR/8CQoeYE5LX3W4wj6RYTgonm1b9DA==
   dependencies:
     esbuild "^0.27.0"
     fdir "^6.5.0"
