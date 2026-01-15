@@ -115,7 +115,7 @@ jobs:
           loaders: |-
             fabric
           game-versions: |-
-            1.21.4
+            1.21.11
           channel: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}
 
   publish-modrinth-paper:
@@ -150,5 +150,5 @@ jobs:
             spigot
             bukkit
           game-versions: |-
-            1.21.4
+            1.21.11
           channel: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}

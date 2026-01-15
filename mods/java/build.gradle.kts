@@ -1,6 +1,8 @@
 plugins {
     java
-    id("fabric-loom") version "1.8-SNAPSHOT" apply false
+    kotlin("jvm") version "2.0.21" apply false
+    id("fabric-loom") version "1.15.1" apply false
+    id("com.gradleup.shadow") version "9.0.0" apply false
 }
 
 val modVersion: String by project
@@ -13,6 +15,7 @@ allprojects {
 
 subprojects {
     apply(plugin = "java")
+    apply(plugin = "org.jetbrains.kotlin.jvm")
 
     repositories {
         mavenCentral()
@@ -36,9 +39,13 @@ subprojects {
         options.encoding = "UTF-8"
     }
 
+    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
+        }
+    }
+
     dependencies {
-        // Lombok for all modules
-        "compileOnly"("org.projectlombok:lombok:1.18.34")
-        "annotationProcessor"("org.projectlombok:lombok:1.18.34")
+        "implementation"(kotlin("stdlib"))
     }
 }
