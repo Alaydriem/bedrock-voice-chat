@@ -129,11 +129,31 @@ jobs:
     secrets: inherit
 
   # Job 5: Build Java Fabric Mod
-  build-mod-java:
-    name: Build Java Mod
+  build-mod-fabric:
+    name: Build Fabric Mod
     needs: prepare-release
     if: needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false
-    uses: ./.github/workflows/build-mod-java.yml
+    uses: ./.github/workflows/build-mod-fabric.yml
+    with:
+      version: ${{ needs.prepare-release.outputs.new_version }}
+    secrets: inherit
+
+  # Job 5b: Build Java Paper Plugin
+  build-mod-paper:
+    name: Build Paper Plugin
+    needs: prepare-release
+    if: needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false
+    uses: ./.github/workflows/build-mod-paper.yml
+    with:
+      version: ${{ needs.prepare-release.outputs.new_version }}
+    secrets: inherit
+
+  # Job 5c: Build Java Hytale Plugin (conditional on HYTALE_ENABLED)
+  build-mod-hytale:
+    name: Build Hytale Plugin
+    needs: prepare-release
+    if: needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false
+    uses: ./.github/workflows/build-mod-hytale.yml
     with:
       version: ${{ needs.prepare-release.outputs.new_version }}
     secrets: inherit
@@ -149,8 +169,8 @@ jobs:
   # Job 7: Upload release assets to GitHub
   upload-assets:
     name: Upload Release Assets
-    needs: [prepare-release, build-server, build-android, build-client, build-mod-java, build-mod-bds]
-    if: always() && needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false && (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-client.result == 'success' || needs.build-mod-java.result == 'success' || needs.build-mod-bds.result == 'success')
+    needs: [prepare-release, build-server, build-android, build-client, build-mod-fabric, build-mod-paper, build-mod-hytale, build-mod-bds]
+    if: always() && needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false && (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-client.result == 'success' || needs.build-mod-fabric.result == 'success' || needs.build-mod-paper.result == 'success' || needs.build-mod-hytale.result == 'success' || needs.build-mod-bds.result == 'success')
     runs-on: ubuntu-latest
     steps:
       - name: Generate GitHub App token
@@ -208,11 +228,29 @@ jobs:
           fi
 
           # Java Fabric Mod
-          JAVA_MOD_DIR="./artifacts/bedrock-voice-chat-fabric-${VERSION}"
-          if [ -d "$JAVA_MOD_DIR" ]; then
-            JAR_FILE=$(find "$JAVA_MOD_DIR" -name "*.jar" -type f | head -n 1)
+          FABRIC_MOD_DIR="./artifacts/bedrock-voice-chat-fabric-${VERSION}"
+          if [ -d "$FABRIC_MOD_DIR" ]; then
+            JAR_FILE=$(find "$FABRIC_MOD_DIR" -name "*.jar" -type f | head -n 1)
             if [ -n "$JAR_FILE" ]; then
               cp "$JAR_FILE" ./release-files/bvc-fabric-mod-${VERSION}.jar
+            fi
+          fi
+
+          # Java Paper Plugin
+          PAPER_MOD_DIR="./artifacts/bedrock-voice-chat-paper-${VERSION}"
+          if [ -d "$PAPER_MOD_DIR" ]; then
+            JAR_FILE=$(find "$PAPER_MOD_DIR" -name "*.jar" -type f | head -n 1)
+            if [ -n "$JAR_FILE" ]; then
+              cp "$JAR_FILE" ./release-files/bvc-paper-plugin-${VERSION}.jar
+            fi
+          fi
+
+          # Java Hytale Plugin
+          HYTALE_MOD_DIR="./artifacts/bedrock-voice-chat-hytale-${VERSION}"
+          if [ -d "$HYTALE_MOD_DIR" ]; then
+            JAR_FILE=$(find "$HYTALE_MOD_DIR" -name "*.jar" -type f | head -n 1)
+            if [ -n "$JAR_FILE" ]; then
+              cp "$JAR_FILE" ./release-files/bvc-hytale-plugin-${VERSION}.jar
             fi
           fi
 

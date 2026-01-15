@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "bedrock-voice-chat",
+  "version": "${version}",
+  "name": "Bedrock Voice Chat",
+  "description": "Server-side player position tracking for proximity voice chat",
+  "authors": ["Charles R. Portwood II (Alaydriem) <charlesportwoodii@erianna.com>"],
+  "license": "",
+  "icon": "app-logo.png",
+  "environment": "server",
+  "entrypoints": {
+    "main": ["com.alaydriem.bedrockvoicechat.fabric.FabricMod"]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": ">=1.21",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
