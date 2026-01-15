@@ -30,11 +30,26 @@ Bedrock Voice Chat is an client app + addon for Minecraft Bedrock edition that p
 
 ## How you can Support
 
-Supporters and Sponsors like you make projects like Bedrock Voice Chat possible. Checkout the wiki article on how you can support, and have you profile picture sponsored in the README: https://github.com/Alaydriem/bedrock-voice-chat/discussions/31.
+I’ve set up a few ways for you to join the supporters who help keep Bedrock Voice Chat thriving - checkout https://github.com/Alaydriem/bedrock-voice-chat/discussions/31 for more details.
 
-Your support makes both new features and publication to the Google Play and Apple App stores possible.
+1. Become a Channel Member or Twitch Subscriber
+Join the community on [YouTube](https://youtube.com/@alaydriem)
+ or [Twitch](https://twitch.tv/alaydriem)
+ — members get exclusive updates, early feature previews, and a front-row seat to development progress.
+
+2. Back Me on Patreon
+Visit [Patreon.com/Alaydriem](https://www.patreon.com/c/Alaydriem) and become a Bedrock Voice Chat Supporter. Every pledge directly funds ongoing development, app store maintenance, and future innovations.
+
+Supporters and Sponsors like you make projects like Bedrock Voice Chat possible, and enable us to fulfill feature requests and publications to the Google Play and Apple App Stores. Supporter and Sponsors at these roles will receive these updates before they are unlocked for everyone. 
 
 ## Installation
 
-Be sure to checkout the Wiki for more information on how to install BVC to both your BDS server instance, and to your local client: https://github.com/Alaydriem/bedrock-voice-chat/wiki
+Bedrock Voice Chat has 3 components
+
+1. A BDS behavior pack (or Java mod) you install on your server that connects to -
+2. A Bedrock Voice Chat Server you need to host and maintain that ties position data and audio data together
+3. And a native client for Windows, iOS, and Android.
+
+All 3 components are mandatory. Be sure to checkout the Wiki for more information: https://github.com/Alaydriem/bedrock-voice-chat/wiki
+
 
