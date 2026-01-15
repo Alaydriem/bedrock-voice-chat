@@ -4,7 +4,7 @@ plugins {
 }
 
 // Apply custom RunHytale plugin for testing
-apply<RunHytalePlugin>()
+apply(plugin = RunHytalePlugin::class)
 
 val archivesBaseName: String by project
 
@@ -17,7 +17,6 @@ val hytaleJar = file("libs/HytaleServer.jar")
 
 if (hytaleJar.exists()) {
     dependencies {
-        // Common module - will be shadowed
         implementation(project(":common"))
 
         // Hytale Server (local dependency, provided at runtime)
@@ -34,11 +33,7 @@ if (hytaleJar.exists()) {
 
     tasks.shadowJar {
         archiveClassifier.set("")
-
-        // Relocate Gson to avoid conflicts
         relocate("com.google.gson", "com.alaydriem.bedrockvoicechat.shaded.gson")
-
-        // Include common module and its dependencies (Gson)
         dependencies {
             include(project(":common"))
             include(dependency("com.google.code.gson:gson"))
@@ -49,12 +44,10 @@ if (hytaleJar.exists()) {
         }
     }
 
-    // Disable default jar task - use shadowJar instead
     tasks.jar {
         enabled = false
     }
 
-    // Make build depend on shadowJar
     tasks.build {
         dependsOn(tasks.shadowJar)
     }
