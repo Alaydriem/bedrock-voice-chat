@@ -86,6 +86,8 @@ jobs:
     if: ${{ needs.prepare-release.outputs.new_release_published == 'true' && !inputs.dry-run }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
       - name: Download artifact
         uses: actions/download-artifact@v4
@@ -124,6 +126,8 @@ jobs:
     if: ${{ needs.prepare-release.outputs.new_release_published == 'true' && !inputs.dry-run }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
       - name: Download artifact
         uses: actions/download-artifact@v4

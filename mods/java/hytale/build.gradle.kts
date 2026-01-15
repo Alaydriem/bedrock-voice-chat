@@ -4,7 +4,9 @@ plugins {
 }
 
 // Apply custom RunHytale plugin for testing
-apply(plugin = RunHytalePlugin::class)
+apply {
+    plugin(RunHytalePlugin::class.java)
+}
 
 val archivesBaseName: String by project
 

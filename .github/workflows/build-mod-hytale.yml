@@ -22,7 +22,8 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write
+  packages: write
 
 jobs:
   build:
