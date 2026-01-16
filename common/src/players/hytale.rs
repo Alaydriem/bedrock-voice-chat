@@ -7,7 +7,7 @@ use crate::{Coordinate, Game, Orientation};
 use serde::{Deserialize, Serialize};
 
 /// Hytale player with world and dimension-based communication rules
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct HytalePlayer {
     pub name: String,
     pub coordinates: Coordinate,
@@ -66,7 +66,7 @@ impl HytalePlayer {
             _ => {}
         }
 
-        if self.dimension != other.dimension {
+        if !self.dimension.eq(&other.dimension) {
             return Err(CommunicationError::hytale(
                 HytaleCommunicationError::DimensionMismatch {
                     sender: self.dimension.clone(),

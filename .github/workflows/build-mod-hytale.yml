@@ -1,6 +1,12 @@
 name: Build Hytale Plugin
 
 on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'mods/java/**'
+      - '.github/workflows/build-mod-hytale.yml'
+  pull_request:
   workflow_call:
     inputs:
       version:
@@ -29,8 +35,6 @@ jobs:
   build:
     name: Build Hytale Plugin
     runs-on: ubuntu-latest
-    # Only run if Hytale credentials secret exists
-    if: ${{ vars.HYTALE_ENABLED == 'true' }}
     outputs:
       version: ${{ steps.mod-version.outputs.version }}
       artifact-name: ${{ steps.mod-version.outputs.artifact-name }}
@@ -58,23 +62,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Setup Hytale credentials
-        run: |
-          # Write to both home dir (downloader default) and project dir
-          echo '${{ secrets.HYTALE_DOWNLOADER_CREDENTIALS }}' > ~/.hytale-downloader-credentials.json
-          echo '${{ secrets.HYTALE_DOWNLOADER_CREDENTIALS }}' > mods/java/.hytale-downloader-credentials.json
-
-      - name: Download Hytale Server
-        working-directory: ./mods/java
-        run: |
-          # Download the official Hytale server downloader
-          curl -LO https://downloader.hytale.com/hytale-downloader.zip
-          unzip hytale-downloader.zip
-          chmod +x hytale-downloader-linux-amd64
-          mkdir -p hytale/libs
-          ./hytale-downloader-linux-amd64 --output ./hytale-server
-          cp ./hytale-server/HytaleServer.jar ./hytale/libs/
-
       - name: Get mod version
         id: mod-version
         working-directory: ./mods/java
@@ -88,6 +75,12 @@ jobs:
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "artifact-name=bedrock-voice-chat-hytale-$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Setup Hytale credentials
+        if: ${{ secrets.HYTALE_DOWNLOADER_CREDENTIALS != '' }}
+        run: |
+          echo '${{ secrets.HYTALE_DOWNLOADER_CREDENTIALS }}' > ~/.hytale-downloader-credentials.json
+          echo '${{ secrets.HYTALE_DOWNLOADER_CREDENTIALS }}' > mods/java/.hytale-downloader-credentials.json
 
       - name: Build Hytale module
         working-directory: ./mods/java

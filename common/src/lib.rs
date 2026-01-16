@@ -41,7 +41,7 @@ pub enum Game {
     Hytale,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Coordinate {
     pub x: f32,
     pub y: f32,
@@ -58,7 +58,7 @@ impl Default for Coordinate {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Orientation {
     pub x: f32,
     pub y: f32,
