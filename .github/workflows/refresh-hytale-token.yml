@@ -1,0 +1,94 @@
+name: Refresh Hytale Token
+
+on:
+  schedule:
+    # Run daily at 2 AM UTC (tokens expire after ~1 hour, but refresh tokens last longer)
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    # Allow manual trigger for testing
+
+jobs:
+  refresh:
+    name: Refresh Hytale OAuth Token
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Refresh OAuth Token
+        id: refresh
+        env:
+          CREDENTIALS_JSON: ${{ secrets.HYTALE_DOWNLOADER_CREDENTIALS }}
+        run: |
+          if [ -z "$CREDENTIALS_JSON" ]; then
+            echo "::error::HYTALE_DOWNLOADER_CREDENTIALS secret is not set"
+            exit 1
+          fi
+
+          # Extract refresh token from existing credentials
+          REFRESH_TOKEN=$(echo "$CREDENTIALS_JSON" | jq -r '.refresh_token')
+          if [ -z "$REFRESH_TOKEN" ] || [ "$REFRESH_TOKEN" = "null" ]; then
+            echo "::error::No refresh_token found in credentials"
+            exit 1
+          fi
+
+          # Call the Ory OAuth2 token endpoint
+          RESPONSE=$(curl -s -X POST "https://oauth.accounts.hytale.com/oauth2/token" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "grant_type=refresh_token" \
+            -d "refresh_token=${REFRESH_TOKEN}" \
+            -d "client_id=hytale-downloader")
+
+          # Check for errors
+          if echo "$RESPONSE" | jq -e '.error' > /dev/null 2>&1; then
+            ERROR=$(echo "$RESPONSE" | jq -r '.error_description // .error')
+            echo "::error::Token refresh failed: $ERROR"
+            exit 1
+          fi
+
+          # Extract tokens
+          ACCESS_TOKEN=$(echo "$RESPONSE" | jq -r '.access_token')
+          NEW_REFRESH_TOKEN=$(echo "$RESPONSE" | jq -r '.refresh_token // empty')
+          EXPIRES_IN=$(echo "$RESPONSE" | jq -r '.expires_in')
+
+          if [ -z "$ACCESS_TOKEN" ] || [ "$ACCESS_TOKEN" = "null" ]; then
+            echo "::error::No access token in response"
+            echo "Response: $RESPONSE"
+            exit 1
+          fi
+
+          # Calculate expires_at timestamp
+          EXPIRES_AT=$(($(date +%s) + EXPIRES_IN))
+
+          # Build credentials JSON
+          CREDENTIALS=$(jq -n \
+            --arg at "$ACCESS_TOKEN" \
+            --arg rt "${NEW_REFRESH_TOKEN:-$REFRESH_TOKEN}" \
+            --argjson ea "$EXPIRES_AT" \
+            '{access_token: $at, refresh_token: $rt, expires_at: $ea, branch: "release"}')
+
+          # Output for next step (masked)
+          echo "::add-mask::$ACCESS_TOKEN"
+          echo "::add-mask::$NEW_REFRESH_TOKEN"
+          echo "credentials<<EOF" >> $GITHUB_OUTPUT
+          echo "$CREDENTIALS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          # Note if refresh token was rotated
+          if [ -n "$NEW_REFRESH_TOKEN" ] && [ "$NEW_REFRESH_TOKEN" != "null" ] && [ "$NEW_REFRESH_TOKEN" != "$REFRESH_TOKEN" ]; then
+            echo "::notice::Refresh token was rotated by the server"
+          fi
+
+          echo "::notice::Token refreshed successfully, expires at $(date -d @$EXPIRES_AT)"
+
+      - name: Update HYTALE_DOWNLOADER_CREDENTIALS secret
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          CREDENTIALS: ${{ steps.refresh.outputs.credentials }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::GH_PAT secret is not set - cannot update secrets"
+            exit 1
+          fi
+
+          # Update the credentials secret
+          echo "$CREDENTIALS" | gh secret set HYTALE_DOWNLOADER_CREDENTIALS --repo "$GITHUB_REPOSITORY"
+          echo "::notice::Updated HYTALE_DOWNLOADER_CREDENTIALS secret"
