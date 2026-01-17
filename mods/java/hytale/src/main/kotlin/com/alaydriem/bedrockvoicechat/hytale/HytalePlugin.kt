@@ -15,7 +15,7 @@ import java.util.logging.Level
  * Hytale plugin entry point for Bedrock Voice Chat.
  */
 class HytalePlugin(init: JavaPluginInit) : JavaPlugin(init) {
-    private val config = withConfig("bedrock-voice-chat", HytaleModConfig.CODEC)
+    private val config = withConfig("BedrockVoiceChatPlugin", BedrockVoiceChatConfig.CODEC)
     private val configProvider = HytaleConfigProvider(config)
     private val playerDataProvider = HytalePlayerDataProvider()
 
@@ -25,6 +25,10 @@ class HytalePlugin(init: JavaPluginInit) : JavaPlugin(init) {
 
     override fun setup() {
         logger.at(Level.INFO).log("Initializing Bedrock Voice Chat for Hytale")
+
+        // Debug: Log raw config values
+        val rawConfig = config.get()
+        logger.at(Level.INFO).log("Raw config - BvcServer: '${rawConfig.bvcServer}', AccessToken: '${rawConfig.accessToken}', MinPlayers: ${rawConfig.minimumPlayers}")
 
         // Load config via provider (backed by Hytale's Config<T>)
         val modConfig = configProvider.load()

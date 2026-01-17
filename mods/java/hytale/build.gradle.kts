@@ -204,8 +204,10 @@ tasks.shadowJar {
     relocate("com.google.gson", "com.alaydriem.bedrockvoicechat.shaded.gson")
     dependencies {
         include(project(":common"))
-        include(dependency("com.google.code.gson:gson"))
-        include(dependency("org.jetbrains.kotlin:kotlin-stdlib"))
+        include(dependency("com.google.code.gson:gson:.*"))
+        // Include all Kotlin runtime dependencies (group:name:version pattern)
+        include(dependency("org.jetbrains.kotlin:kotlin-stdlib:.*"))
+        include(dependency("org.jetbrains:annotations:.*"))
     }
 
     from("LICENSE") {

@@ -6,12 +6,13 @@ import com.hypixel.hytale.server.core.util.Config
 
 /**
  * Hytale-specific ConfigProvider backed by BuilderCodec.
- * Converts between HytaleModConfig and the common ModConfig interface.
+ * Converts between BedrockVoiceChatConfig and the common ModConfig interface.
  */
-class HytaleConfigProvider(private val config: Config<HytaleModConfig>) : ConfigProvider {
+class HytaleConfigProvider(private val config: Config<BedrockVoiceChatConfig>) : ConfigProvider {
 
     override fun load(): ModConfig {
         val hytaleConfig = config.get()
+        println("[BVC ConfigProvider] Raw Hytale config: bvcServer='${hytaleConfig.bvcServer}', accessToken='${hytaleConfig.accessToken}', minimumPlayers=${hytaleConfig.minimumPlayers}")
 
         return ModConfig().apply {
             bvcServer = hytaleConfig.bvcServer
