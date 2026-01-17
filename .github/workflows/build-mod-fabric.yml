@@ -77,10 +77,10 @@ jobs:
           echo "artifact-name=bedrock-voice-chat-fabric-$VERSION" >> $GITHUB_OUTPUT
 
       - name: Build Fabric module
-        working-directory: ./mods/java
+        working-directory: ./mods/java/fabric
         run: |
           chmod +x gradlew
-          ./gradlew :fabric:build --no-daemon -PmodVersion=${{ steps.mod-version.outputs.version }}
+          ./gradlew :build --no-daemon -PmodVersion=${{ steps.mod-version.outputs.version }}
 
       - name: Prepare artifact
         shell: bash

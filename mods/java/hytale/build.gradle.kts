@@ -1,9 +1,13 @@
 import org.gradle.api.DefaultTask
 import org.gradle.api.tasks.TaskAction
 import org.gradle.api.tasks.OutputFile
-import org.gradle.api.tasks.Exec
-import org.gradle.process.ExecOperations
-import javax.inject.Inject
+import com.google.gson.Gson
+import com.google.gson.JsonObject
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import java.security.MessageDigest
 
 plugins {
     java
@@ -11,29 +15,25 @@ plugins {
 }
 
 val archivesBaseName: String by project
-val hytaleJar = file("libs/HytaleServer.jar")
+val hytaleJar = file("build/hytale-download/server/Server/HytaleServer.jar")
 
 base {
     archivesName.set("$archivesBaseName-hytale")
 }
 
-// Task to download Hytale server if not present
+// Task to download Hytale server using direct API calls
 abstract class DownloadHytaleServerTask : DefaultTask() {
     @get:OutputFile
-    val hytaleJarFile: File = project.file("libs/HytaleServer.jar")
+    val hytaleJarFile: File = project.file("build/hytale-download/server/Server/HytaleServer.jar")
 
-    @get:Inject
-    abstract val execOps: ExecOperations
+    private val httpClient = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build()
+    private val gson = Gson()
 
     @TaskAction
     fun download() {
-        val libsDir = project.file("libs")
-        libsDir.mkdirs()
-
         // Check for credentials file in multiple locations
         val credentialsFile = listOf(
             project.file(".hytale-downloader-credentials.json"),
-            File(System.getProperty("user.home"), ".hytale-downloader-credentials.json"),
             project.rootProject.file(".hytale-downloader-credentials.json")
         ).firstOrNull { it.exists() }
 
@@ -41,80 +41,127 @@ abstract class DownloadHytaleServerTask : DefaultTask() {
             throw GradleException("Hytale credentials file not found. Create .hytale-downloader-credentials.json to enable Hytale builds.")
         }
 
+        // Parse access token from credentials
+        val credentials = gson.fromJson(credentialsFile.readText(), JsonObject::class.java)
+        val accessToken = credentials.get("access_token")?.asString
+            ?: throw GradleException("No access_token found in credentials file")
+
         val tempDir = project.layout.buildDirectory.dir("hytale-download").get().asFile
         tempDir.mkdirs()
 
-        // Determine OS and download appropriate downloader
-        val os = System.getProperty("os.name").lowercase()
-        val downloaderName = when {
-            os.contains("linux") -> "hytale-downloader-linux-amd64"
-            os.contains("windows") -> "hytale-downloader-windows-amd64.exe"
-            else -> throw GradleException("Unsupported OS: $os")
-        }
+        // Step 1: Get release info signed URL
+        logger.lifecycle("Fetching release info...")
+        val releaseSignedUrl = fetchSignedUrl(
+            "https://account-data.hytale.com/game-assets/version/release.json",
+            accessToken
+        )
 
-        val downloaderZip = File(tempDir, "hytale-downloader.zip")
-        val downloaderExe = File(tempDir, downloaderName)
-        val serverOutputDir = File(tempDir, "server")
+        // Step 2: Fetch release info (version, download_url, sha256)
+        val releaseInfo = fetchJson(releaseSignedUrl)
+        val releaseJson = gson.fromJson(releaseInfo, JsonObject::class.java)
+        val downloadPath = releaseJson.get("download_url")?.asString
+            ?: throw GradleException("No download_url in release info")
+        val expectedSha256 = releaseJson.get("sha256")?.asString
+            ?: throw GradleException("No sha256 in release info")
+        val version = releaseJson.get("version")?.asString ?: "unknown"
+        logger.lifecycle("Found Hytale server version: $version")
 
-        // Download the downloader
-        logger.lifecycle("Downloading Hytale server downloader...")
-        ant.invokeMethod("get", mapOf(
-            "src" to "https://downloader.hytale.com/hytale-downloader.zip",
-            "dest" to downloaderZip
-        ))
+        // Step 3: Get download signed URL
+        logger.lifecycle("Fetching download URL...")
+        val downloadSignedUrl = fetchSignedUrl(
+            "https://account-data.hytale.com/game-assets/$downloadPath",
+            accessToken
+        )
 
-        // Unzip
-        project.copy {
-            from(project.zipTree(downloaderZip))
-            into(tempDir)
-        }
-
-        // Make executable on Unix
-        if (!os.contains("windows")) {
-            execOps.exec {
-                commandLine("chmod", "+x", downloaderExe.absolutePath)
-            }
-        }
-
-        // Copy credentials to temp dir
-        credentialsFile.copyTo(File(tempDir, ".hytale-downloader-credentials.json"), overwrite = true)
-
-        // Run downloader
-        logger.lifecycle("Downloading Hytale server...")
-        execOps.exec {
-            workingDir(tempDir)
-            commandLine(downloaderExe.absolutePath, "-download-path=${tempDir.absolutePath}")
-        }
-
-        // Extract server.zip
+        // Step 4: Download server.zip
         val serverZip = File(tempDir, "server.zip")
-        if (!serverZip.exists()) {
-            throw GradleException("Hytale server download failed - server.zip not found")
-        }
+        logger.lifecycle("Downloading Hytale server...")
+        downloadFile(downloadSignedUrl, serverZip)
 
+        // Step 5: Verify SHA256
+        logger.lifecycle("Verifying checksum...")
+        val actualSha256 = sha256(serverZip)
+        if (!actualSha256.equals(expectedSha256, ignoreCase = true)) {
+            throw GradleException("SHA256 mismatch! Expected: $expectedSha256, Got: $actualSha256")
+        }
+        logger.lifecycle("Checksum verified.")
+
+        // Step 6: Extract server.zip
         logger.lifecycle("Extracting Hytale server...")
+        val serverOutputDir = File(tempDir, "server")
         serverOutputDir.mkdirs()
         project.copy {
             from(project.zipTree(serverZip))
             into(serverOutputDir)
         }
 
-        // Copy server JAR to libs
-        val downloadedJar = File(serverOutputDir, "HytaleServer.jar")
-        if (downloadedJar.exists()) {
-            downloadedJar.copyTo(hytaleJarFile, overwrite = true)
+        // Step 7: Verify JAR exists (JAR is inside Server subdirectory)
+        if (hytaleJarFile.exists()) {
             logger.lifecycle("Hytale server downloaded to: ${hytaleJarFile.absolutePath}")
         } else {
-            // List what was extracted for debugging
             val extractedFiles = serverOutputDir.listFiles()?.map { it.name } ?: emptyList()
-            throw GradleException("Hytale server download failed - HytaleServer.jar not found in extracted files: $extractedFiles")
+            val serverDirFiles = File(serverOutputDir, "Server").listFiles()?.map { it.name } ?: emptyList()
+            throw GradleException("HytaleServer.jar not found. Root: $extractedFiles, Server/: $serverDirFiles")
         }
+    }
+
+    private fun fetchSignedUrl(endpoint: String, token: String): String {
+        val request = HttpRequest.newBuilder()
+            .uri(URI.create(endpoint))
+            .header("Authorization", "Bearer $token")
+            .GET()
+            .build()
+        val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+        if (response.statusCode() != 200) {
+            throw GradleException("Failed to fetch $endpoint: HTTP ${response.statusCode()} - ${response.body()}")
+        }
+        val json = gson.fromJson(response.body(), JsonObject::class.java)
+        return json.get("url")?.asString
+            ?: throw GradleException("No 'url' field in response from $endpoint")
+    }
+
+    private fun fetchJson(url: String): String {
+        val request = HttpRequest.newBuilder()
+            .uri(URI.create(url))
+            .GET()
+            .build()
+        val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+        if (response.statusCode() != 200) {
+            throw GradleException("Failed to fetch $url: HTTP ${response.statusCode()}")
+        }
+        return response.body()
+    }
+
+    private fun downloadFile(url: String, dest: File) {
+        val request = HttpRequest.newBuilder()
+            .uri(URI.create(url))
+            .GET()
+            .build()
+        val response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream())
+        if (response.statusCode() != 200) {
+            throw GradleException("Failed to download $url: HTTP ${response.statusCode()}")
+        }
+        dest.outputStream().use { out ->
+            response.body().copyTo(out)
+        }
+    }
+
+    private fun sha256(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(8192)
+            var bytesRead: Int
+            while (input.read(buffer).also { bytesRead = it } != -1) {
+                digest.update(buffer, 0, bytesRead)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 }
 
 val downloadHytaleServer by tasks.registering(DownloadHytaleServerTask::class) {
     group = "hytale"
-    description = "Download Hytale server JAR using the official downloader"
+    description = "Download Hytale server JAR using direct API calls"
     onlyIf { !hytaleJarFile.exists() }
 }
 
@@ -124,7 +171,7 @@ dependencies {
 
     // Hytale Server (local dependency, provided at runtime)
     if (hytaleJar.exists()) {
-        compileOnly(files("libs/HytaleServer.jar"))
+        compileOnly(files("build/hytale-download/server/Server/HytaleServer.jar"))
     }
 
     // Test dependencies
@@ -198,12 +245,12 @@ tasks.register<Exec>("runServer") {
         // Copy HytaleServer.jar to run dir if not present
         val serverJar = File(runDir, "HytaleServer.jar")
         if (!serverJar.exists()) {
-            val libsServerJar = file("libs/HytaleServer.jar")
-            if (libsServerJar.exists()) {
-                libsServerJar.copyTo(serverJar)
+            val downloadedServerJar = file("build/hytale-download/server/Server/HytaleServer.jar")
+            if (downloadedServerJar.exists()) {
+                downloadedServerJar.copyTo(serverJar)
                 println("Copied HytaleServer.jar to run directory")
             } else {
-                throw IllegalStateException("HytaleServer.jar not found in libs/")
+                throw IllegalStateException("HytaleServer.jar not found in build/hytale-download/server/Server/")
             }
         }
     }

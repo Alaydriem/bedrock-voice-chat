@@ -10,3 +10,5 @@ hytale-downloader*
 .bin
 .kotlin
 buildSrc
+bin/
+**/bin/

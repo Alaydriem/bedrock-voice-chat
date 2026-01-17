@@ -32,8 +32,14 @@ permissions:
   packages: write
 
 jobs:
+  refresh-token:
+    name: Refresh Hytale Token
+    uses: ./.github/workflows/refresh-hytale-token.yml
+    secrets: inherit
+
   build:
     name: Build Hytale Plugin
+    needs: refresh-token
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.mod-version.outputs.version }}
@@ -77,10 +83,9 @@ jobs:
           echo "artifact-name=bedrock-voice-chat-hytale-$VERSION" >> $GITHUB_OUTPUT
 
       - name: Setup Hytale credentials
-        if: ${{ secrets.HYTALE_DOWNLOADER_CREDENTIALS != '' }}
+        if: ${{ needs.refresh-token.outputs.credentials != '' }}
         run: |
-          echo '${{ secrets.HYTALE_DOWNLOADER_CREDENTIALS }}' > ~/.hytale-downloader-credentials.json
-          echo '${{ secrets.HYTALE_DOWNLOADER_CREDENTIALS }}' > mods/java/.hytale-downloader-credentials.json
+          echo '${{ needs.refresh-token.outputs.credentials }}' > mods/java/.hytale-downloader-credentials.json
 
       - name: Build Hytale module
         working-directory: ./mods/java
