@@ -13,6 +13,7 @@ use trust_dns_resolver::{
     config::{ResolverConfig, ResolverOpts},
     Resolver, TokioAsyncResolver,
 };
+use url::Url;
 
 #[tauri::command]
 pub(crate) async fn stop_network_stream(
@@ -33,7 +34,20 @@ pub(crate) async fn change_network_stream(
     let mut state = state.lock().await;
     state.current_server = Some(server.clone());
 
-    let server_fqdn = server.clone().replace("https://", "");
+    // Parse URL to extract just the hostname (without port) for DNS lookup and SNI
+    let server_fqdn = Url::parse(&server)
+        .ok()
+        .and_then(|u| u.host_str().map(|s| s.to_string()))
+        .unwrap_or_else(|| {
+            // Fallback: strip scheme and port manually
+            server
+                .replace("https://", "")
+                .replace("http://", "")
+                .split(':')
+                .next()
+                .unwrap_or(&server)
+                .to_string()
+        });
 
     let resolver = TokioAsyncResolver::tokio(ResolverConfig::cloudflare(), ResolverOpts::default());
 
