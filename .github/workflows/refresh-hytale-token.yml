@@ -6,19 +6,11 @@ on:
     - cron: '0 2 * * *'
   workflow_dispatch:
     # Allow manual trigger for testing
-  workflow_call:
-    # Allow other workflows to call this and get fresh credentials
-    outputs:
-      credentials:
-        description: 'Refreshed credentials JSON'
-        value: ${{ jobs.refresh.outputs.credentials }}
 
 jobs:
   refresh:
     name: Refresh Hytale OAuth Token
     runs-on: ubuntu-latest
-    outputs:
-      credentials: ${{ steps.refresh.outputs.credentials }}
 
     steps:
       - name: Refresh OAuth Token
