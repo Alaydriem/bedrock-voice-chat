@@ -31,11 +31,9 @@ pub async fn authenticate(
     let oauth2_transaction_code = payload.0.code;
 
     let client_id = config.minecraft.client_id.clone();
-    let client_secret = config.minecraft.client_secret.clone();
 
     let profile = match common::auth::xbl::server_authenticate_with_client_code(
         client_id,
-        client_secret,
         oauth2_transaction_code,
         payload.0.redirect_uri.clone().parse().unwrap(),
     )

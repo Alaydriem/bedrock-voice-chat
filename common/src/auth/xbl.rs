@@ -107,7 +107,6 @@ pub struct Profile {
 /// This is used on the server to get the player's identity and information and persist it in the state
 pub async fn server_authenticate_with_client_code(
     client_id: String,
-    _client_secret: String,
     code: String,
     redirect_uri: Url,
 ) -> anyhow::Result<ProfileResponse, anyhow::Error> {
