@@ -27,6 +27,9 @@ class FabricMod : ModInitializer {
         val config = configProvider.load()
         if (!config.isValid()) {
             logger.error("Invalid configuration - mod will not track players")
+            logger.error("Config validation failed: bvcServer={}, accessToken={}",
+                if (config.bvcServer.isNullOrBlank()) "MISSING" else "set",
+                if (config.accessToken.isNullOrBlank()) "MISSING" else "set")
             return
         }
 
@@ -60,7 +63,7 @@ class FabricMod : ModInitializer {
         val handler = httpHandler ?: return
         val players = playerDataProvider.collectPlayers()
 
-        if (players.size < maxOf(minimumPlayers, 2)) {
+        if (players.size < minimumPlayers) {
             return
         }
 

@@ -13,9 +13,15 @@ class PaperConfigProvider(private val plugin: JavaPlugin) : ConfigProvider {
         val yamlConfig = plugin.config
 
         return ModConfig().apply {
-            bvcServer = yamlConfig.getString("bvc-server", "")
-            accessToken = yamlConfig.getString("access-token", "")
-            minimumPlayers = yamlConfig.getInt("minimum-players", 2)
+            // Support both hyphenated and camelCase keys
+            bvcServer = yamlConfig.getString("bvc-server")
+                ?: yamlConfig.getString("bvcServer", "")
+            accessToken = yamlConfig.getString("access-token")
+                ?: yamlConfig.getString("accessToken", "")
+            minimumPlayers = if (yamlConfig.contains("minimum-players"))
+                yamlConfig.getInt("minimum-players", 2)
+            else
+                yamlConfig.getInt("minimumPlayers", 2)
         }
     }
 

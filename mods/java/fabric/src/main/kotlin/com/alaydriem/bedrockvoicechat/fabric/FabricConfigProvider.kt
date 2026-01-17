@@ -18,18 +18,26 @@ class FabricConfigProvider : ConfigProvider {
     }
 
     override fun load(): ModConfig {
+        LOGGER.debug("Looking for config at: {}", CONFIG_PATH.toAbsolutePath())
+
         if (!Files.exists(CONFIG_PATH)) {
-            LOGGER.warn("Config not found, creating default config")
+            LOGGER.warn("Config not found at {}, creating default config", CONFIG_PATH.toAbsolutePath())
             createDefaultIfMissing()
             return ModConfig()
         }
 
         return try {
-            Files.newBufferedReader(CONFIG_PATH).use { reader ->
+            LOGGER.debug("Loading config from: {}", CONFIG_PATH.toAbsolutePath())
+            val config = Files.newBufferedReader(CONFIG_PATH).use { reader ->
                 GSON.fromJson(reader, ModConfig::class.java)
             }
+            LOGGER.debug("Loaded config - bvcServer: {}, accessToken: {}, minimumPlayers: {}",
+                config.bvcServer?.take(20) ?: "null",
+                if (config.accessToken.isNullOrBlank()) "null/blank" else "***set***",
+                config.minimumPlayers)
+            config
         } catch (e: Exception) {
-            LOGGER.error("Failed to load config", e)
+            LOGGER.error("Failed to load config from {}", CONFIG_PATH.toAbsolutePath(), e)
             ModConfig()
         }
     }

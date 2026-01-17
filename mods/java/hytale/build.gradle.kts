@@ -177,6 +177,7 @@ dependencies {
     // Test dependencies
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testRuntimeOnly("org.slf4j:slf4j-simple:2.0.9")
 }
 
 tasks.test {
@@ -204,6 +205,7 @@ tasks.shadowJar {
     dependencies {
         include(project(":common"))
         include(dependency("com.google.code.gson:gson"))
+        include(dependency("org.jetbrains.kotlin:kotlin-stdlib"))
     }
 
     from("LICENSE") {

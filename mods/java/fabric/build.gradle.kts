@@ -45,8 +45,9 @@ dependencies {
     implementation("com.alaydriem:bedrock-voice-chat-common")
     include("com.alaydriem:bedrock-voice-chat-common")
 
-    // Kotlin
+    // Kotlin (include to bundle in JAR)
     implementation(kotlin("stdlib"))
+    include(kotlin("stdlib"))
 }
 
 loom {

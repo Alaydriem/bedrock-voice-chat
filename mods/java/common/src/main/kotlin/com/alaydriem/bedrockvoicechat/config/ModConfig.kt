@@ -6,13 +6,13 @@ import com.google.gson.annotations.SerializedName
  * Configuration for the BVC mod, shared across all platforms.
  */
 class ModConfig {
-    @SerializedName("bvc-server")
+    @SerializedName(value = "bvc-server", alternate = ["bvcServer"])
     var bvcServer: String? = null
 
-    @SerializedName("access-token")
+    @SerializedName(value = "access-token", alternate = ["accessToken"])
     var accessToken: String? = null
 
-    @SerializedName("minimum-players")
+    @SerializedName(value = "minimum-players", alternate = ["minimumPlayers"])
     var minimumPlayers: Int = 2
 
     /**

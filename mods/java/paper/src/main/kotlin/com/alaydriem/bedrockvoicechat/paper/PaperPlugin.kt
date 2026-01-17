@@ -57,7 +57,7 @@ class PaperPlugin : JavaPlugin(), Listener {
         val handler = httpHandler ?: return
         val players = playerDataProvider.collectPlayers()
 
-        if (players.size < maxOf(minimumPlayers, 2)) {
+        if (players.size < minimumPlayers) {
             return
         }
 

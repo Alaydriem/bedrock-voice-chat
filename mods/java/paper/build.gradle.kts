@@ -41,10 +41,11 @@ tasks.shadowJar {
     // Relocate Gson to avoid conflicts with server-provided version
     relocate("com.google.gson", "com.alaydriem.bedrockvoicechat.shaded.gson")
 
-    // Include common module and its dependencies (Gson)
+    // Include common module and its dependencies
     dependencies {
         include(project(":common"))
         include(dependency("com.google.code.gson:gson"))
+        include(dependency("org.jetbrains.kotlin:kotlin-stdlib"))
     }
 
     from("LICENSE") {
