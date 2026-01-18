@@ -43,17 +43,6 @@ impl CacheManager {
         self.channel_membership.clone()
     }
 
-    /// Check if two players are in the same channel
-    pub async fn are_players_in_same_channel(&self, player1: &str, player2: &str) -> bool {
-        // Check each channel's membership to see if both players are present
-        for (_, members) in self.channel_membership.iter() {
-            if members.contains(player1) && members.contains(player2) {
-                return true;
-            }
-        }
-        false
-    }
-
     /// Get all players in a specific channel
     pub async fn get_channel_members(&self, channel_id: &str) -> Option<HashSet<String>> {
         self.channel_membership.get(channel_id).await
