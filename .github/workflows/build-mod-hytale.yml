@@ -13,6 +13,10 @@ on:
         description: 'Version to build (overrides gradle.properties)'
         required: false
         type: string
+    secrets:
+      HYTALE_DOWNLOADER_CREDENTIALS:
+        description: 'Hytale downloader credentials JSON'
+        required: false
     outputs:
       version:
         description: 'The version that was built'
@@ -126,7 +130,7 @@ jobs:
         working-directory: ./mods/java
         run: |
           chmod +x gradlew
-          ./gradlew :hytale:build --no-daemon -PmodVersion=${{ steps.mod-version.outputs.version }}
+          ./gradlew :hytale:shadowJar --no-daemon -PmodVersion=${{ steps.mod-version.outputs.version }}
 
       - name: Prepare artifact
         shell: bash
