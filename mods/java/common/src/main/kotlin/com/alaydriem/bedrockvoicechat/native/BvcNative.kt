@@ -81,7 +81,7 @@ object BvcNative {
 
     /**
      * Get the platform-specific library filename including architecture.
-     * Library files are named: native/{os}-{arch}/lib_bvc_server.{ext}
+     * Library files are named: native/{os}-{arch}/bvc_server_lib.{ext}
      */
     private fun getLibraryName(): String {
         val os = System.getProperty("os.name").lowercase()
@@ -101,9 +101,9 @@ object BvcNative {
             else -> throw UnsupportedOperationException("Unsupported OS: $os")
         }
 
-        // Library naming: lib_bvc_server.dll on Windows, liblib_bvc_server.so/dylib on Unix
+        // Library naming: bvc_server_lib.dll on Windows, libbvc_server_lib.so/dylib on Unix
         val libPrefix = if (os.contains("win")) "" else "lib"
-        return "$osName-$arch/${libPrefix}lib_bvc_server.$ext"
+        return "$osName-$arch/${libPrefix}bvc_server_lib.$ext"
     }
 
     /**
@@ -122,7 +122,7 @@ object BvcNative {
      * Get the base name for system library loading.
      */
     private fun getLibraryBaseName(): String {
-        return "lib_bvc_server"
+        return "bvc_server_lib"
     }
 
     private fun getLib(): BvcLibrary {

@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use lib_bvc_server::ApplicationConfig;
+use bvc_server_lib::ApplicationConfig;
 use clap::Parser;
 use serde_json::Value;
 use std::fs;

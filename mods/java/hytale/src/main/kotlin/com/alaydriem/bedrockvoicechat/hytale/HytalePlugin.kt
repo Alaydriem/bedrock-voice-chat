@@ -54,16 +54,13 @@ class HytalePlugin(init: JavaPluginInit) : JavaPlugin(init) {
                 return
             }
 
-            // For embedded mode, create HTTP handler pointing to localhost
-            val embedded = modConfig.embeddedConfig
-            val localUrl = "https://127.0.0.1:${embedded?.httpPort ?: 443}"
-            val accessToken = modConfig.accessToken ?: java.util.UUID.randomUUID().toString()
-            val httpHandler = HttpRequestHandler(localUrl, accessToken)
-            positionSender = PositionSender(httpHandler, embeddedServer)
+            // Embedded mode: use FFI directly, no HTTP handler needed
+            positionSender = PositionSender(null, embeddedServer)
 
-            logger.at(Level.INFO).log("Bedrock Voice Chat using embedded server at $localUrl")
+            val embedded = modConfig.embeddedConfig
+            logger.at(Level.INFO).log("Bedrock Voice Chat using embedded server (QUIC port: ${embedded?.quicPort ?: 8443})")
         } else {
-            // External server mode
+            // External server mode: use HTTP handler
             val httpHandler = HttpRequestHandler(modConfig.bvcServer!!, modConfig.accessToken!!)
             positionSender = PositionSender(httpHandler, null)
 

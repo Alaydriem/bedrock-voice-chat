@@ -112,7 +112,8 @@ impl ServerRuntime {
 
         // Store webhook_receiver for FFI position updates
         {
-            let mut wr = self.webhook_receiver.write().unwrap();
+            let mut wr = self.webhook_receiver.write()
+                .map_err(|_| anyhow!("webhook_receiver lock poisoned"))?;
             *wr = Some(webhook_receiver.clone());
         }
 

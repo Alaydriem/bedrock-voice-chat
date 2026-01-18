@@ -8,13 +8,13 @@ import com.google.gson.annotations.SerializedName
  */
 class EmbeddedConfig {
     @SerializedName(value = "http-port", alternate = ["httpPort"])
-    var httpPort: Int = 443
+    var httpPort: Int = 8444
 
     @SerializedName(value = "quic-port", alternate = ["quicPort"])
     var quicPort: Int = 8443
 
     @SerializedName(value = "public-addr", alternate = ["publicAddr"])
-    var publicAddr: String = "127.0.0.1"
+    var publicAddr: String = "0.0.0.0"
 
     @SerializedName(value = "broadcast-range", alternate = ["broadcastRange"])
     var broadcastRange: Float = 32.0f

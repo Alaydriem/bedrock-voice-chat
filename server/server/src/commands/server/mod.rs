@@ -1,5 +1,5 @@
 use super::Config as StateConfig;
-use lib_bvc_server::ServerRuntime;
+use bvc_server_lib::ServerRuntime;
 
 use clap::Parser;
 use std::process::exit;

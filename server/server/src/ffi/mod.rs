@@ -17,16 +17,22 @@
 //! ```
 
 use crate::config::ApplicationConfig;
-use crate::runtime::ServerRuntime;
+use crate::runtime::{position_updater, ServerRuntime};
+use crate::stream::quic::WebhookReceiver;
 
 use std::ffi::{c_char, c_int, CStr, CString};
 use std::ptr;
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, RwLock};
 
 /// Opaque handle to a server runtime instance
 pub struct RuntimeHandle {
     runtime: Mutex<Option<ServerRuntime>>,
     tokio_runtime: Option<tokio::runtime::Runtime>,
+    /// Shutdown flag - accessible without locking runtime mutex
+    shutdown_flag: Arc<AtomicBool>,
+    /// Webhook receiver for position updates - accessible without locking runtime mutex
+    webhook_receiver: Arc<RwLock<Option<WebhookReceiver>>>,
 }
 
 // Thread-local storage for last error message
@@ -97,6 +103,11 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
         }
     };
 
+    // Extract Arc clones BEFORE putting runtime in Mutex
+    // This allows stop() and update_positions() to work without locking the runtime
+    let shutdown_flag = runtime.shutdown_flag();
+    let webhook_receiver = runtime.get_webhook_receiver();
+
     // Create a tokio runtime for the server
     let tokio_runtime = match tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -112,6 +123,8 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
     let handle = Box::new(RuntimeHandle {
         runtime: Mutex::new(Some(runtime)),
         tokio_runtime: Some(tokio_runtime),
+        shutdown_flag,
+        webhook_receiver,
     });
 
     Box::into_raw(handle)
@@ -202,21 +215,10 @@ pub unsafe extern "C" fn bvc_server_stop(handle: *mut RuntimeHandle) -> c_int {
 
     let handle_ref = unsafe { &*handle };
 
-    let runtime_guard = match handle_ref.runtime.lock() {
-        Ok(g) => g,
-        Err(e) => {
-            set_last_error(&format!("Failed to lock runtime: {}", e));
-            return -1;
-        }
-    };
-
-    if let Some(runtime) = runtime_guard.as_ref() {
-        runtime.request_shutdown();
-        0
-    } else {
-        set_last_error("Runtime not initialized");
-        -1
-    }
+    // Use the shutdown flag directly - no mutex lock required
+    // This avoids deadlock since start() holds the runtime mutex
+    handle_ref.shutdown_flag.store(true, Ordering::SeqCst);
+    0
 }
 
 /// Destroy the server handle and free all resources.
@@ -354,33 +356,32 @@ pub unsafe extern "C" fn bvc_update_positions(
         }
     };
 
-    // Get the server runtime
-    let runtime_guard = match handle_ref.runtime.lock() {
+    // Use the webhook_receiver directly - no mutex lock required
+    // This avoids deadlock since start() holds the runtime mutex
+    let wr_guard = match handle_ref.webhook_receiver.read() {
         Ok(g) => g,
         Err(e) => {
-            set_last_error(&format!("Failed to lock runtime: {}", e));
+            set_last_error(&format!("Failed to read webhook_receiver: {}", e));
             return -1;
         }
     };
 
-    let runtime = match runtime_guard.as_ref() {
-        Some(r) => r,
+    let webhook_receiver = match wr_guard.as_ref() {
+        Some(wr) => wr,
         None => {
-            set_last_error("Runtime not initialized");
+            set_last_error("Server not started - webhook_receiver not available");
             return -1;
         }
     };
 
     // Send position update (run async operation on tokio runtime)
-    let result = tokio_rt.block_on(async {
-        runtime.update_positions(game_data.players).await
+    // Clone the webhook_receiver reference to satisfy borrow checker
+    let webhook_receiver_clone = webhook_receiver.clone();
+    drop(wr_guard);  // Release read lock before blocking
+
+    tokio_rt.block_on(async {
+        position_updater::broadcast_positions(game_data.players, &webhook_receiver_clone).await;
     });
 
-    match result {
-        Ok(_) => 0,
-        Err(e) => {
-            set_last_error(&format!("Failed to update positions: {}", e));
-            -1
-        }
-    }
+    0
 }

@@ -8,7 +8,7 @@ fn default_listen() -> String {
 }
 
 fn default_http_port() -> u32 {
-    443
+    8444
 }
 
 fn default_quic_port() -> u32 {

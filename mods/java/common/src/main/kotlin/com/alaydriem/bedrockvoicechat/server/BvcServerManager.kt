@@ -22,7 +22,12 @@ class BvcServerManager(
         private val GSON = Gson()
     }
 
+    // @Volatile ensures visibility across threads - handle is set in start(), read in multiple places
+    @Volatile
     private var handle: Pointer? = null
+
+    // @Volatile for thread visibility - serverThread is set in start(), checked in isRunning/stop
+    @Volatile
     private var serverThread: Thread? = null
 
     val isRunning: Boolean
@@ -88,13 +93,16 @@ class BvcServerManager(
      * Get the server handle for direct FFI calls.
      * @return the handle, or null if server not started
      */
+    @Synchronized
     fun getHandle(): Pointer? = handle
 
     /**
      * Update player positions directly via FFI (bypasses HTTP).
+     * Synchronized to prevent race with stop().
      * @param gameDataJson JSON string with game data
      * @return true on success
      */
+    @Synchronized
     fun updatePositions(gameDataJson: String): Boolean {
         val h = handle ?: return false
         return BvcNative.updatePositions(h, gameDataJson) == 0
@@ -102,28 +110,31 @@ class BvcServerManager(
 
     /**
      * Stop the embedded BVC server gracefully.
+     * Synchronized to prevent double-free race condition.
      */
+    @Synchronized
     fun stop() {
-        val h = handle
-        if (h != null) {
-            logger.info("Stopping embedded BVC server...")
-            BvcNative.stopServer(h)
+        val h = handle ?: return  // Early return if already stopped
+        handle = null  // Clear immediately to prevent races
 
-            // Wait for thread to finish
-            try {
-                serverThread?.join(5000)
-                if (serverThread?.isAlive == true) {
-                    logger.warn("BVC server thread did not stop gracefully within 5 seconds")
-                }
-            } catch (e: InterruptedException) {
-                logger.warn("Interrupted while waiting for server thread")
+        logger.info("Stopping embedded BVC server...")
+        BvcNative.stopServer(h)
+
+        // Wait for thread to finish
+        val thread = serverThread
+        serverThread = null
+        try {
+            thread?.join(5000)
+            if (thread?.isAlive == true) {
+                logger.warn("BVC server thread did not stop gracefully within 5 seconds")
             }
-
-            BvcNative.destroyServer(h)
-            handle = null
-            serverThread = null
-            logger.info("Embedded BVC server stopped")
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()  // Restore interrupt flag
+            logger.warn("Interrupted while waiting for server thread")
         }
+
+        BvcNative.destroyServer(h)
+        logger.info("Embedded BVC server stopped")
     }
 
     /**
@@ -131,7 +142,7 @@ class BvcServerManager(
      */
     private fun buildRuntimeConfig(configDirPath: String): Map<String, Any?> {
         val embedded = config.embeddedConfig ?: EmbeddedConfig()
-        val certsPath = "$configDirPath/certs"
+        val certsPath = "$configDirPath/certificates"
 
         // Generate a random access token if not configured
         val accessToken = config.accessToken?.takeIf { it.isNotBlank() }

@@ -8,7 +8,7 @@ edition = "2024"
 build = "build.rs"
 
 [lib]
-name = "lib_bvc_server"
+name = "bvc_server_lib"
 path = "src/lib.rs"
 crate-type = ["rlib", "cdylib", "staticlib"]
 

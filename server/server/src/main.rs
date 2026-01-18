@@ -1,4 +1,4 @@
-use lib_bvc_server::{init_crypto_provider, init_windows_timer};
+use bvc_server_lib::{init_crypto_provider, init_windows_timer};
 
 mod commands;
 

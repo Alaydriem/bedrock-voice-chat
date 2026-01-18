@@ -51,16 +51,13 @@ class PaperPlugin : JavaPlugin(), Listener {
                 return
             }
 
-            // For embedded mode, create HTTP handler pointing to localhost
-            val embedded = config.embeddedConfig
-            val localUrl = "https://127.0.0.1:${embedded?.httpPort ?: 443}"
-            val accessToken = config.accessToken ?: java.util.UUID.randomUUID().toString()
-            val httpHandler = HttpRequestHandler(localUrl, accessToken)
-            positionSender = PositionSender(httpHandler, embeddedServer)
+            // Embedded mode: use FFI directly, no HTTP handler needed
+            positionSender = PositionSender(null, embeddedServer)
 
-            logger.info("Bedrock Voice Chat using embedded server at $localUrl")
+            val embedded = config.embeddedConfig
+            logger.info("Bedrock Voice Chat using embedded server (QUIC port: ${embedded?.quicPort ?: 8443})")
         } else {
-            // External server mode
+            // External server mode: use HTTP handler
             val httpHandler = HttpRequestHandler(config.bvcServer!!, config.accessToken!!)
             positionSender = PositionSender(httpHandler, null)
 
