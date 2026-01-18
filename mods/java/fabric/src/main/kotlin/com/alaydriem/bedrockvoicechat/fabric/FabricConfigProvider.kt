@@ -10,16 +10,19 @@ import java.nio.file.Path
 
 /**
  * Fabric-specific configuration provider using JSON files.
+ *
+ * Config file: config/bedrock-voice-chat.json
+ * Data directory (for embedded server certs/db): config/bedrock-voice-chat/
  */
 class FabricConfigProvider : ConfigProvider {
     companion object {
         private val LOGGER = LoggerFactory.getLogger("Bedrock Voice Chat")
-        private val CONFIG_DIR = FabricLoader.getInstance().configDir.resolve("bvc")
-        private val CONFIG_PATH = CONFIG_DIR.resolve("config.json")
+        private val CONFIG_PATH = FabricLoader.getInstance().configDir.resolve("bedrock-voice-chat.json")
+        private val DATA_DIR = FabricLoader.getInstance().configDir.resolve("bedrock-voice-chat")
         private val GSON = GsonBuilder().setPrettyPrinting().create()
     }
 
-    override fun getConfigDir(): Path = CONFIG_DIR
+    override fun getConfigDir(): Path = DATA_DIR
 
     override fun load(): ModConfig {
         LOGGER.debug("Looking for config at: {}", CONFIG_PATH.toAbsolutePath())
@@ -70,11 +73,6 @@ class FabricConfigProvider : ConfigProvider {
         }
 
         try {
-            // Create config directory if it doesn't exist
-            if (!Files.exists(CONFIG_DIR)) {
-                Files.createDirectories(CONFIG_DIR)
-            }
-
             Files.newBufferedWriter(CONFIG_PATH).use { writer ->
                 GSON.toJson(defaultConfig, writer)
             }

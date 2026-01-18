@@ -7,6 +7,7 @@ import com.alaydriem.bedrockvoicechat.native.BvcNative
 import com.google.gson.Gson
 import com.sun.jna.Pointer
 import org.slf4j.LoggerFactory
+import java.nio.file.Files
 import java.util.UUID
 
 /**
@@ -46,6 +47,17 @@ class BvcServerManager(
         val configDir = configProvider.getConfigDir()
         if (configDir == null) {
             logger.error("ConfigProvider does not support getConfigDir() - cannot use embedded mode")
+            return false
+        }
+
+        // Ensure data directory exists for embedded server (certs, database)
+        try {
+            if (!Files.exists(configDir)) {
+                Files.createDirectories(configDir)
+                logger.debug("Created data directory: {}", configDir)
+            }
+        } catch (e: Exception) {
+            logger.error("Failed to create data directory {}: {}", configDir, e.message)
             return false
         }
 

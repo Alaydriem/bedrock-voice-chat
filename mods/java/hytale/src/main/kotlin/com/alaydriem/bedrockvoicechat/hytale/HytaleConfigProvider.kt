@@ -13,7 +13,7 @@ import java.nio.file.Paths
  */
 class HytaleConfigProvider(private val config: Config<BedrockVoiceChatConfig>) : ConfigProvider {
 
-    override fun getConfigDir(): Path = Paths.get(System.getProperty("user.dir"), "config", "bvc")
+    override fun getConfigDir(): Path = Paths.get(System.getProperty("user.dir"), "config", "bedrock-voice-chat")
 
     override fun load(): ModConfig {
         val hytaleConfig = config.get()
