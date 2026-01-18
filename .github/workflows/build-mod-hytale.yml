@@ -81,10 +81,15 @@ jobs:
           echo "artifact-name=bedrock-voice-chat-hytale-$VERSION" >> $GITHUB_OUTPUT
 
       - name: Refresh and setup Hytale credentials
-        if: ${{ secrets.HYTALE_DOWNLOADER_CREDENTIALS != '' }}
         env:
           CREDENTIALS_JSON: ${{ secrets.HYTALE_DOWNLOADER_CREDENTIALS }}
         run: |
+          # Skip if no credentials provided
+          if [ -z "$CREDENTIALS_JSON" ]; then
+            echo "::notice::No Hytale credentials provided, skipping credential setup"
+            exit 0
+          fi
+
           # Extract refresh token from existing credentials
           REFRESH_TOKEN=$(echo "$CREDENTIALS_JSON" | jq -r '.refresh_token')
           if [ -z "$REFRESH_TOKEN" ] || [ "$REFRESH_TOKEN" = "null" ]; then
