@@ -94,8 +94,7 @@ pub struct ApplicationConfigServerTLS {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ApplicationConfigMinecraft {
     pub access_token: String,
-    pub client_id: String,
-    pub client_secret: String,
+    pub client_id: String
 }
 
 /// OAuth2 Client Configuration
@@ -132,8 +131,7 @@ impl Default for ApplicationConfig {
                 },
                 minecraft: ApplicationConfigMinecraft {
                     access_token: String::from(""),
-                    client_id: String::from(""),
-                    client_secret: String::from(""),
+                    client_id: String::from("")
                 },
             },
             voice: ApplicationConfigVoice {

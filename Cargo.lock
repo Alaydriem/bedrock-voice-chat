@@ -629,6 +629,7 @@ dependencies = [
  "tokio-tungstenite",
  "trust-dns-resolver",
  "ts-rs",
+ "url",
  "uuid 1.19.0",
  "windows-targets 0.53.5",
 ]
