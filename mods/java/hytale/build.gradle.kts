@@ -170,9 +170,8 @@ dependencies {
     implementation(project(":common"))
 
     // Hytale Server (local dependency, provided at runtime)
-    if (hytaleJar.exists()) {
-        compileOnly(files("build/hytale-download/server/Server/HytaleServer.jar"))
-    }
+    // Always add to classpath - downloadHytaleServer task ensures JAR exists before compile
+    compileOnly(files("build/hytale-download/server/Server/HytaleServer.jar"))
 
     // SLF4J - not provided by Hytale's plugin classloader, must be bundled
     implementation("org.slf4j:slf4j-api:2.0.9")

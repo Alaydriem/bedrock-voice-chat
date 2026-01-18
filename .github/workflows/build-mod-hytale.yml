@@ -80,13 +80,11 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "artifact-name=bedrock-voice-chat-hytale-$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Setup Hytale credentials
-        env:
-          CREDENTIALS_JSON: ${{ secrets.HYTALE_DOWNLOADER_CREDENTIALS }}
+      - name: Download Hytale Server
+        working-directory: ./mods/java
         run: |
-          # Write credentials to file (token refresh is handled hourly by refresh-hytale-token.yml)
-          echo "$CREDENTIALS_JSON" > mods/java/.hytale-downloader-credentials.json
-          echo "::notice::Hytale credentials configured"
+          chmod +x gradlew
+          ./gradlew :hytale:downloadHytaleServer --no-daemon -PmodVersion=${{ steps.mod-version.outputs.version }}
 
       - name: Build Hytale module
         working-directory: ./mods/java
