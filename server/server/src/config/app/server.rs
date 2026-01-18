@@ -19,6 +19,10 @@ fn default_public_addr() -> String {
     "127.0.0.1".to_string()
 }
 
+fn default_assets_path() -> String {
+    "./assets".to_string()
+}
+
 /// Common server configuration
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ApplicationConfigServer {
@@ -30,6 +34,8 @@ pub struct ApplicationConfigServer {
     pub quic_port: u32,
     #[serde(default = "default_public_addr")]
     pub public_addr: String,
+    #[serde(default = "default_assets_path")]
+    pub assets_path: String,
     #[serde(default)]
     pub tls: ApplicationConfigServerTLS,
     pub minecraft: ApplicationConfigMinecraft,
@@ -42,6 +48,7 @@ impl Default for ApplicationConfigServer {
             port: default_http_port(),
             quic_port: default_quic_port(),
             public_addr: default_public_addr(),
+            assets_path: default_assets_path(),
             tls: ApplicationConfigServerTLS::default(),
             minecraft: ApplicationConfigMinecraft::default(),
         }

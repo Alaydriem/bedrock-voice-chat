@@ -76,7 +76,7 @@ impl RocketManager {
                     .attach(AppDb::init())
                     .attach(cors.to_cors().unwrap())
                     .attach(rocket::fairing::AdHoc::try_on_ignite("Migrations", migrate))
-                    .mount("/assets", rocket::fs::FileServer::from("assets"))
+                    .mount("/assets", rocket::fs::FileServer::from(&self.config.server.assets_path))
                     .mount(
                         "/api",
                         routes![

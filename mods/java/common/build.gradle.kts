@@ -80,28 +80,6 @@ tasks.register<Copy>("copyNativeLinuxArm64") {
     into(layout.projectDirectory.dir("src/main/resources/native/linux-arm64"))
 }
 
-// Task to copy macOS x64 native library (native build on Intel Mac)
-tasks.register<Copy>("copyNativeDarwinX64") {
-    group = "native"
-    description = "Copy macOS x64 native library to resources"
-
-    from(rustTargetDir) {
-        include("libbvc_server_lib.dylib")
-    }
-    into(layout.projectDirectory.dir("src/main/resources/native/darwin-x64"))
-}
-
-// Task to copy macOS x64 native library (cross-compiled)
-tasks.register<Copy>("copyNativeDarwinX64Cross") {
-    group = "native"
-    description = "Copy macOS x64 native library from cross-compilation target"
-
-    from(File(bvcRoot, "server/target/x86_64-apple-darwin/release")) {
-        include("libbvc_server_lib.dylib")
-    }
-    into(layout.projectDirectory.dir("src/main/resources/native/darwin-x64"))
-}
-
 // Task to copy macOS ARM64 native library (native build on Apple Silicon or cross-compiled)
 tasks.register<Copy>("copyNativeDarwinArm64") {
     group = "native"
@@ -114,6 +92,7 @@ tasks.register<Copy>("copyNativeDarwinArm64") {
 }
 
 // Convenience task to copy all available native libraries
+// Supported architectures: Windows x64, Linux x64, Linux ARM64, macOS ARM64
 tasks.register("copyNativeLibraries") {
     group = "native"
     description = "Copy all available native libraries to resources"
@@ -121,7 +100,6 @@ tasks.register("copyNativeLibraries") {
         "copyNativeWindows",
         "copyNativeLinuxX64",
         "copyNativeLinuxArm64",
-        "copyNativeDarwinX64",
         "copyNativeDarwinArm64"
     )
 }
@@ -133,6 +111,12 @@ tasks.register("copyNativeLibraries") {
  * The native BVC server library needs to be compiled for each target platform.
  * Build from the server directory: bvc/server/
  *
+ * Supported architectures:
+ *   - Windows x64
+ *   - Linux x64
+ *   - Linux ARM64 (aarch64)
+ *   - macOS ARM64 (Apple Silicon)
+ *
  * NATIVE BUILDS (run on target platform):
  *
  * Windows (x64):
@@ -143,11 +127,7 @@ tasks.register("copyNativeLibraries") {
  *   cargo build --release --lib
  *   ./gradlew :common:copyNativeLinuxX64
  *
- * macOS (x64 - Intel):
- *   cargo build --release --lib
- *   ./gradlew :common:copyNativeDarwinX64
- *
- * macOS (arm64 - Apple Silicon):
+ * macOS (ARM64 - Apple Silicon):
  *   cargo build --release --lib
  *   ./gradlew :common:copyNativeDarwinArm64
  *
@@ -163,12 +143,7 @@ tasks.register("copyNativeLibraries") {
  *   cargo build --release --lib --target aarch64-unknown-linux-gnu
  *   ./gradlew :common:copyNativeLinuxArm64
  *
- * macOS x64 from ARM Mac:
- *   rustup target add x86_64-apple-darwin
- *   cargo build --release --lib --target x86_64-apple-darwin
- *   ./gradlew :common:copyNativeDarwinX64Cross
- *
- * macOS ARM64 from Intel Mac:
+ * macOS ARM64 (cross-compile from Linux):
  *   rustup target add aarch64-apple-darwin
  *   cargo build --release --lib --target aarch64-apple-darwin
  *   ./gradlew :common:copyNativeDarwinArm64
@@ -177,7 +152,6 @@ tasks.register("copyNativeLibraries") {
  *   Windows x64:    native/windows-x64/bvc_server_lib.dll
  *   Linux x64:      native/linux-x64/libbvc_server_lib.so
  *   Linux ARM64:    native/linux-arm64/libbvc_server_lib.so
- *   macOS x64:      native/darwin-x64/libbvc_server_lib.dylib
  *   macOS ARM64:    native/darwin-arm64/libbvc_server_lib.dylib
  *
  * Copy all at once (skips missing):

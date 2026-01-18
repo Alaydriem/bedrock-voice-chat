@@ -242,8 +242,18 @@ pub unsafe extern "C" fn bvc_server_destroy(handle: *mut RuntimeHandle) -> c_int
         return -1;
     }
 
-    // Take ownership and drop
-    let _ = unsafe { Box::from_raw(handle) };
+    // Take ownership
+    let mut handle_box = unsafe { Box::from_raw(handle) };
+
+    // Explicitly shutdown tokio runtime with timeout to avoid hanging
+    // This is important because dropping a runtime waits for all tasks to complete,
+    // which could block forever if tasks don't respond to cancellation
+    if let Some(rt) = handle_box.tokio_runtime.take() {
+        rt.shutdown_timeout(std::time::Duration::from_secs(2));
+    }
+
+    // Now drop the rest (runtime mutex, etc.)
+    drop(handle_box);
     0
 }
 

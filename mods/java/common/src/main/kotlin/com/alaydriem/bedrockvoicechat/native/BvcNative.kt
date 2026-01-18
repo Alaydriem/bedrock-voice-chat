@@ -40,6 +40,7 @@ object BvcNative {
 
         try {
             // Try to extract from JAR resources
+            // libName includes subdirectory: e.g., "windows-x64/bvc_server_lib.dll"
             val resourcePath = "/native/$libName"
             val resourceStream = BvcNative::class.java.getResourceAsStream(resourcePath)
 
@@ -48,7 +49,9 @@ object BvcNative {
                 val tempDir = Files.createTempDirectory("bvc-native").toFile()
                 tempDir.deleteOnExit()
 
-                val tempLib = File(tempDir, libName)
+                // Extract just the filename (without subdirectory path)
+                val libFileName = File(libName).name
+                val tempLib = File(tempDir, libFileName)
                 tempLib.deleteOnExit()
 
                 resourceStream.use { input ->
@@ -82,6 +85,12 @@ object BvcNative {
     /**
      * Get the platform-specific library filename including architecture.
      * Library files are named: native/{os}-{arch}/bvc_server_lib.{ext}
+     *
+     * Supported platforms:
+     * - Windows x64
+     * - Linux x64
+     * - Linux ARM64
+     * - macOS ARM64 (Apple Silicon)
      */
     private fun getLibraryName(): String {
         val os = System.getProperty("os.name").lowercase()
@@ -94,6 +103,9 @@ object BvcNative {
             else -> throw UnsupportedOperationException("Unsupported OS: $os")
         }
 
+        // Validate supported platform/arch combinations
+        validatePlatform(osName, arch)
+
         val ext = when {
             os.contains("win") -> "dll"
             os.contains("mac") || os.contains("darwin") -> "dylib"
@@ -104,6 +116,25 @@ object BvcNative {
         // Library naming: bvc_server_lib.dll on Windows, libbvc_server_lib.so/dylib on Unix
         val libPrefix = if (os.contains("win")) "" else "lib"
         return "$osName-$arch/${libPrefix}bvc_server_lib.$ext"
+    }
+
+    /**
+     * Validate that the current platform/architecture combination is supported.
+     */
+    private fun validatePlatform(osName: String, arch: String) {
+        val supported = when (osName) {
+            "windows" -> arch == "x64"
+            "linux" -> arch == "x64" || arch == "arm64"
+            "darwin" -> arch == "arm64"  // Only Apple Silicon supported
+            else -> false
+        }
+
+        if (!supported) {
+            throw UnsupportedOperationException(
+                "Unsupported platform: $osName-$arch. " +
+                "Supported: windows-x64, linux-x64, linux-arm64, darwin-arm64"
+            )
+        }
     }
 
     /**

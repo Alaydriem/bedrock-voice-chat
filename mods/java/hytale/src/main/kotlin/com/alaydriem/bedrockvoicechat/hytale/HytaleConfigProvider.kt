@@ -31,6 +31,8 @@ class HytaleConfigProvider(private val config: Config<BedrockVoiceChatConfig>) :
                         quicPort = hytaleEmbed.quicPort
                         publicAddr = hytaleEmbed.publicAddr
                         broadcastRange = hytaleEmbed.broadcastRange
+                        tlsCertificate = hytaleEmbed.tlsCertificate
+                        tlsKey = hytaleEmbed.tlsKey
                         tlsNames = hytaleEmbed.getTlsNamesList()
                         tlsIps = hytaleEmbed.getTlsIpsList()
                         logLevel = hytaleEmbed.logLevel

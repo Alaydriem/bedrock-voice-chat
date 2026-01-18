@@ -20,6 +20,15 @@ impl Config {
             }
         };
 
+        // Set up CTRL+C handler to request graceful shutdown
+        let shutdown_flag = runtime.shutdown_flag();
+        tokio::spawn(async move {
+            if let Ok(()) = tokio::signal::ctrl_c().await {
+                eprintln!("\nReceived CTRL+C, shutting down...");
+                shutdown_flag.store(true, std::sync::atomic::Ordering::SeqCst);
+            }
+        });
+
         if let Err(e) = runtime.start_async().await {
             eprintln!("Server error: {}", e);
             exit(1);

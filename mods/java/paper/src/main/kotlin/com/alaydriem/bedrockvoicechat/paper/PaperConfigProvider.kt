@@ -34,13 +34,17 @@ class PaperConfigProvider(private val plugin: JavaPlugin) : ConfigProvider {
             if (useEmbeddedServer) {
                 embeddedConfig = EmbeddedConfig().apply {
                     httpPort = yamlConfig.getInt("embedded.http-port",
-                        yamlConfig.getInt("embedded.httpPort", 443))
+                        yamlConfig.getInt("embedded.httpPort", 8444))
                     quicPort = yamlConfig.getInt("embedded.quic-port",
                         yamlConfig.getInt("embedded.quicPort", 8443))
                     publicAddr = yamlConfig.getString("embedded.public-addr")
                         ?: yamlConfig.getString("embedded.publicAddr", "127.0.0.1")!!
                     broadcastRange = yamlConfig.getDouble("embedded.broadcast-range",
                         yamlConfig.getDouble("embedded.broadcastRange", 32.0)).toFloat()
+                    tlsCertificate = yamlConfig.getString("embedded.tls-certificate")
+                        ?: yamlConfig.getString("embedded.tlsCertificate", "")!!
+                    tlsKey = yamlConfig.getString("embedded.tls-key")
+                        ?: yamlConfig.getString("embedded.tlsKey", "")!!
                     tlsNames = yamlConfig.getStringList("embedded.tls-names").ifEmpty {
                         yamlConfig.getStringList("embedded.tlsNames").ifEmpty {
                             listOf("localhost", "127.0.0.1")
@@ -70,6 +74,8 @@ class PaperConfigProvider(private val plugin: JavaPlugin) : ConfigProvider {
             yamlConfig.set("embedded.quic-port", embedded.quicPort)
             yamlConfig.set("embedded.public-addr", embedded.publicAddr)
             yamlConfig.set("embedded.broadcast-range", embedded.broadcastRange)
+            yamlConfig.set("embedded.tls-certificate", embedded.tlsCertificate)
+            yamlConfig.set("embedded.tls-key", embedded.tlsKey)
             yamlConfig.set("embedded.tls-names", embedded.tlsNames)
             yamlConfig.set("embedded.tls-ips", embedded.tlsIps)
             yamlConfig.set("embedded.log-level", embedded.logLevel)

@@ -129,7 +129,8 @@ impl ServerRuntime {
 
         let shutdown_flag = self.shutdown_flag.clone();
 
-        // Main event loop
+        // Main event loop - responds to shutdown flag only
+        // Note: CTRL+C handling is done by the host process (Java/CLI), not here
         tokio::select! {
             result = quic_manager.start() => {
                 match result {
@@ -141,13 +142,6 @@ impl ServerRuntime {
                 match result {
                     Ok(_) => tracing::info!("Rocket server stopped normally"),
                     Err(e) => tracing::error!("Rocket server error: {}", e),
-                }
-            }
-            _ = tokio::signal::ctrl_c() => {
-                tracing::info!("Received SIGTERM, shutting down...");
-                self.state = RuntimeState::ShuttingDown;
-                if let Err(e) = quic_manager.stop().await {
-                    tracing::error!("Error during shutdown: {}", e);
                 }
             }
             _ = async {

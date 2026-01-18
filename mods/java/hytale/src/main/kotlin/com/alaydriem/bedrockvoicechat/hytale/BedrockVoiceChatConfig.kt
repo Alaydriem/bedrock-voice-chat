@@ -7,12 +7,20 @@ import com.hypixel.hytale.codec.builder.BuilderCodec
 /**
  * Embedded server configuration for Hytale using BuilderCodec.
  * Note: tlsNames and tlsIps are comma-separated strings due to codec limitations.
+ *
+ * Two certificate systems are required:
+ * 1. HTTPS TLS (tlsCertificate, tlsKey) - Must be signed by trusted CA (e.g., Let's Encrypt)
+ * 2. QUIC mTLS - Auto-generated CA for client authentication (stored in data directory)
  */
 class HytaleEmbeddedConfig {
-    @JvmField var httpPort: Int = 443
+    @JvmField var httpPort: Int = 8444
     @JvmField var quicPort: Int = 8443
     @JvmField var publicAddr: String = "127.0.0.1"
     @JvmField var broadcastRange: Float = 32.0f
+    /** Path to TLS certificate file (must be signed by trusted CA) */
+    @JvmField var tlsCertificate: String = ""
+    /** Path to TLS private key file */
+    @JvmField var tlsKey: String = ""
     /** Comma-separated list of TLS DNS names (e.g., "localhost,127.0.0.1") */
     @JvmField var tlsNames: String = "localhost,127.0.0.1"
     /** Comma-separated list of TLS IP addresses (e.g., "127.0.0.1") */
@@ -49,6 +57,16 @@ class HytaleEmbeddedConfig {
                 KeyedCodec<Float>("BroadcastRange", Codec.FLOAT),
                 { cfg, value, _ -> cfg.broadcastRange = value },
                 { cfg, _ -> cfg.broadcastRange }
+            ).add()
+            .append(
+                KeyedCodec<String>("TlsCertificate", Codec.STRING),
+                { cfg, value, _ -> cfg.tlsCertificate = value },
+                { cfg, _ -> cfg.tlsCertificate }
+            ).add()
+            .append(
+                KeyedCodec<String>("TlsKey", Codec.STRING),
+                { cfg, value, _ -> cfg.tlsKey = value },
+                { cfg, _ -> cfg.tlsKey }
             ).add()
             .append(
                 KeyedCodec<String>("TlsNames", Codec.STRING),

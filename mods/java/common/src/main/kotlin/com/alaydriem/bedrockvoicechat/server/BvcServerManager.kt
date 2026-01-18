@@ -50,14 +50,35 @@ class BvcServerManager(
             return false
         }
 
-        // Ensure data directory exists for embedded server (certs, database)
+        // Validate TLS certificates are configured
+        val embedded = config.embeddedConfig ?: EmbeddedConfig()
+        if (!embedded.hasTlsCertificates()) {
+            logger.error("Embedded server requires TLS certificates. Configure tls-certificate and tls-key in embedded-config.")
+            return false
+        }
+
+        // Ensure data directories exist for embedded server
         try {
             if (!Files.exists(configDir)) {
                 Files.createDirectories(configDir)
                 logger.debug("Created data directory: {}", configDir)
             }
+
+            // Create certificates directory (for QUIC mTLS CA)
+            val certsDir = configDir.resolve("certificates")
+            if (!Files.exists(certsDir)) {
+                Files.createDirectories(certsDir)
+                logger.debug("Created certificates directory: {}", certsDir)
+            }
+
+            // Create assets directory (for server assets)
+            val assetsDir = configDir.resolve("assets")
+            if (!Files.exists(assetsDir)) {
+                Files.createDirectories(assetsDir)
+                logger.debug("Created assets directory: {}", assetsDir)
+            }
         } catch (e: Exception) {
-            logger.error("Failed to create data directory {}: {}", configDir, e.message)
+            logger.error("Failed to create data directories {}: {}", configDir, e.message)
             return false
         }
 
@@ -69,7 +90,8 @@ class BvcServerManager(
             return false
         }
 
-        val runtimeConfig = buildRuntimeConfig(configDir.toString())
+        // Use absolute path to avoid issues with relative paths on Windows
+        val runtimeConfig = buildRuntimeConfig(configDir.toAbsolutePath().toString())
         val configJson = GSON.toJson(runtimeConfig)
 
         logger.debug("Creating server with config: {}", configJson)
@@ -96,7 +118,6 @@ class BvcServerManager(
         // Brief wait for startup
         Thread.sleep(100)
 
-        val embedded = config.embeddedConfig ?: EmbeddedConfig()
         logger.info("Embedded BVC server started (HTTP:{}, QUIC:{})", embedded.httpPort, embedded.quicPort)
         return true
     }
@@ -151,10 +172,15 @@ class BvcServerManager(
 
     /**
      * Build the runtime configuration JSON for the native server.
+     *
+     * Two certificate systems:
+     * 1. HTTPS TLS (certificate, key) - Third-party signed certs for Rocket HTTP server
+     * 2. QUIC mTLS (certs_path) - Auto-generated CA for QUIC client authentication
      */
     private fun buildRuntimeConfig(configDirPath: String): Map<String, Any?> {
         val embedded = config.embeddedConfig ?: EmbeddedConfig()
         val certsPath = "$configDirPath/certificates"
+        val assetsPath = "$configDirPath/assets"
 
         // Generate a random access token if not configured
         val accessToken = config.accessToken?.takeIf { it.isNotBlank() }
@@ -170,11 +196,12 @@ class BvcServerManager(
                 "port" to embedded.httpPort,
                 "quic_port" to embedded.quicPort,
                 "public_addr" to embedded.publicAddr,
+                "assets_path" to assetsPath,
                 "tls" to mapOf(
-                    "certificate" to "",  // Empty = use auto-generated CA
-                    "key" to "",
+                    "certificate" to embedded.tlsCertificate,  // Third-party signed cert for HTTPS
+                    "key" to embedded.tlsKey,                  // Private key for HTTPS
                     "so_reuse_port" to false,
-                    "certs_path" to certsPath,
+                    "certs_path" to certsPath,                 // Auto-generated CA for QUIC mTLS
                     "names" to embedded.tlsNames,
                     "ips" to embedded.tlsIps
                 ),
