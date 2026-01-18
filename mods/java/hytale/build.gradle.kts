@@ -174,10 +174,13 @@ dependencies {
         compileOnly(files("build/hytale-download/server/Server/HytaleServer.jar"))
     }
 
+    // SLF4J - not provided by Hytale's plugin classloader, must be bundled
+    implementation("org.slf4j:slf4j-api:2.0.9")
+    implementation("org.slf4j:slf4j-simple:2.0.9")
+
     // Test dependencies
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-    testRuntimeOnly("org.slf4j:slf4j-simple:2.0.9")
 }
 
 tasks.test {
@@ -201,13 +204,18 @@ tasks.shadowJar {
     onlyIf { hytaleJar.exists() }
 
     archiveClassifier.set("")
+    mergeServiceFiles()
     relocate("com.google.gson", "com.alaydriem.bedrockvoicechat.shaded.gson")
+    // Note: SLF4J not relocated - ServiceLoader doesn't work well with relocation
     dependencies {
         include(project(":common"))
         include(dependency("com.google.code.gson:gson:.*"))
         // Include all Kotlin runtime dependencies (group:name:version pattern)
         include(dependency("org.jetbrains.kotlin:kotlin-stdlib:.*"))
         include(dependency("org.jetbrains:annotations:.*"))
+        // SLF4J - not provided by Hytale's plugin classloader
+        include(dependency("org.slf4j:slf4j-api:.*"))
+        include(dependency("org.slf4j:slf4j-simple:.*"))
     }
 
     from("LICENSE") {

@@ -33,12 +33,10 @@ class HytalePlugin(init: JavaPluginInit) : JavaPlugin(init) {
         // BsonUtil.writeDocument() will create parent directories automatically
         config.save()
 
-        logger.at(Level.INFO).log("Raw config - BvcServer: '${rawConfig.bvcServer}', AccessToken: '${rawConfig.accessToken}', MinPlayers: ${rawConfig.minimumPlayers}")
-
         // Load config via provider (backed by Hytale's Config<T>)
         val modConfig = configProvider.load()
         if (!modConfig.isValid()) {
-            logger.at(Level.SEVERE).log("Invalid configuration - plugin will not track players")
+            logger.at(Level.SEVERE).log("Invalid configuration. Bedrock Voice Chat will not be enabled.")
             return
         }
 

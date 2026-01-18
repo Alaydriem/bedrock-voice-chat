@@ -12,7 +12,6 @@ class HytaleConfigProvider(private val config: Config<BedrockVoiceChatConfig>) :
 
     override fun load(): ModConfig {
         val hytaleConfig = config.get()
-        println("[BVC ConfigProvider] Raw Hytale config: bvcServer='${hytaleConfig.bvcServer}', accessToken='${hytaleConfig.accessToken}', minimumPlayers=${hytaleConfig.minimumPlayers}")
 
         return ModConfig().apply {
             bvcServer = hytaleConfig.bvcServer
