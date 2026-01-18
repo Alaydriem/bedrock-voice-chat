@@ -15,7 +15,10 @@ pub mod players;
 pub mod game_data;
 
 // Re-export error types
-pub use errors::{CommunicationError, GameError, MinecraftCommunicationError, GenericCommunicationError};
+pub use errors::{
+    CommunicationError, GameError, GenericCommunicationError, HytaleCommunicationError,
+    MinecraftCommunicationError,
+};
 
 // Re-export s2n-quic when feature is enabled
 #[cfg(feature = "quic")]
@@ -26,8 +29,8 @@ pub use structs::player_source::PlayerSource;
 pub use structs::recording::{RecordingPlayerData, SessionManifest};
 
 // Re-export new player system types
-pub use players::{GenericPlayer, MinecraftPlayer, PlayerEnum};
-pub use game_data::{GameDataCollection, Dimension};
+pub use players::{GenericPlayer, HytalePlayer, MinecraftPlayer, PlayerEnum};
+pub use game_data::{GameDataCollection, Dimension, HytaleDimension};
 pub use traits::player_data::{PlayerData as PlayerDataTrait, SpatialPlayer};
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
@@ -38,7 +41,7 @@ pub enum Game {
     Hytale,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Coordinate {
     pub x: f32,
     pub y: f32,
@@ -55,7 +58,7 @@ impl Default for Coordinate {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Orientation {
     pub x: f32,
     pub y: f32,

@@ -2,8 +2,8 @@ name: Refresh Hytale Token
 
 on:
   schedule:
-    # Run daily at 2 AM UTC (tokens expire after ~1 hour, but refresh tokens last longer)
-    - cron: '0 2 * * *'
+    # Run hourly (access tokens expire after ~1 hour)
+    - cron: '0 * * * *'
   workflow_dispatch:
     # Allow manual trigger for testing
 

@@ -1,9 +1,11 @@
 //! Communication errors between players
 
 mod generic;
+mod hytale;
 mod minecraft;
 
 pub use generic::GenericCommunicationError;
+pub use hytale::HytaleCommunicationError;
 pub use minecraft::MinecraftCommunicationError;
 
 use crate::Game;
@@ -13,6 +15,9 @@ use crate::Game;
 pub enum GameError {
     #[error("minecraft: {0}")]
     Minecraft(MinecraftCommunicationError),
+
+    #[error("hytale: {0}")]
+    Hytale(HytaleCommunicationError),
 
     #[error("generic: {0}")]
     Generic(GenericCommunicationError),
@@ -41,6 +46,11 @@ impl CommunicationError {
     /// Convenience constructor for Minecraft errors
     pub fn minecraft(err: MinecraftCommunicationError) -> Self {
         CommunicationError::Game(GameError::Minecraft(err))
+    }
+
+    /// Convenience constructor for Hytale errors
+    pub fn hytale(err: HytaleCommunicationError) -> Self {
+        CommunicationError::Game(GameError::Hytale(err))
     }
 
     /// Convenience constructor for Generic game errors

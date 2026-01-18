@@ -1,2 +1,14 @@
 .gradle
 build
+run
+
+# Hytale
+.hytale-downloader-credentials.json
+hytale/libs/HytaleServer.jar
+hytale-server/
+hytale-downloader*
+.bin
+.kotlin
+buildSrc
+bin/
+**/bin/

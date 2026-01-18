@@ -4,7 +4,7 @@ use crate::traits::player_data::{PlayerData, SpatialPlayer};
 use crate::{Coordinate, Game, Orientation};
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct MinecraftPlayer {
     pub name: String,
     pub coordinates: Coordinate,

@@ -3,5 +3,6 @@
 pub mod communication;
 
 pub use communication::{
-    CommunicationError, GameError, GenericCommunicationError, MinecraftCommunicationError,
+    CommunicationError, GameError, GenericCommunicationError, HytaleCommunicationError,
+    MinecraftCommunicationError,
 };

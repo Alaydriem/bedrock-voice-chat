@@ -64,20 +64,30 @@ jobs:
               echo "> **Note:** Links to the new version will only work after the release is created"
           } >> $GITHUB_STEP_SUMMARY
 
-  build-mod:
-    name: Build Mod
+  build-mod-fabric:
+    name: Build Fabric Mod
     needs: prepare-release
     if: ${{ needs.prepare-release.outputs.new_release_published == 'true' && !inputs.dry-run }}
-    uses: ./.github/workflows/build-mod-java.yml
+    uses: ./.github/workflows/build-mod-fabric.yml
     with:
       version: ${{ needs.prepare-release.outputs.new_release_version }}
 
-  publish-modrinth:
-    name: Publish to Modrinth
-    needs: [prepare-release, build-mod]
+  build-mod-paper:
+    name: Build Paper Plugin
+    needs: prepare-release
+    if: ${{ needs.prepare-release.outputs.new_release_published == 'true' && !inputs.dry-run }}
+    uses: ./.github/workflows/build-mod-paper.yml
+    with:
+      version: ${{ needs.prepare-release.outputs.new_release_version }}
+
+  publish-modrinth-fabric:
+    name: Publish Fabric to Modrinth
+    needs: [prepare-release, build-mod-fabric]
     if: ${{ needs.prepare-release.outputs.new_release_published == 'true' && !inputs.dry-run }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
       - name: Download artifact
         uses: actions/download-artifact@v4
@@ -96,7 +106,7 @@ jobs:
           files: ./artifacts/bedrock-voice-chat-${{ needs.prepare-release.outputs.new_release_version }}.jar
           primary-file: bedrock-voice-chat-${{ needs.prepare-release.outputs.new_release_version }}.jar
           version: ${{ needs.prepare-release.outputs.new_release_version }}
-          name: Bedrock Voice Chat ${{ needs.prepare-release.outputs.new_release_version }}
+          name: Bedrock Voice Chat ${{ needs.prepare-release.outputs.new_release_version }} (Fabric)
           changelog: ${{ needs.prepare-release.outputs.new_release_notes }}
           featured: true
           dependencies: |-
@@ -107,5 +117,42 @@ jobs:
           loaders: |-
             fabric
           game-versions: |-
-            1.21.4
+            1.21.11
+          channel: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}
+
+  publish-modrinth-paper:
+    name: Publish Paper to Modrinth
+    needs: [prepare-release, build-mod-paper]
+    if: ${{ needs.prepare-release.outputs.new_release_published == 'true' && !inputs.dry-run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: bedrock-voice-chat-paper-${{ needs.prepare-release.outputs.new_release_version }}
+          path: ./artifacts
+
+      - name: List artifacts
+        run: ls -la ./artifacts
+
+      - name: Publish to Modrinth
+        uses: cloudnode-pro/modrinth-publish@v2
+        with:
+          token: ${{ secrets.MODRITH_PAT }}
+          project: ${{ secrets.MODRITH_ID }}
+          files: ./artifacts/bedrock-voice-chat-paper-${{ needs.prepare-release.outputs.new_release_version }}.jar
+          primary-file: bedrock-voice-chat-paper-${{ needs.prepare-release.outputs.new_release_version }}.jar
+          version: ${{ needs.prepare-release.outputs.new_release_version }}-paper
+          name: Bedrock Voice Chat ${{ needs.prepare-release.outputs.new_release_version }} (Paper)
+          changelog: ${{ needs.prepare-release.outputs.new_release_notes }}
+          featured: true
+          loaders: |-
+            paper
+            spigot
+            bukkit
+          game-versions: |-
+            1.21.11
           channel: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}

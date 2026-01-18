@@ -1,0 +1,12 @@
+# Bedrock Voice Chat Configuration
+
+# URL of the BVC server (required)
+# Example: https://your-bvc-server.com
+bvc-server: ""
+
+# Access token for authentication (required)
+access-token: ""
+
+# Minimum number of players required to start sending position data
+# Default: 2
+minimum-players: 2

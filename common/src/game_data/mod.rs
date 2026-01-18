@@ -1,9 +1,11 @@
+pub mod hytale;
 pub mod minecraft;
 
-use crate::players::{MinecraftPlayer, GenericPlayer, PlayerEnum};
+use crate::players::{HytalePlayer, MinecraftPlayer, PlayerEnum};
 use crate::Game;
 use serde::{Deserialize, Deserializer, Serialize};
 
+pub use hytale::Dimension as HytaleDimension;
 pub use minecraft::Dimension;
 
 /// Container for game session data with heterogeneous player types
@@ -42,8 +44,8 @@ impl<'de> Deserialize<'de> for GameDataCollection {
                             .map_err(D::Error::custom)
                     }
                     Game::Hytale => {
-                        serde_json::from_value::<GenericPlayer>(value)
-                            .map(PlayerEnum::Generic)
+                        serde_json::from_value::<HytalePlayer>(value)
+                            .map(PlayerEnum::Hytale)
                             .map_err(D::Error::custom)
                     }
                 }

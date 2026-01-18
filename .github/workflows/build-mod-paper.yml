@@ -1,0 +1,123 @@
+name: Build Paper Plugin
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'mods/java/**'
+      - '.github/workflows/build-mod-paper.yml'
+  pull_request:
+  workflow_call:
+    inputs:
+      version:
+        description: 'Version to build (overrides gradle.properties)'
+        required: false
+        type: string
+    outputs:
+      version:
+        description: 'The version that was built'
+        value: ${{ jobs.build.outputs.version }}
+      artifact-name:
+        description: 'Name of the uploaded artifact'
+        value: ${{ jobs.build.outputs.artifact-name }}
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (leave empty to use gradle.properties)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build:
+    name: Build Paper Plugin
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.mod-version.outputs.version }}
+      artifact-name: ${{ steps.mod-version.outputs.artifact-name }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Get mod version
+        id: mod-version
+        working-directory: ./mods/java
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+            echo "Using provided version: $VERSION"
+          else
+            VERSION=$(grep "modVersion" gradle.properties | cut -d'=' -f2)
+            echo "Using gradle.properties version: $VERSION"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "artifact-name=bedrock-voice-chat-paper-$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build Paper module
+        working-directory: ./mods/java
+        run: |
+          chmod +x gradlew
+          ./gradlew :paper:build --no-daemon -PmodVersion=${{ steps.mod-version.outputs.version }}
+
+      - name: Prepare artifact
+        shell: bash
+        run: |
+          cd mods/java/paper/build/libs
+          JAR_FILE=$(find . -name "*.jar" ! -name "*-sources.jar" -type f | head -n 1)
+          if [ -z "$JAR_FILE" ]; then
+            echo "No JAR file found!"
+            exit 1
+          fi
+
+          echo "Found JAR: $JAR_FILE"
+          ls -lh "$JAR_FILE"
+
+          # Copy to a consistent name for artifact upload
+          cp "$JAR_FILE" ../../../../../bedrock-voice-chat-paper-${{ steps.mod-version.outputs.version }}.jar
+
+          echo "Prepared artifact: bedrock-voice-chat-paper-${{ steps.mod-version.outputs.version }}.jar"
+
+      - name: Upload JAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bedrock-voice-chat-paper-${{ steps.mod-version.outputs.version }}
+          path: bedrock-voice-chat-paper-${{ steps.mod-version.outputs.version }}.jar
+          retention-days: 30
+
+      - name: Output artifact information
+        shell: bash
+        run: |
+          {
+            echo "## Paper Plugin Build Complete"
+            echo ""
+            echo "| Name | Value |"
+            echo "| ---- | ----- |"
+            echo "| Version | ${{ steps.mod-version.outputs.version }} |"
+            echo "| Trigger | ${{ github.event_name }} |"
+            echo "| Artifact | bedrock-voice-chat-paper-${{ steps.mod-version.outputs.version }} |"
+            echo "| Artifact URL | [View Run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) |"
+            echo "| Retention | 30 days |"
+          } >> $GITHUB_STEP_SUMMARY

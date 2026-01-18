@@ -1,5 +1,5 @@
 use crate::errors::CommunicationError;
-use crate::players::{GenericPlayer, MinecraftPlayer};
+use crate::players::{GenericPlayer, HytalePlayer, MinecraftPlayer};
 use crate::traits::player_data::{PlayerData, SpatialPlayer};
 use crate::{Coordinate, Game, Orientation};
 use serde::{Deserialize, Serialize};
@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum PlayerEnum {
     Minecraft(MinecraftPlayer),
+    Hytale(HytalePlayer),
     Generic(GenericPlayer),
 }
 
@@ -20,6 +21,7 @@ impl PlayerData for PlayerEnum {
     fn get_name(&self) -> &str {
         match self {
             PlayerEnum::Minecraft(p) => p.get_name(),
+            PlayerEnum::Hytale(p) => p.get_name(),
             PlayerEnum::Generic(p) => p.get_name(),
         }
     }
@@ -27,6 +29,7 @@ impl PlayerData for PlayerEnum {
     fn get_position(&self) -> &Coordinate {
         match self {
             PlayerEnum::Minecraft(p) => p.get_position(),
+            PlayerEnum::Hytale(p) => p.get_position(),
             PlayerEnum::Generic(p) => p.get_position(),
         }
     }
@@ -34,6 +37,7 @@ impl PlayerData for PlayerEnum {
     fn get_orientation(&self) -> &Orientation {
         match self {
             PlayerEnum::Minecraft(p) => p.get_orientation(),
+            PlayerEnum::Hytale(p) => p.get_orientation(),
             PlayerEnum::Generic(p) => p.get_orientation(),
         }
     }
@@ -41,6 +45,7 @@ impl PlayerData for PlayerEnum {
     fn is_deafened(&self) -> bool {
         match self {
             PlayerEnum::Minecraft(p) => p.is_deafened(),
+            PlayerEnum::Hytale(p) => p.is_deafened(),
             PlayerEnum::Generic(p) => p.is_deafened(),
         }
     }
@@ -48,6 +53,7 @@ impl PlayerData for PlayerEnum {
     fn get_game(&self) -> Game {
         match self {
             PlayerEnum::Minecraft(p) => p.get_game(),
+            PlayerEnum::Hytale(p) => p.get_game(),
             PlayerEnum::Generic(p) => p.get_game(),
         }
     }
@@ -84,6 +90,13 @@ impl PlayerEnum {
                     unreachable!("Game mismatch already checked above")
                 }
             }
+            PlayerEnum::Hytale(hy_self) => {
+                if let PlayerEnum::Hytale(hy_other) = other {
+                    hy_self.can_communicate_with(hy_other, range)
+                } else {
+                    unreachable!("Game mismatch already checked above")
+                }
+            }
             PlayerEnum::Generic(gen_self) => {
                 if let PlayerEnum::Generic(gen_other) = other {
                     gen_self.can_communicate_with(gen_other, range)
@@ -98,6 +111,14 @@ impl PlayerEnum {
     pub fn as_minecraft(&self) -> Option<&MinecraftPlayer> {
         match self {
             PlayerEnum::Minecraft(mc) => Some(mc),
+            _ => None,
+        }
+    }
+
+    /// Helper to get Hytale player if this is a Hytale player
+    pub fn as_hytale(&self) -> Option<&HytalePlayer> {
+        match self {
+            PlayerEnum::Hytale(h) => Some(h),
             _ => None,
         }
     }
