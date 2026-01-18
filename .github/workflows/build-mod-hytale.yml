@@ -16,7 +16,7 @@ on:
     secrets:
       HYTALE_DOWNLOADER_CREDENTIALS:
         description: 'Hytale downloader credentials JSON'
-        required: false
+        required: true
     outputs:
       version:
         description: 'The version that was built'
@@ -80,56 +80,13 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "artifact-name=bedrock-voice-chat-hytale-$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Refresh and setup Hytale credentials
+      - name: Setup Hytale credentials
         env:
           CREDENTIALS_JSON: ${{ secrets.HYTALE_DOWNLOADER_CREDENTIALS }}
         run: |
-          # Skip if no credentials provided
-          if [ -z "$CREDENTIALS_JSON" ]; then
-            echo "::notice::No Hytale credentials provided, skipping credential setup"
-            exit 0
-          fi
-
-          # Extract refresh token from existing credentials
-          REFRESH_TOKEN=$(echo "$CREDENTIALS_JSON" | jq -r '.refresh_token')
-          if [ -z "$REFRESH_TOKEN" ] || [ "$REFRESH_TOKEN" = "null" ]; then
-            echo "::warning::No refresh_token found, using existing credentials"
-            echo "$CREDENTIALS_JSON" > mods/java/.hytale-downloader-credentials.json
-            exit 0
-          fi
-
-          # Call the Ory OAuth2 token endpoint
-          RESPONSE=$(curl -s -X POST "https://oauth.accounts.hytale.com/oauth2/token" \
-            -H "Content-Type: application/x-www-form-urlencoded" \
-            -d "grant_type=refresh_token" \
-            -d "refresh_token=${REFRESH_TOKEN}" \
-            -d "client_id=hytale-server")
-
-          # Check for errors
-          if echo "$RESPONSE" | jq -e '.error' > /dev/null 2>&1; then
-            ERROR=$(echo "$RESPONSE" | jq -r '.error_description // .error')
-            echo "::warning::Token refresh failed: $ERROR - using existing credentials"
-            echo "$CREDENTIALS_JSON" > mods/java/.hytale-downloader-credentials.json
-            exit 0
-          fi
-
-          # Extract tokens
-          ACCESS_TOKEN=$(echo "$RESPONSE" | jq -r '.access_token')
-          NEW_REFRESH_TOKEN=$(echo "$RESPONSE" | jq -r '.refresh_token // empty')
-
-          if [ -z "$ACCESS_TOKEN" ] || [ "$ACCESS_TOKEN" = "null" ]; then
-            echo "::warning::No access token in response, using existing credentials"
-            echo "$CREDENTIALS_JSON" > mods/java/.hytale-downloader-credentials.json
-            exit 0
-          fi
-
-          # Build and write credentials JSON
-          jq -n \
-            --arg at "$ACCESS_TOKEN" \
-            --arg rt "${NEW_REFRESH_TOKEN:-$REFRESH_TOKEN}" \
-            '{access_token: $at, refresh_token: $rt}' > mods/java/.hytale-downloader-credentials.json
-
-          echo "::notice::Token refreshed successfully"
+          # Write credentials to file (token refresh is handled hourly by refresh-hytale-token.yml)
+          echo "$CREDENTIALS_JSON" > mods/java/.hytale-downloader-credentials.json
+          echo "::notice::Hytale credentials configured"
 
       - name: Build Hytale module
         working-directory: ./mods/java
