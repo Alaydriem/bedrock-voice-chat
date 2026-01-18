@@ -284,3 +284,103 @@ pub extern "C" fn bvc_version() -> *const c_char {
     static VERSION: &[u8] = concat!(env!("CARGO_PKG_VERSION"), "\0").as_bytes();
     VERSION.as_ptr() as *const c_char
 }
+
+/// Update player positions directly via FFI
+///
+/// This is the preferred method for embedded mode - it avoids the HTTP
+/// overhead and sends position data directly to connected QUIC clients.
+///
+/// # Arguments
+/// * `handle` - Handle from `bvc_server_create()`
+/// * `game_data_json` - JSON string matching GameDataCollection structure:
+///   ```json
+///   {
+///     "game": "minecraft",
+///     "players": [
+///       {"name": "Player1", "x": 100.0, "y": 64.0, "z": 200.0, ...},
+///       ...
+///     ]
+///   }
+///   ```
+///
+/// # Returns
+/// * 0 on success
+/// * -1 on error (call `bvc_get_last_error()` for details)
+///
+/// # Safety
+/// * `handle` must be a valid pointer from `bvc_server_create()`
+/// * `game_data_json` must be a valid null-terminated UTF-8 string
+/// * Server must be running (after `bvc_server_start()` has been called)
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn bvc_update_positions(
+    handle: *mut RuntimeHandle,
+    game_data_json: *const c_char,
+) -> c_int {
+    if handle.is_null() {
+        set_last_error("handle is null");
+        return -1;
+    }
+
+    if game_data_json.is_null() {
+        set_last_error("game_data_json is null");
+        return -1;
+    }
+
+    let json_str = match unsafe { CStr::from_ptr(game_data_json) }.to_str() {
+        Ok(s) => s,
+        Err(e) => {
+            set_last_error(&format!("Invalid UTF-8 in game_data_json: {}", e));
+            return -1;
+        }
+    };
+
+    // Parse the GameDataCollection JSON
+    let game_data: common::GameDataCollection = match serde_json::from_str(json_str) {
+        Ok(data) => data,
+        Err(e) => {
+            set_last_error(&format!("Failed to parse game_data JSON: {}", e));
+            return -1;
+        }
+    };
+
+    let handle_ref = unsafe { &*handle };
+
+    // Get the tokio runtime
+    let tokio_rt = match &handle_ref.tokio_runtime {
+        Some(rt) => rt,
+        None => {
+            set_last_error("Tokio runtime not available");
+            return -1;
+        }
+    };
+
+    // Get the server runtime
+    let runtime_guard = match handle_ref.runtime.lock() {
+        Ok(g) => g,
+        Err(e) => {
+            set_last_error(&format!("Failed to lock runtime: {}", e));
+            return -1;
+        }
+    };
+
+    let runtime = match runtime_guard.as_ref() {
+        Some(r) => r,
+        None => {
+            set_last_error("Runtime not initialized");
+            return -1;
+        }
+    };
+
+    // Send position update (run async operation on tokio runtime)
+    let result = tokio_rt.block_on(async {
+        runtime.update_positions(game_data.players).await
+    });
+
+    match result {
+        Ok(_) => 0,
+        Err(e) => {
+            set_last_error(&format!("Failed to update positions: {}", e));
+            -1
+        }
+    }
+}

@@ -1,23 +1,39 @@
 package com.alaydriem.bedrockvoicechat.native
 
+import com.sun.jna.Library
+import com.sun.jna.Native
+import com.sun.jna.Pointer
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.nio.file.Files
 
 /**
- * JNI bindings for the native BVC server library.
+ * JNA bindings for the native BVC server library.
  */
 object BvcNative {
     private val logger = LoggerFactory.getLogger("BVC Native")
-    private var loaded = false
+    private var library: BvcLibrary? = null
+
+    /**
+     * JNA interface for the native library.
+     */
+    interface BvcLibrary : Library {
+        fun bvc_init(): Int
+        fun bvc_server_create(configJson: String): Pointer?
+        fun bvc_server_start(handle: Pointer): Int
+        fun bvc_server_stop(handle: Pointer): Int
+        fun bvc_server_destroy(handle: Pointer): Int
+        fun bvc_update_positions(handle: Pointer, gameDataJson: String): Int
+        fun bvc_get_last_error(): String?
+        fun bvc_version(): String
+    }
 
     /**
      * Load the native library from JAR resources.
-     * Extracts the platform-specific library to a temp directory and loads it.
      */
     @Synchronized
     fun load() {
-        if (loaded) return
+        if (library != null) return
 
         val libName = getLibraryName()
         logger.info("Loading native library: {}", libName)
@@ -27,7 +43,7 @@ object BvcNative {
             val resourcePath = "/native/$libName"
             val resourceStream = BvcNative::class.java.getResourceAsStream(resourcePath)
 
-            if (resourceStream != null) {
+            val libPath: String = if (resourceStream != null) {
                 // Extract to temp directory
                 val tempDir = Files.createTempDirectory("bvc-native").toFile()
                 tempDir.deleteOnExit()
@@ -41,22 +57,21 @@ object BvcNative {
                     }
                 }
 
-                System.load(tempLib.absolutePath)
-                logger.info("Loaded native library from JAR: {}", tempLib.absolutePath)
+                logger.info("Extracted native library to: {}", tempLib.absolutePath)
+                tempLib.absolutePath
             } else {
-                // Fall back to system library path
-                val baseName = libName.removeSuffix(".dll").removeSuffix(".so").removeSuffix(".dylib")
-                    .removePrefix("lib")
-                System.loadLibrary(baseName)
-                logger.info("Loaded native library from system: {}", baseName)
+                // Fall back to library name for system path lookup
+                logger.info("Native library not found in JAR, trying system path")
+                getLibraryBaseName()
             }
 
-            loaded = true
+            library = Native.load(libPath, BvcLibrary::class.java)
+            logger.info("Loaded native library successfully")
 
             // Initialize the crypto provider
-            val initResult = nativeInit()
+            val initResult = library!!.bvc_init()
             if (initResult != 0) {
-                logger.warn("Crypto provider initialization returned: {} (may already be initialized)", initResult)
+                logger.warn("Crypto provider init returned: {} (may already be initialized)", initResult)
             }
         } catch (e: Exception) {
             logger.error("Failed to load native library: {}", e.message, e)
@@ -65,85 +80,66 @@ object BvcNative {
     }
 
     /**
-     * Get the platform-specific library filename.
+     * Get the platform-specific library filename including architecture.
+     * Library files are named: native/{os}-{arch}/lib_bvc_server.{ext}
      */
     private fun getLibraryName(): String {
         val os = System.getProperty("os.name").lowercase()
-        val arch = System.getProperty("os.arch").lowercase()
+        val arch = getArchitecture()
 
-        val archSuffix = when {
-            arch.contains("aarch64") || arch.contains("arm64") -> "arm64"
-            arch.contains("amd64") || arch.contains("x86_64") -> "x64"
-            else -> arch
+        val osName = when {
+            os.contains("win") -> "windows"
+            os.contains("mac") || os.contains("darwin") -> "darwin"
+            os.contains("linux") -> "linux"
+            else -> throw UnsupportedOperationException("Unsupported OS: $os")
         }
 
-        return when {
-            os.contains("win") -> "lib_bvc_server.dll"
-            os.contains("mac") || os.contains("darwin") -> "liblib_bvc_server.dylib"
-            os.contains("linux") -> "liblib_bvc_server.so"
+        val ext = when {
+            os.contains("win") -> "dll"
+            os.contains("mac") || os.contains("darwin") -> "dylib"
+            os.contains("linux") -> "so"
             else -> throw UnsupportedOperationException("Unsupported OS: $os")
+        }
+
+        // Library naming: lib_bvc_server.dll on Windows, liblib_bvc_server.so/dylib on Unix
+        val libPrefix = if (os.contains("win")) "" else "lib"
+        return "$osName-$arch/${libPrefix}lib_bvc_server.$ext"
+    }
+
+    /**
+     * Get the CPU architecture (x64 or arm64).
+     */
+    private fun getArchitecture(): String {
+        val arch = System.getProperty("os.arch").lowercase()
+        return when {
+            arch.contains("amd64") || arch.contains("x86_64") -> "x64"
+            arch.contains("aarch64") || arch.contains("arm64") -> "arm64"
+            else -> throw UnsupportedOperationException("Unsupported architecture: $arch")
         }
     }
 
-    // Native method declarations
-
     /**
-     * Initialize the crypto provider. Must be called before creating servers.
-     * Returns 0 on success, -1 on error.
+     * Get the base name for system library loading.
      */
-    @JvmStatic
-    private external fun nativeInit(): Int
+    private fun getLibraryBaseName(): String {
+        return "lib_bvc_server"
+    }
 
-    /**
-     * Create a server instance from JSON configuration.
-     * Returns a handle (pointer) on success, 0 on error.
-     */
-    @JvmStatic
-    private external fun nativeCreateServer(configJson: String): Long
-
-    /**
-     * Start the server. BLOCKS until shutdown.
-     * Returns 0 on clean shutdown, -1 on error.
-     */
-    @JvmStatic
-    private external fun nativeStartServer(handle: Long): Int
-
-    /**
-     * Signal the server to stop gracefully. Non-blocking.
-     * Returns 0 on success, -1 on error.
-     */
-    @JvmStatic
-    private external fun nativeStopServer(handle: Long): Int
-
-    /**
-     * Destroy the server handle and free resources.
-     * Returns 0 on success, -1 on error.
-     */
-    @JvmStatic
-    private external fun nativeDestroyServer(handle: Long): Int
-
-    /**
-     * Get the last error message.
-     * Returns null if no error.
-     */
-    @JvmStatic
-    private external fun nativeGetLastError(): String?
-
-    /**
-     * Get the library version.
-     */
-    @JvmStatic
-    private external fun nativeGetVersion(): String
-
-    // Public API wrappers
-
-    /**
-     * Create a server instance from JSON configuration.
-     * @return handle on success, 0 on failure
-     */
-    fun createServer(configJson: String): Long {
+    private fun getLib(): BvcLibrary {
         load()
-        return nativeCreateServer(configJson)
+        return library ?: throw IllegalStateException("Native library not loaded")
+    }
+
+    /**
+     * Create a server instance from JSON configuration.
+     * @return handle on success, null on failure
+     */
+    fun createServer(configJson: String): Pointer? {
+        val handle = getLib().bvc_server_create(configJson)
+        if (handle == null) {
+            logger.error("Failed to create server: {}", getLastError())
+        }
+        return handle
     }
 
     /**
@@ -151,38 +147,54 @@ object BvcNative {
      * Call from a dedicated thread.
      * @return 0 on success, -1 on error
      */
-    fun startServer(handle: Long): Int {
-        return nativeStartServer(handle)
+    fun startServer(handle: Pointer): Int {
+        return getLib().bvc_server_start(handle)
     }
 
     /**
      * Signal the server to stop. Non-blocking, thread-safe.
      * @return 0 on success, -1 on error
      */
-    fun stopServer(handle: Long): Int {
-        return nativeStopServer(handle)
+    fun stopServer(handle: Pointer): Int {
+        return getLib().bvc_server_stop(handle)
     }
 
     /**
      * Destroy the server handle. Call after startServer returns.
      * @return 0 on success, -1 on error
      */
-    fun destroyServer(handle: Long): Int {
-        return nativeDestroyServer(handle)
+    fun destroyServer(handle: Pointer): Int {
+        return getLib().bvc_server_destroy(handle)
+    }
+
+    /**
+     * Update player positions directly via FFI (bypasses HTTP).
+     * This is the preferred method for embedded mode.
+     *
+     * @param handle Server handle from createServer
+     * @param gameDataJson JSON string containing game data with players:
+     *   {"game": "minecraft", "players": [{"name": "Player1", "x": 100.0, ...}, ...]}
+     * @return 0 on success, -1 on error
+     */
+    fun updatePositions(handle: Pointer, gameDataJson: String): Int {
+        val result = getLib().bvc_update_positions(handle, gameDataJson)
+        if (result != 0) {
+            logger.warn("Failed to update positions: {}", getLastError())
+        }
+        return result
     }
 
     /**
      * Get the last error message from the native library.
      */
     fun getLastError(): String? {
-        return nativeGetLastError()
+        return library?.bvc_get_last_error()
     }
 
     /**
      * Get the native library version.
      */
     fun getVersion(): String {
-        load()
-        return nativeGetVersion()
+        return getLib().bvc_version()
     }
 }

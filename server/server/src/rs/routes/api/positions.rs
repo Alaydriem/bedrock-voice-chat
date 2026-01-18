@@ -1,7 +1,4 @@
 use common::ncryptflib as ncryptf;
-use common::structs::packet::{
-    PacketOwner, PacketType, PlayerDataPacket, QuicNetworkPacket, QuicNetworkPacketData,
-};
 use common::traits::player_data::PlayerData;
 use rocket::{http::Status, serde::json::Json, State};
 
@@ -22,6 +19,8 @@ use sea_orm_rocket::Connection as SeaOrmConnection;
 use std::collections::HashSet;
 use moka::sync::Cache;
 use std::time::Duration;
+
+use crate::runtime::position_updater;
 
 /// Cache of registered player names to avoid repeated database queries
 #[derive(Clone)]
@@ -47,8 +46,6 @@ impl RegisteredPlayersCache {
         self.cache.insert(player_name, true);
     }
 }
-
-const PLAYERS_PER_CHUNK: usize = 30;
 
 /// Stores player position data
 #[post("/position", data = "<positions>")]
@@ -165,40 +162,10 @@ pub async fn update_position(
         }
     }
 
-    // Send players to webhook receiver in chunks
-    let mut player_buffer = Vec::with_capacity(PLAYERS_PER_CHUNK);
-    for player in all_players {
-        player_buffer.push(player);
-
-        if player_buffer.len() >= PLAYERS_PER_CHUNK {
-            send_player_chunk(&player_buffer, webhook_receiver).await;
-            player_buffer.clear();
-        }
-    }
-
-    // Send any remaining players
-    if !player_buffer.is_empty() {
-        send_player_chunk(&player_buffer, webhook_receiver).await;
-    }
+    // Broadcast positions to connected QUIC clients
+    position_updater::broadcast_positions(all_players, webhook_receiver).await;
 
     Status::Ok
-}
-
-async fn send_player_chunk(players: &[common::PlayerEnum], webhook_receiver: &WebhookReceiver) {
-    let packet = QuicNetworkPacket {
-        owner: Some(PacketOwner {
-            name: String::from("api"),
-            client_id: vec![0u8; 0],
-        }),
-        packet_type: PacketType::PlayerData,
-        data: QuicNetworkPacketData::PlayerData(PlayerDataPacket {
-            players: players.to_vec(),
-        }),
-    };
-
-    if let Err(e) = webhook_receiver.send_packet(packet).await {
-        tracing::error!("Failed to send packet chunk to QUIC server: {}", e);
-    }
 }
 
 #[get("/position")]

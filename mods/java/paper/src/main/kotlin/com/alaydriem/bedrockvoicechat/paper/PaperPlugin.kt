@@ -1,7 +1,9 @@
 package com.alaydriem.bedrockvoicechat.paper
 
 import com.alaydriem.bedrockvoicechat.dto.Payload
+import com.alaydriem.bedrockvoicechat.native.PositionSender
 import com.alaydriem.bedrockvoicechat.network.HttpRequestHandler
+import com.alaydriem.bedrockvoicechat.server.BvcServerManager
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerJoinEvent
@@ -17,7 +19,8 @@ class PaperPlugin : JavaPlugin(), Listener {
     private val configProvider = PaperConfigProvider(this)
     private val playerDataProvider = PaperPlayerDataProvider()
 
-    private var httpHandler: HttpRequestHandler? = null
+    private var embeddedServer: BvcServerManager? = null
+    private var positionSender: PositionSender? = null
     private var tickTask: BukkitTask? = null
     private var minimumPlayers = 2
 
@@ -31,30 +34,55 @@ class PaperPlugin : JavaPlugin(), Listener {
         val config = configProvider.load()
         if (!config.isValid()) {
             logger.severe("Invalid configuration - plugin will not track players")
-            logger.severe("Please configure bvc-server and access-token in config.yml")
+            logger.severe("Config validation failed: useEmbeddedServer=${config.useEmbeddedServer}, " +
+                "bvcServer=${if (config.bvcServer.isNullOrBlank()) "MISSING" else "set"}, " +
+                "accessToken=${if (config.accessToken.isNullOrBlank()) "MISSING" else "set"}")
             return
         }
 
         minimumPlayers = config.minimumPlayers
-        httpHandler = HttpRequestHandler(config.bvcServer!!, config.accessToken!!)
+
+        // Initialize embedded server if configured
+        if (config.useEmbeddedServer) {
+            embeddedServer = BvcServerManager(config, configProvider)
+            if (!embeddedServer!!.start()) {
+                logger.severe("Failed to start embedded server - falling back to disabled state")
+                embeddedServer = null
+                return
+            }
+
+            // For embedded mode, create HTTP handler pointing to localhost
+            val embedded = config.embeddedConfig
+            val localUrl = "https://127.0.0.1:${embedded?.httpPort ?: 443}"
+            val accessToken = config.accessToken ?: java.util.UUID.randomUUID().toString()
+            val httpHandler = HttpRequestHandler(localUrl, accessToken)
+            positionSender = PositionSender(httpHandler, embeddedServer)
+
+            logger.info("Bedrock Voice Chat using embedded server at $localUrl")
+        } else {
+            // External server mode
+            val httpHandler = HttpRequestHandler(config.bvcServer!!, config.accessToken!!)
+            positionSender = PositionSender(httpHandler, null)
+
+            logger.info("Bedrock Voice Chat will connect to: ${config.bvcServer}")
+        }
 
         // Register this plugin as event listener for player events
         server.pluginManager.registerEvents(this, this)
 
         // Schedule tick task every 5 ticks (250ms at 20 TPS)
         tickTask = server.scheduler.runTaskTimer(this, Runnable { tick() }, 0L, 5L)
-
-        logger.info("Bedrock Voice Chat will connect to: ${config.bvcServer}")
     }
 
     override fun onDisable() {
         tickTask?.cancel()
         tickTask = null
+        embeddedServer?.stop()
         logger.info("Bedrock Voice Chat disabled")
     }
 
     private fun tick() {
-        val handler = httpHandler ?: return
+        val sender = positionSender ?: return
         val players = playerDataProvider.collectPlayers()
 
         if (players.size < minimumPlayers) {
@@ -62,7 +90,7 @@ class PaperPlugin : JavaPlugin(), Listener {
         }
 
         val payload = Payload(playerDataProvider.getGameType(), players)
-        handler.sendAsync(payload)
+        sender.send(payload)
     }
 
     @EventHandler

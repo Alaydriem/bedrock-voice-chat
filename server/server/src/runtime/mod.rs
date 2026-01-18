@@ -1,6 +1,8 @@
+pub mod position_updater;
+
 use crate::config::ApplicationConfig;
 use crate::rs::manager::RocketManager;
-use crate::stream::quic::QuicServerManager;
+use crate::stream::quic::{QuicServerManager, WebhookReceiver};
 
 use anyhow::anyhow;
 use common::structs::channel::Channel;
@@ -13,7 +15,7 @@ use std::fs::File;
 use std::io::Write;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use tracing::info;
 use tracing_appender::non_blocking::WorkerGuard;
 
@@ -36,6 +38,8 @@ pub struct ServerRuntime {
     config: ApplicationConfig,
     state: RuntimeState,
     shutdown_flag: Arc<AtomicBool>,
+    /// Webhook receiver for sending position updates directly (populated after start)
+    webhook_receiver: Arc<RwLock<Option<WebhookReceiver>>>,
     _logger_guard: Option<WorkerGuard>,
 }
 
@@ -46,6 +50,7 @@ impl ServerRuntime {
             config,
             state: RuntimeState::Stopped,
             shutdown_flag: Arc::new(AtomicBool::new(false)),
+            webhook_receiver: Arc::new(RwLock::new(None)),
             _logger_guard: None,
         })
     }
@@ -105,6 +110,12 @@ impl ServerRuntime {
         let webhook_receiver = quic_manager.get_webhook_receiver().clone();
         let cache_manager = quic_manager.get_cache_manager();
 
+        // Store webhook_receiver for FFI position updates
+        {
+            let mut wr = self.webhook_receiver.write().unwrap();
+            *wr = Some(webhook_receiver.clone());
+        }
+
         // Create Rocket manager
         let rocket_manager = RocketManager::new(
             self.config.clone(),
@@ -161,6 +172,31 @@ impl ServerRuntime {
     /// Signal the server to stop gracefully
     pub fn request_shutdown(&self) {
         self.shutdown_flag.store(true, Ordering::SeqCst);
+    }
+
+    /// Get a clone of the webhook receiver Arc for external use
+    pub fn get_webhook_receiver(&self) -> Arc<RwLock<Option<WebhookReceiver>>> {
+        self.webhook_receiver.clone()
+    }
+
+    /// Update player positions directly (bypasses HTTP).
+    /// Used by FFI to send position updates without HTTP overhead.
+    ///
+    /// # Arguments
+    /// * `players` - Vector of player position data
+    ///
+    /// # Returns
+    /// * Ok(()) on success
+    /// * Err if server not started or webhook_receiver not available
+    pub async fn update_positions(&self, players: Vec<common::PlayerEnum>) -> Result<(), anyhow::Error> {
+        let wr_guard = self.webhook_receiver.read()
+            .map_err(|_| anyhow!("Failed to acquire webhook_receiver lock"))?;
+
+        let webhook_receiver = wr_guard.as_ref()
+            .ok_or_else(|| anyhow!("Server not started - webhook_receiver not available"))?;
+
+        position_updater::broadcast_positions(players, webhook_receiver).await;
+        Ok(())
     }
 
     /// Setup the tracing/logging subsystem

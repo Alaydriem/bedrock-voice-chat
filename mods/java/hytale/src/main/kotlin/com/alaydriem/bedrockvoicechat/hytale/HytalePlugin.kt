@@ -1,7 +1,9 @@
 package com.alaydriem.bedrockvoicechat.hytale
 
 import com.alaydriem.bedrockvoicechat.dto.Payload
+import com.alaydriem.bedrockvoicechat.native.PositionSender
 import com.alaydriem.bedrockvoicechat.network.HttpRequestHandler
+import com.alaydriem.bedrockvoicechat.server.BvcServerManager
 import com.hypixel.hytale.server.core.HytaleServer
 import com.hypixel.hytale.server.core.event.events.player.PlayerConnectEvent
 import com.hypixel.hytale.server.core.event.events.player.PlayerDisconnectEvent
@@ -19,15 +21,13 @@ class HytalePlugin(init: JavaPluginInit) : JavaPlugin(init) {
     private val configProvider = HytaleConfigProvider(config)
     private val playerDataProvider = HytalePlayerDataProvider()
 
-    private var httpHandler: HttpRequestHandler? = null
+    private var embeddedServer: BvcServerManager? = null
+    private var positionSender: PositionSender? = null
     private var tickTask: ScheduledFuture<*>? = null
     private var minimumPlayers = 2
 
     override fun setup() {
         logger.at(Level.INFO).log("Initializing Bedrock Voice Chat for Hytale")
-
-        // Debug: Log raw config values
-        val rawConfig = config.get()
 
         // Save config to create file if it doesn't exist (with defaults)
         // BsonUtil.writeDocument() will create parent directories automatically
@@ -37,11 +37,38 @@ class HytalePlugin(init: JavaPluginInit) : JavaPlugin(init) {
         val modConfig = configProvider.load()
         if (!modConfig.isValid()) {
             logger.at(Level.SEVERE).log("Invalid configuration. Bedrock Voice Chat will not be enabled.")
+            logger.at(Level.SEVERE).log("Config validation failed: useEmbeddedServer=${modConfig.useEmbeddedServer}, " +
+                "bvcServer=${if (modConfig.bvcServer.isNullOrBlank()) "MISSING" else "set"}, " +
+                "accessToken=${if (modConfig.accessToken.isNullOrBlank()) "MISSING" else "set"}")
             return
         }
 
         minimumPlayers = modConfig.minimumPlayers
-        httpHandler = HttpRequestHandler(modConfig.bvcServer!!, modConfig.accessToken!!)
+
+        // Initialize embedded server if configured
+        if (modConfig.useEmbeddedServer) {
+            embeddedServer = BvcServerManager(modConfig, configProvider)
+            if (!embeddedServer!!.start()) {
+                logger.at(Level.SEVERE).log("Failed to start embedded server - falling back to disabled state")
+                embeddedServer = null
+                return
+            }
+
+            // For embedded mode, create HTTP handler pointing to localhost
+            val embedded = modConfig.embeddedConfig
+            val localUrl = "https://127.0.0.1:${embedded?.httpPort ?: 443}"
+            val accessToken = modConfig.accessToken ?: java.util.UUID.randomUUID().toString()
+            val httpHandler = HttpRequestHandler(localUrl, accessToken)
+            positionSender = PositionSender(httpHandler, embeddedServer)
+
+            logger.at(Level.INFO).log("Bedrock Voice Chat using embedded server at $localUrl")
+        } else {
+            // External server mode
+            val httpHandler = HttpRequestHandler(modConfig.bvcServer!!, modConfig.accessToken!!)
+            positionSender = PositionSender(httpHandler, null)
+
+            logger.at(Level.INFO).log("Bedrock Voice Chat will connect to: ${modConfig.bvcServer}")
+        }
 
         // Register player connect/disconnect events
         eventRegistry.register(PlayerConnectEvent::class.java) { event ->
@@ -56,8 +83,6 @@ class HytalePlugin(init: JavaPluginInit) : JavaPlugin(init) {
         tickTask = HytaleServer.SCHEDULED_EXECUTOR.scheduleAtFixedRate(
             { tick() }, 167, 167, TimeUnit.MILLISECONDS
         )
-
-        logger.at(Level.INFO).log("Bedrock Voice Chat will connect to: ${modConfig.bvcServer}")
     }
 
     override fun shutdown() {
@@ -66,11 +91,14 @@ class HytalePlugin(init: JavaPluginInit) : JavaPlugin(init) {
                 task.cancel(false)
             }
         }
+        tickTask = null
+        embeddedServer?.stop()
+        logger.at(Level.INFO).log("Bedrock Voice Chat disabled")
     }
 
     private fun tick() {
         try {
-            val handler = httpHandler ?: return
+            val sender = positionSender ?: return
             val players = playerDataProvider.collectPlayers()
 
             if (players.size < minimumPlayers) {
@@ -78,7 +106,7 @@ class HytalePlugin(init: JavaPluginInit) : JavaPlugin(init) {
             }
 
             val payload = Payload(playerDataProvider.getGameType(), players)
-            handler.sendAsync(payload)
+            sender.send(payload)
         } catch (e: Exception) {
             logger.at(Level.WARNING).log("Error during tick: ${e.message}")
         }

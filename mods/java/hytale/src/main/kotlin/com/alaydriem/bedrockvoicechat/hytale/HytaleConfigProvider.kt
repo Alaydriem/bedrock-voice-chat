@@ -1,14 +1,19 @@
 package com.alaydriem.bedrockvoicechat.hytale
 
 import com.alaydriem.bedrockvoicechat.api.ConfigProvider
+import com.alaydriem.bedrockvoicechat.config.EmbeddedConfig
 import com.alaydriem.bedrockvoicechat.config.ModConfig
 import com.hypixel.hytale.server.core.util.Config
+import java.nio.file.Path
+import java.nio.file.Paths
 
 /**
  * Hytale-specific ConfigProvider backed by BuilderCodec.
  * Converts between BedrockVoiceChatConfig and the common ModConfig interface.
  */
 class HytaleConfigProvider(private val config: Config<BedrockVoiceChatConfig>) : ConfigProvider {
+
+    override fun getConfigDir(): Path = Paths.get(System.getProperty("user.dir"), "config", "bvc")
 
     override fun load(): ModConfig {
         val hytaleConfig = config.get()
@@ -17,6 +22,21 @@ class HytaleConfigProvider(private val config: Config<BedrockVoiceChatConfig>) :
             bvcServer = hytaleConfig.bvcServer
             accessToken = hytaleConfig.accessToken
             minimumPlayers = hytaleConfig.minimumPlayers
+            useEmbeddedServer = hytaleConfig.useEmbeddedServer
+
+            if (useEmbeddedServer) {
+                embeddedConfig = hytaleConfig.embeddedConfig?.let { hytaleEmbed ->
+                    EmbeddedConfig().apply {
+                        httpPort = hytaleEmbed.httpPort
+                        quicPort = hytaleEmbed.quicPort
+                        publicAddr = hytaleEmbed.publicAddr
+                        broadcastRange = hytaleEmbed.broadcastRange
+                        tlsNames = hytaleEmbed.getTlsNamesList()
+                        tlsIps = hytaleEmbed.getTlsIpsList()
+                        logLevel = hytaleEmbed.logLevel
+                    }
+                } ?: EmbeddedConfig()
+            }
         }
     }
 
