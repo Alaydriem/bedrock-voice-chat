@@ -7,6 +7,19 @@ version = "1.0.0-beta.1"
 edition = "2024"
 build = "build.rs"
 
+[lib]
+name = "lib_bvc_server"
+path = "src/lib.rs"
+crate-type = ["rlib", "cdylib", "staticlib"]
+
+[[bin]]
+name = "bvc-server"
+path = "src/main.rs"
+
+[features]
+default = []
+ffi = []
+
 [dependencies]
 common = { path = "../../common", features = ["quic", "templates", "server"] }
 entity = { path = "../entity" }
@@ -94,23 +107,23 @@ priority = "optional"
 revision = "__REVISION__"
 assets = [
     [
-        "target/release/bvc-server",
+        "target/release/bvcd",
         "usr/local/bin/",
         "755",
     ],
     [
         "../README.md",
-        "usr/share/doc/bvc-server/README",
+        "usr/share/doc/bvcd/README",
         "644",
     ],
     [
         "templates/**/*",
-        "etc/bvc-server/templates/",
+        "etc/bvcd/templates/",
         "644",
     ],
     [
-        ".systemd/bvc-server.service",
-        "etc/systemd/system/bvc-server.service",
+        ".systemd/bvcd.service",
+        "etc/systemd/system/bvcd.service",
         "644",
     ],
 ]
