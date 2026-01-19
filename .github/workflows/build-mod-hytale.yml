@@ -6,7 +6,6 @@ on:
     paths:
       - 'mods/java/**'
       - '.github/workflows/build-mod-hytale.yml'
-  pull_request:
   workflow_call:
     inputs:
       version:
