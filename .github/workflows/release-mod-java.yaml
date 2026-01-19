@@ -132,7 +132,6 @@ jobs:
           version: ${{ needs.prepare-release.outputs.new_release_version }}
           name: Bedrock Voice Chat ${{ needs.prepare-release.outputs.new_release_version }} (Fabric)
           changelog: ${{ needs.prepare-release.outputs.new_release_notes }}
-          featured: true
           dependencies: |-
             [{
               "project_id": "P7dR8mSH",
@@ -172,7 +171,6 @@ jobs:
           version: ${{ needs.prepare-release.outputs.new_release_version }}-paper
           name: Bedrock Voice Chat ${{ needs.prepare-release.outputs.new_release_version }} (Paper)
           changelog: ${{ needs.prepare-release.outputs.new_release_notes }}
-          featured: true
           loaders: |-
             paper
             spigot

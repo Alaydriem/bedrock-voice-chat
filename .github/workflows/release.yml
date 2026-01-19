@@ -106,6 +106,7 @@ jobs:
     uses: ./.github/workflows/build-server.yml
     with:
       build_mode: release
+      ref: ${{ needs.prepare-release.outputs.new_tag }}
     secrets: inherit
 
   # Job 3: Build Android (release mode, includes signing)
@@ -116,6 +117,7 @@ jobs:
     uses: ./.github/workflows/build-android.yml
     with:
       build_mode: release
+      ref: ${{ needs.prepare-release.outputs.new_tag }}
     secrets: inherit
 
   # Job 4: Build Windows client (release mode)
@@ -126,6 +128,7 @@ jobs:
     uses: ./.github/workflows/build-client.yml
     with:
       build_mode: release
+      ref: ${{ needs.prepare-release.outputs.new_tag }}
     secrets: inherit
 
   # Job 5: Build Java Fabric Mod
@@ -136,6 +139,7 @@ jobs:
     uses: ./.github/workflows/build-mod-fabric.yml
     with:
       version: ${{ needs.prepare-release.outputs.new_version }}
+      ref: ${{ needs.prepare-release.outputs.new_tag }}
     secrets: inherit
 
   # Job 5b: Build Java Paper Plugin
@@ -146,6 +150,7 @@ jobs:
     uses: ./.github/workflows/build-mod-paper.yml
     with:
       version: ${{ needs.prepare-release.outputs.new_version }}
+      ref: ${{ needs.prepare-release.outputs.new_tag }}
     secrets: inherit
 
   # Job 5c: Build Java Hytale Plugin (conditional on HYTALE_ENABLED)
@@ -156,6 +161,7 @@ jobs:
     uses: ./.github/workflows/build-mod-hytale.yml
     with:
       version: ${{ needs.prepare-release.outputs.new_version }}
+      ref: ${{ needs.prepare-release.outputs.new_tag }}
     secrets: inherit
 
   # Job 6: Build BDS Pack
@@ -164,6 +170,8 @@ jobs:
     needs: prepare-release
     if: needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false
     uses: ./.github/workflows/build-mod-bds.yml
+    with:
+      ref: ${{ needs.prepare-release.outputs.new_tag }}
     secrets: inherit
 
   # Job 7: Upload release assets to GitHub
