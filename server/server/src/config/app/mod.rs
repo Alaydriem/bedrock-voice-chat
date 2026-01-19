@@ -112,6 +112,7 @@ impl ApplicationConfig {
 
         tracing::info!("Database: {}", self.get_dsn().to_string());
         let figment = rocket::Config::figment()
+            .merge(("cli_colors", false))
             .merge(("profile", rocket::figment::Profile::new("release")))
             .merge(("ident", false))
             .merge(("log_level", self.get_rocket_log_level()))

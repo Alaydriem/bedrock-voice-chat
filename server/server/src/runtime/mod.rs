@@ -240,6 +240,7 @@ impl ServerRuntime {
             .with_line_number(&self.config.log.level == "trace")
             .with_file(&self.config.log.level == "trace")
             .with_env_filter(env_filter)
+            .with_ansi(true)
             .compact()
             .init();
 

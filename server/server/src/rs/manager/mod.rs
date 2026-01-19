@@ -47,6 +47,15 @@ impl RocketManager {
     pub async fn start(&self) -> Result<(), Error> {
         tracing::info!("Starting Rocket HTTP server manager");
 
+        // Ensure the assets directory exists
+        let assets_path = std::path::Path::new(&self.config.server.assets_path);
+        if !assets_path.exists() {
+            tracing::info!("Assets directory does not exist, creating: {:?}", assets_path);
+            if let Err(e) = std::fs::create_dir_all(assets_path) {
+                tracing::warn!("Failed to create assets directory: {}", e);
+            }
+        }
+
         match self.config.get_rocket_config() {
             Ok(figment) => {
                 let cache = cached::TimedCache::with_lifespan_and_refresh(

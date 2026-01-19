@@ -64,21 +64,42 @@ jobs:
               echo "> **Note:** Links to the new version will only work after the release is created"
           } >> $GITHUB_STEP_SUMMARY
 
+  # Build server first to produce native libraries for mods
+  build-server:
+    name: Build Server (for native libraries)
+    needs: prepare-release
+    if: ${{ needs.prepare-release.outputs.new_release_published == 'true' && !inputs.dry-run }}
+    uses: ./.github/workflows/build-server.yml
+    with:
+      build_mode: release
+    secrets: inherit
+
   build-mod-fabric:
     name: Build Fabric Mod
-    needs: prepare-release
+    needs: [prepare-release, build-server]
     if: ${{ needs.prepare-release.outputs.new_release_published == 'true' && !inputs.dry-run }}
     uses: ./.github/workflows/build-mod-fabric.yml
     with:
       version: ${{ needs.prepare-release.outputs.new_release_version }}
+    secrets: inherit
 
   build-mod-paper:
     name: Build Paper Plugin
-    needs: prepare-release
+    needs: [prepare-release, build-server]
     if: ${{ needs.prepare-release.outputs.new_release_published == 'true' && !inputs.dry-run }}
     uses: ./.github/workflows/build-mod-paper.yml
     with:
       version: ${{ needs.prepare-release.outputs.new_release_version }}
+    secrets: inherit
+
+  build-mod-hytale:
+    name: Build Hytale Plugin
+    needs: [prepare-release, build-server]
+    if: ${{ needs.prepare-release.outputs.new_release_published == 'true' && !inputs.dry-run }}
+    uses: ./.github/workflows/build-mod-hytale.yml
+    with:
+      version: ${{ needs.prepare-release.outputs.new_release_version }}
+    secrets: inherit
 
   publish-modrinth-fabric:
     name: Publish Fabric to Modrinth
@@ -156,3 +177,79 @@ jobs:
           game-versions: |-
             1.21.11
           channel: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}
+
+  # Upload all mod artifacts to GitHub Release
+  upload-release-assets:
+    name: Upload Release Assets
+    needs: [prepare-release, build-mod-fabric, build-mod-paper, build-mod-hytale]
+    if: always() && needs.prepare-release.outputs.new_release_published == 'true' && !inputs.dry-run && (needs.build-mod-fabric.result == 'success' || needs.build-mod-paper.result == 'success' || needs.build-mod-hytale.result == 'success')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Fabric artifact
+        if: needs.build-mod-fabric.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: bedrock-voice-chat-fabric-${{ needs.prepare-release.outputs.new_release_version }}
+          path: ./release-files
+
+      - name: Download Paper artifact
+        if: needs.build-mod-paper.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: bedrock-voice-chat-paper-${{ needs.prepare-release.outputs.new_release_version }}
+          path: ./release-files
+
+      - name: Download Hytale artifact
+        if: needs.build-mod-hytale.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: bedrock-voice-chat-hytale-${{ needs.prepare-release.outputs.new_release_version }}
+          path: ./release-files
+
+      - name: Rename artifacts
+        run: |
+          VERSION="${{ needs.prepare-release.outputs.new_release_version }}"
+          cd ./release-files
+
+          # Rename to consistent naming
+          if [ -f "bedrock-voice-chat-${VERSION}.jar" ]; then
+            mv "bedrock-voice-chat-${VERSION}.jar" "bvc-fabric-mod-${VERSION}.jar"
+          fi
+
+          if [ -f "bedrock-voice-chat-paper-${VERSION}.jar" ]; then
+            mv "bedrock-voice-chat-paper-${VERSION}.jar" "bvc-paper-plugin-${VERSION}.jar"
+          fi
+
+          if [ -f "bedrock-voice-chat-hytale-${VERSION}.jar" ]; then
+            mv "bedrock-voice-chat-hytale-${VERSION}.jar" "bvc-hytale-plugin-${VERSION}.jar"
+          fi
+
+          echo "=== Release files ==="
+          ls -la
+
+      - name: Upload assets to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: java-mod-v${{ needs.prepare-release.outputs.new_release_version }}
+          files: ./release-files/*.jar
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release summary
+        run: |
+          VERSION="${{ needs.prepare-release.outputs.new_release_version }}"
+          {
+            echo "## Java Mod Release Assets Uploaded"
+            echo ""
+            echo "Version: **java-mod-v${VERSION}**"
+            echo ""
+            echo "### Uploaded Files"
+            echo ""
+            for file in ./release-files/*.jar; do
+              if [ -f "$file" ]; then
+                echo "- \`$(basename $file)\`"
+              fi
+            done
+          } >> $GITHUB_STEP_SUMMARY
