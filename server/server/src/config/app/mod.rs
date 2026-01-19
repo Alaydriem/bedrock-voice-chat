@@ -126,6 +126,7 @@ impl ApplicationConfig {
                 format!("{}/ca.crt", &self.server.tls.certs_path),
             ))
             .merge(("tls.mutual.mandatory", false))
+            .merge(("shutdown.ctrlc", false))
             .merge((
                 "minecraft.access_token",
                 &self.server.minecraft.access_token,

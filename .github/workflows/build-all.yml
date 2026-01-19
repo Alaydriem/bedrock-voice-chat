@@ -160,24 +160,24 @@ jobs:
   # Build Fabric Mod
   build-fabric-mod:
     name: Build Fabric Mod
-    needs: changes
-    if: needs.changes.outputs.fabric-mod == 'true'
+    needs: [changes, build-server]
+    if: always() && !cancelled() && !contains(needs.*.result, 'failure') && (needs.changes.outputs.fabric-mod == 'true' || needs.changes.outputs.server == 'true')
     uses: ./.github/workflows/build-mod-fabric.yml
     secrets: inherit
 
   # Build Paper Plugin
   build-paper-mod:
     name: Build Paper Plugin
-    needs: changes
-    if: needs.changes.outputs.paper-mod == 'true'
+    needs: [changes, build-server]
+    if: always() && !cancelled() && !contains(needs.*.result, 'failure') && (needs.changes.outputs.paper-mod == 'true' || needs.changes.outputs.server == 'true')
     uses: ./.github/workflows/build-mod-paper.yml
     secrets: inherit
 
   # Build Hytale Plugin
   build-hytale-mod:
     name: Build Hytale Plugin
-    needs: changes
-    if: needs.changes.outputs.hytale-mod == 'true'
+    needs: [changes, build-server]
+    if: always() && !cancelled() && !contains(needs.*.result, 'failure') && (needs.changes.outputs.hytale-mod == 'true' || needs.changes.outputs.server == 'true')
     uses: ./.github/workflows/build-mod-hytale.yml
     secrets: inherit
 

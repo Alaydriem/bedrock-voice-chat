@@ -153,11 +153,13 @@ impl ServerRuntime {
                 }
             } => {
                 tracing::info!("Shutdown requested via flag, shutting down...");
-                self.state = RuntimeState::ShuttingDown;
-                if let Err(e) = quic_manager.stop().await {
-                    tracing::error!("Error during shutdown: {}", e);
-                }
             }
+        }
+
+        // Always stop QUIC regardless of which branch exited
+        self.state = RuntimeState::ShuttingDown;
+        if let Err(e) = quic_manager.stop().await {
+            tracing::error!("Error stopping QUIC server: {}", e);
         }
 
         self.state = RuntimeState::Stopped;
