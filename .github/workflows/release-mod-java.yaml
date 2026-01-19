@@ -32,6 +32,9 @@ jobs:
           show-progress: false
           ref: ${{ github.ref }}
 
+      - name: Fetch all tags
+        run: git fetch --tags --force
+
       - name: Semantic Release
         id: semantic-release
         uses: cycjimmy/semantic-release-action@v4

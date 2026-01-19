@@ -131,8 +131,8 @@ jobs:
   # Job 5: Build Java Fabric Mod
   build-mod-fabric:
     name: Build Fabric Mod
-    needs: prepare-release
-    if: needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false
+    needs: [prepare-release, build-server]
+    if: needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false && needs.build-server.result == 'success'
     uses: ./.github/workflows/build-mod-fabric.yml
     with:
       version: ${{ needs.prepare-release.outputs.new_version }}
@@ -141,8 +141,8 @@ jobs:
   # Job 5b: Build Java Paper Plugin
   build-mod-paper:
     name: Build Paper Plugin
-    needs: prepare-release
-    if: needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false
+    needs: [prepare-release, build-server]
+    if: needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false && needs.build-server.result == 'success'
     uses: ./.github/workflows/build-mod-paper.yml
     with:
       version: ${{ needs.prepare-release.outputs.new_version }}
@@ -151,8 +151,8 @@ jobs:
   # Job 5c: Build Java Hytale Plugin (conditional on HYTALE_ENABLED)
   build-mod-hytale:
     name: Build Hytale Plugin
-    needs: prepare-release
-    if: needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false
+    needs: [prepare-release, build-server]
+    if: needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false && needs.build-server.result == 'success'
     uses: ./.github/workflows/build-mod-hytale.yml
     with:
       version: ${{ needs.prepare-release.outputs.new_version }}
