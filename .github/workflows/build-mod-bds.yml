@@ -1,12 +1,6 @@
 name: Build BDS Pack
 
 on:
-  push:
-    branches: [ master ]
-    paths:
-      - 'mods/bds/**'
-      - '.github/workflows/build-bds-pack.yml'
-  pull_request:
   workflow_call:
   workflow_dispatch:
 

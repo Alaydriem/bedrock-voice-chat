@@ -3,17 +3,6 @@ permissions:
   contents: read
 
 on:
-  push:
-    branches: [ master ]
-    paths:
-      - 'client/**'
-      - 'common/**'
-      - '.github/workflows/build-ios.yml'
-  pull_request:
-    paths:
-      - 'client/**'
-      - 'common/**'
-      - '.github/workflows/build-ios.yml'
   workflow_call:
     inputs:
       build_mode:

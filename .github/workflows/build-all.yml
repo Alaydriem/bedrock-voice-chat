@@ -44,12 +44,7 @@ jobs:
         with:
           filters: |
             server:
-              - 'server/**'
-              - 'common/**'
-              - 'migration/**'
-              - 'entity/**'
-              - '.github/workflows/build-server.yml'
-              - '.github/workflows/build-all.yml'
+              - '**'
             client:
               - 'client/**'
               - 'common/**'
@@ -117,11 +112,10 @@ jobs:
           echo "Build mode: $BUILD_MODE"
           echo "Trigger: ${{ github.event_name }}"
 
-  # Build server for multiple platforms
+  # Build server for multiple platforms (always runs - produces native library needed by mods)
   build-server:
     name: Build Server (${{ needs.changes.outputs.build_mode }})
     needs: changes
-    if: needs.changes.outputs.server == 'true' || needs.changes.outputs.common == 'true'
     uses: ./.github/workflows/build-server.yml
     with:
       build_mode: ${{ needs.changes.outputs.build_mode }}
@@ -161,7 +155,7 @@ jobs:
   build-fabric-mod:
     name: Build Fabric Mod
     needs: [changes, build-server]
-    if: always() && !cancelled() && !contains(needs.*.result, 'failure') && (needs.changes.outputs.fabric-mod == 'true' || needs.changes.outputs.server == 'true')
+    if: needs.build-server.result == 'success' && needs.changes.outputs.fabric-mod == 'true'
     uses: ./.github/workflows/build-mod-fabric.yml
     secrets: inherit
 
@@ -169,7 +163,7 @@ jobs:
   build-paper-mod:
     name: Build Paper Plugin
     needs: [changes, build-server]
-    if: always() && !cancelled() && !contains(needs.*.result, 'failure') && (needs.changes.outputs.paper-mod == 'true' || needs.changes.outputs.server == 'true')
+    if: needs.build-server.result == 'success' && needs.changes.outputs.paper-mod == 'true'
     uses: ./.github/workflows/build-mod-paper.yml
     secrets: inherit
 
@@ -177,7 +171,7 @@ jobs:
   build-hytale-mod:
     name: Build Hytale Plugin
     needs: [changes, build-server]
-    if: always() && !cancelled() && !contains(needs.*.result, 'failure') && (needs.changes.outputs.hytale-mod == 'true' || needs.changes.outputs.server == 'true')
+    if: needs.build-server.result == 'success' && needs.changes.outputs.hytale-mod == 'true'
     uses: ./.github/workflows/build-mod-hytale.yml
     secrets: inherit
 

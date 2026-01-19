@@ -1,14 +1,6 @@
 name: Build Server
 
 on:
-  push:
-    branches: [ master ]
-    tags: ['v*']
-    paths:
-      - 'server/**'
-      - 'common/**'
-      - '.github/workflows/build-server.yml'
-  pull_request:
   workflow_call:
     inputs:
       build_mode:

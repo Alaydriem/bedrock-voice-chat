@@ -3,13 +3,6 @@ permissions:
   contents: write
 
 on:
-  push:
-    branches: [ master ]
-    paths:
-      - 'client/**'
-      - 'common/**'
-      - '.github/workflows/build-client.yml'
-  pull_request:
   workflow_call:
     inputs:
       build_mode:
