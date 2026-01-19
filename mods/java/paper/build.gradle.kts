@@ -46,6 +46,8 @@ tasks.shadowJar {
         include(project(":common"))
         include(dependency("com.google.code.gson:gson"))
         include(dependency("org.jetbrains.kotlin:kotlin-stdlib"))
+        // JNA for native library loading (FFI with embedded BVC server)
+        include(dependency("net.java.dev.jna:jna"))
     }
 
     from("LICENSE") {

@@ -1,10 +1,9 @@
 use anyhow::anyhow;
+use bvc_server_lib::ApplicationConfig;
 use clap::Parser;
 use serde_json::Value;
 use std::fs;
 use std::{process::exit, sync::Arc};
-
-use crate::config::ApplicationConfig;
 
 pub(crate) mod server;
 mod user;

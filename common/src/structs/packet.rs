@@ -214,31 +214,9 @@ impl QuicNetworkPacket {
                             return false;
                         }
 
-                        // Check if both players are in the same channel using optimized approach
                         let receiver_name = &recipient.name;
 
-                        // Get channels for both players concurrently
-                        let (sender_channels, receiver_channels) = tokio::join!(
-                            Self::get_player_channels(current_player, &channel_membership),
-                            Self::get_player_channels(receiver_name, &channel_membership)
-                        );
-
-                        // Check if they share any channels (O(k*m) where k,m = channels per player, typically 1-2)
-                        let players_in_same_channel = sender_channels.iter()
-                            .any(|channel| receiver_channels.contains(channel));
-
-                        // If the players are both in the same group, then the audio packet may be received
-                        if players_in_same_channel {
-                            // Group audio packets defer to client sending settings, and non-spatial by default
-                            if data.spatial.is_none() {
-                                // Group audio packets are non-spatial
-                                data.spatial = Some(false);
-                            }
-                            self.data = QuicNetworkPacketData::AudioFrame(data);
-                            return true;
-                        }
-
-                        // Get sender and recipient PlayerEnum
+                        // Get sender and recipient PlayerEnum first (needed for game type check)
                         let (actual_sender, actual_recipient) = tokio::join!(
                             async {
                                 // Try sender field from packet first, then cache
@@ -251,9 +229,43 @@ impl QuicNetworkPacket {
                             position_data.get(receiver_name)
                         );
 
-                        // Use can_communicate_with() for spatial logic
-                        if let (Some(sender), Some(recipient)) = (&actual_sender, &actual_recipient) {
-                            if let Err(e) = sender.can_communicate_with(recipient, range) {
+                        // Check game type compatibility first - players from different games cannot communicate
+                        if let (Some(sender), Some(recipient_player)) = (&actual_sender, &actual_recipient) {
+                            use crate::traits::player_data::PlayerData;
+                            if sender.get_game() != recipient_player.get_game() {
+                                tracing::debug!(
+                                    "Audio packet rejected: game mismatch ({:?} vs {:?})",
+                                    sender.get_game(),
+                                    recipient_player.get_game()
+                                );
+                                return false;
+                            }
+                        }
+
+                        // Get channels for both players concurrently
+                        let (sender_channels, receiver_channels) = tokio::join!(
+                            Self::get_player_channels(current_player, &channel_membership),
+                            Self::get_player_channels(receiver_name, &channel_membership)
+                        );
+
+                        // Check if they share any channels (O(k*m) where k,m = channels per player, typically 1-2)
+                        let players_in_same_channel = sender_channels.iter()
+                            .any(|channel| receiver_channels.contains(channel));
+
+                        // If the players are both in the same group (and same game), then the audio packet may be received
+                        if players_in_same_channel {
+                            // Group audio packets defer to client sending settings, and non-spatial by default
+                            if data.spatial.is_none() {
+                                // Group audio packets are non-spatial
+                                data.spatial = Some(false);
+                            }
+                            self.data = QuicNetworkPacketData::AudioFrame(data);
+                            return true;
+                        }
+
+                        // Use can_communicate_with() for spatial logic (includes dimension/world checks)
+                        if let (Some(sender), Some(recipient_player)) = (&actual_sender, &actual_recipient) {
+                            if let Err(e) = sender.can_communicate_with(recipient_player, range) {
                                 tracing::debug!("Audio packet rejected: {}", e);
                                 return false;
                             }

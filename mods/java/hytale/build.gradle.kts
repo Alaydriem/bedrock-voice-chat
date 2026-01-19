@@ -215,6 +215,8 @@ tasks.shadowJar {
         // SLF4J - not provided by Hytale's plugin classloader
         include(dependency("org.slf4j:slf4j-api:.*"))
         include(dependency("org.slf4j:slf4j-simple:.*"))
+        // JNA for native library loading (FFI with embedded BVC server)
+        include(dependency("net.java.dev.jna:jna:.*"))
     }
 
     from("LICENSE") {

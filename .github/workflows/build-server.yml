@@ -42,17 +42,22 @@ jobs:
           # Windows builds
           - target: x86_64-pc-windows-msvc
             os: windows-latest
-            artifact_name: bedrock-voice-chat-server.exe
+            artifact_name: bvc-server.exe
 
           # Linux x64 builds
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            artifact_name: bedrock-voice-chat-server-amd64
+            artifact_name: bvc-server-amd64
 
           # Linux arm64 builds (native runner)
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-24.04-arm
-            artifact_name: bedrock-voice-chat-server-arm64
+            artifact_name: bvc-server-arm64
+
+          # Darwin ARM64 builds (native runner)
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            artifact_name: bvc-server-darwin-arm64
 
     steps:
       - name: Checkout code
@@ -146,10 +151,10 @@ jobs:
 
           if [ "${{ runner.os }}" = "Windows" ]; then
             FINAL_NAME="bvc-server-${{ matrix.target }}-$BUILD_MODE.exe"
-            cp "${BUILD_DIR}/bedrock-voice-chat-server.exe" "$FINAL_NAME"
+            cp "${BUILD_DIR}/bvc-server.exe" "$FINAL_NAME"
           else
             FINAL_NAME="bvc-server-${{ matrix.target }}-$BUILD_MODE"
-            cp "${BUILD_DIR}/bedrock-voice-chat-server" "$FINAL_NAME"
+            cp "${BUILD_DIR}/bvc-server" "$FINAL_NAME"
           fi
 
           echo "Created artifact: $FINAL_NAME"
@@ -179,6 +184,25 @@ jobs:
             echo "| Artifact URL | [View Run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) |"
             echo "| Retention | 30 days |"
           } >> $GITHUB_STEP_SUMMARY
+
+      - name: Determine library name
+        id: lib-name
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            echo "lib_name=bvc_server_lib.dll" >> $GITHUB_OUTPUT
+          elif [ "${{ runner.os }}" = "macOS" ]; then
+            echo "lib_name=libbvc_server_lib.dylib" >> $GITHUB_OUTPUT
+          else
+            echo "lib_name=libbvc_server_lib.so" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload native library artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bvc-native-lib-${{ matrix.target }}
+          path: server/target/${{ matrix.target }}/${{ github.event_name == 'pull_request' && 'debug' || startsWith(github.ref, 'refs/tags/') && 'release' || inputs.build_mode || 'debug' }}/${{ steps.lib-name.outputs.lib_name }}
+          retention-days: 30
 
   build-docker:
     name: Build Docker Image

@@ -1,4 +1,4 @@
-use crate::commands::Config as StateConfig;
+use super::super::Config as StateConfig;
 use clap::Parser;
 
 #[derive(Debug, Parser, Clone)]
