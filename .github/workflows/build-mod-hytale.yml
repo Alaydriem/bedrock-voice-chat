@@ -1,11 +1,6 @@
 name: Build Hytale Plugin
 
 on:
-  push:
-    branches: [ master ]
-    paths:
-      - 'mods/java/**'
-      - '.github/workflows/build-mod-hytale.yml'
   workflow_call:
     inputs:
       version:

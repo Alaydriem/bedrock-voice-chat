@@ -1,11 +1,6 @@
 name: Build Fabric Mod
 
 on:
-  push:
-    branches: [ master ]
-    paths:
-      - 'mods/java/**'
-      - '.github/workflows/build-mod-fabric.yml'
   workflow_call:
     inputs:
       version:

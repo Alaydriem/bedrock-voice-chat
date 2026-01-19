@@ -1,11 +1,6 @@
 name: Build Paper Plugin
 
 on:
-  push:
-    branches: [ master ]
-    paths:
-      - 'mods/java/**'
-      - '.github/workflows/build-mod-paper.yml'
   workflow_call:
     inputs:
       version:
