@@ -1,3 +1,10 @@
+# [1.0.0-beta.4](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.3...v1.0.0-beta.4) (2026-01-21)
+
+
+### Features
+
+* hytale authentication ([#89](https://github.com/Alaydriem/bedrock-voice-chat/issues/89)) ([0dffa41](https://github.com/Alaydriem/bedrock-voice-chat/commit/0dffa41218023153bfb79d78a3591ab9b34ab46f)), closes [#74](https://github.com/Alaydriem/bedrock-voice-chat/issues/74) [#71](https://github.com/Alaydriem/bedrock-voice-chat/issues/71)
+
 # [1.0.0-beta.3](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.2...v1.0.0-beta.3) (2026-01-19)
 
 
