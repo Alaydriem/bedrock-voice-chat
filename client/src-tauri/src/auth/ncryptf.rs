@@ -5,7 +5,7 @@ use tauri_plugin_http::reqwest;
 
 #[allow(unused)]
 pub const CONFIG_ENDPOINT: &'static str = "/api/config";
-pub const AUTH_ENDPOINT: &'static str = "/api/auth";
+pub const AUTH_ENDPOINT: &'static str = "/api/auth/minecraft";
 pub const NCRYPTF_EK_ENDPOINT: &'static str = "/ncryptf/ek";
 
 pub(crate) async fn get_ek(server: String) -> Result<ExportableEncryptionKeyData, anyhow::Error> {

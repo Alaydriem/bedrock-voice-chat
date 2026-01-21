@@ -80,7 +80,7 @@
             <div class="card mt-5 rounded-lg p-5 lg:p-7">
               <div>
                 <p class="text-slate-300 dark:text-navy-200 pb-3">
-                  Set your server, then sign in with your Microsoft Account
+                  Set your server, then sign in with your account
                 </p>
                 <label class="mt-1.5 flex -space-x-px">
                   <span
@@ -111,6 +111,16 @@
                 <img
                   src="/images/ms-symbollockup_signin_dark.svg"
                   alt="Sign in with Microsoft Account"
+                  width="215"
+                  height="41"
+                />
+              </button>
+              <button id="hytale-login-btn" type="button" class="btn mt-3 w-full" on:click={(e) => window.App.loginWithHytale(e)}>
+                <img
+                  src="/images/hytale-login-button.svg"
+                  alt="Sign in with Hytale"
+                  width="215"
+                  height="41"
                 />
               </button>
             </div>

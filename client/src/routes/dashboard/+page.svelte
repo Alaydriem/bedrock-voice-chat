@@ -170,7 +170,7 @@
       await window.App.renderSidebar(store, serverUrl);
 
       // Set the player avatar now that the DOM element exists
-      window.App.setPlayerAvatar();
+      await window.App.setPlayerAvatar();
 
       if (isGroupChatSidebarAvailable) {
         openSidebar();

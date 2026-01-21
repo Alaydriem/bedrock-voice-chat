@@ -2,7 +2,9 @@ import { fetch } from '@tauri-apps/plugin-http';
 import { info, error, warn, debug } from '@tauri-apps/plugin-log';
 import { Store } from '@tauri-apps/plugin-store';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { invoke } from '@tauri-apps/api/core';
 import BVCApp from './BVCApp.ts';
+import type { HytaleDeviceFlowStartResponse, HytaleDeviceFlowStatusResponse, HytaleAuthStatus, LoginResponse } from '../bindings/index.ts';
 
 declare global {
   interface Window {
@@ -17,6 +19,9 @@ export default class Login extends BVCApp {
   readonly AUTH_ENDPOINT = "/api/auth";
   // This is the GET endpoint for getting a fresh ncryptf key
   readonly NCRYPTF_EK_ENDPOINT = "/ncryptf/ek";
+
+  // Hytale polling state
+  private hytalePollingInterval: number | null = null;
 
   constructor() {
     super();
@@ -93,7 +98,7 @@ export default class Login extends BVCApp {
       const authLoginUrl: string =
         `https://login.live.com/oauth20_authorize.srf?client_id=${clientId}&response_type=code&redirect_uri=${redirectUrl}&scope=XboxLive.signin%20offline_access&state=${secretState}`;
 
-      openUrl(authLoginUrl);
+      await this.openUrlWithLogging(authLoginUrl);
     }).catch((e) => {
       warn(String(e));
       serverUrl.classList.add("border-error");
@@ -103,5 +108,178 @@ export default class Login extends BVCApp {
 
   private getRedirectUrl(): string {
     return 'bedrock-voice-chat://auth';
+  }
+
+  // Helper method to open URLs with logging
+  private async openUrlWithLogging(url: string): Promise<void> {
+    info(`Opening URL: ${url}`);
+    await openUrl(url);
+  }
+
+  // Start Hytale device flow authentication
+  async loginWithHytale(event: any) {
+    event.preventDefault();
+
+    const serverInput = document.querySelector("#bvc-server-input") as HTMLInputElement;
+    const errorMessage = document.querySelector("#bvc-server-input-error-message");
+
+    // Clear any previous errors
+    serverInput?.classList.remove("border-error");
+    errorMessage?.classList.add("invisible");
+
+    // Sanitize the server URL
+    const serverUrl = this.sanitizeServerUrl(serverInput?.value || "");
+
+    if (!serverUrl) {
+      serverInput?.classList.add("border-error");
+      errorMessage?.classList.remove("invisible");
+      return;
+    }
+
+    // Update the input field with sanitized value
+    if (serverInput) {
+      serverInput.value = serverUrl;
+    }
+
+    try {
+      // First verify the server is reachable
+      const configResponse = await fetch(serverUrl + this.CONFIG_ENDPOINT, {
+        method: 'GET'
+      });
+
+      if (configResponse.status !== 200) {
+        throw new Error("Server not reachable");
+      }
+
+      // Start the device flow via Tauri command
+      const response = await invoke<HytaleDeviceFlowStartResponse>("start_hytale_device_flow", {
+        server: serverUrl
+      });
+
+      info(`Hytale Device flow started, session_id: ${response.session_id}, user_code: ${response.user_code}`);
+
+      // Store state for polling
+      const store = await Store.load("store.json", {
+        autoSave: false,
+        defaults: {}
+      });
+      await store.set("hytale_session_id", response.session_id);
+      await store.set("auth_state_endpoint", serverUrl);
+      await store.save();
+
+      // Open verification URL immediately (with pre-filled code)
+      await this.openUrlWithLogging(response.verification_uri_complete);
+
+      // Start polling in background
+      this.startHytalePolling(serverUrl, response.session_id, response.interval);
+    } catch (e) {
+      warn(`Hytale login failed: ${String(e)}`);
+      serverInput?.classList.add("border-error");
+      errorMessage?.classList.remove("invisible");
+    }
+  }
+
+  // Start polling for Hytale device flow status
+  private startHytalePolling(server: string, sessionId: string, interval: number) {
+    // Use at least 5 seconds as the interval
+    const pollInterval = Math.max(interval, 5) * 1000;
+
+    info(`Starting Hytale polling with interval: ${pollInterval}ms`);
+
+    this.hytalePollingInterval = window.setInterval(async () => {
+      try {
+        const response = await invoke<HytaleDeviceFlowStatusResponse>("poll_hytale_status", {
+          server: server,
+          sessionId: sessionId
+        });
+
+        info(`Hytale poll response status: ${response.status}`);
+
+        switch (response.status) {
+          case "Pending":
+            // Continue polling
+            break;
+          case "Success":
+            // Stop polling and handle success
+            this.stopHytalePolling();
+            if (response.login_response) {
+              await this.handleHytaleSuccess(server, response.login_response);
+            }
+            break;
+          case "Expired":
+            warn("Hytale device code expired");
+            this.stopHytalePolling();
+            // Show error to user
+            const errorMessage = document.querySelector("#bvc-server-input-error-message");
+            errorMessage?.classList.remove("invisible");
+            if (errorMessage) {
+              errorMessage.textContent = "Device code expired. Please try again.";
+            }
+            break;
+          case "Denied":
+            warn("Hytale authorization denied");
+            this.stopHytalePolling();
+            const deniedError = document.querySelector("#bvc-server-input-error-message");
+            deniedError?.classList.remove("invisible");
+            if (deniedError) {
+              deniedError.textContent = "Authorization denied. Please try again.";
+            }
+            break;
+          case "Error":
+            error("Hytale auth error");
+            this.stopHytalePolling();
+            const authError = document.querySelector("#bvc-server-input-error-message");
+            authError?.classList.remove("invisible");
+            if (authError) {
+              authError.textContent = "Authentication error. Please try again.";
+            }
+            break;
+        }
+      } catch (e) {
+        error(`Hytale polling error: ${String(e)}`);
+        this.stopHytalePolling();
+      }
+    }, pollInterval);
+  }
+
+  // Stop Hytale polling
+  private stopHytalePolling() {
+    if (this.hytalePollingInterval !== null) {
+      info("Stopping Hytale polling");
+      window.clearInterval(this.hytalePollingInterval);
+      this.hytalePollingInterval = null;
+    }
+  }
+
+  // Handle successful Hytale authentication
+  private async handleHytaleSuccess(server: string, loginResponse: LoginResponse) {
+    try {
+      const store = await Store.load("store.json", {
+        autoSave: false,
+        defaults: {}
+      });
+
+      // Store current server and player info
+      await store.set("current_server", server);
+      await store.set("current_player", loginResponse.gamertag);
+      await store.set("active_game", "hytale");
+
+      // Add to server list if not already present
+      const serverList = await store.get("server_list") as Array<{ server: string }> | null;
+      const servers = serverList || [];
+
+      if (!servers.some(s => s.server === server)) {
+        servers.push({ server: server });
+        await store.set("server_list", servers);
+      }
+
+      // Clean up Hytale session data
+      await store.delete("hytale_session_id");
+      await store.save();
+
+      window.location.href = "/onboarding/welcome";
+    } catch (e) {
+      error(`Failed to save login data: ${String(e)}`);
+    }
   }
 }

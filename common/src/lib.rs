@@ -14,6 +14,8 @@ pub mod traits;
 pub mod players;
 pub mod game_data;
 
+use std::fmt;
+
 // Re-export error types
 pub use errors::{
     CommunicationError, GameError, GenericCommunicationError, HytaleCommunicationError,
@@ -34,11 +36,21 @@ pub use game_data::{GameDataCollection, Dimension, HytaleDimension};
 pub use traits::player_data::{PlayerData as PlayerDataTrait, SpatialPlayer};
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[cfg_attr(feature = "server", derive(sea_orm::EnumIter, sea_orm::DeriveActiveEnum))]
+#[cfg_attr(feature = "server", sea_orm(rs_type = "String", db_type = "Text"))]
 pub enum Game {
     #[serde(rename = "minecraft")]
+    #[cfg_attr(feature = "server", sea_orm(string_value = "minecraft"))]
     Minecraft,
     #[serde(rename = "hytale")]
+    #[cfg_attr(feature = "server", sea_orm(string_value = "hytale"))]
     Hytale,
+}
+
+impl fmt::Display for Game {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]

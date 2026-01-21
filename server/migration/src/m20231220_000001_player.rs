@@ -1,5 +1,4 @@
-use sea_orm::Statement;
-use sea_orm_migration::{self, prelude::*, sea_orm::ConnectionTrait};
+use sea_orm_migration::prelude::*;
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 
@@ -31,14 +30,7 @@ impl MigrationTrait for Migration {
             )
             .await
         {
-            Ok(_result) => {
-                let stmt = Statement::from_string(
-                    manager.get_database_backend(),
-                    "ALTER TABLE Player ALTER COLUMN updated_at SET DEFAULT UNIX_TIMESTAMP();"
-                        .to_owned(),
-                );
-                return manager.get_connection().execute(stmt).await.map(|_| ());
-            }
+            Ok(_result) => Ok(()),
             Err(_) => Err(DbErr::Migration(
                 "Unable to migrate `Player` table.".to_owned(),
             )),

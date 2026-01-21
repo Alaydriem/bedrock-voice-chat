@@ -1,5 +1,6 @@
 use common::ncryptflib as ncryptf;
 use common::traits::player_data::PlayerData;
+use common::Game;
 use rocket::{http::Status, serde::json::Json, State};
 
 use sea_orm::ActiveValue;
@@ -66,6 +67,9 @@ pub async fn update_position(
         }
     };
 
+    // Get the game type from the request, defaulting to Minecraft for backwards compatibility
+    let game_type = positions.0.game.clone().unwrap_or(Game::Minecraft);
+
     // Collect all player names and filter out those we know are registered
     let all_players: Vec<_> = positions.0.players.clone();
     let player_names: Vec<String> = all_players
@@ -84,6 +88,7 @@ pub async fn update_position(
     if !players_to_check.is_empty() {
         match player::Entity::find()
             .filter(player::Column::Gamertag.is_in(players_to_check.clone()))
+            .filter(player::Column::Game.eq(game_type.clone()))
             .all(conn)
             .await
         {
@@ -140,6 +145,7 @@ pub async fn update_position(
                         signature: ActiveValue::Set(sgv),
                         created_at: ActiveValue::Set(Utc::now().timestamp() as u32),
                         updated_at: ActiveValue::Set(Utc::now().timestamp() as u32),
+                        game: ActiveValue::Set(game_type.clone()),
                     };
 
                     match p.insert(conn).await {
