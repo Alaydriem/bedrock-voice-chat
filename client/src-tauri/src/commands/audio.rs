@@ -264,3 +264,20 @@ pub(crate) async fn get_current_players(
     let asm = asm.lock().await;
     Ok(asm.get_current_players())
 }
+
+/// Restart audio stream after error recovery
+/// This can be called by the frontend after receiving an audio-stream-recovery event
+#[tauri::command]
+pub(crate) async fn restart_audio_stream(
+    device: AudioDeviceType,
+    asm: State<'_, Mutex<AudioStreamManager>>,
+) -> Result<(), String> {
+    info!("Restarting audio stream for {:?}", device);
+    let mut asm = asm.lock().await;
+
+    asm.restart(device).await.map_err(|e| {
+        let err_msg = format!("Failed to restart audio stream: {:?}", e);
+        log::error!("{}", err_msg);
+        err_msg
+    })
+}

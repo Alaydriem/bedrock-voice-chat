@@ -1,6 +1,7 @@
 mod audio_sink;
 mod input;
 mod output;
+mod resampler;
 mod sink_manager;
 
 use std::sync::Arc;

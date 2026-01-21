@@ -38,6 +38,7 @@ opus2 = { version = "^0.3" }
 ron = { version = "^0.12" }
 audio-gate = { version = "^0.2" }
 flume = { version = "^0.12" }
+rubato = { version = "^0.16" }
 futures-util = "^0.3"
 tokio-tungstenite = "^0.28"
 trust-dns-resolver = { version = "^0.23", features = ["tokio-runtime", "tokio-rustls", "rustls", "serde"] }

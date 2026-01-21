@@ -20,6 +20,7 @@ import ImageCacheOptions from './components/imageCacheOptions';
 import { PlayerManager } from './managers/PlayerManager';
 import ChannelManager from './managers/ChannelManager';
 import { AudioActivityManager } from './managers/AudioActivityManager';
+import { setupAudioRecovery } from './audioRecovery';
 
 import Notification from "../../components/events/Notification.svelte";
 import type { NoiseGateSettings } from '../bindings/NoiseGateSettings.ts';
@@ -92,6 +93,11 @@ export default class Dashboard extends BVCApp {
             });
         });
         this.eventUnlisteners.push(notificationUnlisten);
+
+        // Set up audio stream recovery handler
+        const audioRecoveryUnlisten = await setupAudioRecovery();
+        this.eventUnlisteners.push(audioRecoveryUnlisten);
+
         const currentServer = await this.store.get<string>("current_server");
 
         // Initialize managers with dependency injection
