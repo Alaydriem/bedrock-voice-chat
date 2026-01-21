@@ -24,6 +24,7 @@ pub struct RocketManager {
     channel_cache: Arc<async_mutex::Mutex<Cache<String, common::structs::channel::Channel>>>,
     cache_manager: CacheManager,
     registered_players_cache: routes::api::RegisteredPlayersCache,
+    hytale_session_cache: routes::api::HytaleSessionCache,
 }
 
 impl RocketManager {
@@ -40,6 +41,7 @@ impl RocketManager {
             channel_cache,
             cache_manager,
             registered_players_cache: routes::api::RegisteredPlayersCache::new(),
+            hytale_session_cache: routes::api::HytaleSessionCache::new(),
         }
     }
 
@@ -82,6 +84,7 @@ impl RocketManager {
                     .manage(self.channel_cache.clone())
                     .manage(self.cache_manager.clone())
                     .manage(self.registered_players_cache.clone())
+                    .manage(self.hytale_session_cache.clone())
                     .attach(AppDb::init())
                     .attach(cors.to_cors().unwrap())
                     .attach(rocket::fairing::AdHoc::try_on_ignite("Migrations", migrate))
@@ -89,7 +92,9 @@ impl RocketManager {
                     .mount(
                         "/api",
                         routes![
-                            routes::api::authenticate,
+                            routes::api::minecraft_authenticate,
+                            routes::api::hytale_start_device_flow,
+                            routes::api::hytale_poll_status,
                             routes::api::get_config,
                             routes::api::update_position,
                             routes::api::position,

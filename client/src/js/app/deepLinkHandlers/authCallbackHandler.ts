@@ -74,6 +74,7 @@ export class AuthCallbackHandler {
 
                 await this.store.set("current_server", authStateEndpoint);
                 await this.store.set("current_player", response.gamertag);
+                await this.store.set("active_game", "minecraft");
 
                 if (await this.store.has("server_list")) {
                     let serverList = await this.store.get("server_list") as Array<{ server: string, player: string }>;
