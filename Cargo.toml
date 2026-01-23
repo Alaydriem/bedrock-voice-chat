@@ -7,11 +7,26 @@ opt-level = 3
 strip = true
 debug = false
 codegen-units = 1
-lto = true
 incremental = false
+lto = "thin"
 
 [profile.dev]
 opt-level = 1
 debug = 1
 strip = "symbols"
 incremental = true
+lto = "thin"
+
+[profile.ci-dev]
+inherits = "dev"
+incremental = false
+lto = "thin"
+codegen-units = 4
+
+[profile.ci-release]
+inherits = "release"
+codegen-units = 4
+lto = "thin"
+debug = false
+strip = true
+incremental = false

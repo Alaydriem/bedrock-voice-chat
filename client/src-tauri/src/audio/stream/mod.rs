@@ -35,6 +35,8 @@ pub(crate) struct AudioStreamManager {
     app_handle: tauri::AppHandle,
     recording_manager: Option<Arc<TauriMutex<RecordingManager>>>,
     recovery_tx: RecoverySender,
+    /// Receiver for recovery events - consumed when monitor is spawned
+    recovery_rx: Option<mpsc::UnboundedReceiver<StreamRecoveryEvent>>,
 }
 
 impl AudioStreamManager {
@@ -50,30 +52,9 @@ impl AudioStreamManager {
         // to avoid blocking the setup function
 
         // Create recovery channel for error handling
-        let (recovery_tx, mut recovery_rx) = mpsc::unbounded_channel::<StreamRecoveryEvent>();
-
-        // Spawn recovery monitor task that emits events to frontend
-        let app_handle_for_recovery = app_handle.clone();
-        tokio::spawn(async move {
-            while let Some(event) = recovery_rx.recv().await {
-                match event {
-                    StreamRecoveryEvent::DeviceError { device_type, error } => {
-                        warn!("Stream recovery triggered for {:?}: {}", device_type, error);
-                        // Emit event for frontend to handle recovery
-                        let _ = app_handle_for_recovery.emit(
-                            "audio-stream-recovery",
-                            serde_json::json!({
-                                "device_type": match device_type {
-                                    AudioDeviceType::InputDevice => "InputDevice",
-                                    AudioDeviceType::OutputDevice => "OutputDevice",
-                                },
-                                "error": error,
-                            }),
-                        );
-                    }
-                }
-            }
-        });
+        // The receiver is stored and the monitor task is spawned lazily
+        // when init() is first called (from an async context)
+        let (recovery_tx, recovery_rx) = mpsc::unbounded_channel::<StreamRecoveryEvent>();
 
         Self {
             producer: producer.clone(),
@@ -97,11 +78,43 @@ impl AudioStreamManager {
             app_handle: app_handle.clone(),
             recording_manager,
             recovery_tx,
+            recovery_rx: Some(recovery_rx),
+        }
+    }
+
+    /// Spawns the recovery monitor task if not already spawned.
+    /// Must be called from an async context.
+    fn spawn_recovery_monitor(&mut self) {
+        if let Some(mut recovery_rx) = self.recovery_rx.take() {
+            let app_handle = self.app_handle.clone();
+            tokio::spawn(async move {
+                while let Some(event) = recovery_rx.recv().await {
+                    match event {
+                        StreamRecoveryEvent::DeviceError { device_type, error } => {
+                            warn!("Stream recovery triggered for {:?}: {}", device_type, error);
+                            // Emit event for frontend to handle recovery
+                            let _ = app_handle.emit(
+                                "audio-stream-recovery",
+                                serde_json::json!({
+                                    "device_type": match device_type {
+                                        AudioDeviceType::InputDevice => "InputDevice",
+                                        AudioDeviceType::OutputDevice => "OutputDevice",
+                                    },
+                                    "error": error,
+                                }),
+                            );
+                        }
+                    }
+                }
+            });
         }
     }
 
     /// Initializes a given input or output stream with a specific device, then starts it
     pub async fn init(&mut self, device: AudioDevice) {
+        // Spawn recovery monitor on first init (now we're in async context)
+        self.spawn_recovery_monitor();
+
         // Stop the current stream if we're re-initializing a new one so we don't
         // have dangling thread pointers
         _ = self.stop(device.clone().io);

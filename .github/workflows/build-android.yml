@@ -79,11 +79,20 @@ jobs:
             aarch64-linux-android
             armv7-linux-androideabi
 
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.6
+
+      - name: Configure sccache
+        run: |
+          echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: "."
-          prefix-key: "20260123-151700"
+          prefix-key: "20260123-160000"
+          cache-on-failure: true
 
       - name: Install system dependencies
         run: |
@@ -120,6 +129,7 @@ jobs:
         run: yarn install --frozen-lockfile
 
       - name: Download and setup ASIO SDK
+        if: runner.os == 'Windows'
         working-directory: ./client/src-tauri
         run: |
           echo "Downloading ASIO SDK..."
@@ -258,6 +268,9 @@ jobs:
       - name: Build Android
         working-directory: ./client
         env:
+          # Gradle optimization
+          GRADLE_OPTS: "-Xmx4g -Dorg.gradle.parallel=true -Dorg.gradle.caching=true"
+
           # libclang - keep using the system libclang 17
           LIBCLANG_PATH: /usr/lib/llvm-17/lib/
           LD_LIBRARY_PATH: /usr/lib/llvm-17/lib/:$LD_LIBRARY_PATH
@@ -303,15 +316,16 @@ jobs:
           export PATH="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
           yarn tauri info
           # Force debug mode for PR builds, otherwise use input parameter
+          # Use CI profiles for faster builds (ci-dev for debug, ci-release for release)
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "PR detected - building in debug mode"
-            yarn tauri android build --debug --target aarch64 armv7
+            echo "PR detected - building in debug mode with ci-dev profile"
+            yarn tauri android build --debug --profile ci-dev --target aarch64 armv7
           elif [ "${{ inputs.build_mode || 'debug' }}" = "release" ]; then
-            echo "Building in release mode"
-            yarn tauri android build --target aarch64 armv7
+            echo "Building in release mode with ci-release profile"
+            yarn tauri android build --profile ci-release --target aarch64 armv7
           else
-            echo "Building in debug mode"
-            yarn tauri android build --debug --target aarch64 armv7
+            echo "Building in debug mode with ci-dev profile"
+            yarn tauri android build --debug --profile ci-dev --target aarch64 armv7
           fi
 
       - name: Prepare Android artifacts
