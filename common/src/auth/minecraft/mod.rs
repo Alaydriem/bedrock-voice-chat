@@ -6,16 +6,14 @@
 //! 2. Server exchanges code for Xbox Live tokens
 //! 3. Server fetches player profile (gamertag, gamerpic)
 
+mod dtos;
+
 use base64::{engine::general_purpose, Engine as _};
 use reqwest::header::HeaderMap;
 use reqwest::Url;
-use serde::Deserialize;
 
-use super::provider::{AuthError, AuthResult};
-
-// ============================================================================
-// Public API
-// ============================================================================
+use crate::auth::provider::{AuthError, AuthResult};
+use dtos::{AccessTokenResponse, ProfileResponse, XboxAuthResponse};
 
 /// Minecraft authentication provider using Xbox Live
 pub struct MinecraftAuthProvider {
@@ -70,10 +68,6 @@ impl MinecraftAuthProvider {
         Ok(profile)
     }
 }
-
-// ============================================================================
-// Private Implementation
-// ============================================================================
 
 impl MinecraftAuthProvider {
     async fn exchange_code_for_token(
@@ -271,51 +265,4 @@ impl MinecraftAuthProvider {
             )),
         }
     }
-}
-
-// ============================================================================
-// Private Types (API response structures)
-// ============================================================================
-
-#[derive(Deserialize)]
-struct AccessTokenResponse {
-    access_token: String,
-}
-
-#[derive(Deserialize)]
-struct XboxAuthResponse {
-    #[serde(rename = "Token")]
-    token: String,
-    #[serde(rename = "DisplayClaims")]
-    display_claims: DisplayClaims,
-}
-
-#[derive(Deserialize)]
-struct DisplayClaims {
-    xui: Vec<Xui>,
-}
-
-#[derive(Deserialize)]
-struct Xui {
-    #[serde(rename = "uhs")]
-    user_hash: String,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ProfileResponse {
-    profile_users: Vec<ProfileUser>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ProfileUser {
-    settings: Vec<Setting>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct Setting {
-    id: String,
-    value: String,
 }

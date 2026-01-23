@@ -4,6 +4,7 @@ import { Store } from '@tauri-apps/plugin-store';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { invoke } from '@tauri-apps/api/core';
 import BVCApp from './BVCApp.ts';
+import Keyring from './keyring.ts';
 import type { HytaleDeviceFlowStartResponse, HytaleDeviceFlowStatusResponse, HytaleAuthStatus, LoginResponse } from '../bindings/index.ts';
 
 declare global {
@@ -33,7 +34,7 @@ export default class Login extends BVCApp {
   }
 
   // Sanitize server URL to ensure https:// prefix and no trailing slash
-  private sanitizeServerUrl(url: string): string {
+  public sanitizeServerUrl(url: string): string {
     let sanitized = url.trim();
 
     // Ensure https:// prefix
@@ -55,34 +56,90 @@ export default class Login extends BVCApp {
     return sanitized;
   }
 
+  // Validate server URL format
+  public validateServerUrl(url: string): { valid: boolean; error?: string } {
+    const trimmed = url.trim();
+
+    if (!trimmed) {
+      return { valid: false, error: "Please enter a server URL" };
+    }
+
+    // Basic URL pattern validation (after sanitization would add https://)
+    const sanitized = this.sanitizeServerUrl(trimmed);
+    try {
+      const parsed = new URL(sanitized);
+      if (parsed.protocol !== "https:") {
+        return { valid: false, error: "Server URL must use HTTPS" };
+      }
+      if (!parsed.hostname || parsed.hostname.length < 3) {
+        return { valid: false, error: "Please enter a valid server URL" };
+      }
+    } catch {
+      return { valid: false, error: "Please enter a valid server URL" };
+    }
+
+    return { valid: true };
+  }
+
+  // Set error message on the login form
+  private setErrorMessage(errorElement: Element | null, message: string) {
+    if (errorElement instanceof HTMLElement) {
+      errorElement.innerText = message;
+      errorElement.classList.remove("invisible");
+    }
+  }
+
   // This is the main event handler for the form submission
   async login(event: any) {
-    let form = event.currentTarget;
+    event.preventDefault();
+
     // Setup some variables
-    const serverUrl = form.querySelector("#bvc-server-input");
-    const errorMessage = form.querySelector("#bvc-server-input-error-message");
-    serverUrl.classList.remove("border-error");
-    errorMessage.classList.add("invisible");
+    const serverInput = document.querySelector("#bvc-server-input") as HTMLInputElement;
+    const errorMessage = document.querySelector("#bvc-server-input-error-message");
+    serverInput?.classList.remove("border-error");
+    errorMessage?.classList.add("invisible");
+
+    // Validate the server URL first
+    const validation = this.validateServerUrl(serverInput?.value || "");
+    if (!validation.valid) {
+      serverInput?.classList.add("border-error");
+      this.setErrorMessage(errorMessage, validation.error || "Please enter a valid server URL");
+      return;
+    }
 
     // Sanitize the server URL
-    const sanitizedUrl = this.sanitizeServerUrl(serverUrl.value);
+    const sanitizedUrl = this.sanitizeServerUrl(serverInput?.value || "");
 
     // Update the input field with sanitized value
-    serverUrl.value = sanitizedUrl;
+    if (serverInput) {
+      serverInput.value = sanitizedUrl;
+    }
 
     info(sanitizedUrl + this.CONFIG_ENDPOINT);
-    // Fetch the configuration from the server and retrieve the client_id for
-    // Authenticating with Microsoft
-    await fetch(sanitizedUrl + this.CONFIG_ENDPOINT, {
-      method: 'GET'
-    }).then(async (response) => {
+
+    try {
+      // Fetch the configuration from the server and retrieve the client_id for
+      // Authenticating with Microsoft
+      const response = await fetch(sanitizedUrl + this.CONFIG_ENDPOINT, {
+        signal: AbortSignal.timeout(5000),
+        method: 'GET'
+      });
+
+      if (response.status === 403) {
+        warn("Server returned 403 Forbidden");
+        serverInput?.classList.add("border-error");
+        this.setErrorMessage(errorMessage, "Access denied. Check with your server operator if you have permissions.");
+        return;
+      }
+
       if (response.status !== 200) {
         throw new Error("Bedrock Voice Chat Server " + sanitizedUrl + " is not reachable.");
       }
+
       info("Successfully connected to Bedrock Voice Chat Server " + sanitizedUrl);
-      return await response.json();
-    }).then(async (response) => {
-      const clientId = response.client_id;
+      const configData = await response.json();
+
+      const clientId = configData.client_id;
       const secretState = self.crypto.randomUUID();
       // Store some temporary tokens during the login phase.
       const store = await Store.load("store.json", {
@@ -99,11 +156,11 @@ export default class Login extends BVCApp {
         `https://login.live.com/oauth20_authorize.srf?client_id=${clientId}&response_type=code&redirect_uri=${redirectUrl}&scope=XboxLive.signin%20offline_access&state=${secretState}`;
 
       await this.openUrlWithLogging(authLoginUrl);
-    }).catch((e) => {
+    } catch (e) {
       warn(String(e));
-      serverUrl.classList.add("border-error");
-      errorMessage.classList.remove("invisible");
-    });
+      serverInput?.classList.add("border-error");
+      this.setErrorMessage(errorMessage, "Cannot connect to Bedrock Voice Chat server. Confirm the URL and access permissions with your server operator.");
+    }
   }
 
   private getRedirectUrl(): string {
@@ -127,14 +184,16 @@ export default class Login extends BVCApp {
     serverInput?.classList.remove("border-error");
     errorMessage?.classList.add("invisible");
 
-    // Sanitize the server URL
-    const serverUrl = this.sanitizeServerUrl(serverInput?.value || "");
-
-    if (!serverUrl) {
+    // Validate the server URL first
+    const validation = this.validateServerUrl(serverInput?.value || "");
+    if (!validation.valid) {
       serverInput?.classList.add("border-error");
-      errorMessage?.classList.remove("invisible");
+      this.setErrorMessage(errorMessage, validation.error || "Please enter a valid server URL");
       return;
     }
+
+    // Sanitize the server URL
+    const serverUrl = this.sanitizeServerUrl(serverInput?.value || "");
 
     // Update the input field with sanitized value
     if (serverInput) {
@@ -144,8 +203,16 @@ export default class Login extends BVCApp {
     try {
       // First verify the server is reachable
       const configResponse = await fetch(serverUrl + this.CONFIG_ENDPOINT, {
+        signal: AbortSignal.timeout(5000),
         method: 'GET'
       });
+
+      if (configResponse.status === 403) {
+        warn("Server returned 403 Forbidden");
+        serverInput?.classList.add("border-error");
+        this.setErrorMessage(errorMessage, "Access denied. Check with your server operator if you have permissions.");
+        return;
+      }
 
       if (configResponse.status !== 200) {
         throw new Error("Server not reachable");
@@ -175,7 +242,7 @@ export default class Login extends BVCApp {
     } catch (e) {
       warn(`Hytale login failed: ${String(e)}`);
       serverInput?.classList.add("border-error");
-      errorMessage?.classList.remove("invisible");
+      this.setErrorMessage(errorMessage, "Cannot connect to Bedrock Voice Chat server. Confirm the URL and access permissions with your server operator.");
     }
   }
 
@@ -259,17 +326,33 @@ export default class Login extends BVCApp {
         defaults: {}
       });
 
+      // Store credentials to keyring (same pattern as Minecraft auth)
+      const keyring = await Keyring.new("servers");
+      await keyring.setServer(server);
+
+      for (const key of Object.keys(loginResponse)) {
+        const value = loginResponse[key as keyof LoginResponse];
+        if (value === null || value === undefined) {
+          continue;
+        }
+        if (typeof value === "string" || value instanceof Uint8Array) {
+          await keyring.insert(key, value);
+        } else {
+          await keyring.insert(key, JSON.stringify(value));
+        }
+      }
+
       // Store current server and player info
       await store.set("current_server", server);
       await store.set("current_player", loginResponse.gamertag);
       await store.set("active_game", "hytale");
 
       // Add to server list if not already present
-      const serverList = await store.get("server_list") as Array<{ server: string }> | null;
+      const serverList = await store.get("server_list") as Array<{ server: string, player: string }> | null;
       const servers = serverList || [];
 
       if (!servers.some(s => s.server === server)) {
-        servers.push({ server: server });
+        servers.push({ server: server, player: loginResponse.gamertag });
         await store.set("server_list", servers);
       }
 

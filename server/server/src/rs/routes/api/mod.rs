@@ -13,7 +13,6 @@ pub use auth::{
 pub use config::get_config;
 pub use positions::position;
 pub use positions::update_position;
-pub use positions::RegisteredPlayersCache;
 pub use ping::pong;
 
 pub use channel::channel_list;

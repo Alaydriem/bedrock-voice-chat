@@ -2,6 +2,7 @@ use crate::{
     config::ApplicationConfig,
     rs::pool::AppDb,
     rs::routes,
+    services::PlayerRegistrarService,
     stream::quic::{CacheManager, WebhookReceiver},
 };
 use anyhow::Error;
@@ -23,7 +24,7 @@ pub struct RocketManager {
     webhook_receiver: WebhookReceiver,
     channel_cache: Arc<async_mutex::Mutex<Cache<String, common::structs::channel::Channel>>>,
     cache_manager: CacheManager,
-    registered_players_cache: routes::api::RegisteredPlayersCache,
+    player_registrar: PlayerRegistrarService,
     hytale_session_cache: routes::api::HytaleSessionCache,
 }
 
@@ -34,13 +35,14 @@ impl RocketManager {
         webhook_receiver: WebhookReceiver,
         channel_cache: Arc<async_mutex::Mutex<Cache<String, common::structs::channel::Channel>>>,
         cache_manager: CacheManager,
+        player_registrar: PlayerRegistrarService,
     ) -> Self {
         Self {
             config,
             webhook_receiver,
             channel_cache,
             cache_manager,
-            registered_players_cache: routes::api::RegisteredPlayersCache::new(),
+            player_registrar,
             hytale_session_cache: routes::api::HytaleSessionCache::new(),
         }
     }
@@ -83,7 +85,7 @@ impl RocketManager {
                     .manage(self.webhook_receiver.clone())
                     .manage(self.channel_cache.clone())
                     .manage(self.cache_manager.clone())
-                    .manage(self.registered_players_cache.clone())
+                    .manage(self.player_registrar.clone())
                     .manage(self.hytale_session_cache.clone())
                     .attach(AppDb::init())
                     .attach(cors.to_cors().unwrap())

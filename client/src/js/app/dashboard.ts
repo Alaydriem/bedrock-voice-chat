@@ -14,6 +14,8 @@ import Keyring from './keyring.ts';
 import Sidebar from "./components/dashboard/sidebar.ts";
 import Onboarding from './onboarding';
 import PlatformDetector from './utils/PlatformDetector';
+import ImageCache from './components/imageCache';
+import ImageCacheOptions from './components/imageCacheOptions';
 
 import { PlayerManager } from './managers/PlayerManager';
 import ChannelManager from './managers/ChannelManager';
@@ -229,16 +231,21 @@ export default class Dashboard extends BVCApp {
             let avatarSrc = "";
             const activeGame = await this.store.get<string>("active_game");
 
-            // For Hytale, always use the default avatar (no gamerpic from API)
-            if (activeGame === "hytale") {
-                avatarSrc = "/images/hytale-avatar.jpg";
-            } else if (this.currentServerCredentials?.gamerpic) {
-                // For Minecraft, decode the Xbox Live gamerpic URL
+            if (this.currentServerCredentials?.gamerpic) {
                 try {
-                    avatarSrc = atob(this.currentServerCredentials.gamerpic);
+                    const avatarUrl = atob(this.currentServerCredentials.gamerpic);
+
+                    const imageCache = new ImageCache();
+                    const options = new ImageCacheOptions(avatarUrl, 86400);
+                    avatarSrc = await imageCache.getImage(options);
                 } catch (err) {
-                    warn(`Dashboard: Failed to decode player avatar: ${err}`);
+                    warn(`Dashboard: Failed to fetch/decode player avatar: ${err}`);
+                    if (activeGame === "hytale") {
+                        avatarSrc = "/images/hytale-avatar.jpg";
+                    }
                 }
+            } else if (activeGame === "hytale") {
+                avatarSrc = "/images/hytale-avatar.jpg";
             }
 
             avatarElement.setAttribute("src", avatarSrc);

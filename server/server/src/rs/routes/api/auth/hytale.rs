@@ -14,8 +14,9 @@ use sea_orm_rocket::Connection as SeaOrmConnection;
 
 use crate::config::ApplicationConfigServer;
 use crate::rs::pool::AppDb;
-use crate::rs::structs::ncryptf_json::JsonMessage;
-use crate::rs::structs::{build_login_response, AuthError, HytaleSession, HytaleSessionCache};
+use crate::rs::dtos::ncryptf::JsonMessage;
+use crate::rs::dtos::{HytaleSession, HytaleSessionCache};
+use crate::services::{AuthError, AuthService};
 
 /// Start a new Hytale device code flow
 /// Returns session_id and user code for the client to display
@@ -131,9 +132,9 @@ pub async fn poll_status(
             // Remove session from cache (single use)
             session_cache.remove(session_id).await;
 
-            // Build login response using shared logic
+            // Build login response using AuthService
             // AuthResult already contains gamertag and gamerpic
-            match build_login_response(
+            match AuthService::build_login_response(
                 conn,
                 config.inner(),
                 auth_result.gamertag,

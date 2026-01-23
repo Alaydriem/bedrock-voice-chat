@@ -36,7 +36,7 @@ pub use game_data::{GameDataCollection, Dimension, HytaleDimension};
 pub use traits::player_data::{PlayerData as PlayerDataTrait, SpatialPlayer};
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
-#[cfg_attr(feature = "server", derive(sea_orm::EnumIter, sea_orm::DeriveActiveEnum))]
+#[cfg_attr(feature = "server", derive(sea_orm::EnumIter, sea_orm::DeriveActiveEnum, clap::ValueEnum))]
 #[cfg_attr(feature = "server", sea_orm(rs_type = "String", db_type = "Text"))]
 pub enum Game {
     #[serde(rename = "minecraft")]

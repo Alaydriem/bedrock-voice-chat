@@ -40,11 +40,6 @@ mod hytale;
 mod minecraft;
 mod provider;
 
-// Re-export shared types
 pub use provider::{AuthError, AuthResult};
-
-// Re-export Minecraft provider
 pub use minecraft::MinecraftAuthProvider;
-
-// Re-export Hytale provider and types
 pub use hytale::{DeviceFlow, HytaleAuthProvider, PollResult};
