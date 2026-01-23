@@ -20,13 +20,15 @@ dependencies {
 }
 
 // Native library bundling configuration
-// Libraries are expected at: {projectRoot}/server/target/release/
+// Libraries are expected at: {projectRoot}/server/target/{debug|release}/
 // (server workspace target directory)
 // and copied to: src/main/resources/native/{os}-{arch}/
+// Use -Prelease for release builds (default is debug for faster iteration)
 
-// Navigate from mods/java/ to bvc/ then to server/target/release/
+// Navigate from mods/java/ to bvc/ then to server/target/{mode}/
 val bvcRoot = rootProject.projectDir.parentFile.parentFile
-val rustTargetDir = File(bvcRoot, "server/target/release")
+val rustBuildMode = if (rootProject.hasProperty("release")) "release" else "debug"
+val rustTargetDir = File(bvcRoot, "server/target/$rustBuildMode")
 
 // Task to copy Windows x64 native library
 tasks.register<Copy>("copyNativeWindows") {
@@ -45,6 +47,12 @@ tasks.register<Copy>("copyNativeWindows") {
             logger.warn("Build with: cd server/server && cargo build --release --lib")
         }
     }
+}
+
+// Ensure processResources runs after native library copy tasks
+tasks.named("processResources") {
+    mustRunAfter("copyNativeWindows", "copyNativeLinuxX64", "copyNativeLinuxX64Cross",
+                 "copyNativeLinuxArm64", "copyNativeDarwinArm64")
 }
 
 // Task to copy Linux x64 native library (native build)

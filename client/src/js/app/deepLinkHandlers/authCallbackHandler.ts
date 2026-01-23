@@ -46,7 +46,7 @@ export class AuthCallbackHandler {
 
         if (state !== authStateToken) {
             const errorMsg = `Auth State Mismatch - Expected: ${authStateToken}, Got: ${state}`;
-            this.showLoginError();
+            this.showLoginError("Authentication failed. Please try again.");
             throw new Error(errorMsg);
         }
 
@@ -111,7 +111,12 @@ export class AuthCallbackHandler {
             }
         } catch (e) {
             logError(`AuthCallbackHandler: Login failed: ${e}`);
-            this.showLoginError();
+            const errorStr = String(e).toLowerCase();
+            if (errorStr.includes("403") || errorStr.includes("forbidden") || errorStr.includes("permission") || errorStr.includes("banned") || errorStr.includes("whitelist")) {
+                this.showLoginError("Access denied. Check with your server operator if you have permissions.");
+            } else {
+                this.showLoginError("Login failed. Please check your server URL and try again.");
+            }
             throw e;
         }
     }
@@ -120,12 +125,15 @@ export class AuthCallbackHandler {
         return "bedrock-voice-chat://auth";
     }
 
-    private showLoginError(): void {
+    private showLoginError(message: string = "Cannot connect to Bedrock Voice Chat server. Confirm the URL and access permissions with your server operator."): void {
         const form = document.querySelector("#login-form");
         const serverUrl = form?.querySelector("#bvc-server-input");
         const errorMessage = form?.querySelector("#bvc-server-input-error-message");
 
         serverUrl?.classList.add("border-error");
-        errorMessage?.classList.remove("invisible");
+        if (errorMessage instanceof HTMLElement) {
+            errorMessage.innerText = message;
+            errorMessage.classList.remove("invisible");
+        }
     }
 }

@@ -1,3 +1,5 @@
+//! Hytale device flow session cache
+
 use common::auth::DeviceFlow;
 use moka::future::Cache;
 use std::sync::Arc;
@@ -12,7 +14,7 @@ pub struct HytaleSession {
     pub expires_at: Instant,
 }
 
-/// Cache manager for Hytale device flow sessions
+/// Cache for Hytale device flow sessions
 #[derive(Clone)]
 pub struct HytaleSessionCache {
     cache: Arc<Cache<String, HytaleSession>>,

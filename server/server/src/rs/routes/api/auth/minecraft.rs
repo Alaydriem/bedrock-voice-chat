@@ -10,8 +10,8 @@ use sea_orm_rocket::Connection as SeaOrmConnection;
 
 use crate::config::ApplicationConfigServer;
 use crate::rs::pool::AppDb;
-use crate::rs::structs::ncryptf_json::JsonMessage;
-use crate::rs::structs::{build_login_response, AuthError};
+use crate::rs::dtos::ncryptf::JsonMessage;
+use crate::services::{AuthError, AuthService};
 
 /// Authenticates the Player via Xbox Live to grab their gamertag and other identifying information
 #[post("/auth/minecraft", data = "<payload>")]
@@ -48,8 +48,8 @@ pub async fn authenticate(
         }
     };
 
-    // Build login response using shared logic
-    match build_login_response(
+    // Build login response using AuthService
+    match AuthService::build_login_response(
         conn,
         config.inner(),
         auth_result.gamertag,

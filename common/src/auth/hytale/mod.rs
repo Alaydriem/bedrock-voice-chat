@@ -7,26 +7,26 @@
 //! 3. Server polls for completion
 //! 4. On success, server fetches player profile
 
+mod dtos;
+
+use base64::{engine::general_purpose, Engine as _};
 use reqwest::header::HeaderMap;
-use serde::{Deserialize, Serialize};
 
-use super::provider::{AuthError, AuthResult};
+use crate::auth::provider::{AuthError, AuthResult};
+use dtos::{DeviceCodeResponse, HytaleProfileResponse, TokenErrorResponse, TokenResponse};
 
-// ============================================================================
-// Constants
-// ============================================================================
+// Re-export public types
+pub use dtos::{DeviceFlow, PollResult};
 
+// OAuth endpoints
 const DEVICE_AUTH_URL: &str = "https://oauth.accounts.hytale.com/oauth2/device/auth";
 const TOKEN_URL: &str = "https://oauth.accounts.hytale.com/oauth2/token";
 const PROFILE_URL: &str = "https://account-data.hytale.com/my-account/get-profiles";
 
+// OAuth client configuration
 const CLIENT_ID: &str = "hytale-server";
 const SCOPE: &str = "openid offline auth:server";
 const GRANT_TYPE: &str = "urn:ietf:params:oauth:grant-type:device_code";
-
-// ============================================================================
-// Public API
-// ============================================================================
 
 /// Hytale authentication provider using OAuth2 Device Code Flow
 #[derive(Debug, Clone, Default)]
@@ -77,14 +77,14 @@ impl HytaleAuthProvider {
                 )
             });
 
-        Ok(DeviceFlow {
-            device_code: device_response.device_code,
-            user_code: device_response.user_code,
-            verification_uri: device_response.verification_uri,
+        Ok(DeviceFlow::new(
+            device_response.device_code,
+            device_response.user_code,
+            device_response.verification_uri,
             verification_uri_complete,
-            expires_in: device_response.expires_in,
-            interval: device_response.interval,
-        })
+            device_response.expires_in,
+            device_response.interval,
+        ))
     }
 
     /// Poll for device flow completion
@@ -100,7 +100,7 @@ impl HytaleAuthProvider {
             .post(TOKEN_URL)
             .form(&[
                 ("grant_type", GRANT_TYPE),
-                ("device_code", &flow.device_code),
+                ("device_code", flow.device_code()),
                 ("client_id", CLIENT_ID),
             ])
             .send()
@@ -144,13 +144,8 @@ impl HytaleAuthProvider {
             status, error_body
         )))
     }
-}
 
-// ============================================================================
-// Private Implementation
-// ============================================================================
-
-impl HytaleAuthProvider {
+    /// Fetch user profile from Hytale API
     async fn get_profile(&self, access_token: &str) -> Result<AuthResult, AuthError> {
         let client = reqwest::Client::builder()
             .build()
@@ -186,147 +181,9 @@ impl HytaleAuthProvider {
             .next()
             .ok_or(AuthError::ProfileNotFound)?;
 
-        // Hytale doesn't provide a gamerpic URL in the same way Xbox Live does
-        Ok(AuthResult::without_gamerpic(profile.username))
-    }
-}
+        let avatar_url = format!("https://crafthead.net/hytale/avatar/{}", profile.uuid);
+        let gamerpic = general_purpose::STANDARD.encode(&avatar_url);
 
-// ============================================================================
-// Public Types
-// ============================================================================
-
-/// An active device code flow session
-///
-/// Contains the information needed to:
-/// - Display to the user (user_code, verification URLs)
-/// - Poll for completion (device_code - crate visibility)
-/// - Manage timing (expires_in, interval)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DeviceFlow {
-    /// The device code (used internally for polling)
-    #[serde(skip_serializing)]
-    pub(crate) device_code: String,
-
-    /// The code to display to the user
-    pub user_code: String,
-
-    /// The URL where the user enters the code
-    pub verification_uri: String,
-
-    /// The URL with the code pre-filled (convenience for users)
-    pub verification_uri_complete: String,
-
-    /// How long until the device code expires (seconds)
-    pub expires_in: u64,
-
-    /// Minimum interval between poll requests (seconds)
-    pub interval: u64,
-}
-
-impl DeviceFlow {
-    /// Get the device code for session storage
-    pub fn device_code(&self) -> &str {
-        &self.device_code
-    }
-}
-
-/// Result of polling for device flow completion
-#[derive(Debug, Clone)]
-pub enum PollResult {
-    /// Authorization is pending - user hasn't completed yet
-    Pending,
-
-    /// Polling too fast - slow down
-    SlowDown,
-
-    /// Successfully authenticated
-    Success(AuthResult),
-
-    /// Device code has expired
-    Expired,
-
-    /// User denied the authorization
-    Denied,
-}
-
-// ============================================================================
-// Private Types (API response structures)
-// ============================================================================
-
-#[derive(Deserialize)]
-struct DeviceCodeResponse {
-    device_code: String,
-    user_code: String,
-    verification_uri: String,
-    #[serde(default)]
-    verification_uri_complete: Option<String>,
-    expires_in: u64,
-    interval: u64,
-}
-
-#[derive(Deserialize)]
-struct TokenResponse {
-    access_token: String,
-}
-
-#[derive(Deserialize)]
-struct TokenErrorResponse {
-    error: String,
-    #[serde(default)]
-    error_description: Option<String>,
-}
-
-#[derive(Deserialize)]
-struct HytaleProfileResponse {
-    profiles: Vec<HytaleProfile>,
-}
-
-#[derive(Deserialize)]
-struct HytaleProfile {
-    username: String,
-}
-
-// ============================================================================
-// Tests
-// ============================================================================
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_device_flow_device_code_visibility() {
-        let flow = DeviceFlow {
-            device_code: "secret".to_string(),
-            user_code: "ABCD-1234".to_string(),
-            verification_uri: "https://example.com/device".to_string(),
-            verification_uri_complete: "https://example.com/device?code=ABCD-1234".to_string(),
-            expires_in: 600,
-            interval: 5,
-        };
-
-        // device_code is accessible via method
-        assert_eq!(flow.device_code(), "secret");
-
-        // user_code is public
-        assert_eq!(flow.user_code, "ABCD-1234");
-    }
-
-    #[test]
-    fn test_device_flow_serialization_hides_device_code() {
-        let flow = DeviceFlow {
-            device_code: "secret".to_string(),
-            user_code: "ABCD-1234".to_string(),
-            verification_uri: "https://example.com/device".to_string(),
-            verification_uri_complete: "https://example.com/device?code=ABCD-1234".to_string(),
-            expires_in: 600,
-            interval: 5,
-        };
-
-        let json = serde_json::to_string(&flow).unwrap();
-
-        // device_code should not appear in serialized output
-        assert!(!json.contains("secret"));
-        assert!(json.contains("ABCD-1234"));
+        Ok(AuthResult::new(profile.username, gamerpic))
     }
 }

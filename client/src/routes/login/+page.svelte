@@ -2,6 +2,7 @@
   import "../../css/app.css";
   import Login from "../../js/app/login.ts";
   import { onMount } from 'svelte';
+  import { openUrl } from '@tauri-apps/plugin-opener';
 
   onMount(async () => {
     window.App = new Login();
@@ -23,21 +24,7 @@
     const serverInput = document.querySelector("#bvc-server-input") as HTMLInputElement;
     serverInput?.addEventListener("blur", () => {
       if (serverInput.value.trim()) {
-        let formatted = serverInput.value.trim();
-
-        // Add https:// prefix if not present
-        if (!formatted.startsWith("https://") && !formatted.startsWith("http://")) {
-          formatted = "https://" + formatted;
-        } else if (formatted.startsWith("http://")) {
-          formatted = formatted.replace("http://", "https://");
-        }
-
-        // Remove trailing slash
-        if (formatted.endsWith("/")) {
-          formatted = formatted.slice(0, -1);
-        }
-
-        serverInput.value = formatted;
+        serverInput.value = window.App.sanitizeServerUrl(serverInput.value);
       }
     });
 
@@ -58,7 +45,7 @@
 
 <div
       id="root"
-      class="min-h-80vh cloak flex grow bg-slate-50 dark:bg-navy-900"
+      class="min-h-screen cloak flex grow bg-slate-50 dark:bg-navy-900"
     >
       <main class="grid w-full grow grid-cols-1 place-items-center">
         <div class="w-full max-w-[26rem] p-4 sm:px-5">
@@ -94,7 +81,7 @@
                     id="bvc-server-input"
                     class="form-input w-full rounded-r-lg border border-slate-300 bg-transparent px-3 py-2 placeholder:text-slate-400/70 hover:z-10 hover:border-slate-400 focus:z-10 focus:border-primary dark:border-navy-450 dark:hover:border-navy-400 dark:focus:border-accent"
                     placeholder="bvc.alaydriem.com"
-                    type="url"
+                    type="text"
                     autocorrect="off"
                     autocapitalize="none"
                     spellcheck="false"
@@ -103,7 +90,7 @@
                 </label>
                 <span
                   id="bvc-server-input-error-message"
-                  class="text-tiny+ text-error invisible"
+                  class="text-tiny+ text-error invisible mt-2 block"
                   >Unable to connect and verify BVC Server. Check the URL?</span
                 >
               </div>
@@ -115,7 +102,12 @@
                   height="41"
                 />
               </button>
-              <button id="hytale-login-btn" type="button" class="btn mt-3 w-full" on:click={(e) => window.App.loginWithHytale(e)}>
+              <div class="flex items-center my-4">
+                <hr class="flex-grow border-slate-300 dark:border-navy-450" />
+                <span class="px-3 text-slate-400 dark:text-navy-300 text-sm">or</span>
+                <hr class="flex-grow border-slate-300 dark:border-navy-450" />
+              </div>
+              <button id="hytale-login-btn" type="button" class="btn w-full" on:click={(e) => window.App.loginWithHytale(e)}>
                 <img
                   src="/images/hytale-login-button.svg"
                   alt="Sign in with Hytale"
@@ -128,7 +120,11 @@
           <div
             class="mt-8 flex justify-center text-xs text-slate-400 dark:text-navy-300"
           >
-            <a href="https://raw.githubusercontent.com/Alaydriem/bedrock-voice-chat/refs/heads/master/PRIVACY_STATEMENT.md">Privacy Notice</a>
+            <button
+              type="button"
+              class="hover:text-slate-500 dark:hover:text-navy-200 hover:underline cursor-pointer"
+              on:click={() => openUrl("https://raw.githubusercontent.com/Alaydriem/bedrock-voice-chat/refs/heads/master/PRIVACY_STATEMENT.md")}
+            >Privacy Notice</button>
             <div class="mx-3 my-1 w-px bg-slate-200 dark:bg-navy-500"></div>
           </div>
         </div>

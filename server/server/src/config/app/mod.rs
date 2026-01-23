@@ -19,6 +19,7 @@ use rocket::{
 };
 
 use anyhow::anyhow;
+use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use serde::{Deserialize, Serialize};
 use tracing::Level;
 
@@ -46,7 +47,8 @@ impl Default for ApplicationConfig {
 }
 
 impl ApplicationConfig {
-    fn get_dsn(&self) -> String {
+    /// Returns the database DSN string from the configuration.
+    pub fn get_dsn(&self) -> String {
         match self.database.scheme.as_str() {
             "sqlite" | "sqlite3" => {
                 let path = std::path::Path::new(&self.database.database);
@@ -104,10 +106,21 @@ impl ApplicationConfig {
     }
 
     pub fn get_rocket_config(&self) -> Result<Figment, anyhow::Error> {
-        if !std::path::Path::new(&self.server.tls.certificate).exists()
-            || !std::path::Path::new(&self.server.tls.key).exists()
-        {
-            return Err(anyhow!("TLS certificate or private key is not valid"));
+        let cert_path = std::path::Path::new(&self.server.tls.certificate);
+        let key_path = std::path::Path::new(&self.server.tls.key);
+
+        if !cert_path.exists() {
+            return Err(anyhow!(
+                "TLS certificate not found at path: {}",
+                cert_path.display()
+            ));
+        }
+
+        if !key_path.exists() {
+            return Err(anyhow!(
+                "TLS private key not found at path: {}",
+                key_path.display()
+            ));
         }
 
         tracing::info!("Database: {}", self.get_dsn().to_string());
@@ -145,5 +158,21 @@ impl ApplicationConfig {
             ));
 
         Ok(figment)
+    }
+
+    /// Create a standalone database connection for CLI commands.
+    pub async fn create_database_connection(&self) -> Result<DatabaseConnection, anyhow::Error> {
+        let dsn = self.get_dsn();
+
+        let mut options = ConnectOptions::new(dsn);
+        options
+            .max_connections(10)
+            .min_connections(1)
+            .connect_timeout(std::time::Duration::from_secs(3))
+            .idle_timeout(std::time::Duration::from_secs(60))
+            .sqlx_logging(false);
+
+        let conn = Database::connect(options).await?;
+        Ok(conn)
     }
 }
