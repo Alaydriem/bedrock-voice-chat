@@ -52,7 +52,7 @@ jobs:
       - name: Set up Android NDK
         uses: nttld/setup-ndk@v1
         with:
-          ndk-version: r27c
+          ndk-version: r29
           add-to-path: false
 
       - name: Set up Android SDK and build tools
@@ -65,10 +65,10 @@ jobs:
 
           # Install required SDK components
           $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-            "build-tools;34.0.0" \
+            "build-tools;36.1.0" \
             "cmake;3.22.1" \
             "platform-tools" \
-            "platforms;android-34"
+            "platforms;android-36"
 
           echo "Android SDK components installed"
 
@@ -83,6 +83,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: "."
+          prefix-key: "20260123-151700"
 
       - name: Install system dependencies
         run: |
@@ -187,9 +188,9 @@ jobs:
           echo "Initializing Tauri Android project..."
           yarn tauri android init
           # Groovy
-          sed -i 's/minSdkVersion[[:space:]]\+[0-9]\+/minSdkVersion 35/' src-tauri/gen/android/app/build.gradle || true
+          sed -i 's/minSdkVersion[[:space:]]\+[0-9]\+/minSdkVersion 33/' src-tauri/gen/android/app/build.gradle || true
           # Kotlin DSL
-          sed -i 's/minSdk[[:space:]]*=[[:space:]]*[0-9]\+/minSdk = 35/' src-tauri/gen/android/app/build.gradle.kts || true
+          sed -i 's/minSdk[[:space:]]*=[[:space:]]*[0-9]\+/minSdk = 33/' src-tauri/gen/android/app/build.gradle.kts || true
 
           # Optional: also raise compileSdk/targetSdk if present
           sed -i 's/compileSdk[[:space:]]*=[[:space:]]*[0-9]\+/compileSdk = 36/' src-tauri/gen/android/app/build.gradle.kts || true
@@ -380,17 +381,22 @@ jobs:
           echo "Decoding keystore..."
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > upload-keystore.jks
 
+          echo "Zipaligning APK..."
+          $ANDROID_HOME/build-tools/36.1.0/zipalign -v -p 4 \
+            bvc-android-release.apk \
+            bvc-android-release-aligned.apk
+
           echo "Signing APK..."
-          $ANDROID_HOME/build-tools/34.0.0/apksigner sign \
+          $ANDROID_HOME/build-tools/36.1.0/apksigner sign \
             --ks upload-keystore.jks \
             --ks-pass pass:${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }} \
             --ks-key-alias ${{ secrets.ANDROID_KEY_ALIAS }} \
             --key-pass pass:${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }} \
             --out bvc-android-release-signed.apk \
-            bvc-android-release.apk
+            bvc-android-release-aligned.apk
 
           echo "Verifying APK signature..."
-          $ANDROID_HOME/build-tools/34.0.0/apksigner verify --verbose bvc-android-release-signed.apk
+          $ANDROID_HOME/build-tools/36.1.0/apksigner verify --verbose bvc-android-release-signed.apk
 
           echo "=== Signed APK ==="
           ls -la bvc-android-release-signed.apk
