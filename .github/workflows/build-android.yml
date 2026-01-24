@@ -84,15 +84,31 @@ jobs:
         uses: mozilla-actions/sccache-action@v0.0.6
         continue-on-error: true
 
+      - name: Verify sccache works
+        id: sccache-verify
+        continue-on-error: true
+        run: |
+          # Test if sccache can actually connect to the cache backend
+          if sccache --start-server 2>/dev/null && sccache --show-stats 2>/dev/null; then
+            echo "sccache is working"
+            echo "working=true" >> $GITHUB_OUTPUT
+          else
+            echo "sccache backend unavailable"
+            echo "working=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Configure sccache
-        if: steps.sccache.outcome == 'success'
+        if: steps.sccache.outcome == 'success' && steps.sccache-verify.outputs.working == 'true'
         run: |
           echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
           echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
 
-      - name: Sccache unavailable notice
-        if: steps.sccache.outcome != 'success'
-        run: echo "::warning::sccache setup failed (likely GitHub Cache service issue), continuing without compilation cache"
+      - name: Disable sccache if unavailable
+        if: steps.sccache.outcome != 'success' || steps.sccache-verify.outputs.working != 'true'
+        run: |
+          echo "::warning::sccache unavailable (likely GitHub Cache service issue), continuing without compilation cache"
+          # Ensure RUSTC_WRAPPER is unset in case the action set it
+          echo "RUSTC_WRAPPER=" >> $GITHUB_ENV
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
