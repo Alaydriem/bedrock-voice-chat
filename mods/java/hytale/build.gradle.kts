@@ -4,6 +4,7 @@ import org.gradle.api.tasks.OutputFile
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import java.net.URI
+import java.net.URLEncoder
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
@@ -19,6 +20,82 @@ val hytaleJar = file("build/hytale-download/server/Server/HytaleServer.jar")
 
 base {
     archivesName.set("$archivesBaseName-hytale")
+}
+
+// Task to refresh Hytale OAuth tokens
+abstract class RefreshHytaleTokenTask : DefaultTask() {
+    private val httpClient = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build()
+    private val gson = Gson()
+
+    @TaskAction
+    fun refresh() {
+        // Find credentials file
+        val credentialsFile = listOf(
+            project.file(".hytale-downloader-credentials.json"),
+            project.rootProject.file(".hytale-downloader-credentials.json")
+        ).firstOrNull { it.exists() }
+            ?: throw GradleException("Hytale credentials file not found. Create .hytale-downloader-credentials.json first.")
+
+        logger.lifecycle("Reading credentials from: ${credentialsFile.absolutePath}")
+
+        // Parse existing credentials
+        val credentials = gson.fromJson(credentialsFile.readText(), JsonObject::class.java)
+        val refreshToken = credentials.get("refresh_token")?.asString
+            ?: throw GradleException("No refresh_token found in credentials file")
+
+        // Call OAuth2 token endpoint
+        logger.lifecycle("Refreshing OAuth token...")
+        val formData = "grant_type=refresh_token&refresh_token=${URLEncoder.encode(refreshToken, "UTF-8")}&client_id=hytale-server"
+        val request = HttpRequest.newBuilder()
+            .uri(URI.create("https://oauth.accounts.hytale.com/oauth2/token"))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .POST(HttpRequest.BodyPublishers.ofString(formData))
+            .build()
+
+        val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+        val responseJson = gson.fromJson(response.body(), JsonObject::class.java)
+
+        // Check for errors
+        if (responseJson.has("error")) {
+            val error = responseJson.get("error_description")?.asString
+                ?: responseJson.get("error")?.asString
+                ?: "Unknown error"
+            throw GradleException("Token refresh failed: $error")
+        }
+
+        // Extract new tokens
+        val newAccessToken = responseJson.get("access_token")?.asString
+            ?: throw GradleException("No access_token in response")
+        val newRefreshToken = responseJson.get("refresh_token")?.asString ?: refreshToken
+        val expiresIn = responseJson.get("expires_in")?.asInt ?: 3600
+        val idToken = responseJson.get("id_token")?.asString
+        val scope = responseJson.get("scope")?.asString
+        val tokenType = responseJson.get("token_type")?.asString
+
+        // Build updated credentials (preserve original format)
+        val updatedCredentials = JsonObject().apply {
+            addProperty("access_token", newAccessToken)
+            addProperty("expires_in", expiresIn)
+            if (idToken != null) addProperty("id_token", idToken)
+            addProperty("refresh_token", newRefreshToken)
+            if (scope != null) addProperty("scope", scope)
+            if (tokenType != null) addProperty("token_type", tokenType)
+        }
+
+        // Write back to file
+        credentialsFile.writeText(gson.toJson(updatedCredentials))
+
+        logger.lifecycle("Token refreshed successfully!")
+        if (newRefreshToken != refreshToken) {
+            logger.lifecycle("Note: Refresh token was rotated by the server")
+        }
+        logger.lifecycle("Token expires in $expiresIn seconds")
+    }
+}
+
+val refreshHytaleToken by tasks.registering(RefreshHytaleTokenTask::class) {
+    group = "hytale"
+    description = "Refresh Hytale OAuth access token using the refresh token"
 }
 
 // Task to download Hytale server using direct API calls
