@@ -79,37 +79,6 @@ jobs:
             aarch64-linux-android
             armv7-linux-androideabi
 
-      - name: Setup sccache
-        id: sccache
-        uses: mozilla-actions/sccache-action@v0.0.6
-        continue-on-error: true
-
-      - name: Verify sccache works
-        id: sccache-verify
-        continue-on-error: true
-        run: |
-          # Test if sccache can actually connect to the cache backend
-          if sccache --start-server 2>/dev/null && sccache --show-stats 2>/dev/null; then
-            echo "sccache is working"
-            echo "working=true" >> $GITHUB_OUTPUT
-          else
-            echo "sccache backend unavailable"
-            echo "working=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Configure sccache
-        if: steps.sccache.outcome == 'success' && steps.sccache-verify.outputs.working == 'true'
-        run: |
-          echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
-          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
-
-      - name: Disable sccache if unavailable
-        if: steps.sccache.outcome != 'success' || steps.sccache-verify.outputs.working != 'true'
-        run: |
-          echo "::warning::sccache unavailable (likely GitHub Cache service issue), continuing without compilation cache"
-          # Ensure RUSTC_WRAPPER is unset in case the action set it
-          echo "RUSTC_WRAPPER=" >> $GITHUB_ENV
-
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
@@ -193,15 +162,15 @@ jobs:
           # Generic flags bindgen & cc should use for Android cross builds
           ANDROID_SYSROOT="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
           # Bindgen gets sysroot and a target triple; no __ANDROID_API__ define
-          echo 'BINDGEN_EXTRA_CLANG_ARGS=--sysroot='"$ANDROID_SYSROOT"' --target=aarch64-linux-android27' >> $GITHUB_ENV
+          echo 'BINDGEN_EXTRA_CLANG_ARGS=--sysroot='"$ANDROID_SYSROOT"' --target=aarch64-linux-android35' >> $GITHUB_ENV
 
           # Sanity check: stdlib.h should exist here
           test -f "$ANDROID_SYSROOT/usr/include/stdlib.h" && echo "Found stdlib.h in sysroot" || (echo "Missing stdlib.h"; exit 1)
 
-          echo "CARGO_NDK_PLATFORM=27" >> $GITHUB_ENV
-          echo "ANDROID_PLATFORM=android-27" >> $GITHUB_ENV
-          echo "CMAKE_ANDROID_API=27" >> $GITHUB_ENV
-          echo "ANDROID_MIN_SDK_VERSION=27" >> $GITHUB_ENV
+          echo "CARGO_NDK_PLATFORM=35" >> $GITHUB_ENV
+          echo "ANDROID_PLATFORM=android-35" >> $GITHUB_ENV
+          echo "CMAKE_ANDROID_API=35" >> $GITHUB_ENV
+          echo "ANDROID_MIN_SDK_VERSION=35" >> $GITHUB_ENV
 
           # Debug: Show build tools
           echo "Build tools verification:"
@@ -294,12 +263,6 @@ jobs:
           # Gradle optimization
           GRADLE_OPTS: "-Xmx4g -Dorg.gradle.parallel=true -Dorg.gradle.caching=true"
 
-          # CI profile overrides via cargo env vars (faster parallel codegen + thin LTO)
-          CARGO_PROFILE_DEV_CODEGEN_UNITS: "4"
-          CARGO_PROFILE_DEV_INCREMENTAL: "false"
-          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "4"
-          CARGO_PROFILE_RELEASE_LTO: "thin"
-
           # libclang - keep using the system libclang 17
           LIBCLANG_PATH: /usr/lib/llvm-17/lib/
           LD_LIBRARY_PATH: /usr/lib/llvm-17/lib/:$LD_LIBRARY_PATH
@@ -314,33 +277,33 @@ jobs:
           AWS_LC_SYS_CMAKE_BUILDER: "1"
           AWS_LC_SYS_EXTERNAL_BINDGEN: "1"
 
-          # Android NDK toolchain setup (API 27)
-          CC_aarch64_linux_android: "aarch64-linux-android27-clang"
-          CXX_aarch64_linux_android: "aarch64-linux-android27-clang++"
+          # Android NDK toolchain setup (API 35)
+          CC_aarch64_linux_android: "aarch64-linux-android35-clang"
+          CXX_aarch64_linux_android: "aarch64-linux-android35-clang++"
           AR_aarch64_linux_android: "llvm-ar"
-          CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: "aarch64-linux-android27-clang"
+          CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: "aarch64-linux-android35-clang"
 
-          CC_armv7_linux_androideabi: "armv7a-linux-androideabi27-clang"
-          CXX_armv7_linux_androideabi: "armv7a-linux-androideabi27-clang++"
+          CC_armv7_linux_androideabi: "armv7a-linux-androideabi35-clang"
+          CXX_armv7_linux_androideabi: "armv7a-linux-androideabi35-clang++"
           AR_armv7_linux_androideabi: "llvm-ar"
-          CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER: "armv7a-linux-androideabi27-clang"
+          CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER: "armv7a-linux-androideabi35-clang"
 
           # RUSTFLAGS (unchanged)
           CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS: >-
-            -Clinker=aarch64-linux-android27-clang
+            -Clinker=aarch64-linux-android35-clang
             --cfg s2n_quic_unstable
             -C link-arg=-lc++_shared
-            -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/27
+            -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/35
 
           # ARMv7
           CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_RUSTFLAGS: >-
-            -Clinker=armv7a-linux-androideabi27-clang
+            -Clinker=armv7a-linux-androideabi35-clang
             --cfg s2n_quic_unstable
             -C link-arg=-lc++_shared
-            -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/27
+            -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/35
 
-          ANDROID_PLATFORM: "android-27"
-          CMAKE_ANDROID_API: "27"
+          ANDROID_PLATFORM: "android-36"
+          CMAKE_ANDROID_API: "35"
         run: |
           export PATH="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
           yarn tauri info
