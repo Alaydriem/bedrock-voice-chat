@@ -80,12 +80,19 @@ jobs:
             armv7-linux-androideabi
 
       - name: Setup sccache
+        id: sccache
         uses: mozilla-actions/sccache-action@v0.0.6
+        continue-on-error: true
 
       - name: Configure sccache
+        if: steps.sccache.outcome == 'success'
         run: |
           echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
           echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+
+      - name: Sccache unavailable notice
+        if: steps.sccache.outcome != 'success'
+        run: echo "::warning::sccache setup failed (likely GitHub Cache service issue), continuing without compilation cache"
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
