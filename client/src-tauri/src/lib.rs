@@ -82,6 +82,7 @@ pub fn run() {
             crate::commands::audio::get_recording_status,
             crate::commands::audio::is_recording,
             crate::commands::audio::get_current_players,
+            crate::commands::audio::restart_audio_stream,
             // Recordings Management
             crate::commands::recordings::get_recording_sessions,
             crate::commands::recordings::delete_recording_session,

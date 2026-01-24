@@ -52,7 +52,7 @@ jobs:
       - name: Set up Android NDK
         uses: nttld/setup-ndk@v1
         with:
-          ndk-version: r27c
+          ndk-version: r29
           add-to-path: false
 
       - name: Set up Android SDK and build tools
@@ -65,10 +65,10 @@ jobs:
 
           # Install required SDK components
           $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-            "build-tools;34.0.0" \
+            "build-tools;36.1.0" \
             "cmake;3.22.1" \
             "platform-tools" \
-            "platforms;android-34"
+            "platforms;android-36"
 
           echo "Android SDK components installed"
 
@@ -83,6 +83,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: "."
+          prefix-key: "20260123-160000"
+          cache-on-failure: true
 
       - name: Install system dependencies
         run: |
@@ -119,6 +121,7 @@ jobs:
         run: yarn install --frozen-lockfile
 
       - name: Download and setup ASIO SDK
+        if: runner.os == 'Windows'
         working-directory: ./client/src-tauri
         run: |
           echo "Downloading ASIO SDK..."
@@ -159,15 +162,15 @@ jobs:
           # Generic flags bindgen & cc should use for Android cross builds
           ANDROID_SYSROOT="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
           # Bindgen gets sysroot and a target triple; no __ANDROID_API__ define
-          echo 'BINDGEN_EXTRA_CLANG_ARGS=--sysroot='"$ANDROID_SYSROOT"' --target=aarch64-linux-android27' >> $GITHUB_ENV
+          echo 'BINDGEN_EXTRA_CLANG_ARGS=--sysroot='"$ANDROID_SYSROOT"' --target=aarch64-linux-android35' >> $GITHUB_ENV
 
           # Sanity check: stdlib.h should exist here
           test -f "$ANDROID_SYSROOT/usr/include/stdlib.h" && echo "Found stdlib.h in sysroot" || (echo "Missing stdlib.h"; exit 1)
 
-          echo "CARGO_NDK_PLATFORM=27" >> $GITHUB_ENV
-          echo "ANDROID_PLATFORM=android-27" >> $GITHUB_ENV
-          echo "CMAKE_ANDROID_API=27" >> $GITHUB_ENV
-          echo "ANDROID_MIN_SDK_VERSION=27" >> $GITHUB_ENV
+          echo "CARGO_NDK_PLATFORM=35" >> $GITHUB_ENV
+          echo "ANDROID_PLATFORM=android-35" >> $GITHUB_ENV
+          echo "CMAKE_ANDROID_API=35" >> $GITHUB_ENV
+          echo "ANDROID_MIN_SDK_VERSION=35" >> $GITHUB_ENV
 
           # Debug: Show build tools
           echo "Build tools verification:"
@@ -187,11 +190,11 @@ jobs:
           echo "Initializing Tauri Android project..."
           yarn tauri android init
           # Groovy
-          sed -i 's/minSdkVersion[[:space:]]\+[0-9]\+/minSdkVersion 35/' src-tauri/gen/android/app/build.gradle || true
+          sed -i 's/minSdkVersion[[:space:]]\+[0-9]\+/minSdkVersion 33/' src-tauri/gen/android/app/build.gradle || true
           # Kotlin DSL
-          sed -i 's/minSdk[[:space:]]*=[[:space:]]*[0-9]\+/minSdk = 35/' src-tauri/gen/android/app/build.gradle.kts || true
+          sed -i 's/minSdk[[:space:]]*=[[:space:]]*[0-9]\+/minSdk = 33/' src-tauri/gen/android/app/build.gradle.kts || true
 
-          # Optional: also raise compileSdk/targetSdk if present
+          # Optional: also raise compileSdk/targetSdk if present (must be integers, not floats)
           sed -i 's/compileSdk[[:space:]]*=[[:space:]]*[0-9]\+/compileSdk = 36/' src-tauri/gen/android/app/build.gradle.kts || true
           sed -i 's/targetSdk[[:space:]]*=[[:space:]]*[0-9]\+/targetSdk = 36/' src-tauri/gen/android/app/build.gradle.kts || true
 
@@ -257,6 +260,9 @@ jobs:
       - name: Build Android
         working-directory: ./client
         env:
+          # Gradle optimization
+          GRADLE_OPTS: "-Xmx4g -Dorg.gradle.parallel=true -Dorg.gradle.caching=true"
+
           # libclang - keep using the system libclang 17
           LIBCLANG_PATH: /usr/lib/llvm-17/lib/
           LD_LIBRARY_PATH: /usr/lib/llvm-17/lib/:$LD_LIBRARY_PATH
@@ -271,37 +277,38 @@ jobs:
           AWS_LC_SYS_CMAKE_BUILDER: "1"
           AWS_LC_SYS_EXTERNAL_BINDGEN: "1"
 
-          # Android NDK toolchain setup (API 27)
-          CC_aarch64_linux_android: "aarch64-linux-android27-clang"
-          CXX_aarch64_linux_android: "aarch64-linux-android27-clang++"
+          # Android NDK toolchain setup (API 35)
+          CC_aarch64_linux_android: "aarch64-linux-android35-clang"
+          CXX_aarch64_linux_android: "aarch64-linux-android35-clang++"
           AR_aarch64_linux_android: "llvm-ar"
-          CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: "aarch64-linux-android27-clang"
+          CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: "aarch64-linux-android35-clang"
 
-          CC_armv7_linux_androideabi: "armv7a-linux-androideabi27-clang"
-          CXX_armv7_linux_androideabi: "armv7a-linux-androideabi27-clang++"
+          CC_armv7_linux_androideabi: "armv7a-linux-androideabi35-clang"
+          CXX_armv7_linux_androideabi: "armv7a-linux-androideabi35-clang++"
           AR_armv7_linux_androideabi: "llvm-ar"
-          CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER: "armv7a-linux-androideabi27-clang"
+          CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER: "armv7a-linux-androideabi35-clang"
 
           # RUSTFLAGS (unchanged)
           CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS: >-
-            -Clinker=aarch64-linux-android27-clang
+            -Clinker=aarch64-linux-android35-clang
             --cfg s2n_quic_unstable
             -C link-arg=-lc++_shared
-            -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/27
+            -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/35
 
           # ARMv7
           CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_RUSTFLAGS: >-
-            -Clinker=armv7a-linux-androideabi27-clang
+            -Clinker=armv7a-linux-androideabi35-clang
             --cfg s2n_quic_unstable
             -C link-arg=-lc++_shared
-            -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/27
+            -L $ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/35
 
-          ANDROID_PLATFORM: "android-27"
-          CMAKE_ANDROID_API: "27"
+          ANDROID_PLATFORM: "android-36"
+          CMAKE_ANDROID_API: "35"
         run: |
           export PATH="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
           yarn tauri info
           # Force debug mode for PR builds, otherwise use input parameter
+          # CI profile overrides applied via CARGO_PROFILE_* env vars above
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "PR detected - building in debug mode"
             yarn tauri android build --debug --target aarch64 armv7
@@ -380,17 +387,22 @@ jobs:
           echo "Decoding keystore..."
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > upload-keystore.jks
 
+          echo "Zipaligning APK..."
+          $ANDROID_HOME/build-tools/36.1.0/zipalign -v -p 4 \
+            bvc-android-release.apk \
+            bvc-android-release-aligned.apk
+
           echo "Signing APK..."
-          $ANDROID_HOME/build-tools/34.0.0/apksigner sign \
+          $ANDROID_HOME/build-tools/36.1.0/apksigner sign \
             --ks upload-keystore.jks \
             --ks-pass pass:${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }} \
             --ks-key-alias ${{ secrets.ANDROID_KEY_ALIAS }} \
             --key-pass pass:${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }} \
             --out bvc-android-release-signed.apk \
-            bvc-android-release.apk
+            bvc-android-release-aligned.apk
 
           echo "Verifying APK signature..."
-          $ANDROID_HOME/build-tools/34.0.0/apksigner verify --verbose bvc-android-release-signed.apk
+          $ANDROID_HOME/build-tools/36.1.0/apksigner verify --verbose bvc-android-release-signed.apk
 
           echo "=== Signed APK ==="
           ls -la bvc-android-release-signed.apk

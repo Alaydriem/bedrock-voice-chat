@@ -6,7 +6,7 @@ resolver = "2"
 opt-level = 3
 strip = true
 debug = false
-codegen-units = 1
+codegen-units = 4
 lto = true
 incremental = false
 
@@ -15,3 +15,4 @@ opt-level = 1
 debug = 1
 strip = "symbols"
 incremental = true
+codegen-units = 4

@@ -1,6 +1,9 @@
+use super::resampler::AudioResampler;
+
 use super::AudioFrame;
 use crate::audio::recording::{RawRecordingData, RecordingProducer};
-use crate::audio::types::{AudioDevice, BUFFER_SIZE};
+use crate::audio::stream::{RecoverySender, StreamRecoveryEvent};
+use crate::audio::types::{AudioDevice, AudioDeviceType, BUFFER_SIZE};
 use crate::{audio::stream::stream_manager::AudioFrameData, NetworkPacket};
 use anyhow::anyhow;
 use audio_gate::NoiseGate;
@@ -44,6 +47,7 @@ pub(crate) struct InputStream {
     #[allow(unused)]
     app_handle: tauri::AppHandle,
     recording_producer: Option<Arc<RecordingProducer>>,
+    recovery_tx: RecoverySender,
 }
 
 impl common::traits::StreamTrait for InputStream {
@@ -153,6 +157,7 @@ impl InputStream {
         metadata: Arc<moka::future::Cache<String, String>>,
         app_handle: tauri::AppHandle,
         recording_producer: Option<Arc<RecordingProducer>>,
+        recovery_tx: RecoverySender,
     ) -> Self {
         Self {
             device,
@@ -162,6 +167,7 @@ impl InputStream {
             metadata,
             app_handle: app_handle.clone(),
             recording_producer,
+            recovery_tx,
         }
     }
 
@@ -171,13 +177,40 @@ impl InputStream {
         producer: flume::Sender<AudioFrame>,
         shutdown: Arc<AtomicBool>,
     ) -> Result<JoinHandle<()>, anyhow::Error> {
+        // Clone recovery_tx for use in the async block
+        let recovery_tx = self.recovery_tx.clone();
+
         match self.device.clone() {
             Some(device) => match device.get_stream_config() {
-                Ok(config) => {
+                Ok(stored_config) => {
+                    // Validate stored config against live device - detect Windows sound settings changes
+                    let config = match crate::audio::device::refresh_device_config(&device) {
+                        Some(fresh_configs) if !fresh_configs.is_empty() => {
+                            let fresh_config: rodio::cpal::SupportedStreamConfig =
+                                fresh_configs[0].clone().into();
+                            if fresh_config.sample_rate() != stored_config.sample_rate() {
+                                warn!(
+                                    "Device {} sample rate changed: stored {}Hz, actual {}Hz. Using actual.",
+                                    device.display_name,
+                                    stored_config.sample_rate().0,
+                                    fresh_config.sample_rate().0
+                                );
+                            }
+                            fresh_config
+                        }
+                        _ => {
+                            warn!("Could not refresh device config for {}, using stored config", device.display_name);
+                            stored_config
+                        }
+                    };
+
                     let cpal_device: Option<rodio::cpal::Device> = device.clone().into();
 
                     let handle = match cpal_device {
                         Some(cpal_device) => tokio::spawn(async move {
+                            // Clone for error handling
+                            let recovery_tx_for_error = recovery_tx.clone();
+                            let shutdown_for_error = shutdown.clone();
                             /// CoreAudio on iOS should use the default buffer size to
                             /// Otherwise the InputStream fails to initialize
                             #[cfg(target_os = "ios")]
@@ -220,8 +253,15 @@ impl InputStream {
 
                             drop(settings);
 
-                            let error_fn = move |error| {
-                                warn!("an error occured on the stream: {}", error);
+                            // Error callback - signals shutdown and triggers recovery
+                            let error_fn = move |error: cpal::StreamError| {
+                                error!("Audio stream error (device may have disconnected): {}", error);
+                                shutdown_for_error.store(true, Ordering::Relaxed);
+                                // Signal recovery (thread-safe, non-blocking send)
+                                let _ = recovery_tx_for_error.send(StreamRecoveryEvent::DeviceError {
+                                    device_type: AudioDeviceType::InputDevice,
+                                    error: error.to_string(),
+                                });
                             };
 
                             let mut callback_count = 0u64;
@@ -229,6 +269,23 @@ impl InputStream {
 
                             // Pre-allocate buffer for in-place processing (max stereo size)
                             let mut pcm_buffer: Vec<f32> = vec![0.0; 960 * 2];
+
+                            // Create resampler if device sample rate is not 48 kHz
+                            let mut audio_resampler = match AudioResampler::new_if_needed(device_config.sample_rate.0) {
+                                Some(Ok(r)) => {
+                                    warn!(
+                                        "Input device sample rate {} Hz requires resampling to 48 kHz. \
+                                         For optimal performance, use a device that supports 48 kHz natively.",
+                                        device_config.sample_rate.0
+                                    );
+                                    Some(r)
+                                }
+                                Some(Err(e)) => {
+                                    error!("Failed to create audio resampler: {:?}", e);
+                                    None  // Fall through without resampling - will likely cause Opus errors
+                                }
+                                None => None,  // Already 48 kHz, no resampling needed
+                            };
 
                             let mut process_fn = move |data: &[f32]| {
                                 callback_count += 1;
@@ -280,6 +337,13 @@ impl InputStream {
                                         .collect()
                                 } else {
                                     pcm_buffer[..len].to_vec()
+                                };
+
+                                // Resample 44.1 kHz → 48 kHz if needed
+                                let mono_pcm = if let Some(ref mut rs) = audio_resampler {
+                                    rs.process(&mono_pcm)
+                                } else {
+                                    mono_pcm
                                 };
 
                                 let pcm_sendable = mono_pcm.iter().all(|&e| f32::abs(e) == 0.0);
@@ -353,7 +417,16 @@ impl InputStream {
 
                             match stream {
                                 Ok(stream) => {
-                                    _ = stream.play().unwrap();
+                                    // Start the stream with proper error handling
+                                    if let Err(e) = stream.play() {
+                                        error!("Failed to start audio stream: {:?}", e);
+                                        shutdown.store(true, Ordering::Relaxed);
+                                        let _ = recovery_tx.send(StreamRecoveryEvent::DeviceError {
+                                            device_type: AudioDeviceType::InputDevice,
+                                            error: format!("Failed to start stream: {:?}", e),
+                                        });
+                                        return;
+                                    }
 
                                     // Get the current thread handle
                                     let thread = std::thread::current();
@@ -371,7 +444,10 @@ impl InputStream {
                                     // Park the current thread until shutdown
                                     std::thread::park();
 
-                                    stream.pause().unwrap();
+                                    // Pause the stream (may fail if device already disconnected)
+                                    if let Err(e) = stream.pause() {
+                                        warn!("Failed to pause stream (may already be stopped): {:?}", e);
+                                    }
 
                                     warn!(
                                         "{} {} ended.",
@@ -417,7 +493,16 @@ impl InputStream {
         match self.device.clone() {
             Some(device) => {
                 match device.get_stream_config() {
-                    Ok(config) => {
+                    Ok(stored_config) => {
+                        // Validate stored config against live device
+                        let config = match crate::audio::device::refresh_device_config(&device) {
+                            Some(fresh_configs) if !fresh_configs.is_empty() => {
+                                let fresh_config: rodio::cpal::SupportedStreamConfig =
+                                    fresh_configs[0].clone().into();
+                                fresh_config
+                            }
+                            _ => stored_config,
+                        };
                         /// CoreAudio on iOS should use the default buffer size to
                         /// Otherwise the InputStream fails to initialize
                         #[cfg(target_os = "ios")]
@@ -426,13 +511,22 @@ impl InputStream {
                         #[cfg(not(target_os = "ios"))]
                         let buffer_size = cpal::BufferSize::Fixed(crate::audio::types::BUFFER_SIZE);
 
+                        let original_sample_rate = config.sample_rate();
+
+                        // Force 48 kHz if device was not 48 kHz (already resampled in listener)
+                        let effective_sample_rate = if original_sample_rate.0 != crate::audio::types::OPUS_SAMPLE_RATE {
+                            rodio::cpal::SampleRate(crate::audio::types::OPUS_SAMPLE_RATE)
+                        } else {
+                            original_sample_rate
+                        };
+
                         let device_config = rodio::cpal::StreamConfig {
                             channels: match config.channels() {
                                 1 => 1,
                                 2 => 2,
                                 _ => 1,
                             },
-                            sample_rate: config.sample_rate(),
+                            sample_rate: effective_sample_rate,
                             buffer_size,
                         };
 

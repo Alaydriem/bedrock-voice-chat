@@ -7,13 +7,25 @@ use crate::audio::recording::RecordingManager;
 use crate::NetworkPacket;
 use anyhow::Error;
 use common::structs::audio::StreamEvent;
+use log::warn;
 use std::sync::Arc;
 use tauri::async_runtime::Mutex as TauriMutex;
+use tauri::Emitter;
+use tokio::sync::mpsc;
 
 use super::AudioPacket;
 use stream_manager::{StreamTrait, StreamTraitType};
 
 pub(crate) use activity_detector::ActivityUpdate;
+
+/// Event sent when a stream encounters an error requiring recovery
+#[derive(Debug, Clone)]
+pub enum StreamRecoveryEvent {
+    DeviceError { device_type: AudioDeviceType, error: String },
+}
+
+/// Sender type for recovery events (used by streams to signal errors)
+pub type RecoverySender = mpsc::UnboundedSender<StreamRecoveryEvent>;
 
 pub(crate) struct AudioStreamManager {
     producer: Arc<flume::Sender<NetworkPacket>>,
@@ -22,6 +34,9 @@ pub(crate) struct AudioStreamManager {
     output: StreamTraitType,
     app_handle: tauri::AppHandle,
     recording_manager: Option<Arc<TauriMutex<RecordingManager>>>,
+    recovery_tx: RecoverySender,
+    /// Receiver for recovery events - consumed when monitor is spawned
+    recovery_rx: Option<mpsc::UnboundedReceiver<StreamRecoveryEvent>>,
 }
 
 impl AudioStreamManager {
@@ -36,6 +51,11 @@ impl AudioStreamManager {
         // Producer will be extracted when streams are initialized
         // to avoid blocking the setup function
 
+        // Create recovery channel for error handling
+        // The receiver is stored and the monitor task is spawned lazily
+        // when init() is first called (from an async context)
+        let (recovery_tx, recovery_rx) = mpsc::unbounded_channel::<StreamRecoveryEvent>();
+
         Self {
             producer: producer.clone(),
             consumer: consumer.clone(),
@@ -45,6 +65,7 @@ impl AudioStreamManager {
                 Arc::new(moka::future::Cache::builder().build()),
                 app_handle.clone(),
                 None, // Producer will be set when initialized
+                recovery_tx.clone(),
             )),
             output: StreamTraitType::Output(stream_manager::OutputStream::new(
                 None,
@@ -52,14 +73,48 @@ impl AudioStreamManager {
                 Arc::new(moka::future::Cache::builder().build()),
                 app_handle.clone(),
                 None, // Producer will be set when initialized
+                recovery_tx.clone(),
             )),
             app_handle: app_handle.clone(),
             recording_manager,
+            recovery_tx,
+            recovery_rx: Some(recovery_rx),
+        }
+    }
+
+    /// Spawns the recovery monitor task if not already spawned.
+    /// Must be called from an async context.
+    fn spawn_recovery_monitor(&mut self) {
+        if let Some(mut recovery_rx) = self.recovery_rx.take() {
+            let app_handle = self.app_handle.clone();
+            tokio::spawn(async move {
+                while let Some(event) = recovery_rx.recv().await {
+                    match event {
+                        StreamRecoveryEvent::DeviceError { device_type, error } => {
+                            warn!("Stream recovery triggered for {:?}: {}", device_type, error);
+                            // Emit event for frontend to handle recovery
+                            let _ = app_handle.emit(
+                                "audio-stream-recovery",
+                                serde_json::json!({
+                                    "device_type": match device_type {
+                                        AudioDeviceType::InputDevice => "InputDevice",
+                                        AudioDeviceType::OutputDevice => "OutputDevice",
+                                    },
+                                    "error": error,
+                                }),
+                            );
+                        }
+                    }
+                }
+            });
         }
     }
 
     /// Initializes a given input or output stream with a specific device, then starts it
     pub async fn init(&mut self, device: AudioDevice) {
+        // Spawn recovery monitor on first init (now we're in async context)
+        self.spawn_recovery_monitor();
+
         // Stop the current stream if we're re-initializing a new one so we don't
         // have dangling thread pointers
         _ = self.stop(device.clone().io);
@@ -80,6 +135,7 @@ impl AudioStreamManager {
                     self.input.get_metadata().clone(),
                     self.app_handle.clone(),
                     recording_producer,
+                    self.recovery_tx.clone(),
                 ));
             }
             AudioDeviceType::OutputDevice => {
@@ -89,6 +145,7 @@ impl AudioStreamManager {
                     self.output.get_metadata().clone(),
                     self.app_handle.clone(),
                     recording_producer,
+                    self.recovery_tx.clone(),
                 ));
             }
         }
@@ -118,6 +175,7 @@ impl AudioStreamManager {
                     self.input.get_metadata().clone(),
                     self.app_handle.clone(),
                     recording_producer,
+                    self.recovery_tx.clone(),
                 ));
             }
             AudioDeviceType::OutputDevice => {
@@ -127,6 +185,7 @@ impl AudioStreamManager {
                     self.output.get_metadata().clone(),
                     self.app_handle.clone(),
                     recording_producer,
+                    self.recovery_tx.clone(),
                 ));
             }
         };
@@ -230,6 +289,7 @@ impl AudioStreamManager {
             self.input.get_metadata().clone(),
             self.app_handle.clone(),
             recording_producer.clone(),
+            self.recovery_tx.clone(),
         ));
 
         // Recreate output stream, preserving metadata
@@ -239,6 +299,7 @@ impl AudioStreamManager {
             self.output.get_metadata().clone(),
             self.app_handle.clone(),
             recording_producer,
+            self.recovery_tx.clone(),
         ));
 
         Ok(())

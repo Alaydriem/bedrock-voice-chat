@@ -148,6 +148,43 @@ pub fn get_devices() -> Result<HashMap<String, Vec<AudioDevice>>, ()> {
     return Ok(devices);
 }
 
+/// Re-queries CPAL for the current supported configs of a device.
+/// Returns updated stream_configs, or None if device not found or has no valid configs.
+/// This is used to detect when Windows sound settings have changed (e.g., sample rate).
+pub fn refresh_device_config(device: &AudioDevice) -> Option<Vec<crate::audio::types::StreamConfig>> {
+    let hosts = get_cpal_hosts().ok()?;
+
+    for host in hosts {
+        if AudioDeviceHost::try_from(host.id()).ok()? != device.host {
+            continue;
+        }
+
+        let devices_iter = match device.io {
+            AudioDeviceType::InputDevice => host.input_devices().ok()?,
+            AudioDeviceType::OutputDevice => host.output_devices().ok()?,
+        };
+
+        for cpal_device in devices_iter {
+            if cpal_device.name().ok()? == device.name {
+                let configs: Vec<SupportedStreamConfigRange> = match device.io {
+                    AudioDeviceType::InputDevice => {
+                        cpal_device.supported_input_configs().ok()?.collect()
+                    }
+                    AudioDeviceType::OutputDevice => {
+                        cpal_device.supported_output_configs().ok()?.collect()
+                    }
+                };
+
+                let stream_configs = AudioDevice::to_stream_config(configs);
+                if !stream_configs.is_empty() {
+                    return Some(stream_configs);
+                }
+            }
+        }
+    }
+    None
+}
+
 fn get_device_name(
     io: AudioDeviceType,
     host: &cpal::Host,

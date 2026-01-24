@@ -119,7 +119,7 @@
   onMount(async () => {
     try {
       isMobile = await platformDetector.checkMobile();
-      document.querySelector("body")!.style = "min-height: 101dvh !important;";
+      document.querySelector("body")!.style = "min-height: 100dvh !important;";
     } catch (error) {
       isMobile = false;
     }
