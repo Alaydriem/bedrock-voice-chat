@@ -294,6 +294,12 @@ jobs:
           # Gradle optimization
           GRADLE_OPTS: "-Xmx4g -Dorg.gradle.parallel=true -Dorg.gradle.caching=true"
 
+          # CI profile overrides via cargo env vars (faster parallel codegen + thin LTO)
+          CARGO_PROFILE_DEV_CODEGEN_UNITS: "4"
+          CARGO_PROFILE_DEV_INCREMENTAL: "false"
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "4"
+          CARGO_PROFILE_RELEASE_LTO: "thin"
+
           # libclang - keep using the system libclang 17
           LIBCLANG_PATH: /usr/lib/llvm-17/lib/
           LD_LIBRARY_PATH: /usr/lib/llvm-17/lib/:$LD_LIBRARY_PATH
@@ -339,16 +345,16 @@ jobs:
           export PATH="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
           yarn tauri info
           # Force debug mode for PR builds, otherwise use input parameter
-          # Use CI profiles for faster builds (ci-dev for debug, ci-release for release)
+          # CI profile overrides applied via CARGO_PROFILE_* env vars above
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "PR detected - building in debug mode with ci-dev profile"
-            yarn tauri android build --debug --profile ci-dev --target aarch64 armv7
+            echo "PR detected - building in debug mode"
+            yarn tauri android build --debug --target aarch64 armv7
           elif [ "${{ inputs.build_mode || 'debug' }}" = "release" ]; then
-            echo "Building in release mode with ci-release profile"
-            yarn tauri android build --profile ci-release --target aarch64 armv7
+            echo "Building in release mode"
+            yarn tauri android build --target aarch64 armv7
           else
-            echo "Building in debug mode with ci-dev profile"
-            yarn tauri android build --debug --profile ci-dev --target aarch64 armv7
+            echo "Building in debug mode"
+            yarn tauri android build --debug --target aarch64 armv7
           fi
 
       - name: Prepare Android artifacts
