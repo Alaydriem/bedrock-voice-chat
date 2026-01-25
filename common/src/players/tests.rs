@@ -13,6 +13,7 @@ mod tests {
             orientation: Orientation { x: 0.0, y: 90.0 },
             dimension: Dimension::Overworld,
             deafen: false,
+            spectator: false,
         };
 
         let player_enum = PlayerEnum::Minecraft(minecraft_player.clone());

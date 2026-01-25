@@ -7,8 +7,17 @@ export class Payload {
     public readonly players: Player[]
   ) {}
 
-  static fromPlayers(players: MinecraftPlayer[]): Payload {
-    const playerDtos = players.map(p => Player.fromMinecraftPlayer(p));
+  /**
+   * Create a payload from Minecraft players.
+   * @param players Array of Minecraft players
+   * @param deadPlayers Set of player IDs who are currently dead
+   */
+  static fromPlayers(players: MinecraftPlayer[], deadPlayers: Set<string> = new Set()): Payload {
+    const playerDtos = players.map(p =>
+      deadPlayers.has(p.id)
+        ? Player.fromMinecraftPlayerDead(p)
+        : Player.fromMinecraftPlayer(p)
+    );
     return new Payload('minecraft', playerDtos);
   }
 

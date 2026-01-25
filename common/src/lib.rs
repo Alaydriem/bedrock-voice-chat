@@ -83,6 +83,8 @@ pub struct Player {
     pub deafen: bool,
     pub coordinates: Coordinate,
     pub orientation: Orientation,
+    #[serde(default)]
+    pub spectator: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
