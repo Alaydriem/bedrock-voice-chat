@@ -3,6 +3,10 @@
   import Login from "../../js/app/login.ts";
   import { onMount } from 'svelte';
   import { openUrl } from '@tauri-apps/plugin-opener';
+  import PlatformDetector from "../../js/app/utils/PlatformDetector.ts";
+
+  const platformDetector = new PlatformDetector();
+  let isMobile = platformDetector.checkMobile();
 
   onMount(async () => {
     window.App = new Login();
@@ -102,19 +106,22 @@
                   height="41"
                 />
               </button>
-              <div class="flex items-center my-4">
-                <hr class="flex-grow border-slate-300 dark:border-navy-450" />
-                <span class="px-3 text-slate-400 dark:text-navy-300 text-sm">or</span>
-                <hr class="flex-grow border-slate-300 dark:border-navy-450" />
-              </div>
-              <button id="hytale-login-btn" type="button" class="btn w-full" on:click={(e) => window.App.loginWithHytale(e)}>
-                <img
-                  src="/images/hytale-login-button.svg"
-                  alt="Sign in with Hytale"
-                  width="215"
-                  height="41"
-                />
-              </button>
+
+              {#if !isMobile }
+                <div class="flex items-center my-4">
+                  <hr class="flex-grow border-slate-300 dark:border-navy-450" />
+                  <span class="px-3 text-slate-400 dark:text-navy-300 text-sm">or</span>
+                  <hr class="flex-grow border-slate-300 dark:border-navy-450" />
+                </div>
+                <button id="hytale-login-btn" type="button" class="btn w-full" on:click={(e) => window.App.loginWithHytale(e)}>
+                  <img
+                    src="/images/hytale-login-button.svg"
+                    alt="Sign in with Hytale"
+                    width="215"
+                    height="41"
+                  />
+                </button>
+             {/if}
             </div>
           </form>
           <div
