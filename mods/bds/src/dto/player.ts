@@ -1,6 +1,7 @@
 import { Player as MinecraftPlayer } from '@minecraft/server';
 import { Coordinates } from './coordinates';
 import { Orientation } from './orientation';
+import { Dimension } from './dimension';
 
 export class Player {
   constructor(
@@ -16,6 +17,20 @@ export class Player {
       player.name,
       player.dimension.id.replace('minecraft:', ''),
       Coordinates.fromMinecraftLocation(player.location),
+      player.isSneaking,
+      Orientation.fromMinecraftRotation(player.getRotation())
+    );
+  }
+
+  /**
+   * Create a player DTO with death dimension override.
+   * Dead players are placed at origin (0,0,0) in the "death" dimension.
+   */
+  static fromMinecraftPlayerDead(player: MinecraftPlayer): Player {
+    return new Player(
+      player.name,
+      Dimension.DEATH,
+      new Coordinates(0, 0, 0),
       player.isSneaking,
       Orientation.fromMinecraftRotation(player.getRotation())
     );

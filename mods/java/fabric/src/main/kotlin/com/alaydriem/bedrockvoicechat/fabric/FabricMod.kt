@@ -5,9 +5,12 @@ import com.alaydriem.bedrockvoicechat.native.PositionSender
 import com.alaydriem.bedrockvoicechat.network.HttpRequestHandler
 import com.alaydriem.bedrockvoicechat.server.BvcServerManager
 import net.fabricmc.api.ModInitializer
+import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents
+import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents
+import net.minecraft.server.network.ServerPlayerEntity
 import org.slf4j.LoggerFactory
 
 /**
@@ -64,12 +67,22 @@ class FabricMod : ModInitializer {
 
         ServerPlayConnectionEvents.JOIN.register { handler, _, _ ->
             playerDataProvider.addPlayer(handler.player)
-            logger.debug("Player joined: ${handler.player.name.string}")
         }
 
         ServerPlayConnectionEvents.DISCONNECT.register { handler, _ ->
             playerDataProvider.removePlayer(handler.player)
-            logger.debug("Player disconnected: ${handler.player.name.string}")
+        }
+
+        // Track player deaths for death dimension feature
+        ServerLivingEntityEvents.AFTER_DEATH.register { entity, _ ->
+            if (entity is ServerPlayerEntity) {
+                playerDataProvider.markDead(entity)
+            }
+        }
+
+        // Track player respawns to clear death state
+        ServerPlayerEvents.AFTER_RESPAWN.register { _, newPlayer, _ ->
+            playerDataProvider.markAlive(newPlayer)
         }
 
         ServerTickEvents.END_SERVER_TICK.register { server ->

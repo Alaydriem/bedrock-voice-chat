@@ -69,6 +69,19 @@ var Player = class _Player {
       Orientation.fromMinecraftRotation(player.getRotation())
     );
   }
+  /**
+   * Create a player DTO with death dimension override.
+   * Dead players are placed at origin (0,0,0) in the "death" dimension.
+   */
+  static fromMinecraftPlayerDead(player) {
+    return new _Player(
+      player.name,
+      "death" /* DEATH */,
+      new Coordinates(0, 0, 0),
+      player.isSneaking,
+      Orientation.fromMinecraftRotation(player.getRotation())
+    );
+  }
   toJSON() {
     return {
       name: this.name,
@@ -86,8 +99,15 @@ var Payload = class _Payload {
     this.game = game;
     this.players = players;
   }
-  static fromPlayers(players) {
-    const playerDtos = players.map((p) => Player.fromMinecraftPlayer(p));
+  /**
+   * Create a payload from Minecraft players.
+   * @param players Array of Minecraft players
+   * @param deadPlayers Set of player IDs who are currently dead
+   */
+  static fromPlayers(players, deadPlayers2 = /* @__PURE__ */ new Set()) {
+    const playerDtos = players.map(
+      (p) => deadPlayers2.has(p.id) ? Player.fromMinecraftPlayerDead(p) : Player.fromMinecraftPlayer(p)
+    );
     return new _Payload("minecraft", playerDtos);
   }
   toJSON() {
@@ -108,7 +128,20 @@ var debug = variables.get("bvc_debug");
 var POLL_INTERVAL = 5;
 var MIN_PLAYERS = 2;
 var REQUEST_TIMEOUT = 1;
+var deadPlayers = /* @__PURE__ */ new Set();
 console.info("[BVC] Connecting to: " + bvc_server);
+world.afterEvents.entityDie.subscribe(
+  (event) => {
+    const deadEntity = event.deadEntity;
+    if (deadEntity.typeId === "minecraft:player") {
+      deadPlayers.add(deadEntity.id);
+    }
+  },
+  { entityTypes: ["minecraft:player"] }
+);
+world.afterEvents.playerSpawn.subscribe((event) => {
+  deadPlayers.delete(event.player.id);
+});
 system.runInterval(async () => {
   const players = world.getAllPlayers();
   if (!debug) {
@@ -117,7 +150,7 @@ system.runInterval(async () => {
     }
   }
   try {
-    const payload = Payload.fromPlayers(players);
+    const payload = Payload.fromPlayers(players, deadPlayers);
     const request = new HttpRequest(`${bvc_server}/api/position`);
     request.setBody(payload.toJSONString());
     request.setMethod(HttpRequestMethod.Post);
