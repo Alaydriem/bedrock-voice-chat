@@ -10,7 +10,9 @@ pub struct MinecraftPlayer {
     pub coordinates: Coordinate,
     pub orientation: Orientation,
     pub dimension: Dimension,
-    pub deafen: bool
+    pub deafen: bool,
+    #[serde(default)]
+    pub spectator: bool,
 }
 
 impl PlayerData for MinecraftPlayer {
@@ -56,6 +58,13 @@ impl MinecraftPlayer {
             ));
         }
 
+        // Spectator logic: spectators hear everyone, but non-spectators can't hear spectators
+        if self.spectator && !other.spectator {
+            return Err(CommunicationError::minecraft(
+                MinecraftCommunicationError::SpectatorInaudible,
+            ));
+        }
+
         let proximity = 1.73 * range;
         let distance = self.distance_to(other);
         if distance > proximity {
@@ -77,6 +86,7 @@ impl From<crate::Player> for MinecraftPlayer {
             orientation: player.orientation,
             dimension: player.dimension,
             deafen: player.deafen,
+            spectator: player.spectator,
         }
     }
 }
@@ -89,6 +99,7 @@ impl From<MinecraftPlayer> for crate::Player {
             orientation: player.orientation,
             dimension: player.dimension,
             deafen: player.deafen,
+            spectator: player.spectator,
         }
     }
 }

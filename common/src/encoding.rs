@@ -153,6 +153,7 @@ mod tests {
             orientation: Orientation { x: 0.0, y: 0.0 },
             dimension: Dimension::Overworld,
             deafen: false,
+            spectator: false,
         };
         let packet = AudioFramePacket::new(
             test_data.clone(),
@@ -204,6 +205,7 @@ mod tests {
             orientation: Orientation { x: 0.0, y: 0.0 },
             dimension: Dimension::Overworld,
             deafen: false,
+            spectator: false,
         };
         let audio_packet = AudioFramePacket::new(
             test_data.clone(),

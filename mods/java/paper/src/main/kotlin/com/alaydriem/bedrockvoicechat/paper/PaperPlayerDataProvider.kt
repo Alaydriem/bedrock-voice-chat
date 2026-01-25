@@ -54,7 +54,8 @@ class PaperPlayerDataProvider : PlayerDataProvider {
                         yaw = 0f,
                         pitch = 0f,
                         dimension = Dimension.Minecraft.DEATH,
-                        deafen = false
+                        deafen = false,
+                        spectator = false
                     )
                 } else {
                     // Normal player data
@@ -68,7 +69,8 @@ class PaperPlayerDataProvider : PlayerDataProvider {
                         yaw = location.yaw,
                         pitch = location.pitch,
                         dimension = dimension,
-                        deafen = player.isSneaking
+                        deafen = player.isSneaking,
+                        spectator = player.gameMode == org.bukkit.GameMode.SPECTATOR
                     )
                 }
             }

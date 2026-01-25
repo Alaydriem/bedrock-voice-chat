@@ -55,7 +55,8 @@ class FabricPlayerDataProvider : PlayerDataProvider {
                         yaw = 0f,
                         pitch = 0f,
                         dimension = Dimension.Minecraft.DEATH,
-                        deafen = false
+                        deafen = false,
+                        spectator = false
                     )
                 } else {
                     // Normal player data
@@ -68,7 +69,8 @@ class FabricPlayerDataProvider : PlayerDataProvider {
                         yaw = player.yaw,
                         pitch = player.pitch,
                         dimension = dimension,
-                        deafen = player.isSneaking
+                        deafen = player.isSneaking,
+                        spectator = player.isSpectator
                     )
                 }
             }
