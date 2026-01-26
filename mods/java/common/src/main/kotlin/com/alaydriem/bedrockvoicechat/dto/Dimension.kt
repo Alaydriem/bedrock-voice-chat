@@ -26,7 +26,8 @@ sealed interface Dimension {
      * Hytale dimensions.
      */
     enum class Hytale(private val value: String) : Dimension {
-        ORBIS("orbis");
+        ORBIS("orbis"),
+        DEATH("death");
 
         override fun toApiString(): String = value
     }
@@ -59,6 +60,7 @@ sealed interface Dimension {
                 }
                 GameType.HYTALE -> when (raw.lowercase()) {
                     "orbis" -> Hytale.ORBIS
+                    "death" -> Hytale.DEATH
                     else -> Custom(raw)
                 }
             }

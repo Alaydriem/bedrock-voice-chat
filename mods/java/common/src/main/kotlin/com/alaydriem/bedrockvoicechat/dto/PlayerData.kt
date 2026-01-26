@@ -43,15 +43,17 @@ data class PlayerData(
         name: String,
         x: Double, y: Double, z: Double,
         yaw: Float, pitch: Float,
-        dimension: Dimension.Hytale,
-        worldUuid: String
+        dimension: Dimension,
+        worldUuid: String,
+        deafen: Boolean = false,
+        spectator: Boolean = false
     ) : this(
         name = name,
         coordinates = Coordinates(x, y, z),
         orientation = Orientation(yaw, pitch),
         dimension = dimension.toApiString(),
         worldUuid = worldUuid,
-        deafen = false,
-        spectator = false
+        deafen = deafen,
+        spectator = spectator
     )
 }
