@@ -1,3 +1,17 @@
+# [1.0.0-beta.5](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.4...v1.0.0-beta.5) (2026-01-26)
+
+
+### Bug Fixes
+
+* hytale death and crouch detection ([#95](https://github.com/Alaydriem/bedrock-voice-chat/issues/95)) ([953bb33](https://github.com/Alaydriem/bedrock-voice-chat/commit/953bb339d4aebe640bb94700e8bcd47b111a9d5c))
+* only enable Hytale on desktop devices ([ccc3bd1](https://github.com/Alaydriem/bedrock-voice-chat/commit/ccc3bd12ba7e4229396ab3cd868748f404799478))
+* re-sampling 44.1 => 48 kHz in opus encoder results in crash ([#91](https://github.com/Alaydriem/bedrock-voice-chat/issues/91)) ([dfe99c7](https://github.com/Alaydriem/bedrock-voice-chat/commit/dfe99c743e16bdd518018b4e869d7a499ee8c6cf)), closes [#88](https://github.com/Alaydriem/bedrock-voice-chat/issues/88)
+
+
+### Features
+
+* spectator mode and death support ([#93](https://github.com/Alaydriem/bedrock-voice-chat/issues/93)) ([b288a52](https://github.com/Alaydriem/bedrock-voice-chat/commit/b288a522b64845cd087a612058d44d97d3e810d1))
+
 # [1.0.0-beta.4](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.3...v1.0.0-beta.4) (2026-01-21)
 
 
