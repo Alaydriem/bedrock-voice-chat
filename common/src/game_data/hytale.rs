@@ -8,4 +8,6 @@ pub enum Dimension {
     #[default]
     #[serde(rename = "orbis")]
     Orbis,
+    #[serde(rename = "death")]
+    Death,
 }

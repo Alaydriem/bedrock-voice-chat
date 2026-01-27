@@ -119,7 +119,7 @@
   onMount(async () => {
     try {
       isMobile = await platformDetector.checkMobile();
-      document.querySelector("body")!.style = "min-height: 101dvh !important;";
+      document.querySelector("body")!.style = "min-height: 100dvh !important;";
     } catch (error) {
       isMobile = false;
     }
@@ -170,7 +170,7 @@
       await window.App.renderSidebar(store, serverUrl);
 
       // Set the player avatar now that the DOM element exists
-      window.App.setPlayerAvatar();
+      await window.App.setPlayerAvatar();
 
       if (isGroupChatSidebarAvailable) {
         openSidebar();

@@ -44,11 +44,12 @@ impl GenericPlayer {
         other: &GenericPlayer,
         range: f32,
     ) -> Result<(), CommunicationError> {
+        let proximity = 1.73 * range;
         let distance = self.distance_to(other);
-        if distance > range {
+        if distance > proximity {
             return Err(CommunicationError::OutOfRange {
                 distance,
-                max_range: range,
+                max_range: proximity,
             });
         }
         Ok(())

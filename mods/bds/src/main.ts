@@ -16,7 +16,27 @@ const POLL_INTERVAL = 5;
 const MIN_PLAYERS = 2;
 const REQUEST_TIMEOUT = 1;
 
+// Track dead players by their ID
+const deadPlayers = new Set<string>();
+
 console.info("[BVC] Connecting to: " + bvc_server);
+
+// Subscribe to player death events
+world.afterEvents.entityDie.subscribe(
+  (event) => {
+    const deadEntity = event.deadEntity;
+    if (deadEntity.typeId === 'minecraft:player') {
+      deadPlayers.add(deadEntity.id);
+    }
+  },
+  { entityTypes: ['minecraft:player'] }
+);
+
+// Subscribe to player spawn events (includes respawns)
+world.afterEvents.playerSpawn.subscribe((event) => {
+  deadPlayers.delete(event.player.id);
+});
+
 system.runInterval(async () => {
   const players = world.getAllPlayers();
 
@@ -27,7 +47,7 @@ system.runInterval(async () => {
   }
 
   try {
-    const payload = Payload.fromPlayers(players);
+    const payload = Payload.fromPlayers(players, deadPlayers);
 
     const request = new HttpRequest(`${bvc_server}/api/position`);
     request.setBody(payload.toJSONString());

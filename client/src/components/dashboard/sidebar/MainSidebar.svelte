@@ -80,8 +80,8 @@
                                 >
                                     Loading...
                                 </span>
-                                <p class="text-xs text-slate-400 dark:text-navy-300">
-                                    Player
+                                <p id="player-dropdown-game" class="text-xs text-slate-400 dark:text-navy-300">
+                                    Loading...
                                 </p>
                             </div>
                         </div>

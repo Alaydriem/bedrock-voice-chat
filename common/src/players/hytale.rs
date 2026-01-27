@@ -18,6 +18,8 @@ pub struct HytalePlayer {
     pub dimension: Dimension,
     #[serde(default)]
     pub deafen: bool,
+    #[serde(default)]
+    pub spectator: bool,
 }
 
 impl PlayerData for HytalePlayer {
@@ -75,11 +77,19 @@ impl HytalePlayer {
             ));
         }
 
+        // Spectator logic: spectators hear everyone, but non-spectators can't hear spectators
+        if self.spectator && !other.spectator {
+            return Err(CommunicationError::hytale(
+                HytaleCommunicationError::SpectatorInaudible,
+            ));
+        }
+
+        let proximity = 1.73 * range;
         let distance = self.distance_to(other);
-        if distance > range {
+        if distance > proximity {
             return Err(CommunicationError::OutOfRange {
                 distance,
-                max_range: range,
+                max_range: proximity,
             });
         }
 

@@ -18,8 +18,10 @@
 
 use crate::config::ApplicationConfig;
 use crate::runtime::{position_updater, ServerRuntime};
+use crate::services::PlayerRegistrarService;
 use crate::stream::quic::WebhookReceiver;
 
+use common::Game;
 use std::ffi::{c_char, c_int, CStr, CString};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -33,6 +35,8 @@ pub struct RuntimeHandle {
     shutdown_flag: Arc<AtomicBool>,
     /// Webhook receiver for position updates - accessible without locking runtime mutex
     webhook_receiver: Arc<RwLock<Option<WebhookReceiver>>>,
+    /// Player registrar for player registration - accessible without locking runtime mutex
+    player_registrar: Arc<RwLock<Option<PlayerRegistrarService>>>,
 }
 
 // Thread-local storage for last error message
@@ -107,6 +111,7 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
     // This allows stop() and update_positions() to work without locking the runtime
     let shutdown_flag = runtime.shutdown_flag();
     let webhook_receiver = runtime.get_webhook_receiver();
+    let player_registrar = runtime.get_player_registrar();
 
     // Create a tokio runtime for the server
     let tokio_runtime = match tokio::runtime::Builder::new_multi_thread()
@@ -125,6 +130,7 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
         tokio_runtime: Some(tokio_runtime),
         shutdown_flag,
         webhook_receiver,
+        player_registrar,
     });
 
     Box::into_raw(handle)
@@ -384,13 +390,45 @@ pub unsafe extern "C" fn bvc_update_positions(
         }
     };
 
+    // Get player registrar for registration (if available)
+    let pr_guard = match handle_ref.player_registrar.read() {
+        Ok(g) => g,
+        Err(e) => {
+            set_last_error(&format!("Failed to read player_registrar: {}", e));
+            return -1;
+        }
+    };
+
+    let player_registrar = pr_guard.as_ref().cloned();
+    let has_registrar = player_registrar.is_some();
+    drop(pr_guard);  // Release read lock
+
     // Send position update (run async operation on tokio runtime)
     // Clone the webhook_receiver reference to satisfy borrow checker
     let webhook_receiver_clone = webhook_receiver.clone();
     drop(wr_guard);  // Release read lock before blocking
 
+    // Get game type, defaulting to Minecraft for backwards compatibility
+    let game_type = game_data.game.clone().unwrap_or(Game::Minecraft);
+    let players = game_data.players;
+
     tokio_rt.block_on(async {
-        position_updater::broadcast_positions(game_data.players, &webhook_receiver_clone).await;
+        // Process player registration
+        if let Some(registrar) = player_registrar {
+            let players_clone = players.clone();
+            let game_type_clone = game_type.clone();
+            // Fire-and-forget player registration in background task
+            // This ensures bvc_update_positions returns immediately without waiting for DB operations
+            tokio::spawn(async move {
+                registrar.process_players(&players_clone, game_type_clone).await;
+            });
+        } else {
+            println!("FFI: PlayerRegistrarService not available - player registration skipped");
+            tracing::warn!("FFI: PlayerRegistrarService not available - player registration skipped");
+        }
+
+        // Broadcast positions to QUIC clients (this happens immediately)
+        position_updater::broadcast_positions(players, &webhook_receiver_clone).await;
     });
 
     0

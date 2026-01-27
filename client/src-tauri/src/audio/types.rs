@@ -11,6 +11,15 @@ use ts_rs::TS;
 
 pub const BUFFER_SIZE: u32 = 960;
 
+/// Native sample rate for Opus encoding
+pub const OPUS_SAMPLE_RATE: u32 = 48000;
+
+/// Check if resampling is needed (any rate != 48 kHz)
+#[allow(dead_code)]
+pub fn needs_resampling(device_sample_rate: u32) -> bool {
+    device_sample_rate != OPUS_SAMPLE_RATE
+}
+
 /// Supported sample rates in order of preference (highest first)
 pub const SUPPORTED_SAMPLE_RATES: [u32; 2] = [48000, 44100];
 
@@ -31,7 +40,7 @@ pub enum AudioDeviceType {
     OutputDevice,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq)]
 #[ts(export, export_to = "./../../src/js/bindings/")]
 pub enum AudioDeviceHost {
     #[cfg(target_os = "windows")]

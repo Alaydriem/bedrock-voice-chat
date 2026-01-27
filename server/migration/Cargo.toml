@@ -9,6 +9,7 @@ name = "migration"
 path = "src/lib.rs"
 
 [dependencies]
+common = { path = "../../common", features = ["server"] }
 async-std = { version = "^1", features = ["attributes", "tokio1"] }
 sea-orm = { version = "^1.1", features = [
     "sqlx-mysql",

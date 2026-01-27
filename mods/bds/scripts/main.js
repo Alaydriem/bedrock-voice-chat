@@ -52,13 +52,15 @@ var Orientation = class _Orientation {
 };
 
 // src/dto/player.ts
+import { GameMode } from "@minecraft/server";
 var Player = class _Player {
-  constructor(name, dimension, coordinates, deafen, orientation) {
+  constructor(name, dimension, coordinates, deafen, orientation, spectator = false) {
     this.name = name;
     this.dimension = dimension;
     this.coordinates = coordinates;
     this.deafen = deafen;
     this.orientation = orientation;
+    this.spectator = spectator;
   }
   static fromMinecraftPlayer(player) {
     return new _Player(
@@ -66,7 +68,22 @@ var Player = class _Player {
       player.dimension.id.replace("minecraft:", ""),
       Coordinates.fromMinecraftLocation(player.location),
       player.isSneaking,
-      Orientation.fromMinecraftRotation(player.getRotation())
+      Orientation.fromMinecraftRotation(player.getRotation()),
+      player.getGameMode() === GameMode.Spectator
+    );
+  }
+  /**
+   * Create a player DTO with death dimension override.
+   * Dead players are placed at origin (0,0,0) in the "death" dimension.
+   */
+  static fromMinecraftPlayerDead(player) {
+    return new _Player(
+      player.name,
+      "death" /* DEATH */,
+      new Coordinates(0, 0, 0),
+      player.isSneaking,
+      Orientation.fromMinecraftRotation(player.getRotation()),
+      false
     );
   }
   toJSON() {
@@ -75,7 +92,8 @@ var Player = class _Player {
       dimension: this.dimension,
       coordinates: this.coordinates.toJSON(),
       deafen: this.deafen,
-      orientation: this.orientation.toJSON()
+      orientation: this.orientation.toJSON(),
+      spectator: this.spectator
     };
   }
 };
@@ -86,8 +104,15 @@ var Payload = class _Payload {
     this.game = game;
     this.players = players;
   }
-  static fromPlayers(players) {
-    const playerDtos = players.map((p) => Player.fromMinecraftPlayer(p));
+  /**
+   * Create a payload from Minecraft players.
+   * @param players Array of Minecraft players
+   * @param deadPlayers Set of player IDs who are currently dead
+   */
+  static fromPlayers(players, deadPlayers2 = /* @__PURE__ */ new Set()) {
+    const playerDtos = players.map(
+      (p) => deadPlayers2.has(p.id) ? Player.fromMinecraftPlayerDead(p) : Player.fromMinecraftPlayer(p)
+    );
     return new _Payload("minecraft", playerDtos);
   }
   toJSON() {
@@ -108,7 +133,20 @@ var debug = variables.get("bvc_debug");
 var POLL_INTERVAL = 5;
 var MIN_PLAYERS = 2;
 var REQUEST_TIMEOUT = 1;
+var deadPlayers = /* @__PURE__ */ new Set();
 console.info("[BVC] Connecting to: " + bvc_server);
+world.afterEvents.entityDie.subscribe(
+  (event) => {
+    const deadEntity = event.deadEntity;
+    if (deadEntity.typeId === "minecraft:player") {
+      deadPlayers.add(deadEntity.id);
+    }
+  },
+  { entityTypes: ["minecraft:player"] }
+);
+world.afterEvents.playerSpawn.subscribe((event) => {
+  deadPlayers.delete(event.player.id);
+});
 system.runInterval(async () => {
   const players = world.getAllPlayers();
   if (!debug) {
@@ -117,7 +155,7 @@ system.runInterval(async () => {
     }
   }
   try {
-    const payload = Payload.fromPlayers(players);
+    const payload = Payload.fromPlayers(players, deadPlayers);
     const request = new HttpRequest(`${bvc_server}/api/position`);
     request.setBody(payload.toJSONString());
     request.setMethod(HttpRequestMethod.Post);

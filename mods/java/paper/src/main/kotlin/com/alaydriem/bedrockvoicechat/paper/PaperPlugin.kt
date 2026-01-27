@@ -6,8 +6,10 @@ import com.alaydriem.bedrockvoicechat.network.HttpRequestHandler
 import com.alaydriem.bedrockvoicechat.server.BvcServerManager
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
+import org.bukkit.event.entity.PlayerDeathEvent
 import org.bukkit.event.player.PlayerJoinEvent
 import org.bukkit.event.player.PlayerQuitEvent
+import org.bukkit.event.player.PlayerRespawnEvent
 import org.bukkit.plugin.java.JavaPlugin
 import org.bukkit.scheduler.BukkitTask
 
@@ -64,6 +66,9 @@ class PaperPlugin : JavaPlugin(), Listener {
             logger.info("Bedrock Voice Chat will connect to: ${config.bvcServer}")
         }
 
+        // Set server reference on data provider for player lookups
+        playerDataProvider.server = server
+
         // Register this plugin as event listener for player events
         server.pluginManager.registerEvents(this, this)
 
@@ -98,5 +103,15 @@ class PaperPlugin : JavaPlugin(), Listener {
     @EventHandler
     fun onPlayerQuit(event: PlayerQuitEvent) {
         playerDataProvider.removePlayer(event.player)
+    }
+
+    @EventHandler
+    fun onPlayerDeath(event: PlayerDeathEvent) {
+        playerDataProvider.markDead(event.entity)
+    }
+
+    @EventHandler
+    fun onPlayerRespawn(event: PlayerRespawnEvent) {
+        playerDataProvider.markAlive(event.player)
     }
 }

@@ -2,6 +2,7 @@ pub mod position_updater;
 
 use crate::config::ApplicationConfig;
 use crate::rs::manager::RocketManager;
+use crate::services::{CertificateService, PlayerRegistrarService};
 use crate::stream::quic::{QuicServerManager, WebhookReceiver};
 
 use anyhow::anyhow;
@@ -11,6 +12,7 @@ use rcgen::{
     CertificateParams, DistinguishedName, ExtendedKeyUsagePurpose, IsCa, KeyPair, KeyUsagePurpose,
 };
 use rocket::time::{Duration, OffsetDateTime};
+use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
@@ -40,6 +42,8 @@ pub struct ServerRuntime {
     shutdown_flag: Arc<AtomicBool>,
     /// Webhook receiver for sending position updates directly (populated after start)
     webhook_receiver: Arc<RwLock<Option<WebhookReceiver>>>,
+    /// Player registrar for handling player registration (populated after start)
+    player_registrar: Arc<RwLock<Option<PlayerRegistrarService>>>,
     _logger_guard: Option<WorkerGuard>,
 }
 
@@ -51,6 +55,7 @@ impl ServerRuntime {
             state: RuntimeState::Stopped,
             shutdown_flag: Arc::new(AtomicBool::new(false)),
             webhook_receiver: Arc::new(RwLock::new(None)),
+            player_registrar: Arc::new(RwLock::new(None)),
             _logger_guard: None,
         })
     }
@@ -98,6 +103,23 @@ impl ServerRuntime {
         // Generate CA certificates
         self.generate_ca().await?;
 
+        // Create standalone database connection for FFI and shared services
+        let db_conn = self.create_database_connection().await?;
+        let db_conn = Arc::new(db_conn);
+
+        // Create certificate manager (caches root CA)
+        let cert_manager = CertificateService::new_shared(&self.config.server.tls.certs_path)?;
+
+        // Create player registrar for shared player registration logic
+        let player_registrar = PlayerRegistrarService::new(db_conn, cert_manager);
+
+        // Store player_registrar for FFI access
+        {
+            let mut pr = self.player_registrar.write()
+                .map_err(|_| anyhow!("player_registrar lock poisoned"))?;
+            *pr = Some(player_registrar.clone());
+        }
+
         // State cache for recording groups a player is in
         let channel_cache = Arc::new(async_mutex::Mutex::new(
             moka::future::Cache::<String, Channel>::builder()
@@ -123,6 +145,7 @@ impl ServerRuntime {
             webhook_receiver,
             channel_cache.clone(),
             cache_manager,
+            player_registrar,
         );
 
         self.state = RuntimeState::Running;
@@ -176,6 +199,11 @@ impl ServerRuntime {
         self.webhook_receiver.clone()
     }
 
+    /// Get a clone of the player registrar Arc for external use (FFI)
+    pub fn get_player_registrar(&self) -> Arc<RwLock<Option<PlayerRegistrarService>>> {
+        self.player_registrar.clone()
+    }
+
     /// Update player positions directly (bypasses HTTP).
     /// Used by FFI to send position updates without HTTP overhead.
     ///
@@ -196,6 +224,54 @@ impl ServerRuntime {
         Ok(())
     }
 
+    /// Create a standalone database connection.
+    /// This is used by the PlayerRegistrarService and can be shared between components.
+    async fn create_database_connection(&self) -> Result<DatabaseConnection, anyhow::Error> {
+        let dsn = self.get_dsn();
+        tracing::info!("Creating standalone database connection: {}", dsn);
+
+        let mut options = ConnectOptions::new(dsn);
+        options
+            .max_connections(100)
+            .min_connections(1)
+            .connect_timeout(std::time::Duration::from_secs(3))
+            .idle_timeout(std::time::Duration::from_secs(60))
+            .sqlx_logging(false);
+
+        let conn = Database::connect(options).await?;
+        Ok(conn)
+    }
+
+    /// Get the database DSN string from config.
+    fn get_dsn(&self) -> String {
+        match self.config.database.scheme.as_str() {
+            "sqlite" | "sqlite3" => {
+                let path = std::path::Path::new(&self.config.database.database);
+                if !path.exists() {
+                    match std::fs::File::create(&self.config.database.database) {
+                        Ok(_) => {}
+                        Err(_e) => {
+                            panic!(
+                                "Verify that {} exists and is writable. You may need to create this file.",
+                                &self.config.database.database
+                            );
+                        }
+                    }
+                }
+                format!("sqlite://{}", &self.config.database.database)
+            }
+            "mysql" => format!(
+                "mysql://{}:{}@{}:{}/{}",
+                &self.config.database.username.clone().unwrap_or(String::from("")),
+                &self.config.database.password.clone().unwrap_or(String::from("")),
+                &self.config.database.host.clone().unwrap_or(String::from("127.0.0.1")),
+                &self.config.database.port.unwrap_or(3306),
+                &self.config.database.database
+            ),
+            _ => format!("sqlite://{}", "/etc/bvc/bvc.sqlite3"),
+        }
+    }
+
     /// Setup the tracing/logging subsystem
     fn setup_logging(&mut self) -> Result<(), anyhow::Error> {
         use tracing_appender::non_blocking::NonBlocking;
@@ -207,12 +283,7 @@ impl ServerRuntime {
         let guard: WorkerGuard;
 
         match out.to_lowercase().as_str() {
-            "stdout" => {
-                (non_blocking, guard) = tracing_appender::non_blocking(std::io::stdout());
-            }
-            "callback" => {
-                // For FFI mode - logging goes to callback (handled separately)
-                // For now, just use stdout
+            "stdout" | "callback" => {
                 (non_blocking, guard) = tracing_appender::non_blocking(std::io::stdout());
             }
             _ => {

@@ -14,10 +14,13 @@ import Keyring from './keyring.ts';
 import Sidebar from "./components/dashboard/sidebar.ts";
 import Onboarding from './onboarding';
 import PlatformDetector from './utils/PlatformDetector';
+import ImageCache from './components/imageCache';
+import ImageCacheOptions from './components/imageCacheOptions';
 
 import { PlayerManager } from './managers/PlayerManager';
 import ChannelManager from './managers/ChannelManager';
 import { AudioActivityManager } from './managers/AudioActivityManager';
+import { setupAudioRecovery } from './audioRecovery';
 
 import Notification from "../../components/events/Notification.svelte";
 import type { NoiseGateSettings } from '../bindings/NoiseGateSettings.ts';
@@ -90,6 +93,11 @@ export default class Dashboard extends BVCApp {
             });
         });
         this.eventUnlisteners.push(notificationUnlisten);
+
+        // Set up audio stream recovery handler
+        const audioRecoveryUnlisten = await setupAudioRecovery();
+        this.eventUnlisteners.push(audioRecoveryUnlisten);
+
         const currentServer = await this.store.get<string>("current_server");
 
         // Initialize managers with dependency injection
@@ -213,9 +221,9 @@ export default class Dashboard extends BVCApp {
     /**
      * Set the player avatar after DOM is ready
      */
-    public setPlayerAvatar(): void {
+    public async setPlayerAvatar(): Promise<void> {
         if (!this.currentServerCredentials) {
-            warn('Dashboard: No current server credentials available for avatar');
+            warn('No current server credentials available for avatar');
             return;
         }
 
@@ -225,28 +233,47 @@ export default class Dashboard extends BVCApp {
         const dropdownNameElement = document.getElementById("player-dropdown-name");
         const profileButton = document.getElementById("profile-ref");
 
-        if (avatarElement && this.currentServerCredentials?.gamerpic) {
-            try {
-                const decodedAvatar = atob(this.currentServerCredentials.gamerpic);
-                avatarElement.setAttribute("src", decodedAvatar);
+        if (avatarElement && this.store) {
+            let avatarSrc = "";
+            const activeGame = await this.store.get<string>("active_game");
 
-                // Also set the dropdown avatar
-                if (dropdownAvatarElement) {
-                    dropdownAvatarElement.setAttribute("src", decodedAvatar);
+            if (this.currentServerCredentials?.gamerpic) {
+                try {
+                    const avatarUrl = atob(this.currentServerCredentials.gamerpic);
+
+                    const imageCache = new ImageCache();
+                    const options = new ImageCacheOptions(avatarUrl, 86400);
+                    avatarSrc = await imageCache.getImage(options);
+                } catch (err) {
+                    warn(`Dashboard: Failed to fetch/decode player avatar: ${err}`);
+                    if (activeGame === "hytale") {
+                        avatarSrc = "/images/hytale-avatar.jpg";
+                    }
                 }
-            } catch (err) {
-                warn(`Dashboard: Failed to decode player avatar: ${err}`);
-                // Set a default avatar or leave empty
-                avatarElement.setAttribute("src", "");
-                if (dropdownAvatarElement) {
-                    dropdownAvatarElement.setAttribute("src", "");
-                }
+            } else if (activeGame === "hytale") {
+                avatarSrc = "/images/hytale-avatar.jpg";
+            }
+
+            avatarElement.setAttribute("src", avatarSrc);
+            if (dropdownAvatarElement) {
+                dropdownAvatarElement.setAttribute("src", avatarSrc);
             }
         }
 
         // Set player name in dropdown
         if (dropdownNameElement && this.currentServerCredentials?.gamertag) {
             dropdownNameElement.textContent = this.currentServerCredentials.gamertag;
+        }
+
+        // Set game name in dropdown (first letter capitalized)
+        const dropdownGameElement = document.getElementById("player-dropdown-game");
+        if (dropdownGameElement && this.store) {
+            const activeGame = await this.store.get<string>("active_game");
+            if (activeGame) {
+                // Capitalize first letter
+                const gameName = activeGame.charAt(0).toUpperCase() + activeGame.slice(1);
+                dropdownGameElement.textContent = gameName;
+            }
         }
 
         if (profileButton) {

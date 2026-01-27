@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 fn default_broadcast_range() -> f32 {
-    32.0
+    48.0
 }
 
 fn default_crouch_multiplier() -> f32 {

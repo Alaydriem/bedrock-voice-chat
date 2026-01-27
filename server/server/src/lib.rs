@@ -11,6 +11,7 @@ extern crate rocket;
 // Internal modules (used by runtime)
 pub(crate) mod config;
 pub(crate) mod rs;
+pub mod services;
 pub(crate) mod stream;
 
 // Public modules

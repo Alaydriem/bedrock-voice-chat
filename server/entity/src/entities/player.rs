@@ -22,6 +22,7 @@ pub struct Model {
     pub signature: Vec<u8>,
     pub created_at: u32,
     pub updated_at: u32,
+    pub game: common::Game,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

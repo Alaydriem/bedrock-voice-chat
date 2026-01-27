@@ -1,6 +1,8 @@
-use crate::auth::login;
+use crate::auth::{hytale, login};
 use crate::structs::app_state::AppState;
-use common::structs::config::LoginResponse;
+use common::structs::config::{
+    HytaleAuthStatus, HytaleDeviceFlowStartResponse, HytaleDeviceFlowStatusResponse, LoginResponse,
+};
 use tauri::{async_runtime::Mutex, State};
 use tauri_plugin_store::StoreExt;
 
@@ -73,4 +75,38 @@ pub(crate) async fn logout(
     state.current_server = None;
 
     Ok(())
+}
+
+#[tauri::command(async)]
+pub(crate) async fn start_hytale_device_flow(
+    server: String,
+) -> Result<HytaleDeviceFlowStartResponse, bool> {
+    hytale::start_hytale_device_flow(server).await
+}
+
+#[tauri::command(async)]
+pub(crate) async fn poll_hytale_status(
+    app_state: State<'_, Mutex<AppState>>,
+    server: String,
+    session_id: String,
+) -> Result<HytaleDeviceFlowStatusResponse, bool> {
+    let poll_result = hytale::poll_hytale_status(server.clone(), session_id).await;
+
+    // If login is successful, initialize the API client
+    if let Ok(ref response) = poll_result {
+        if response.status == HytaleAuthStatus::Success {
+            if let Some(ref login_response) = response.login_response {
+                let mut state = app_state.lock().await;
+                state
+                    .initialize_api_client(
+                        server,
+                        login_response.certificate_ca.clone(),
+                        login_response.certificate.clone() + &login_response.certificate_key.clone(),
+                    )
+                    .await;
+            }
+        }
+    }
+
+    poll_result
 }

@@ -10,4 +10,6 @@ pub enum MinecraftCommunicationError {
         sender: Dimension,
         recipient: Dimension,
     },
+    #[error("spectator cannot be heard by non-spectator")]
+    SpectatorInaudible,
 }

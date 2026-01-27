@@ -14,6 +14,8 @@ Write-Host "Starting Android build in $BuildType mode..." -ForegroundColor Green
 
 $env:LIBCLANG_PATH = "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\Llvm\\x64\\lib"
 
+$env:CARGO_TARGET_DIR = "$PSScriptRoot/../target/android-$BuildType"
+
 # Set environment variables for build tools
 $env:CMAKE_GENERATOR = "Ninja"
 $env:CMAKE = "cmake"
@@ -24,32 +26,32 @@ $env:AWS_LC_SYS_EXTERNAL_BINDGEN = "1"
 # Add NDK tools to PATH so cargo can find the linkers
 $env:PATH = "$env:ANDROID_NDK_HOME\toolchains\llvm\prebuilt\windows-x86_64\bin;$env:PATH"
 
-# Force all architectures to use API 27 toolchain for AAudio support
-$env:CC_aarch64_linux_android = "aarch64-linux-android27-clang.cmd"
-$env:CXX_aarch64_linux_android = "aarch64-linux-android27-clang++.cmd"
+# Force all architectures to use API 35 toolchain for AAudio support
+$env:CC_aarch64_linux_android = "aarch64-linux-android35-clang.cmd"
+$env:CXX_aarch64_linux_android = "aarch64-linux-android35-clang++.cmd"
 $env:AR_aarch64_linux_android = "llvm-ar.exe"
-$env:CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER = "aarch64-linux-android27-clang.cmd"
+$env:CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER = "aarch64-linux-android35-clang.cmd"
 
-$env:CC_armv7_linux_androideabi = "armv7a-linux-androideabi27-clang.cmd"
-$env:CXX_armv7_linux_androideabi = "armv7a-linux-androideabi27-clang++.cmd"
+$env:CC_armv7_linux_androideabi = "armv7a-linux-androideabi35-clang.cmd"
+$env:CXX_armv7_linux_androideabi = "armv7a-linux-androideabi35-clang++.cmd"
 $env:AR_armv7_linux_androideabi = "llvm-ar.exe"
-$env:CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER = "armv7a-linux-androideabi27-clang.cmd"
+$env:CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER = "armv7a-linux-androideabi35-clang.cmd"
 
-$env:CC_i686_linux_android = "i686-linux-android27-clang.cmd"
-$env:CXX_i686_linux_android = "i686-linux-android27-clang++.cmd"
+$env:CC_i686_linux_android = "i686-linux-android35-clang.cmd"
+$env:CXX_i686_linux_android = "i686-linux-android35-clang++.cmd"
 $env:AR_i686_linux_android = "llvm-ar.exe"
-$env:CARGO_TARGET_I686_LINUX_ANDROID_LINKER = "i686-linux-android27-clang.cmd"
+$env:CARGO_TARGET_I686_LINUX_ANDROID_LINKER = "i686-linux-android35-clang.cmd"
 
-$env:CC_x86_64_linux_android = "x86_64-linux-android27-clang.cmd"
-$env:CXX_x86_64_linux_android = "x86_64-linux-android27-clang++.cmd"
+$env:CC_x86_64_linux_android = "x86_64-linux-android35-clang.cmd"
+$env:CXX_x86_64_linux_android = "x86_64-linux-android35-clang++.cmd"
 $env:AR_x86_64_linux_android = "llvm-ar.exe"
-$env:CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER = "x86_64-linux-android27-clang.cmd"
+$env:CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER = "x86_64-linux-android35-clang.cmd"
 
 # Set RUSTFLAGS for each target with library search paths
-$env:CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS = "--cfg s2n_quic_unstable -C link-arg=-lc++_shared -L $env:ANDROID_NDK_HOME\toolchains\llvm\prebuilt\windows-x86_64\sysroot\usr\lib\aarch64-linux-android\27"
-$env:CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_RUSTFLAGS = "--cfg s2n_quic_unstable -C link-arg=-lc++_shared -L $env:ANDROID_NDK_HOME\toolchains\llvm\prebuilt\windows-x86_64\sysroot\usr\lib\arm-linux-androideabi\27"
-$env:CARGO_TARGET_I686_LINUX_ANDROID_RUSTFLAGS = "--cfg s2n_quic_unstable -C link-arg=-lc++_shared -L $env:ANDROID_NDK_HOME\toolchains\llvm\prebuilt\windows-x86_64\sysroot\usr\lib\i686-linux-android\27"
-$env:CARGO_TARGET_X86_64_LINUX_ANDROID_RUSTFLAGS = "--cfg s2n_quic_unstable -C link-arg=-lc++_shared -L $env:ANDROID_NDK_HOME\toolchains\llvm\prebuilt\windows-x86_64\sysroot\usr\lib\x86_64-linux-android\27"
+$env:CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS = "--cfg s2n_quic_unstable -C link-arg=-lc++_shared -L $env:ANDROID_NDK_HOME\toolchains\llvm\prebuilt\windows-x86_64\sysroot\usr\lib\aarch64-linux-android\35"
+$env:CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_RUSTFLAGS = "--cfg s2n_quic_unstable -C link-arg=-lc++_shared -L $env:ANDROID_NDK_HOME\toolchains\llvm\prebuilt\windows-x86_64\sysroot\usr\lib\arm-linux-androideabi\35"
+$env:CARGO_TARGET_I686_LINUX_ANDROID_RUSTFLAGS = "--cfg s2n_quic_unstable -C link-arg=-lc++_shared -L $env:ANDROID_NDK_HOME\toolchains\llvm\prebuilt\windows-x86_64\sysroot\usr\lib\i686-linux-android\35"
+$env:CARGO_TARGET_X86_64_LINUX_ANDROID_RUSTFLAGS = "--cfg s2n_quic_unstable -C link-arg=-lc++_shared -L $env:ANDROID_NDK_HOME\toolchains\llvm\prebuilt\windows-x86_64\sysroot\usr\lib\x86_64-linux-android\35"
 
 # Set base includes (clang builtin headers and general sysroot)
 $includesBase = "$env:ANDROID_NDK_HOME/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/20/include;$env:ANDROID_NDK_HOME/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/include"

@@ -1,4 +1,5 @@
 mod banish;
+mod add;
 use super::Config as StateConfig;
 use clap::Parser;
 
@@ -6,6 +7,8 @@ use clap::Parser;
 pub enum SubCommand {
     /// Banishes a user
     Banish(banish::Config),
+    /// Adds a user
+    Add(add::Config),
 }
 
 /// Starts the BVC Server
@@ -21,6 +24,7 @@ impl Config {
     pub async fn run<'a>(&'a self, cfg: &StateConfig) {
         match &self.cmd {
             SubCommand::Banish(command) => command.run(&cfg).await,
+            SubCommand::Add(command) => command.run(&cfg).await,
         }
     }
 }

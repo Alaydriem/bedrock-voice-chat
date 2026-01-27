@@ -16,7 +16,8 @@ sealed interface Dimension {
     enum class Minecraft(private val value: String) : Dimension {
         OVERWORLD("overworld"),
         NETHER("nether"),
-        THE_END("the_end");
+        THE_END("the_end"),
+        DEATH("death");
 
         override fun toApiString(): String = value
     }
@@ -25,7 +26,8 @@ sealed interface Dimension {
      * Hytale dimensions.
      */
     enum class Hytale(private val value: String) : Dimension {
-        ORBIS("orbis");
+        ORBIS("orbis"),
+        DEATH("death");
 
         override fun toApiString(): String = value
     }
@@ -53,10 +55,12 @@ sealed interface Dimension {
                     "minecraft:overworld", "overworld", "world" -> Minecraft.OVERWORLD
                     "minecraft:the_nether", "the_nether", "nether", "world_nether" -> Minecraft.NETHER
                     "minecraft:the_end", "the_end", "world_the_end" -> Minecraft.THE_END
+                    "death" -> Minecraft.DEATH
                     else -> Custom(raw)
                 }
                 GameType.HYTALE -> when (raw.lowercase()) {
                     "orbis" -> Hytale.ORBIS
+                    "death" -> Hytale.DEATH
                     else -> Custom(raw)
                 }
             }

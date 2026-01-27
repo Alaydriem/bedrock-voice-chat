@@ -18,4 +18,8 @@ pub enum HytaleCommunicationError {
         sender: Dimension,
         recipient: Dimension,
     },
+
+    /// Spectator cannot be heard by non-spectator
+    #[error("spectator cannot be heard by non-spectator")]
+    SpectatorInaudible,
 }

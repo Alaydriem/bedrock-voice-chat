@@ -20,6 +20,7 @@ class PaperPlayerDataProviderTest {
     fun setUp() {
         server = MockBukkit.mock()
         provider = PaperPlayerDataProvider()
+        provider.server = server
     }
 
     @AfterEach

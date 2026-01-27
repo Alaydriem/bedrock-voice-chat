@@ -178,7 +178,7 @@
                     {#if isRunning}
                         <span class="badge bg-success text-white">Running</span>
                     {:else}
-                        <span class="badge bg-slate-300 text-slate-700 dark:bg-navy-500">Stopped</span>
+                        <span class="badge bg-slate-300 text-slate-700 dark:bg-navy-500 text-warning">Stopped</span>
                     {/if}
                 </div>
                 <label class="inline-flex items-center space-x-2 cursor-pointer">

@@ -1,5 +1,6 @@
 use super::sink_manager::SinkManager;
 use crate::audio::stream::stream_manager::AudioSinkType;
+use crate::audio::stream::RecoverySender;
 use crate::audio::recording::RecordingProducer;
 use crate::{audio::stream::jitter_buffer::EncodedAudioFramePacket, events::ServerError};
 
@@ -53,6 +54,7 @@ pub(crate) struct OutputStream {
     player_gain_cache: Arc<moka::sync::Cache<String, PlayerGainSettings>>,
     // Recording state - shared with SinkManager for post-jitter-buffer recording
     recording_enabled: Arc<AtomicBool>,
+    recovery_tx: RecoverySender,
 }
 
 impl common::traits::StreamTrait for OutputStream {
@@ -184,6 +186,7 @@ impl OutputStream {
         metadata: Arc<moka::future::Cache<String, String>>,
         app_handle: tauri::AppHandle,
         recording_producer: Option<Arc<RecordingProducer>>,
+        recovery_tx: RecoverySender,
     ) -> Self {
         let players = moka::sync::Cache::builder()
             .time_to_idle(Duration::from_secs(15 * 60))
@@ -221,6 +224,7 @@ impl OutputStream {
             recording_producer,
             player_gain_cache: Arc::new(player_gain_cache),
             recording_enabled: Arc::new(AtomicBool::new(false)),
+            recovery_tx,
         }
     }
 
@@ -340,7 +344,28 @@ impl OutputStream {
 
         match self.device.clone() {
             Some(device) => match device.get_stream_config() {
-                Ok(config) => {
+                Ok(stored_config) => {
+                    // Validate stored config against live device - detect Windows sound settings changes
+                    let config = match crate::audio::device::refresh_device_config(&device) {
+                        Some(fresh_configs) if !fresh_configs.is_empty() => {
+                            let fresh_config: rodio::cpal::SupportedStreamConfig =
+                                fresh_configs[0].clone().into();
+                            if fresh_config.sample_rate() != stored_config.sample_rate() {
+                                warn!(
+                                    "Output device {} sample rate changed: stored {}Hz, actual {}Hz. Using actual.",
+                                    device.display_name,
+                                    stored_config.sample_rate().0,
+                                    fresh_config.sample_rate().0
+                                );
+                            }
+                            fresh_config
+                        }
+                        _ => {
+                            warn!("Could not refresh output device config for {}, using stored config", device.display_name);
+                            stored_config
+                        }
+                    };
+
                     let cpal_device: Option<rodio::cpal::Device> = device.clone().into();
                     let handle = match cpal_device {
                         Some(cpal_device) => {
