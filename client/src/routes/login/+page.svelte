@@ -6,9 +6,10 @@
   import PlatformDetector from "../../js/app/utils/PlatformDetector.ts";
 
   const platformDetector = new PlatformDetector();
-  let isMobile = platformDetector.checkMobile();
+  let isMobile = false;
 
   onMount(async () => {
+    isMobile = await platformDetector.checkMobile();
     window.App = new Login();
     window.dispatchEvent(new CustomEvent("app:mounted"));
 
