@@ -1,3 +1,10 @@
+# [1.0.0-beta.6](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.5...v1.0.0-beta.6) (2026-01-27)
+
+
+### Bug Fixes
+
+* hytale button appearing on mobile but not desktop ([65a7c14](https://github.com/Alaydriem/bedrock-voice-chat/commit/65a7c14093f3899bf28fc80a36c7c0633be8f503))
+
 # [1.0.0-beta.5](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.4...v1.0.0-beta.5) (2026-01-26)
 
 
