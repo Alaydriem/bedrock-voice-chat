@@ -1,3 +1,11 @@
+# [1.0.0-beta.7](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.6...v1.0.0-beta.7) (2026-01-27)
+
+
+### Bug Fixes
+
+* hytale promise not resolving on mobile ([ebd1116](https://github.com/Alaydriem/bedrock-voice-chat/commit/ebd1116e8d2ce85cebc7bc5196b2eed4fc37c47b))
+* hytale promise not resolving on mobile ([6dfd01b](https://github.com/Alaydriem/bedrock-voice-chat/commit/6dfd01be457f3f5b6578147cea58f7ea01ce7263))
+
 # [1.0.0-beta.6](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.5...v1.0.0-beta.6) (2026-01-27)
 
 
