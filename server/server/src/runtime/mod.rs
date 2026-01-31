@@ -98,7 +98,7 @@ impl ServerRuntime {
         // Setup logging
         self.setup_logging()?;
 
-        info!("Logger established!");
+        info!("Bedrock Voice Chat Server v{}", crate::VERSION);
 
         // Generate CA certificates
         self.generate_ca().await?;

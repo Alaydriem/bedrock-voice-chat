@@ -3,6 +3,9 @@
 //! This library provides the core BVC server functionality that can be used
 //! either as a standalone server or embedded into other applications via FFI.
 
+/// The version of the BVC server, embedded at compile time from Cargo.toml.
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 extern crate common;
 
 #[macro_use]
