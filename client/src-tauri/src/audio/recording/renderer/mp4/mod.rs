@@ -9,9 +9,13 @@
 //! - Professional timecode track (tmcd) for NLE compatibility
 //! - User data box (udta) with session metadata
 
+mod boxes;
+mod constants;
 mod timecode;
 
-use timecode::{create_timecode_sample, create_timecode_track, create_user_data_box};
+use boxes::BoxWriter;
+use timecode::{TimecodeSample, TimecodeTrack, UserDataBox};
+
 use super::{AudioRenderer, OpusChunk, OpusPacketStream, OpusStreamInfo};
 use async_trait::async_trait;
 use shiguredo_mp4::boxes::{AudioSampleEntryFields, DopsBox, OpusBox, SampleEntry};
@@ -24,23 +28,19 @@ use std::path::Path;
 
 /// Create a tref box that references the timecode track
 fn create_tref_to_timecode(timecode_track_id: u32) -> Vec<u8> {
-    let mut tref = Vec::new();
-
-    // tref box: size (4) + 'tref' (4) + content
-    // content is tmcd reference: size (4) + 'tmcd' (4) + track_id (4)
+    // Build tref box: tref contains a tmcd reference with the track ID
+    // tref: size (4) + 'tref' (4) + tmcd reference
+    // tmcd reference: size (4) + 'tmcd' (4) + track_id (4)
     let tmcd_size: u32 = 12; // 4 + 4 + 4
     let tref_size: u32 = 8 + tmcd_size;
 
-    // tref header
-    tref.extend_from_slice(&tref_size.to_be_bytes());
-    tref.extend_from_slice(b"tref");
-
-    // tmcd reference
-    tref.extend_from_slice(&tmcd_size.to_be_bytes());
-    tref.extend_from_slice(b"tmcd");
-    tref.extend_from_slice(&timecode_track_id.to_be_bytes());
-
-    tref
+    BoxWriter::new()
+        .u32(tref_size)
+        .fourcc(b"tref")
+        .u32(tmcd_size)
+        .fourcc(b"tmcd")
+        .u32(timecode_track_id)
+        .finish()
 }
 
 /// Inject tref box into the first trak box found in moov content
@@ -236,7 +236,10 @@ impl AudioRenderer for Mp4Renderer {
         // Process all packets
         for chunk in stream {
             match chunk? {
-                OpusChunk::Packet { data, duration_samples } => {
+                OpusChunk::Packet {
+                    data,
+                    duration_samples,
+                } => {
                     self.write_sample(
                         &mut file,
                         &mut muxer,
@@ -249,7 +252,10 @@ impl AudioRenderer for Mp4Renderer {
                     )?;
                     total_samples += duration_samples as u64;
                 }
-                OpusChunk::Silence { data, duration_samples } => {
+                OpusChunk::Silence {
+                    data,
+                    duration_samples,
+                } => {
                     self.write_sample(
                         &mut file,
                         &mut muxer,
@@ -275,19 +281,10 @@ impl AudioRenderer for Mp4Renderer {
             .finalized_boxes()
             .ok_or_else(|| anyhow::anyhow!("Muxer not finalized"))?;
 
-        // Create timecode sample data
-        let timecode_sample = create_timecode_sample(&info);
+        // Create timecode sample using new struct-based API
+        let timecode_sample = TimecodeSample::from_stream_info(&info);
 
         let mut timecode_data_offset = 0u64;
-
-        for (offset, bytes) in finalized.offset_and_bytes_pairs() {
-            if bytes.len() >= 8 && &bytes[4..8] == b"moov" {
-                // Calculate modified moov size to know where timecode goes
-                let original_content = &bytes[8..];
-                let audio_tref = create_tref_to_timecode(2);
-                break;
-            }
-        }
 
         // Write all boxes from muxer, modifying moov as needed
         for (offset, bytes) in finalized.offset_and_bytes_pairs() {
@@ -297,7 +294,10 @@ impl AudioRenderer for Mp4Renderer {
                 let original_content = &bytes[8..]; // Skip size and 'moov' fourcc
                 let audio_tref = create_tref_to_timecode(2);
                 let modified_content = inject_tref_into_audio_trak(original_content, &audio_tref);
-                let udta = create_user_data_box(&info, Some(duration_ms));
+
+                // Create user data box using new struct-based API
+                let udta = UserDataBox::from_stream_info(&info, Some(duration_ms));
+                let udta_bytes = udta.to_bytes();
 
                 // Timecode data goes AFTER the moov box
                 // moov starts at `offset`, new moov size = 8 + modified_content + timecode_track + udta
@@ -305,25 +305,45 @@ impl AudioRenderer for Mp4Renderer {
                 // Solution: timecode track size is fixed given the parameters, so calculate it
 
                 // Create a dummy timecode track to get its size
-                let dummy_timecode_track = create_timecode_track(&info, 2, total_samples, 0)?;
-                let new_moov_size = 8 + modified_content.len() + dummy_timecode_track.len() + udta.len();
+                let dummy_timecode_track = TimecodeTrack::builder()
+                    .from_stream_info(&info)
+                    .track_id(2)
+                    .audio_track_id(1)
+                    .duration_samples(total_samples)
+                    .data_offset(0)
+                    .build()
+                    .map_err(|e| anyhow::anyhow!("Failed to build timecode track: {}", e))?
+                    .to_bytes()
+                    .map_err(|e| anyhow::anyhow!("Failed to serialize timecode track: {}", e))?;
+
+                let new_moov_size =
+                    8 + modified_content.len() + dummy_timecode_track.len() + udta_bytes.len();
 
                 // Timecode sample data will be written right after moov
                 timecode_data_offset = offset + new_moov_size as u64;
 
                 // Now create the real timecode track with correct offset
-                let timecode_track =
-                    create_timecode_track(&info, 2, total_samples, timecode_data_offset)?;
+                let timecode_track = TimecodeTrack::builder()
+                    .from_stream_info(&info)
+                    .track_id(2)
+                    .audio_track_id(1)
+                    .duration_samples(total_samples)
+                    .data_offset(timecode_data_offset)
+                    .build()
+                    .map_err(|e| anyhow::anyhow!("Failed to build timecode track: {}", e))?
+                    .to_bytes()
+                    .map_err(|e| anyhow::anyhow!("Failed to serialize timecode track: {}", e))?;
 
                 // Build new moov: modified content (with tref in audio trak) + timecode trak + udta
-                let new_size = 8 + modified_content.len() + timecode_track.len() + udta.len();
+                let new_size =
+                    8 + modified_content.len() + timecode_track.len() + udta_bytes.len();
 
                 let mut new_moov = Vec::with_capacity(new_size);
                 new_moov.extend_from_slice(&(new_size as u32).to_be_bytes());
                 new_moov.extend_from_slice(b"moov");
                 new_moov.extend_from_slice(&modified_content);
                 new_moov.extend_from_slice(&timecode_track);
-                new_moov.extend_from_slice(&udta);
+                new_moov.extend_from_slice(&udta_bytes);
 
                 file.seek(std::io::SeekFrom::Start(offset))?;
                 file.write_all(&new_moov)?;
@@ -335,7 +355,7 @@ impl AudioRenderer for Mp4Renderer {
 
         // Now write timecode sample data AFTER moov
         file.seek(std::io::SeekFrom::Start(timecode_data_offset))?;
-        file.write_all(&timecode_sample)?;
+        file.write_all(&timecode_sample.to_vec())?;
 
         Ok(())
     }
