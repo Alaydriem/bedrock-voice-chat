@@ -29,6 +29,11 @@ on:
         type: boolean
         default: false
 
+permissions:
+  contents: write
+  packages: write
+  actions: read
+
 defaults:
   run:
     shell: bash
