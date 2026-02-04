@@ -12,6 +12,11 @@ on:
         description: 'Git ref to checkout (tag, branch, or SHA)'
         required: false
         type: string
+      skip_docker:
+        description: 'Skip Docker image build'
+        required: false
+        default: false
+        type: boolean
   workflow_dispatch:
     inputs:
       build_mode:
@@ -204,6 +209,7 @@ jobs:
   build-docker:
     name: Build Docker Image
     needs: build-server
+    if: ${{ !inputs.skip_docker }}
     uses: ./.github/workflows/build-server-docker.yml
     with:
       version: ${{ github.ref_name }}

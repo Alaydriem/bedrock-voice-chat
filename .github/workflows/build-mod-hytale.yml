@@ -11,6 +11,10 @@ on:
         description: 'Git ref to checkout (tag, branch, or SHA)'
         required: false
         type: string
+      artifact_run_id:
+        description: 'Workflow run ID to download artifacts from (for cross-workflow artifact sharing)'
+        required: false
+        type: string
     secrets:
       HYTALE_DOWNLOADER_CREDENTIALS:
         description: 'Hytale downloader credentials JSON'
@@ -32,6 +36,7 @@ on:
 permissions:
   contents: write
   packages: write
+  actions: read
 
 jobs:
   build:
@@ -53,13 +58,17 @@ jobs:
         with:
           name: bvc-native-lib-x86_64-pc-windows-msvc
           path: mods/java/common/src/main/resources/native/windows-x64/
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ inputs.artifact_run_id || github.run_id }}
 
       - name: Download Linux x64 native library
         uses: actions/download-artifact@v4
         continue-on-error: true
         with:
-          name: bvc-native-lib-x86_64-unknown-linux-gnu
+          name: bvc-native-lib-x86_64-unknown-linux-musl
           path: mods/java/common/src/main/resources/native/linux-x64/
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ inputs.artifact_run_id || github.run_id }}
 
       - name: List native libraries
         run: find mods/java/common/src/main/resources/native -type f -ls 2>/dev/null || echo "No native libraries found"
