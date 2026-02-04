@@ -265,9 +265,11 @@ impl QuicServerManager {
                 };
 
                 let cache_manager_for_callback = cache_manager.clone();
+                let webhook_receiver_for_callback = webhook_receiver.clone();
                 input_stream.set_disconnect_callback(Box::new(
                     move |player_id: String, client_id: Vec<u8>| {
                         let cache_manager = cache_manager_for_callback.clone();
+                        let webhook_receiver = webhook_receiver_for_callback.clone();
                         tokio::spawn(async move {
                             let client_hash = client_id_hash(&client_id);
                             tracing::info!(
@@ -275,8 +277,46 @@ impl QuicServerManager {
                                 player_id,
                                 client_hash
                             );
-                            if let Err(e) = cache_manager.remove_player(&player_id).await {
-                                tracing::error!("Failed to remove player {}: {}", player_id, e);
+
+                            // Remove player from caches and get the channels they were in
+                            match cache_manager.remove_player(&player_id).await {
+                                Ok(removed_channels) => {
+                                    // Broadcast channel leave events for each channel the player was in
+                                    for channel_id in removed_channels {
+                                        let leave_packet = common::structs::packet::QuicNetworkPacket {
+                                            owner: Some(common::structs::packet::PacketOwner {
+                                                name: player_id.clone(),
+                                                client_id: client_id.clone(),
+                                            }),
+                                            packet_type: common::structs::packet::PacketType::ChannelEvent,
+                                            data: common::structs::packet::QuicNetworkPacketData::ChannelEvent(
+                                                common::structs::packet::ChannelEventPacket::new(
+                                                    common::structs::channel::ChannelEvents::Leave,
+                                                    player_id.clone(),
+                                                    channel_id.clone(),
+                                                ),
+                                            ),
+                                        };
+
+                                        if let Err(e) = webhook_receiver.send_packet(leave_packet).await {
+                                            tracing::error!(
+                                                "Failed to broadcast channel leave event for player {} channel {}: {}",
+                                                player_id,
+                                                channel_id,
+                                                e
+                                            );
+                                        } else {
+                                            tracing::info!(
+                                                "Broadcast channel leave event: player {} left channel {}",
+                                                player_id,
+                                                channel_id
+                                            );
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    tracing::error!("Failed to remove player {}: {}", player_id, e);
+                                }
                             }
                         });
                     },
