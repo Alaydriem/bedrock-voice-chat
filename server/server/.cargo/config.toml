@@ -5,3 +5,10 @@ CPAL_ASIO_DIR = { value = "./../client/src-tauri/asiosdk_2.3.3_2019-06-14", rela
 
 [build]
 rustflags = ["--cfg", "s2n_quic_unstable"]
+
+# musl target configuration for static Linux builds
+[target.x86_64-unknown-linux-musl]
+rustflags = ["--cfg", "s2n_quic_unstable"]
+
+[target.aarch64-unknown-linux-musl]
+rustflags = ["--cfg", "s2n_quic_unstable"]
