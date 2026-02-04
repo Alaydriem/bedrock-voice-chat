@@ -56,19 +56,19 @@ jobs:
       - name: Download amd64 artifact
         uses: actions/download-artifact@v4
         with:
-          name: bvc-server-x86_64-unknown-linux-gnu-${{ inputs.build_mode }}
+          name: bvc-server-x86_64-unknown-linux-musl-${{ inputs.build_mode }}
           path: server/binaries/amd64
 
       - name: Download arm64 artifact
         uses: actions/download-artifact@v4
         with:
-          name: bvc-server-aarch64-unknown-linux-gnu-${{ inputs.build_mode }}
+          name: bvc-server-aarch64-unknown-linux-musl-${{ inputs.build_mode }}
           path: server/binaries/arm64
 
       - name: Prepare binaries
         run: |
-          mv server/binaries/amd64/bvc-server-x86_64-unknown-linux-gnu-${{ inputs.build_mode }} server/binaries/amd64/bvc-server
-          mv server/binaries/arm64/bvc-server-aarch64-unknown-linux-gnu-${{ inputs.build_mode }} server/binaries/arm64/bvc-server
+          mv server/binaries/amd64/bvc-server-x86_64-unknown-linux-musl-${{ inputs.build_mode }} server/binaries/amd64/bvc-server
+          mv server/binaries/arm64/bvc-server-aarch64-unknown-linux-musl-${{ inputs.build_mode }} server/binaries/arm64/bvc-server
           chmod +x server/binaries/amd64/bvc-server
           chmod +x server/binaries/arm64/bvc-server
           ls -la server/binaries/amd64/

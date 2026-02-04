@@ -1,5 +1,5 @@
 {
-  "tagFormat": "java-mod-v${version}",
+  "tagFormat": "mods-v${version}",
   "branches": [
     "+([0-9])?(.{+([0-9]),x}).x",
     "master",
@@ -45,13 +45,30 @@
     "@semantic-release/release-notes-generator",
     "@semantic-release/changelog",
     [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "node ../.github/scripts/patch-mod-versions.js ${nextRelease.version}"
+      }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": [
+          "CHANGELOG.md",
+          "gradle.properties",
+          "../bds/package.json",
+          "../bds/manifest.json"
+        ],
+        "message": "chore(release): mods-v${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+      }
+    ],
+    [
       "@semantic-release/github",
       {
         "successComment": false,
         "failComment": false,
         "labels": false,
-        "releaseLabels": false,
-        "discussionCategoryName": false
+        "releaseLabels": false
       }
     ]
   ]

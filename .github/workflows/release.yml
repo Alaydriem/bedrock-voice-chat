@@ -131,54 +131,11 @@ jobs:
       ref: ${{ needs.prepare-release.outputs.new_tag }}
     secrets: inherit
 
-  # Job 5: Build Java Fabric Mod
-  build-mod-fabric:
-    name: Build Fabric Mod
-    needs: [prepare-release, build-server]
-    if: needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false && needs.build-server.result == 'success'
-    uses: ./.github/workflows/build-mod-fabric.yml
-    with:
-      version: ${{ needs.prepare-release.outputs.new_version }}
-      ref: ${{ needs.prepare-release.outputs.new_tag }}
-    secrets: inherit
-
-  # Job 5b: Build Java Paper Plugin
-  build-mod-paper:
-    name: Build Paper Plugin
-    needs: [prepare-release, build-server]
-    if: needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false && needs.build-server.result == 'success'
-    uses: ./.github/workflows/build-mod-paper.yml
-    with:
-      version: ${{ needs.prepare-release.outputs.new_version }}
-      ref: ${{ needs.prepare-release.outputs.new_tag }}
-    secrets: inherit
-
-  # Job 5c: Build Java Hytale Plugin (conditional on HYTALE_ENABLED)
-  build-mod-hytale:
-    name: Build Hytale Plugin
-    needs: [prepare-release, build-server]
-    if: needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false && needs.build-server.result == 'success'
-    uses: ./.github/workflows/build-mod-hytale.yml
-    with:
-      version: ${{ needs.prepare-release.outputs.new_version }}
-      ref: ${{ needs.prepare-release.outputs.new_tag }}
-    secrets: inherit
-
-  # Job 6: Build BDS Pack
-  build-mod-bds:
-    name: Build BDS Pack
-    needs: prepare-release
-    if: needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false
-    uses: ./.github/workflows/build-mod-bds.yml
-    with:
-      ref: ${{ needs.prepare-release.outputs.new_tag }}
-    secrets: inherit
-
-  # Job 7: Upload release assets to GitHub
+  # Job 5: Upload release assets to GitHub
   upload-assets:
     name: Upload Release Assets
-    needs: [prepare-release, build-server, build-android, build-client, build-mod-fabric, build-mod-paper, build-mod-hytale, build-mod-bds]
-    if: always() && needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false && (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-client.result == 'success' || needs.build-mod-fabric.result == 'success' || needs.build-mod-paper.result == 'success' || needs.build-mod-hytale.result == 'success' || needs.build-mod-bds.result == 'success')
+    needs: [prepare-release, build-server, build-android, build-client]
+    if: always() && needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false && (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-client.result == 'success')
     runs-on: ubuntu-latest
     steps:
       - name: Generate GitHub App token
@@ -193,13 +150,6 @@ jobs:
         with:
           path: ./artifacts
           pattern: bvc-*
-          merge-multiple: false
-
-      - name: Download mod artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ./artifacts
-          pattern: bedrock-voice-chat-*
           merge-multiple: false
 
       - name: List all artifacts
@@ -217,12 +167,12 @@ jobs:
             cp "./artifacts/bvc-server-x86_64-pc-windows-msvc-release.exe/bvc-server-x86_64-pc-windows-msvc-release.exe" ./release-files/bvc-server-windows-x64.exe
           fi
 
-          if [ -f ./artifacts/bvc-server-x86_64-unknown-linux-gnu-release/bvc-server-x86_64-unknown-linux-gnu-release ]; then
-            cp ./artifacts/bvc-server-x86_64-unknown-linux-gnu-release/bvc-server-x86_64-unknown-linux-gnu-release ./release-files/bvc-server-linux-x64
+          if [ -f ./artifacts/bvc-server-x86_64-unknown-linux-musl-release/bvc-server-x86_64-unknown-linux-musl-release ]; then
+            cp ./artifacts/bvc-server-x86_64-unknown-linux-musl-release/bvc-server-x86_64-unknown-linux-musl-release ./release-files/bvc-server-linux-x64
           fi
 
-          if [ -f ./artifacts/bvc-server-aarch64-unknown-linux-gnu-release/bvc-server-aarch64-unknown-linux-gnu-release ]; then
-            cp ./artifacts/bvc-server-aarch64-unknown-linux-gnu-release/bvc-server-aarch64-unknown-linux-gnu-release ./release-files/bvc-server-linux-arm64
+          if [ -f ./artifacts/bvc-server-aarch64-unknown-linux-musl-release/bvc-server-aarch64-unknown-linux-musl-release ]; then
+            cp ./artifacts/bvc-server-aarch64-unknown-linux-musl-release/bvc-server-aarch64-unknown-linux-musl-release ./release-files/bvc-server-linux-arm64
           fi
 
           # Windows client
@@ -233,42 +183,6 @@ jobs:
           # Signed Android artifacts (from build-android.yml)
           if [ -f "./artifacts/bvc-android-release-signed.apk/bvc-android-release-signed.apk" ]; then
             cp "./artifacts/bvc-android-release-signed.apk/bvc-android-release-signed.apk" ./release-files/bvc-android-${VERSION}.apk
-          fi
-
-          # Java Fabric Mod
-          FABRIC_MOD_DIR="./artifacts/bedrock-voice-chat-fabric-${VERSION}"
-          if [ -d "$FABRIC_MOD_DIR" ]; then
-            JAR_FILE=$(find "$FABRIC_MOD_DIR" -name "*.jar" -type f | head -n 1)
-            if [ -n "$JAR_FILE" ]; then
-              cp "$JAR_FILE" ./release-files/bvc-fabric-mod-${VERSION}.jar
-            fi
-          fi
-
-          # Java Paper Plugin
-          PAPER_MOD_DIR="./artifacts/bedrock-voice-chat-paper-${VERSION}"
-          if [ -d "$PAPER_MOD_DIR" ]; then
-            JAR_FILE=$(find "$PAPER_MOD_DIR" -name "*.jar" -type f | head -n 1)
-            if [ -n "$JAR_FILE" ]; then
-              cp "$JAR_FILE" ./release-files/bvc-paper-plugin-${VERSION}.jar
-            fi
-          fi
-
-          # Java Hytale Plugin
-          HYTALE_MOD_DIR="./artifacts/bedrock-voice-chat-hytale-${VERSION}"
-          if [ -d "$HYTALE_MOD_DIR" ]; then
-            JAR_FILE=$(find "$HYTALE_MOD_DIR" -name "*.jar" -type f | head -n 1)
-            if [ -n "$JAR_FILE" ]; then
-              cp "$JAR_FILE" ./release-files/bvc-hytale-plugin-${VERSION}.jar
-            fi
-          fi
-
-          # BDS Pack
-          BDS_PACK_DIR=$(find ./artifacts -maxdepth 1 -type d -name "bedrock-voice-chat-bds-*" | head -n 1)
-          if [ -d "$BDS_PACK_DIR" ]; then
-            ZIP_FILE=$(find "$BDS_PACK_DIR" -name "*.zip" -type f | head -n 1)
-            if [ -n "$ZIP_FILE" ]; then
-              cp "$ZIP_FILE" ./release-files/bvc-bds-pack-${VERSION}.zip
-            fi
           fi
 
           echo "=== Release files prepared ==="
@@ -303,3 +217,16 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- \`ghcr.io/alaydriem/bedrock-voice-chat/server:v${VERSION}\`" >> $GITHUB_STEP_SUMMARY
           echo "- \`ghcr.io/alaydriem/bedrock-voice-chat/server:latest\`" >> $GITHUB_STEP_SUMMARY
+
+  # Job 6: Release Mods (reuses server build artifacts)
+  release-mods:
+    name: Release Mods
+    needs: [prepare-release, build-server]
+    if: needs.prepare-release.outputs.new_release == 'true'
+    uses: ./.github/workflows/release-mods.yml
+    with:
+      skip_server_build: true
+      version: ${{ needs.prepare-release.outputs.new_version }}
+      dry-run: ${{ inputs.dry_run }}
+      parent_run_id: ${{ github.run_id }}
+    secrets: inherit

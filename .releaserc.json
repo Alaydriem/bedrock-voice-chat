@@ -61,7 +61,9 @@
           "server/server/Cargo.toml",
           "client/src-tauri/Cargo.toml",
           "client/src-tauri/tauri.conf.json",
-          "client/package.json"
+          "client/package.json",
+          "mods/bds/package.json",
+          "mods/bds/manifest.json"
         ],
         "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
       }
