@@ -2,6 +2,7 @@ name: Build All Platforms
 permissions:
   contents: write
   packages: write
+  actions: read
 
 on:
   push:

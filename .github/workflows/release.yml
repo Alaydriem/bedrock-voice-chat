@@ -19,6 +19,7 @@ permissions:
   packages: write
   issues: write
   pull-requests: write
+  actions: read
 
 env:
   NODE_VERSION: '25'
