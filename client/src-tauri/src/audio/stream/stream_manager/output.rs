@@ -52,8 +52,8 @@ pub(crate) struct OutputStream {
     client_id_to_player: Arc<moka::sync::Cache<String, String>>,
     recording_producer: Option<Arc<RecordingProducer>>,
     player_gain_cache: Arc<moka::sync::Cache<String, PlayerGainSettings>>,
-    // Recording state - shared with SinkManager for post-jitter-buffer recording
-    recording_enabled: Arc<AtomicBool>,
+    // Recording state - shared from RecordingManager for post-jitter-buffer recording
+    recording_active: Option<Arc<AtomicBool>>,
     recovery_tx: RecoverySender,
 }
 
@@ -186,6 +186,7 @@ impl OutputStream {
         metadata: Arc<moka::future::Cache<String, String>>,
         app_handle: tauri::AppHandle,
         recording_producer: Option<Arc<RecordingProducer>>,
+        recording_active: Option<Arc<AtomicBool>>,
         recovery_tx: RecoverySender,
     ) -> Self {
         let players = moka::sync::Cache::builder()
@@ -223,7 +224,7 @@ impl OutputStream {
             client_id_to_player: Arc::new(client_id_to_player),
             recording_producer,
             player_gain_cache: Arc::new(player_gain_cache),
-            recording_enabled: Arc::new(AtomicBool::new(false)),
+            recording_active,
             recovery_tx,
         }
     }
@@ -398,7 +399,7 @@ impl OutputStream {
                                 Arc::new(mixer.clone()),
                                 self.app_handle.clone(),
                                 self.recording_producer.as_ref().map(|p| (**p).clone()),
-                                self.recording_enabled.clone(),
+                                self.recording_active.clone(),
                             );
 
                             self.sink_manager = Some(sink_manager);
@@ -701,10 +702,8 @@ impl OutputStream {
                 }
             },
             StreamEvent::Record => {
-                // Toggle recording state - this AtomicBool is shared with SinkManager
-                // and JitterBufferSources for post-jitter-buffer recording
-                let current_state = self.recording_enabled.load(Ordering::SeqCst);
-                self.recording_enabled.store(!current_state, Ordering::SeqCst);
+                // Recording state is now owned by RecordingManager
+                // Streams read the shared flag directly - no toggle needed
             }
         }
     }

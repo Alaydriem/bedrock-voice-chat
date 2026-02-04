@@ -469,6 +469,26 @@ mod tests {
 
         println!("Rendering {} to {:?}...", player, output_path);
 
+        // Debug: list WAL files
+        let wal_dir = session.join("wal");
+        if wal_dir.exists() {
+            println!("WAL directory contents:");
+            for entry in std::fs::read_dir(&wal_dir).unwrap() {
+                let entry = entry.unwrap();
+                let name = entry.file_name();
+                let starts_with = name.to_str().unwrap().starts_with(&player);
+                println!("  {:?} - starts_with '{}': {}", name, player, starts_with);
+            }
+        }
+
+        // Debug: Check the WAL reader directly
+        use crate::audio::recording::renderer::WalAudioReader;
+        let reader = WalAudioReader::new(session, &player);
+        match &reader {
+            Ok(r) => println!("WalAudioReader created, entries: {}", r.entry_count()),
+            Err(e) => println!("WalAudioReader error: {}", e),
+        }
+
         let mut renderer = Mp4Renderer::new();
         renderer.render(session, &player, &output_path).await.expect("Render failed");
 

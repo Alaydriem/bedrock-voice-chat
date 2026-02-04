@@ -332,17 +332,22 @@ impl WalAudioReader {
                 pos += content_len;
 
                 if !header_bytes.is_empty() {
-                    if let Ok(header) = RecordingHeader::from_bytes(header_bytes) {
-                        let relative_timestamp_ms = match &header {
-                            RecordingHeader::Input(h) => h.relative_timestamp_ms.unwrap_or(0),
-                            RecordingHeader::Output(h) => h.relative_timestamp_ms,
-                        };
+                    match RecordingHeader::from_bytes(header_bytes) {
+                        Ok(header) => {
+                            let relative_timestamp_ms = match &header {
+                                RecordingHeader::Input(h) => h.relative_timestamp_ms.unwrap_or(0),
+                                RecordingHeader::Output(h) => h.relative_timestamp_ms,
+                            };
 
-                        entries.push(WalEntry {
-                            header,
-                            opus_data: content,
-                            relative_timestamp_ms,
-                        });
+                            entries.push(WalEntry {
+                                header,
+                                opus_data: content,
+                                relative_timestamp_ms,
+                            });
+                        }
+                        Err(e) => {
+                            eprintln!("DEBUG: Failed to parse header (len={}): {:?}", header_bytes.len(), e);
+                        }
                     }
                 }
 

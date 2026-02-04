@@ -64,7 +64,7 @@ pub struct JitterBufferSource {
     activity_tx: Option<flume::Sender<ActivityUpdate>>,
     last_activity_emission: std::time::Instant,
     recording_producer: Option<RecordingProducer>,
-    recording_enabled: Arc<AtomicBool>,
+    recording_active: Option<Arc<AtomicBool>>,
     pending_recordings: VecDeque<PendingRecording>,
     current_recording: Option<PendingRecording>,
 }
@@ -77,7 +77,7 @@ impl JitterBufferSource {
         player_name: String,
         activity_tx: Option<flume::Sender<ActivityUpdate>>,
         recording_producer: Option<RecordingProducer>,
-        recording_enabled: Arc<AtomicBool>,
+        recording_active: Option<Arc<AtomicBool>>,
     ) -> Result<Self, JitterBufferError> {
         let sample_rate = initial_packet.sample_rate as u32;
 
@@ -90,7 +90,8 @@ impl JitterBufferSource {
         packet_ring.push_back(initial_packet.clone());
 
         let mut pending_recordings = VecDeque::new();
-        if recording_enabled.load(Ordering::Relaxed) && recording_producer.is_some() {
+        let recording_enabled = recording_active.as_ref().map_or(false, |f| f.load(Ordering::SeqCst));
+        if recording_enabled && recording_producer.is_some() {
             let now_ms = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
@@ -120,7 +121,7 @@ impl JitterBufferSource {
             activity_tx,
             last_activity_emission: std::time::Instant::now(),
             recording_producer,
-            recording_enabled,
+            recording_active,
             pending_recordings,
             current_recording: None,
         };
@@ -193,7 +194,7 @@ impl JitterBufferSource {
                     // Queue recording data if recording is enabled
                     // Capture timestamp NOW (at packet arrival) - this is the intended playback time
                     // before the jitter buffer adds its delay
-                    if self.recording_enabled.load(Ordering::Relaxed) && self.recording_producer.is_some() {
+                    if self.recording_active.as_ref().map_or(false, |f| f.load(Ordering::SeqCst)) && self.recording_producer.is_some() {
                         let now_ms = std::time::SystemTime::now()
                             .duration_since(std::time::UNIX_EPOCH)
                             .unwrap_or_default()
@@ -299,13 +300,20 @@ impl JitterBufferSource {
 
     /// Handle recording sample consumption - emit recording data when a frame is complete
     fn handle_recording_sample_consumed(&mut self) {
-        // If no recording producer or not enabled, nothing to do
-        if self.recording_producer.is_none() || !self.recording_enabled.load(Ordering::Relaxed) {
+        // Only check for producer, NOT the flag
+        // If data was queued while recording was active, emit it regardless of current flag state
+        // This ensures recordings don't get abandoned when the flag turns off mid-stream
+        if self.recording_producer.is_none() {
+            return;
+        }
+
+        // If no pending recordings, nothing to do
+        if self.current_recording.is_none() && self.pending_recordings.is_empty() {
             return;
         }
 
         // If we don't have a current recording being tracked, try to get one from pending
-        if self.current_recording.is_none() && !self.pending_recordings.is_empty() {
+        if self.current_recording.is_none() {
             self.current_recording = self.pending_recordings.pop_front();
         }
 

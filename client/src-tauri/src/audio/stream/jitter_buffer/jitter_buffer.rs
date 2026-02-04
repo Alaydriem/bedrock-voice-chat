@@ -52,7 +52,7 @@ impl JitterBuffer {
         player_name: String,
         activity_tx: Option<flume::Sender<crate::audio::stream::ActivityUpdate>>,
         recording_producer: Option<RecordingProducer>,
-        recording_enabled: Arc<AtomicBool>,
+        recording_active: Option<Arc<AtomicBool>>,
     ) -> Result<(Self, JitterBufferHandle), JitterBufferError> {
         let (tx, rx) = flume::unbounded::<Option<EncodedAudioFramePacket>>();
 
@@ -76,7 +76,7 @@ impl JitterBuffer {
             player_name,
             activity_tx,
             recording_producer,
-            recording_enabled,
+            recording_active,
         )?;
 
         let jitter_buffer = Self {
