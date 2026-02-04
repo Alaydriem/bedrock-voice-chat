@@ -188,13 +188,12 @@ pub(crate) async fn is_stopped(
 pub(crate) async fn start_recording(
     app: AppHandle,
     recording_manager: State<'_, Arc<Mutex<RecordingManager>>>,
-    asm: State<'_, Mutex<AudioStreamManager>>,
 ) -> Result<String, String> {
     let current_player = extract_current_player(&app).await
         .ok_or_else(|| "No current player set for recording".to_string())?;
 
-    let _ = record(asm.clone()).await;
-
+    // Recording is now controlled by RecordingManager's shared flag
+    // No need to toggle stream recording separately
     let mut manager = recording_manager.lock().await;
     match manager.start_recording(current_player).await {
         Ok(_) => {
@@ -212,9 +211,9 @@ pub(crate) async fn start_recording(
 #[tauri::command]
 pub(crate) async fn stop_recording(
     recording_manager: State<'_, Arc<Mutex<RecordingManager>>>,
-    asm: State<'_, Mutex<AudioStreamManager>>
 ) -> Result<(), String> {
-    let _ = record(asm.clone()).await;
+    // Recording is now controlled by RecordingManager's shared flag
+    // No need to toggle stream recording separately
     let mut manager = recording_manager.lock().await;
     match manager.stop_recording().await {
         Ok(()) => {

@@ -15,6 +15,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tauri::Manager;
+use tokio::sync::oneshot;
 use tokio::task::AbortHandle;
 use uuid::{NoContext, Timestamp, Uuid};
 
@@ -48,6 +49,7 @@ pub enum RawRecordingData {
 pub struct Recorder {
     jobs: Vec<AbortHandle>,
     shutdown: Arc<AtomicBool>,
+    completion_rx: Option<oneshot::Receiver<()>>,
     session_id: String,
     manifest: SessionManifest,
     recording_path: PathBuf,
@@ -100,6 +102,7 @@ impl Recorder {
         Ok(Self {
             jobs: Vec::new(),
             shutdown: Arc::new(AtomicBool::new(false)),
+            completion_rx: None,
             session_id,
             manifest,
             recording_path,
@@ -109,7 +112,7 @@ impl Recorder {
         })
     }
 
-    async fn start_recording_loop(&mut self) -> Result<AbortHandle, anyhow::Error> {
+    async fn start_recording_loop(&mut self) -> Result<(AbortHandle, oneshot::Receiver<()>), anyhow::Error> {
         const BATCH_SIZE: usize = 50;
         const FLUSH_INTERVAL: Duration = Duration::from_millis(500);
 
@@ -118,6 +121,8 @@ impl Recorder {
         let recording_path = self.recording_path.clone();
         let mut manifest = self.manifest.clone();
         let session_start_timestamp = self.session_start_timestamp;
+
+        let (completion_tx, completion_rx) = oneshot::channel();
 
         let handle = tokio::spawn(async move {
             let mut wal = match nano_wal::Wal::new(
@@ -141,16 +146,43 @@ impl Recorder {
             let mut manifest_dirty = false;
 
             loop {
+                // Check shutdown at start of each iteration
+                if shutdown.load(Ordering::SeqCst) {
+                    // Drain remaining items from channel
+                    while let Ok(mut raw_data) = recording_consumer.try_recv() {
+                        // Process and add to batch_buffer (same as normal processing)
+                        match &mut raw_data {
+                            RawRecordingData::InputData { absolute_timestamp_ms, .. } => {
+                                if let Some(abs_ts) = absolute_timestamp_ms {
+                                    *absolute_timestamp_ms = Some(abs_ts.saturating_sub(session_start_timestamp));
+                                }
+                            },
+                            RawRecordingData::OutputData { absolute_timestamp_ms, emitter, .. } => {
+                                if let Some(abs_ts) = absolute_timestamp_ms {
+                                    *absolute_timestamp_ms = Some(abs_ts.saturating_sub(session_start_timestamp));
+                                }
+                                if participants.insert(emitter.name.clone()) {
+                                    manifest_dirty = true;
+                                }
+                            }
+                        }
+                        let player_key = match &raw_data {
+                            RawRecordingData::InputData { emitter, .. } => emitter.name.clone(),
+                            RawRecordingData::OutputData { emitter, .. } => emitter.name.clone(),
+                        };
+                        batch_buffer.push((player_key, raw_data));
+                    }
+                    // Final flush
+                    if !batch_buffer.is_empty() {
+                        let _ = Self::flush(&mut wal, &mut batch_buffer).await;
+                    }
+                    break;
+                }
+
                 tokio::select! {
                     raw_recording_data = recording_consumer.recv_async() => {
                         match raw_recording_data {
                             Ok(mut raw_data) => {
-                                if shutdown.load(Ordering::Relaxed) {
-                                    // Flush the batch buffer of anything we have
-                                    let _ = Self::flush(&mut wal, &mut batch_buffer).await;
-                                    break;
-                                }
-
                                 // Convert absolute timestamp to relative for WAL storage
                                 // First packet becomes timestamp 0, all others relative to that
                                 match &mut raw_data {
@@ -208,10 +240,6 @@ impl Recorder {
                         break;
                     }
                 }
-
-                if shutdown.load(Ordering::Relaxed) {
-                    break;
-                }
             }
 
             if !batch_buffer.is_empty() {
@@ -240,9 +268,10 @@ impl Recorder {
             }
 
             info!("Recording session {} fully finalized", manifest.session_id);
+            let _ = completion_tx.send(());  // Signal completion
         });
 
-        Ok(handle.abort_handle())
+        Ok((handle.abort_handle(), completion_rx))
     }
 
     /// Write session manifest to disk
@@ -311,24 +340,33 @@ impl common::traits::StreamTrait for Recorder {
     }
 
     async fn start(&mut self) -> Result<(), anyhow::Error> {
-        self.shutdown.store(false, Ordering::Relaxed);
+        self.shutdown.store(false, Ordering::SeqCst);
 
-        let handle = self.start_recording_loop().await?;
+        let (handle, completion_rx) = self.start_recording_loop().await?;
         self.jobs.push(handle);
+        self.completion_rx = Some(completion_rx);
 
         info!("Recording session {} started", self.session_id);
         Ok(())
     }
 
     async fn stop(&mut self) -> Result<(), anyhow::Error> {
-        self.shutdown.store(true, Ordering::Relaxed);
+        // 1. Signal shutdown
+        self.shutdown.store(true, Ordering::SeqCst);
 
-        // Give recording loop 500ms to finish gracefully
-        tokio::time::sleep(Duration::from_millis(500)).await;
-
-        // Then abort any remaining jobs
-        for job in &self.jobs {
-            job.abort();
+        // 2. Wait for completion with timeout
+        if let Some(rx) = self.completion_rx.take() {
+            match tokio::time::timeout(Duration::from_secs(5), rx).await {
+                Ok(Ok(())) => info!("Recording loop completed gracefully"),
+                Ok(Err(_)) => log::warn!("Recording completion channel dropped"),
+                Err(_) => {
+                    log::warn!("Recording loop did not complete within 5s timeout");
+                    // Force abort as fallback
+                    for job in &self.jobs {
+                        job.abort();
+                    }
+                }
+            }
         }
 
         info!("Recording session {} stopped", self.session_id);

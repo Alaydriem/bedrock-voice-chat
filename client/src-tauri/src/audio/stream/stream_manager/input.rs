@@ -26,9 +26,7 @@ use tauri_plugin_store::StoreExt;
 use tokio::task::{AbortHandle, JoinHandle};
 
 /// Indicator for if the Input Stream should be muted
-/// If this i
 static MUTE_INPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
-static RECORD_INPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 static USE_NOISE_GATE: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 static UPDATE_NOISE_GATE_SETTINGS: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 static NOISE_GATE_SETTINGS: Lazy<Mutex<serde_json::Value>> = Lazy::new(|| {
@@ -47,6 +45,7 @@ pub(crate) struct InputStream {
     #[allow(unused)]
     app_handle: tauri::AppHandle,
     recording_producer: Option<Arc<RecordingProducer>>,
+    recording_active: Option<Arc<AtomicBool>>,  // Shared from RecordingManager
     recovery_tx: RecoverySender,
 }
 
@@ -59,7 +58,8 @@ impl common::traits::StreamTrait for InputStream {
                 self.toggle(StreamEvent::Mute);
             },
             "record" => {
-                self.toggle(StreamEvent::Record);
+                // Recording is now controlled by RecordingManager's shared flag
+                // No action needed here
             },
             // Toggle Noise Gate
             "use_noise_gate" => {
@@ -137,7 +137,7 @@ impl common::traits::StreamTrait for InputStream {
         };
 
         // Send the PCM data to the network sender
-        match self.sender(consumer, self.shutdown.clone(), current_player_name) {
+        match self.sender(consumer, self.shutdown.clone(), current_player_name, self.recording_active.clone()) {
             Ok(job) => jobs.push(job),
             Err(e) => {
                 error!("input sender encountered an error: {:?}", e);
@@ -157,6 +157,7 @@ impl InputStream {
         metadata: Arc<moka::future::Cache<String, String>>,
         app_handle: tauri::AppHandle,
         recording_producer: Option<Arc<RecordingProducer>>,
+        recording_active: Option<Arc<AtomicBool>>,
         recovery_tx: RecoverySender,
     ) -> Self {
         Self {
@@ -167,6 +168,7 @@ impl InputStream {
             metadata,
             app_handle: app_handle.clone(),
             recording_producer,
+            recording_active,
             recovery_tx,
         }
     }
@@ -489,6 +491,7 @@ impl InputStream {
         consumer: flume::Receiver<AudioFrame>,
         shutdown: Arc<AtomicBool>,
         current_player_name: String,
+        recording_active: Option<Arc<AtomicBool>>,
     ) -> Result<JoinHandle<()>, anyhow::Error> {
         match self.device.clone() {
             Some(device) => {
@@ -602,22 +605,25 @@ impl InputStream {
                                         _ => continue,
                                     };
 
-                                    if RECORD_INPUT_STREAM.load(Ordering::Relaxed) {
-                                        if let Some(ref producer) = recording_producer {
-                                            // Use the timestamp from when the first sample was captured
-                                            // This ensures the recording timestamp matches actual capture time
-                                            let recording_data = RawRecordingData::InputData {
-                                                absolute_timestamp_ms: first_sample_timestamp_ms,
-                                                opus_data: encoded_data.clone(),
-                                                sample_rate: device_config.sample_rate.0,
-                                                channels: device_config.channels.into(),
-                                                emitter: RecordingPlayerData::for_input(
-                                                    current_player_name.clone(),
-                                                    None, // TODO: Add gain cache for input
-                                                ),
-                                            };
+                                    // Check shared recording flag from RecordingManager
+                                    if let Some(ref flag) = recording_active {
+                                        if flag.load(Ordering::SeqCst) {
+                                            if let Some(ref producer) = recording_producer {
+                                                // Use the timestamp from when the first sample was captured
+                                                // This ensures the recording timestamp matches actual capture time
+                                                let recording_data = RawRecordingData::InputData {
+                                                    absolute_timestamp_ms: first_sample_timestamp_ms,
+                                                    opus_data: encoded_data.clone(),
+                                                    sample_rate: device_config.sample_rate.0,
+                                                    channels: device_config.channels.into(),
+                                                    emitter: RecordingPlayerData::for_input(
+                                                        current_player_name.clone(),
+                                                        None, // TODO: Add gain cache for input
+                                                    ),
+                                                };
 
-                                            let _ = producer.try_send(recording_data);
+                                                let _ = producer.try_send(recording_data);
+                                            }
                                         }
                                     }
 
@@ -667,8 +673,8 @@ impl InputStream {
                 MUTE_INPUT_STREAM.store(!current_state, Ordering::Relaxed);
             },
             StreamEvent::Record => {
-                let current_state = RECORD_INPUT_STREAM.load(Ordering::Relaxed);
-                RECORD_INPUT_STREAM.store(!current_state, Ordering::Relaxed);
+                // Recording state is now owned by RecordingManager
+                // Streams read the shared flag directly - no toggle needed
             }
         }
     }

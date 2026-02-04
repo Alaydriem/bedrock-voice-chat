@@ -107,7 +107,7 @@ pub struct SinkManager {
     app_handle: tauri::AppHandle,
     // Recording support - captures audio at playback time for proper timecode alignment
     recording_producer: Option<RecordingProducer>,
-    recording_enabled: Arc<AtomicBool>,
+    recording_active: Option<Arc<AtomicBool>>,
 }
 
 impl SinkManager {
@@ -119,7 +119,7 @@ impl SinkManager {
         mixer: Arc<Mixer>,
         app_handle: tauri::AppHandle,
         recording_producer: Option<RecordingProducer>,
-        recording_enabled: Arc<AtomicBool>,
+        recording_active: Option<Arc<AtomicBool>>,
     ) -> Self {
         // Create activity streaming channel
         let (activity_tx, activity_rx) = flume::unbounded::<ActivityUpdate>();
@@ -165,7 +165,7 @@ impl SinkManager {
             activity_tx: Some(activity_tx),
             app_handle,
             recording_producer,
-            recording_enabled,
+            recording_active,
         }
     }
 
@@ -195,7 +195,7 @@ impl SinkManager {
         let global_mute = self.global_mute.clone();
         let activity_tx = self.activity_tx.clone();
         let recording_producer = self.recording_producer.clone();
-        let recording_enabled = self.recording_enabled.clone();
+        let recording_active = self.recording_active.clone();
 
         // Spawn an async task; use async recv to avoid blocking
         let handle = tokio::spawn(async move {
@@ -316,7 +316,7 @@ impl SinkManager {
                             display_name.clone(),
                             activity_tx.clone(),
                             recording_producer.clone(),
-                            recording_enabled.clone(),
+                            recording_active.clone(),
                         ) {
                             Ok((jitter_buffer, handle)) => {
                                 if let Some(spatial_sink) = &bundle.spatial {
@@ -369,7 +369,7 @@ impl SinkManager {
                             display_name.clone(),
                             activity_tx.clone(),
                             recording_producer.clone(),
-                            recording_enabled.clone(),
+                            recording_active.clone(),
                         ) {
                             Ok((jitter_buffer, handle)) => {
                                 if let Some(normal_sink) = &bundle.normal {

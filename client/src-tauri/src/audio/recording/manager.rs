@@ -40,9 +40,15 @@ impl RecordingManager {
         self.recording_producer.clone()
     }
 
+    /// Returns the recording active flag for streams to check
+    /// Streams should check this flag before sending recording data
+    pub fn get_recording_flag(&self) -> Arc<AtomicBool> {
+        Arc::clone(&self.recording_state)
+    }
+
     /// Start a new recording session
     pub async fn start_recording(&mut self, current_player: String) -> Result<(), anyhow::Error> {
-        if self.recording_state.load(Ordering::Relaxed) {
+        if self.recording_state.load(Ordering::SeqCst) {
             return Err(anyhow::anyhow!("Recording already in progress"));
         }
 
@@ -58,7 +64,8 @@ impl RecordingManager {
 
         let session_id = recorder.session_id().to_string();
         self.recorder = Some(recorder);
-        self.recording_state.store(true, Ordering::Relaxed);
+        // Set flag AFTER recorder starts - streams can now send data
+        self.recording_state.store(true, Ordering::SeqCst);
 
         // Emit event to notify UI components
         self.app_handle.emit("recording:started", &session_id).ok();
@@ -69,17 +76,19 @@ impl RecordingManager {
 
     /// Stop the current recording session
     pub async fn stop_recording(&mut self) -> Result<(), anyhow::Error> {
-        if !self.recording_state.load(Ordering::Relaxed) {
+        if !self.recording_state.load(Ordering::SeqCst) {
             return Err(anyhow::anyhow!("No recording in progress"));
         }
 
+        // Set flag FIRST so streams stop sending new data immediately
+        self.recording_state.store(false, Ordering::SeqCst);
+
         if let Some(recorder) = &mut self.recorder {
-            recorder.stop().await?;
+            recorder.stop().await?;  // Now drain and finish
             info!("Recording session {} stopped via RecordingManager", recorder.session_id());
         }
 
         self.recorder = None;
-        self.recording_state.store(false, Ordering::Relaxed);
 
         // Emit event to notify UI components
         self.app_handle.emit("recording:stopped", ()).ok();
@@ -89,7 +98,7 @@ impl RecordingManager {
 
     /// Check if recording is currently active
     pub fn is_recording(&self) -> bool {
-        self.recording_state.load(Ordering::Relaxed)
+        self.recording_state.load(Ordering::SeqCst)
     }
 
     /// Get current session ID if recording

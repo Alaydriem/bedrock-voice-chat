@@ -10,6 +10,7 @@
 
     // Internal state
     let isRecording = false;
+    let isPending = false;  // Prevents double-click during async operations
     let recordingError: string | null = null;
     let unlistenRecordingError: (() => void) | null = null;
     let unlistenStarted: (() => void) | null = null;
@@ -27,24 +28,29 @@
     $: buttonTitle = isRecording ? "Stop Recording" : "Start Recording";
 
     const handleRecordToggle = async () => {
+        if (isPending) return;  // Guard against rapid clicks
+
+        isPending = true;
         try {
             recordingError = null;
 
             if (isRecording) {
                 // Stop recording
                 await invoke('stop_recording');
-                isRecording = false;
+                // State will be updated by 'recording:stopped' event listener
                 info('Recording stopped');
             } else {
                 // Start recording
                 const sessionId = await invoke('start_recording');
-                isRecording = true;
+                // State will be updated by 'recording:started' event listener
                 info(`Recording started with session ID: ${sessionId}`);
             }
 
         } catch (error) {
             recordingError = `Failed to ${isRecording ? 'stop' : 'start'} recording: ${error}`;
             logError(recordingError);
+        } finally {
+            isPending = false;
         }
     };
 
@@ -105,7 +111,7 @@
     <button
         class={buttonClass}
         onclick={handleRecordToggle}
-        {disabled}
+        disabled={disabled || isPending}
         title={buttonTitle}
     >
         <i class={iconClass}></i>

@@ -65,6 +65,7 @@ impl AudioStreamManager {
                 Arc::new(moka::future::Cache::builder().build()),
                 app_handle.clone(),
                 None, // Producer will be set when initialized
+                None, // Recording flag will be set when initialized
                 recovery_tx.clone(),
             )),
             output: StreamTraitType::Output(stream_manager::OutputStream::new(
@@ -73,6 +74,7 @@ impl AudioStreamManager {
                 Arc::new(moka::future::Cache::builder().build()),
                 app_handle.clone(),
                 None, // Producer will be set when initialized
+                None, // Recording flag will be set when initialized
                 recovery_tx.clone(),
             )),
             app_handle: app_handle.clone(),
@@ -119,12 +121,12 @@ impl AudioStreamManager {
         // have dangling thread pointers
         _ = self.stop(device.clone().io);
 
-        // Get recording producer from manager if available
-        let recording_producer = if let Some(ref rm) = self.recording_manager {
+        // Get recording producer and flag from manager if available
+        let (recording_producer, recording_flag) = if let Some(ref rm) = self.recording_manager {
             let manager = rm.lock().await;
-            Some(manager.get_producer())
+            (Some(manager.get_producer()), Some(manager.get_recording_flag()))
         } else {
-            None
+            (None, None)
         };
 
         match device.io {
@@ -134,7 +136,8 @@ impl AudioStreamManager {
                     self.producer.clone(),
                     self.input.get_metadata().clone(),
                     self.app_handle.clone(),
-                    recording_producer,
+                    recording_producer.clone(),
+                    recording_flag.clone(),
                     self.recovery_tx.clone(),
                 ));
             }
@@ -145,6 +148,7 @@ impl AudioStreamManager {
                     self.output.get_metadata().clone(),
                     self.app_handle.clone(),
                     recording_producer,
+                    recording_flag,
                     self.recovery_tx.clone(),
                 ));
             }
@@ -159,12 +163,12 @@ impl AudioStreamManager {
         // Stop the audio strema
         _ = self.stop(device.clone());
 
-        // Get recording producer from manager if available
-        let recording_producer = if let Some(ref rm) = self.recording_manager {
+        // Get recording producer and flag from manager if available
+        let (recording_producer, recording_flag) = if let Some(ref rm) = self.recording_manager {
             let manager = rm.lock().await;
-            Some(manager.get_producer())
+            (Some(manager.get_producer()), Some(manager.get_recording_flag()))
         } else {
-            None
+            (None, None)
         };
 
         match device {
@@ -174,7 +178,8 @@ impl AudioStreamManager {
                     self.producer.clone(),
                     self.input.get_metadata().clone(),
                     self.app_handle.clone(),
-                    recording_producer,
+                    recording_producer.clone(),
+                    recording_flag.clone(),
                     self.recovery_tx.clone(),
                 ));
             }
@@ -185,6 +190,7 @@ impl AudioStreamManager {
                     self.output.get_metadata().clone(),
                     self.app_handle.clone(),
                     recording_producer,
+                    recording_flag,
                     self.recovery_tx.clone(),
                 ));
             }
@@ -274,12 +280,12 @@ impl AudioStreamManager {
             self.output.stop()
         );
 
-        // Get recording producer from manager if available
-        let recording_producer = if let Some(ref rm) = self.recording_manager {
+        // Get recording producer and flag from manager if available
+        let (recording_producer, recording_flag) = if let Some(ref rm) = self.recording_manager {
             let manager = rm.lock().await;
-            Some(manager.get_producer())
+            (Some(manager.get_producer()), Some(manager.get_recording_flag()))
         } else {
-            None
+            (None, None)
         };
 
         // Recreate input stream, preserving metadata
@@ -289,6 +295,7 @@ impl AudioStreamManager {
             self.input.get_metadata().clone(),
             self.app_handle.clone(),
             recording_producer.clone(),
+            recording_flag.clone(),
             self.recovery_tx.clone(),
         ));
 
@@ -299,6 +306,7 @@ impl AudioStreamManager {
             self.output.get_metadata().clone(),
             self.app_handle.clone(),
             recording_producer,
+            recording_flag,
             self.recovery_tx.clone(),
         ));
 
