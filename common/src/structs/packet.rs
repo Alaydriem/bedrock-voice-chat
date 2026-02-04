@@ -16,6 +16,7 @@ pub enum PacketType {
     Debug,
     PlayerPresence,
     ServerError,
+    HealthCheck,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
@@ -33,6 +34,7 @@ pub enum QuicNetworkPacketData {
     Debug(DebugPacket),
     PlayerPresence(PlayerPresenceEvent),
     ServerError(ServerErrorPacket),
+    HealthCheck(HealthCheckPacket),
 }
 
 /// A Quic Network Datagram
@@ -87,6 +89,7 @@ impl QuicNetworkPacket {
             PacketType::Collection => false,
             PacketType::PlayerPresence => true,
             PacketType::ServerError => false,
+            PacketType::HealthCheck => false,
         }
     }
 
@@ -565,6 +568,22 @@ impl TryFrom<QuicNetworkPacketData> for ServerErrorPacket {
     fn try_from(value: QuicNetworkPacketData) -> Result<Self, Self::Error> {
         match value {
             QuicNetworkPacketData::ServerError(s) => Ok(s),
+            _ => Err(()),
+        }
+    }
+}
+
+/// Health check packet for connection monitoring
+/// Empty packet - just the type marker is enough for ping/pong behavior
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct HealthCheckPacket;
+
+impl TryFrom<QuicNetworkPacketData> for HealthCheckPacket {
+    type Error = ();
+
+    fn try_from(value: QuicNetworkPacketData) -> Result<Self, Self::Error> {
+        match value {
+            QuicNetworkPacketData::HealthCheck(h) => Ok(h),
             _ => Err(()),
         }
     }

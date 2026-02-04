@@ -269,6 +269,14 @@ impl StreamTrait for InputStream {
                                         }
                                         _ => {}
                                     },
+                                    PacketType::HealthCheck => {
+                                        if let Ok(bytes) = packet.to_datagram() {
+                                            let _ = connection.datagram_mut(|dg: &mut common::s2n_quic::provider::datagram::default::Sender| {
+                                                dg.send_datagram(Bytes::from(bytes))
+                                            });
+                                        }
+                                        continue;
+                                    }
                                     _ => {}
                                 };
 

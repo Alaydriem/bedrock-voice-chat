@@ -85,6 +85,7 @@ pub(crate) async fn change_network_stream(
     match network_stream
         .restart(
             server_fqdn.clone(),
+            server.clone(),
             socket_addr,
             data.gamertag,
             data.certificate_ca,
