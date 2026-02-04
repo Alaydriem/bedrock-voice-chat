@@ -40,13 +40,13 @@ jobs:
             os: windows-latest
             artifact_name: bvc-server.exe
 
-          # Linux x64 builds
-          - target: x86_64-unknown-linux-gnu
+          # Linux x64 builds (musl for static, glibc-free binaries)
+          - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
             artifact_name: bvc-server-amd64
 
-          # Linux arm64 builds (native runner)
-          - target: aarch64-unknown-linux-gnu
+          # Linux arm64 builds (musl for static, glibc-free binaries)
+          - target: aarch64-unknown-linux-musl
             os: ubuntu-24.04-arm
             artifact_name: bvc-server-arm64
 
@@ -81,11 +81,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             pkg-config \
-            libssl-dev \
-            libsqlite3-dev \
             cmake \
             build-essential \
-            libasound2-dev
+            musl-tools \
+            musl-dev
 
       - name: Setup cross-compilation environment
         if: false # Cross-compilation not currently used, but keeping for future

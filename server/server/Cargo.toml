@@ -19,6 +19,7 @@ path = "src/main.rs"
 [features]
 default = []
 ffi = []
+bundled-sqlite = []
 
 [dependencies]
 common = { path = "../../common", features = ["quic", "templates", "server"] }
@@ -75,7 +76,6 @@ moka = { version = "^0.12", features = [
     "sync",
 ] }
 async-channel = { version = "^2.3" }
-windows-targets = { version = "^0.53" }
 nanoid = { version = "^0.4" }
 blake3 = { version = "^1.8" }
 hex = { version = "^0.4" }
@@ -88,7 +88,6 @@ cached = { version = "^0.56" }
 built = { version = "^0.7", features = ["git2", "chrono", "semver"] }
 
 [dev-dependencies]
-windows = { version = "0.56.0", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_System_WindowsProgramming"] }
 opus2 = { version = "^0.3" }
 rodio = { version = "^0.21" }
 async-ringbuf = { version = "^0.3" }
@@ -96,6 +95,15 @@ ringbuf = { version = "0.4" }
 hound = "^3.5"
 read-process-memory = "0.1.6"
 proc_mem = "0.1.6"
+
+[target.'cfg(target_env = "musl")'.dependencies]
+libsqlite3-sys = { version = "^0.30", features = ["bundled"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-targets = { version = "^0.53" }
+
+[target.'cfg(windows)'.dev-dependencies]
+windows = { version = "^0.62", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_System_WindowsProgramming"] }
 
 [package.metadata.deb]
 maintainer = "Charles R. Portwood II <charlesportwoodii@erianna.com>"
