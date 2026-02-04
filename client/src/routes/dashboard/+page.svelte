@@ -162,7 +162,8 @@
           playerManager,
           channelManager,
           store,
-          serverUrl
+          serverUrl,
+          onClose: closeSidebar
         }
       });
 
@@ -173,8 +174,11 @@
       await window.App.setPlayerAvatar();
 
       if (isGroupChatSidebarAvailable) {
-        openSidebar();
-        closeSidebar();
+        if (isMobile) {
+          closeSidebar();
+        } else {
+          openSidebar();
+        }
       }
     }
 
@@ -206,6 +210,15 @@
 <div id="root" class="h-100vh cloak flex grow bg-slate-50 dark:bg-navy-900 overflow-hidden max-w-[100vw] supports-[height:1dvh]:h-dvh">
   <div id="main-sidebar-container" class="sidebar print:hidden"></div>
 
+  <!-- Mobile backdrop overlay - closes sidebar when tapped -->
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    class="sidebar-backdrop fixed inset-0 bg-black/50 z-30 md:hidden"
+    on:click={closeSidebar}
+    style="touch-action: manipulation;"
+  ></div>
+
   <main
     bind:this={mainContentElement}
     class="main-content chat-app h-100vh mt-0 flex flex-col w-full min-w-0 overflow-hidden supports-[height:1dvh]:h-dvh"
@@ -220,6 +233,7 @@
               id="sidebar-toggle"
               on:click={toggleSidebar}
               aria-label="Toggle sidebar"
+              style="touch-action: manipulation;"
               class="menu-toggle cursor-pointer ml-0.5 flex size-7 flex-col justify-center space-y-1.5 text-primary outline-hidden focus:outline-hidden dark:text-accent-light/80 active"
             >
               <span></span>
