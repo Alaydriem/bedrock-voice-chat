@@ -1,6 +1,6 @@
 use crate::AudioPacket;
 use bytes::Bytes;
-use common::structs::packet::QuicNetworkPacket;
+use common::structs::packet::{PacketType, QuicNetworkPacket};
 use core::{
     future::Future,
     pin::Pin,
@@ -15,6 +15,8 @@ use std::sync::{
 use tauri::Emitter;
 use tokio::task::AbortHandle;
 
+use super::HealthMonitorState;
+
 /// The InputStream consumes audio packets from the server
 /// Then sends it to the AudioStreamManager::OutputStream
 pub(crate) struct InputStream {
@@ -24,6 +26,7 @@ pub(crate) struct InputStream {
     shutdown: Arc<AtomicBool>,
     pub metadata: Arc<moka::future::Cache<String, String>>,
     app_handle: tauri::AppHandle,
+    pub health_state: Arc<HealthMonitorState>,
 }
 
 impl common::traits::StreamTrait for InputStream {
@@ -35,8 +38,6 @@ impl common::traits::StreamTrait for InputStream {
 
     async fn stop(&mut self) -> Result<(), anyhow::Error> {
         _ = self.shutdown.store(true, Ordering::Relaxed);
-
-        // Then hard terminate them
         for job in &self.jobs {
             job.abort();
         }
@@ -58,6 +59,7 @@ impl common::traits::StreamTrait for InputStream {
 
         let shutdown = self.shutdown.clone();
         let app_handle = self.app_handle.clone();
+        let health_state = self.health_state.clone();
         jobs.push(tokio::spawn(async move {
             log::info!("Started network recv stream.");
             while let Ok(bytes) = recv_one_datagram(&connection).await {
@@ -67,6 +69,14 @@ impl common::traits::StreamTrait for InputStream {
                 }
                 match QuicNetworkPacket::from_datagram(&bytes) {
                     Ok(packet) => {
+                        health_state.on_packet_received();
+
+                        if packet.packet_type == PacketType::HealthCheck {
+                            health_state.on_health_check_received();
+                            log::trace!("Received health check response from server");
+                            continue;
+                        }
+
                         _ = tx.send_async(AudioPacket { data: packet }).await;
                     }
                     Err(e) => {
@@ -99,6 +109,7 @@ impl InputStream {
         producer: Arc<flume::Sender<AudioPacket>>,
         connection: Option<Arc<Connection>>,
         app_handle: tauri::AppHandle,
+        health_state: Arc<HealthMonitorState>,
     ) -> Self {
         Self {
             bus: producer.clone(),
@@ -107,11 +118,11 @@ impl InputStream {
             shutdown: Arc::new(AtomicBool::new(false)),
             metadata: Arc::new(moka::future::Cache::builder().build()),
             app_handle: app_handle.clone(),
+            health_state,
         }
     }
 }
 
-// Minimal datagram future for client
 struct RecvDatagram<'c> {
     conn: &'c Connection,
 }

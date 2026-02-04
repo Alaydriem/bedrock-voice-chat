@@ -10,41 +10,35 @@
     import RefreshButton from "./RefreshButton.svelte";
     import MuteButton from "./MuteButton.svelte";
     import DeafenButton from "./DeafenButton.svelte";
+    import NetworkHealthIndicator from "./NetworkHealthIndicator.svelte";
     import type { Channel } from "../../../js/bindings/Channel";
     import type { PlayerManager } from "../../../js/app/managers/PlayerManager";
     import type ChannelManager from "../../../js/app/managers/ChannelManager";
 
-    // Manager props (injected via dependency injection)
     export let playerManager: PlayerManager;
     export let channelManager: ChannelManager;
     export let store: Store;
     export let serverUrl: string;
     export let onClose: (() => void) | undefined = undefined;
 
-    let currentUser = ""; // Will be loaded from player manager
+    let currentUser = "";
     let isListeningActive = false;
-
-    // Store values that will be reactively updated
     let channels: Channel[] = [];
     let error: string | null = null;
     let isListening = false;
     let isLoading = false;
 
-    // Get store objects from managers
     $: channelsStore = channelManager?.channels;
     $: errorStore = channelManager?.error;
     $: isListeningStore = channelManager?.isListening;
     $: isLoadingStore = channelManager?.isLoading;
     $: currentUserStore = playerManager?.currentUser;
 
-    // Subscribe to stores using proper Svelte syntax
     $: channels = channelsStore ? $channelsStore : [];
     $: error = errorStore ? $errorStore : null;
     $: isListening = isListeningStore ? $isListeningStore : false;
     $: isLoading = isLoadingStore ? $isLoadingStore : false;
     $: currentUser = currentUserStore ? $currentUserStore : "";
-
-    // Get current user's channel
     $: currentUserChannel = channels.find((channel: Channel) => channel.players && channel.players.includes(currentUser));
     $: userCurrentChannelId = currentUserChannel?.id || null;
 
@@ -86,17 +80,11 @@
     };
 
     onMount(async () => {
-        // Note: No longer calling window.App.bindSidebarEvents() since we handle events in components
-
-        // Initialize API client if needed
         const apiInitialized = await initializeApiIfNeeded();
 
         if (apiInitialized) {
-            // Start listening for channel events
             await channelManager.startListening();
             isListeningActive = true;
-
-            // Initial fetch
             channelManager.fetchChannels();
         } else {
             logError('Failed to initialize API, channels will not be loaded');
@@ -112,26 +100,21 @@
 
     const handleNewGroup = async () => {
         try {
-            // Generate a random name for the new group
             const randomName = uniqueNamesGenerator({
                 dictionaries: [adjectives, colors, animals],
                 separator: ' ',
                 style: 'capital'
             });
 
-            // Check if user is currently in a group - leave it before joining the new one
             if (userCurrentChannelId) {
                 const currentChannel = channels.find((c: Channel) => c.id === userCurrentChannelId);
-
                 if (currentChannel) {
                     await channelManager.leaveChannel(userCurrentChannelId, currentUser);
                 }
             }
 
             const newChannelId = await channelManager.createChannel(randomName);
-
             if (newChannelId) {
-                // Automatically join the newly created group
                 await channelManager.joinChannel(newChannelId, currentUser);
             }
         } catch (error) {
@@ -292,13 +275,7 @@
                     <RecordButton disabled={!currentUser || !isListening} />
                     <DeafenButton disabled={false} />
                     <MuteButton disabled={false} />
-                    <button
-                        data-tooltip="Help"
-                        aria-label="Help"
-                        class="btn size-8 rounded-full p-0 hover:bg-slate-300/20 focus:bg-slate-300/20 active:bg-slate-300/25 dark:hover:bg-navy-300/20 dark:focus:bg-navy-300/20 dark:active:bg-navy-300/25"
-                    >
-                        <i class="fa-regular fa-circle-question"></i>
-                    </button>
+                    <NetworkHealthIndicator />
                 </div>
             </div>
         </div>

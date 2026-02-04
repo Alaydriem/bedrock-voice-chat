@@ -1,7 +1,9 @@
+mod health_monitor;
 mod input;
 mod output;
 
 pub(crate) use common::traits::StreamTrait;
+pub(crate) use health_monitor::HealthMonitorState;
 pub(crate) use input::InputStream;
 pub(crate) use output::OutputStream;
 

@@ -1,30 +1,41 @@
 <script lang="ts">
     import { info, error as logError } from '@tauri-apps/plugin-log';
+    import { onMount, onDestroy } from 'svelte';
+    import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
-    // Props
     export let disabled: boolean = false;
 
-    // Internal state
     let isRefreshing = false;
+    let unlisten: (() => void) | undefined;
 
     const handleRefresh = async () => {
         try {
             isRefreshing = true;
             info('Refreshing audio engine...');
 
-            // Call the global shutdown and reload - matches existing behavior
             if (window.App) {
                 await window.App.shutdown();
             }
-
-            // Reload the page to restart everything
             window.location.reload();
-
         } catch (error) {
             logError(`Failed to refresh audio engine: ${error}`);
-            isRefreshing = false; // Reset on error
+            isRefreshing = false;
         }
     };
+
+    onMount(async () => {
+        const appWebview = getCurrentWebviewWindow();
+        unlisten = await appWebview.listen('trigger_refresh', () => {
+            info('Received trigger_refresh event, initiating refresh...');
+            handleRefresh();
+        });
+    });
+
+    onDestroy(() => {
+        if (unlisten) {
+            unlisten();
+        }
+    });
 </script>
 
 <button
