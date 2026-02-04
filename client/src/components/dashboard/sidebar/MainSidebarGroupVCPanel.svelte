@@ -19,6 +19,7 @@
     export let channelManager: ChannelManager;
     export let store: Store;
     export let serverUrl: string;
+    export let onClose: (() => void) | undefined = undefined;
 
     let currentUser = ""; // Will be loaded from player manager
     let isListeningActive = false;
@@ -175,6 +176,18 @@
                     Bedrock Voice Chat
                 </p>
             </div>
+            {#if onClose}
+                <button
+                    on:click={onClose}
+                    aria-label="Close sidebar"
+                    style="touch-action: manipulation;"
+                    class="btn size-8 rounded-full p-0 hover:bg-slate-300/20 focus:bg-slate-300/20 active:bg-slate-300/25 dark:hover:bg-navy-300/20 dark:focus:bg-navy-300/20 dark:active:bg-navy-300/25 md:hidden"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            {/if}
         </div>
 
         <!-- Sidebar Panel Body -->

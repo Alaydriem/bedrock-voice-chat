@@ -115,6 +115,15 @@ body.is-monochrome::before {
   @apply translate-x-0 ease-out;
 }
 
+/* Sidebar backdrop - hidden by default, shown when sidebar is open on mobile */
+.sidebar-backdrop {
+  @apply hidden pointer-events-none opacity-0 transition-opacity duration-200;
+}
+
+.is-sidebar-open .sidebar-backdrop {
+  @apply block pointer-events-auto opacity-100;
+}
+
 .sidebar-panel-min {
   @apply fixed z-40 h-full w-[var(--sidebar-panel-min-width)] shrink-0 -translate-x-full transform-gpu shadow-soft transition-transform duration-[.25s] ease-in dark:shadow-navy-900/60;
 }Players will appear here when they join the voice chan
