@@ -279,11 +279,16 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-bds-${{ needs.prepare-release.outputs.new_release_version }}.mcpack
+          name: bedrock-voice-chat-bds-${{ needs.prepare-release.outputs.new_release_version }}.zip
           path: ./artifacts
 
       - name: List artifacts
         run: ls -la ./artifacts
+
+      - name: Rename to mcpack for CurseForge
+        run: |
+          mv ./artifacts/bedrock-voice-chat-${{ needs.prepare-release.outputs.new_release_version }}.zip \
+             ./artifacts/bedrock-voice-chat-${{ needs.prepare-release.outputs.new_release_version }}.mcpack
 
       - name: Publish to CurseForge
         uses: itsmeow/curseforge-upload@v3
@@ -332,7 +337,7 @@ jobs:
         if: needs.build-mod-bds.result == 'success'
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-bds-${{ needs.prepare-release.outputs.new_release_version }}.mcpack
+          name: bedrock-voice-chat-bds-${{ needs.prepare-release.outputs.new_release_version }}.zip
           path: ./release-files
 
       - name: Rename artifacts
@@ -353,8 +358,8 @@ jobs:
             mv "bedrock-voice-chat-hytale-${VERSION}.jar" "bvc-hytale-plugin-${VERSION}.jar"
           fi
 
-          if [ -f "bedrock-voice-chat-${VERSION}.mcpack" ]; then
-            mv "bedrock-voice-chat-${VERSION}.mcpack" "bvc-bds-pack-${VERSION}.mcpack"
+          if [ -f "bedrock-voice-chat-${VERSION}.zip" ]; then
+            mv "bedrock-voice-chat-${VERSION}.zip" "bvc-bds-pack-${VERSION}.zip"
           fi
 
           echo "=== Release files ==="
@@ -366,7 +371,7 @@ jobs:
           tag_name: mods-v${{ needs.prepare-release.outputs.new_release_version }}
           files: |
             ./release-files/*.jar
-            ./release-files/*.mcpack
+            ./release-files/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

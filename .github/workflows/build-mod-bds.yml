@@ -65,7 +65,7 @@ jobs:
         working-directory: ./mods/bds
         run: yarn run pack
 
-      - name: Verify and rename to mcpack
+      - name: Verify zip creation
         shell: bash
         run: |
           cd mods/bds
@@ -78,16 +78,16 @@ jobs:
           echo "Found zip: $ZIP_FILE"
           ls -lh "$ZIP_FILE"
 
-          # Copy and rename to .mcpack for artifact upload (CurseForge expects .mcpack)
-          cp "$ZIP_FILE" ../../bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.mcpack
+          # Copy to a consistent name for artifact upload
+          cp "$ZIP_FILE" ../../bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.zip
 
-          echo "Prepared artifact: bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.mcpack"
+          echo "Prepared artifact: bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.zip"
 
-      - name: Upload mcpack artifact
+      - name: Upload zip artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bedrock-voice-chat-bds-${{ steps.pack-version.outputs.version }}.mcpack
-          path: bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.mcpack
+          name: bedrock-voice-chat-bds-${{ steps.pack-version.outputs.version }}.zip
+          path: bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.zip
           retention-days: 30
 
       - name: Output artifact information
@@ -100,7 +100,7 @@ jobs:
             echo "| ---- | ----- |"
             echo "| Version | ${{ steps.pack-version.outputs.version }} |"
             echo "| Trigger | ${{ github.event_name }} |"
-            echo "| Artifact | bedrock-voice-chat-bds-${{ steps.pack-version.outputs.version }}.mcpack |"
+            echo "| Artifact | bedrock-voice-chat-bds-${{ steps.pack-version.outputs.version }}.zip |"
             echo "| Artifact URL | [View Run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) |"
             echo "| Retention | 30 days |"
           } >> $GITHUB_STEP_SUMMARY
