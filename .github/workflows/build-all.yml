@@ -158,6 +158,8 @@ jobs:
     needs: [changes, build-server]
     if: needs.build-server.result == 'success' && needs.changes.outputs.fabric-mod == 'true'
     uses: ./.github/workflows/build-mod-fabric.yml
+    with:
+      artifact_run_id: ${{ github.run_id }}
     secrets: inherit
 
   # Build Paper Plugin
@@ -166,6 +168,8 @@ jobs:
     needs: [changes, build-server]
     if: needs.build-server.result == 'success' && needs.changes.outputs.paper-mod == 'true'
     uses: ./.github/workflows/build-mod-paper.yml
+    with:
+      artifact_run_id: ${{ github.run_id }}
     secrets: inherit
 
   # Build Hytale Plugin
@@ -174,6 +178,8 @@ jobs:
     needs: [changes, build-server]
     if: needs.build-server.result == 'success' && needs.changes.outputs.hytale-mod == 'true'
     uses: ./.github/workflows/build-mod-hytale.yml
+    with:
+      artifact_run_id: ${{ github.run_id }}
     secrets: inherit
 
   # Build BDS Pack

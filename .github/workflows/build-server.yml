@@ -44,21 +44,43 @@ jobs:
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             artifact_name: bvc-server.exe
+            build_server: true
+            build_native_lib: true
 
           # Linux x64 builds (musl for static, glibc-free binaries)
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
             artifact_name: bvc-server-amd64
+            build_server: true
+            build_native_lib: false  # musl doesn't support cdylib
+
+          # Linux x64 builds (glibc for native library / cdylib)
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact_name: bvc-server-amd64-gnu
+            build_server: false
+            build_native_lib: true
 
           # Linux arm64 builds (musl for static, glibc-free binaries)
           - target: aarch64-unknown-linux-musl
             os: ubuntu-24.04-arm
             artifact_name: bvc-server-arm64
+            build_server: true
+            build_native_lib: false
+
+          # Linux arm64 builds (glibc for native library / cdylib)
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-24.04-arm
+            artifact_name: bvc-server-arm64-gnu
+            build_server: false
+            build_native_lib: true
 
           # Darwin ARM64 builds (native runner)
           - target: aarch64-apple-darwin
             os: macos-latest
             artifact_name: bvc-server-darwin-arm64
+            build_server: true
+            build_native_lib: true
 
     steps:
       - name: Checkout code
@@ -119,7 +141,7 @@ jobs:
           aarch64-linux-gnu-gcc --version || echo "aarch64-linux-gnu-gcc not found"
 
       - name: Build server (native)
-        if: true # Always build natively for now
+        if: matrix.build_server
         working-directory: ./server
         run: |
           # Determine actual build mode used - force debug for PRs, release for tags
@@ -139,6 +161,7 @@ jobs:
         shell: bash
 
       - name: Prepare artifacts
+        if: matrix.build_server
         shell: bash
         run: |
           # Determine actual build mode used
@@ -163,6 +186,7 @@ jobs:
           ls -la "$FINAL_NAME"
 
       - name: Upload artifacts
+        if: matrix.build_server
         uses: actions/upload-artifact@v4
         id: upload-server
         with:
@@ -171,6 +195,7 @@ jobs:
           retention-days: 30
 
       - name: Output artifact information
+        if: matrix.build_server
         shell: bash
         run: |
           BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || startsWith(github.ref, 'refs/tags/') && 'release' || inputs.build_mode || 'debug' }}"
@@ -188,6 +213,7 @@ jobs:
           } >> $GITHUB_STEP_SUMMARY
 
       - name: Determine library name
+        if: matrix.build_native_lib
         id: lib-name
         shell: bash
         run: |
@@ -199,11 +225,36 @@ jobs:
             echo "lib_name=libbvc_server_lib.so" >> $GITHUB_OUTPUT
           fi
 
+      - name: Build native library
+        if: matrix.build_native_lib
+        working-directory: ./server
+        shell: bash
+        run: |
+          BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || startsWith(github.ref, 'refs/tags/') && 'release' || inputs.build_mode || 'debug' }}"
+          if [ "$BUILD_MODE" = "release" ]; then
+            cargo build --lib --release --target ${{ matrix.target }}
+          else
+            cargo build --lib --target ${{ matrix.target }}
+          fi
+
+      - name: Verify native library exists
+        if: matrix.build_native_lib
+        shell: bash
+        run: |
+          BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || startsWith(github.ref, 'refs/tags/') && 'release' || inputs.build_mode || 'debug' }}"
+          echo "Looking for library in: server/target/${{ matrix.target }}/$BUILD_MODE/"
+          ls -la server/target/${{ matrix.target }}/$BUILD_MODE/ || true
+          ls -la server/target/${{ matrix.target }}/$BUILD_MODE/*.so 2>/dev/null || echo "No .so files found"
+          ls -la server/target/${{ matrix.target }}/$BUILD_MODE/*.dylib 2>/dev/null || echo "No .dylib files found"
+          ls -la server/target/${{ matrix.target }}/$BUILD_MODE/*.dll 2>/dev/null || echo "No .dll files found"
+
       - name: Upload native library artifact
+        if: matrix.build_native_lib
         uses: actions/upload-artifact@v4
         with:
           name: bvc-native-lib-${{ matrix.target }}
           path: server/target/${{ matrix.target }}/${{ github.event_name == 'pull_request' && 'debug' || startsWith(github.ref, 'refs/tags/') && 'release' || inputs.build_mode || 'debug' }}/${{ steps.lib-name.outputs.lib_name }}
+          if-no-files-found: error
           retention-days: 30
 
   build-docker:
@@ -214,5 +265,5 @@ jobs:
     with:
       version: ${{ github.ref_name }}
       build_mode: ${{ inputs.build_mode || (startsWith(github.ref, 'refs/tags/') && 'release' || 'debug') }}
-      push: ${{ startsWith(github.ref, 'refs/tags/v') }}
+      push: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/beta' }}
     secrets: inherit

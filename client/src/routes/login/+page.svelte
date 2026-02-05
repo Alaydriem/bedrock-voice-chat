@@ -3,13 +3,16 @@
   import Login from "../../js/app/login.ts";
   import { onMount } from 'svelte';
   import { openUrl } from '@tauri-apps/plugin-opener';
+  import { getVersion } from '@tauri-apps/api/app';
   import PlatformDetector from "../../js/app/utils/PlatformDetector.ts";
 
   const platformDetector = new PlatformDetector();
   let isMobile = $state(false);
+  let appVersion = $state("");
 
   onMount(async () => {
     isMobile = await platformDetector.checkMobile();
+    appVersion = await getVersion();
     window.App = new Login();
     window.dispatchEvent(new CustomEvent("app:mounted"));
 
@@ -50,10 +53,10 @@
 
 <div
       id="root"
-      class="min-h-screen cloak flex grow bg-slate-50 dark:bg-navy-900"
+      class="min-h-dvh cloak flex items-center justify-center pb-20 bg-slate-50 dark:bg-navy-900"
     >
-      <main class="grid w-full grow grid-cols-1 place-items-center">
-        <div class="w-full max-w-[26rem] p-4 sm:px-5">
+      <main class="w-full">
+        <div class="w-full max-w-[26rem] mx-auto p-4 sm:px-5">
           <div class="text-center">
             <img
               class="mx-auto h-32 w-32"
@@ -126,14 +129,16 @@
             </div>
           </form>
           <div
-            class="mt-8 flex justify-center text-xs text-slate-400 dark:text-navy-300"
+            class="mt-8 flex flex-col items-center text-xs text-slate-400 dark:text-navy-300"
           >
             <button
               type="button"
               class="hover:text-slate-500 dark:hover:text-navy-200 hover:underline cursor-pointer"
               on:click={() => openUrl("https://raw.githubusercontent.com/Alaydriem/bedrock-voice-chat/refs/heads/master/PRIVACY_STATEMENT.md")}
             >Privacy Notice</button>
-            <div class="mx-3 my-1 w-px bg-slate-200 dark:bg-navy-500"></div>
+            {#if appVersion}
+              <span class="mt-2">v{appVersion}</span>
+            {/if}
           </div>
         </div>
       </main>

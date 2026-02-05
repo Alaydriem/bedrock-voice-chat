@@ -65,7 +65,7 @@ jobs:
         uses: actions/download-artifact@v4
         continue-on-error: true
         with:
-          name: bvc-native-lib-x86_64-unknown-linux-musl
+          name: bvc-native-lib-x86_64-unknown-linux-gnu
           path: mods/java/common/src/main/resources/native/linux-x64/
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ inputs.artifact_run_id || github.run_id }}
@@ -104,7 +104,7 @@ jobs:
             echo "Using gradle.properties version: $VERSION"
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "artifact-name=bedrock-voice-chat-hytale-$VERSION" >> $GITHUB_OUTPUT
+          echo "artifact-name=bedrock-voice-chat-hytale-$VERSION.jar" >> $GITHUB_OUTPUT
 
       - name: Setup Hytale credentials
         env:
@@ -147,7 +147,7 @@ jobs:
       - name: Upload JAR artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bedrock-voice-chat-hytale-${{ steps.mod-version.outputs.version }}
+          name: bedrock-voice-chat-hytale-${{ steps.mod-version.outputs.version }}.jar
           path: bedrock-voice-chat-hytale-${{ steps.mod-version.outputs.version }}.jar
           retention-days: 30
 
@@ -161,7 +161,7 @@ jobs:
             echo "| ---- | ----- |"
             echo "| Version | ${{ steps.mod-version.outputs.version }} |"
             echo "| Trigger | ${{ github.event_name }} |"
-            echo "| Artifact | bedrock-voice-chat-hytale-${{ steps.mod-version.outputs.version }} |"
+            echo "| Artifact | bedrock-voice-chat-hytale-${{ steps.mod-version.outputs.version }}.jar |"
             echo "| Artifact URL | [View Run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) |"
             echo "| Retention | 30 days |"
           } >> $GITHUB_STEP_SUMMARY

@@ -174,7 +174,7 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-fabric-${{ needs.prepare-release.outputs.new_release_version }}
+          name: bedrock-voice-chat-fabric-${{ needs.prepare-release.outputs.new_release_version }}.jar
           path: ./artifacts
 
       - name: List artifacts
@@ -213,7 +213,7 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-paper-${{ needs.prepare-release.outputs.new_release_version }}
+          name: bedrock-voice-chat-paper-${{ needs.prepare-release.outputs.new_release_version }}.jar
           path: ./artifacts
 
       - name: List artifacts
@@ -249,7 +249,7 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-hytale-${{ needs.prepare-release.outputs.new_release_version }}
+          name: bedrock-voice-chat-hytale-${{ needs.prepare-release.outputs.new_release_version }}.jar
           path: ./artifacts
 
       - name: List artifacts
@@ -279,7 +279,7 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-bds-${{ needs.prepare-release.outputs.new_release_version }}
+          name: bedrock-voice-chat-bds-${{ needs.prepare-release.outputs.new_release_version }}.mcpack
           path: ./artifacts
 
       - name: List artifacts
@@ -291,7 +291,7 @@ jobs:
           token: ${{ secrets.CURSEFORGE_API_TOKEN }}
           project_id: 1445992
           game_endpoint: minecraft
-          file_path: ./artifacts/bedrock-voice-chat-${{ needs.prepare-release.outputs.new_release_version }}.zip
+          file_path: ./artifacts/bedrock-voice-chat-${{ needs.prepare-release.outputs.new_release_version }}.mcpack
           changelog: ${{ needs.prepare-release.outputs.new_release_notes }}
           changelog_type: markdown
           display_name: Bedrock Voice Chat ${{ needs.prepare-release.outputs.new_release_version }}
@@ -311,28 +311,28 @@ jobs:
         if: needs.build-mod-fabric.result == 'success'
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-fabric-${{ needs.prepare-release.outputs.new_release_version }}
+          name: bedrock-voice-chat-fabric-${{ needs.prepare-release.outputs.new_release_version }}.jar
           path: ./release-files
 
       - name: Download Paper artifact
         if: needs.build-mod-paper.result == 'success'
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-paper-${{ needs.prepare-release.outputs.new_release_version }}
+          name: bedrock-voice-chat-paper-${{ needs.prepare-release.outputs.new_release_version }}.jar
           path: ./release-files
 
       - name: Download Hytale artifact
         if: needs.build-mod-hytale.result == 'success'
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-hytale-${{ needs.prepare-release.outputs.new_release_version }}
+          name: bedrock-voice-chat-hytale-${{ needs.prepare-release.outputs.new_release_version }}.jar
           path: ./release-files
 
       - name: Download BDS artifact
         if: needs.build-mod-bds.result == 'success'
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-bds-${{ needs.prepare-release.outputs.new_release_version }}
+          name: bedrock-voice-chat-bds-${{ needs.prepare-release.outputs.new_release_version }}.mcpack
           path: ./release-files
 
       - name: Rename artifacts
@@ -353,8 +353,8 @@ jobs:
             mv "bedrock-voice-chat-hytale-${VERSION}.jar" "bvc-hytale-plugin-${VERSION}.jar"
           fi
 
-          if [ -f "bedrock-voice-chat-${VERSION}.zip" ]; then
-            mv "bedrock-voice-chat-${VERSION}.zip" "bvc-bds-pack-${VERSION}.zip"
+          if [ -f "bedrock-voice-chat-${VERSION}.mcpack" ]; then
+            mv "bedrock-voice-chat-${VERSION}.mcpack" "bvc-bds-pack-${VERSION}.mcpack"
           fi
 
           echo "=== Release files ==="
@@ -366,7 +366,7 @@ jobs:
           tag_name: mods-v${{ needs.prepare-release.outputs.new_release_version }}
           files: |
             ./release-files/*.jar
-            ./release-files/*.zip
+            ./release-files/*.mcpack
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
