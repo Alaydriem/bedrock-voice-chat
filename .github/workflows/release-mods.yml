@@ -43,7 +43,8 @@ jobs:
     name: Prepare Release
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    permissions: write-all
+    permissions:
+      contents: write
     outputs:
       new_release_published: ${{ inputs.version != '' && 'true' || steps.semantic-release.outputs.new_release_published }}
       new_release_version: ${{ inputs.version || steps.semantic-release.outputs.new_release_version }}
