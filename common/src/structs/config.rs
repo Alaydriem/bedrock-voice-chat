@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 pub struct ApiConfig {
     pub status: String,
     pub client_id: String,
+    pub protocol_version: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

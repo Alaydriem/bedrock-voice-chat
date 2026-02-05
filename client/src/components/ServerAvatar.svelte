@@ -6,6 +6,14 @@
   import ImageCacheOptions from "../js/app/components/imageCacheOptions";
   import Keyring from "../js/app/keyring.ts";
   import { type LoginResponse } from "../js/bindings/LoginResponse";
+  import { type ApiConfig } from "../js/bindings/ApiConfig";
+
+  interface ConfigResponse {
+    config: ApiConfig;
+    client_version: string;
+    compatible: boolean;
+    client_too_old: boolean;
+  }
 
   export let id: string;
   export let server: string;
@@ -14,6 +22,8 @@
   let buttonClasses = "bg-primary text-grey";
   let buttonMessage = "Checking Server";
   let showSpinner = true;
+  let versionMismatch = false;
+  let clientTooOld = false;
 
   const canvasUrl = `${server}/assets/canvas.png`;
   const avatarUrl = `${server}/assets/avatar.png`;
@@ -68,8 +78,15 @@
         pem: pem
       });
 
-      // Ping THIS specific server
-      await invoke("api_ping", { server: server });
+      // Get config from THIS specific server and check version compatibility
+      const configResponse = await invoke<ConfigResponse>("api_get_config", { server: server });
+
+      if (!configResponse.compatible) {
+        versionMismatch = true;
+        clientTooOld = configResponse.client_too_old;
+        showVersionMismatchButton(configResponse.client_too_old, configResponse.config.protocol_version, configResponse.client_version);
+        return;
+      }
 
       showConnectButton();
 
@@ -119,7 +136,22 @@
     buttonMessage = "Re-authenticate";
   }
 
+  function showVersionMismatchButton(clientTooOld: boolean, serverVersion: string, clientVersion: string) {
+    buttonDisabled = true;
+    showSpinner = false;
+    buttonClasses = "bg-warning text-slate-800";
+    if (clientTooOld) {
+      buttonMessage = `Update Client (${clientVersion} → ${serverVersion})`;
+    } else {
+      buttonMessage = `Server Outdated`;
+    }
+  }
+
   async function handleClick() {
+    if (versionMismatch) {
+      // Don't allow click when version mismatch
+      return;
+    }
     if (buttonMessage === "Connect!") {
       const { Store } = await import('@tauri-apps/plugin-store');
       const store = await Store.load("store.json", {
@@ -145,7 +177,11 @@
         <img id="avatar-logo" class="rounded-full border-2 border-white dark:border-navy-700" src="" alt="avatar">
       </div>
     </div>
-    <h3 id="name" class="text-center pb-4 pt-2 text-lg font-medium text-slate-700 dark:text-navy-100">
+    <h3
+      id="name"
+      class="text-center pb-4 pt-2 text-lg font-medium text-slate-700 dark:text-navy-100 truncate"
+      title={server}
+    >
       {server}
     </h3>
     <div class="flex justify-center space-x-3 py-3">

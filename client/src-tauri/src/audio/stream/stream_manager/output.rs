@@ -2,7 +2,7 @@ use super::sink_manager::SinkManager;
 use crate::audio::stream::stream_manager::AudioSinkType;
 use crate::audio::stream::RecoverySender;
 use crate::audio::recording::RecordingProducer;
-use crate::{audio::stream::jitter_buffer::EncodedAudioFramePacket, events::ServerError};
+use crate::audio::stream::jitter_buffer::EncodedAudioFramePacket;
 
 use crate::audio::types::AudioDevice;
 use crate::AudioPacket;
@@ -11,9 +11,10 @@ use base64::engine::{general_purpose, Engine};
 use common::{
     structs::{
         audio::{PlayerGainSettings, PlayerGainStore, StreamEvent},
+        network::ConnectionHealth,
         packet::{
             AudioFramePacket, ChannelEventPacket, ConnectionEventType, PacketType, PlayerDataPacket,
-            PlayerPresenceEvent, QuicNetworkPacket, ServerErrorPacket,
+            PlayerPresenceEvent, QuicNetworkPacket, ServerErrorPacket, ServerErrorType,
         },
     },
     PlayerEnum, RecordingPlayerData,
@@ -682,11 +683,25 @@ impl OutputStream {
     async fn handle_server_error(data: &QuicNetworkPacket, app_handle: Option<&tauri::AppHandle>) {
         if let Some(app_handle) = app_handle {
             if let Ok(error_packet) = TryInto::<ServerErrorPacket>::try_into(data.data.clone()) {
-                if let Err(e) = app_handle.emit(
-                    crate::events::event::server_error::SERVER_ERROR,
-                    ServerError::new(error_packet.error_type, error_packet.message),
-                ) {
-                    error!("Failed to emit server error event: {:?}", e);
+                match error_packet.error_type {
+                    ServerErrorType::VersionIncompatible {
+                        ref client_version,
+                        ref server_version,
+                    } => {
+                        error!(
+                            "Protocol version mismatch: client={}, server={}",
+                            client_version, server_version
+                        );
+                        let health_event = ConnectionHealth::VersionMismatch {
+                            client_version: client_version.clone(),
+                            server_version: server_version.clone(),
+                            client_too_old: true,
+                        };
+                        info!("Emitting connection_health event: {:?}", health_event);
+                        if let Err(e) = app_handle.emit("connection_health", health_event) {
+                            error!("Failed to emit connection_health event: {:?}", e);
+                        }
+                    }
                 }
             }
         }

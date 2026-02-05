@@ -1,5 +1,7 @@
 use bytes::Bytes;
+use common::consts::version::PROTOCOL_VERSION;
 use common::s2n_quic::Connection;
+use common::structs::config::ApiConfig;
 use common::structs::network::ConnectionHealth;
 use common::structs::packet::{
     HealthCheckPacket, PacketOwner, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
@@ -11,6 +13,20 @@ use tauri::Emitter;
 use tokio::task::AbortHandle;
 
 use super::stream_manager::HealthMonitorState;
+
+/// Result of probing the server
+enum ProbeResult {
+    /// Server is available and version is compatible
+    Available,
+    /// Server is unavailable (network error, timeout, etc.)
+    Unavailable,
+    /// Server is available but protocol version mismatch
+    VersionMismatch {
+        client_version: String,
+        server_version: String,
+        client_too_old: bool,
+    },
+}
 
 /// Configuration for health monitoring
 #[derive(Debug, Clone)]
@@ -227,13 +243,39 @@ impl ConnectionHealthManager {
                 ConnectionHealth::Reconnecting { attempt },
             );
 
-            if Self::probe_server(server_url).await {
-                log::info!("Server is back online, triggering refresh...");
-                let _ = app_handle.emit("trigger_refresh", ());
-                return;
+            match Self::probe_server(server_url).await {
+                ProbeResult::Available => {
+                    log::info!("Server is back online, triggering refresh...");
+                    let _ = app_handle.emit("trigger_refresh", ());
+                    return;
+                }
+                ProbeResult::VersionMismatch {
+                    client_version,
+                    server_version,
+                    client_too_old,
+                } => {
+                    log::error!(
+                        "Protocol version mismatch detected: client={}, server={}, client_too_old={}",
+                        client_version,
+                        server_version,
+                        client_too_old
+                    );
+                    let _ = app_handle.emit(
+                        "connection_health",
+                        ConnectionHealth::VersionMismatch {
+                            client_version,
+                            server_version,
+                            client_too_old,
+                        },
+                    );
+                    // Exit early - don't keep retrying on version mismatch
+                    return;
+                }
+                ProbeResult::Unavailable => {
+                    log::warn!("Server not yet available (attempt {}), waiting...", attempt);
+                }
             }
 
-            log::warn!("Server not yet available (attempt {}), waiting...", attempt);
             attempt += 1;
 
             let jitter = rand::random::<f64>() * config.jitter_factor * 2.0 - config.jitter_factor;
@@ -250,8 +292,8 @@ impl ConnectionHealthManager {
         let _ = app_handle.emit("connection_health", ConnectionHealth::Failed);
     }
 
-    /// Probe the server's HTTP endpoint to check availability
-    async fn probe_server(server_url: &str) -> bool {
+    /// Probe the server's HTTP endpoint to check availability and version compatibility
+    async fn probe_server(server_url: &str) -> ProbeResult {
         let client = match reqwest::Client::builder()
             .timeout(Duration::from_secs(5))
             .danger_accept_invalid_certs(true)
@@ -260,7 +302,7 @@ impl ConnectionHealthManager {
             Ok(c) => c,
             Err(e) => {
                 log::warn!("Failed to build HTTP client for probe: {}", e);
-                return false;
+                return ProbeResult::Unavailable;
             }
         };
 
@@ -276,11 +318,89 @@ impl ConnectionHealthManager {
         match client.get(&url).send().await {
             Ok(resp) => {
                 log::debug!("Probe response status: {}", resp.status());
-                resp.status().is_success()
+                if !resp.status().is_success() {
+                    return ProbeResult::Unavailable;
+                }
+
+                // Try to parse as the new ApiConfig format with protocol_version
+                let body = match resp.text().await {
+                    Ok(text) => text,
+                    Err(e) => {
+                        log::warn!("Failed to read response body: {}", e);
+                        return ProbeResult::Unavailable;
+                    }
+                };
+
+                // Try to parse with protocol_version first
+                match serde_json::from_str::<ApiConfig>(&body) {
+                    Ok(config) => {
+                        let server_version = &config.protocol_version;
+                        let client_version = PROTOCOL_VERSION;
+
+                        // Parse versions for comparison (major.minor.patch)
+                        let server_parts: Vec<u32> = server_version
+                            .split('.')
+                            .filter_map(|s| s.parse().ok())
+                            .collect();
+                        let client_parts: Vec<u32> = client_version
+                            .split('.')
+                            .filter_map(|s| s.parse().ok())
+                            .collect();
+
+                        // Compare major and minor versions - both must match (patch can differ)
+                        let server_major = server_parts.first().copied().unwrap_or(0);
+                        let server_minor = server_parts.get(1).copied().unwrap_or(0);
+                        let client_major = client_parts.first().copied().unwrap_or(0);
+                        let client_minor = client_parts.get(1).copied().unwrap_or(0);
+
+                        let compatible = server_major == client_major && server_minor == client_minor;
+                        if !compatible {
+                            let client_too_old = (client_major, client_minor) < (server_major, server_minor);
+                            log::warn!(
+                                "Protocol version mismatch: client={}, server={}, client_too_old={}",
+                                client_version,
+                                server_version,
+                                client_too_old
+                            );
+                            return ProbeResult::VersionMismatch {
+                                client_version: client_version.to_string(),
+                                server_version: server_version.clone(),
+                                client_too_old,
+                            };
+                        }
+
+                        ProbeResult::Available
+                    }
+                    Err(_) => {
+                        // Check if we can parse as legacy ApiConfig (without protocol_version)
+                        // If we can, server is available but outdated - treat as version mismatch
+                        #[derive(serde::Deserialize)]
+                        struct LegacyApiConfig {
+                            status: String,
+                            #[allow(dead_code)]
+                            client_id: String,
+                        }
+
+                        match serde_json::from_str::<LegacyApiConfig>(&body) {
+                            Ok(legacy) if legacy.status == "Ok" => {
+                                log::warn!("Server is running outdated version without protocol_version field");
+                                ProbeResult::VersionMismatch {
+                                    client_version: PROTOCOL_VERSION.to_string(),
+                                    server_version: "unknown (outdated)".to_string(),
+                                    client_too_old: false, // Server is too old
+                                }
+                            }
+                            _ => {
+                                log::warn!("Failed to parse ApiConfig response");
+                                ProbeResult::Unavailable
+                            }
+                        }
+                    }
+                }
             }
             Err(e) => {
                 log::debug!("Probe failed: {}", e);
-                false
+                ProbeResult::Unavailable
             }
         }
     }

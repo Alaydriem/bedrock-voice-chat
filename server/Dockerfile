@@ -18,4 +18,4 @@ EXPOSE 8443/udp
 WORKDIR /data
 VOLUME ["/data"]
 
-ENTRYPOINT ["/usr/local/bin/bvc-server", "server", "-c" "/data/config.hcl"]
+ENTRYPOINT ["/usr/local/bin/bvc-server", "server", "-c", "/data/config.hcl"]

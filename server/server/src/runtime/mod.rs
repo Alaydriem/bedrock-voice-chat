@@ -99,6 +99,7 @@ impl ServerRuntime {
         self.setup_logging()?;
 
         info!("Bedrock Voice Chat Server v{}", crate::VERSION);
+        info!("Protocol Version: {}", common::consts::version::PROTOCOL_VERSION);
 
         // Generate CA certificates
         self.generate_ca().await?;

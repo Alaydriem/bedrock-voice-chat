@@ -9,4 +9,9 @@ pub enum ConnectionHealth {
     Reconnecting { attempt: u32 },
     Disconnected,
     Failed,
+    VersionMismatch {
+        client_version: String,
+        server_version: String,
+        client_too_old: bool,
+    },
 }

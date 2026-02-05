@@ -58,6 +58,28 @@
         style: 'secondary'
       }
     },
+    'VER01': {
+      code: 'VER01',
+      title: 'Client Update Required',
+      message: 'Your client version is outdated. Download the latest BVC client to connect to this server.',
+      icon: 'fa-solid fa-cloud-arrow-down',
+      primaryAction: {
+        label: 'Back to Dashboard',
+        url: '/dashboard',
+        style: 'primary'
+      }
+    },
+    'VER02': {
+      code: 'VER02',
+      title: 'Server Update Required',
+      message: 'The server is running an older version of BVC that this client cannot connect to. Contact your server owner to have them update to the latest version.',
+      icon: 'fa-solid fa-server',
+      primaryAction: {
+        label: 'Choose Different Server',
+        url: '/server',
+        style: 'primary'
+      }
+    },
     // Default error (used when code is not found or not provided)
     'DEFAULT': {
       code: 'ERROR',

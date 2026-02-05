@@ -1,3 +1,4 @@
+use common::consts::version::PROTOCOL_VERSION;
 use common::structs::config::ApiConfig;
 use rocket::{serde::json::Json, State};
 
@@ -7,5 +8,6 @@ pub async fn get_config(config: &State<ApplicationConfigServer>) -> Json<ApiConf
     Json(ApiConfig {
         status: String::from("Ok"),
         client_id: config.minecraft.client_id.clone(),
+        protocol_version: PROTOCOL_VERSION.to_string(),
     })
 }

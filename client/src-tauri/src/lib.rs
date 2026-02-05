@@ -94,6 +94,7 @@ pub fn run() {
             // API implementation
             crate::api::commands::api_initialize_client,
             crate::api::commands::api_ping,
+            crate::api::commands::api_get_config,
             crate::api::commands::api_create_channel,
             crate::api::commands::api_delete_channel,
             crate::api::commands::api_list_channels,
@@ -139,6 +140,7 @@ pub fn run() {
             }
 
             info!("BVC Variant {:?}", crate::commands::env::get_variant());
+            info!("Protocol Version: {}", common::consts::version::PROTOCOL_VERSION);
             let store = app.store("store.json")?;
             let handle = app.handle().clone();
 

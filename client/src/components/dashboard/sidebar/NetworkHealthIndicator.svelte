@@ -1,14 +1,13 @@
 <script lang="ts">
     import { onMount, onDestroy } from 'svelte';
-    import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
+    import { listen } from '@tauri-apps/api/event';
     import type { ConnectionHealth } from '../../../js/bindings/ConnectionHealth';
 
     let health: ConnectionHealth = { status: 'Connected' };
     let unlisten: (() => void) | undefined;
 
     onMount(async () => {
-        const appWebview = getCurrentWebviewWindow();
-        unlisten = await appWebview.listen<ConnectionHealth>('connection_health', (event) => {
+        unlisten = await listen<ConnectionHealth>('connection_health', (event) => {
             health = event.payload;
         });
     });
@@ -23,11 +22,14 @@
         'Connected': 'bg-green-500',
         'Reconnecting': 'bg-yellow-500 animate-pulse',
         'Disconnected': 'bg-red-500',
-        'Failed': 'bg-red-500'
+        'Failed': 'bg-red-500',
+        'VersionMismatch': 'bg-red-500'
     }[health.status];
 
     $: tooltip = health.status === 'Reconnecting'
         ? `Reconnecting (attempt ${health.attempt})...`
+        : health.status === 'VersionMismatch'
+        ? 'Version mismatch - update required'
         : health.status;
 </script>
 

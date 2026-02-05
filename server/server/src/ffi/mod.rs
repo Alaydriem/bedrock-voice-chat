@@ -303,6 +303,15 @@ pub extern "C" fn bvc_version() -> *const c_char {
     VERSION.as_ptr() as *const c_char
 }
 
+/// Get the protocol version string.
+///
+/// # Returns
+/// * Pointer to protocol version string (static, do not free)
+#[unsafe(no_mangle)]
+pub extern "C" fn bvc_protocol_version() -> *const c_char {
+    common::consts::version::PROTOCOL_VERSION_CSTR.as_ptr() as *const c_char
+}
+
 /// Update player positions directly via FFI
 ///
 /// This is the preferred method for embedded mode - it avoids the HTTP
