@@ -17,4 +17,4 @@ EXPOSE 8443/udp
 
 VOLUME ["/data"]
 
-ENTRYPOINT ["bvc-server server"]
+ENTRYPOINT ["/usr/local/bin/bvc-server", "server"]
