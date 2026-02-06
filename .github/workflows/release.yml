@@ -103,33 +103,33 @@ jobs:
   build-server:
     name: Build Server (release)
     needs: prepare-release
-    if: needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false
+    if: needs.prepare-release.outputs.new_release == 'true'
     uses: ./.github/workflows/build-server.yml
     with:
       build_mode: release
-      ref: ${{ needs.prepare-release.outputs.new_tag }}
+      ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
     secrets: inherit
 
   # Job 3: Build Android (release mode, includes signing)
   build-android:
     name: Build Android (release)
     needs: prepare-release
-    if: needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false
+    if: needs.prepare-release.outputs.new_release == 'true'
     uses: ./.github/workflows/build-android.yml
     with:
       build_mode: release
-      ref: ${{ needs.prepare-release.outputs.new_tag }}
+      ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
     secrets: inherit
 
   # Job 4: Build Windows client (release mode)
   build-client:
     name: Build Windows (release)
     needs: prepare-release
-    if: needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false
+    if: needs.prepare-release.outputs.new_release == 'true'
     uses: ./.github/workflows/build-client.yml
     with:
       build_mode: release
-      ref: ${{ needs.prepare-release.outputs.new_tag }}
+      ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
     secrets: inherit
 
   # Job 5: Upload release assets to GitHub

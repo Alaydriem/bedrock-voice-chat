@@ -114,7 +114,7 @@ jobs:
   build-server:
     name: Build Server (for native libraries)
     needs: prepare-release
-    if: ${{ !inputs.skip_server_build && needs.prepare-release.outputs.new_release_published == 'true' && !inputs.dry-run }}
+    if: ${{ !inputs.skip_server_build && needs.prepare-release.outputs.new_release_published == 'true' }}
     uses: ./.github/workflows/build-server.yml
     with:
       build_mode: release
@@ -124,8 +124,8 @@ jobs:
   build-mod-fabric:
     name: Build Fabric Mod
     needs: [prepare-release, build-server]
-    # Run if: release is published, not dry-run, and (server build succeeded OR was skipped)
-    if: always() && needs.prepare-release.outputs.new_release_published == 'true' && !inputs.dry-run && (needs.build-server.result == 'success' || needs.build-server.result == 'skipped')
+    # Run if: release is published and (server build succeeded OR was skipped)
+    if: always() && needs.prepare-release.outputs.new_release_published == 'true' && (needs.build-server.result == 'success' || needs.build-server.result == 'skipped')
     uses: ./.github/workflows/build-mod-fabric.yml
     with:
       version: ${{ needs.prepare-release.outputs.new_release_version }}
@@ -135,8 +135,8 @@ jobs:
   build-mod-paper:
     name: Build Paper Plugin
     needs: [prepare-release, build-server]
-    # Run if: release is published, not dry-run, and (server build succeeded OR was skipped)
-    if: always() && needs.prepare-release.outputs.new_release_published == 'true' && !inputs.dry-run && (needs.build-server.result == 'success' || needs.build-server.result == 'skipped')
+    # Run if: release is published and (server build succeeded OR was skipped)
+    if: always() && needs.prepare-release.outputs.new_release_published == 'true' && (needs.build-server.result == 'success' || needs.build-server.result == 'skipped')
     uses: ./.github/workflows/build-mod-paper.yml
     with:
       version: ${{ needs.prepare-release.outputs.new_release_version }}
@@ -146,8 +146,8 @@ jobs:
   build-mod-hytale:
     name: Build Hytale Plugin
     needs: [prepare-release, build-server]
-    # Run if: release is published, not dry-run, and (server build succeeded OR was skipped)
-    if: always() && needs.prepare-release.outputs.new_release_published == 'true' && !inputs.dry-run && (needs.build-server.result == 'success' || needs.build-server.result == 'skipped')
+    # Run if: release is published and (server build succeeded OR was skipped)
+    if: always() && needs.prepare-release.outputs.new_release_published == 'true' && (needs.build-server.result == 'success' || needs.build-server.result == 'skipped')
     uses: ./.github/workflows/build-mod-hytale.yml
     with:
       version: ${{ needs.prepare-release.outputs.new_release_version }}
@@ -157,7 +157,7 @@ jobs:
   build-mod-bds:
     name: Build BDS Pack
     needs: prepare-release
-    if: ${{ needs.prepare-release.outputs.new_release_published == 'true' && !inputs.dry-run }}
+    if: ${{ needs.prepare-release.outputs.new_release_published == 'true' }}
     uses: ./.github/workflows/build-mod-bds.yml
     with:
       version: ${{ needs.prepare-release.outputs.new_release_version }}
