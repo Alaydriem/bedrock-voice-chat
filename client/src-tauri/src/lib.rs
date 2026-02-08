@@ -226,8 +226,10 @@ pub fn run() {
             );
             app.manage(Mutex::new(audio_stream));
 
-            // Initialize WebSocketManager
+            // Initialize WebSocketManager and register the broadcaster
             let ws_manager = websocket::WebSocketManager::new(handle.clone());
+            let ws_broadcaster = ws_manager.broadcaster();
+            app.manage(ws_broadcaster);
             app.manage(Mutex::new(ws_manager));
 
             // This is necessary to setup s2n_quic. It doesn't need to be called elsewhere

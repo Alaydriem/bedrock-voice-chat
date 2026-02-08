@@ -5,7 +5,7 @@
 
     interface WebSocketConfig {
         enabled: boolean;
-        host: string;
+        localhost_only: boolean;
         port: number;
         key: string;
     }
@@ -14,9 +14,9 @@
     let isReady = $state(false);
 
     // Settings state
-    let websocketHost = $state("127.0.0.1");
+    let localhostOnly = $state(true);
     let websocketPort = $state("9595");
-    let encryptionKey = $state("");
+    let authKey = $state("");
     let isRunning = $state(false);
 
     onMount(async () => {
@@ -25,9 +25,9 @@
         // Load saved config from single key
         const config = await store.get<WebSocketConfig>("websocket_server");
         if (config) {
-            websocketHost = config.host || "127.0.0.1";
+            localhostOnly = config.localhost_only ?? true;
             websocketPort = config.port?.toString() || "9595";
-            encryptionKey = config.key || "";
+            authKey = config.key || "";
         }
 
         // Check status
@@ -43,9 +43,9 @@
     async function saveConfig(enabled: boolean) {
         const config: WebSocketConfig = {
             enabled,
-            host: websocketHost,
+            localhost_only: localhostOnly,
             port: parseInt(websocketPort),
-            key: encryptionKey
+            key: authKey
         };
         await store?.set("websocket_server", config);
         await store?.save();
@@ -54,25 +54,40 @@
         await invoke('update_websocket_config', { config });
     }
 
-    async function handleHostChange(event: Event) {
-        websocketHost = (event.target as HTMLInputElement).value;
+    async function restartServerIfRunning() {
+        if (!isRunning) return;
+        try {
+            await invoke('stop_websocket_server');
+            await invoke('start_websocket_server');
+        } catch (e) {
+            console.error('Failed to restart WebSocket server:', e);
+            isRunning = false;
+        }
+    }
+
+    async function handleLocalhostToggle() {
+        localhostOnly = !localhostOnly;
         await saveConfig(isRunning);
+        await restartServerIfRunning();
     }
 
     async function handlePortChange(event: Event) {
         websocketPort = (event.target as HTMLInputElement).value;
         await saveConfig(isRunning);
+        await restartServerIfRunning();
     }
 
     async function handleKeyChange(event: Event) {
-        encryptionKey = (event.target as HTMLInputElement).value;
+        authKey = (event.target as HTMLInputElement).value;
         await saveConfig(isRunning);
+        await restartServerIfRunning();
     }
 
     async function handleGenerateKey() {
         try {
-            encryptionKey = await invoke<string>('generate_encryption_key');
+            authKey = await invoke<string>('generate_encryption_key');
             await saveConfig(isRunning);
+            await restartServerIfRunning();
         } catch (e) {
             console.error(e);
         }
@@ -88,10 +103,7 @@
 
     async function startServer() {
         try {
-            // Save config with enabled=true
             await saveConfig(true);
-
-            // Start the server
             await invoke('start_websocket_server');
             isRunning = true;
         } catch (e) {
@@ -103,8 +115,6 @@
         try {
             await invoke('stop_websocket_server');
             isRunning = false;
-
-            // Save config with enabled=false
             await saveConfig(false);
         } catch (e) {
             console.error(e);
@@ -125,17 +135,24 @@
 
         {#if isReady}
         <div class="space-y-4">
-            <label class="block">
-                <span class="text-sm font-medium">Host</span>
-                <input
-                    type="text"
-                    value={websocketHost}
-                    onchange={handleHostChange}
-                    class="form-input mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2
-                           hover:border-slate-400 focus:border-primary dark:border-navy-450 dark:bg-navy-700"
-                    placeholder="127.0.0.1"
-                />
-            </label>
+            <div class="flex items-center justify-between">
+                <div>
+                    <span class="text-sm font-medium">Restrict to Localhost</span>
+                    <p class="text-xs text-slate-500 dark:text-navy-300 mt-0.5">
+                        {localhostOnly ? "127.0.0.1 (localhost only)" : "0.0.0.0 (all interfaces)"}
+                    </p>
+                </div>
+                <label class="inline-flex items-center space-x-2 cursor-pointer">
+                    <input
+                        type="checkbox"
+                        checked={localhostOnly}
+                        onchange={handleLocalhostToggle}
+                        class="form-switch h-5 w-10 rounded-full bg-slate-300 before:rounded-full before:bg-slate-50
+                               checked:bg-primary checked:before:bg-white dark:bg-navy-900 dark:before:bg-navy-300
+                               dark:checked:bg-accent dark:checked:before:bg-white"
+                    />
+                </label>
+            </div>
 
             <label class="block">
                 <span class="text-sm font-medium">Port</span>
@@ -150,15 +167,15 @@
             </label>
 
             <label class="block">
-                <span class="text-sm font-medium">Encryption Key</span>
+                <span class="text-sm font-medium">Authentication Key</span>
                 <div class="flex gap-2 mt-1.5">
                     <input
                         type="text"
-                        value={encryptionKey}
+                        value={authKey}
                         onchange={handleKeyChange}
                         class="form-input flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2
                                hover:border-slate-400 focus:border-primary dark:border-navy-450 dark:bg-navy-700"
-                        placeholder="Enter encryption key"
+                        placeholder="Enter authentication key"
                     />
                     <button
                         class="btn bg-primary font-medium text-white hover:bg-primary-focus

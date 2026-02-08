@@ -3,7 +3,7 @@ use super::resampler::AudioResampler;
 use super::AudioFrame;
 use crate::audio::recording::{RawRecordingData, RecordingProducer};
 use crate::audio::stream::{RecoverySender, StreamRecoveryEvent};
-use crate::audio::types::{AudioDevice, AudioDeviceType, BUFFER_SIZE};
+use crate::audio::types::{AudioDevice, AudioDeviceCpal, AudioDeviceType, BUFFER_SIZE};
 use crate::{audio::stream::stream_manager::AudioFrameData, NetworkPacket};
 use anyhow::anyhow;
 use audio_gate::NoiseGate;
@@ -206,7 +206,7 @@ impl InputStream {
                         }
                     };
 
-                    let cpal_device: Option<rodio::cpal::Device> = device.clone().into();
+                    let cpal_device = device.clone().to_cpal_device();
 
                     let handle = match cpal_device {
                         Some(cpal_device) => tokio::spawn(async move {
