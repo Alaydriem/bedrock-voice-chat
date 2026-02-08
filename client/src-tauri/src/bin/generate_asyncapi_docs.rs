@@ -27,6 +27,7 @@ fn main() {
     let pong_data_schema = extract_def(&success_schema_value, "PongData");
     let mute_data_schema = extract_def(&success_schema_value, "MuteData");
     let record_data_schema = extract_def(&success_schema_value, "RecordData");
+    let state_data_schema = extract_def(&success_schema_value, "StateData");
     let response_data_schema = extract_def(&success_schema_value, "ResponseData");
 
     // Remove $defs from payloads and update refs
@@ -97,6 +98,7 @@ fn main() {
                 "PongData": pong_data_schema,
                 "MuteData": mute_data_schema,
                 "RecordData": record_data_schema,
+                "StateData": state_data_schema,
                 "ResponseData": response_data_schema
             }
         }
