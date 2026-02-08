@@ -141,9 +141,25 @@ pub(crate) async fn get_devices() -> Result<HashMap<String, Vec<AudioDevice>>, (
 pub(crate) async fn mute(
     device: AudioDeviceType,
     asm: State<'_, Mutex<AudioStreamManager>>,
+    recording_manager: State<'_, Arc<Mutex<RecordingManager>>>,
+    broadcaster: State<'_, crate::websocket::WebSocketBroadcaster>,
 ) -> Result<(), ()> {
     let mut asm = asm.lock().await;
     _ = asm.toggle(&device, StreamEvent::Mute).await;
+
+    // Broadcast state to all WS clients
+    let muted = asm.mute_status(&AudioDeviceType::InputDevice).await.unwrap_or(false);
+    let deafened = asm.mute_status(&AudioDeviceType::OutputDevice).await.unwrap_or(false);
+    drop(asm);
+
+    let manager = recording_manager.lock().await;
+    let recording = manager.is_recording();
+    drop(manager);
+
+    let response = crate::websocket::SuccessResponse::state(muted, deafened, recording);
+    if let Ok(json) = serde_json::to_string(&response) {
+        let _ = broadcaster.0.send(json);
+    }
 
     Ok(())
 }
@@ -188,6 +204,8 @@ pub(crate) async fn is_stopped(
 pub(crate) async fn start_recording(
     app: AppHandle,
     recording_manager: State<'_, Arc<Mutex<RecordingManager>>>,
+    asm: State<'_, Mutex<AudioStreamManager>>,
+    broadcaster: State<'_, crate::websocket::WebSocketBroadcaster>,
 ) -> Result<String, String> {
     let current_player = extract_current_player(&app).await
         .ok_or_else(|| "No current player set for recording".to_string())?;
@@ -195,7 +213,7 @@ pub(crate) async fn start_recording(
     // Recording is now controlled by RecordingManager's shared flag
     // No need to toggle stream recording separately
     let mut manager = recording_manager.lock().await;
-    match manager.start_recording(current_player).await {
+    let result = match manager.start_recording(current_player).await {
         Ok(_) => {
             if let Some(session_id) = manager.current_session_id() {
                 Ok(session_id)
@@ -204,23 +222,55 @@ pub(crate) async fn start_recording(
             }
         },
         Err(e) => Err(format!("Failed to start recording: {:?}", e)),
+    };
+
+    // Broadcast state to all WS clients
+    let recording = manager.is_recording();
+    drop(manager);
+
+    let mut asm = asm.lock().await;
+    let muted = asm.mute_status(&AudioDeviceType::InputDevice).await.unwrap_or(false);
+    let deafened = asm.mute_status(&AudioDeviceType::OutputDevice).await.unwrap_or(false);
+    drop(asm);
+
+    let response = crate::websocket::SuccessResponse::state(muted, deafened, recording);
+    if let Ok(json) = serde_json::to_string(&response) {
+        let _ = broadcaster.0.send(json);
     }
+
+    result
 }
 
 /// Stop current recording session
 #[tauri::command]
 pub(crate) async fn stop_recording(
     recording_manager: State<'_, Arc<Mutex<RecordingManager>>>,
+    asm: State<'_, Mutex<AudioStreamManager>>,
+    broadcaster: State<'_, crate::websocket::WebSocketBroadcaster>,
 ) -> Result<(), String> {
     // Recording is now controlled by RecordingManager's shared flag
     // No need to toggle stream recording separately
     let mut manager = recording_manager.lock().await;
-    match manager.stop_recording().await {
-        Ok(()) => {
-            Ok(())
-        },
+    let result = match manager.stop_recording().await {
+        Ok(()) => Ok(()),
         Err(e) => Err(format!("Failed to stop recording: {:?}", e)),
+    };
+
+    // Broadcast state to all WS clients
+    let recording = manager.is_recording();
+    drop(manager);
+
+    let mut asm = asm.lock().await;
+    let muted = asm.mute_status(&AudioDeviceType::InputDevice).await.unwrap_or(false);
+    let deafened = asm.mute_status(&AudioDeviceType::OutputDevice).await.unwrap_or(false);
+    drop(asm);
+
+    let response = crate::websocket::SuccessResponse::state(muted, deafened, recording);
+    if let Ok(json) = serde_json::to_string(&response) {
+        let _ = broadcaster.0.send(json);
     }
+
+    result
 }
 
 /// Get current recording status

@@ -25,11 +25,10 @@ tokio = { version = "^1", features = ["full"] }
 serde = { version = "^1", features = ["derive"] }
 base64 = { version = "^0.22" }
 serde_json = "^1"
-rust-argon2 = { version = "^2.1", optional = true }
 log = "^0.4"
 anyhow = { version = "^1" }
 spmc = { version = "^0.3" }
-rand = { version = "^0.9" }
+rand = { version = "^0.10" }
 rodio = { version = "^0.21" }
 bytes = { version = "^1.10" }
 async-mutex = { version = "^1.4" }
@@ -38,13 +37,14 @@ opus2 = { version = "^0.3" }
 ron = { version = "^0.12" }
 audio-gate = { version = "^0.2" }
 flume = { version = "^0.12" }
-rubato = { version = "^0.16" }
+rubato = { version = "^1" }
+audioadapter-buffers = { version = "^2" }
 futures-util = "^0.3"
 tokio-tungstenite = "^0.28"
 trust-dns-resolver = { version = "^0.23", features = ["tokio-runtime", "tokio-rustls", "rustls", "serde"] }
-ts-rs = { version = "^11.0" }
 ringbuf = "^0.4"
 schemars = { version = "^1.0", features = ["derive"] }
+ts-rs = { version = "^12.0" }
 tauri = { version = "^2", features = ["rustls-tls"] }
 tauri-plugin-opener = "^2"
 tauri-plugin-deep-link = "^2"
@@ -72,7 +72,7 @@ async-trait = "^0.1"
 url = "2"
 
 # MP4 muxing with Opus support
-shiguredo_mp4 = "2025.3.0"
+shiguredo_mp4 = "2026.1.0"
 
 # Desktop Targets
 [target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]

@@ -63,7 +63,7 @@ base64 = { version = "^0.22" }
 faccess = { version = "^0.2" }
 bytes = { version = "^1.6" }
 async-mutex = { version = "^1.4" }
-rand = { version = "^0.9" }
+rand = { version = "^0.10" }
 ron = { version = "^0.12" }
 rcgen = { version = "^0.13", features = ["x509-parser"] }
 rustls-pemfile = { version = "^2.0" }

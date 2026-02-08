@@ -18,6 +18,8 @@ pub enum ResponseData {
     Mute(MuteData),
     /// Recording response with status
     Record(RecordData),
+    /// Full state response
+    State(StateData),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -33,6 +35,13 @@ pub struct MuteData {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct RecordData {
+    pub recording: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct StateData {
+    pub muted: bool,
+    pub deafened: bool,
     pub recording: bool,
 }
 
@@ -55,6 +64,13 @@ impl SuccessResponse {
         Self {
             success: true,
             data: ResponseData::Record(RecordData { recording }),
+        }
+    }
+
+    pub fn state(muted: bool, deafened: bool, recording: bool) -> Self {
+        Self {
+            success: true,
+            data: ResponseData::State(StateData { muted, deafened, recording }),
         }
     }
 }
