@@ -4,7 +4,7 @@ use crate::audio::stream::RecoverySender;
 use crate::audio::recording::RecordingProducer;
 use crate::audio::stream::jitter_buffer::EncodedAudioFramePacket;
 
-use crate::audio::types::AudioDevice;
+use crate::audio::types::{AudioDevice, AudioDeviceCpal};
 use crate::AudioPacket;
 use anyhow::anyhow;
 use base64::engine::{general_purpose, Engine};
@@ -368,7 +368,7 @@ impl OutputStream {
                         }
                     };
 
-                    let cpal_device: Option<rodio::cpal::Device> = device.clone().into();
+                    let cpal_device = device.clone().to_cpal_device();
                     let handle = match cpal_device {
                         Some(cpal_device) => {
                             log::info!("started receiving audio stream");
