@@ -137,7 +137,18 @@ impl WebSocketManager {
 
                 tokio::spawn(async move {
                     if let Err(e) = Self::handle_connection(stream, app_handle, key, broadcast_tx, shutdown_rx).await {
-                        log::error!("Connection error: {}", e);
+                        // Connection resets / broken pipes are normal client disconnects
+                        let is_disconnect = e.root_cause()
+                            .downcast_ref::<std::io::Error>()
+                            .map_or(false, |io_err| matches!(io_err.kind(),
+                                std::io::ErrorKind::ConnectionReset |
+                                std::io::ErrorKind::ConnectionAborted |
+                                std::io::ErrorKind::BrokenPipe
+                            ));
+
+                        if !is_disconnect {
+                            log::error!("Connection error: {}", e);
+                        }
                     }
                 });
             }
