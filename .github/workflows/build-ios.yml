@@ -116,7 +116,7 @@ jobs:
           echo "Copying custom Info.plist..."
 
           SOURCE_PLIST="../.github/Info.plist"
-          TARGET_PLIST="src-tauri/gen/apple/bedrock-voice-chat-client_iOS/Info.plist"
+          TARGET_PLIST="src-tauri/gen/apple/bedrock-voice-chat-client_iOS/Info.ios.plist"
 
           if [ ! -f "$SOURCE_PLIST" ]; then
             echo "Error: Source Info.plist not found at $SOURCE_PLIST"

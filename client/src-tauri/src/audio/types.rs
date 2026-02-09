@@ -65,25 +65,25 @@ impl AudioDeviceCpal for AudioDevice {
 
         match self.io {
             AudioDeviceType::InputDevice => {
-                if self.name == "default" {
+                if self.id == "default" {
                     return host.default_input_device();
                 }
 
                 match host.input_devices() {
                     Ok(mut devices) => {
-                        devices.find(|x| x.name().map(|y| y == self.name).unwrap_or(false))
+                        devices.find(|x| x.id().map(|id| id.to_string() == self.id).unwrap_or(false))
                     }
                     Err(_) => None,
                 }
             }
             AudioDeviceType::OutputDevice => {
-                if self.name == "default" {
+                if self.id == "default" {
                     return host.default_output_device();
                 }
 
                 match host.output_devices() {
                     Ok(mut devices) => {
-                        devices.find(|x| x.name().map(|y| y == self.name).unwrap_or(false))
+                        devices.find(|x| x.id().map(|id| id.to_string() == self.id).unwrap_or(false))
                     }
                     Err(_) => None,
                 }

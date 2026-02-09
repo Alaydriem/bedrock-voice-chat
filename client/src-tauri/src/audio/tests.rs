@@ -1,4 +1,4 @@
-use cpal::traits::{DeviceTrait, HostTrait};
+use rodio::cpal::traits::{DeviceTrait, HostTrait};
 
 #[test]
 fn get_cpal_hosts() {
@@ -62,8 +62,8 @@ fn get_devices() {
         match host.input_devices() {
             Ok(devices) => {
                 for device in devices {
-                    let name = match device.name() {
-                        Ok(name) => name,
+                    let name = match device.description() {
+                        Ok(desc) => desc.name().to_string(),
                         Err(e) => {
                             println!("{}", e.to_string());
                             continue;

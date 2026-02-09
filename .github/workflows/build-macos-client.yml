@@ -1,0 +1,129 @@
+name: Build macOS Client
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      build_mode:
+        description: 'Build mode (debug or release)'
+        required: false
+        default: 'debug'
+        type: string
+      ref:
+        description: 'Git ref to checkout (tag, branch, or SHA)'
+        required: false
+        type: string
+  workflow_dispatch:
+    inputs:
+      build_mode:
+        description: 'Build mode'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
+
+jobs:
+  build-macos:
+    name: Build macOS Client (${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }})
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'yarn'
+          cache-dependency-path: client/yarn.lock
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "."
+
+      - name: Install JavaScript dependencies
+        working-directory: ./client
+        run: yarn install --frozen-lockfile
+
+      - name: Build macOS client (debug)
+        if: github.event_name == 'pull_request' || inputs.build_mode == 'debug' || inputs.build_mode == '' || inputs.build_mode == null
+        working-directory: ./client
+        run: yarn tauri build --debug --no-bundle
+
+      - name: Build macOS client (release)
+        if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
+        working-directory: ./client
+        run: yarn tauri build
+
+      - name: Prepare macOS artifacts
+        working-directory: ./client
+        run: |
+          # Determine actual build mode used
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BUILD_MODE="debug"
+          elif [ "${{ inputs.build_mode }}" = "release" ]; then
+            BUILD_MODE="release"
+          else
+            BUILD_MODE="debug"
+          fi
+          echo "Effective build mode: $BUILD_MODE"
+
+          if [ "$BUILD_MODE" = "release" ]; then
+            BIN_PATH="../target/release/bedrock-voice-chat-client"
+          else
+            BIN_PATH="../target/debug/bedrock-voice-chat-client"
+          fi
+
+          if [ -f "$BIN_PATH" ]; then
+            cp "$BIN_PATH" "bvc-macos-$BUILD_MODE"
+            echo "Copied $BUILD_MODE executable"
+          else
+            echo "ERROR: Executable not found at $BIN_PATH!"
+            exit 1
+          fi
+
+          # Verify the final executable
+          if [ -f "bvc-macos-$BUILD_MODE" ]; then
+            echo "Final executable ready:"
+            ls -la "bvc-macos-$BUILD_MODE"
+          fi
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bvc-macos-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
+          path: client/bvc-macos-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
+          retention-days: 30
+
+      - name: Output artifact information
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BUILD_MODE="debug"
+          elif [ "${{ inputs.build_mode }}" = "release" ]; then
+            BUILD_MODE="release"
+          else
+            BUILD_MODE="debug"
+          fi
+          {
+            echo "## macOS Client Build Complete"
+            echo ""
+            echo "| Name | Value |"
+            echo "| ---- | ----- |"
+            echo "| Build Mode | $BUILD_MODE |"
+            echo "| Trigger | ${{ github.event_name }} |"
+            echo "| Artifact | bvc-macos-$BUILD_MODE |"
+            echo "| Artifact URL | [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |"
+            echo "| Retention | 30 days |"
+          } >> $GITHUB_STEP_SUMMARY

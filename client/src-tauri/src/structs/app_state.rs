@@ -1,6 +1,6 @@
 use crate::audio::types::{AudioDevice, AudioDeviceHost, AudioDeviceType, StreamConfig};
 use crate::api::Api;
-use cpal::traits::{DeviceTrait, HostTrait};
+use rodio::cpal::{self, traits::{DeviceTrait, HostTrait}};
 use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -93,6 +93,7 @@ impl AppState {
         // Create a copy of the device so we can escape certain values
         // @todo!() fix this in the data we get from typescript
         let device: AudioDevice = AudioDevice {
+            id: device.id.clone(),
             name: device.name.replace('\"', ""),
             display_name: device.display_name.replace('\"', ""),
             host: device.host,
@@ -104,6 +105,7 @@ impl AppState {
         self.store.set(
             device.io.to_string(),
             json!({
+                "id": device.id,
                 "name": device.name,
                 "type": device.io,
                 "config": device.stream_configs,
@@ -156,8 +158,27 @@ impl AppState {
     /// Retrieves the current audio device, defaults to `default`,
     /// Which is the system audio driver default
     fn setup_audio_device(io: AudioDeviceType, store: &Arc<Store<Wry>>) -> AudioDevice {
-        let (name, host, stream_configs, display_name) = match store.get(io.to_string()) {
-            Some(s) => (
+        // Check if stored config exists and has the new `id` field
+        let use_stored = match store.get(io.to_string()) {
+            Some(s) => {
+                if s.get("id").is_none() {
+                    log::warn!(
+                        "Detected old-format device config for {} (missing 'id' field). Clearing stored config and reverting to system default.",
+                        io.to_string()
+                    );
+                    store.delete(io.to_string());
+                    false
+                } else {
+                    true
+                }
+            }
+            None => false,
+        };
+
+        let (id, name, host, stream_configs, display_name) = if use_stored {
+            let s = store.get(io.to_string()).unwrap();
+            (
+                s.get("id").unwrap().as_str().unwrap_or("default").to_string(),
                 s.get("name").unwrap().to_string().replace('\"', ""),
                 serde_json::from_str::<AudioDeviceHost>(
                     s.get("host").unwrap().to_string().as_str(),
@@ -169,40 +190,49 @@ impl AppState {
                     Some(name) => name.to_string().replace('\"', ""),
                     None => s.get("name").unwrap().to_string().replace('\"', ""),
                 },
-            ),
-            None => {
-                let default_host = cpal::default_host();
-                let default_device = match io {
-                    AudioDeviceType::InputDevice => default_host.default_input_device().unwrap(),
-                    AudioDeviceType::OutputDevice => default_host.default_output_device().unwrap(),
-                };
+            )
+        } else {
+            let default_host = cpal::default_host();
+            let default_device = match io {
+                AudioDeviceType::InputDevice => default_host.default_input_device().unwrap(),
+                AudioDeviceType::OutputDevice => default_host.default_output_device().unwrap(),
+            };
 
-                let default_configs = match io {
-                    AudioDeviceType::InputDevice => default_device
-                        .supported_input_configs()
-                        .unwrap()
-                        .map(|s| s)
-                        .collect(),
-                    AudioDeviceType::OutputDevice => default_device
-                        .supported_output_configs()
-                        .unwrap()
-                        .map(|s| s)
-                        .collect(),
-                };
+            let default_configs = match io {
+                AudioDeviceType::InputDevice => default_device
+                    .supported_input_configs()
+                    .unwrap()
+                    .map(|s| s)
+                    .collect(),
+                AudioDeviceType::OutputDevice => default_device
+                    .supported_output_configs()
+                    .unwrap()
+                    .map(|s| s)
+                    .collect(),
+            };
 
-                let stream_config = AudioDevice::to_stream_config(default_configs);
+            let stream_config = AudioDevice::to_stream_config(default_configs);
 
-                (
-                    "default".to_string(),
-                    AudioDeviceHost::try_from(default_host.id()).unwrap(),
-                    stream_config,
-                    default_device.name().unwrap(),
-                )
-            }
+            let device_id = default_device.id()
+                .map(|id| id.to_string())
+                .unwrap_or_else(|_| "default".to_string());
+
+            let device_display_name = default_device.description()
+                .map(|desc| desc.name().to_string())
+                .unwrap_or_else(|_| "Default Device".to_string());
+
+            (
+                device_id,
+                "default".to_string(),
+                AudioDeviceHost::try_from(default_host.id()).unwrap(),
+                stream_config,
+                device_display_name,
+            )
         };
 
         AudioDevice {
             io,
+            id,
             name,
             host,
             stream_configs,

@@ -28,6 +28,9 @@
     },
     "iOS": {
       "minimumSystemVersion": "26.0",
+      "infoPlist": "./Info.ios.plist"
+    },
+    "macOS": {
       "infoPlist": "./Info.plist"
     },
     "createUpdaterArtifacts": true,

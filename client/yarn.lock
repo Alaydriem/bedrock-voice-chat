@@ -1744,9 +1744,8 @@ tapable@^2.2.0:
   dependencies:
     "@tauri-apps/api" "^2"
 
-"tauri-plugin-keyring@git+https://github.com/charlesportwoodii/tauri-plugin-keyring.git":
+"tauri-plugin-keyring@file:../../tauri-plugin-keyring":
   version "0.1.0"
-  resolved "git+https://github.com/charlesportwoodii/tauri-plugin-keyring.git#bfb832205f17e4dceb23d95763ac30574c9c30f9"
   dependencies:
     "@tauri-apps/api" "^2.0.0"
     "@tauri-apps/plugin-log" "^2.7.0"

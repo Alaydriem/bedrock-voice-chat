@@ -3,7 +3,7 @@ use std::sync::Arc;
 use tokio::sync::{broadcast, watch};
 use tokio::task::AbortHandle;
 use tauri::{AppHandle, Manager, Emitter};
-use tauri_plugin_store::{Store, StoreExt};
+use tauri_plugin_store::StoreExt;
 use serde::{Deserialize, Serialize};
 
 pub mod structs;

@@ -3,4 +3,4 @@ import type { AudioDeviceHost } from "./AudioDeviceHost";
 import type { AudioDeviceType } from "./AudioDeviceType";
 import type { StreamConfig } from "./StreamConfig";
 
-export type AudioDevice = { io: AudioDeviceType, name: string, host: AudioDeviceHost, stream_configs: Array<StreamConfig>, display_name: string, };
+export type AudioDevice = { io: AudioDeviceType, id: string, name: string, host: AudioDeviceHost, stream_configs: Array<StreamConfig>, display_name: string, };

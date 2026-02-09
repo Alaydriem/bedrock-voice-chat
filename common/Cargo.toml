@@ -18,7 +18,7 @@ default = []
 
 # Heavy optional features
 quic = ["s2n-quic", "rustls-pemfile"]
-audio = ["rodio"]
+audio = ["rodio", "cpal"]
 templates = ["rocket_dyn_templates", "server"]
 browser = ["webbrowser"]
 
@@ -74,7 +74,8 @@ s2n-quic = { version = "=1.71.0", default-features = false, features = [
 rustls-pemfile = { version = "^2.0", optional = true }
 
 # Optional: Audio support
-rodio = { version = "^0.21", optional = true }
+rodio = { git = "https://github.com/RustAudio/rodio.git", branch = "master", optional = true }
+cpal = { version = "^0.17", optional = true }
 
 # Optional: Server-only dependencies
 rocket = { version = "^0.5", optional = true, default-features = false, features = [
