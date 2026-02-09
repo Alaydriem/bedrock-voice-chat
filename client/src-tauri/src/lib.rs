@@ -22,6 +22,7 @@ mod commands;
 mod core;
 mod deep_links;
 mod events;
+#[cfg(desktop)]
 pub mod keybinds;
 mod network;
 mod structs;

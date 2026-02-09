@@ -1,12 +1,17 @@
-use crate::keybinds::KeybindManager;
 use common::structs::keybinds::KeybindConfig;
-use tauri::State;
 
+#[cfg(desktop)]
 #[tauri::command]
 pub(crate) async fn start_keybind_listener(
     config: KeybindConfig,
-    km: State<'_, KeybindManager>,
+    km: tauri::State<'_, crate::keybinds::KeybindManager>,
 ) -> Result<(), String> {
     km.start(config).await;
+    Ok(())
+}
+
+#[cfg(not(desktop))]
+#[tauri::command]
+pub(crate) async fn start_keybind_listener(_config: KeybindConfig) -> Result<(), String> {
     Ok(())
 }

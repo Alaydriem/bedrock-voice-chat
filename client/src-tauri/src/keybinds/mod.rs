@@ -42,18 +42,18 @@ impl KeybindManager {
         let mut entries = Vec::new();
 
         if config.voice_mode == VoiceMode::OpenMic {
-            if let Some(s) = parse_shortcut(&config.toggle_mute) {
+            if let Some(s) = Self::parse_shortcut(&config.toggle_mute) {
                 entries.push((s, KeybindAction::ToggleMute));
             }
         }
-        if let Some(s) = parse_shortcut(&config.toggle_deafen) {
+        if let Some(s) = Self::parse_shortcut(&config.toggle_deafen) {
             entries.push((s, KeybindAction::ToggleDeafen));
         }
-        if let Some(s) = parse_shortcut(&config.toggle_recording) {
+        if let Some(s) = Self::parse_shortcut(&config.toggle_recording) {
             entries.push((s, KeybindAction::ToggleRecording));
         }
         if config.voice_mode == VoiceMode::PushToTalk {
-            if let Some(s) = parse_shortcut(&config.push_to_talk) {
+            if let Some(s) = Self::parse_shortcut(&config.push_to_talk) {
                 entries.push((s, KeybindAction::PushToTalk));
             }
         }
@@ -71,31 +71,31 @@ impl KeybindManager {
         info!("Registered {} keybind shortcuts", entries.len());
         *self.action_map.write() = entries;
     }
-}
 
-fn parse_shortcut(combo: &str) -> Option<Shortcut> {
-    let parts: Vec<&str> = combo.split('+').collect();
-    let mut mods = Modifiers::empty();
-    let mut code: Option<Code> = None;
+    fn parse_shortcut(combo: &str) -> Option<Shortcut> {
+        let parts: Vec<&str> = combo.split('+').collect();
+        let mut mods = Modifiers::empty();
+        let mut code: Option<Code> = None;
 
-    for part in parts {
-        match part {
-            "ControlLeft" | "ControlRight" => mods |= Modifiers::CONTROL,
-            "Alt" | "AltGr" => mods |= Modifiers::ALT,
-            "ShiftLeft" | "ShiftRight" => mods |= Modifiers::SHIFT,
-            "MetaLeft" | "MetaRight" => mods |= Modifiers::META,
-            key => {
-                code = key.parse::<Code>().ok();
-                if code.is_none() {
-                    error!("Unknown key code: {}", key);
+        for part in parts {
+            match part {
+                "ControlLeft" | "ControlRight" => mods |= Modifiers::CONTROL,
+                "Alt" | "AltGr" => mods |= Modifiers::ALT,
+                "ShiftLeft" | "ShiftRight" => mods |= Modifiers::SHIFT,
+                "MetaLeft" | "MetaRight" => mods |= Modifiers::META,
+                key => {
+                    code = key.parse::<Code>().ok();
+                    if code.is_none() {
+                        error!("Unknown key code: {}", key);
+                    }
                 }
             }
         }
-    }
 
-    let code = code?;
-    Some(Shortcut::new(
-        if mods.is_empty() { None } else { Some(mods) },
-        code,
-    ))
+        let code = code?;
+        Some(Shortcut::new(
+            if mods.is_empty() { None } else { Some(mods) },
+            code,
+        ))
+    }
 }
