@@ -22,6 +22,7 @@ import ChannelManager from './managers/ChannelManager';
 import { AudioActivityManager } from './managers/AudioActivityManager';
 
 import Notification from "../../components/events/Notification.svelte";
+import type { KeybindConfig } from '../bindings/KeybindConfig.ts';
 import type { NoiseGateSettings } from '../bindings/NoiseGateSettings.ts';
 import type { PlayerGainStore } from '../bindings/PlayerGainStore.ts';
 
@@ -108,6 +109,18 @@ export default class Dashboard extends BVCApp {
                 }
             }).catch((e) => {
                 error(`Error auto-starting WebSocket server: ${e}`);
+            });
+
+            // Start keybind listener with saved config
+            const keybindConfig = await this.store!.get<KeybindConfig>("keybinds") ?? {
+                toggleMute: "BracketLeft",
+                toggleDeafen: "BracketRight",
+                toggleRecording: "Backslash",
+                pushToTalk: "Backquote",
+                voiceMode: "openMic",
+            };
+            await invoke('start_keybind_listener', { config: keybindConfig }).catch((e) => {
+                error(`Error starting keybind listener: ${e}`);
             });
         }
 
