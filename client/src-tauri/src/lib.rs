@@ -22,6 +22,8 @@ mod commands;
 mod core;
 mod deep_links;
 mod events;
+#[cfg(desktop)]
+pub mod keybinds;
 mod network;
 mod structs;
 pub mod websocket;
@@ -105,7 +107,9 @@ pub fn run() {
             crate::commands::websocket::start_websocket_server,
             crate::commands::websocket::stop_websocket_server,
             crate::commands::websocket::is_websocket_running,
-            crate::commands::websocket::generate_encryption_key
+            crate::commands::websocket::generate_encryption_key,
+            // Keybinds
+            crate::commands::keybinds::start_keybind_listener
         ])
         .setup(|app| {
             // Set Windows timer resolution for high-precision audio timing
@@ -231,6 +235,51 @@ pub fn run() {
             let ws_broadcaster = ws_manager.broadcaster();
             app.manage(ws_broadcaster);
             app.manage(Mutex::new(ws_manager));
+
+            // AudioActionsManager handles mute, deafen, and recording state changes for both user-initiated actions (keybinds) and API calls
+            let audio_actions = crate::audio::AudioActionsManager::new(handle.clone());
+            app.manage(audio_actions);
+
+            // KeybindManager listens for global key events and triggers actions in AudioActionsManager for desktop
+            #[cfg(desktop)]
+            {
+                use tauri_plugin_global_shortcut::ShortcutState;
+
+                let action_map: Arc<parking_lot::RwLock<keybinds::ActionMap>> =
+                    Arc::new(parking_lot::RwLock::new(Vec::new()));
+                let listener = Arc::new(keybinds::listener::KeybindListener::new(handle.clone()));
+
+                let handler_map = action_map.clone();
+                let handler_listener = listener.clone();
+
+                app.handle().plugin(
+                    tauri_plugin_global_shortcut::Builder::new()
+                        .with_handler(move |_app, shortcut, event| {
+                            let action = handler_map
+                                .read()
+                                .iter()
+                                .find(|(s, _)| s == shortcut)
+                                .map(|(_, a)| a.clone());
+                            if let Some(action) = action {
+                                let l = handler_listener.clone();
+                                let state = event.state();
+                                tauri::async_runtime::spawn(async move {
+                                    match state {
+                                        ShortcutState::Pressed => l.on_action_press(action).await,
+                                        ShortcutState::Released => {
+                                            l.on_action_release(action).await
+                                        }
+                                    }
+                                });
+                            }
+                        })
+                        .build(),
+                )?;
+
+                let keybind_manager =
+                    keybinds::KeybindManager::new(handle.clone(), listener, action_map);
+                app.manage(keybind_manager);
+            }
 
             // This is necessary to setup s2n_quic. It doesn't need to be called elsewhere
             _ = common::s2n_quic::provider::tls::rustls::rustls::crypto::aws_lc_rs::default_provider()

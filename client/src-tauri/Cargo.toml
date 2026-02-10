@@ -79,6 +79,8 @@ shiguredo_mp4 = "2026.1.0"
 tauri-plugin-single-instance =  { version = "^2.3", features = ["deep-link"] }
 tauri-plugin-updater = "^2.9"
 tauri-plugin-process = "^2.3"
+tauri-plugin-global-shortcut = "^2"
+parking_lot = "^0.12"
 
 [target."cfg(any(target_os = \"windows\"))".dependencies]
 windows-targets = "^0.53.0"

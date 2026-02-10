@@ -1,5 +1,5 @@
 use crate::audio::types::{AudioDevice, AudioDeviceType};
-use crate::audio::{AudioPacket, RecordingManager};
+use crate::audio::{AudioActionsManager, AudioPacket, RecordingManager};
 use crate::network::NetworkPacket;
 use crate::{structs::app_state::AppState, AudioStreamManager};
 use common::structs::audio::StreamEvent;
@@ -140,27 +140,10 @@ pub(crate) async fn get_devices() -> Result<HashMap<String, Vec<AudioDevice>>, (
 #[tauri::command]
 pub(crate) async fn mute(
     device: AudioDeviceType,
-    asm: State<'_, Mutex<AudioStreamManager>>,
-    recording_manager: State<'_, Arc<Mutex<RecordingManager>>>,
-    broadcaster: State<'_, crate::websocket::WebSocketBroadcaster>,
+    actions: State<'_, AudioActionsManager>,
 ) -> Result<(), ()> {
-    let mut asm = asm.lock().await;
-    _ = asm.toggle(&device, StreamEvent::Mute).await;
-
-    // Broadcast state to all WS clients
-    let muted = asm.mute_status(&AudioDeviceType::InputDevice).await.unwrap_or(false);
-    let deafened = asm.mute_status(&AudioDeviceType::OutputDevice).await.unwrap_or(false);
-    drop(asm);
-
-    let manager = recording_manager.lock().await;
-    let recording = manager.is_recording();
-    drop(manager);
-
-    let response = crate::websocket::SuccessResponse::state(muted, deafened, recording);
-    if let Ok(json) = serde_json::to_string(&response) {
-        let _ = broadcaster.0.send(json);
-    }
-
+    actions.toggle_mute(device).await;
+    actions.broadcast_state().await;
     Ok(())
 }
 
@@ -204,14 +187,11 @@ pub(crate) async fn is_stopped(
 pub(crate) async fn start_recording(
     app: AppHandle,
     recording_manager: State<'_, Arc<Mutex<RecordingManager>>>,
-    asm: State<'_, Mutex<AudioStreamManager>>,
-    broadcaster: State<'_, crate::websocket::WebSocketBroadcaster>,
+    actions: State<'_, AudioActionsManager>,
 ) -> Result<String, String> {
     let current_player = extract_current_player(&app).await
         .ok_or_else(|| "No current player set for recording".to_string())?;
 
-    // Recording is now controlled by RecordingManager's shared flag
-    // No need to toggle stream recording separately
     let mut manager = recording_manager.lock().await;
     let result = match manager.start_recording(current_player).await {
         Ok(_) => {
@@ -223,20 +203,9 @@ pub(crate) async fn start_recording(
         },
         Err(e) => Err(format!("Failed to start recording: {:?}", e)),
     };
-
-    // Broadcast state to all WS clients
-    let recording = manager.is_recording();
     drop(manager);
 
-    let mut asm = asm.lock().await;
-    let muted = asm.mute_status(&AudioDeviceType::InputDevice).await.unwrap_or(false);
-    let deafened = asm.mute_status(&AudioDeviceType::OutputDevice).await.unwrap_or(false);
-    drop(asm);
-
-    let response = crate::websocket::SuccessResponse::state(muted, deafened, recording);
-    if let Ok(json) = serde_json::to_string(&response) {
-        let _ = broadcaster.0.send(json);
-    }
+    actions.broadcast_state().await;
 
     result
 }
@@ -245,30 +214,16 @@ pub(crate) async fn start_recording(
 #[tauri::command]
 pub(crate) async fn stop_recording(
     recording_manager: State<'_, Arc<Mutex<RecordingManager>>>,
-    asm: State<'_, Mutex<AudioStreamManager>>,
-    broadcaster: State<'_, crate::websocket::WebSocketBroadcaster>,
+    actions: State<'_, AudioActionsManager>,
 ) -> Result<(), String> {
-    // Recording is now controlled by RecordingManager's shared flag
-    // No need to toggle stream recording separately
     let mut manager = recording_manager.lock().await;
     let result = match manager.stop_recording().await {
         Ok(()) => Ok(()),
         Err(e) => Err(format!("Failed to stop recording: {:?}", e)),
     };
-
-    // Broadcast state to all WS clients
-    let recording = manager.is_recording();
     drop(manager);
 
-    let mut asm = asm.lock().await;
-    let muted = asm.mute_status(&AudioDeviceType::InputDevice).await.unwrap_or(false);
-    let deafened = asm.mute_status(&AudioDeviceType::OutputDevice).await.unwrap_or(false);
-    drop(asm);
-
-    let response = crate::websocket::SuccessResponse::state(muted, deafened, recording);
-    if let Ok(json) = serde_json::to_string(&response) {
-        let _ = broadcaster.0.send(json);
-    }
+    actions.broadcast_state().await;
 
     result
 }
