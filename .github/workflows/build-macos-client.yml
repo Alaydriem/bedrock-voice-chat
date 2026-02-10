@@ -106,7 +106,7 @@ jobs:
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: bvc-macos-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}.app.zip
+          name: bvc-macos-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}.app
           path: client/bvc-macos-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}.app.zip
           retention-days: 30
 
