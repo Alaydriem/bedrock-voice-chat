@@ -2,8 +2,8 @@ use common::traits::StreamTrait;
 use std::sync::Arc;
 use tokio::sync::{broadcast, watch};
 use tokio::task::AbortHandle;
-use tauri::{AppHandle, Manager, Emitter};
-use tauri_plugin_store::{Store, StoreExt};
+use tauri::{AppHandle, Manager};
+use tauri_plugin_store::StoreExt;
 use serde::{Deserialize, Serialize};
 
 pub mod structs;
@@ -32,6 +32,16 @@ impl Default for WebSocketConfig {
 /// Wrapper around a broadcast sender for sharing with Tauri managed state.
 /// UI commands (mute, recording) use this to push state updates to all connected WS clients.
 pub struct WebSocketBroadcaster(pub broadcast::Sender<String>);
+
+impl WebSocketBroadcaster {
+    /// Serialize a StateData DTO and broadcast to all connected WS clients.
+    pub fn broadcast_state(&self, state: StateData) {
+        let response = SuccessResponse::state(state.muted, state.deafened, state.recording);
+        if let Ok(json) = serde_json::to_string(&response) {
+            let _ = self.0.send(json);
+        }
+    }
+}
 
 pub struct WebSocketManager {
     abort_handle: Option<AbortHandle>,
@@ -266,27 +276,36 @@ impl WebSocketManager {
             Command::Ping => Ok(ResponseData::Pong(PongData { pong: true })),
 
             Command::Mute { device } => {
+                // In PTT mode, input mute via WebSocket is a no-op
+                if matches!(device, DeviceType::Input) {
+                    if let Ok(store) = app_handle.store("store.json") {
+                        if let Some(config) = store.get("keybinds") {
+                            if let Some(mode) = config.get("voiceMode").and_then(|v| v.as_str()) {
+                                if mode == "pushToTalk" {
+                                    let actions = app_handle.state::<crate::audio::AudioActionsManager>();
+                                    let status = actions.is_muted(crate::audio::types::AudioDeviceType::InputDevice).await;
+                                    return Ok(ResponseData::Mute(MuteData {
+                                        device: "input".to_string(),
+                                        muted: status,
+                                    }));
+                                }
+                            }
+                        }
+                    }
+                }
+
                 let audio_device = match device {
                     DeviceType::Input => crate::audio::types::AudioDeviceType::InputDevice,
                     DeviceType::Output => crate::audio::types::AudioDeviceType::OutputDevice,
                 };
 
-                let asm = app_handle.state::<tauri::async_runtime::Mutex<crate::AudioStreamManager>>();
-                let mut asm = asm.lock().await;
-                asm.toggle(&audio_device, common::structs::audio::StreamEvent::Mute).await?;
+                let actions = app_handle.state::<crate::audio::AudioActionsManager>();
+                let status = actions.toggle_mute(audio_device).await;
 
-                let status = asm.mute_status(&audio_device).await.unwrap_or(false);
                 let device_str = match device {
                     DeviceType::Input => "input",
                     DeviceType::Output => "output",
                 };
-
-                // Emit event to notify frontend of mute state change
-                let event_name = match device {
-                    DeviceType::Input => "mute:input",
-                    DeviceType::Output => "mute:output",
-                };
-                app_handle.emit(event_name, status).ok();
 
                 Ok(ResponseData::Mute(MuteData {
                     device: device_str.to_string(),
@@ -295,22 +314,9 @@ impl WebSocketManager {
             }
 
             Command::Record => {
-                let recording_manager = app_handle.state::<Arc<tauri::async_runtime::Mutex<crate::audio::RecordingManager>>>();
-                let mut manager = recording_manager.lock().await;
-
-                if manager.is_recording() {
-                    manager.stop_recording().await?;
-                    Ok(ResponseData::Record(RecordData { recording: false }))
-                } else {
-                    // Get current player from store
-                    let current_player = app_handle.store("store.json")?
-                        .get("current_player")
-                        .and_then(|v| v.as_str().map(|s| s.to_string()))
-                        .ok_or_else(|| anyhow::anyhow!("No current player"))?;
-
-                    manager.start_recording(current_player).await?;
-                    Ok(ResponseData::Record(RecordData { recording: true }))
-                }
+                let actions = app_handle.state::<crate::audio::AudioActionsManager>();
+                let recording = actions.toggle_recording().await?;
+                Ok(ResponseData::Record(RecordData { recording }))
             }
 
             Command::State => {
