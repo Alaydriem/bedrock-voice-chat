@@ -1,6 +1,6 @@
 [package]
 name = "migration"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 publish = false
 
@@ -10,14 +10,8 @@ path = "src/lib.rs"
 
 [dependencies]
 common = { path = "../../common", features = ["server"] }
-async-std = { version = "^1", features = ["attributes", "tokio1"] }
-sea-orm = { version = "^1.1", features = [
-    "sqlx-mysql",
-    "runtime-tokio-rustls",
-    "macros",
-    "sqlx-sqlite",
-] }
-sea-orm-migration = { version = "^1.1", features = [
+tokio = { version = "^1", features = ["full"] }
+sea-orm-migration = { version = "^2.0.0-rc.1", features = [
     "sqlx-mysql",
     "runtime-tokio-rustls",
     "sqlx-sqlite",

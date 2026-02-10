@@ -132,11 +132,22 @@ jobs:
       ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
     secrets: inherit
 
-  # Job 5: Upload release assets to GitHub
+  # Job 5: Build macOS client (release mode)
+  build-macos-client:
+    name: Build macOS (release)
+    needs: prepare-release
+    if: needs.prepare-release.outputs.new_release == 'true'
+    uses: ./.github/workflows/build-macos-client.yml
+    with:
+      build_mode: release
+      ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
+    secrets: inherit
+
+  # Job 6: Upload release assets to GitHub
   upload-assets:
     name: Upload Release Assets
-    needs: [prepare-release, build-server, build-android, build-client]
-    if: always() && needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false && (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-client.result == 'success')
+    needs: [prepare-release, build-server, build-android, build-client, build-macos-client]
+    if: always() && needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false && (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-client.result == 'success' || needs.build-macos-client.result == 'success')
     runs-on: ubuntu-latest
     steps:
       - name: Generate GitHub App token
@@ -186,6 +197,11 @@ jobs:
             cp "./artifacts/bvc-android-release-signed.apk/bvc-android-release-signed.apk" ./release-files/bvc-android-${VERSION}.apk
           fi
 
+          # macOS client
+          if [ -f "./artifacts/bvc-macos-release.app.zip/bvc-macos-release.app.zip" ]; then
+            cp "./artifacts/bvc-macos-release.app.zip/bvc-macos-release.app.zip" ./release-files/bvc-client-macos-arm64.app.zip
+          fi
+
           echo "=== Release files prepared ==="
           ls -la ./release-files/
 
@@ -219,7 +235,7 @@ jobs:
           echo "- \`ghcr.io/alaydriem/bedrock-voice-chat/server:v${VERSION}\`" >> $GITHUB_STEP_SUMMARY
           echo "- \`ghcr.io/alaydriem/bedrock-voice-chat/server:latest\`" >> $GITHUB_STEP_SUMMARY
 
-  # Job 6: Release Mods (reuses server build artifacts)
+  # Job 7: Release Mods (reuses server build artifacts)
   release-mods:
     name: Release Mods
     needs: [prepare-release, build-server]

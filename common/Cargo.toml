@@ -1,6 +1,6 @@
 [package]
 name = "common"
-version = "0.1.15"
+version = "0.1.16"
 edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -17,18 +17,18 @@ path = "./src/lib.rs"
 default = []
 
 # Heavy optional features
-quic = ["s2n-quic", "rustls-pemfile"]
-audio = ["rodio", "cpal"]
-templates = ["rocket_dyn_templates", "server"]
-browser = ["webbrowser"]
+quic = ["dep:s2n-quic", "dep:rustls-pemfile"]
+audio = ["dep:rodio", "dep:cpal"]
+templates = ["dep:rocket_dyn_templates", "server"]
+browser = ["dep:webbrowser"]
 
 # Server-only feature - enables rocket, sea-orm, and related deps
 server = [
-    "rocket",
-    "sea-orm",
-    "sea-orm-rocket",
+    "dep:rocket",
+    "dep:sea-orm",
+    "dep:sea-orm-rocket",
     "ncryptf-rs/rocket",
-    "clap",
+    "dep:clap",
 ]
 
 [dependencies]
@@ -64,8 +64,7 @@ leb128 = { version = "^0.2" }
 serde_bytes = { version = "^0.11" }
 thiserror = { version = "^2" }
 
-# Optional: QUIC support
-s2n-quic = { version = "=1.71.0", default-features = false, features = [
+s2n-quic = { version = "=1.74.0", default-features = false, features = [
     "provider-address-token-default",
     "provider-tls-rustls",
     "provider-event-tracing",
@@ -73,11 +72,8 @@ s2n-quic = { version = "=1.71.0", default-features = false, features = [
 ], optional = true }
 rustls-pemfile = { version = "^2.0", optional = true }
 
-# Optional: Audio support
 rodio = { git = "https://github.com/RustAudio/rodio.git", branch = "master", optional = true }
-cpal = { version = "^0.17", optional = true }
 
-# Optional: Server-only dependencies
 rocket = { version = "^0.5", optional = true, default-features = false, features = [
     "http2",
     "tls",
@@ -85,11 +81,18 @@ rocket = { version = "^0.5", optional = true, default-features = false, features
     "mtls",
 ] }
 rocket_dyn_templates = { version = "^0.2", features = ["handlebars"], optional = true }
-sea-orm = { version = "^1.1", optional = true, features = [
+sea-orm = { version = "^2.0.0-rc.30", optional = true, features = [
     "sqlx-mysql",
+    "sqlx-postgres",
+    "sqlx-sqlite",
     "runtime-tokio-rustls",
     "macros",
-    "sqlx-sqlite",
 ] }
 sea-orm-rocket = { version = "^0.6", optional = true }
 clap = { version = "^4", features = ["derive"], optional = true }
+
+[target."cfg(any(target_os = \"windows\"))".dependencies]
+cpal = { version = "^0.17", optional = true, features = ["asio"] }
+
+[target."cfg(not(target_os = \"windows\"))".dependencies]
+cpal = { version = "^0.17", optional = true }

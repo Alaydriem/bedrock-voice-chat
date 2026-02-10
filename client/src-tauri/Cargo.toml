@@ -56,7 +56,7 @@ tauri-plugin-http = { version = "^2", default-features = false, features = [
   "http2",
 ] }
 tauri-plugin-audio-permissions = { git = "https://github.com/charlesportwoodii/tauri-plugin-audio-permissions" }
-tauri-plugin-keyring = { path = "../../../tauri-plugin-keyring" }
+tauri-plugin-keyring = { git = "https://github.com/charlesportwoodii/tauri-plugin-keyring", branch = "macos-keyring" }
 tauri-plugin-store = "^2"
 tauri-plugin-notification = "^2"
 tauri-plugin-log = "^2"

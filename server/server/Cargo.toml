@@ -25,6 +25,9 @@ bundled-sqlite = []
 common = { path = "../../common", features = ["quic", "templates", "server"] }
 entity = { path = "../entity" }
 migration = { path = "../migration" }
+sea-orm = { workspace = true }
+sea-orm-rocket = { workspace = true }
+clap = { workspace = true }
 time = { version = "0.3", features = ["std"] }
 tokio = { version = "^1", features = ["full"] }
 rocket = { version = "^0.5", default-features = false, features = [
@@ -33,15 +36,6 @@ rocket = { version = "^0.5", default-features = false, features = [
     "json",
     "mtls",
 ] }
-rocket_dyn_templates = { version = "^0.2", features = ["handlebars"] }
-sea-orm = { version = "^1.1", features = [
-    "sqlx-mysql",
-    "runtime-tokio-rustls",
-    "macros",
-    "sqlx-sqlite",
-] }
-sea-orm-rocket = { version = "^0.6" }
-clap = { version = "^4.5", features = ["derive", "env", "wrap_help"] }
 hcl-rs = { version = "^0.19" }
 anyhow = { version = "^1.0" }
 serde = { version = "^1", features = ["derive"] }

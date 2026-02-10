@@ -60,12 +60,18 @@ jobs:
       - name: Build macOS client (debug)
         if: github.event_name == 'pull_request' || inputs.build_mode == 'debug' || inputs.build_mode == '' || inputs.build_mode == null
         working-directory: ./client
-        run: yarn tauri build --debug --no-bundle
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: yarn tauri build --debug --bundles app
 
       - name: Build macOS client (release)
         if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
         working-directory: ./client
-        run: yarn tauri build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: yarn tauri build --bundles app
 
       - name: Prepare macOS artifacts
         working-directory: ./client
@@ -80,31 +86,28 @@ jobs:
           fi
           echo "Effective build mode: $BUILD_MODE"
 
-          if [ "$BUILD_MODE" = "release" ]; then
-            BIN_PATH="../target/release/bedrock-voice-chat-client"
-          else
-            BIN_PATH="../target/debug/bedrock-voice-chat-client"
-          fi
+          APP_DIR="../target/$BUILD_MODE/bundle/macos/Bedrock Voice Chat.app"
 
-          if [ -f "$BIN_PATH" ]; then
-            cp "$BIN_PATH" "bvc-macos-$BUILD_MODE"
-            echo "Copied $BUILD_MODE executable"
+          if [ -d "$APP_DIR" ]; then
+            echo "Found .app bundle at: $APP_DIR"
+            # Zip the .app bundle (it's a directory) for upload
+            cd "../target/$BUILD_MODE/bundle/macos"
+            zip -r -y "../../../../client/bvc-macos-$BUILD_MODE.app.zip" "Bedrock Voice Chat.app"
+            cd "../../../../client"
+            echo "Zipped .app bundle:"
+            ls -la "bvc-macos-$BUILD_MODE.app.zip"
           else
-            echo "ERROR: Executable not found at $BIN_PATH!"
+            echo "ERROR: .app bundle not found at $APP_DIR!"
+            echo "Listing bundle directory contents:"
+            ls -laR "../target/$BUILD_MODE/bundle/" || echo "Bundle directory does not exist"
             exit 1
-          fi
-
-          # Verify the final executable
-          if [ -f "bvc-macos-$BUILD_MODE" ]; then
-            echo "Final executable ready:"
-            ls -la "bvc-macos-$BUILD_MODE"
           fi
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: bvc-macos-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
-          path: client/bvc-macos-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
+          name: bvc-macos-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}.app.zip
+          path: client/bvc-macos-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}.app.zip
           retention-days: 30
 
       - name: Output artifact information
@@ -123,7 +126,7 @@ jobs:
             echo "| ---- | ----- |"
             echo "| Build Mode | $BUILD_MODE |"
             echo "| Trigger | ${{ github.event_name }} |"
-            echo "| Artifact | bvc-macos-$BUILD_MODE |"
+            echo "| Artifact | bvc-macos-$BUILD_MODE.app.zip |"
             echo "| Artifact URL | [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |"
             echo "| Retention | 30 days |"
           } >> $GITHUB_STEP_SUMMARY
