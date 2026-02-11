@@ -73,6 +73,19 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: yarn tauri build --bundles app
 
+      - name: Patch macOS Apple versions
+        working-directory: ./client
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BUILD_MODE="debug"
+          elif [ "${{ inputs.build_mode }}" = "release" ]; then
+            BUILD_MODE="release"
+          else
+            BUILD_MODE="debug"
+          fi
+          node ../.github/scripts/patch-apple-plists.js \
+            --plist "../target/$BUILD_MODE/bundle/macos/Bedrock Voice Chat.app/Contents/Info.plist"
+
       - name: Prepare macOS artifacts
         working-directory: ./client
         run: |

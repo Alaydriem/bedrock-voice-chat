@@ -10,6 +10,7 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "tauri": "tauri",
+    "tauri:ios:init": "tauri ios init && cp src-tauri/Info.ios.plist src-tauri/gen/apple/bedrock-voice-chat-client_iOS/Info.plist && cp -R src-tauri/icons/Assets.xcassets src-tauri/gen/apple/ && node ../.github/scripts/patch-apple-plists.js",
     "asyncapi-docs": "cd src-tauri && cargo run --bin generate-asyncapi-docs"
   },
   "license": "UNLICENSED",

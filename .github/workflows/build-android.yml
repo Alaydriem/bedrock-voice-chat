@@ -120,16 +120,6 @@ jobs:
         working-directory: ./client
         run: yarn install --frozen-lockfile
 
-      - name: Download and setup ASIO SDK
-        if: runner.os == 'Windows'
-        working-directory: ./client/src-tauri
-        run: |
-          echo "Downloading ASIO SDK..."
-          curl -L -o asiosdk.zip "https://download.steinberg.net/sdk_downloads/asiosdk_2.3.3_2019-06-14.zip"
-          unzip -q asiosdk.zip
-          ls -la
-          echo "ASIO SDK downloaded and extracted"
-
       - name: Set up Android environment and fix LIBCLANG_PATH
         run: |
           # The setup-ndk action sets ANDROID_NDK_ROOT, but we need to ensure all common NDK env vars are set

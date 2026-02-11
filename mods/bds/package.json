@@ -1,6 +1,6 @@
 {
   "name": "bedrock-voice-chat-scripts",
-  "version": "0.0.2",
+  "version": "1.0.0-beta.7",
   "description": "TypeScript scripts for Bedrock Voice Chat addon",
   "private": true,
   "license": "BSD-3-Clause",
