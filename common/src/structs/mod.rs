@@ -4,6 +4,7 @@ pub mod config;
 pub mod events;
 pub mod keybinds;
 pub mod network;
+pub mod onboarding;
 pub mod packet;
 pub mod player_source;
 pub mod recording;

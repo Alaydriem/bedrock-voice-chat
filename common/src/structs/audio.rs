@@ -5,7 +5,7 @@ use ts_rs::TS;
 #[cfg(feature = "audio")]
 use anyhow::anyhow;
 #[cfg(feature = "audio")]
-use rodio::cpal::{self, ChannelCount, HostId, SampleFormat, SampleRate, SupportedStreamConfigRange};
+use rodio::cpal::{self, ChannelCount, HostId, SampleFormat, SupportedStreamConfigRange};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TS)]
 #[ts(export, export_to = "./../../client/src/js/bindings/")]
@@ -161,6 +161,7 @@ pub struct StreamConfig {
 #[ts(export, export_to = "./../../client/src/js/bindings/")]
 pub struct AudioDevice {
     pub io: AudioDeviceType,
+    pub id: String,
     pub name: String,
     pub host: AudioDeviceHost,
     pub stream_configs: Vec<StreamConfig>,
@@ -180,7 +181,7 @@ pub const SUPPORTED_SAMPLE_RATES: [u32; 2] = [48000, 44100];
 #[cfg(feature = "audio")]
 pub fn get_best_sample_rate(config: &SupportedStreamConfigRange) -> Option<u32> {
     for rate in SUPPORTED_SAMPLE_RATES {
-        if config.try_with_sample_rate(SampleRate(rate)).is_some() {
+        if config.try_with_sample_rate(rate).is_some() {
             return Some(rate);
         }
     }
@@ -260,8 +261,8 @@ impl Into<SupportedStreamConfigRange> for StreamConfig {
     fn into(self) -> SupportedStreamConfigRange {
         SupportedStreamConfigRange::new(
             self.channels as ChannelCount,
-            SampleRate(self.sample_rate),
-            SampleRate(self.sample_rate),
+            self.sample_rate,
+            self.sample_rate,
             rodio::cpal::SupportedBufferSize::Range {
                 min: self.buffer_size_min,
                 max: self.buffer_size_max,
@@ -282,7 +283,7 @@ impl Into<rodio::cpal::StreamConfig> for StreamConfig {
     fn into(self) -> rodio::cpal::StreamConfig {
         rodio::cpal::StreamConfig {
             channels: self.channels as ChannelCount,
-            sample_rate: SampleRate(self.sample_rate),
+            sample_rate: self.sample_rate,
             buffer_size: rodio::cpal::BufferSize::Fixed(BUFFER_SIZE),
         }
     }
@@ -294,7 +295,7 @@ impl Into<rodio::cpal::SupportedStreamConfig> for StreamConfig {
     fn into(self) -> rodio::cpal::SupportedStreamConfig {
         rodio::cpal::SupportedStreamConfig::new(
             self.channels as ChannelCount,
-            SampleRate(self.sample_rate),
+            self.sample_rate,
             rodio::cpal::SupportedBufferSize::Range {
                 min: self.buffer_size_min,
                 max: self.buffer_size_max,
@@ -313,6 +314,7 @@ impl Into<rodio::cpal::SupportedStreamConfig> for StreamConfig {
 impl AudioDevice {
     pub fn new(
         io: AudioDeviceType,
+        id: String,
         name: String,
         host: AudioDeviceHost,
         supported_stream_configs: Vec<SupportedStreamConfigRange>,
@@ -320,6 +322,7 @@ impl AudioDevice {
     ) -> Self {
         Self {
             io,
+            id,
             name,
             host,
             stream_configs: AudioDevice::to_stream_config(supported_stream_configs),

@@ -2,7 +2,7 @@ use common::traits::StreamTrait;
 use std::sync::Arc;
 use tokio::sync::{broadcast, watch};
 use tokio::task::AbortHandle;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, Emitter};
 use tauri_plugin_store::StoreExt;
 use serde::{Deserialize, Serialize};
 

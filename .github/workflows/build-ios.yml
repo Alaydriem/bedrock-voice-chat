@@ -60,10 +60,7 @@ jobs:
 
       - name: Initialize Tauri iOS project
         working-directory: ./client
-        run: |
-          echo "Initializing Tauri iOS project..."
-          yarn tauri ios init
-          echo "iOS project initialized successfully"
+        run: yarn tauri:ios:init
 
       - name: Disable code signing for CI
         working-directory: ./client
@@ -81,53 +78,6 @@ jobs:
           fi
 
           echo "Code signing disabled"
-
-      - name: Build Icons
-        working-directory: ./client
-        run: |
-          echo "Copying custom iOS icons..."
-
-          SOURCE_ICONS="src-tauri/icons/Assets.xcassets"
-          TARGET_ASSETS="src-tauri/gen/apple/bedrock-voice-chat-client_iOS/Assets.xcassets"
-
-          if [ ! -d "$SOURCE_ICONS" ]; then
-            echo "Warning: Source icons path not found: $SOURCE_ICONS"
-            exit 1
-          fi
-
-          if [ ! -d "src-tauri/gen/apple/bedrock-voice-chat-client_iOS" ]; then
-            echo "Warning: Target iOS project path not found"
-            ls -la src-tauri/gen/apple/ || true
-            exit 1
-          fi
-
-          # Copy the entire Assets.xcassets directory
-          cp -R "$SOURCE_ICONS" "$TARGET_ASSETS"
-
-          echo "iOS icon copying completed."
-
-          # Verify icons were copied
-          echo "Verifying copied icons:"
-          ls -la "$TARGET_ASSETS/AppIcon.appiconset/" | head -20
-
-      - name: Copy Info.plist
-        working-directory: ./client
-        run: |
-          echo "Copying custom Info.plist..."
-
-          SOURCE_PLIST="../.github/Info.plist"
-          TARGET_PLIST="src-tauri/gen/apple/bedrock-voice-chat-client_iOS/Info.plist"
-
-          if [ ! -f "$SOURCE_PLIST" ]; then
-            echo "Error: Source Info.plist not found at $SOURCE_PLIST"
-            exit 1
-          fi
-
-          cp "$SOURCE_PLIST" "$TARGET_PLIST"
-
-          echo "Info.plist copied successfully"
-          echo "Contents:"
-          cat "$TARGET_PLIST"
 
       - name: Build frontend
         working-directory: ./client

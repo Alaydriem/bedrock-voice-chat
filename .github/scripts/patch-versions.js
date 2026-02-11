@@ -6,7 +6,8 @@
  * Files patched:
  * - server/server/Cargo.toml
  * - client/src-tauri/Cargo.toml
- * - client/src-tauri/tauri.conf.json
+ * - client/src-tauri/tauri.conf.json (version, versionCode, bundleVersion)
+ * - client/src-tauri/Info.ios.plist (CFBundleShortVersionString, CFBundleVersion)
  * - client/package.json
  * - mods/bds/package.json
  * - mods/bds/manifest.json
@@ -106,8 +107,15 @@ function patchTauriConf(filePath, version) {
   const content = JSON.parse(fs.readFileSync(filePath, 'utf8'));
   content.version = version;
   content.bundle.android.versionCode = calculateVersionCode(version);
+
+  const bundleVersion = String(calculateVersionCode(version));
+  if (!content.bundle.iOS) content.bundle.iOS = {};
+  content.bundle.iOS.bundleVersion = bundleVersion;
+  if (!content.bundle.macOS) content.bundle.macOS = {};
+  content.bundle.macOS.bundleVersion = bundleVersion;
+
   fs.writeFileSync(filePath, JSON.stringify(content, null, 2) + '\n');
-  console.log(`Patched: ${filePath} (versionCode: ${content.bundle.android.versionCode})`);
+  console.log(`Patched: ${filePath} (versionCode: ${content.bundle.android.versionCode}, bundleVersion: ${bundleVersion})`);
 }
 
 /**
@@ -139,6 +147,35 @@ function patchBdsManifest(filePath, version) {
   console.log(`Patched: ${filePath} (version: [${encoded.major}, ${encoded.minor}, ${encoded.encodedPatch}])`);
 }
 
+/**
+ * Patch Apple Info.plist - updates CFBundleShortVersionString and CFBundleVersion
+ */
+function patchInfoPlist(filePath, version) {
+  if (!fs.existsSync(filePath)) {
+    console.log(`Skipping (not found): ${filePath}`);
+    return;
+  }
+
+  const encoded = encodeModVersion(version);
+  const shortVersion = `${encoded.major}.${encoded.minor}.${encoded.encodedPatch}`;
+  const bundleVersion = String(calculateVersionCode(version));
+
+  let content = fs.readFileSync(filePath, 'utf8');
+
+  content = content.replace(
+    /(<key>CFBundleShortVersionString<\/key>\s*<string>)[^<]*/,
+    `$1${shortVersion}`
+  );
+
+  content = content.replace(
+    /(<key>CFBundleVersion<\/key>\s*<string>)[^<]*/,
+    `$1${bundleVersion}`
+  );
+
+  fs.writeFileSync(filePath, content);
+  console.log(`Patched: ${filePath} (CFBundleShortVersionString: ${shortVersion}, CFBundleVersion: ${bundleVersion})`);
+}
+
 // Main execution
 const rootDir = path.resolve(__dirname, '../..');
 
@@ -149,6 +186,7 @@ console.log('');
 patchCargoToml(path.join(rootDir, 'server/server/Cargo.toml'), version);
 patchCargoToml(path.join(rootDir, 'client/src-tauri/Cargo.toml'), version);
 patchTauriConf(path.join(rootDir, 'client/src-tauri/tauri.conf.json'), version);
+patchInfoPlist(path.join(rootDir, 'client/src-tauri/Info.ios.plist'), version);
 patchPackageJson(path.join(rootDir, 'client/package.json'), version);
 
 // BDS mod files

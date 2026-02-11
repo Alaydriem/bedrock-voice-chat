@@ -10,20 +10,13 @@ path = "src/lib.rs"
 
 [dependencies]
 common = { path = "../../common", features = ["server"] }
-async-std = { version = "^1", features = ["attributes", "tokio1"] }
+sea-orm = { workspace = true }
 async-trait = { version = "^0.1" }
 serde = { version = "^1", features = ["derive"] }
 serde_json = { version = "^1", features = ["raw_value"] }
 tracing = { version = "^0.1" }
 anyhow = { version = "^1.0" }
 async-once-cell = { version = "^0.5" }
-sea-orm = { version = "^1.1", features = [
-    "sqlx-mysql",
-    "runtime-tokio-rustls",
-    "macros",
-    "sqlx-sqlite",
-] }
-sea-orm-rocket = { version = "^0.6" }
 tokio = { version = "^1" }
 rcgen = { version = "^0.13", features = ["x509-parser"] }
 time = { version = "0.3", features = ["std"] }

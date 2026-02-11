@@ -23,7 +23,7 @@ use common::traits::player_data::PlayerData;
 use log::{error, info, warn};
 use moka::future::Cache;
 use once_cell::sync::Lazy;
-use rodio::OutputStreamBuilder;
+use rodio::DeviceSinkBuilder;
 use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -47,7 +47,7 @@ pub(crate) struct OutputStream {
     pub metadata: Arc<Cache<String, String>>,
     app_handle: tauri::AppHandle,
     sink_manager: Option<SinkManager>,
-    playback_stream: Option<rodio::OutputStream>,
+    playback_stream: Option<rodio::MixerDeviceSink>,
     player_presence: Arc<moka::sync::Cache<String, ()>>,
     player_presence_debounce: Arc<moka::sync::Cache<String, ()>>,
     client_id_to_player: Arc<moka::sync::Cache<String, String>>,
@@ -109,9 +109,6 @@ impl common::traits::StreamTrait for OutputStream {
     async fn stop(&mut self) -> Result<(), anyhow::Error> {
         _ = self.shutdown.store(true, Ordering::Relaxed);
 
-        // Note: RecordingManager is managed separately and doesn't need to be stopped here
-        // The lifecycle is controlled by the main application
-
         if let Some(sink_manager) = self.sink_manager.as_mut() {
             sink_manager.stop().await;
         }
@@ -152,7 +149,7 @@ impl common::traits::StreamTrait for OutputStream {
         {
             Ok(job) => jobs.push(job),
             Err(e) => {
-                error!("input sender encountered an error: {:?}", e);
+                error!("output sender encountered an error: {:?}", e);
                 return Err(e);
             }
         };
@@ -169,7 +166,7 @@ impl common::traits::StreamTrait for OutputStream {
         {
             Ok(job) => jobs.push(job),
             Err(e) => {
-                error!("input sender encountered an error: {:?}", e);
+                error!("output sender encountered an error: {:?}", e);
                 return Err(e);
             }
         };
@@ -356,8 +353,8 @@ impl OutputStream {
                                 warn!(
                                     "Output device {} sample rate changed: stored {}Hz, actual {}Hz. Using actual.",
                                     device.display_name,
-                                    stored_config.sample_rate().0,
-                                    fresh_config.sample_rate().0
+                                    stored_config.sample_rate(),
+                                    fresh_config.sample_rate()
                                 );
                             }
                             fresh_config
@@ -372,19 +369,19 @@ impl OutputStream {
                     let handle = match cpal_device {
                         Some(cpal_device) => {
                             log::info!("started receiving audio stream");
-                            let builder = match OutputStreamBuilder::from_device(cpal_device) {
+                            let builder = match DeviceSinkBuilder::from_device(cpal_device) {
                                 Ok(b) => b,
                                 Err(e) => {
-                                    error!("Could not create OutputStreamBuilder: {:?}", e);
+                                    error!("Could not create DeviceSinkBuilder: {:?}", e);
                                     return Err(anyhow::anyhow!(e));
                                 }
                             };
                             let stream_config: rodio::cpal::StreamConfig = config.clone().into();
                             let builder = builder.with_config(&stream_config);
-                            let stream = match builder.open_stream_or_fallback() {
+                            let stream = match builder.open_sink_or_fallback() {
                                 Ok(s) => s,
                                 Err(e) => {
-                                    error!("Could not acquire OutputStream. Try restarting the stream? {:?}", e);
+                                    error!("Could not acquire MixerDeviceSink. Try restarting the stream? {:?}", e);
                                     return Err(anyhow::anyhow!(e));
                                 }
                             };

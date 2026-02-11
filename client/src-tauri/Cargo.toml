@@ -29,7 +29,7 @@ log = "^0.4"
 anyhow = { version = "^1" }
 spmc = { version = "^0.3" }
 rand = { version = "^0.10" }
-rodio = { version = "^0.21" }
+rodio = { git = "https://github.com/RustAudio/rodio.git", branch = "master" }
 bytes = { version = "^1.10" }
 async-mutex = { version = "^1.4" }
 moka = { version = "^0.12", features = ["future", "sync"] }
@@ -84,10 +84,6 @@ parking_lot = "^0.12"
 
 [target."cfg(any(target_os = \"windows\"))".dependencies]
 windows-targets = "^0.53.0"
-cpal = { version = "^0.16", features = ["asio", "asio-sys"] }
-
-[target."cfg(any(target_os = \"android\", target_os = \"ios\"))".dependencies]
-cpal = { version = "^0.16" }
 
 [dev-dependencies]
 

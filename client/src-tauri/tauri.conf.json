@@ -28,12 +28,15 @@
     },
     "iOS": {
       "minimumSystemVersion": "26.0",
-      "infoPlist": "./Info.plist"
+      "bundleVersion": "1000107",
+      "infoPlist": "./Info.ios.plist"
+    },
+    "macOS": {
+      "bundleVersion": "1000107",
+      "infoPlist": "./Info.macos.plist"
     },
     "createUpdaterArtifacts": true,
-    "resources": [
-      "data.json"
-    ],
+    "resources": [],
     "active": true,
     "targets": [
       "app",

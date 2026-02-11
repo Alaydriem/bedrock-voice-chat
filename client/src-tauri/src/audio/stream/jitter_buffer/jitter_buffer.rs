@@ -1,5 +1,6 @@
 use log::error;
 use rodio::Source;
+use std::num::NonZero;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -210,19 +211,19 @@ impl Source for JitterBuffer {
         None
     }
 
-    fn channels(&self) -> u16 {
+    fn channels(&self) -> NonZero<u16> {
         if let Ok(source) = self.source.lock() {
             source.channels()
         } else {
-            1
+            NonZero::new(1).unwrap()
         }
     }
 
-    fn sample_rate(&self) -> u32 {
+    fn sample_rate(&self) -> NonZero<u32> {
         if let Ok(source) = self.source.lock() {
             source.sample_rate()
         } else {
-            48000
+            NonZero::new(48000).unwrap()
         }
     }
 

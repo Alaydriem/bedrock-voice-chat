@@ -63,27 +63,32 @@ impl AudioDeviceCpal for AudioDevice {
             };
         }
 
+        // Treat both "default" id and "default" name as the system default device.
+        // On AAudio (Android), the default device has id "aaudio:-1" (AAUDIO_UNSPECIFIED)
+        // which doesn't appear in device enumeration, so we must use the host's default.
+        let is_default = self.id == "default" || self.name == "default";
+
         match self.io {
             AudioDeviceType::InputDevice => {
-                if self.name == "default" {
+                if is_default {
                     return host.default_input_device();
                 }
 
                 match host.input_devices() {
                     Ok(mut devices) => {
-                        devices.find(|x| x.name().map(|y| y == self.name).unwrap_or(false))
+                        devices.find(|x| x.id().map(|id| id.to_string() == self.id).unwrap_or(false))
                     }
                     Err(_) => None,
                 }
             }
             AudioDeviceType::OutputDevice => {
-                if self.name == "default" {
+                if is_default {
                     return host.default_output_device();
                 }
 
                 match host.output_devices() {
                     Ok(mut devices) => {
-                        devices.find(|x| x.name().map(|y| y == self.name).unwrap_or(false))
+                        devices.find(|x| x.id().map(|id| id.to_string() == self.id).unwrap_or(false))
                     }
                     Err(_) => None,
                 }

@@ -30,6 +30,7 @@ jobs:
       common: ${{ steps.changes.outputs.common }}
       android: ${{ steps.changes.outputs.android }}
       ios: ${{ steps.changes.outputs.ios }}
+      macos: ${{ steps.changes.outputs.macos }}
       fabric-mod: ${{ steps.changes.outputs.fabric-mod }}
       paper-mod: ${{ steps.changes.outputs.paper-mod }}
       hytale-mod: ${{ steps.changes.outputs.hytale-mod }}
@@ -60,6 +61,11 @@ jobs:
               - 'client/**'
               - 'common/**'
               - '.github/workflows/build-ios.yml'
+              - '.github/workflows/build-all.yml'
+            macos:
+              - 'client/**'
+              - 'common/**'
+              - '.github/workflows/build-macos-client.yml'
               - '.github/workflows/build-all.yml'
             fabric-mod:
               - 'mods/java/common/**'
@@ -102,6 +108,7 @@ jobs:
           echo "Client: ${{ steps.changes.outputs.client }}"
           echo "Android: ${{ steps.changes.outputs.android }}"
           echo "iOS: ${{ steps.changes.outputs.ios }}"
+          echo "macOS: ${{ steps.changes.outputs.macos }}"
           echo "Fabric Mod: ${{ steps.changes.outputs.fabric-mod }}"
           echo "Paper Mod: ${{ steps.changes.outputs.paper-mod }}"
           echo "Hytale Mod: ${{ steps.changes.outputs.hytale-mod }}"
@@ -152,6 +159,16 @@ jobs:
       build_mode: ${{ needs.changes.outputs.build_mode }}
     secrets: inherit
 
+  # Build macOS client
+  build-macos-client:
+    name: Build macOS Client (${{ needs.changes.outputs.build_mode }})
+    needs: changes
+    if: needs.changes.outputs.macos == 'true' || needs.changes.outputs.client == 'true' || needs.changes.outputs.common == 'true'
+    uses: ./.github/workflows/build-macos-client.yml
+    with:
+      build_mode: ${{ needs.changes.outputs.build_mode }}
+    secrets: inherit
+
   # Build Fabric Mod
   build-fabric-mod:
     name: Build Fabric Mod
@@ -194,12 +211,12 @@ jobs:
   collect-artifacts:
     name: Collect All Artifacts
     runs-on: ubuntu-latest
-    needs: [build-server, build-android, build-ios, build-client, build-fabric-mod, build-paper-mod, build-hytale-mod, build-bds-pack]
+    needs: [build-server, build-android, build-ios, build-client, build-macos-client, build-fabric-mod, build-paper-mod, build-hytale-mod, build-bds-pack]
     if: |
       always() &&
       !cancelled() &&
       !contains(needs.*.result, 'failure') &&
-      (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-ios.result == 'success' || needs.build-client.result == 'success' || needs.build-fabric-mod.result == 'success' || needs.build-paper-mod.result == 'success' || needs.build-hytale-mod.result == 'success' || needs.build-bds-pack.result == 'success')
+      (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-ios.result == 'success' || needs.build-client.result == 'success' || needs.build-macos-client.result == 'success' || needs.build-fabric-mod.result == 'success' || needs.build-paper-mod.result == 'success' || needs.build-hytale-mod.result == 'success' || needs.build-bds-pack.result == 'success')
     steps:
       - name: Create build summary
         id: build-summary
@@ -216,6 +233,7 @@ jobs:
           echo "- **Android Status:** ${{ needs.build-android.result || 'skipped' }}" >> build-summary.md
           echo "- **iOS Status:** ${{ needs.build-ios.result || 'skipped' }}" >> build-summary.md
           echo "- **Windows Status:** ${{ needs.build-client.result || 'skipped' }}" >> build-summary.md
+          echo "- **macOS Status:** ${{ needs.build-macos-client.result || 'skipped' }}" >> build-summary.md
           echo "- **Fabric Mod Status:** ${{ needs.build-fabric-mod.result || 'skipped' }}" >> build-summary.md
           echo "- **Paper Plugin Status:** ${{ needs.build-paper-mod.result || 'skipped' }}" >> build-summary.md
           echo "- **Hytale Plugin Status:** ${{ needs.build-hytale-mod.result || 'skipped' }}" >> build-summary.md
@@ -249,6 +267,12 @@ jobs:
           if [ "${{ needs.build-client.result }}" = "success" ]; then
             echo "### 🪟 Windows Client" >> build-summary.md
             echo "- [windows-debug](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) - Windows EXE/MSI/Installer" >> build-summary.md
+            echo "" >> build-summary.md
+          fi
+
+          if [ "${{ needs.build-macos-client.result }}" = "success" ]; then
+            echo "### 🍎 macOS Client" >> build-summary.md
+            echo "- [macos-debug](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) - macOS binary" >> build-summary.md
             echo "" >> build-summary.md
           fi
 
@@ -301,6 +325,7 @@ jobs:
           echo "   - Android: ${{ needs.build-android.result || 'skipped' }}"
           echo "   - iOS: ${{ needs.build-ios.result || 'skipped' }}"
           echo "   - Windows: ${{ needs.build-client.result || 'skipped' }}"
+          echo "   - macOS: ${{ needs.build-macos-client.result || 'skipped' }}"
           echo "   - Fabric Mod: ${{ needs.build-fabric-mod.result || 'skipped' }}"
           echo "   - Paper Plugin: ${{ needs.build-paper-mod.result || 'skipped' }}"
           echo "   - Hytale Plugin: ${{ needs.build-hytale-mod.result || 'skipped' }}"
@@ -320,6 +345,9 @@ jobs:
           fi
           if [ "${{ needs.build-client.result }}" = "success" ]; then
             echo "   Windows: windows-debug (contains .exe/.msi files)"
+          fi
+          if [ "${{ needs.build-macos-client.result }}" = "success" ]; then
+            echo "   macOS: macos-debug (contains macOS binary)"
           fi
           if [ "${{ needs.build-fabric-mod.result }}" = "success" ]; then
             echo "   Fabric Mod: bedrock-voice-chat-fabric (contains .jar file)"
