@@ -29,7 +29,7 @@
     "@use-gesture/vanilla": "^10.3",
     "murmurhash3js": "^3.0",
     "tauri-plugin-audio-permissions": "git+https://github.com/charlesportwoodii/tauri-plugin-audio-permissions.git",
-    "tauri-plugin-keyring": "git+https://github.com/charlesportwoodii/tauri-plugin-keyring.git#macos-keyring",
+    "tauri-plugin-keyring": "git+https://github.com/charlesportwoodii/tauri-plugin-keyring.git#master",
     "ts-pattern": "^5.6",
     "unique-names-generator": "^4.7",
     "webaudio-controls": "git+https://github.com/g200kg/webaudio-controls.git#master"

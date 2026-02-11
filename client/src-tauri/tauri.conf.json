@@ -35,7 +35,6 @@
     },
     "createUpdaterArtifacts": true,
     "resources": [
-      "data.json"
     ],
     "active": true,
     "targets": [

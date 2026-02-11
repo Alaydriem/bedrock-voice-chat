@@ -8343,7 +8343,7 @@ dependencies = [
 [[package]]
 name = "tauri-plugin-keyring"
 version = "0.1.0"
-source = "git+https://github.com/charlesportwoodii/tauri-plugin-keyring?branch=macos-keyring#dcfa233f4a56d81d07fb1fce05aac4f26425fa16"
+source = "git+https://github.com/charlesportwoodii/tauri-plugin-keyring#c3b5cca6c750e11d5cbe1d4e538d69f699407f95"
 dependencies = [
  "android-native-keyring-store",
  "apple-native-keyring-store",
