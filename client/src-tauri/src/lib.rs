@@ -109,7 +109,10 @@ pub fn run() {
             crate::commands::websocket::is_websocket_running,
             crate::commands::websocket::generate_encryption_key,
             // Keybinds
-            crate::commands::keybinds::start_keybind_listener
+            crate::commands::keybinds::start_keybind_listener,
+            // Updater
+            #[cfg(desktop)]
+            crate::commands::updater::check_for_updates
         ])
         .setup(|app| {
             // Set Windows timer resolution for high-precision audio timing
@@ -192,7 +195,8 @@ pub fn run() {
                 }
             }
 
-            // Handle updates for desktop applications
+            // Register the updater plugin. Actual update checks happen via the
+            // check_for_updates command which uses UpdaterExt with dynamic endpoints.
             #[cfg(desktop)]
             {
                 handle.plugin(tauri_plugin_updater::Builder::new().build())?;
