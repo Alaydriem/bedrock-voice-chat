@@ -47,7 +47,7 @@ class FabricPlayerDataProvider : PlayerDataProvider {
             .mapNotNull { uuid -> srv.playerManager.getPlayer(uuid) }
             .filter { !it.isDisconnected }
             .map { player ->
-                val worldUuid = getWorldUuid(player.serverWorld)
+                val worldUuid = getWorldUuid(player.entityWorld as ServerWorld)
                 // Check if player is dead - override to death dimension at origin
                 if (deadPlayers.contains(player.uuid)) {
                     PlayerData(
@@ -86,7 +86,7 @@ class FabricPlayerDataProvider : PlayerDataProvider {
     private fun getWorldUuid(world: ServerWorld): String {
         val dimKey = world.registryKey.value.toString()
         return worldUuidCache.getOrPut(dimKey) {
-            val worldDir = world.server.getRunDirectory().resolve("bvc")
+            val worldDir = world.server!!.getRunDirectory().resolve("bvc").toFile()
             worldDir.mkdirs()
             val uuidFile = File(worldDir, "world_uuid_${dimKey.replace(":", "_")}.txt")
             if (uuidFile.exists()) {

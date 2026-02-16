@@ -16,6 +16,12 @@ const POLL_INTERVAL = 5;
 const MIN_PLAYERS = 2;
 const REQUEST_TIMEOUT = 1;
 
+const FAILURE_THRESHOLD = 3;
+const INITIAL_BACKOFF_MS = 10_000;
+const MAX_BACKOFF_MS = 30_000;
+let consecutiveFailures = 0;
+let circuitOpenUntil = 0;
+
 // Track dead players by their ID
 const deadPlayers = new Set<string>();
 
@@ -30,6 +36,7 @@ function getWorldUuid(): string {
   const existing = world.getDynamicProperty('bvc:world_uuid');
   if (typeof existing === 'string') {
     cachedWorldUuid = existing;
+    console.info("[BVC] Loaded world UUID: " + existing);
     return existing;
   }
 
@@ -83,6 +90,12 @@ system.runInterval(async () => {
     }
   }
 
+  // Circuit breaker: skip requests while circuit is open
+  const now = Date.now();
+  if (consecutiveFailures >= FAILURE_THRESHOLD && now < circuitOpenUntil) {
+    return;
+  }
+
   try {
     const worldUuid = getWorldUuid();
     const payload = Payload.fromPlayers(players, deadPlayers, worldUuid);
@@ -99,11 +112,28 @@ system.runInterval(async () => {
 
     await http
       .request(request)
-      .then(() => {})
+      .then(() => {
+        if (consecutiveFailures >= FAILURE_THRESHOLD) {
+          console.info("[BVC] Connection restored");
+        }
+        consecutiveFailures = 0;
+      })
       .catch((error) => {
-        console.warn('Failed to send player data:', error);
+        consecutiveFailures++;
+        if (consecutiveFailures === FAILURE_THRESHOLD) {
+          console.warn("[BVC] Backend unreachable, pausing requests");
+        }
+        if (consecutiveFailures >= FAILURE_THRESHOLD) {
+          const backoff = Math.min(
+            INITIAL_BACKOFF_MS * Math.pow(2, consecutiveFailures - FAILURE_THRESHOLD),
+            MAX_BACKOFF_MS,
+          );
+          circuitOpenUntil = Date.now() + backoff;
+        } else {
+          console.warn("[BVC] Failed to send player data:", error);
+        }
       });
   } catch (error) {
-    console.error('Error creating player payload:', error);
+    console.error("[BVC] Error creating player payload:", error);
   }
 }, POLL_INTERVAL);

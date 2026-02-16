@@ -1,0 +1,14 @@
+{
+  "name": "bvc-mods",
+  "version": "dev",
+  "description": "BVC mod build orchestrator",
+  "private": true,
+  "license": "BSD-3-Clause",
+  "scripts": {
+    "dev-build": "node dev-build.js",
+    "dev-build-all": "node dev-build.js --all"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
