@@ -151,8 +151,12 @@ pub async fn poll_hytale_status(
         )
         .unwrap(),
     );
+    headers.insert(
+        "X-Session-Id",
+        tauri_plugin_http::reqwest::header::HeaderValue::from_str(&session_id).unwrap(),
+    );
 
-    let endpoint = format!("{}/api/auth/hytale/status/{}", &server, session_id);
+    let endpoint = format!("{}/api/auth/hytale/status", &server);
     let client = ncryptf::get_reqwest_client();
 
     match client.get(endpoint).headers(headers).send().await {
