@@ -8,16 +8,27 @@
   scroll-behavior: smooth;
 }
 
-/* Desktop: Show main content with proper flex layout */
+/* Desktop: Constrain root to viewport so sidebar and content scroll independently */
 @media (min-width: 768px) {
+  #root {
+    height: 100vh;
+    overflow: hidden;
+  }
+
   .settings-main-content {
     display: block !important;
     position: static;
-    padding: 2rem; /* p-8 */
+    padding: 2rem;
     background-color: transparent;
     overflow-y: auto;
-    height: 100vh;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+    margin-top: 0;
     margin-left: 0;
+  }
+
+  .settings-main-content::-webkit-scrollbar {
+    display: none; /* Chrome/Safari/Opera */
   }
 }
 
