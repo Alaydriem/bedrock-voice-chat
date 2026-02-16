@@ -55,7 +55,8 @@ class PaperPlayerDataProvider : PlayerDataProvider {
                         pitch = 0f,
                         dimension = Dimension.Minecraft.DEATH,
                         deafen = false,
-                        spectator = false
+                        spectator = false,
+                        worldUuid = player.location.world?.uid?.toString()
                     )
                 } else {
                     // Normal player data
@@ -70,7 +71,8 @@ class PaperPlayerDataProvider : PlayerDataProvider {
                         pitch = location.pitch,
                         dimension = dimension,
                         deafen = player.isSneaking,
-                        spectator = player.gameMode == org.bukkit.GameMode.SPECTATOR
+                        spectator = player.gameMode == org.bukkit.GameMode.SPECTATOR,
+                        worldUuid = location.world?.uid?.toString()
                     )
                 }
             }

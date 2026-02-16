@@ -11,12 +11,13 @@ export class Payload {
    * Create a payload from Minecraft players.
    * @param players Array of Minecraft players
    * @param deadPlayers Set of player IDs who are currently dead
+   * @param worldUuid Optional world UUID for multi-world isolation
    */
-  static fromPlayers(players: MinecraftPlayer[], deadPlayers: Set<string> = new Set()): Payload {
+  static fromPlayers(players: MinecraftPlayer[], deadPlayers: Set<string> = new Set(), worldUuid?: string): Payload {
     const playerDtos = players.map(p =>
       deadPlayers.has(p.id)
-        ? Player.fromMinecraftPlayerDead(p)
-        : Player.fromMinecraftPlayer(p)
+        ? Player.fromMinecraftPlayerDead(p, worldUuid)
+        : Player.fromMinecraftPlayer(p, worldUuid)
     );
     return new Payload('minecraft', playerDtos);
   }
