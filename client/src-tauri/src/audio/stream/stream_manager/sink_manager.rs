@@ -86,6 +86,12 @@ where
     }
 }
 
+/// Convert a linear slider position (0.0-1.5) to a perceptually-correct amplitude factor.
+/// Uses a power curve (x^2.5) so equal slider increments produce roughly equal loudness changes.
+fn perceptual_gain(linear_position: f32) -> f32 {
+    linear_position.powf(2.5)
+}
+
 #[derive(Clone, Default)]
 struct PlayerSinks {
     normal: Option<Arc<AudioSink>>,
@@ -301,7 +307,7 @@ impl SinkManager {
                         } else {
                             1.0
                         };
-                        let volume = spatial_data.gain * gain_settings.gain * mute_mult;
+                        let volume = spatial_data.gain * perceptual_gain(gain_settings.gain) * mute_mult;
                         spatial_sink.update_spatial_position(
                             &emitter_coordinate,
                             &spatial_data.left_ear,
@@ -354,7 +360,7 @@ impl SinkManager {
                         } else {
                             1.0
                         };
-                        let volume = 1.3 * gain_settings.gain * mute_mult;
+                        let volume = 1.3 * perceptual_gain(gain_settings.gain) * mute_mult;
                         normal_sink.update_spatial_position(
                             &Coordinate::default(),
                             &Coordinate::default(),
