@@ -19,6 +19,43 @@ const REQUEST_TIMEOUT = 1;
 // Track dead players by their ID
 const deadPlayers = new Set<string>();
 
+// Persistent world UUID for multi-world isolation
+let cachedWorldUuid: string | undefined;
+
+function getWorldUuid(): string {
+  if (cachedWorldUuid) {
+    return cachedWorldUuid;
+  }
+
+  const existing = world.getDynamicProperty('bvc:world_uuid');
+  if (typeof existing === 'string') {
+    cachedWorldUuid = existing;
+    return existing;
+  }
+
+  // Generate a UUID v4
+  const uuid = [
+    randomHex(8),
+    randomHex(4),
+    '4' + randomHex(3),
+    ((Math.floor(Math.random() * 4) + 8).toString(16)) + randomHex(3),
+    randomHex(12),
+  ].join('-');
+
+  world.setDynamicProperty('bvc:world_uuid', uuid);
+  cachedWorldUuid = uuid;
+  console.info("[BVC] Generated world UUID: " + uuid);
+  return uuid;
+}
+
+function randomHex(length: number): string {
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += Math.floor(Math.random() * 16).toString(16);
+  }
+  return result;
+}
+
 console.info("[BVC] Connecting to: " + bvc_server);
 
 // Subscribe to player death events
@@ -47,7 +84,8 @@ system.runInterval(async () => {
   }
 
   try {
-    const payload = Payload.fromPlayers(players, deadPlayers);
+    const worldUuid = getWorldUuid();
+    const payload = Payload.fromPlayers(players, deadPlayers, worldUuid);
 
     const request = new HttpRequest(`${bvc_server}/api/position`);
     request.setBody(payload.toJSONString());
