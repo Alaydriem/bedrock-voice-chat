@@ -70,6 +70,9 @@ bwavfile = "2.0.1"
 chrono = "^0.4"
 async-trait = "^0.1"
 url = "2"
+tar = "^0.4"
+zstd = "^0.13"
+
 
 # MP4 muxing with Opus support
 shiguredo_mp4 = "2026.1.0"
