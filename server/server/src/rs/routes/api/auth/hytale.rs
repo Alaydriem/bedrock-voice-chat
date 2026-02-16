@@ -16,6 +16,7 @@ use crate::config::ApplicationConfigServer;
 use crate::rs::pool::AppDb;
 use crate::rs::dtos::ncryptf::JsonMessage;
 use crate::rs::dtos::{HytaleSession, HytaleSessionCache};
+use crate::rs::guards::HytaleSessionId;
 use crate::services::{AuthError, AuthService};
 
 /// Start a new Hytale device code flow
@@ -61,14 +62,15 @@ pub async fn start_device_flow(
 }
 
 /// Poll the status of a Hytale device code flow
-#[get("/auth/hytale/status/<session_id>")]
+#[get("/auth/hytale/status")]
 pub async fn poll_status(
     db: SeaOrmConnection<'_, AppDb>,
     config: &State<ApplicationConfigServer>,
     session_cache: &State<HytaleSessionCache>,
-    session_id: &str,
+    session_id: HytaleSessionId,
 ) -> ncryptf::rocket::JsonResponse<JsonMessage<HytaleDeviceFlowStatusResponse>> {
     let conn = db.into_inner();
+    let session_id = &session_id.0;
 
     // Look up the session
     let session = match session_cache.get(session_id).await {
