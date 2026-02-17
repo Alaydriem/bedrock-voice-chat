@@ -1,6 +1,7 @@
 use super::resampler::AudioResampler;
 
 use super::AudioFrame;
+use crate::audio::recording::renderer::mp4::constants::OPUS_FRAME_DURATION_MS;
 use crate::audio::recording::{RawRecordingData, RecordingProducer};
 use crate::audio::stream::{RecoverySender, StreamRecoveryEvent};
 use crate::audio::types::{AudioDevice, AudioDeviceCpal, AudioDeviceType, BUFFER_SIZE};
@@ -281,6 +282,13 @@ impl InputStream {
 
                                 let mut callback_count = 0u64;
                                 let mut sent_count = 0u64;
+                                let mut consecutive_silent_frames: u32 = 0;
+
+                                // Trailing frame count scales with release_rate (20ms per frame at 48kHz)
+                                let mut tail_frame_count: u32 =
+                                    (noise_gate_settings.release_rate / OPUS_FRAME_DURATION_MS as f32)
+                                        .ceil()
+                                        .max(2.0) as u32;
 
                                 // Pre-allocate buffer for in-place processing (dynamically sized for variable buffer sizes)
                                 let mut pcm_buffer: Vec<f32> = vec![0.0; 4096];
@@ -331,6 +339,12 @@ impl InputStream {
                                                         settings.attack_rate,
                                                         settings.hold_time,
                                                     );
+
+                                                    tail_frame_count =
+                                                        (settings.release_rate / OPUS_FRAME_DURATION_MS as f32)
+                                                            .ceil()
+                                                            .max(2.0)
+                                                            as u32;
                                                 }
                                                 Err(e) => {
                                                     warn!("Noise gate settings were asked to update, but failed to deserialize: {}", e);
@@ -361,30 +375,47 @@ impl InputStream {
                                         mono_pcm
                                     };
 
-                                    let pcm_sendable = mono_pcm.iter().all(|&e| f32::abs(e) == 0.0);
+                                    let is_silent = mono_pcm.iter().all(|&e| f32::abs(e) == 0.0);
+                                    let is_muted = MUTE_INPUT_STREAM.load(Ordering::Relaxed);
 
-                                    // Only send audio frame data if our filters haven't cut data out
-                                    if !pcm_sendable && !MUTE_INPUT_STREAM.load(Ordering::Relaxed) {
-                                        // Capture timestamp at audio capture time for accurate recording timecode
+                                    if is_muted {
+                                        // Hard mute: reset state, send nothing
+                                        consecutive_silent_frames = 0;
+                                    } else if !is_silent {
+                                        // Gate is open — real audio, reset counter, send frame
+                                        consecutive_silent_frames = 0;
+
                                         let captured_at_ms = std::time::SystemTime::now()
                                             .duration_since(std::time::UNIX_EPOCH)
                                             .unwrap_or_default()
                                             .as_millis() as u64;
 
-                                        let audio_frame_data = AudioFrameData {
+                                        match producer.try_send(AudioFrame::F32(AudioFrameData {
                                             pcm: mono_pcm,
                                             captured_at_ms,
-                                        };
+                                        })) {
+                                            Ok(()) => { sent_count += 1; }
+                                            Err(_e) => {}
+                                        }
+                                    } else if consecutive_silent_frames < tail_frame_count {
+                                        // Gate just closed — send trailing silence frame
+                                        consecutive_silent_frames += 1;
 
-                                        match producer.try_send(AudioFrame::F32(audio_frame_data)) {
-                                            Ok(()) => {
-                                                sent_count += 1;
-                                            }
+                                        let captured_at_ms = std::time::SystemTime::now()
+                                            .duration_since(std::time::UNIX_EPOCH)
+                                            .unwrap_or_default()
+                                            .as_millis() as u64;
+
+                                        match producer.try_send(AudioFrame::F32(AudioFrameData {
+                                            pcm: mono_pcm,
+                                            captured_at_ms,
+                                        })) {
+                                            Ok(()) => { sent_count += 1; }
                                             Err(_e) => {}
                                         }
                                     } else if callback_count % 100 == 0 {
-                                        debug!("[INPUT] Skipping send - pcm_sendable={}, muted={}",
-                                              pcm_sendable,
+                                        // Tail exhausted, dropping frames (periodic log)
+                                        debug!("[INPUT] Skipping send - silent, muted={}",
                                               MUTE_INPUT_STREAM.load(Ordering::Relaxed));
                                     }
                                 };
