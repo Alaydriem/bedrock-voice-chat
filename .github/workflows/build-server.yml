@@ -190,7 +190,7 @@ jobs:
         uses: actions/upload-artifact@v4
         id: upload-server
         with:
-          name: bvc-server-${{ matrix.target }}-${{ github.event_name == 'pull_request' && 'debug' || startsWith(github.ref, 'refs/tags/') && 'release' || inputs.build_mode || 'debug' }}${{ runner.os == 'Windows' && '.exe' || '' }}
+          name: bvc-server-${{ matrix.target }}-${{ github.event_name == 'pull_request' && 'debug' || startsWith(github.ref, 'refs/tags/') && 'release' || inputs.build_mode || 'debug' }}
           path: bvc-server-${{ matrix.target }}-${{ github.event_name == 'pull_request' && 'debug' || startsWith(github.ref, 'refs/tags/') && 'release' || inputs.build_mode || 'debug' }}${{ runner.os == 'Windows' && '.exe' || '' }}
           retention-days: 30
 

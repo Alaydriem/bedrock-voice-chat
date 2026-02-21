@@ -133,8 +133,11 @@ jobs:
   build-mod-fabric:
     name: Build Fabric Mod
     needs: [prepare-release, build-server]
-    # Run if: release is published and (server build succeeded OR was skipped)
-    if: always() && needs.prepare-release.outputs.new_release_published == 'true' && (needs.build-server.result == 'success' || needs.build-server.result == 'skipped')
+    # Run if: no failures, release is published, and server build succeeded or was skipped
+    if: >-
+      !failure() && !cancelled() &&
+      needs.prepare-release.outputs.new_release_published == 'true' &&
+      (needs.build-server.result == 'success' || needs.build-server.result == 'skipped')
     uses: ./.github/workflows/build-mod-fabric.yml
     with:
       version: ${{ needs.prepare-release.outputs.encoded_version }}
@@ -144,8 +147,11 @@ jobs:
   build-mod-paper:
     name: Build Paper Plugin
     needs: [prepare-release, build-server]
-    # Run if: release is published and (server build succeeded OR was skipped)
-    if: always() && needs.prepare-release.outputs.new_release_published == 'true' && (needs.build-server.result == 'success' || needs.build-server.result == 'skipped')
+    # Run if: no failures, release is published, and server build succeeded or was skipped
+    if: >-
+      !failure() && !cancelled() &&
+      needs.prepare-release.outputs.new_release_published == 'true' &&
+      (needs.build-server.result == 'success' || needs.build-server.result == 'skipped')
     uses: ./.github/workflows/build-mod-paper.yml
     with:
       version: ${{ needs.prepare-release.outputs.encoded_version }}
@@ -155,8 +161,11 @@ jobs:
   build-mod-hytale:
     name: Build Hytale Plugin
     needs: [prepare-release, build-server]
-    # Run if: release is published and (server build succeeded OR was skipped)
-    if: always() && needs.prepare-release.outputs.new_release_published == 'true' && (needs.build-server.result == 'success' || needs.build-server.result == 'skipped')
+    # Run if: no failures, release is published, and server build succeeded or was skipped
+    if: >-
+      !failure() && !cancelled() &&
+      needs.prepare-release.outputs.new_release_published == 'true' &&
+      (needs.build-server.result == 'success' || needs.build-server.result == 'skipped')
     uses: ./.github/workflows/build-mod-hytale.yml
     with:
       version: ${{ needs.prepare-release.outputs.encoded_version }}
@@ -184,7 +193,7 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-fabric-${{ needs.prepare-release.outputs.encoded_version }}.jar
+          name: bedrock-voice-chat-fabric-${{ needs.prepare-release.outputs.encoded_version }}
           path: ./artifacts
 
       - name: List artifacts
@@ -223,7 +232,7 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-paper-${{ needs.prepare-release.outputs.encoded_version }}.jar
+          name: bedrock-voice-chat-paper-${{ needs.prepare-release.outputs.encoded_version }}
           path: ./artifacts
 
       - name: List artifacts
@@ -250,7 +259,10 @@ jobs:
   publish-curseforge-hytale:
     name: Publish Hytale to CurseForge
     needs: [prepare-release, build-mod-hytale]
-    if: always() && needs.prepare-release.outputs.new_release_published == 'true' && !inputs.dry-run && needs.build-mod-hytale.result == 'success'
+    if: >-
+      !failure() && !cancelled() &&
+      needs.prepare-release.outputs.new_release_published == 'true' &&
+      !inputs.dry-run && needs.build-mod-hytale.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -259,7 +271,7 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-hytale-${{ needs.prepare-release.outputs.encoded_version }}.jar
+          name: bedrock-voice-chat-hytale-${{ needs.prepare-release.outputs.encoded_version }}
           path: ./artifacts
 
       - name: List artifacts
@@ -280,7 +292,10 @@ jobs:
   publish-curseforge-bds:
     name: Publish BDS to CurseForge
     needs: [prepare-release, build-mod-bds]
-    if: always() && needs.prepare-release.outputs.new_release_published == 'true' && !inputs.dry-run && needs.build-mod-bds.result == 'success'
+    if: >-
+      !failure() && !cancelled() &&
+      needs.prepare-release.outputs.new_release_published == 'true' &&
+      !inputs.dry-run && needs.build-mod-bds.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -289,7 +304,7 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-bds-${{ needs.prepare-release.outputs.new_release_version }}.zip
+          name: bedrock-voice-chat-bds-${{ needs.prepare-release.outputs.new_release_version }}
           path: ./artifacts
 
       - name: List artifacts
@@ -317,7 +332,11 @@ jobs:
   upload-release-assets:
     name: Upload Release Assets
     needs: [prepare-release, build-mod-fabric, build-mod-paper, build-mod-hytale, build-mod-bds]
-    if: always() && needs.prepare-release.outputs.new_release_published == 'true' && !inputs.dry-run && (needs.build-mod-fabric.result == 'success' || needs.build-mod-paper.result == 'success' || needs.build-mod-hytale.result == 'success' || needs.build-mod-bds.result == 'success')
+    if: >-
+      !failure() && !cancelled() &&
+      needs.prepare-release.outputs.new_release_published == 'true' &&
+      !inputs.dry-run &&
+      (needs.build-mod-fabric.result == 'success' || needs.build-mod-paper.result == 'success' || needs.build-mod-hytale.result == 'success' || needs.build-mod-bds.result == 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -326,28 +345,28 @@ jobs:
         if: needs.build-mod-fabric.result == 'success'
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-fabric-${{ needs.prepare-release.outputs.encoded_version }}.jar
+          name: bedrock-voice-chat-fabric-${{ needs.prepare-release.outputs.encoded_version }}
           path: ./release-files
 
       - name: Download Paper artifact
         if: needs.build-mod-paper.result == 'success'
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-paper-${{ needs.prepare-release.outputs.encoded_version }}.jar
+          name: bedrock-voice-chat-paper-${{ needs.prepare-release.outputs.encoded_version }}
           path: ./release-files
 
       - name: Download Hytale artifact
         if: needs.build-mod-hytale.result == 'success'
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-hytale-${{ needs.prepare-release.outputs.encoded_version }}.jar
+          name: bedrock-voice-chat-hytale-${{ needs.prepare-release.outputs.encoded_version }}
           path: ./release-files
 
       - name: Download BDS artifact
         if: needs.build-mod-bds.result == 'success'
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-bds-${{ needs.prepare-release.outputs.new_release_version }}.zip
+          name: bedrock-voice-chat-bds-${{ needs.prepare-release.outputs.new_release_version }}
           path: ./release-files
 
       - name: Rename artifacts

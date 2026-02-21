@@ -125,7 +125,7 @@ jobs:
           fi
 
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "artifact-name=bedrock-voice-chat-fabric-$VERSION.jar" >> $GITHUB_OUTPUT
+          echo "artifact-name=bedrock-voice-chat-fabric-$VERSION" >> $GITHUB_OUTPUT
 
       - name: Build Fabric module
         working-directory: ./mods/java/fabric
@@ -154,7 +154,7 @@ jobs:
       - name: Upload JAR artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bedrock-voice-chat-fabric-${{ steps.mod-version.outputs.version }}.jar
+          name: bedrock-voice-chat-fabric-${{ steps.mod-version.outputs.version }}
           path: bedrock-voice-chat-${{ steps.mod-version.outputs.version }}.jar
           retention-days: 30
 

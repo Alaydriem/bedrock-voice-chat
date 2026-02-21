@@ -119,7 +119,8 @@ jobs:
     with:
       build_mode: release
       ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
-      play_store_track: ${{ inputs.dry_run && '' || (github.ref == 'refs/heads/beta' && 'beta' || 'production') }}
+      version: ${{ needs.prepare-release.outputs.new_version }}
+      play_store_track: ${{ !inputs.dry_run && (github.ref == 'refs/heads/beta' && 'beta' || 'production') || '' }}
     secrets: inherit
 
   # Job 4: Build Windows client (release mode)
@@ -176,8 +177,8 @@ jobs:
           VERSION="${{ needs.prepare-release.outputs.new_version }}"
 
           # Server binaries
-          if [ -f "./artifacts/bvc-server-x86_64-pc-windows-msvc-release.exe/bvc-server-x86_64-pc-windows-msvc-release.exe" ]; then
-            cp "./artifacts/bvc-server-x86_64-pc-windows-msvc-release.exe/bvc-server-x86_64-pc-windows-msvc-release.exe" ./release-files/bvc-server-windows-x64.exe
+          if [ -f "./artifacts/bvc-server-x86_64-pc-windows-msvc-release/bvc-server-x86_64-pc-windows-msvc-release.exe" ]; then
+            cp "./artifacts/bvc-server-x86_64-pc-windows-msvc-release/bvc-server-x86_64-pc-windows-msvc-release.exe" ./release-files/bvc-server-windows-x64.exe
           fi
 
           if [ -f ./artifacts/bvc-server-x86_64-unknown-linux-musl-release/bvc-server-x86_64-unknown-linux-musl-release ]; then
@@ -189,18 +190,18 @@ jobs:
           fi
 
           # Windows client
-          if [ -f "./artifacts/bvc-windows-release.exe/bvc-windows-release.exe" ]; then
-            cp "./artifacts/bvc-windows-release.exe/bvc-windows-release.exe" ./release-files/bvc-client-windows-x64.exe
+          if [ -f "./artifacts/bvc-windows-release/bvc-windows-release.exe" ]; then
+            cp "./artifacts/bvc-windows-release/bvc-windows-release.exe" ./release-files/bvc-client-windows-x64.exe
           fi
 
           # Signed Android artifacts (from build-android.yml)
-          if [ -f "./artifacts/bvc-android-release-signed.apk/bvc-android-release-signed.apk" ]; then
-            cp "./artifacts/bvc-android-release-signed.apk/bvc-android-release-signed.apk" ./release-files/bvc-android-${VERSION}.apk
+          if [ -f "./artifacts/bvc-android-release-signed-apk/bvc-android-release-signed.apk" ]; then
+            cp "./artifacts/bvc-android-release-signed-apk/bvc-android-release-signed.apk" ./release-files/bvc-android-${VERSION}.apk
           fi
 
           # macOS client
-          if [ -f "./artifacts/bvc-macos-release.app.zip/bvc-macos-release.app.zip" ]; then
-            cp "./artifacts/bvc-macos-release.app.zip/bvc-macos-release.app.zip" ./release-files/bvc-client-macos-arm64.app.zip
+          if [ -f "./artifacts/bvc-macos-release/bvc-macos-release.app.zip" ]; then
+            cp "./artifacts/bvc-macos-release/bvc-macos-release.app.zip" ./release-files/bvc-client-macos-arm64.app.zip
           fi
 
           echo "=== Release files prepared ==="

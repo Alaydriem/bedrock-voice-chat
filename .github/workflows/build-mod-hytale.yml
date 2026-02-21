@@ -111,7 +111,7 @@ jobs:
           fi
 
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "artifact-name=bedrock-voice-chat-hytale-$VERSION.jar" >> $GITHUB_OUTPUT
+          echo "artifact-name=bedrock-voice-chat-hytale-$VERSION" >> $GITHUB_OUTPUT
 
       - name: Setup Hytale credentials
         env:
@@ -154,7 +154,7 @@ jobs:
       - name: Upload JAR artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bedrock-voice-chat-hytale-${{ steps.mod-version.outputs.version }}.jar
+          name: bedrock-voice-chat-hytale-${{ steps.mod-version.outputs.version }}
           path: bedrock-voice-chat-hytale-${{ steps.mod-version.outputs.version }}.jar
           retention-days: 30
 
