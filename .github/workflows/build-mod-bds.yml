@@ -27,6 +27,11 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.ref }}
 
+      - name: Patch version files
+        if: inputs.version != ''
+        run: |
+          node .github/scripts/patch-mod-versions.js "${{ inputs.version }}"
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
