@@ -24,9 +24,9 @@ pub struct KeybindConfig {
 impl Default for KeybindConfig {
     fn default() -> Self {
         Self {
-            toggle_mute: "BracketLeft".to_string(),
-            toggle_deafen: "BracketRight".to_string(),
-            toggle_recording: "Backslash".to_string(),
+            toggle_mute: "ControlLeft+BracketLeft".to_string(),
+            toggle_deafen: "ControlLeft+BracketRight".to_string(),
+            toggle_recording: "ControlLeft+Backslash".to_string(),
             push_to_talk: "Backquote".to_string(),
             voice_mode: VoiceMode::default(),
         }

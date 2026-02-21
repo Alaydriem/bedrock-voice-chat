@@ -22,11 +22,7 @@
             isToggling = true;
 
             await invoke('mute', { device: 'OutputDevice' });
-
-            // Toggle the local state
-            isDeafened = !isDeafened;
-
-            info(`Audio output ${isDeafened ? 'deafened' : 'enabled'}`);
+            // State will be updated by 'mute:output' event listener
 
         } catch (error) {
             logError(`Failed to toggle audio output mute: ${error}`);
@@ -37,7 +33,9 @@
 
     const loadDeafenStatus = async () => {
         try {
-            isDeafened = await invoke('mute_status', { device: 'OutputDevice' }) as boolean;
+            const status = await invoke('mute_status', { device: 'OutputDevice' }) as boolean;
+            info(`loadDeafenStatus: backend returned ${status}`);
+            isDeafened = status;
         } catch (error) {
             logError(`Failed to get audio output mute status: ${error}`);
         }

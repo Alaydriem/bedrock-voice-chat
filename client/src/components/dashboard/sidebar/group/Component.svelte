@@ -83,14 +83,14 @@
     };
 </script>
 
-<svelte:window on:click={handleOutsideClick} />
+<svelte:window onclick={handleOutsideClick} />
 
 <div
     class="group relative bg-white dark:bg-navy-700 rounded-lg p-3 mb-2 shadow-soft hover:shadow-md transition-all duration-200 border border-slate-200 dark:border-navy-600 cursor-pointer {isUserInChannel ? 'ring-2 ring-indigo-500 ring-opacity-50 bg-indigo-50 dark:bg-indigo-900/20' : ''}"
-    on:click={handleGroupClick}
+    onclick={handleGroupClick}
     role="button"
     tabindex="0"
-    on:keydown={(e) => e.key === 'Enter' && handleGroupClick()}
+    onkeydown={(e) => e.key === 'Enter' && handleGroupClick()}
 >
     <div class="flex min-w-0 flex-1 items-center justify-between gap-3">
         <div class="min-w-0 flex-1">
@@ -126,7 +126,7 @@
             <div class="relative group-dropdown">
                 <button
                     class="btn p-2 hover:bg-slate-200/60 focus:bg-slate-200/60 active:bg-slate-300/25 dark:hover:bg-navy-600/60 dark:focus:bg-navy-600/60 dark:active:bg-navy-300/25 opacity-0 size-8 rounded-full group-hover:opacity-100 group-focus:opacity-100 transition-all duration-200 shadow-sm"
-                    on:click={toggleDropdown}
+                    onclick={toggleDropdown}
                     aria-label="Group options menu"
                 >
                     <svg
@@ -152,20 +152,20 @@
                         {#if isOwner}
                             <button
                                 class="block w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-navy-100 dark:hover:bg-navy-600 transition-colors duration-150"
-                                on:click={handleLeaveGroup}
+                                onclick={handleLeaveGroup}
                             >
                                 Leave Group
                             </button>
                             <button
                                 class="block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 transition-colors duration-150 font-medium"
-                                on:click={handleDeleteGroup}
+                                onclick={handleDeleteGroup}
                             >
                                 Close Group
                             </button>
                         {:else}
                             <button
                                 class="block w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-navy-100 dark:hover:bg-navy-600 transition-colors duration-150"
-                                on:click={handleLeaveGroup}
+                                onclick={handleLeaveGroup}
                             >
                                 Leave Group
                             </button>

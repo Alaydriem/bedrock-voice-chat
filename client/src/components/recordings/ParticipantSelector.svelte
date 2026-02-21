@@ -41,13 +41,13 @@
         <div class="flex space-x-2">
             <button
                 class="btn h-7 rounded-md bg-slate-150 px-2.5 text-xs font-medium text-slate-800 hover:bg-slate-200 focus:bg-slate-200 active:bg-slate-200/80 dark:bg-navy-500 dark:text-navy-50 dark:hover:bg-navy-450 dark:focus:bg-navy-450 dark:active:bg-navy-450/90"
-                on:click={selectAll}
+                onclick={selectAll}
             >
                 Select All
             </button>
             <button
                 class="btn h-7 rounded-md bg-slate-150 px-2.5 text-xs font-medium text-slate-800 hover:bg-slate-200 focus:bg-slate-200 active:bg-slate-200/80 dark:bg-navy-500 dark:text-navy-50 dark:hover:bg-navy-450 dark:focus:bg-navy-450 dark:active:bg-navy-450/90"
-                on:click={deselectAll}
+                onclick={deselectAll}
             >
                 Deselect All
             </button>
@@ -61,7 +61,7 @@
                 <input
                     type="checkbox"
                     checked={selectedParticipants.has(participant)}
-                    on:change={() => toggleParticipant(participant)}
+                    onchange={() => toggleParticipant(participant)}
                     class="form-checkbox size-5 rounded border-slate-400/70 bg-slate-100 checked:bg-primary checked:border-primary checked:hover:bg-primary-focus checked:focus:bg-primary-focus dark:border-navy-400 dark:bg-navy-700 dark:checked:bg-accent dark:checked:border-accent dark:checked:hover:bg-accent-focus dark:checked:focus:bg-accent-focus"
                 />
                 <div class="flex items-center space-x-2">

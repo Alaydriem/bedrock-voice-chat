@@ -41,7 +41,7 @@
 {:else}
     <button
     id={id}
-    on:click={handleServerClick}
+    onclick={handleServerClick}
     aria-label="{server}"
     data-tooltip="Dashboard {server}"
     data-placement="right"

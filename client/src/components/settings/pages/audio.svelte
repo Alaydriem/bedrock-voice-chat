@@ -19,9 +19,9 @@
 
         const saved = await store.get<KeybindConfig>("keybinds");
         const config: KeybindConfig = {
-            toggleMute: saved?.toggleMute ?? "BracketLeft",
-            toggleDeafen: saved?.toggleDeafen ?? "BracketRight",
-            toggleRecording: saved?.toggleRecording ?? "Backslash",
+            toggleMute: saved?.toggleMute ?? "ControlLeft+BracketLeft",
+            toggleDeafen: saved?.toggleDeafen ?? "ControlLeft+BracketRight",
+            toggleRecording: saved?.toggleRecording ?? "ControlLeft+Backslash",
             pushToTalk: saved?.pushToTalk ?? "Backquote",
             voiceMode: mode,
         };
@@ -93,7 +93,6 @@
             toggleStyle="switch"
             knobsContainerClass="pt-5 pb-5 flex flex-row justify-evenly"
             showDescription={false}
-            showDeepFilterNet={true}
             {store}
         />
 

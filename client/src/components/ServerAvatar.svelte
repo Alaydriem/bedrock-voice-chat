@@ -188,7 +188,7 @@
       <button
         class="btn h-12 {buttonClasses} text-base font-medium hover:opacity-90"
         disabled={buttonDisabled}
-        on:click={handleClick}
+        onclick={handleClick}
       >
         {#if showSpinner}
           <div class="spinner size-7 animate-spin rounded-full border-[3px] border-slate-500 border-r-transparent dark:border-navy-300 dark:border-r-transparent"></div>
