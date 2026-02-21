@@ -58,13 +58,22 @@ console.log(`  Encoded version:  ${encoded.display}`);
 console.log(`  Array format:     [${encoded.major}, ${encoded.minor}, ${encoded.encodedPatch}]`);
 console.log('');
 
-// 1. Patch Java gradle.properties
+// 1a. Patch Java gradle.properties (root)
 const gradleProps = path.join(modsDir, 'java/gradle.properties');
 if (fs.existsSync(gradleProps)) {
   const content = fs.readFileSync(gradleProps, 'utf8');
   const updated = content.replace(/^modVersion\s*=\s*.*/m, `modVersion=${encoded.display}`);
   fs.writeFileSync(gradleProps, updated);
   console.log(`Patched: gradle.properties -> modVersion=${encoded.display}`);
+}
+
+// 1b. Patch Fabric gradle.properties (separate Gradle project)
+const fabricGradleProps = path.join(modsDir, 'java/fabric/gradle.properties');
+if (fs.existsSync(fabricGradleProps)) {
+  const content = fs.readFileSync(fabricGradleProps, 'utf8');
+  const updated = content.replace(/^modVersion\s*=\s*.*/m, `modVersion=${encoded.display}`);
+  fs.writeFileSync(fabricGradleProps, updated);
+  console.log(`Patched: fabric/gradle.properties -> modVersion=${encoded.display}`);
 }
 
 // 2. Patch BDS package.json (keeps full semantic version for npm compatibility)
@@ -83,6 +92,15 @@ if (fs.existsSync(bdsManifest)) {
   content.header.version = [encoded.major, encoded.minor, encoded.encodedPatch];
   fs.writeFileSync(bdsManifest, JSON.stringify(content, null, 2) + '\n');
   console.log(`Patched: bds/manifest.json -> version=[${encoded.major}, ${encoded.minor}, ${encoded.encodedPatch}]`);
+}
+
+// 4. Patch Hytale manifest.json
+const hytaleManifest = path.join(modsDir, 'java/hytale/src/main/resources/manifest.json');
+if (fs.existsSync(hytaleManifest)) {
+  const content = JSON.parse(fs.readFileSync(hytaleManifest, 'utf8'));
+  content.Version = encoded.display;
+  fs.writeFileSync(hytaleManifest, JSON.stringify(content, null, 2) + '\n');
+  console.log(`Patched: hytale/manifest.json -> Version="${encoded.display}"`);
 }
 
 console.log('');

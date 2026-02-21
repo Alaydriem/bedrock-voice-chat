@@ -9,6 +9,7 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.security.MessageDigest
+import java.util.jar.JarFile
 
 plugins {
     java
@@ -257,6 +258,25 @@ dependencies {
     // Test dependencies
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+// Read Hytale server version from the downloaded JAR's MANIFEST.MF
+fun getHytaleServerVersion(): String {
+    if (!hytaleJar.exists()) return "*"
+    return runCatching {
+        JarFile(hytaleJar).use { jar ->
+            jar.manifest?.mainAttributes?.getValue("Implementation-Version")
+                ?.takeIf { it != "NoJar" }
+        }
+    }.getOrNull() ?: "*"
+}
+
+tasks.processResources {
+    dependsOn(downloadHytaleServer)
+    inputs.property("version", project.version)
+    filesMatching("manifest.json") {
+        expand("version" to project.version, "hytaleServerVersion" to getHytaleServerVersion())
+    }
 }
 
 tasks.test {

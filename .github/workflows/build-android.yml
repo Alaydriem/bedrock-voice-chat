@@ -14,6 +14,11 @@ on:
         description: 'Git ref to checkout (tag, branch, or SHA)'
         required: false
         type: string
+      play_store_track:
+        description: 'Google Play track (alpha/beta/production). Empty = no upload.'
+        required: false
+        default: ''
+        type: string
   workflow_dispatch:
     inputs:
       build_mode:
@@ -438,6 +443,19 @@ jobs:
           path: client/bvc-android-release-signed.aab
           retention-days: 90
 
+      - name: Upload to Google Play Console
+        if: >-
+          github.event_name != 'pull_request' &&
+          inputs.play_store_track != '' &&
+          inputs.build_mode == 'release'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.SERVICE_ACCOUNT_JSON }}
+          packageName: com.alaydriem.bvc.client
+          releaseFiles: client/bvc-android-release-signed.aab
+          track: ${{ inputs.play_store_track }}
+          status: draft
+
       - name: Output artifact information
         run: |
           BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}"
@@ -451,4 +469,5 @@ jobs:
             echo "| Artifact | bvc-android-$BUILD_MODE.apk |"
             echo "| Artifact URL | [View Run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) |"
             echo "| Retention | 30 days |"
+            echo "| Play Store Track | ${{ inputs.play_store_track || 'N/A' }} |"
           } >> $GITHUB_STEP_SUMMARY

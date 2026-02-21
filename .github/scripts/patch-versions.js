@@ -176,6 +176,34 @@ function patchInfoPlist(filePath, version) {
   console.log(`Patched: ${filePath} (CFBundleShortVersionString: ${shortVersion}, CFBundleVersion: ${bundleVersion})`);
 }
 
+/**
+ * Patch gradle.properties - updates modVersion field
+ */
+function patchGradleProperties(filePath, encodedVersion) {
+  if (!fs.existsSync(filePath)) {
+    console.log(`Skipping (not found): ${filePath}`);
+    return;
+  }
+  const content = fs.readFileSync(filePath, 'utf8');
+  const updated = content.replace(/^modVersion\s*=\s*.*/m, `modVersion=${encodedVersion}`);
+  fs.writeFileSync(filePath, updated);
+  console.log(`Patched: ${filePath} -> modVersion=${encodedVersion}`);
+}
+
+/**
+ * Patch Hytale manifest.json - updates Version field
+ */
+function patchHytaleManifest(filePath, encodedVersion) {
+  if (!fs.existsSync(filePath)) {
+    console.log(`Skipping (not found): ${filePath}`);
+    return;
+  }
+  const content = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  content.Version = encodedVersion;
+  fs.writeFileSync(filePath, JSON.stringify(content, null, 2) + '\n');
+  console.log(`Patched: ${filePath} -> Version="${encodedVersion}"`);
+}
+
 // Main execution
 const rootDir = path.resolve(__dirname, '../..');
 
@@ -192,6 +220,15 @@ patchPackageJson(path.join(rootDir, 'client/package.json'), version);
 // BDS mod files
 patchPackageJson(path.join(rootDir, 'mods/bds/package.json'), version);
 patchBdsManifest(path.join(rootDir, 'mods/bds/manifest.json'), version);
+
+// Java mod files (using encoded version for consistency with BDS)
+const encoded = encodeModVersion(version);
+const encodedDisplay = `${encoded.major}.${encoded.minor}.${encoded.encodedPatch}`;
+console.log(`\nEncoded mod version: ${encodedDisplay}`);
+
+patchGradleProperties(path.join(rootDir, 'mods/java/gradle.properties'), encodedDisplay);
+patchGradleProperties(path.join(rootDir, 'mods/java/fabric/gradle.properties'), encodedDisplay);
+patchHytaleManifest(path.join(rootDir, 'mods/java/hytale/src/main/resources/manifest.json'), encodedDisplay);
 
 console.log('');
 console.log(`All files patched to version ${version}`);
