@@ -4,6 +4,7 @@ import com.alaydriem.bedrockvoicechat.api.PlayerDataProvider
 import com.alaydriem.bedrockvoicechat.dto.Dimension
 import com.alaydriem.bedrockvoicechat.dto.GameType
 import com.alaydriem.bedrockvoicechat.dto.PlayerData
+import com.alaydriem.bedrockvoicechat.hytale.systems.CachedPosition
 import com.hypixel.hytale.server.core.universe.PlayerRef
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -11,8 +12,9 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Hytale-specific player data provider using ECS system-based state caching.
  *
- * All state is updated from RefChangeSystem callbacks (running on world thread),
- * then read from async tick thread via thread-safe ConcurrentHashMap caches.
+ * All state (position, crouch, death, spectator) is updated from ECS systems
+ * running on the world thread, then read from the async BVC tick thread via
+ * thread-safe ConcurrentHashMap caches.
  */
 class HytalePlayerDataProvider : PlayerDataProvider {
     private val onlinePlayers: MutableSet<PlayerRef> = ConcurrentHashMap.newKeySet()
@@ -21,6 +23,7 @@ class HytalePlayerDataProvider : PlayerDataProvider {
     private val deadPlayers: MutableSet<UUID> = ConcurrentHashMap.newKeySet()
     private val crouchingPlayers: MutableSet<UUID> = ConcurrentHashMap.newKeySet()
     private val spectatorPlayers: MutableSet<UUID> = ConcurrentHashMap.newKeySet()
+    private val positionCache: MutableMap<UUID, CachedPosition> = ConcurrentHashMap()
 
     fun addPlayer(player: PlayerRef) {
         onlinePlayers.add(player)
@@ -28,9 +31,11 @@ class HytalePlayerDataProvider : PlayerDataProvider {
 
     fun removePlayer(player: PlayerRef) {
         onlinePlayers.remove(player)
-        deadPlayers.remove(player.uuid)
-        crouchingPlayers.remove(player.uuid)
-        spectatorPlayers.remove(player.uuid)
+        val uuid = player.uuid
+        deadPlayers.remove(uuid)
+        crouchingPlayers.remove(uuid)
+        spectatorPlayers.remove(uuid)
+        positionCache.remove(uuid)
     }
 
     // Called from DeathChangeSystem on world thread
@@ -42,7 +47,7 @@ class HytalePlayerDataProvider : PlayerDataProvider {
         deadPlayers.remove(playerUuid)
     }
 
-    // Called from MovementStatesChangeSystem on world thread
+    // Called from CrouchTickingSystem on world thread
     fun setCrouching(playerUuid: UUID, crouching: Boolean) {
         if (crouching) crouchingPlayers.add(playerUuid)
         else crouchingPlayers.remove(playerUuid)
@@ -54,22 +59,25 @@ class HytalePlayerDataProvider : PlayerDataProvider {
         else spectatorPlayers.remove(playerUuid)
     }
 
+    // Called from PositionTickingSystem on world thread
+    fun updatePosition(playerUuid: UUID, position: CachedPosition) {
+        positionCache[playerUuid] = position
+    }
+
     override fun collectPlayers(): List<PlayerData> {
         return onlinePlayers
             .filter { it.isValid }
-            .map { toPlayerData(it) }
+            .mapNotNull { toPlayerData(it) }
     }
 
     override fun getGameType(): GameType = GameType.HYTALE
 
-    // NO getComponent calls - only cache reads and safe PlayerRef properties
-    private fun toPlayerData(ref: PlayerRef): PlayerData {
+    private fun toPlayerData(ref: PlayerRef): PlayerData? {
         val playerUuid = ref.uuid
         val playerName = ref.username
-        val worldUuid = ref.worldUuid.toString()
 
-        // Check death state from cache
         if (deadPlayers.contains(playerUuid)) {
+            val worldUuid = positionCache[playerUuid]?.worldUuid ?: ""
             return PlayerData(
                 name = playerName,
                 x = 0.0, y = 0.0, z = 0.0,
@@ -81,15 +89,15 @@ class HytalePlayerDataProvider : PlayerDataProvider {
             )
         }
 
-        val pos = ref.transform.position
-        val rot = ref.headRotation
+        // Read from world-thread cache only — no direct ECS component access
+        val cached = positionCache[playerUuid] ?: return null
 
         return PlayerData(
             name = playerName,
-            x = pos.x, y = pos.y, z = pos.z,
-            yaw = rot.x, pitch = rot.y,
+            x = cached.x, y = cached.y, z = cached.z,
+            yaw = cached.yaw, pitch = cached.pitch,
             dimension = Dimension.Hytale.ORBIS,
-            worldUuid = worldUuid,
+            worldUuid = cached.worldUuid,
             deafen = crouchingPlayers.contains(playerUuid),
             spectator = spectatorPlayers.contains(playerUuid)
         )

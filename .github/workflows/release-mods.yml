@@ -48,6 +48,7 @@ jobs:
     outputs:
       new_release_published: ${{ inputs.version != '' && 'true' || steps.semantic-release.outputs.new_release_published }}
       new_release_version: ${{ inputs.version || steps.semantic-release.outputs.new_release_version }}
+      encoded_version: ${{ steps.encode-version.outputs.encoded }}
       new_release_git_tag: ${{ inputs.version != '' && format('mods-v{0}', inputs.version) || steps.semantic-release.outputs.new_release_git_tag }}
       new_release_notes: ${{ steps.semantic-release.outputs.new_release_notes }}
     steps:
@@ -109,6 +110,15 @@ jobs:
               echo "| Server Build | Skipped (reusing artifacts) |"
           } >> $GITHUB_STEP_SUMMARY
 
+      - name: Encode version
+        id: encode-version
+        if: ${{ inputs.version != '' || steps.semantic-release.outputs.new_release_published == 'true' }}
+        run: |
+          RAW_VERSION="${{ inputs.version || steps.semantic-release.outputs.new_release_version }}"
+          ENCODED=$(node .github/scripts/encode-version.js "$RAW_VERSION")
+          echo "Raw version: $RAW_VERSION -> Encoded version: $ENCODED"
+          echo "encoded=$ENCODED" >> $GITHUB_OUTPUT
+
   # Build server first to produce native libraries for mods
   # Skip if called from release.yml (artifacts already built)
   build-server:
@@ -128,7 +138,7 @@ jobs:
     if: always() && needs.prepare-release.outputs.new_release_published == 'true' && (needs.build-server.result == 'success' || needs.build-server.result == 'skipped')
     uses: ./.github/workflows/build-mod-fabric.yml
     with:
-      version: ${{ needs.prepare-release.outputs.new_release_version }}
+      version: ${{ needs.prepare-release.outputs.encoded_version }}
       artifact_run_id: ${{ inputs.parent_run_id }}
     secrets: inherit
 
@@ -139,7 +149,7 @@ jobs:
     if: always() && needs.prepare-release.outputs.new_release_published == 'true' && (needs.build-server.result == 'success' || needs.build-server.result == 'skipped')
     uses: ./.github/workflows/build-mod-paper.yml
     with:
-      version: ${{ needs.prepare-release.outputs.new_release_version }}
+      version: ${{ needs.prepare-release.outputs.encoded_version }}
       artifact_run_id: ${{ inputs.parent_run_id }}
     secrets: inherit
 
@@ -150,7 +160,7 @@ jobs:
     if: always() && needs.prepare-release.outputs.new_release_published == 'true' && (needs.build-server.result == 'success' || needs.build-server.result == 'skipped')
     uses: ./.github/workflows/build-mod-hytale.yml
     with:
-      version: ${{ needs.prepare-release.outputs.new_release_version }}
+      version: ${{ needs.prepare-release.outputs.encoded_version }}
       artifact_run_id: ${{ inputs.parent_run_id }}
     secrets: inherit
 
@@ -175,7 +185,7 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-fabric-${{ needs.prepare-release.outputs.new_release_version }}.jar
+          name: bedrock-voice-chat-fabric-${{ needs.prepare-release.outputs.encoded_version }}.jar
           path: ./artifacts
 
       - name: List artifacts
@@ -186,10 +196,10 @@ jobs:
         with:
           token: ${{ secrets.MODRITH_PAT }}
           project: ${{ secrets.MODRITH_ID }}
-          files: ./artifacts/bedrock-voice-chat-${{ needs.prepare-release.outputs.new_release_version }}.jar
-          primary-file: bedrock-voice-chat-${{ needs.prepare-release.outputs.new_release_version }}.jar
-          version: ${{ needs.prepare-release.outputs.new_release_version }}
-          name: Bedrock Voice Chat ${{ needs.prepare-release.outputs.new_release_version }} (Fabric)
+          files: ./artifacts/bedrock-voice-chat-${{ needs.prepare-release.outputs.encoded_version }}.jar
+          primary-file: bedrock-voice-chat-${{ needs.prepare-release.outputs.encoded_version }}.jar
+          version: ${{ needs.prepare-release.outputs.encoded_version }}
+          name: Bedrock Voice Chat ${{ needs.prepare-release.outputs.encoded_version }} (Fabric)
           changelog: ${{ needs.prepare-release.outputs.new_release_notes }}
           dependencies: |-
             [{
@@ -214,7 +224,7 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-paper-${{ needs.prepare-release.outputs.new_release_version }}.jar
+          name: bedrock-voice-chat-paper-${{ needs.prepare-release.outputs.encoded_version }}.jar
           path: ./artifacts
 
       - name: List artifacts
@@ -225,10 +235,10 @@ jobs:
         with:
           token: ${{ secrets.MODRITH_PAT }}
           project: ${{ secrets.MODRITH_ID }}
-          files: ./artifacts/bedrock-voice-chat-paper-${{ needs.prepare-release.outputs.new_release_version }}.jar
-          primary-file: bedrock-voice-chat-paper-${{ needs.prepare-release.outputs.new_release_version }}.jar
-          version: ${{ needs.prepare-release.outputs.new_release_version }}-paper
-          name: Bedrock Voice Chat ${{ needs.prepare-release.outputs.new_release_version }} (Paper)
+          files: ./artifacts/bedrock-voice-chat-paper-${{ needs.prepare-release.outputs.encoded_version }}.jar
+          primary-file: bedrock-voice-chat-paper-${{ needs.prepare-release.outputs.encoded_version }}.jar
+          version: ${{ needs.prepare-release.outputs.encoded_version }}-paper
+          name: Bedrock Voice Chat ${{ needs.prepare-release.outputs.encoded_version }} (Paper)
           changelog: ${{ needs.prepare-release.outputs.new_release_notes }}
           loaders: |-
             paper
@@ -250,7 +260,7 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-hytale-${{ needs.prepare-release.outputs.new_release_version }}.jar
+          name: bedrock-voice-chat-hytale-${{ needs.prepare-release.outputs.encoded_version }}.jar
           path: ./artifacts
 
       - name: List artifacts
@@ -262,10 +272,10 @@ jobs:
           token: ${{ secrets.CURSEFORGE_API_TOKEN }}
           project_id: 1445994
           game_endpoint: hytale
-          file_path: ./artifacts/bedrock-voice-chat-hytale-${{ needs.prepare-release.outputs.new_release_version }}.jar
+          file_path: ./artifacts/bedrock-voice-chat-hytale-${{ needs.prepare-release.outputs.encoded_version }}.jar
           changelog: ${{ needs.prepare-release.outputs.new_release_notes }}
           changelog_type: markdown
-          display_name: Bedrock Voice Chat ${{ needs.prepare-release.outputs.new_release_version }}
+          display_name: Bedrock Voice Chat ${{ needs.prepare-release.outputs.encoded_version }}
           release_type: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}
 
   publish-curseforge-bds:
@@ -317,21 +327,21 @@ jobs:
         if: needs.build-mod-fabric.result == 'success'
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-fabric-${{ needs.prepare-release.outputs.new_release_version }}.jar
+          name: bedrock-voice-chat-fabric-${{ needs.prepare-release.outputs.encoded_version }}.jar
           path: ./release-files
 
       - name: Download Paper artifact
         if: needs.build-mod-paper.result == 'success'
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-paper-${{ needs.prepare-release.outputs.new_release_version }}.jar
+          name: bedrock-voice-chat-paper-${{ needs.prepare-release.outputs.encoded_version }}.jar
           path: ./release-files
 
       - name: Download Hytale artifact
         if: needs.build-mod-hytale.result == 'success'
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-hytale-${{ needs.prepare-release.outputs.new_release_version }}.jar
+          name: bedrock-voice-chat-hytale-${{ needs.prepare-release.outputs.encoded_version }}.jar
           path: ./release-files
 
       - name: Download BDS artifact
@@ -343,24 +353,26 @@ jobs:
 
       - name: Rename artifacts
         run: |
+          ENCODED="${{ needs.prepare-release.outputs.encoded_version }}"
           VERSION="${{ needs.prepare-release.outputs.new_release_version }}"
           cd ./release-files
 
-          # Rename to consistent naming
-          if [ -f "bedrock-voice-chat-${VERSION}.jar" ]; then
-            mv "bedrock-voice-chat-${VERSION}.jar" "bvc-fabric-mod-${VERSION}.jar"
+          # Rename Java mods (use encoded version)
+          if [ -f "bedrock-voice-chat-${ENCODED}.jar" ]; then
+            mv "bedrock-voice-chat-${ENCODED}.jar" "bvc-fabric-mod-${ENCODED}.jar"
           fi
 
-          if [ -f "bedrock-voice-chat-paper-${VERSION}.jar" ]; then
-            mv "bedrock-voice-chat-paper-${VERSION}.jar" "bvc-paper-plugin-${VERSION}.jar"
+          if [ -f "bedrock-voice-chat-paper-${ENCODED}.jar" ]; then
+            mv "bedrock-voice-chat-paper-${ENCODED}.jar" "bvc-paper-plugin-${ENCODED}.jar"
           fi
 
-          if [ -f "bedrock-voice-chat-hytale-${VERSION}.jar" ]; then
-            mv "bedrock-voice-chat-hytale-${VERSION}.jar" "bvc-hytale-plugin-${VERSION}.jar"
+          if [ -f "bedrock-voice-chat-hytale-${ENCODED}.jar" ]; then
+            mv "bedrock-voice-chat-hytale-${ENCODED}.jar" "bvc-hytale-plugin-${ENCODED}.jar"
           fi
 
+          # Rename BDS (uses semantic version)
           if [ -f "bedrock-voice-chat-${VERSION}.zip" ]; then
-            mv "bedrock-voice-chat-${VERSION}.zip" "bvc-bds-pack-${VERSION}.zip"
+            mv "bedrock-voice-chat-${VERSION}.zip" "bvc-bds-pack-${ENCODED}.zip"
           fi
 
           echo "=== Release files ==="

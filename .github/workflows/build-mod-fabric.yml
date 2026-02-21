@@ -114,9 +114,16 @@ jobs:
             VERSION="${{ inputs.version }}"
             echo "Using provided version: $VERSION"
           else
-            VERSION=$(grep "modVersion" gradle.properties | cut -d'=' -f2)
-            echo "Using gradle.properties version: $VERSION"
+            VERSION=$(grep "modVersion" fabric/gradle.properties | cut -d'=' -f2)
+            echo "Using fabric/gradle.properties version: $VERSION"
           fi
+
+          # Encode version if it contains a pre-release tag (e.g., 1.0.0-beta.7 -> 1.0.507)
+          if echo "$VERSION" | grep -q '-'; then
+            VERSION=$(node ../../.github/scripts/encode-version.js "$VERSION")
+            echo "Encoded version: $VERSION"
+          fi
+
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "artifact-name=bedrock-voice-chat-fabric-$VERSION.jar" >> $GITHUB_OUTPUT
 

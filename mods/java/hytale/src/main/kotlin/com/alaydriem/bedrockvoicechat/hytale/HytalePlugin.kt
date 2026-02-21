@@ -3,6 +3,7 @@ package com.alaydriem.bedrockvoicechat.hytale
 import com.alaydriem.bedrockvoicechat.dto.Payload
 import com.alaydriem.bedrockvoicechat.hytale.systems.CrouchTickingSystem
 import com.alaydriem.bedrockvoicechat.hytale.systems.DeathChangeSystem
+import com.alaydriem.bedrockvoicechat.hytale.systems.PositionTickingSystem
 import com.alaydriem.bedrockvoicechat.hytale.systems.SpectatorChangeSystem
 import com.alaydriem.bedrockvoicechat.native.PositionSender
 import com.alaydriem.bedrockvoicechat.network.HttpRequestHandler
@@ -38,13 +39,10 @@ class HytalePlugin(init: JavaPluginInit) : JavaPlugin(init) {
         // Save config to create file if it doesn't exist (with defaults)
         config.save()
 
-        // Load config via provider (backed by Hytale's Config<T>)
         val modConfig = configProvider.load()
+
         if (!modConfig.isValid()) {
             logger.at(Level.SEVERE).log("Invalid configuration. Bedrock Voice Chat will not be enabled.")
-            logger.at(Level.SEVERE).log("Config validation failed: useEmbeddedServer=${modConfig.useEmbeddedServer}, " +
-                "bvcServer=${if (modConfig.bvcServer.isNullOrBlank()) "MISSING" else "set"}, " +
-                "accessToken=${if (modConfig.accessToken.isNullOrBlank()) "MISSING" else "set"}")
             return
         }
 
@@ -136,7 +134,14 @@ class HytalePlugin(init: JavaPluginInit) : JavaPlugin(init) {
             { uuid -> playerDataProvider.markAlive(uuid) }
         )
         entityStoreRegistry.registerSystem(deathSystem)
-        logger.at(Level.INFO).log("[BVC] Registered DeathChangeSystem")
+        logger.at(Level.FINE).log("[BVC] Registered DeathChangeSystem")
+
+        // Position caching via tick-based system (reads transform on world thread, caches for async)
+        val positionSystem = PositionTickingSystem { uuid, position ->
+            playerDataProvider.updatePosition(uuid, position)
+        }
+        entityStoreRegistry.registerSystem(positionSystem)
+        logger.at(Level.FINE).log("[BVC] Registered PositionTickingSystem")
 
         // Crouch detection via tick-based system (polls MovementStatesComponent every tick)
         val crouchSys = CrouchTickingSystem { uuid, crouching ->
@@ -144,14 +149,14 @@ class HytalePlugin(init: JavaPluginInit) : JavaPlugin(init) {
         }
         crouchSystem = crouchSys
         entityStoreRegistry.registerSystem(crouchSys)
-        logger.at(Level.INFO).log("[BVC] Registered CrouchTickingSystem")
+        logger.at(Level.FINE).log("[BVC] Registered CrouchTickingSystem")
 
         // Spectator detection via ECS system (fires when HiddenFromAdventurePlayers is added/removed)
         val spectatorSystem = SpectatorChangeSystem { uuid, spectator ->
             playerDataProvider.setSpectator(uuid, spectator)
         }
         entityStoreRegistry.registerSystem(spectatorSystem)
-        logger.at(Level.INFO).log("[BVC] Registered SpectatorChangeSystem")
+        logger.at(Level.FINE).log("[BVC] Registered SpectatorChangeSystem")
     }
 
     private fun tick() {

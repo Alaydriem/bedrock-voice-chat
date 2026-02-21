@@ -119,6 +119,7 @@ jobs:
     with:
       build_mode: release
       ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
+      play_store_track: ${{ inputs.dry_run && '' || (github.ref == 'refs/heads/beta' && 'beta' || 'production') }}
     secrets: inherit
 
   # Job 4: Build Windows client (release mode)

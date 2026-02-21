@@ -56,6 +56,8 @@
         "assets": [
           "CHANGELOG.md",
           "gradle.properties",
+          "fabric/gradle.properties",
+          "hytale/src/main/resources/manifest.json",
           "../bds/package.json",
           "../bds/manifest.json"
         ],
