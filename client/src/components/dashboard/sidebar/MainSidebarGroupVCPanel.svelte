@@ -161,7 +161,7 @@
             </div>
             {#if onClose}
                 <button
-                    on:click={onClose}
+                    onclick={onClose}
                     aria-label="Close sidebar"
                     style="touch-action: manipulation;"
                     class="btn size-8 rounded-full p-0 hover:bg-slate-300/20 focus:bg-slate-300/20 active:bg-slate-300/25 dark:hover:bg-navy-300/20 dark:focus:bg-navy-300/20 dark:active:bg-navy-300/25 md:hidden"
@@ -178,7 +178,7 @@
             <div class="mt-2 px-4">
                 <button
                     class="btn w-full space-x-2 rounded-full border border-slate-200 py-2 font-medium text-slate-800 hover:bg-slate-150 focus:bg-slate-150 active:bg-slate-150/80 dark:border-navy-500 dark:text-navy-50 dark:hover:bg-navy-500 dark:focus:bg-navy-500 dark:active:bg-navy-500/90"
-                    on:click={handleNewGroup}
+                    onclick={handleNewGroup}
                 >
                     <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -236,7 +236,7 @@
                             {error}
                             <button
                                 class="ml-2 text-red-700 hover:text-red-800 dark:text-red-300 dark:hover:text-red-200"
-                                on:click={clearError}
+                                onclick={clearError}
                             >
                                 ×
                             </button>

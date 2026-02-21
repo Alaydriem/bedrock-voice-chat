@@ -215,7 +215,7 @@
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class="sidebar-backdrop fixed inset-0 bg-black/50 z-30 md:hidden"
-    on:click={closeSidebar}
+    onclick={closeSidebar}
     style="touch-action: manipulation;"
   ></div>
 
@@ -231,7 +231,7 @@
           <div class="ml-1 size-7">
             <button
               id="sidebar-toggle"
-              on:click={toggleSidebar}
+              onclick={toggleSidebar}
               aria-label="Toggle sidebar"
               style="touch-action: manipulation;"
               class="menu-toggle cursor-pointer ml-0.5 flex size-7 flex-col justify-center space-y-1.5 text-primary outline-hidden focus:outline-hidden dark:text-accent-light/80 active"

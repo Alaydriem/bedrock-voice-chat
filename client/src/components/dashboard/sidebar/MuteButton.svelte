@@ -51,11 +51,7 @@
             isToggling = true;
 
             await invoke('mute', { device: 'InputDevice' });
-
-            // Toggle the local state
-            isMuted = !isMuted;
-
-            info(`Microphone ${isMuted ? 'muted' : 'unmuted'}`);
+            // State will be updated by 'mute:input' event listener
 
         } catch (error) {
             logError(`Failed to toggle microphone mute: ${error}`);
@@ -66,7 +62,9 @@
 
     const loadMuteStatus = async () => {
         try {
-            isMuted = await invoke('mute_status', { device: 'InputDevice' }) as boolean;
+            const status = await invoke('mute_status', { device: 'InputDevice' }) as boolean;
+            info(`loadMuteStatus: backend returned ${status}`);
+            isMuted = status;
         } catch (error) {
             logError(`Failed to get microphone mute status: ${error}`);
         }
@@ -76,7 +74,7 @@
         await loadMuteStatus();
 
         // Load PTT mode from store
-        const store = await Store.load("store.json", { autoSave: false });
+        const store = await Store.load("store.json");
         const keybinds = await store.get<KeybindConfig>("keybinds");
         if (keybinds) {
             isPttMode = keybinds.voiceMode === "pushToTalk";

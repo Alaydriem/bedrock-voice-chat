@@ -6,9 +6,9 @@
     import type { VoiceMode } from "../../../js/bindings/VoiceMode.ts";
 
     const DEFAULT_CONFIG: KeybindConfig = {
-        toggleMute: "BracketLeft",
-        toggleDeafen: "BracketRight",
-        toggleRecording: "Backslash",
+        toggleMute: "ControlLeft+BracketLeft",
+        toggleDeafen: "ControlLeft+BracketRight",
+        toggleRecording: "ControlLeft+Backslash",
         pushToTalk: "Backquote",
         voiceMode: "openMic" as VoiceMode,
     };

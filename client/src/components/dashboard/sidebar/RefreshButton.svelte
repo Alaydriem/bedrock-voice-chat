@@ -41,7 +41,7 @@
 <button
     class="pl-2 pr-2 btn size-8 rounded-full p-0 hover:bg-slate-300/20 focus:bg-slate-300/20 active:bg-slate-300/25 dark:hover:bg-navy-300/20 dark:focus:bg-navy-300/20 dark:active:bg-navy-300/25"
     class:animate-spin={isRefreshing}
-    on:click={handleRefresh}
+    onclick={handleRefresh}
     {disabled}
     data-tooltip="Refresh"
     aria-label="Refresh"

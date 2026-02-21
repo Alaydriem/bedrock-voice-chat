@@ -4,18 +4,18 @@
     export let initialMuted: boolean = false;
     export let onGainChange: ((gain: number) => void) | undefined = undefined;
     export let onMuteToggle: ((muted: boolean) => void) | undefined = undefined;
-    
+
     let isMuted = initialMuted;
     let gain = initialGain;
     let showVolumeSlider = false;
-    
+
     function toggleMute() {
         isMuted = !isMuted;
         if (onMuteToggle) {
             onMuteToggle(isMuted);
         }
     }
-    
+
     function updateGain() {
         if (onGainChange) {
             onGainChange(gain);
@@ -25,14 +25,14 @@
             toggleMute();
         }
     }
-    
+
     function toggleVolumeSlider() {
         showVolumeSlider = !showVolumeSlider;
     }
-    
+
     // Reactive statement to update volume icon based on level
-    $: volumeIcon = gain === 0 ? 'fa-volume-off' : 
-                   gain < 0.5 ? 'fa-volume-down' : 
+    $: volumeIcon = gain === 0 ? 'fa-volume-off' :
+                   gain < 0.5 ? 'fa-volume-down' :
                    'fa-volume-up';
 </script>
 
@@ -52,26 +52,26 @@
                 <span class="text-xs text-error">(muted)</span>
             {/if}
         </div>
-        
+
         <!-- Controls -->
         <div class="flex items-center space-x-2">
             <!-- Mute Button -->
-            <button 
+            <button
                 class="p-1 hover:bg-navy-700 rounded transition-colors"
                 class:text-error={isMuted}
                 class:text-navy-300={!isMuted}
-                on:click={toggleMute}
+                onclick={toggleMute}
                 title={isMuted ? `Unmute (restore ${Math.round(gain * 100)}%)` : 'Mute'}
                 aria-label={isMuted ? `Unmute ${player}` : `Mute ${player}`}
             >
                 <i class="fas fa-microphone{isMuted ? '-slash' : ''} text-xs"></i>
             </button>
-            
+
             <!-- Volume Button -->
-            <button 
+            <button
                 class="p-1 hover:bg-navy-700 rounded transition-colors text-navy-300"
                 class:text-navy-500={isMuted}
-                on:click={toggleVolumeSlider}
+                onclick={toggleVolumeSlider}
                 title="Gain: {Math.round(gain * 100)}%"
                 aria-label="Toggle volume slider for {player}"
             >
@@ -79,19 +79,19 @@
             </button>
         </div>
     </div>
-    
+
     <!-- Volume Slider (when expanded) -->
     {#if showVolumeSlider}
         <div class="mt-3 pt-2 border-t border-navy-600 transition-all duration-200">
             <div class="flex items-center space-x-2">
                 <span class="text-xs text-navy-400">Gain:</span>
-                <input 
-                    type="range" 
-                    min="0" 
-                    max="1.5" 
-                    step="0.05" 
+                <input
+                    type="range"
+                    min="0"
+                    max="1.5"
+                    step="0.05"
                     bind:value={gain}
-                    on:input={updateGain}
+                    oninput={updateGain}
                     disabled={isMuted}
                     class="flex-1 h-1 rounded-lg appearance-none cursor-pointer transition-opacity"
                     class:bg-navy-600={!isMuted}
@@ -124,12 +124,12 @@
         cursor: pointer;
         transition: background-color 0.2s;
     }
-    
+
     input[type="range"]:disabled::-webkit-slider-thumb {
         background: #64748b;
         cursor: not-allowed;
     }
-    
+
     input[type="range"]::-moz-range-thumb {
         height: 12px;
         width: 12px;
@@ -139,7 +139,7 @@
         border: none;
         transition: background-color 0.2s;
     }
-    
+
     input[type="range"]:disabled::-moz-range-thumb {
         background: #64748b;
         cursor: not-allowed;

@@ -13,7 +13,7 @@
     // Track expanded sessions and selected participants
     let expandedSessions: string[] = [];
     let selectedParticipantsMap = new Map<string, string[]>();
-    
+
     // Initialize selected participants for all recordings (all participants selected by default)
     $: {
         recordings.forEach(recording => {
@@ -24,7 +24,7 @@
         });
         info(`Initialized selectedParticipantsMap with ${selectedParticipantsMap.size} recordings`);
     }
-    
+
     // Force reactivity tracking
     $: {
         info(`Reactive: expandedSessions changed to: ${JSON.stringify(expandedSessions)}`);
@@ -62,7 +62,7 @@
     function toggleExpanded(sessionId: string) {
         info(`toggleExpanded called for sessionId: ${sessionId}`);
         info(`Current expandedSessions: ${JSON.stringify(expandedSessions)}`);
-        
+
         if (expandedSessions.includes(sessionId)) {
             info(`Session is expanded, collapsing...`);
             expandedSessions = expandedSessions.filter(id => id !== sessionId);
@@ -77,7 +77,7 @@
                 }
             }
         }
-        
+
         info(`New expandedSessions: ${JSON.stringify(expandedSessions)}`);
     }
 
@@ -112,7 +112,7 @@
                         <div class="flex items-center space-x-2">
                             <button
                                 class="btn size-7 rounded-full p-0 hover:bg-slate-300/20 focus:bg-slate-300/20 active:bg-slate-300/25 dark:hover:bg-navy-300/20 dark:focus:bg-navy-300/20 dark:active:bg-navy-300/25"
-                                on:click={() => toggleExpanded(recording.session_data.session_id)}
+                                onclick={() => toggleExpanded(recording.session_data.session_id)}
                                 aria-label="Toggle participants"
                             >
                                 <svg

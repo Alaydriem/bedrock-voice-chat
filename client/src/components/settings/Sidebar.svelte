@@ -157,7 +157,7 @@
 <div class="settings-mobile-header md:hidden fixed top-0 left-0 right-0 z-30 h-14 items-center justify-between bg-white px-4 border-b border-slate-150 dark:bg-navy-700 dark:border-navy-600 hidden">
     <button
         class="btn size-11 rounded-full p-0 hover:bg-slate-300/20 focus:bg-slate-300/20 active:bg-slate-300/25 dark:hover:bg-navy-300/20 dark:focus:bg-navy-300/20 dark:active:bg-navy-300/25"
-        on:click={handleBackToNavigation}
+        onclick={handleBackToNavigation}
         aria-label="Back to settings navigation"
     >
         <svg xmlns="http://www.w3.org/2000/svg" class="size-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -207,7 +207,7 @@
                         <button
                             class="settings-nav-button flex w-full items-center space-x-3 py-3 px-4 text-left tracking-wide outline-hidden transition-all duration-300 ease-in-out rounded-lg hover:bg-slate-100 focus:bg-slate-100 dark:hover:bg-navy-600 dark:focus:bg-navy-600 min-h-[44px] md:min-h-0 relative overflow-hidden
                                 {activePage === page.id ? 'bg-primary/10 text-primary dark:bg-accent/15 dark:text-accent-light' : 'text-slate-600 hover:text-slate-800 dark:text-navy-200 dark:hover:text-navy-50'}"
-                            on:click={() => handlePageNavigation(page.id)}
+                            onclick={() => handlePageNavigation(page.id)}
                             aria-label="Navigate to {page.title}"
                         >
                             <div class="flex-shrink-0 text-slate-400 transition-colors {activePage === page.id ? 'text-primary dark:text-accent-light' : ''}">

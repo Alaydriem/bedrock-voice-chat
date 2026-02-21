@@ -113,9 +113,9 @@ export default class Dashboard extends BVCApp {
 
             // Start keybind listener with saved config
             const keybindConfig = await this.store!.get<KeybindConfig>("keybinds") ?? {
-                toggleMute: "BracketLeft",
-                toggleDeafen: "BracketRight",
-                toggleRecording: "Backslash",
+                toggleMute: "ControlLeft+BracketLeft",
+                toggleDeafen: "ControlLeft+BracketRight",
+                toggleRecording: "ControlLeft+Backslash",
                 pushToTalk: "Backquote",
                 voiceMode: "openMic",
             };

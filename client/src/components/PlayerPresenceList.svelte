@@ -4,7 +4,7 @@
     import type { PlayerSource } from '../js/bindings/PlayerSource';
     import type { PlayerManager } from '../js/app/managers/PlayerManager';
     import type { AudioActivityManager } from '../js/app/managers/AudioActivityManager';
-    
+
     // Define PlayerData interface locally (matches PlayerManager definition)
     interface PlayerData {
         name: string;
@@ -14,7 +14,7 @@
             muted: boolean;
         };
     }
-    
+
     // Manager props (injected via dependency injection)
     export let playerManager: PlayerManager;
     export let audioActivityManager: AudioActivityManager;
@@ -36,13 +36,13 @@
             playerManager.updatePlayerGain(playerName, gain);
         }
     }
-    
+
     function handleMuteToggle(playerName: string, muted: boolean) {
         if (playerManager) {
             playerManager.updatePlayerMute(playerName, muted);
         }
     }
-    
+
     // Helper function to check if a player is a group member
     function isPlayerGroupMember(player: PlayerData): boolean {
         return player.sources && player.sources.has('Group');
@@ -50,12 +50,12 @@
 </script>
 
 <div class="player-presence-section flex-1 p-4 flex flex-col h-full">
-    
+
     <!-- Responsive flex layout for Discord-like card layout with auto-spacing -->
     <div class="flex flex-wrap justify-evenly gap-y-4 flex-1 min-h-0">
         {#each activePlayers as player (player.name)}
             <div class="player-card-container">
-                <PlayerCard 
+                <PlayerCard
                     player={player.name}
                     initialGain={player.settings.gain}
                     initialMuted={player.settings.muted}
@@ -73,7 +73,7 @@
             </div>
         {/each}
     </div>
-    
+
     <!-- Footer with player count -->
     {#if activePlayers.length > 0}
         <div class="text-xs text-gray-500 mt-4 text-center shrink-0">
