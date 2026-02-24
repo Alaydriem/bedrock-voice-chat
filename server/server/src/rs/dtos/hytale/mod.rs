@@ -1,5 +1,7 @@
 //! Hytale-specific DTOs
 
-mod session_cache;
+mod hytale_session;
+mod hytale_session_cache;
 
-pub use session_cache::{HytaleSession, HytaleSessionCache};
+pub use hytale_session::HytaleSession;
+pub use hytale_session_cache::HytaleSessionCache;

@@ -2,7 +2,7 @@
 
 1. Ensure that your BDS world is configured to allow for beta APIs
 
-2. On Bedrock Dedicated Server, copy the `pack/pack/bp` directory, or extract the provided download to `behavior_packs/bedrock-voice-chat-0.0.1`.
+2. Extract the behavior pack to `behavior_packs/bedrock-voice-chat/` and the resource pack to `resource_packs/bedrock-voice-chat-rp/`.
 
 3. Update your `config/default/variables.json` with the following. Be sure to replace the token and server with your values:
 

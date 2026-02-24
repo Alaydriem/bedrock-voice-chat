@@ -1,0 +1,4 @@
+pack.name=Bedrock Voice Chat BDS Server
+pack.description=Bedrock Voice Chat BDS Server Addon
+tile.bvc:audio_player.name=BVC Audio Player
+item.bvc:audio_disc.name=BVC Audio Disc

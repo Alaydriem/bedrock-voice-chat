@@ -18,10 +18,11 @@
 
 use crate::config::ApplicationConfig;
 use crate::runtime::{position_updater, ServerRuntime};
-use crate::services::PlayerRegistrarService;
+use crate::services::{AudioPlaybackService, PlayerRegistrarService};
 use crate::stream::quic::WebhookReceiver;
 
 use common::Game;
+use sea_orm::DatabaseConnection;
 use std::ffi::{c_char, c_int, CStr, CString};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -37,6 +38,10 @@ pub struct RuntimeHandle {
     webhook_receiver: Arc<RwLock<Option<WebhookReceiver>>>,
     /// Player registrar for player registration - accessible without locking runtime mutex
     player_registrar: Arc<RwLock<Option<PlayerRegistrarService>>>,
+    /// Audio playback service - accessible without locking runtime mutex
+    audio_playback_service: Arc<RwLock<Option<Arc<AudioPlaybackService>>>>,
+    /// Database connection for FFI audio operations
+    db_conn: Arc<RwLock<Option<Arc<DatabaseConnection>>>>,
 }
 
 // Thread-local storage for last error message
@@ -112,6 +117,8 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
     let shutdown_flag = runtime.shutdown_flag();
     let webhook_receiver = runtime.get_webhook_receiver();
     let player_registrar = runtime.get_player_registrar();
+    let audio_playback_service = runtime.get_audio_playback_service();
+    let db_conn = runtime.get_db_conn();
 
     // Create a tokio runtime for the server
     let tokio_runtime = match tokio::runtime::Builder::new_multi_thread()
@@ -131,6 +138,8 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
         shutdown_flag,
         webhook_receiver,
         player_registrar,
+        audio_playback_service,
+        db_conn,
     });
 
     Box::into_raw(handle)
@@ -441,4 +450,208 @@ pub unsafe extern "C" fn bvc_update_positions(
     });
 
     0
+}
+
+/// Start audio playback at a world location via FFI.
+///
+/// # Arguments
+/// * `handle` - Handle from `bvc_server_create()`
+/// * `play_json` - JSON string matching AudioPlayRequest structure:
+///   ```json
+///   {
+///     "audio_file_id": "nanoid-string",
+///     "coordinates": { "x": 100.0, "y": 64.0, "z": 200.0 },
+///     "dimension": "overworld",
+///     "world_uuid": "uuid-string"
+///   }
+///   ```
+///
+/// # Returns
+/// * Pointer to JSON response string (`{ "event_id": "...", "duration_ms": 30000 }`)
+/// * NULL on error (call `bvc_get_last_error()` for details)
+/// * Caller must free the returned string with `bvc_free_string()`
+///
+/// # Safety
+/// * `handle` must be a valid pointer from `bvc_server_create()`
+/// * `play_json` must be a valid null-terminated UTF-8 string
+/// * Server must be running
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn bvc_audio_play(
+    handle: *mut RuntimeHandle,
+    play_json: *const c_char,
+) -> *mut c_char {
+    if handle.is_null() {
+        set_last_error("handle is null");
+        return ptr::null_mut();
+    }
+
+    if play_json.is_null() {
+        set_last_error("play_json is null");
+        return ptr::null_mut();
+    }
+
+    let json_str = match unsafe { CStr::from_ptr(play_json) }.to_str() {
+        Ok(s) => s,
+        Err(e) => {
+            set_last_error(&format!("Invalid UTF-8 in play_json: {}", e));
+            return ptr::null_mut();
+        }
+    };
+
+    let request: common::request::audio::AudioPlayRequest =
+        match serde_json::from_str(json_str) {
+            Ok(r) => r,
+            Err(e) => {
+                set_last_error(&format!("Failed to parse play_json: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+    let handle_ref = unsafe { &*handle };
+
+    let tokio_rt = match &handle_ref.tokio_runtime {
+        Some(rt) => rt,
+        None => {
+            set_last_error("Tokio runtime not available");
+            return ptr::null_mut();
+        }
+    };
+
+    // Get audio playback service
+    let aps_guard = match handle_ref.audio_playback_service.read() {
+        Ok(g) => g,
+        Err(e) => {
+            set_last_error(&format!("Failed to read audio_playback_service: {}", e));
+            return ptr::null_mut();
+        }
+    };
+
+    let audio_service = match aps_guard.as_ref() {
+        Some(s) => s.clone(),
+        None => {
+            set_last_error("Server not started - audio_playback_service not available");
+            return ptr::null_mut();
+        }
+    };
+    drop(aps_guard);
+
+    // Get database connection
+    let db_guard = match handle_ref.db_conn.read() {
+        Ok(g) => g,
+        Err(e) => {
+            set_last_error(&format!("Failed to read db_conn: {}", e));
+            return ptr::null_mut();
+        }
+    };
+
+    let db_conn = match db_guard.as_ref() {
+        Some(c) => c.clone(),
+        None => {
+            set_last_error("Server not started - db_conn not available");
+            return ptr::null_mut();
+        }
+    };
+    drop(db_guard);
+
+    // Run async playback start
+    let result = tokio_rt.block_on(async {
+        audio_service.start_playback(db_conn.as_ref(), request).await
+    });
+
+    match result {
+        Ok(response) => match serde_json::to_string(&response) {
+            Ok(json) => match CString::new(json) {
+                Ok(cstr) => cstr.into_raw(),
+                Err(e) => {
+                    set_last_error(&format!("Failed to create CString: {}", e));
+                    ptr::null_mut()
+                }
+            },
+            Err(e) => {
+                set_last_error(&format!("Failed to serialize response: {}", e));
+                ptr::null_mut()
+            }
+        },
+        Err(e) => {
+            set_last_error(&format!("Audio play failed: {}", e));
+            ptr::null_mut()
+        }
+    }
+}
+
+/// Stop audio playback via FFI.
+///
+/// # Arguments
+/// * `handle` - Handle from `bvc_server_create()`
+/// * `event_id` - Null-terminated event ID string from `bvc_audio_play()` response
+///
+/// # Returns
+/// * 0 on success
+/// * -1 on error (call `bvc_get_last_error()` for details)
+///
+/// # Safety
+/// * `handle` must be a valid pointer from `bvc_server_create()`
+/// * `event_id` must be a valid null-terminated UTF-8 string
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn bvc_audio_stop(
+    handle: *mut RuntimeHandle,
+    event_id: *const c_char,
+) -> c_int {
+    if handle.is_null() {
+        set_last_error("handle is null");
+        return -1;
+    }
+
+    if event_id.is_null() {
+        set_last_error("event_id is null");
+        return -1;
+    }
+
+    let event_id_str = match unsafe { CStr::from_ptr(event_id) }.to_str() {
+        Ok(s) => s,
+        Err(e) => {
+            set_last_error(&format!("Invalid UTF-8 in event_id: {}", e));
+            return -1;
+        }
+    };
+
+    let handle_ref = unsafe { &*handle };
+
+    let tokio_rt = match &handle_ref.tokio_runtime {
+        Some(rt) => rt,
+        None => {
+            set_last_error("Tokio runtime not available");
+            return -1;
+        }
+    };
+
+    // Get audio playback service
+    let aps_guard = match handle_ref.audio_playback_service.read() {
+        Ok(g) => g,
+        Err(e) => {
+            set_last_error(&format!("Failed to read audio_playback_service: {}", e));
+            return -1;
+        }
+    };
+
+    let audio_service = match aps_guard.as_ref() {
+        Some(s) => s.clone(),
+        None => {
+            set_last_error("Server not started - audio_playback_service not available");
+            return -1;
+        }
+    };
+    drop(aps_guard);
+
+    let result = tokio_rt.block_on(async {
+        audio_service.stop_playback(event_id_str).await
+    });
+
+    match result {
+        Ok(_) => 0,
+        Err(e) => {
+            set_last_error(&format!("Audio stop failed: {}", e));
+            -1
+        }
+    }
 }

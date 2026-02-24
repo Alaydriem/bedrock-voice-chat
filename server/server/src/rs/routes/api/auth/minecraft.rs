@@ -52,6 +52,7 @@ pub async fn authenticate(
     match AuthService::build_login_response(
         conn,
         config.inner(),
+        None,
         auth_result.gamertag,
         auth_result.gamerpic,
         Game::Minecraft,

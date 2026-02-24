@@ -1,5 +1,5 @@
-pub use common::structs::audio::{AudioDevice, AudioDeviceHost, AudioDeviceType, StreamConfig};
-pub use common::structs::audio::{BUFFER_SIZE, get_best_sample_rate};
+pub use common::consts::audio::BUFFER_SIZE;
+pub use common::structs::audio::{AudioDevice, AudioDeviceHost, AudioDeviceType, StreamConfig, get_best_sample_rate};
 
 use rodio::{
     cpal::{self, traits::HostTrait, HostId},

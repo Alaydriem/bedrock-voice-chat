@@ -16,6 +16,7 @@
     "fs:allow-exists",
     "fs:allow-mkdir",
     "http:allow-fetch-read-body",
+    "dialog:default",
     "audio-permissions:default",
     "keyring:default",
     {

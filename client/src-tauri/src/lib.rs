@@ -53,6 +53,7 @@ pub fn run() {
         .plugin(tauri_plugin_audio_permissions::init())
         .plugin(tauri_plugin_keyring::init())
         //.plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_fs::init())
@@ -113,6 +114,11 @@ pub fn run() {
             crate::commands::websocket::generate_encryption_key,
             // Keybinds
             crate::commands::keybinds::start_keybind_listener,
+            // Audio Library
+            crate::commands::audio_library::upload_audio_file,
+            crate::commands::audio_library::list_audio_files,
+            crate::commands::audio_library::delete_audio_file,
+            crate::commands::audio_library::refresh_server_state,
             // Updater
             #[cfg(desktop)]
             crate::commands::updater::check_for_updates

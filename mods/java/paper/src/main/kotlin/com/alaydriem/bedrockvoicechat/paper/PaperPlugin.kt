@@ -1,8 +1,12 @@
 package com.alaydriem.bedrockvoicechat.paper
 
+import com.alaydriem.bedrockvoicechat.audio.AudioPlayerManager
 import com.alaydriem.bedrockvoicechat.dto.Payload
+import com.alaydriem.bedrockvoicechat.native.AudioSender
 import com.alaydriem.bedrockvoicechat.native.PositionSender
 import com.alaydriem.bedrockvoicechat.network.HttpRequestHandler
+import com.alaydriem.bedrockvoicechat.paper.audio.AudioCommands
+import com.alaydriem.bedrockvoicechat.paper.audio.AudioPlayerListener
 import com.alaydriem.bedrockvoicechat.server.BvcServerManager
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
@@ -23,6 +27,8 @@ class PaperPlugin : JavaPlugin(), Listener {
 
     private var embeddedServer: BvcServerManager? = null
     private var positionSender: PositionSender? = null
+    private var audioSender: AudioSender? = null
+    private var audioPlayerManager: AudioPlayerManager? = null
     private var tickTask: BukkitTask? = null
     private var minimumPlayers = 2
 
@@ -66,6 +72,22 @@ class PaperPlugin : JavaPlugin(), Listener {
             logger.info("Bedrock Voice Chat will connect to: ${config.bvcServer}")
         }
 
+        // Initialize audio system (mirrors position sender dual-mode pattern)
+        audioSender = AudioSender(
+            if (!config.useEmbeddedServer) HttpRequestHandler(config.bvcServer!!, config.accessToken!!) else null,
+            embeddedServer
+        )
+        audioPlayerManager = AudioPlayerManager(audioSender!!)
+
+        val audioListener = AudioPlayerListener(this, audioPlayerManager!!) {
+            playerDataProvider.getWorldUuid()
+        }
+        server.pluginManager.registerEvents(audioListener, this)
+
+        // Register /bvc command
+        val audioCommands = AudioCommands(audioListener)
+        getCommand("bvc")?.setExecutor(audioCommands)
+
         // Set server reference on data provider for player lookups
         playerDataProvider.server = server
 
@@ -77,6 +99,7 @@ class PaperPlugin : JavaPlugin(), Listener {
     }
 
     override fun onDisable() {
+        audioPlayerManager?.stopAll()
         tickTask?.cancel()
         tickTask = null
         embeddedServer?.stop()

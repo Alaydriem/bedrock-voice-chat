@@ -1,0 +1,48 @@
+{
+  "format_version": "1.21.120",
+  "minecraft:block": {
+    "description": {
+      "identifier": "bvc:audio_player",
+      "states": {
+        "bvc:playing": [false, true]
+      }
+    },
+    "components": {
+      "bvc:audio_player": {},
+      "minecraft:destructible_by_mining": {
+        "seconds_to_destroy": 3.0
+      },
+      "minecraft:destructible_by_explosion": {
+        "explosion_resistance": 6.0
+      },
+      "minecraft:geometry": "minecraft:geometry.full_block",
+      "minecraft:material_instances": {
+        "*": {
+          "texture": "bvc_audio_player",
+          "render_method": "opaque"
+        },
+        "up": {
+          "texture": "bvc_audio_player_top",
+          "render_method": "opaque"
+        }
+      },
+      "minecraft:tick": {
+        "interval_range": [10, 10],
+        "looping": true
+      },
+      "minecraft:redstone_producer": {
+        "power": 0
+      }
+    },
+    "permutations": [
+      {
+        "condition": "q.block_state('bvc:playing')",
+        "components": {
+          "minecraft:redstone_producer": {
+            "power": 1
+          }
+        }
+      }
+    ]
+  }
+}

@@ -296,7 +296,8 @@ jobs:
 
           if [ "${{ needs.build-bds-pack.result }}" = "success" ]; then
             echo "### 📦 BDS Pack (Bedrock)" >> build-summary.md
-            echo "- [bedrock-voice-chat-bds](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) - Bedrock Dedicated Server Pack" >> build-summary.md
+            echo "- [bedrock-voice-chat-bds-bp](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) - Behavior Pack" >> build-summary.md
+            echo "- [bedrock-voice-chat-bds-rp](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) - Resource Pack" >> build-summary.md
             echo "" >> build-summary.md
           fi
 
@@ -359,7 +360,7 @@ jobs:
             echo "   Hytale Plugin: bedrock-voice-chat-hytale (contains .jar file)"
           fi
           if [ "${{ needs.build-bds-pack.result }}" = "success" ]; then
-            echo "   BDS Pack: bedrock-voice-chat-bds (contains .mcpack file)"
+            echo "   BDS Pack: bedrock-voice-chat-bds-bp + bedrock-voice-chat-bds-rp (.mcpack files)"
           fi
           echo ""
           echo "Download from: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

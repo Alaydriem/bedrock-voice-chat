@@ -459,6 +459,11 @@ impl OutputStream {
                         return;
                     }
 
+                    // Ignore audio event virtual players (e.g. "jukebox::abc123")
+                    if data.player_name.starts_with("jukebox::") {
+                        return;
+                    }
+
                     match data.event_type {
                         ConnectionEventType::Connected => {
                             player_presence.insert(data.player_name.clone(), ());
@@ -574,8 +579,11 @@ impl OutputStream {
                 client_id_to_player.insert(client_id, player_name.clone());
             }
 
-            // Don't emit events for ourselves
-            if !player_name.eq(&current_player_name) && !player_name.is_empty() {
+            // Don't emit events for ourselves or audio event virtual players
+            if !player_name.eq(&current_player_name)
+                && !player_name.is_empty()
+                && !player_name.starts_with("jukebox::")
+            {
                 // Always update the presence cache
                 player_presence.insert(player_name.clone(), ());
 
@@ -729,6 +737,7 @@ impl OutputStream {
         self.player_presence
             .iter()
             .map(|(name, _)| (*name).clone())
+            .filter(|name| !name.starts_with("jukebox::"))
             .collect()
     }
 }

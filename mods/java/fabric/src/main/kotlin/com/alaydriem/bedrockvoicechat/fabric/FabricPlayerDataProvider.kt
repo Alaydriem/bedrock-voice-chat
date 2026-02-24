@@ -83,6 +83,15 @@ class FabricPlayerDataProvider : PlayerDataProvider {
 
     override fun getGameType(): GameType = GameType.MINECRAFT
 
+    /**
+     * Get the overworld UUID, used for audio event requests.
+     */
+    fun getOverworldUuid(): String? {
+        val srv = server ?: return null
+        val overworld = srv.overworld ?: return null
+        return getWorldUuid(overworld)
+    }
+
     private fun getWorldUuid(world: ServerWorld): String {
         val dimKey = world.registryKey.value.toString()
         return worldUuidCache.getOrPut(dimKey) {

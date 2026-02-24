@@ -1,46 +1,87 @@
 //! Authentication service for building login responses
 
+mod auth_error;
+
 use std::path::Path;
 
 use common::{
-    structs::config::{Keypair, LoginResponse},
+    structs::{
+        config::{Keypair, LoginResponse},
+        permission::ServerPermissions,
+    },
     Game,
 };
 use entity::player;
 use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
 
+pub use auth_error::AuthError;
+
 use crate::config::ApplicationConfigServer;
-
-/// Errors that can occur during authentication
-#[derive(Debug)]
-pub enum AuthError {
-    /// Player not found in database
-    PlayerNotFound,
-    /// Player is banished
-    PlayerBanished,
-    /// Database error
-    DatabaseError(String),
-    /// Certificate error
-    CertificateError(String),
-}
-
-impl std::fmt::Display for AuthError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            AuthError::PlayerNotFound => write!(f, "Player not found in database"),
-            AuthError::PlayerBanished => write!(f, "Player is banished"),
-            AuthError::DatabaseError(msg) => write!(f, "Database error: {}", msg),
-            AuthError::CertificateError(msg) => write!(f, "Certificate error: {}", msg),
-        }
-    }
-}
-
-impl std::error::Error for AuthError {}
+use crate::services::permission_service::PermissionService;
 
 /// Service for authentication operations
 pub struct AuthService;
 
 impl AuthService {
+    /// Resolve a player from an mTLS certificate CN.
+    /// Supports both new format "game:gamertag" and legacy "gamertag" (no game prefix).
+    /// For legacy certs, `game_hint` (from X-Game header) is used to disambiguate
+    /// when multiple players share the same gamertag across games.
+    pub async fn player_from_certificate<C: ConnectionTrait>(
+        cert: &rocket::mtls::Certificate<'_>,
+        conn: &C,
+        game_hint: Option<&str>,
+    ) -> Result<player::Model, rocket::http::Status> {
+        let cn = match cert.subject().common_name() {
+            Some(cn) => {
+                cn
+            }
+            None => {
+                return Err(rocket::http::Status::Forbidden);
+            }
+        };
+
+        let (game_filter, gamertag) = match cn.split_once(':') {
+            Some((game, name)) => {
+                let effective_game = game_hint
+                    .map(|g| g.to_lowercase())
+                    .unwrap_or_else(|| game.to_lowercase());
+                (Some(effective_game), name.to_string())
+            }
+            None => {
+                let effective_game = game_hint
+                    .map(|g| g.to_lowercase())
+                    .unwrap_or_else(|| "minecraft".to_string());
+                tracing::info!("player_from_certificate: legacy cert gamertag={}, effective_game={}", cn, effective_game);
+                (Some(effective_game), cn.to_string())
+            }
+        };
+
+        let mut query = player::Entity::find()
+            .filter(player::Column::Gamertag.eq(&gamertag));
+        if let Some(ref game) = game_filter {
+            query = query.filter(player::Column::Game.eq(game));
+        }
+
+        match query.one(conn).await {
+            Ok(Some(player)) => {
+                Ok(player)
+            }
+            Ok(None) => {
+                tracing::error!(
+                    "player_from_certificate: no player found for gamertag={:?}, game_filter={:?}",
+                    gamertag,
+                    game_filter
+                );
+                Err(rocket::http::Status::Forbidden)
+            }
+            Err(e) => {
+                tracing::error!("player_from_certificate: DB error: {}", e);
+                Err(rocket::http::Status::InternalServerError)
+            }
+        }
+    }
+
     /// Build a LoginResponse for an authenticated player
     ///
     /// # Arguments
@@ -52,11 +93,11 @@ impl AuthService {
     pub async fn build_login_response<C: ConnectionTrait>(
         conn: &C,
         config: &ApplicationConfigServer,
+        permission_service: Option<&PermissionService>,
         gamertag: String,
         gamerpic: String,
         game: Game,
     ) -> Result<LoginResponse, AuthError> {
-        // Look up player by gamertag and game type
         let player_record = player::Entity::find()
             .filter(player::Column::Gamertag.eq(gamertag.clone()))
             .filter(player::Column::Game.eq(game.clone()))
@@ -72,7 +113,6 @@ impl AuthService {
             }
         };
 
-        // Update gamerpic in database if it has changed
         if actual.gamerpic.as_ref() != Some(&gamerpic) {
             let mut player_active: player::ActiveModel = actual.clone().into();
             player_active.gamerpic = ActiveValue::Set(Some(gamerpic.clone()));
@@ -83,31 +123,34 @@ impl AuthService {
             tracing::debug!("Updated gamerpic for player {}", gamertag);
         }
 
-        // Block banished users
         if actual.banished {
             tracing::info!("Player {} is banished", gamertag);
             return Err(AuthError::PlayerBanished);
         }
 
-        // Get keypair
         let kp = actual.get_keypair().map_err(|e| {
             tracing::error!("Failed to get keypair: {}", e);
             AuthError::CertificateError(e.to_string())
         })?;
 
-        // Get signature
         let sp = actual.get_signature().map_err(|e| {
             tracing::error!("Failed to get signature: {}", e);
             AuthError::CertificateError(e.to_string())
         })?;
 
-        // Read CA certificate
         let certificate_ca =
             std::fs::read_to_string(Path::new(&format!("{}/ca.crt", config.tls.certs_path)))
                 .map_err(|e| {
                     tracing::error!("Failed to read CA certificate: {}", e);
                     AuthError::CertificateError(e.to_string())
                 })?;
+
+        let server_permissions = if let Some(perm_service) = permission_service {
+            let allowed = perm_service.evaluate_all(conn, actual.id).await;
+            Some(ServerPermissions { allowed })
+        } else {
+            None
+        };
 
         Ok(LoginResponse::new(
             gamertag,
@@ -124,6 +167,7 @@ impl AuthService {
             actual.certificate_key,
             certificate_ca,
             config.quic_port.to_string(),
+            server_permissions,
         ))
     }
 }

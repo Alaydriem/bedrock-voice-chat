@@ -301,10 +301,16 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Download artifact
+      - name: Download BP artifact
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-bds-${{ needs.prepare-release.outputs.new_release_version }}
+          name: bedrock-voice-chat-bds-bp-${{ needs.prepare-release.outputs.new_release_version }}.zip
+          path: ./artifacts
+
+      - name: Download RP artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: bedrock-voice-chat-bds-rp-${{ needs.prepare-release.outputs.new_release_version }}.zip
           path: ./artifacts
 
       - name: List artifacts
@@ -312,19 +318,35 @@ jobs:
 
       - name: Rename to mcpack for CurseForge
         run: |
-          mv ./artifacts/bedrock-voice-chat-${{ needs.prepare-release.outputs.new_release_version }}.zip \
-             ./artifacts/bedrock-voice-chat-${{ needs.prepare-release.outputs.new_release_version }}.mcpack
+          VERSION="${{ needs.prepare-release.outputs.new_release_version }}"
+          mv "./artifacts/bedrock-voice-chat-bp-${VERSION}.zip" \
+             "./artifacts/bedrock-voice-chat-bp-${VERSION}.mcpack"
+          mv "./artifacts/bedrock-voice-chat-rp-${VERSION}.zip" \
+             "./artifacts/bedrock-voice-chat-rp-${VERSION}.mcpack"
 
-      - name: Publish to CurseForge
+      - name: Publish BP to CurseForge
         uses: itsmeow/curseforge-upload@v3
         with:
           token: ${{ secrets.CURSEFORGE_API_TOKEN }}
           project_id: 1445992
           game_endpoint: minecraft
-          file_path: ./artifacts/bedrock-voice-chat-${{ needs.prepare-release.outputs.new_release_version }}.mcpack
+          file_path: ./artifacts/bedrock-voice-chat-bp-${{ needs.prepare-release.outputs.new_release_version }}.mcpack
           changelog: ${{ needs.prepare-release.outputs.new_release_notes }}
           changelog_type: markdown
-          display_name: Bedrock Voice Chat ${{ needs.prepare-release.outputs.new_release_version }}
+          display_name: Bedrock Voice Chat ${{ needs.prepare-release.outputs.new_release_version }} (Behavior Pack)
+          game_versions: Bedrock
+          release_type: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}
+
+      - name: Publish RP to CurseForge
+        uses: itsmeow/curseforge-upload@v3
+        with:
+          token: ${{ secrets.CURSEFORGE_API_TOKEN }}
+          project_id: 1445992
+          game_endpoint: minecraft
+          file_path: ./artifacts/bedrock-voice-chat-rp-${{ needs.prepare-release.outputs.new_release_version }}.mcpack
+          changelog: ${{ needs.prepare-release.outputs.new_release_notes }}
+          changelog_type: markdown
+          display_name: Bedrock Voice Chat ${{ needs.prepare-release.outputs.new_release_version }} (Resource Pack)
           game_versions: Bedrock
           release_type: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}
 
@@ -362,11 +384,18 @@ jobs:
           name: bedrock-voice-chat-hytale-${{ needs.prepare-release.outputs.encoded_version }}
           path: ./release-files
 
-      - name: Download BDS artifact
+      - name: Download BDS BP artifact
         if: needs.build-mod-bds.result == 'success'
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-bds-${{ needs.prepare-release.outputs.new_release_version }}
+          name: bedrock-voice-chat-bds-bp-${{ needs.prepare-release.outputs.new_release_version }}.zip
+          path: ./release-files
+
+      - name: Download BDS RP artifact
+        if: needs.build-mod-bds.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: bedrock-voice-chat-bds-rp-${{ needs.prepare-release.outputs.new_release_version }}.zip
           path: ./release-files
 
       - name: Rename artifacts
@@ -388,9 +417,12 @@ jobs:
             mv "bedrock-voice-chat-hytale-${ENCODED}.jar" "bvc-hytale-plugin-${ENCODED}.jar"
           fi
 
-          # Rename BDS (uses semantic version)
-          if [ -f "bedrock-voice-chat-${VERSION}.zip" ]; then
-            mv "bedrock-voice-chat-${VERSION}.zip" "bvc-bds-pack-${ENCODED}.zip"
+          # Rename BDS (uses semantic version, two packs)
+          if [ -f "bedrock-voice-chat-bp-${VERSION}.zip" ]; then
+            mv "bedrock-voice-chat-bp-${VERSION}.zip" "bvc-bds-bp-${ENCODED}.zip"
+          fi
+          if [ -f "bedrock-voice-chat-rp-${VERSION}.zip" ]; then
+            mv "bedrock-voice-chat-rp-${VERSION}.zip" "bvc-bds-rp-${ENCODED}.zip"
           fi
 
           echo "=== Release files ==="

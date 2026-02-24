@@ -1,5 +1,6 @@
 pub(crate) mod about;
 pub(crate) mod audio;
+pub(crate) mod audio_library;
 pub(crate) mod env;
 pub(crate) mod event;
 pub(crate) mod keybinds;

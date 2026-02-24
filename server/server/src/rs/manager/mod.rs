@@ -1,8 +1,8 @@
 use crate::{
-    config::ApplicationConfig,
+    config::{ApplicationConfig, ApplicationConfigPermissions},
     rs::pool::AppDb,
     rs::routes,
-    services::PlayerRegistrarService,
+    services::{AudioPlaybackService, CertificateService, PlayerRegistrarService},
     stream::quic::{CacheManager, WebhookReceiver},
 };
 use anyhow::Error;
@@ -26,6 +26,9 @@ pub struct RocketManager {
     cache_manager: CacheManager,
     player_registrar: PlayerRegistrarService,
     hytale_session_cache: routes::api::HytaleSessionCache,
+    audio_playback_service: Arc<AudioPlaybackService>,
+    cert_service: Arc<CertificateService>,
+    permissions_config: ApplicationConfigPermissions,
 }
 
 impl RocketManager {
@@ -36,6 +39,9 @@ impl RocketManager {
         channel_cache: Arc<async_mutex::Mutex<Cache<String, common::structs::channel::Channel>>>,
         cache_manager: CacheManager,
         player_registrar: PlayerRegistrarService,
+        audio_playback_service: Arc<AudioPlaybackService>,
+        cert_service: Arc<CertificateService>,
+        permissions_config: ApplicationConfigPermissions,
     ) -> Self {
         Self {
             config,
@@ -44,6 +50,9 @@ impl RocketManager {
             cache_manager,
             player_registrar,
             hytale_session_cache: routes::api::HytaleSessionCache::new(),
+            audio_playback_service,
+            cert_service,
+            permissions_config,
         }
     }
 
@@ -87,6 +96,9 @@ impl RocketManager {
                     .manage(self.cache_manager.clone())
                     .manage(self.player_registrar.clone())
                     .manage(self.hytale_session_cache.clone())
+                    .manage(self.audio_playback_service.clone())
+                    .manage(self.cert_service.clone())
+                    .manage(self.permissions_config.clone())
                     .attach(AppDb::init())
                     .attach(cors.to_cors().unwrap())
                     .attach(rocket::fairing::AdHoc::try_on_ignite("Migrations", migrate))
@@ -118,6 +130,17 @@ impl RocketManager {
                             routes::api::channel_delete,
                             routes::api::channel_event,
                             routes::api::channel_list
+                        ],
+                    )
+                    .mount(
+                        "/api",
+                        routes![
+                            routes::api::audio_event_play,
+                            routes::api::audio_event_stop,
+                            routes::api::audio_file_upload,
+                            routes::api::audio_file_list,
+                            routes::api::audio_file_delete,
+                            routes::api::auth_state,
                         ],
                     );
 

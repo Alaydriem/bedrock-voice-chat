@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "bvc:block/audio_player"
+    }
+  }
+}

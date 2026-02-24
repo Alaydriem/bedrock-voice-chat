@@ -34,6 +34,7 @@ bytes = { version = "^1.10" }
 async-mutex = { version = "^1.4" }
 moka = { version = "^0.12", features = ["future", "sync"] }
 opus2 = { version = "^0.3" }
+ogg = { version = "^0.9" }
 ron = { version = "^0.12" }
 audio-gate = { version = "^0.2" }
 flume = { version = "^0.12" }
@@ -57,6 +58,7 @@ tauri-plugin-http = { version = "^2", default-features = false, features = [
 ] }
 tauri-plugin-audio-permissions = { git = "https://github.com/charlesportwoodii/tauri-plugin-audio-permissions" }
 tauri-plugin-keyring = { git = "https://github.com/charlesportwoodii/tauri-plugin-keyring" }
+tauri-plugin-dialog = "^2"
 tauri-plugin-store = "^2"
 tauri-plugin-notification = "^2"
 tauri-plugin-log = "^2"

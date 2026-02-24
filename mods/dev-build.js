@@ -14,7 +14,8 @@ function getArg(name) {
 const fabricDest = getArg('fabric-dest');
 const paperDest = getArg('paper-dest');
 const hytaleDest = getArg('hytale-dest');
-const bdsDest = getArg('bds-dest');
+const bdsBpDest = getArg('bds-bp-dest');
+const bdsRpDest = getArg('bds-rp-dest');
 
 const modsDir = __dirname;
 const javaDir = path.join(modsDir, 'java');
@@ -40,12 +41,20 @@ if (buildAll) {
   console.log('\n=== BDS Pack ===\n');
   execSync('yarn run pack', { cwd: bdsDir, stdio: 'inherit' });
 
-  const bdsZip = path.join(bdsDir, 'bedrock-voice-chat.zip');
-  if (bdsDest && existsSync(bdsZip)) {
-    mkdirSync(bdsDest, { recursive: true });
-    const destFile = path.join(bdsDest, 'bedrock-voice-chat.zip');
-    copyFileSync(bdsZip, destFile);
-    console.log(`\nBDS -> ${destFile}`);
+  const bpZip = path.join(bdsDir, 'bedrock-voice-chat-bp.zip');
+  const rpZip = path.join(bdsDir, 'bedrock-voice-chat-rp.zip');
+
+  if (bdsBpDest && existsSync(bpZip)) {
+    mkdirSync(bdsBpDest, { recursive: true });
+    const destBp = path.join(bdsBpDest, 'bedrock-voice-chat-bp.zip');
+    copyFileSync(bpZip, destBp);
+    console.log(`\nBDS BP -> ${destBp}`);
+  }
+  if (bdsRpDest && existsSync(rpZip)) {
+    mkdirSync(bdsRpDest, { recursive: true });
+    const destRp = path.join(bdsRpDest, 'bedrock-voice-chat-rp.zip');
+    copyFileSync(rpZip, destRp);
+    console.log(`BDS RP -> ${destRp}`);
   }
 }
 

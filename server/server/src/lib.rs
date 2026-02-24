@@ -23,9 +23,9 @@ pub mod runtime;
 
 // Re-exports for public API
 pub use config::{
-    ApplicationConfig, ApplicationConfigDatabase, ApplicationConfigLogger,
-    ApplicationConfigMinecraft, ApplicationConfigServer, ApplicationConfigServerTLS,
-    ApplicationConfigVoice,
+    ApplicationConfig, ApplicationConfigAudio, ApplicationConfigDatabase,
+    ApplicationConfigLogger, ApplicationConfigMinecraft, ApplicationConfigPermissions,
+    ApplicationConfigServer, ApplicationConfigServerTLS, ApplicationConfigVoice,
 };
 pub use runtime::{RuntimeState, ServerRuntime};
 

@@ -1,6 +1,10 @@
 package com.alaydriem.bedrockvoicechat.fabric
 
+import com.alaydriem.bedrockvoicechat.audio.AudioPlayerManager
 import com.alaydriem.bedrockvoicechat.dto.Payload
+import com.alaydriem.bedrockvoicechat.fabric.audio.AudioPlayerBlock
+import com.alaydriem.bedrockvoicechat.fabric.audio.FabricAudioRegistry
+import com.alaydriem.bedrockvoicechat.native.AudioSender
 import com.alaydriem.bedrockvoicechat.native.PositionSender
 import com.alaydriem.bedrockvoicechat.network.HttpRequestHandler
 import com.alaydriem.bedrockvoicechat.server.BvcServerManager
@@ -24,11 +28,16 @@ class FabricMod : ModInitializer {
 
     private var embeddedServer: BvcServerManager? = null
     private var positionSender: PositionSender? = null
+    private var audioSender: AudioSender? = null
+    private var audioPlayerManager: AudioPlayerManager? = null
     private var tickCounter = 0
     private var minimumPlayers = 2
 
     override fun onInitialize() {
         logger.info("Initializing Bedrock Voice Chat")
+
+        // Register audio blocks and items before anything else
+        FabricAudioRegistry.register()
 
         // Load and validate configuration
         val config = configProvider.load()
@@ -65,6 +74,17 @@ class FabricMod : ModInitializer {
             logger.info("Bedrock Voice Chat will connect to: {}", config.bvcServer)
         }
 
+        // Initialize audio system (mirrors position sender dual-mode pattern)
+        audioSender = AudioSender(
+            if (!config.useEmbeddedServer) HttpRequestHandler(config.bvcServer!!, config.accessToken!!) else null,
+            embeddedServer
+        )
+        audioPlayerManager = AudioPlayerManager(audioSender!!)
+
+        // Wire audio player manager to the block (static refs for block callbacks)
+        AudioPlayerBlock.audioPlayerManager = audioPlayerManager
+        AudioPlayerBlock.worldUuidProvider = { playerDataProvider.getOverworldUuid() }
+
         ServerPlayConnectionEvents.JOIN.register { handler, _, _ ->
             playerDataProvider.addPlayer(handler.player)
         }
@@ -95,8 +115,9 @@ class FabricMod : ModInitializer {
             }
         }
 
-        // Stop embedded server on shutdown
+        // Stop embedded server and audio playback on shutdown
         ServerLifecycleEvents.SERVER_STOPPING.register { _ ->
+            audioPlayerManager?.stopAll()
             embeddedServer?.stop()
         }
     }

@@ -17,6 +17,7 @@
 //! - Callback system for cache cleanup on disconnect
 
 mod cache_manager;
+mod server_input_packet;
 mod stream_manager;
 mod webhook_receiver;
 
@@ -40,12 +41,7 @@ pub(crate) fn client_id_hash(client_id: &[u8]) -> String {
 
 pub use cache_manager::CacheManager;
 pub use webhook_receiver::WebhookReceiver;
-
-// Define packet types similar to client
-#[derive(Debug, Clone)]
-pub struct ServerInputPacket {
-    pub data: QuicNetworkPacket,
-}
+pub use server_input_packet::ServerInputPacket;
 
 pub struct QuicServerManager {
     config: ApplicationConfig,

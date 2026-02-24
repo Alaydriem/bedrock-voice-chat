@@ -6,7 +6,7 @@ async function build() {
     await esbuild.build({
       entryPoints: [path.join(__dirname, 'src', 'main.ts')],
       bundle: true,
-      outfile: path.join(__dirname, 'scripts', 'main.js'),
+      outfile: path.join(__dirname, 'bp', 'scripts', 'main.js'),
       platform: 'neutral',
       format: 'esm',
       target: 'es2021',

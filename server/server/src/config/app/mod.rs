@@ -1,13 +1,17 @@
+mod audio;
 mod database;
 mod logger;
 mod minecraft;
+mod permissions;
 mod server;
 mod tls;
 mod voice;
 
+pub use audio::ApplicationConfigAudio;
 pub use database::ApplicationConfigDatabase;
 pub use logger::ApplicationConfigLogger;
 pub use minecraft::ApplicationConfigMinecraft;
+pub use permissions::ApplicationConfigPermissions;
 pub use server::ApplicationConfigServer;
 pub use tls::ApplicationConfigServerTLS;
 pub use voice::ApplicationConfigVoice;
@@ -33,6 +37,10 @@ pub struct ApplicationConfig {
     pub log: ApplicationConfigLogger,
     #[serde(default)]
     pub voice: ApplicationConfigVoice,
+    #[serde(default)]
+    pub permissions: ApplicationConfigPermissions,
+    #[serde(default)]
+    pub audio: ApplicationConfigAudio,
 }
 
 impl Default for ApplicationConfig {
@@ -42,6 +50,8 @@ impl Default for ApplicationConfig {
             server: ApplicationConfigServer::default(),
             voice: ApplicationConfigVoice::default(),
             log: ApplicationConfigLogger::default(),
+            permissions: ApplicationConfigPermissions::default(),
+            audio: ApplicationConfigAudio::default(),
         }
     }
 }

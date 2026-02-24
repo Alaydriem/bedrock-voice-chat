@@ -3,10 +3,9 @@ use sea_orm::{ActiveModelBehavior, ActiveValue};
 
 use common::ncryptflib as ncryptf;
 
-use rcgen::CertificateParams;
-
 use anyhow::anyhow;
-use time::{Duration, OffsetDateTime};
+use x509_parser::pem::parse_x509_pem;
+use x509_parser::prelude::{FromDer, X509Certificate};
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
 #[sea_orm(table_name = "player")]
@@ -63,26 +62,59 @@ impl Model {
         }
     }
 
-    /// Returns true if the certificate in storage is expiring
-    pub(crate) fn is_certificate_expiring(&self) -> Result<bool, anyhow::Error> {
-        let cp = self.get_certificate_params()?;
+    /// Extract the Common Name (CN) from the stored certificate PEM.
+    pub fn get_certificate_cn(&self) -> Result<String, anyhow::Error> {
+        let (_, pem) = parse_x509_pem(self.certificate.as_bytes())
+            .map_err(|e| anyhow!("Failed to parse certificate PEM: {}", e))?;
+        let (_, cert) = X509Certificate::from_der(&pem.contents)
+            .map_err(|e| anyhow!("Failed to parse certificate DER: {}", e))?;
 
-        // If the certificate is expiring in 15 days, renew it.
-        if cp.not_after
-            <= OffsetDateTime::now_utc()
-                .checked_sub(Duration::days(-15))
-                .unwrap()
-        {
-            return Ok(true);
+        // OID 2.5.4.3 = Common Name
+        let cn_oid = x509_parser::oid_registry::OID_X509_COMMON_NAME;
+        for rdn in cert.subject().iter() {
+            for attr in rdn.iter() {
+                if attr.attr_type() == &cn_oid {
+                    return attr
+                        .attr_value()
+                        .as_str()
+                        .map(|s| s.to_string())
+                        .map_err(|e| anyhow!("Failed to read CN: {}", e));
+                }
+            }
         }
 
-        return Ok(true);
+        Err(anyhow!("Certificate has no Common Name"))
     }
 
-    /// Returns the certificate params
-    pub fn get_certificate_params(&self) -> Result<CertificateParams, anyhow::Error> {
-        let cp = CertificateParams::from_ca_cert_pem(&self.certificate)?;
+    /// Returns true if the certificate in storage is expiring within 15 days.
+    pub fn is_certificate_expiring(&self) -> Result<bool, anyhow::Error> {
+        let (_, pem) = parse_x509_pem(self.certificate.as_bytes())
+            .map_err(|e| anyhow!("Failed to parse certificate PEM: {}", e))?;
+        let (_, cert) = X509Certificate::from_der(&pem.contents)
+            .map_err(|e| anyhow!("Failed to parse certificate DER: {}", e))?;
 
-        return Ok(cp);
+        let not_after_epoch = cert.validity().not_after.timestamp();
+        let now_epoch = common::ncryptflib::rocket::Utc::now().timestamp();
+        let fifteen_days_secs: i64 = 15 * 24 * 60 * 60;
+
+        Ok(not_after_epoch <= now_epoch + fifteen_days_secs)
+    }
+
+    /// Returns true if the certificate needs re-issuance.
+    /// A certificate needs re-issuance if it is expiring or uses the old CN
+    /// format (gamertag only, without the "game:" prefix).
+    pub fn needs_certificate_reissue(&self) -> bool {
+        // Check CN format first (cheap string check)
+        match self.get_certificate_cn() {
+            Ok(cn) => {
+                if !cn.contains(':') {
+                    return true;
+                }
+            }
+            Err(_) => return true,
+        }
+
+        // Check expiry
+        self.is_certificate_expiring().unwrap_or(true)
     }
 }

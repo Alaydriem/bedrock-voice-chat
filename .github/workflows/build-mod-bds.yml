@@ -66,7 +66,46 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Pack version: $VERSION"
 
-      - name: Bundle zip
+      - name: Update manifest versions
+        working-directory: ./mods/bds
+        run: |
+          VERSION="${{ steps.pack-version.outputs.version }}"
+          ENCODED=$(node ../../.github/scripts/encode-version.js "$VERSION")
+          echo "Encoded version: $ENCODED"
+
+          # Parse encoded version into array components
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$ENCODED"
+
+          # Update both BP and RP manifests
+          node -e "
+            const fs = require('fs');
+            const major = $MAJOR, minor = $MINOR, patch = $PATCH;
+            const ver = [major, minor, patch];
+
+            for (const file of ['bp/manifest.json', 'rp/manifest.json']) {
+              const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
+
+              // Update header version
+              manifest.header.version = ver;
+
+              // Update all module versions
+              for (const mod of manifest.modules) {
+                mod.version = ver;
+              }
+
+              // Update UUID-based dependency versions (cross-references between BP/RP)
+              for (const dep of manifest.dependencies || []) {
+                if (dep.uuid) {
+                  dep.version = ver;
+                }
+              }
+
+              fs.writeFileSync(file, JSON.stringify(manifest, null, 2) + '\n');
+              console.log('Updated ' + file + ' -> [' + ver.join(', ') + ']');
+            }
+          "
+
+      - name: Bundle zips
         working-directory: ./mods/bds
         run: yarn run pack
 
@@ -74,25 +113,43 @@ jobs:
         shell: bash
         run: |
           cd mods/bds
-          ZIP_FILE=$(find . -maxdepth 1 -name "*.zip" -type f | head -n 1)
-          if [ -z "$ZIP_FILE" ]; then
-            echo "No .zip file found!"
+          BP_ZIP="bedrock-voice-chat-bp.zip"
+          RP_ZIP="bedrock-voice-chat-rp.zip"
+
+          if [ ! -f "$BP_ZIP" ]; then
+            echo "No BP zip found!"
+            exit 1
+          fi
+          if [ ! -f "$RP_ZIP" ]; then
+            echo "No RP zip found!"
             exit 1
           fi
 
-          echo "Found zip: $ZIP_FILE"
-          ls -lh "$ZIP_FILE"
+          echo "Found BP zip:"
+          ls -lh "$BP_ZIP"
+          echo "Found RP zip:"
+          ls -lh "$RP_ZIP"
 
-          # Copy to a consistent name for artifact upload
-          cp "$ZIP_FILE" ../../bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.zip
+          VERSION="${{ steps.pack-version.outputs.version }}"
+          cp "$BP_ZIP" "../../bedrock-voice-chat-bp-${VERSION}.zip"
+          cp "$RP_ZIP" "../../bedrock-voice-chat-rp-${VERSION}.zip"
 
-          echo "Prepared artifact: bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.zip"
+          echo "Prepared artifacts:"
+          echo "  bedrock-voice-chat-bp-${VERSION}.zip"
+          echo "  bedrock-voice-chat-rp-${VERSION}.zip"
 
-      - name: Upload zip artifact
+      - name: Upload BP artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bedrock-voice-chat-bds-${{ steps.pack-version.outputs.version }}
-          path: bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.zip
+          name: bedrock-voice-chat-bds-bp-${{ steps.pack-version.outputs.version }}.zip
+          path: bedrock-voice-chat-bp-${{ steps.pack-version.outputs.version }}.zip
+          retention-days: 30
+
+      - name: Upload RP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bedrock-voice-chat-bds-rp-${{ steps.pack-version.outputs.version }}.zip
+          path: bedrock-voice-chat-rp-${{ steps.pack-version.outputs.version }}.zip
           retention-days: 30
 
       - name: Output artifact information
@@ -105,7 +162,8 @@ jobs:
             echo "| ---- | ----- |"
             echo "| Version | ${{ steps.pack-version.outputs.version }} |"
             echo "| Trigger | ${{ github.event_name }} |"
-            echo "| Artifact | bedrock-voice-chat-bds-${{ steps.pack-version.outputs.version }}.zip |"
+            echo "| BP Artifact | bedrock-voice-chat-bds-bp-${{ steps.pack-version.outputs.version }}.zip |"
+            echo "| RP Artifact | bedrock-voice-chat-bds-rp-${{ steps.pack-version.outputs.version }}.zip |"
             echo "| Artifact URL | [View Run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) |"
             echo "| Retention | 30 days |"
           } >> $GITHUB_STEP_SUMMARY

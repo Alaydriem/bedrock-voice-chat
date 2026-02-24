@@ -80,6 +80,13 @@ class PaperPlayerDataProvider : PlayerDataProvider {
 
     override fun getGameType(): GameType = GameType.MINECRAFT
 
+    /**
+     * Get the world UUID from the overworld, used for audio event requests.
+     */
+    fun getWorldUuid(): String? {
+        return server?.worlds?.firstOrNull()?.uid?.toString()
+    }
+
     private fun getDimension(world: World?): Dimension {
         if (world == null) {
             return Dimension.Minecraft.OVERWORLD

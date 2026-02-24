@@ -20,6 +20,11 @@ impl Client {
         Self { ca_cert, pem }
     }
 
+    /// Returns a reference to the stored CA certificate PEM.
+    pub fn ca_cert(&self) -> &str {
+        &self.ca_cert
+    }
+
     fn get_ca_cert(&self) -> Result<Certificate, anyhow::Error> {
         let buf = self.ca_cert.as_bytes();
 

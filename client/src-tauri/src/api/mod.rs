@@ -1,3 +1,4 @@
+pub(crate) mod audio_library;
 pub(crate) mod commands;
 use common::structs::config::ApiConfig;
 use log::error;
@@ -22,6 +23,16 @@ impl Api {
             endpoint,
             client: client::Client::new(ca_cert, pem),
         }
+    }
+
+    /// Create a new Api with updated client certificate identity.
+    /// Reuses the existing endpoint and CA cert.
+    pub fn with_new_identity(&self, cert_pem: &str, key_pem: &str) -> Self {
+        Api::new(
+            self.endpoint.clone(),
+            self.client.ca_cert().to_string(),
+            format!("{}{}", cert_pem, key_pem),
+        )
     }
 
     async fn get_client(&self, fqdn: Option<&str>) -> ReqwestClient {

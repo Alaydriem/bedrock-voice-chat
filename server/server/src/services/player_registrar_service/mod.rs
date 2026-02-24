@@ -1,51 +1,22 @@
 //! Player registration service
 
+mod registered_players_cache;
+
 use std::collections::HashSet;
 use std::sync::Arc;
-use std::time::Duration;
 
 use common::ncryptflib as ncryptf;
 use common::ncryptflib::rocket::Utc;
 use common::traits::player_data::PlayerData;
 use common::Game;
 use entity::player;
-use moka::sync::Cache;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
 };
 
+pub use registered_players_cache::RegisteredPlayersCache;
+
 use crate::services::CertificateService;
-
-/// Cache of registered player names to avoid repeated database queries
-#[derive(Clone)]
-pub struct RegisteredPlayersCache {
-    cache: Cache<String, bool>,
-}
-
-impl RegisteredPlayersCache {
-    pub fn new() -> Self {
-        Self {
-            cache: Cache::builder()
-                .time_to_live(Duration::from_secs(86400)) // 1 day
-                .max_capacity(512)
-                .build(),
-        }
-    }
-
-    pub fn contains(&self, player_name: &str) -> bool {
-        self.cache.get(player_name).is_some()
-    }
-
-    pub fn insert(&self, player_name: String) {
-        self.cache.insert(player_name, true);
-    }
-}
-
-impl Default for RegisteredPlayersCache {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 /// Service for player registration logic.
 /// Creates new player records in the database with certificates.
@@ -85,10 +56,8 @@ impl PlayerRegistrarService {
     /// * `players` - List of player position data
     /// * `game_type` - The game type (Minecraft, Hytale, etc.)
     pub async fn process_players(&self, players: &[common::PlayerEnum], game_type: Game) {
-        // Collect all player names and filter out those we know are registered
         let player_names: Vec<String> = players.iter().map(|p| p.get_name().to_string()).collect();
 
-        // Filter out players already in cache
         let players_to_check: Vec<String> = player_names
             .iter()
             .filter(|name| !self.cache.contains(name))
@@ -99,7 +68,6 @@ impl PlayerRegistrarService {
             return;
         }
 
-        // Batch query the database for existing players
         match player::Entity::find()
             .filter(player::Column::Gamertag.is_in(players_to_check.clone()))
             .filter(player::Column::Game.eq(game_type.clone()))
@@ -107,24 +75,20 @@ impl PlayerRegistrarService {
             .await
         {
             Ok(existing_players) => {
-                // Collect existing player names
                 let existing_names: HashSet<String> = existing_players
                     .iter()
                     .filter_map(|p| p.gamertag.clone())
                     .collect();
 
-                // Add existing players to cache
                 for name in &existing_names {
                     self.cache.insert(name.clone());
                 }
 
-                // Find players that don't exist in DB
                 let new_players: Vec<String> = players_to_check
                     .into_iter()
                     .filter(|name| !existing_names.contains(name))
                     .collect();
 
-                // Create new player records
                 for player_name in new_players {
                     self.create_player(&player_name, &game_type).await;
                 }
@@ -147,7 +111,7 @@ impl PlayerRegistrarService {
         sgv.append(&mut signature.get_public_key());
         sgv.append(&mut signature.get_secret_key());
 
-        let (cert, key) = match self.cert_service.sign_player_cert(player_name) {
+        let (cert, key) = match self.cert_service.sign_player_cert(player_name, game_type) {
             Ok((cert, key)) => (cert, key),
             Err(e) => {
                 tracing::error!(
@@ -176,7 +140,6 @@ impl PlayerRegistrarService {
         match p.insert(self.db.as_ref()).await {
             Ok(_) => {
                 tracing::info!("Created player record for: {}", player_name);
-                // Add to cache after successful insert
                 self.cache.insert(player_name.to_string());
             }
             Err(e) => {

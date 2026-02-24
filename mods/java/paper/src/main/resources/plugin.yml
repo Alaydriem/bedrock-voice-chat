@@ -5,3 +5,12 @@ api-version: "1.21"
 description: Server-side player position tracking for proximity voice chat
 authors:
   - Charles R. Portwood II (Alaydriem)
+commands:
+  bvc:
+    description: Bedrock Voice Chat commands
+    usage: /bvc disc <name_or_id>
+    permission: bvc.disc.give
+permissions:
+  bvc.disc.give:
+    description: Allows giving BVC audio discs
+    default: op

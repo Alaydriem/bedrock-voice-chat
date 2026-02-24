@@ -1,23 +1,32 @@
 <script lang="ts">
     import { mount, onMount } from "svelte";
     import audio from "../../components/settings/pages/audio.svelte";
-    import keybinds from "../../components/settings/pages/keybinds.svelte";
     import recordings from "../../components/settings/pages/recordings.svelte";
+    import audioLibrary from "../../components/settings/pages/audioLibrary.svelte";
+    import keybinds from "../../components/settings/pages/keybinds.svelte";
     import websocket from "../../components/settings/pages/websocket.svelte";
     import about from "../../components/settings/pages/about.svelte";
     import PlatformDetector from "../../js/app/utils/PlatformDetector.ts";
 
-    export let activePage: string = "audio.svelte";
+    export let activePage: string = "about.svelte";
 
     let isMobile = false;
 
     // Page state management
-    let currentPageTitle = "Audio Settings";
+    let currentPageTitle = "About";
 
     const platformDetector = new PlatformDetector();
 
     // Available settings pages
     const settingsPages = [
+        {
+            id: "about.svelte",
+            title: "About",
+            icon: `<svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>`,
+            component: about
+        },
         {
             id: "audio.svelte",
             title: "Audio Settings",
@@ -37,6 +46,14 @@
             component: recordings
         },
         {
+            id: "audioLibrary.svelte",
+            title: "Audio Library",
+            icon: `<svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/>
+            </svg>`,
+            component: audioLibrary
+        },
+        {
             id: "keybinds.svelte",
             title: "Keybinds",
             icon: `<svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -52,19 +69,11 @@
             </svg>`,
             component: websocket
         },
-        {
-            id: "about.svelte",
-            title: "About",
-            icon: `<svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>`,
-            component: about
-        }
     ];
 
     // Reactive filtered pages - hide recordings, websocket, and keybinds on mobile
     $: visiblePages = isMobile
-        ? settingsPages.filter(p => p.id !== "recordings.svelte" && p.id !== "websocket.svelte" && p.id !== "keybinds.svelte")
+        ? settingsPages.filter(p => p.id !== "recordings.svelte" && p.id !== "audioLibrary.svelte" && p.id !== "websocket.svelte" && p.id !== "keybinds.svelte")
         : settingsPages;
 
     function mountPage(page: string, target: Document | Element | ShadowRoot) {

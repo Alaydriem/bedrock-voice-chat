@@ -132,6 +132,26 @@ export default class Dashboard extends BVCApp {
             server.setKeyring(this.keyring, currentServer);
             this.currentServerCredentials = await server.getCredentials();
 
+            // Refresh server permissions and handle certificate re-issuance
+            try {
+                const activeGame = await this.store.get<string>("active_game");
+                const freshState = await invoke<{
+                    server_permissions: { allowed: string[] };
+                    certificate?: string;
+                    certificate_key?: string;
+                }>("refresh_server_state", { game: activeGame ?? undefined });
+                if (freshState?.server_permissions) {
+                    await this.keyring.insert("server_permissions", JSON.stringify(freshState.server_permissions));
+                }
+                // Store re-issued certs in keyring for persistence across app restarts
+                if (freshState?.certificate && freshState?.certificate_key) {
+                    await this.keyring.insert("certificate", freshState.certificate);
+                    await this.keyring.insert("certificate_key", freshState.certificate_key);
+                }
+            } catch (e) {
+                warn("Failed to refresh server state, using cached permissions");
+            }
+
             const isInputStreamStopped = await invoke("is_stopped", { device: "InputDevice" }).then((stopped) => stopped as boolean);
             const isOutputStreamStopped = await invoke("is_stopped", { device: "OutputDevice" }).then((stopped) => stopped as boolean);
 

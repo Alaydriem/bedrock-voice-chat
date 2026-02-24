@@ -1,9 +1,11 @@
 pub mod position_updater;
+mod runtime_state;
 
 use crate::config::ApplicationConfig;
 use crate::rs::manager::RocketManager;
-use crate::services::{CertificateService, PlayerRegistrarService};
+use crate::services::{AudioPlaybackService, CertificateService, PlayerRegistrarService};
 use crate::stream::quic::{QuicServerManager, WebhookReceiver};
+use tokio_util::sync::CancellationToken;
 
 use anyhow::anyhow;
 use common::structs::channel::Channel;
@@ -21,18 +23,8 @@ use std::sync::{Arc, RwLock};
 use tracing::info;
 use tracing_appender::non_blocking::WorkerGuard;
 
-/// Runtime state for the server
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RuntimeState {
-    /// Server is not started
-    Stopped,
-    /// Server is starting up
-    Starting,
-    /// Server is running
-    Running,
-    /// Server is shutting down
-    ShuttingDown,
-}
+pub use sea_orm::DatabaseConnection as DbConnection;
+pub use runtime_state::RuntimeState;
 
 /// Server runtime that manages the full BVC server stack.
 /// This is the main entry point for both CLI and FFI usage.
@@ -44,6 +36,12 @@ pub struct ServerRuntime {
     webhook_receiver: Arc<RwLock<Option<WebhookReceiver>>>,
     /// Player registrar for handling player registration (populated after start)
     player_registrar: Arc<RwLock<Option<PlayerRegistrarService>>>,
+    /// Audio playback service for FFI access (populated after start)
+    audio_playback_service: Arc<RwLock<Option<Arc<AudioPlaybackService>>>>,
+    /// Database connection for FFI access (populated after start)
+    db_conn: Arc<RwLock<Option<Arc<DatabaseConnection>>>>,
+    /// Parent cancellation token for all audio playback tasks
+    playback_cancel_token: CancellationToken,
     _logger_guard: Option<WorkerGuard>,
 }
 
@@ -56,6 +54,9 @@ impl ServerRuntime {
             shutdown_flag: Arc::new(AtomicBool::new(false)),
             webhook_receiver: Arc::new(RwLock::new(None)),
             player_registrar: Arc::new(RwLock::new(None)),
+            audio_playback_service: Arc::new(RwLock::new(None)),
+            db_conn: Arc::new(RwLock::new(None)),
+            playback_cancel_token: CancellationToken::new(),
             _logger_guard: None,
         })
     }
@@ -108,11 +109,18 @@ impl ServerRuntime {
         let db_conn = self.create_database_connection().await?;
         let db_conn = Arc::new(db_conn);
 
+        // Store for FFI access
+        {
+            let mut dc = self.db_conn.write()
+                .map_err(|_| anyhow!("db_conn lock poisoned"))?;
+            *dc = Some(db_conn.clone());
+        }
+
         // Create certificate manager (caches root CA)
         let cert_manager = CertificateService::new_shared(&self.config.server.tls.certs_path)?;
 
         // Create player registrar for shared player registration logic
-        let player_registrar = PlayerRegistrarService::new(db_conn, cert_manager);
+        let player_registrar = PlayerRegistrarService::new(db_conn, cert_manager.clone());
 
         // Store player_registrar for FFI access
         {
@@ -140,6 +148,34 @@ impl ServerRuntime {
             *wr = Some(webhook_receiver.clone());
         }
 
+        // Ensure audio file storage directory exists
+        let audio_file_path = format!(
+            "{}/audio",
+            self.config.server.assets_path
+        );
+        let audio_path = std::path::Path::new(&audio_file_path);
+        if !audio_path.exists() {
+            tracing::info!("Audio directory does not exist, creating: {:?}", audio_path);
+            if let Err(e) = std::fs::create_dir_all(audio_path) {
+                tracing::warn!("Failed to create audio directory: {}", e);
+            }
+        }
+
+        // Create audio playback service
+        let audio_playback_service = Arc::new(AudioPlaybackService::new(
+            webhook_receiver.clone(),
+            audio_file_path,
+            self.playback_cancel_token.child_token(),
+            self.config.audio.max_concurrent_per_uuid,
+        ));
+
+        // Store for FFI access
+        {
+            let mut aps = self.audio_playback_service.write()
+                .map_err(|_| anyhow!("audio_playback_service lock poisoned"))?;
+            *aps = Some(audio_playback_service.clone());
+        }
+
         // Create Rocket manager
         let rocket_manager = RocketManager::new(
             self.config.clone(),
@@ -147,6 +183,9 @@ impl ServerRuntime {
             channel_cache.clone(),
             cache_manager,
             player_registrar,
+            audio_playback_service,
+            cert_manager.clone(),
+            self.config.permissions.clone(),
         );
 
         self.state = RuntimeState::Running;
@@ -192,6 +231,7 @@ impl ServerRuntime {
 
     /// Signal the server to stop gracefully
     pub fn request_shutdown(&self) {
+        self.playback_cancel_token.cancel();
         self.shutdown_flag.store(true, Ordering::SeqCst);
     }
 
@@ -203,6 +243,16 @@ impl ServerRuntime {
     /// Get a clone of the player registrar Arc for external use (FFI)
     pub fn get_player_registrar(&self) -> Arc<RwLock<Option<PlayerRegistrarService>>> {
         self.player_registrar.clone()
+    }
+
+    /// Get a clone of the audio playback service Arc for external use (FFI)
+    pub fn get_audio_playback_service(&self) -> Arc<RwLock<Option<Arc<AudioPlaybackService>>>> {
+        self.audio_playback_service.clone()
+    }
+
+    /// Get a clone of the database connection Arc for external use (FFI)
+    pub fn get_db_conn(&self) -> Arc<RwLock<Option<Arc<DatabaseConnection>>>> {
+        self.db_conn.clone()
     }
 
     /// Update player positions directly (bypasses HTTP).

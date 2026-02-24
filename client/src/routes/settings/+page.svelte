@@ -18,7 +18,7 @@
 <div id="root" class="min-h-100vh cloak flex grow bg-slate-50 dark:bg-navy-900">
   <!-- Desktop sidebar -->
   <div id="main-sidebar-container" class="sidebar print:hidden">
-    <Sidebar activePage="audio.svelte" />
+    <Sidebar activePage="about.svelte" />
   </div>
 
   <main class="main-content flex-1 settings-main-content 

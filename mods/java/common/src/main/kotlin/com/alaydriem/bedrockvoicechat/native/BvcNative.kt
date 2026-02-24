@@ -24,6 +24,8 @@ object BvcNative {
         fun bvc_server_stop(handle: Pointer): Int
         fun bvc_server_destroy(handle: Pointer): Int
         fun bvc_update_positions(handle: Pointer, gameDataJson: String): Int
+        fun bvc_audio_play(handle: Pointer, playJson: String): String?
+        fun bvc_audio_stop(handle: Pointer, eventId: String): Int
         fun bvc_get_last_error(): String?
         fun bvc_version(): String
     }
@@ -211,6 +213,34 @@ object BvcNative {
         val result = getLib().bvc_update_positions(handle, gameDataJson)
         if (result != 0) {
             logger.warn("Failed to update positions: {}", getLastError())
+        }
+        return result
+    }
+
+    /**
+     * Play audio at specific world coordinates via FFI.
+     * @param handle Server handle from createServer
+     * @param playJson JSON string containing AudioPlayRequest
+     * @return JSON string with event_id and duration_ms on success, null on failure
+     */
+    fun audioPlay(handle: Pointer, playJson: String): String? {
+        val result = getLib().bvc_audio_play(handle, playJson)
+        if (result == null) {
+            logger.warn("Failed to play audio via FFI: {}", getLastError())
+        }
+        return result
+    }
+
+    /**
+     * Stop audio playback via FFI.
+     * @param handle Server handle from createServer
+     * @param eventId The event ID to stop
+     * @return 0 on success, -1 on error
+     */
+    fun audioStop(handle: Pointer, eventId: String): Int {
+        val result = getLib().bvc_audio_stop(handle, eventId)
+        if (result != 0) {
+            logger.warn("Failed to stop audio via FFI: {}", getLastError())
         }
         return result
     }
