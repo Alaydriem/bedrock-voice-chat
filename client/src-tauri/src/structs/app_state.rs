@@ -167,6 +167,7 @@ impl AppState {
                         io.to_string()
                     );
                     store.delete(io.to_string());
+                    let _ = store.save();
                     false
                 } else {
                     true
