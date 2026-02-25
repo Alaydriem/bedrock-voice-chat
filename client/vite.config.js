@@ -9,6 +9,11 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig(async () => ({
   plugins: [tailwindcss(), sveltekit()],
 
+  build: {
+    // Android 11 WebView is Chrome ~87-90. Target Chrome 87 for safety.
+    target: ['es2020', 'chrome87'],
+  },
+
   esbuild: {
     supported: {
       'top-level-await': true //browsers can handle top-level-await features

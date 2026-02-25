@@ -1,6 +1,5 @@
 use crate::audio::types::{AudioDevice, AudioDeviceType};
-use crate::audio::{AudioActionsManager, AudioPacket, RecordingManager};
-use crate::network::NetworkPacket;
+use crate::audio::{AudioActionsManager, RecordingManager};
 use crate::{structs::app_state::AppState, AudioStreamManager};
 use common::structs::audio::StreamEvent;
 use flume::{Receiver, Sender};

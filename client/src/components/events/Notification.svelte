@@ -11,6 +11,7 @@
         <div class="flex items-center justify-between space-x-2">
           <h5 id="notification-title"class="font-medium tracking-wide text-navy-100 line-clamp-1 lg:text-base" >{title}</h5>
           <button
+            aria-label="Remove notification"
             data-notification-remove
             class="btn size-7 rounded-full p-0 text-white hover:bg-white/20 focus:bg-white/20 active:bg-white/25"
           >

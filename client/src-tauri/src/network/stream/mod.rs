@@ -12,7 +12,6 @@ use std::sync::Arc;
 use stream_manager::StreamTrait;
 use stream_manager::StreamTraitType;
 
-pub use common::structs::network::ConnectionHealth;
 use health_manager::ConnectionHealthManager;
 
 pub(crate) struct NetworkStreamManager {

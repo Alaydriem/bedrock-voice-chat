@@ -2,9 +2,6 @@
 //!
 //! All magic numbers extracted from the MP4/QuickTime specification and Apple TN2174.
 
-/// Opus frame duration in milliseconds (fixed for all sample rates)
-pub const OPUS_FRAME_DURATION_MS: u32 = 20;
-
 /// Audio frames per second for 20ms frames (1000ms / 20ms = 50)
 pub const AUDIO_FRAMES_PER_SECOND: u8 = 50;
 

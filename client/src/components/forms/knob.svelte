@@ -3,9 +3,8 @@
     import { invoke } from "@tauri-apps/api/core";
     import { onMount } from "svelte";
     import LittlePhatty from "../../../node_modules/webaudio-controls/knobs/LittlePhatty.png";
-    
+
     export let id: string = "knob";
-    export let src: string = "../../../../node_modules/webaudio-controls/knobs/LittlePhatty.png";
     export let value: number = 0;
     export let min: number = 0;
     export let max: number = 100;
@@ -22,7 +21,7 @@
             const target = e.target as HTMLInputElement;
             value = parseFloat(target.value);
             timeout = setTimeout(async () => {
-                let noiseGateSettings = await store.get("noise_gate_settings") as { 
+                let noiseGateSettings = await store.get("noise_gate_settings") as {
                     open_threshold: number,
                     close_threshold: number,
                     release_rate: number,

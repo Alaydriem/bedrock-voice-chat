@@ -1,7 +1,7 @@
 use super::resampler::AudioResampler;
 
 use super::AudioFrame;
-use crate::audio::recording::renderer::mp4::constants::OPUS_FRAME_DURATION_MS;
+use common::consts::OPUS_FRAME_DURATION_MS;
 use crate::audio::recording::{RawRecordingData, RecordingProducer};
 use crate::audio::stream::{RecoverySender, StreamRecoveryEvent};
 use crate::audio::types::{AudioDevice, AudioDeviceCpal, AudioDeviceType, BUFFER_SIZE};
@@ -227,12 +227,13 @@ impl InputStream {
                                 // Clone for error handling
                                 let recovery_tx_for_error = recovery_tx.clone();
                                 let shutdown_for_error = shutdown.clone();
-                                /// CoreAudio on iOS should use the default buffer size to
-                                /// Otherwise the InputStream fails to initialize
-                                #[cfg(target_os = "ios")]
+                                /// Mobile audio backends (CoreAudio on iOS, AAudio on Android)
+                                /// should use the default buffer size, otherwise the
+                                /// InputStream may fail to initialize or produce no audio.
+                                #[cfg(any(target_os = "ios", target_os = "android"))]
                                 let buffer_size = rodio::cpal::BufferSize::Default;
 
-                                #[cfg(not(target_os = "ios"))]
+                                #[cfg(not(any(target_os = "ios", target_os = "android")))]
                                 let buffer_size = rodio::cpal::BufferSize::Fixed(crate::audio::types::BUFFER_SIZE);
 
                                 let cpal_device = cpal_device.clone();
@@ -281,7 +282,6 @@ impl InputStream {
                                 };
 
                                 let mut callback_count = 0u64;
-                                let mut sent_count = 0u64;
                                 let mut consecutive_silent_frames: u32 = 0;
 
                                 // Trailing frame count scales with release_rate (20ms per frame at 48kHz)
@@ -394,7 +394,7 @@ impl InputStream {
                                             pcm: mono_pcm,
                                             captured_at_ms,
                                         })) {
-                                            Ok(()) => { sent_count += 1; }
+                                            Ok(()) => { }
                                             Err(_e) => {}
                                         }
                                     } else if consecutive_silent_frames < tail_frame_count {
@@ -410,7 +410,7 @@ impl InputStream {
                                             pcm: mono_pcm,
                                             captured_at_ms,
                                         })) {
-                                            Ok(()) => { sent_count += 1; }
+                                            Ok(()) => { }
                                             Err(_e) => {}
                                         }
                                     } else if callback_count % 100 == 0 {
@@ -597,12 +597,12 @@ impl InputStream {
                             }
                             _ => stored_config,
                         };
-                        /// CoreAudio on iOS should use the default buffer size to
-                        /// Otherwise the InputStream fails to initialize
-                        #[cfg(target_os = "ios")]
+                        /// Mobile audio backends (CoreAudio on iOS, AAudio on Android)
+                        /// should use the default buffer size.
+                        #[cfg(any(target_os = "ios", target_os = "android"))]
                         let buffer_size = rodio::cpal::BufferSize::Default;
 
-                        #[cfg(not(target_os = "ios"))]
+                        #[cfg(not(any(target_os = "ios", target_os = "android")))]
                         let buffer_size = rodio::cpal::BufferSize::Fixed(crate::audio::types::BUFFER_SIZE);
 
                         let original_sample_rate = config.sample_rate();

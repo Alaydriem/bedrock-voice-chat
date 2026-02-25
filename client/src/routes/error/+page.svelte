@@ -2,6 +2,29 @@
   import "../../css/app.css";
   import App from "../../js/app/app.ts";
   import { onMount } from 'svelte';
+  import { invoke } from "@tauri-apps/api/core";
+  import { stopForegroundService, isServiceRunning } from 'tauri-plugin-audio-permissions';
+  import PlatformDetector from "../../js/app/utils/PlatformDetector";
+
+  /**
+   * Tears down audio streams, network streams, and the foreground service.
+   * Called on mount so that any navigation to an error page results in a clean state.
+   */
+  async function teardown(): Promise<void> {
+    try { await invoke("stop_audio_device", { device: "InputDevice" }); } catch (_) {}
+    try { await invoke("stop_audio_device", { device: "OutputDevice" }); } catch (_) {}
+    try { await invoke("stop_network_stream"); } catch (_) {}
+
+    const platformDetector = new PlatformDetector();
+    if (await platformDetector.checkMobile()) {
+      try {
+        const status = await isServiceRunning();
+        if (status.running) {
+          await stopForegroundService();
+        }
+      } catch (_) {}
+    }
+  }
 
   // Error configuration object - add new error codes here
   const ERROR_DEFINITIONS: Record<string, {
@@ -103,10 +126,14 @@
     danger: 'btn mt-3 w-full bg-error font-medium text-white hover:bg-error-focus focus:bg-error-focus active:bg-error-focus/90'
   };
 
-  onMount(() => {
+  onMount(async () => {
     window.App = new App();
     window.dispatchEvent(new CustomEvent("app:mounted"));
     window.App.preloader();
+
+    // Stop all active streams and services
+    await teardown();
+
     // Read error code from query parameter
     const urlParams = new URLSearchParams(window.location.search);
     const errorCode = urlParams.get('code');
