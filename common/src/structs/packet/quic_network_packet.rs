@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use moka::future::Cache;
 use std::sync::Arc;
 
+use crate::structs::channel::ChannelCollection;
+
 use super::packet_type::PacketType;
 use super::packet_owner::PacketOwner;
 use super::quic_network_packet_data::QuicNetworkPacketData;
@@ -156,25 +158,11 @@ impl QuicNetworkPacket {
         };
     }
 
-    /// Helper function to get all channels a player is in
-    async fn get_player_channels(
-        player_name: &str,
-        channel_membership: &Cache<String, std::collections::HashSet<String>>,
-    ) -> Vec<String> {
-        let mut player_channels = Vec::new();
-        for (channel_id, members) in channel_membership.iter() {
-            if members.contains(player_name) {
-                player_channels.push((*channel_id).clone());
-            }
-        }
-        player_channels
-    }
-
     /// Determines if a given PacketOwner can receive this QuicNetworkPacket
     pub async fn is_receivable(
         &mut self,
         recipient: PacketOwner,
-        channel_membership: Arc<Cache<String, std::collections::HashSet<String>>>,
+        channel_collection: Arc<ChannelCollection>,
         position_data: Arc<Cache<String, crate::PlayerEnum>>,
         range: f32,
     ) -> bool {
@@ -218,11 +206,9 @@ impl QuicNetworkPacket {
                             }
                         }
 
-                        // Get channels for both players concurrently
-                        let (sender_channels, receiver_channels) = tokio::join!(
-                            Self::get_player_channels(current_player, &channel_membership),
-                            Self::get_player_channels(receiver_name, &channel_membership)
-                        );
+                        // Get channels for both players
+                        let sender_channels = channel_collection.get_player_channels(current_player);
+                        let receiver_channels = channel_collection.get_player_channels(receiver_name);
 
                         // Check if they share any channels (O(k*m) where k,m = channels per player, typically 1-2)
                         let players_in_same_channel = sender_channels.iter()

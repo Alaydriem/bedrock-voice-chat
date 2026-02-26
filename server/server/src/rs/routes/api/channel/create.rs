@@ -1,4 +1,4 @@
-use crate::stream::quic::WebhookReceiver;
+use crate::stream::quic::{CacheManager, WebhookReceiver};
 use common::structs::{
     channel::{Channel, ChannelEvents::Create},
     packet::{
@@ -7,16 +7,10 @@ use common::structs::{
 };
 use rocket::{http::Status, mtls::Certificate, response::status, serde::json::Json, State};
 
-use moka::future::Cache;
-use std::sync::Arc;
-
-/// Creates a new channel
 #[post("/", data = "<name>")]
 pub async fn channel_create<'r>(
     identity: Certificate<'r>,
-    channel_cache: &State<
-        Arc<async_mutex::Mutex<Cache<String, common::structs::channel::Channel>>>,
-    >,
+    cache_manager: &State<CacheManager>,
     webhook_receiver: &State<WebhookReceiver>,
     name: Json<String>,
 ) -> status::Custom<Option<Json<String>>> {
@@ -30,14 +24,12 @@ pub async fn channel_create<'r>(
     let channel = Channel::new(name.0.clone(), user.clone());
     let channel_id = channel.id();
     let channel_name = channel.name.clone();
-    
-    channel_cache
-        .lock_arc()
-        .await
-        .insert(channel_id.clone(), channel)
+
+    cache_manager
+        .get_channel_collection()
+        .insert(channel.clone())
         .await;
 
-    // Broadcast channel create event to all connected clients
     let packet = QuicNetworkPacket {
         owner: Some(PacketOwner {
             name: String::from("channel_api"),
@@ -57,5 +49,5 @@ pub async fn channel_create<'r>(
         tracing::error!("Failed to send channel create packet to QUIC server: {}", e);
     }
 
-    return status::Custom(Status::Ok, Some(Json(channel_id)));
+    status::Custom(Status::Ok, Some(Json(channel_id)))
 }

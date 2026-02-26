@@ -15,12 +15,9 @@ use common::structs::permission::ServerPermissions;
 use crate::config::ApplicationConfigPermissions;
 use crate::rs::pool::AppDb;
 use crate::services::{AuthService, CertificateService, PermissionService};
+use crate::stream::quic::CacheManager;
 use super::{GameHint, MtlsIdentity, RocketApiError};
 
-/// Get the current server state (permissions) for the authenticated player.
-/// If the player's certificate needs re-issuance (old CN format or expiring),
-/// a new certificate is generated and returned in the response.
-/// Auth: mTLS client certificate
 #[get("/auth/state")]
 pub async fn auth_state(
     identity: MtlsIdentity<'_>,
@@ -28,6 +25,7 @@ pub async fn auth_state(
     db: SeaOrmConnection<'_, AppDb>,
     cert_service: &State<Arc<CertificateService>>,
     perm_config: &State<ApplicationConfigPermissions>,
+    cache_manager: &State<CacheManager>,
 ) -> Result<Json<AuthStateResponse>, RocketApiError> {
     let conn = db.into_inner();
 
@@ -35,6 +33,13 @@ pub async fn auth_state(
         AuthService::player_from_certificate(&identity.0, conn, game_hint.0.as_deref())
             .await
             .map_err(|_| RocketApiError::from(ApiError::AuthFailed))?;
+
+    // Clean stale channel memberships from any previous session
+    if let Some(ref gamertag) = player_model.gamertag {
+        if let Err(e) = cache_manager.remove_player(gamertag).await {
+            tracing::error!("Failed to clean stale memberships for {}: {}", gamertag, e);
+        }
+    }
 
     let perm_service = PermissionService::new(perm_config.defaults.clone());
     let allowed = perm_service.evaluate_all(conn, player_model.id).await;

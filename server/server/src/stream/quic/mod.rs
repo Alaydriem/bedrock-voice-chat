@@ -242,7 +242,7 @@ impl QuicServerManager {
                 let mut output_stream = OutputStream::new(Some(conn_arc.clone()));
 
                 output_stream.set_caches(
-                    cache_manager.get_channel_membership(),
+                    cache_manager.get_channel_collection(),
                     cache_manager.get_player_cache(),
                     broadcast_range,
                 );
@@ -381,12 +381,16 @@ impl QuicServerManager {
                 Some(server_packet) = packet_rx.recv() => {
                     let packet = server_packet.data;
 
-                    // Extract player identity from first packet with owner and notify output stream
                     if !has_set_identity && packet.owner.is_some() {
                         let owner = packet.owner.as_ref().unwrap();
                         player_callback(owner.name.clone(), owner.client_id.clone());
                         has_set_identity = true;
                         tracing::info!("Notified output stream of player identity: {}", owner.name);
+
+                        // Clean stale channel memberships from a previous session
+                        if let Err(e) = cache_manager.remove_player(&owner.name).await {
+                            tracing::error!("Failed to clean stale memberships for {}: {}", owner.name, e);
+                        }
                     }
 
                     // Process packet with cache manager

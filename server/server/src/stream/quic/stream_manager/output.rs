@@ -1,6 +1,7 @@
 use crate::stream::quic::client_id_hash;
 use anyhow::Error;
 use bytes::Bytes;
+use common::structs::channel::ChannelCollection;
 use common::structs::packet::QuicNetworkPacket;
 use common::traits::StreamTrait;
 use common::PlayerEnum;
@@ -20,7 +21,7 @@ pub(crate) struct OutputStream {
     // Client id for enriched logging
     pub(crate) client_id: Arc<std::sync::Mutex<Option<Vec<u8>>>>,
     // Caches needed for packet filtering
-    channel_membership: Option<Arc<Cache<String, std::collections::HashSet<String>>>>,
+    channel_collection: Option<Arc<ChannelCollection>>,
     player_cache: Option<Arc<Cache<String, PlayerEnum>>>,
     broadcast_range: f32,
 }
@@ -33,7 +34,7 @@ impl OutputStream {
             is_stopped: Arc::new(AtomicBool::new(true)),
             player_id: Arc::new(std::sync::Mutex::new(None)),
             client_id: Arc::new(std::sync::Mutex::new(None)),
-            channel_membership: None,
+            channel_collection: None,
             player_cache: None,
             broadcast_range: 20.0, // Default value
         }
@@ -45,12 +46,11 @@ impl OutputStream {
 
     pub fn set_caches(
         &mut self,
-        channel_membership: Arc<Cache<String, std::collections::HashSet<String>>>,
+        channel_collection: Arc<ChannelCollection>,
         player_cache: Arc<Cache<String, PlayerEnum>>,
         broadcast_range: f32,
     ) {
-        // Set up caches for packet filtering
-        self.channel_membership = Some(channel_membership);
+        self.channel_collection = Some(channel_collection);
         self.player_cache = Some(player_cache);
         self.broadcast_range = broadcast_range;
     }
@@ -92,8 +92,8 @@ impl OutputStream {
         };
 
         // If we don't have caches set up, use simple filtering
-        let (channel_membership, player_cache) = match (&self.channel_membership, &self.player_cache) {
-            (Some(cm), Some(pc)) => (cm.clone(), pc.clone()),
+        let (channel_collection, player_cache) = match (&self.channel_collection, &self.player_cache) {
+            (Some(cc), Some(pc)) => (cc.clone(), pc.clone()),
             _ => {
                 // Fallback to simple self-filtering if caches aren't available
                 match &packet.owner {
@@ -111,7 +111,7 @@ impl OutputStream {
 
         // Use the existing packet filtering logic
         packet
-            .is_receivable(recipient, channel_membership, player_cache, self.broadcast_range)
+            .is_receivable(recipient, channel_collection, player_cache, self.broadcast_range)
             .await
     }
 }

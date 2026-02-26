@@ -1584,13 +1584,13 @@ tapable@^2.3.0:
 
 "tauri-plugin-audio-permissions@git+https://github.com/charlesportwoodii/tauri-plugin-audio-permissions.git":
   version "0.1.2"
-  resolved "git+ssh://git@github.com/charlesportwoodii/tauri-plugin-audio-permissions.git#26f2dbaa8f7303fa49a13550d3844499f227cec7"
+  resolved "git+https://github.com/charlesportwoodii/tauri-plugin-audio-permissions.git#26f2dbaa8f7303fa49a13550d3844499f227cec7"
   dependencies:
     "@tauri-apps/api" "^2"
 
 "tauri-plugin-keyring@git+https://github.com/charlesportwoodii/tauri-plugin-keyring.git#master":
   version "0.1.0"
-  resolved "git+ssh://git@github.com/charlesportwoodii/tauri-plugin-keyring.git#c3b5cca6c750e11d5cbe1d4e538d69f699407f95"
+  resolved "git+https://github.com/charlesportwoodii/tauri-plugin-keyring.git#c3b5cca6c750e11d5cbe1d4e538d69f699407f95"
   dependencies:
     "@tauri-apps/api" "^2.0.0"
     "@tauri-apps/plugin-log" "^2.7.0"
@@ -1711,7 +1711,7 @@ watchpack@^2.5.1:
 
 "webaudio-controls@git+https://github.com/g200kg/webaudio-controls.git#master":
   version "2.1.2"
-  resolved "git+ssh://git@github.com/g200kg/webaudio-controls.git#282610abc14e0ab3c6273a0b977ae5d6677f426c"
+  resolved "git+https://github.com/g200kg/webaudio-controls.git#282610abc14e0ab3c6273a0b977ae5d6677f426c"
 
 webpack-sources@^3.3.3:
   version "3.3.4"

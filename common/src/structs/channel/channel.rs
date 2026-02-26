@@ -36,6 +36,11 @@ impl Channel {
         Ok(())
     }
 
+    /// Returns true if the player is in this channel
+    pub fn contains(&self, name: &str) -> bool {
+        self.players.iter().any(|p| p == name)
+    }
+
     /// Removes a player from the channel
     pub fn remove_player(&mut self, name: String) -> Result<(), anyhow::Error> {
         if self.players.contains(&name) {

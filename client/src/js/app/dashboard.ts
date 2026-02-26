@@ -64,6 +64,19 @@ export default class Dashboard extends BVCApp {
         });
         this.platformDetector = new PlatformDetector();
 
+        // Stop any recording that was active before a page refresh.
+        // The Tauri backend persists across webview reloads, so a recording
+        // could still be running silently from the previous session.
+        try {
+            const wasRecording = await invoke<boolean>('is_recording');
+            if (wasRecording) {
+                await invoke('stop_recording');
+                info("Stopped recording that was active before page refresh");
+            }
+        } catch (e) {
+            warn(`Failed to check/stop recording on refresh: ${e}`);
+        }
+
         // Check onboarding status before proceeding
         this.onboarding = new Onboarding(this.store);
         await this.onboarding.initialize();
