@@ -54,6 +54,7 @@ class FabricMod : ModInitializer {
 
         // Initialize embedded server if configured
         if (config.useEmbeddedServer) {
+            minimumPlayers = 1
             embeddedServer = BvcServerManager(config, configProvider)
             if (!embeddedServer!!.start()) {
                 logger.error("Failed to start embedded server - falling back to disabled state")

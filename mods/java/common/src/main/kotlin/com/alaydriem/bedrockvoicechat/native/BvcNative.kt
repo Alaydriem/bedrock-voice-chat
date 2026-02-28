@@ -24,8 +24,9 @@ object BvcNative {
         fun bvc_server_stop(handle: Pointer): Int
         fun bvc_server_destroy(handle: Pointer): Int
         fun bvc_update_positions(handle: Pointer, gameDataJson: String): Int
-        fun bvc_audio_play(handle: Pointer, playJson: String): String?
+        fun bvc_audio_play(handle: Pointer, playJson: String): Pointer?
         fun bvc_audio_stop(handle: Pointer, eventId: String): Int
+        fun bvc_free_string(ptr: Pointer)
         fun bvc_get_last_error(): String?
         fun bvc_version(): String
     }
@@ -224,11 +225,14 @@ object BvcNative {
      * @return JSON string with event_id and duration_ms on success, null on failure
      */
     fun audioPlay(handle: Pointer, playJson: String): String? {
-        val result = getLib().bvc_audio_play(handle, playJson)
-        if (result == null) {
+        val resultPtr = getLib().bvc_audio_play(handle, playJson)
+        if (resultPtr == null) {
             logger.warn("Failed to play audio via FFI: {}", getLastError())
+            return null
         }
-        return result
+        val jsonString = resultPtr.getString(0)
+        getLib().bvc_free_string(resultPtr)
+        return jsonString
     }
 
     /**

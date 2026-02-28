@@ -50,6 +50,7 @@ class HytalePlugin(init: JavaPluginInit) : JavaPlugin(init) {
 
         // Initialize embedded server if configured
         if (modConfig.useEmbeddedServer) {
+            minimumPlayers = 1
             embeddedServer = BvcServerManager(modConfig, configProvider)
             if (!embeddedServer!!.start()) {
                 logger.at(Level.SEVERE).log("Failed to start embedded server - falling back to disabled state")
