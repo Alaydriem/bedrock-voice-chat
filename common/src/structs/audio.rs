@@ -281,10 +281,18 @@ impl Into<SupportedStreamConfigRange> for StreamConfig {
 #[cfg(feature = "audio")]
 impl Into<rodio::cpal::StreamConfig> for StreamConfig {
     fn into(self) -> rodio::cpal::StreamConfig {
+        // Mobile audio backends (AAudio, CoreAudio) should use the default
+        // buffer size to avoid stream initialization failures.
+        #[cfg(any(target_os = "ios", target_os = "android"))]
+        let buffer_size = rodio::cpal::BufferSize::Default;
+
+        #[cfg(not(any(target_os = "ios", target_os = "android")))]
+        let buffer_size = rodio::cpal::BufferSize::Fixed(BUFFER_SIZE);
+
         rodio::cpal::StreamConfig {
             channels: self.channels as ChannelCount,
             sample_rate: self.sample_rate,
-            buffer_size: rodio::cpal::BufferSize::Fixed(BUFFER_SIZE),
+            buffer_size,
         }
     }
 }

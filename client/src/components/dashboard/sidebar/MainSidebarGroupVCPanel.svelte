@@ -17,7 +17,6 @@
 
     export let playerManager: PlayerManager;
     export let channelManager: ChannelManager;
-    export let store: Store;
     export let serverUrl: string;
     export let onClose: (() => void) | undefined = undefined;
 

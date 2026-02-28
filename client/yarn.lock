@@ -670,15 +670,10 @@
     "@tailwindcss/oxide" "4.1.18"
     tailwindcss "4.1.18"
 
-"@tauri-apps/api@^2", "@tauri-apps/api@^2.10.1":
+"@tauri-apps/api@^2", "@tauri-apps/api@^2.0.0", "@tauri-apps/api@^2.10.1", "@tauri-apps/api@^2.8.0":
   version "2.10.1"
   resolved "https://registry.yarnpkg.com/@tauri-apps/api/-/api-2.10.1.tgz#57c1bae6114ec33d977eb2b50dfefc25fa84fc93"
   integrity sha512-hKL/jWf293UDSUN09rR69hrToyIXBb8CjGaWC7gfinvnQrBVvnLr08FeFi38gxtugAVyVcTa5/FD/Xnkb1siBw==
-
-"@tauri-apps/api@^2.0.0", "@tauri-apps/api@^2.8.0":
-  version "2.9.1"
-  resolved "https://registry.yarnpkg.com/@tauri-apps/api/-/api-2.9.1.tgz#e539bfa437e53864fd5e7ed0f28e8217fbc74de1"
-  integrity sha512-IGlhP6EivjXHepbBic618GOmiWe4URJiIeZFlB7x3czM0yDHHYviH1Xvoiv4FefdkQtn6v7TuwWCRfOGdnVUGw==
 
 "@tauri-apps/cli-darwin-arm64@2.9.6":
   version "2.9.6"
@@ -1740,7 +1735,7 @@ tapable@^2.2.0:
 
 "tauri-plugin-audio-permissions@git+https://github.com/charlesportwoodii/tauri-plugin-audio-permissions.git":
   version "0.1.2"
-  resolved "git+https://github.com/charlesportwoodii/tauri-plugin-audio-permissions.git#0e455e242e5fca5c28c349416473d0fe1b3dda0a"
+  resolved "git+https://github.com/charlesportwoodii/tauri-plugin-audio-permissions.git#26f2dbaa8f7303fa49a13550d3844499f227cec7"
   dependencies:
     "@tauri-apps/api" "^2"
 

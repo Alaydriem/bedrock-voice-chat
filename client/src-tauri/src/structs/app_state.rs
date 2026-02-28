@@ -113,6 +113,7 @@ impl AppState {
                 "display_name": device.display_name
             }),
         );
+        let _ = self.store.save();
 
         // Update the current state
         match device.io {

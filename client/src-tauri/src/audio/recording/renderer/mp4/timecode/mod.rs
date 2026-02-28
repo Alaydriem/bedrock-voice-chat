@@ -39,8 +39,8 @@ mod user_data;
 mod tests;
 
 pub use sample::TimecodeSample;
-pub use track::{TimecodeTrack, TimecodeTrackBuilder};
-pub use user_data::{SessionMetadata, UserDataBox};
+pub use track::TimecodeTrack;
+pub use user_data::UserDataBox;
 
 use crate::audio::recording::renderer::stream::opus::OpusStreamInfo;
 use crate::audio::recording::renderer::mp4::constants::AUDIO_FRAMES_PER_SECOND;

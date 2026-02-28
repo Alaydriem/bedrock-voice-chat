@@ -34,7 +34,7 @@ import {
   PermissionType,
   isServiceRunning,
   type ServiceResponse,
-  type ServiceStatusResponse
+  type ServiceStatusResponse,
 } from 'tauri-plugin-audio-permissions';
 
 declare global {
@@ -160,7 +160,12 @@ export default class Dashboard extends BVCApp {
                 // application is backgrounded.
                 const isServiceRunningResult: ServiceStatusResponse = await isServiceRunning();
                 if (!isServiceRunningResult.running) {
-                    const serviceResult: ServiceResponse = await startForegroundService();
+                    const serviceResult: ServiceResponse = await startForegroundService({
+                        onPermissionRevoked: (event) => {
+                            warn(`Permission revoked: ${event.permissionType}`);
+                            window.location.href = "/error?code=PERM1";
+                        }
+                    });
 
                     if (!serviceResult.started) {
                         warn("Foreground service could not be started.");
