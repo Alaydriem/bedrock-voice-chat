@@ -24,15 +24,15 @@
   "bundle": {
     "android": {
       "minSdkVersion": 30,
-      "versionCode": 1000108
+      "versionCode": 1000508
     },
     "iOS": {
       "minimumSystemVersion": "26.0",
-      "bundleVersion": "1000108",
+      "bundleVersion": "1000508",
       "infoPlist": "./Info.ios.plist"
     },
     "macOS": {
-      "bundleVersion": "1000108",
+      "bundleVersion": "1000508",
       "infoPlist": "./Info.macos.plist"
     },
     "createUpdaterArtifacts": true,

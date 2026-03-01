@@ -7,8 +7,8 @@
  *   node patch-apple-plists.js --plist <path> ...   # patches only specified files
  *
  * Sets:
- *   CFBundleShortVersionString → encodeModVersion (e.g. "1.0.507")
- *   CFBundleVersion            → calculateVersionCode (e.g. "1000107")
+ *   CFBundleShortVersionString → encodeModVersion (e.g. "1.0.508")
+ *   CFBundleVersion            → calculateVersionCode (e.g. "1000508")
  */
 
 const fs = require('fs');
@@ -17,33 +17,6 @@ const path = require('path');
 // ---------------------------------------------------------------------------
 // Version encoding (same logic as patch-versions.js)
 // ---------------------------------------------------------------------------
-
-/**
- * Calculate Android/Apple versionCode from semantic version
- * Formula: major * 1000000 + minor * 10000 + patch * 1000 + type * 100 + prerelease_num
- * Type values: 0=alpha, 1=beta, 2=rc, 3=release
- */
-function calculateVersionCode(version) {
-  const [core, prerelease] = version.split('-');
-  const [major = 0, minor = 0, patch = 0] = core.split('.').map(Number);
-
-  let type = 3; // release
-  let prereleaseNum = 0;
-
-  if (prerelease) {
-    const match = prerelease.match(/^(alpha|beta|rc)\.?(\d+)?$/);
-    if (match) {
-      const channel = match[1];
-      prereleaseNum = parseInt(match[2]) || 1;
-
-      if (channel === 'alpha') type = 0;
-      else if (channel === 'beta') type = 1;
-      else if (channel === 'rc') type = 2;
-    }
-  }
-
-  return major * 1000000 + minor * 10000 + patch * 1000 + type * 100 + prereleaseNum;
-}
 
 /**
  * Encode semantic version to monotonic 3-component version
@@ -71,6 +44,15 @@ function encodeModVersion(version) {
 
   const encodedPatch = patch * 1000 + channel * 100 + prereleaseNum;
   return { major, minor, encodedPatch };
+}
+
+/**
+ * Flatten the mod encoding into a single integer for Apple CFBundleVersion
+ * Formula: major * 1000000 + minor * 10000 + encodedPatch
+ */
+function calculateVersionCode(version) {
+  const { major, minor, encodedPatch } = encodeModVersion(version);
+  return major * 1000000 + minor * 10000 + encodedPatch;
 }
 
 // ---------------------------------------------------------------------------

@@ -19,6 +19,11 @@ on:
         required: false
         default: ''
         type: string
+      testflight_upload:
+        description: 'Upload signed pkg to TestFlight. Requires release build mode.'
+        required: false
+        default: false
+        type: boolean
   workflow_dispatch:
     inputs:
       build_mode:
@@ -29,6 +34,11 @@ on:
         options:
           - debug
           - release
+      testflight_upload:
+        description: 'Upload to TestFlight (release only)'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   build-macos:
@@ -68,7 +78,7 @@ jobs:
         run: yarn install --frozen-lockfile
 
       - name: Build macOS client (debug)
-        if: github.event_name == 'pull_request' || inputs.build_mode == 'debug' || inputs.build_mode == '' || inputs.build_mode == null
+        if: github.event_name == 'pull_request' || inputs.build_mode != 'release'
         working-directory: ./client
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -96,10 +106,93 @@ jobs:
           node ../.github/scripts/patch-apple-plists.js \
             --plist "../target/$BUILD_MODE/bundle/macos/Bedrock Voice Chat.app/Contents/Info.plist"
 
+      - name: Install Apple certificates and provisioning profile
+        if: >-
+          github.event_name != 'pull_request' &&
+          inputs.build_mode == 'release'
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_INSTALLER_CERTIFICATE_BASE64: ${{ secrets.APPLE_INSTALLER_CERTIFICATE_BASE64 }}
+          APPLE_INSTALLER_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          MACOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.MACOS_PROVISIONING_PROFILE_BASE64 }}
+          KEYCHAIN_PASSWORD: ${{ github.run_id }}
+        run: |
+          CERT_PATH=$RUNNER_TEMP/apple_distribution.p12
+          INSTALLER_CERT_PATH=$RUNNER_TEMP/installer_distribution.p12
+          PP_PATH=$RUNNER_TEMP/macos_profile.provisionprofile
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+
+          # Decode certificates and provisioning profile from secrets
+          echo -n "$APPLE_CERTIFICATE_BASE64" | base64 --decode -o $CERT_PATH
+          echo -n "$APPLE_INSTALLER_CERTIFICATE_BASE64" | base64 --decode -o $INSTALLER_CERT_PATH
+          echo -n "$MACOS_PROVISIONING_PROFILE_BASE64" | base64 --decode -o $PP_PATH
+
+          # Create temporary keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          # Import Apple Distribution certificate (for signing the .app)
+          security import $CERT_PATH -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          # Import Mac Installer Distribution certificate (for signing the .pkg)
+          security import $INSTALLER_CERT_PATH -P "$APPLE_INSTALLER_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+
+          # Embed provisioning profile in the .app bundle
+          APP_DIR="../target/release/bundle/macos/Bedrock Voice Chat.app"
+          cp $PP_PATH "$APP_DIR/Contents/embedded.provisionprofile"
+
+          echo "Certificates and provisioning profile installed successfully"
+
+      - name: Sign macOS app
+        if: >-
+          github.event_name != 'pull_request' &&
+          inputs.build_mode == 'release'
+        working-directory: ./client
+        env:
+          KEYCHAIN_PATH: ${{ runner.temp }}/app-signing.keychain-db
+        run: |
+          APP_DIR="../target/release/bundle/macos/Bedrock Voice Chat.app"
+          ENTITLEMENTS="src-tauri/Entitlements.macos.plist"
+
+          echo "Signing .app with Apple Distribution certificate..."
+
+          # Sign the .app bundle with entitlements
+          codesign --deep --force --verify --verbose \
+            --sign "Apple Distribution" \
+            --entitlements "$ENTITLEMENTS" \
+            --options runtime \
+            "$APP_DIR"
+
+          echo "Verifying signature..."
+          codesign --verify --deep --strict --verbose=2 "$APP_DIR"
+
+          echo "macOS .app signed successfully"
+
+      - name: Create and sign installer package
+        if: >-
+          github.event_name != 'pull_request' &&
+          inputs.build_mode == 'release'
+        working-directory: ./client
+        run: |
+          APP_DIR="../target/release/bundle/macos/Bedrock Voice Chat.app"
+
+          echo "Creating signed installer .pkg..."
+          productbuild \
+            --sign "3rd Party Mac Developer Installer" \
+            --component "$APP_DIR" /Applications \
+            "bvc-macos-release.pkg"
+
+          echo "=== Installer package ==="
+          ls -la "bvc-macos-release.pkg"
+          echo "macOS .pkg created and signed successfully"
+
       - name: Prepare macOS artifacts
         working-directory: ./client
         run: |
-          # Determine actual build mode used
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             BUILD_MODE="debug"
           elif [ "${{ inputs.build_mode }}" = "release" ]; then
@@ -113,7 +206,6 @@ jobs:
 
           if [ -d "$APP_DIR" ]; then
             echo "Found .app bundle at: $APP_DIR"
-            # Zip the .app bundle (it's a directory) for upload
             cd "../target/$BUILD_MODE/bundle/macos"
             zip -r -y "../../../../client/bvc-macos-$BUILD_MODE.app.zip" "Bedrock Voice Chat.app"
             cd "../../../../client"
@@ -126,14 +218,40 @@ jobs:
             exit 1
           fi
 
-      - name: Upload macOS artifacts
+      - name: Upload signed macOS pkg artifact
+        if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bvc-macos-release-signed-pkg
+          path: client/bvc-macos-release.pkg
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Upload macOS app.zip artifact
         uses: actions/upload-artifact@v4
         with:
           name: bvc-macos-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
           path: client/bvc-macos-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}.app.zip
           retention-days: 30
 
-      - name: Output artifact information
+      - name: Upload to TestFlight
+        if: >-
+          github.event_name != 'pull_request' &&
+          inputs.testflight_upload == true &&
+          inputs.build_mode == 'release'
+        uses: apple-actions/upload-testflight-build@v3
+        with:
+          app-path: client/bvc-macos-release.pkg
+          issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
+          api-key-id: ${{ secrets.APPSTORE_API_KEY_ID }}
+          api-private-key: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+
+      - name: Clean up keychain
+        if: always()
+        run: |
+          security delete-keychain $RUNNER_TEMP/app-signing.keychain-db 2>/dev/null || true
+
+      - name: Build summary
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             BUILD_MODE="debug"
@@ -149,7 +267,8 @@ jobs:
             echo "| ---- | ----- |"
             echo "| Build Mode | $BUILD_MODE |"
             echo "| Trigger | ${{ github.event_name }} |"
-            echo "| Artifact | bvc-macos-$BUILD_MODE.app.zip |"
-            echo "| Artifact URL | [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |"
-            echo "| Retention | 30 days |"
+            echo "| Target | aarch64-apple-darwin |"
+            echo "| Apple Signed | ${{ inputs.build_mode == 'release' && github.event_name != 'pull_request' }} |"
+            echo "| TestFlight Upload | ${{ inputs.testflight_upload || false }} |"
+            echo "| Artifact (.app.zip) | bvc-macos-$BUILD_MODE.app.zip |"
           } >> $GITHUB_STEP_SUMMARY

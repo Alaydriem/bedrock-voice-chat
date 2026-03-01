@@ -178,7 +178,20 @@ jobs:
       play_store_track: ${{ !inputs.dry_run && (github.ref == 'refs/heads/beta' && 'beta' || 'production') || '' }}
     secrets: inherit
 
-  # Job 5: Build Windows client (release mode)
+  # Job 5: Build iOS client (release mode, signed + TestFlight upload)
+  build-ios:
+    name: Build iOS (release)
+    needs: prepare-release
+    if: needs.prepare-release.outputs.new_release == 'true'
+    uses: ./.github/workflows/build-ios.yml
+    with:
+      build_mode: release
+      ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
+      version: ${{ needs.prepare-release.outputs.new_version }}
+      testflight_upload: ${{ !inputs.dry_run }}
+    secrets: inherit
+
+  # Job 6: Build Windows client (release mode)
   build-client:
     name: Build Windows (release)
     needs: prepare-release
@@ -190,7 +203,7 @@ jobs:
       version: ${{ needs.prepare-release.outputs.new_version }}
     secrets: inherit
 
-  # Job 6: Build macOS client (release mode)
+  # Job 6: Build macOS client (release mode, signed + TestFlight upload)
   build-macos-client:
     name: Build macOS (release)
     needs: prepare-release
@@ -200,9 +213,10 @@ jobs:
       build_mode: release
       ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
       version: ${{ needs.prepare-release.outputs.new_version }}
+      testflight_upload: ${{ !inputs.dry_run }}
     secrets: inherit
 
-  # Job 7: Build Fabric Mod
+  # Job 8: Build Fabric Mod
   build-mod-fabric:
     name: Build Fabric Mod
     needs: prepare-mods-release
@@ -213,7 +227,7 @@ jobs:
       artifact_run_id: ${{ github.run_id }}
     secrets: inherit
 
-  # Job 8: Build Paper Plugin
+  # Job 9: Build Paper Plugin
   build-mod-paper:
     name: Build Paper Plugin
     needs: prepare-mods-release
@@ -224,7 +238,7 @@ jobs:
       artifact_run_id: ${{ github.run_id }}
     secrets: inherit
 
-  # Job 9: Build Hytale Plugin
+  # Job 10: Build Hytale Plugin
   build-mod-hytale:
     name: Build Hytale Plugin
     needs: prepare-mods-release
@@ -235,7 +249,7 @@ jobs:
       artifact_run_id: ${{ github.run_id }}
     secrets: inherit
 
-  # Job 10: Build BDS Pack
+  # Job 11: Build BDS Pack
   build-mod-bds:
     name: Build BDS Pack
     needs: prepare-mods-release
@@ -245,11 +259,11 @@ jobs:
       version: ${{ needs.prepare-mods-release.outputs.new_release_version }}
     secrets: inherit
 
-  # Job 11: Upload client/server release assets to GitHub
+  # Job 12: Upload client/server release assets to GitHub
   upload-assets:
     name: Upload Release Assets
-    needs: [prepare-release, build-server, build-android, build-client, build-macos-client]
-    if: always() && needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false && (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-client.result == 'success' || needs.build-macos-client.result == 'success')
+    needs: [prepare-release, build-server, build-android, build-ios, build-client, build-macos-client]
+    if: always() && needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false && (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-ios.result == 'success' || needs.build-client.result == 'success' || needs.build-macos-client.result == 'success')
     runs-on: ubuntu-latest
     steps:
       - name: Generate GitHub App token
@@ -299,9 +313,19 @@ jobs:
             cp "./artifacts/bvc-android-release-signed-apk/bvc-android-release-signed.apk" ./release-files/bvc-android-${VERSION}.apk
           fi
 
-          # macOS client
+          # iOS signed IPA
+          if [ -f "./artifacts/bvc-ios-release-signed-ipa/bvc-ios-release.ipa" ]; then
+            cp "./artifacts/bvc-ios-release-signed-ipa/bvc-ios-release.ipa" ./release-files/bvc-ios-${VERSION}.ipa
+          fi
+
+          # macOS client (.app.zip for direct download)
           if [ -f "./artifacts/bvc-macos-release/bvc-macos-release.app.zip" ]; then
             cp "./artifacts/bvc-macos-release/bvc-macos-release.app.zip" ./release-files/bvc-client-macos-arm64.app.zip
+          fi
+
+          # macOS signed pkg (for App Store / TestFlight)
+          if [ -f "./artifacts/bvc-macos-release-signed-pkg/bvc-macos-release.pkg" ]; then
+            cp "./artifacts/bvc-macos-release-signed-pkg/bvc-macos-release.pkg" ./release-files/bvc-macos-${VERSION}.pkg
           fi
 
           echo "=== Release files prepared ==="
@@ -337,7 +361,7 @@ jobs:
           echo "- \`ghcr.io/alaydriem/bedrock-voice-chat/server:v${VERSION}\`" >> $GITHUB_STEP_SUMMARY
           echo "- \`ghcr.io/alaydriem/bedrock-voice-chat/server:latest\`" >> $GITHUB_STEP_SUMMARY
 
-  # Job 12: Publish Fabric to Modrinth
+  # Job 13: Publish Fabric to Modrinth
   publish-modrinth-fabric:
     name: Publish Fabric to Modrinth
     needs: [prepare-mods-release, build-mod-fabric]
@@ -377,7 +401,7 @@ jobs:
             1.21.11
           channel: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}
 
-  # Job 13: Publish Paper to Modrinth
+  # Job 14: Publish Paper to Modrinth
   publish-modrinth-paper:
     name: Publish Paper to Modrinth
     needs: [prepare-mods-release, build-mod-paper]
@@ -414,7 +438,7 @@ jobs:
             1.21.11
           channel: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}
 
-  # Job 14: Publish Hytale to CurseForge
+  # Job 15: Publish Hytale to CurseForge
   publish-curseforge-hytale:
     name: Publish Hytale to CurseForge
     needs: [prepare-mods-release, build-mod-hytale]
@@ -445,7 +469,7 @@ jobs:
           display_name: Bedrock Voice Chat ${{ needs.prepare-mods-release.outputs.new_release_version }}
           release_type: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}
 
-  # Job 15: Publish BDS to CurseForge
+  # Job 16: Publish BDS to CurseForge
   publish-curseforge-bds:
     name: Publish BDS to CurseForge
     needs: [prepare-mods-release, build-mod-bds]
@@ -482,7 +506,7 @@ jobs:
           game_versions: Bedrock
           release_type: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}
 
-  # Job 16: Upload mod artifacts to mods GitHub Release
+  # Job 17: Upload mod artifacts to mods GitHub Release
   upload-mod-release-assets:
     name: Upload Mod Release Assets
     needs: [prepare-mods-release, build-mod-fabric, build-mod-paper, build-mod-hytale, build-mod-bds]

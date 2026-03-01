@@ -23,38 +23,12 @@ if (!version) {
 }
 
 /**
- * Calculate Android versionCode from semantic version
- * Formula: major * 1000000 + minor * 10000 + patch * 1000 + type * 100 + prerelease_num
- *
- * Type values: 1=beta, 2=rc, 3=release
- * This ensures: beta.N < beta.N+1 < release < next_patch.beta.1
- */
-function calculateVersionCode(version) {
-  const [core, prerelease] = version.split('-');
-  const [major = 0, minor = 0, patch = 0] = core.split('.').map(Number);
-
-  let type = 3; // release
-  let prereleaseNum = 0;
-
-  if (prerelease) {
-    const match = prerelease.match(/^(alpha|beta|rc)\.?(\d+)?$/);
-    if (match) {
-      const channel = match[1];
-      prereleaseNum = parseInt(match[2]) || 1;
-
-      if (channel === 'alpha') type = 0;
-      else if (channel === 'beta') type = 1;
-      else if (channel === 'rc') type = 2;
-    }
-  }
-
-  return major * 1000000 + minor * 10000 + patch * 1000 + type * 100 + prereleaseNum;
-}
-
-/**
- * Encode semantic version to monotonic 3-component version for mods
+ * Encode semantic version to monotonic 3-component version
  * Formula: major.minor.(patch*1000 + channel*100 + prerelease)
  * Channels: 1=alpha, 5=beta, 8=rc, 9=stable
+ *
+ * This is the canonical encoding used by mods, Apple CFBundleShortVersionString,
+ * and (when flattened) Android versionCode and Apple CFBundleVersion.
  */
 function encodeModVersion(version) {
   const [core, prerelease] = version.split('-');
@@ -77,6 +51,18 @@ function encodeModVersion(version) {
 
   const encodedPatch = patch * 1000 + channel * 100 + prereleaseNum;
   return { major, minor, encodedPatch };
+}
+
+/**
+ * Flatten the mod encoding into a single integer for Android versionCode / Apple CFBundleVersion
+ * Formula: major * 1000000 + minor * 10000 + encodedPatch
+ *
+ * Uses the same channel values as encodeModVersion (1=alpha, 5=beta, 8=rc, 9=stable).
+ * Example: 1.0.0-beta.8 → encodeModVersion gives 1.0.508 → flattened: 1000508
+ */
+function calculateVersionCode(version) {
+  const { major, minor, encodedPatch } = encodeModVersion(version);
+  return major * 1000000 + minor * 10000 + encodedPatch;
 }
 
 /**
