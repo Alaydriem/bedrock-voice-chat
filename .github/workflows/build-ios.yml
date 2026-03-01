@@ -105,6 +105,7 @@ jobs:
           node ../.github/scripts/patch-apple-plists.js
 
       - name: Install Apple certificate and provisioning profile
+        id: install-signing
         if: >-
           github.event_name != 'pull_request' &&
           inputs.build_mode == 'release'
@@ -132,10 +133,15 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
           security list-keychain -d user -s $KEYCHAIN_PATH
 
-          # Install provisioning profile
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/
+          # Extract provisioning profile UUID and install with that name
+          PP_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" /dev/stdin <<< \
+            "$(security cms -D -i $PP_PATH)")
+          echo "Provisioning profile UUID: $PP_UUID"
 
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/${PP_UUID}.mobileprovision
+
+          echo "pp_uuid=$PP_UUID" >> "$GITHUB_OUTPUT"
           echo "Certificate and provisioning profile installed successfully"
 
       - name: Configure code signing
@@ -145,19 +151,38 @@ jobs:
         working-directory: ./client
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          PP_UUID: ${{ steps.install-signing.outputs.pp_uuid }}
         run: |
-          echo "Configuring code signing..."
+          echo "Configuring manual code signing..."
           PBXPROJ="src-tauri/gen/apple/bedrock-voice-chat-client.xcodeproj/project.pbxproj"
+
+          # Switch to manual signing
+          sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' "$PBXPROJ"
 
           # Set the development team
           sed -i '' 's/DEVELOPMENT_TEAM = "[^"]*"/DEVELOPMENT_TEAM = "'"$APPLE_TEAM_ID"'"/g' "$PBXPROJ"
-
-          # If DEVELOPMENT_TEAM isn't present, add it after PRODUCT_BUNDLE_IDENTIFIER
           if ! grep -q "DEVELOPMENT_TEAM" "$PBXPROJ"; then
             sed -i '' 's/PRODUCT_BUNDLE_IDENTIFIER = "com.alaydriem.bvc.client";/PRODUCT_BUNDLE_IDENTIFIER = "com.alaydriem.bvc.client";\n\t\t\t\tDEVELOPMENT_TEAM = "'"$APPLE_TEAM_ID"'";/g' "$PBXPROJ"
           fi
 
-          echo "Code signing configured with team: $APPLE_TEAM_ID"
+          # Set code signing identity to Apple Distribution
+          sed -i '' 's/CODE_SIGN_IDENTITY = "[^"]*"/CODE_SIGN_IDENTITY = "Apple Distribution"/g' "$PBXPROJ"
+          if ! grep -q "CODE_SIGN_IDENTITY" "$PBXPROJ"; then
+            sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Manual;\n\t\t\t\tCODE_SIGN_IDENTITY = "Apple Distribution";/g' "$PBXPROJ"
+          fi
+
+          # Set provisioning profile UUID
+          sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = "[^"]*"/PROVISIONING_PROFILE_SPECIFIER = ""/g' "$PBXPROJ"
+          if ! grep -q "PROVISIONING_PROFILE" "$PBXPROJ"; then
+            sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Manual;\n\t\t\t\tPROVISIONING_PROFILE = "'"$PP_UUID"'";/g' "$PBXPROJ"
+          else
+            sed -i '' 's/PROVISIONING_PROFILE = "[^"]*"/PROVISIONING_PROFILE = "'"$PP_UUID"'"/g' "$PBXPROJ"
+          fi
+
+          echo "Manual code signing configured:"
+          echo "  Team: $APPLE_TEAM_ID"
+          echo "  Identity: Apple Distribution"
+          echo "  Profile UUID: $PP_UUID"
 
       - name: Disable code signing for CI
         if: github.event_name == 'pull_request' || inputs.build_mode != 'release'
