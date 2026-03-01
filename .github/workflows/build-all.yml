@@ -36,6 +36,8 @@ jobs:
       hytale-mod: ${{ steps.changes.outputs.hytale-mod }}
       bds-pack: ${{ steps.changes.outputs.bds-pack }}
       build_mode: ${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
+      is_release_branch: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/beta') }}
+      build_number: ${{ steps.build-number.outputs.build_number }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -120,6 +122,14 @@ jobs:
           echo "Build mode: $BUILD_MODE"
           echo "Trigger: ${{ github.event_name }}"
 
+      - name: Get build number
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/beta')
+        id: build-number
+        uses: ./.github/actions/get-build-number
+        with:
+          redis_url: ${{ secrets.UPSTASH_REDIS_URL }}
+          redis_token: ${{ secrets.UPSTASH_REDIS_TOKEN }}
+
   # Build server for multiple platforms (always runs - produces native library needed by mods)
   build-server:
     name: Build Server (${{ needs.changes.outputs.build_mode }})
@@ -131,22 +141,26 @@ jobs:
 
   # Build Android client
   build-android:
-    name: Build Android Client (${{ needs.changes.outputs.build_mode }})
+    name: Build Android Client (${{ needs.changes.outputs.is_release_branch == 'true' && 'release' || needs.changes.outputs.build_mode }})
     needs: changes
     if: needs.changes.outputs.android == 'true' || needs.changes.outputs.client == 'true' || needs.changes.outputs.common == 'true'
     uses: ./.github/workflows/build-android.yml
     with:
-      build_mode: ${{ needs.changes.outputs.build_mode }}
+      build_mode: ${{ needs.changes.outputs.is_release_branch == 'true' && 'release' || needs.changes.outputs.build_mode }}
+      build_number: ${{ needs.changes.outputs.build_number }}
+      play_store_track: ${{ github.ref == 'refs/heads/beta' && 'beta' || github.ref == 'refs/heads/master' && 'production' || '' }}
     secrets: inherit
 
   # Build iOS client
   build-ios:
-    name: Build iOS Client (${{ needs.changes.outputs.build_mode }})
+    name: Build iOS Client (${{ needs.changes.outputs.is_release_branch == 'true' && 'release' || needs.changes.outputs.build_mode }})
     needs: changes
     if: needs.changes.outputs.ios == 'true' || needs.changes.outputs.client == 'true' || needs.changes.outputs.common == 'true'
     uses: ./.github/workflows/build-ios.yml
     with:
-      build_mode: ${{ needs.changes.outputs.build_mode }}
+      build_mode: ${{ needs.changes.outputs.is_release_branch == 'true' && 'release' || needs.changes.outputs.build_mode }}
+      build_number: ${{ needs.changes.outputs.build_number }}
+      testflight_upload: ${{ needs.changes.outputs.is_release_branch == 'true' }}
     secrets: inherit
 
   # Build Windows client
@@ -161,12 +175,14 @@ jobs:
 
   # Build macOS client
   build-macos-client:
-    name: Build macOS Client (${{ needs.changes.outputs.build_mode }})
+    name: Build macOS Client (${{ needs.changes.outputs.is_release_branch == 'true' && 'release' || needs.changes.outputs.build_mode }})
     needs: changes
     if: needs.changes.outputs.macos == 'true' || needs.changes.outputs.client == 'true' || needs.changes.outputs.common == 'true'
     uses: ./.github/workflows/build-macos-client.yml
     with:
-      build_mode: ${{ needs.changes.outputs.build_mode }}
+      build_mode: ${{ needs.changes.outputs.is_release_branch == 'true' && 'release' || needs.changes.outputs.build_mode }}
+      build_number: ${{ needs.changes.outputs.build_number }}
+      testflight_upload: ${{ needs.changes.outputs.is_release_branch == 'true' }}
     secrets: inherit
 
   # Build Fabric Mod

@@ -24,6 +24,11 @@ on:
         required: false
         default: ''
         type: string
+      build_number:
+        description: 'Atomic build number from Redis (overrides versionCode)'
+        required: false
+        default: ''
+        type: string
   workflow_dispatch:
     inputs:
       build_mode:
@@ -50,6 +55,11 @@ jobs:
         if: inputs.version != ''
         run: |
           node .github/scripts/patch-versions.js "${{ inputs.version }}"
+
+      - name: Apply build number
+        if: inputs.build_number != ''
+        run: |
+          node .github/scripts/set-build-number.js "${{ inputs.build_number }}"
 
       - name: Set up Java 21
         uses: actions/setup-java@v4

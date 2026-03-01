@@ -33,6 +33,7 @@ jobs:
       new_release: ${{ steps.semantic.outputs.new_release_published }}
       new_version: ${{ steps.semantic.outputs.new_release_version }}
       new_tag: ${{ steps.semantic.outputs.new_release_git_tag }}
+      build_number: ${{ steps.build-number.outputs.build_number }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -71,6 +72,13 @@ jobs:
             fs.writeFileSync('.releaserc.json', JSON.stringify(config, null, 2));
             console.log('Updated .releaserc.json for draft release');
           "
+
+      - name: Get build number
+        id: build-number
+        uses: ./.github/actions/get-build-number
+        with:
+          redis_url: ${{ secrets.UPSTASH_REDIS_URL }}
+          redis_token: ${{ secrets.UPSTASH_REDIS_TOKEN }}
 
       - name: Run semantic-release
         id: semantic
@@ -175,6 +183,7 @@ jobs:
       build_mode: release
       ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
       version: ${{ needs.prepare-release.outputs.new_version }}
+      build_number: ${{ needs.prepare-release.outputs.build_number }}
       play_store_track: ${{ !inputs.dry_run && (github.ref == 'refs/heads/beta' && 'beta' || 'production') || '' }}
     secrets: inherit
 
@@ -188,6 +197,7 @@ jobs:
       build_mode: release
       ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
       version: ${{ needs.prepare-release.outputs.new_version }}
+      build_number: ${{ needs.prepare-release.outputs.build_number }}
       testflight_upload: ${{ !inputs.dry_run }}
     secrets: inherit
 
@@ -213,6 +223,7 @@ jobs:
       build_mode: release
       ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
       version: ${{ needs.prepare-release.outputs.new_version }}
+      build_number: ${{ needs.prepare-release.outputs.build_number }}
       testflight_upload: ${{ !inputs.dry_run }}
     secrets: inherit
 

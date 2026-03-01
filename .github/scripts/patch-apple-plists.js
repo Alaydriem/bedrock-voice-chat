@@ -1,59 +1,18 @@
 #!/usr/bin/env node
 /**
- * Patches Apple plist files with correct version numbers derived from tauri.conf.json.
+ * Patches Apple plist files with version numbers read from tauri.conf.json.
  *
  * Usage:
  *   node patch-apple-plists.js                     # patches default iOS plists
  *   node patch-apple-plists.js --plist <path> ...   # patches only specified files
  *
- * Sets:
- *   CFBundleShortVersionString → encodeModVersion (e.g. "1.0.508")
- *   CFBundleVersion            → calculateVersionCode (e.g. "1000508")
+ * Reads from tauri.conf.json:
+ *   CFBundleShortVersionString → version (e.g. "1.0.508")
+ *   CFBundleVersion            → bundle.iOS.bundleVersion (e.g. "1001003")
  */
 
 const fs = require('fs');
 const path = require('path');
-
-// ---------------------------------------------------------------------------
-// Version encoding (same logic as patch-versions.js)
-// ---------------------------------------------------------------------------
-
-/**
- * Encode semantic version to monotonic 3-component version
- * Formula: major.minor.(patch*1000 + channel*100 + prerelease)
- * Channels: 1=alpha, 5=beta, 8=rc, 9=stable
- */
-function encodeModVersion(version) {
-  const [core, prerelease] = version.split('-');
-  const [major = 0, minor = 0, patch = 0] = core.split('.').map(Number);
-
-  let channel = 9; // stable
-  let prereleaseNum = 0;
-
-  if (prerelease) {
-    const match = prerelease.match(/^(alpha|beta|rc)\.?(\d+)?$/);
-    if (match) {
-      const channelName = match[1];
-      prereleaseNum = parseInt(match[2]) || 1;
-
-      if (channelName === 'alpha') channel = 1;
-      else if (channelName === 'beta') channel = 5;
-      else if (channelName === 'rc') channel = 8;
-    }
-  }
-
-  const encodedPatch = patch * 1000 + channel * 100 + prereleaseNum;
-  return { major, minor, encodedPatch };
-}
-
-/**
- * Flatten the mod encoding into a single integer for Apple CFBundleVersion
- * Formula: major * 1000000 + minor * 10000 + encodedPatch
- */
-function calculateVersionCode(version) {
-  const { major, minor, encodedPatch } = encodeModVersion(version);
-  return major * 1000000 + minor * 10000 + encodedPatch;
-}
 
 // ---------------------------------------------------------------------------
 // Plist patching
@@ -98,18 +57,21 @@ if (!fs.existsSync(tauriConfPath)) {
 }
 
 const tauriConf = JSON.parse(fs.readFileSync(tauriConfPath, 'utf8'));
-const version = tauriConf.version;
 
-if (!version) {
+const shortVersion = tauriConf.version;
+if (!shortVersion) {
   console.error('No version found in tauri.conf.json');
   process.exit(1);
 }
 
-const encoded = encodeModVersion(version);
-const shortVersion = `${encoded.major}.${encoded.minor}.${encoded.encodedPatch}`;
-const bundleVersion = String(calculateVersionCode(version));
+const bundleVersion = (tauriConf.bundle.iOS && tauriConf.bundle.iOS.bundleVersion)
+  || (tauriConf.bundle.macOS && tauriConf.bundle.macOS.bundleVersion);
+if (!bundleVersion) {
+  console.error('No bundleVersion found in tauri.conf.json (bundle.iOS.bundleVersion or bundle.macOS.bundleVersion)');
+  process.exit(1);
+}
 
-console.log(`Apple plist patching for version: ${version}`);
+console.log(`Apple plist patching from tauri.conf.json:`);
 console.log(`  CFBundleShortVersionString: ${shortVersion}`);
 console.log(`  CFBundleVersion:            ${bundleVersion}`);
 console.log('');

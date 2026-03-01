@@ -1,0 +1,33 @@
+name: Get Build Number
+description: Atomically increment and return a build number from Upstash Redis
+
+inputs:
+  redis_url:
+    description: 'Upstash Redis REST API URL'
+    required: true
+  redis_token:
+    description: 'Upstash Redis REST API token'
+    required: true
+
+outputs:
+  build_number:
+    description: 'The incremented build number'
+    value: ${{ steps.incr.outputs.build_number }}
+
+runs:
+  using: composite
+  steps:
+    - name: Increment build number
+      id: incr
+      shell: bash
+      run: |
+        RESPONSE=$(curl -s -H "Authorization: Bearer ${{ inputs.redis_token }}" \
+          "${{ inputs.redis_url }}/incr/build-number")
+        BUILD_NUMBER=$(echo "$RESPONSE" | jq -r '.result')
+        if [ -z "$BUILD_NUMBER" ] || [ "$BUILD_NUMBER" = "null" ]; then
+          echo "::error::Failed to get build number from Redis"
+          echo "Response: $RESPONSE"
+          exit 1
+        fi
+        echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
+        echo "Build number: $BUILD_NUMBER"

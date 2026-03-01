@@ -83,7 +83,13 @@ function patchCargoToml(filePath, version) {
 }
 
 /**
- * Patch tauri.conf.json - updates version and Android versionCode
+ * Patch tauri.conf.json - updates version, versionCode, and bundleVersion
+ *
+ * The `version` field is set to the encoded mod version (e.g. "1.0.508") instead
+ * of the raw semver (e.g. "1.0.0-beta.8") because Tauri uses this field directly
+ * for CFBundleShortVersionString on Apple platforms. Semver prerelease tags get
+ * stripped and mangled by Tauri's xcode-script, so we must provide a clean
+ * 3-component version.
  */
 function patchTauriConf(filePath, version) {
   if (!fs.existsSync(filePath)) {
@@ -91,7 +97,11 @@ function patchTauriConf(filePath, version) {
     process.exit(1);
   }
   const content = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-  content.version = version;
+
+  const encoded = encodeModVersion(version);
+  const displayVersion = `${encoded.major}.${encoded.minor}.${encoded.encodedPatch}`;
+
+  content.version = displayVersion;
   content.bundle.android.versionCode = calculateVersionCode(version);
 
   const bundleVersion = String(calculateVersionCode(version));
@@ -101,7 +111,7 @@ function patchTauriConf(filePath, version) {
   content.bundle.macOS.bundleVersion = bundleVersion;
 
   fs.writeFileSync(filePath, JSON.stringify(content, null, 2) + '\n');
-  console.log(`Patched: ${filePath} (versionCode: ${content.bundle.android.versionCode}, bundleVersion: ${bundleVersion})`);
+  console.log(`Patched: ${filePath} (version: ${displayVersion}, versionCode: ${content.bundle.android.versionCode}, bundleVersion: ${bundleVersion})`);
 }
 
 /**
