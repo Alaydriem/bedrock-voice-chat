@@ -154,54 +154,55 @@ jobs:
           PP_UUID: ${{ steps.install-signing.outputs.pp_uuid }}
         run: |
           echo "Configuring manual code signing..."
-          PBXPROJ="src-tauri/gen/apple/bedrock-voice-chat-client.xcodeproj/project.pbxproj"
+          node -e "
+          const fs = require('fs');
+          const pbxPath = 'src-tauri/gen/apple/bedrock-voice-chat-client.xcodeproj/project.pbxproj';
+          let pbx = fs.readFileSync(pbxPath, 'utf8');
 
-          # 1. Switch ProvisioningStyle from Automatic to Manual in target attributes
-          sed -i '' 's/ProvisioningStyle = Automatic;/ProvisioningStyle = Manual;/g' "$PBXPROJ"
+          const teamId = process.env.APPLE_TEAM_ID;
+          const ppUuid = process.env.PP_UUID;
 
-          # 2. Inject manual signing build settings into every buildSettings block.
-          #    We use PRODUCT_NAME as an anchor since it exists in every build config.
-          #    This adds the settings if they don't already exist.
-          sed -i '' '/buildSettings = {/,/};/ {
-            /PRODUCT_NAME/ {
-              n
-              /CODE_SIGN_STYLE/!i\
-\t\t\t\tCODE_SIGN_STYLE = Manual;
-            }
-          }' "$PBXPROJ"
+          // 1. Switch ProvisioningStyle from Automatic to Manual in target attributes
+          pbx = pbx.replace(/ProvisioningStyle = Automatic;/g, 'ProvisioningStyle = Manual;');
 
-          # 3. Set DEVELOPMENT_TEAM everywhere (replace existing or add)
-          if grep -q 'DEVELOPMENT_TEAM' "$PBXPROJ"; then
-            sed -i '' 's/DEVELOPMENT_TEAM = "[^"]*"/DEVELOPMENT_TEAM = "'"$APPLE_TEAM_ID"'"/g' "$PBXPROJ"
-          else
-            sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Manual;\
-\t\t\t\tDEVELOPMENT_TEAM = "'"$APPLE_TEAM_ID"'";/g' "$PBXPROJ"
-          fi
+          // 2. Inject signing settings into every buildSettings block
+          //    Find each buildSettings = { ... }; and ensure our keys are present
+          pbx = pbx.replace(/buildSettings = \{([^}]*)\}/g, (match, inner) => {
+            let settings = inner;
+            if (!settings.includes('CODE_SIGN_STYLE'))
+              settings += '\n\t\t\t\tCODE_SIGN_STYLE = Manual;\n';
+            if (!settings.includes('DEVELOPMENT_TEAM'))
+              settings += '\t\t\t\tDEVELOPMENT_TEAM = \"' + teamId + '\";\n';
+            if (!settings.includes('CODE_SIGN_IDENTITY'))
+              settings += '\t\t\t\tCODE_SIGN_IDENTITY = \"Apple Distribution\";\n';
+            if (!settings.includes('PROVISIONING_PROFILE_SPECIFIER'))
+              settings += '\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = \"\";\n';
+            if (!/PROVISIONING_PROFILE\b/.test(settings))
+              settings += '\t\t\t\tPROVISIONING_PROFILE = \"' + ppUuid + '\";\n';
 
-          # 4. Set CODE_SIGN_IDENTITY (replace existing or add)
-          if grep -q 'CODE_SIGN_IDENTITY' "$PBXPROJ"; then
-            sed -i '' 's/CODE_SIGN_IDENTITY = "[^"]*"/CODE_SIGN_IDENTITY = "Apple Distribution"/g' "$PBXPROJ"
-          else
-            sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Manual;\
-\t\t\t\tCODE_SIGN_IDENTITY = "Apple Distribution";/g' "$PBXPROJ"
-          fi
+            // Also replace existing values
+            settings = settings.replace(/CODE_SIGN_STYLE = [^;]*;/g, 'CODE_SIGN_STYLE = Manual;');
+            settings = settings.replace(/DEVELOPMENT_TEAM = \"[^\"]*\"/g, 'DEVELOPMENT_TEAM = \"' + teamId + '\"');
+            settings = settings.replace(/CODE_SIGN_IDENTITY = \"[^\"]*\"/g, 'CODE_SIGN_IDENTITY = \"Apple Distribution\"');
+            settings = settings.replace(/PROVISIONING_PROFILE_SPECIFIER = \"[^\"]*\"/g, 'PROVISIONING_PROFILE_SPECIFIER = \"\"');
+            settings = settings.replace(/PROVISIONING_PROFILE = \"[^\"]*\"/g, 'PROVISIONING_PROFILE = \"' + ppUuid + '\"');
 
-          # 5. Set PROVISIONING_PROFILE_SPECIFIER to empty and PROVISIONING_PROFILE to UUID
-          sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = "[^"]*"/PROVISIONING_PROFILE_SPECIFIER = ""/g' "$PBXPROJ"
-          if grep -q 'PROVISIONING_PROFILE =' "$PBXPROJ"; then
-            sed -i '' 's/PROVISIONING_PROFILE = "[^"]*"/PROVISIONING_PROFILE = "'"$PP_UUID"'"/g' "$PBXPROJ"
-          else
-            sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Manual;\
-\t\t\t\tPROVISIONING_PROFILE = "'"$PP_UUID"'";/g' "$PBXPROJ"
-          fi
+            return 'buildSettings = {' + settings + '}';
+          });
 
-          echo "Manual code signing configured:"
-          echo "  Team: $APPLE_TEAM_ID"
-          echo "  Identity: Apple Distribution"
-          echo "  Profile UUID: $PP_UUID"
-          echo ""
-          echo "Verifying pbxproj signing settings:"
-          grep -n "ProvisioningStyle\|CODE_SIGN_STYLE\|CODE_SIGN_IDENTITY\|DEVELOPMENT_TEAM\|PROVISIONING_PROFILE" "$PBXPROJ" || true
+          fs.writeFileSync(pbxPath, pbx);
+          console.log('Manual code signing configured:');
+          console.log('  Team:', teamId);
+          console.log('  Identity: Apple Distribution');
+          console.log('  Profile UUID:', ppUuid);
+
+          // Verify
+          const lines = pbx.split('\n');
+          lines.forEach((line, i) => {
+            if (/ProvisioningStyle|CODE_SIGN_STYLE|CODE_SIGN_IDENTITY|DEVELOPMENT_TEAM|PROVISIONING_PROFILE/.test(line))
+              console.log((i+1) + ': ' + line.trim());
+          });
+          "
 
       - name: Disable code signing for CI
         if: github.event_name == 'pull_request' || inputs.build_mode != 'release'
