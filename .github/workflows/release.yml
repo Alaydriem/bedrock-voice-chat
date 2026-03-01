@@ -99,7 +99,62 @@ jobs:
           echo "Dry run: ${{ inputs.dry_run }}" >> $GITHUB_STEP_SUMMARY
           echo "Draft: ${{ inputs.draft }}" >> $GITHUB_STEP_SUMMARY
 
-  # Job 2: Build server (release mode)
+  # Job 2: Run mod semantic-release (patches gradle.properties, BDS files, creates mods-v tag + GH release)
+  prepare-mods-release:
+    name: Prepare Mods Release
+    needs: [prepare-release, build-server]
+    if: needs.prepare-release.outputs.new_release == 'true' && needs.build-server.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      new_release_published: ${{ steps.semantic-release.outputs.new_release_published }}
+      new_release_version: ${{ steps.semantic-release.outputs.new_release_version }}
+      new_release_git_tag: ${{ steps.semantic-release.outputs.new_release_git_tag }}
+      new_release_notes: ${{ steps.semantic-release.outputs.new_release_notes }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          show-progress: false
+          ref: ${{ github.ref }}
+
+      - name: Fetch all tags
+        run: git fetch --tags --force
+
+      - name: Semantic Release
+        id: semantic-release
+        uses: cycjimmy/semantic-release-action@v4
+        with:
+          working_directory: ./mods/java
+          dry_run: ${{ inputs.dry_run }}
+          extra_plugins: |
+            @semantic-release/changelog
+            @semantic-release/exec
+            @semantic-release/git
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        if: ${{ steps.semantic-release.outputs.new_release_published }}
+        run: |
+          {
+              echo "## Mods Release ${{ steps.semantic-release.outputs.new_release_version }}"
+              echo ""
+              echo "| Name | Value |"
+              echo "| ---- | ----- |"
+              echo "| Release | [${{ steps.semantic-release.outputs.new_release_version }}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${{ steps.semantic-release.outputs.new_release_git_tag }}) |"
+              echo "| Release Type | ${{ github.ref_name == 'beta' && 'beta' || 'release' }} |"
+              echo "| Old Version | [${{ steps.semantic-release.outputs.last_release_git_tag }}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${{ steps.semantic-release.outputs.last_release_git_tag }}) |"
+              echo "| Diff | [${{ steps.semantic-release.outputs.last_release_git_tag }}...${{ steps.semantic-release.outputs.new_release_git_tag }}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/${{ steps.semantic-release.outputs.last_release_git_tag }}...${{ steps.semantic-release.outputs.new_release_git_tag }}) |"
+              echo "| Dry Run | ${{ inputs.dry_run && 'Yes' || 'No' }} |"
+              echo ""
+              echo "> **Note:** Links to the new version will only work after the release is created"
+          } >> $GITHUB_STEP_SUMMARY
+
+  # Job 3: Build server (release mode)
   build-server:
     name: Build Server (release)
     needs: prepare-release
@@ -110,7 +165,7 @@ jobs:
       ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
     secrets: inherit
 
-  # Job 3: Build Android (release mode, includes signing)
+  # Job 4: Build Android (release mode, includes signing)
   build-android:
     name: Build Android (release)
     needs: prepare-release
@@ -123,7 +178,7 @@ jobs:
       play_store_track: ${{ !inputs.dry_run && (github.ref == 'refs/heads/beta' && 'beta' || 'production') || '' }}
     secrets: inherit
 
-  # Job 4: Build Windows client (release mode)
+  # Job 5: Build Windows client (release mode)
   build-client:
     name: Build Windows (release)
     needs: prepare-release
@@ -135,7 +190,7 @@ jobs:
       version: ${{ needs.prepare-release.outputs.new_version }}
     secrets: inherit
 
-  # Job 5: Build macOS client (release mode)
+  # Job 6: Build macOS client (release mode)
   build-macos-client:
     name: Build macOS (release)
     needs: prepare-release
@@ -147,7 +202,50 @@ jobs:
       version: ${{ needs.prepare-release.outputs.new_version }}
     secrets: inherit
 
-  # Job 6: Upload release assets to GitHub
+  # Job 7: Build Fabric Mod
+  build-mod-fabric:
+    name: Build Fabric Mod
+    needs: prepare-mods-release
+    if: needs.prepare-mods-release.outputs.new_release_published == 'true'
+    uses: ./.github/workflows/build-mod-fabric.yml
+    with:
+      version: ${{ needs.prepare-mods-release.outputs.new_release_version }}
+      artifact_run_id: ${{ github.run_id }}
+    secrets: inherit
+
+  # Job 8: Build Paper Plugin
+  build-mod-paper:
+    name: Build Paper Plugin
+    needs: prepare-mods-release
+    if: needs.prepare-mods-release.outputs.new_release_published == 'true'
+    uses: ./.github/workflows/build-mod-paper.yml
+    with:
+      version: ${{ needs.prepare-mods-release.outputs.new_release_version }}
+      artifact_run_id: ${{ github.run_id }}
+    secrets: inherit
+
+  # Job 9: Build Hytale Plugin
+  build-mod-hytale:
+    name: Build Hytale Plugin
+    needs: prepare-mods-release
+    if: needs.prepare-mods-release.outputs.new_release_published == 'true'
+    uses: ./.github/workflows/build-mod-hytale.yml
+    with:
+      version: ${{ needs.prepare-mods-release.outputs.new_release_version }}
+      artifact_run_id: ${{ github.run_id }}
+    secrets: inherit
+
+  # Job 10: Build BDS Pack
+  build-mod-bds:
+    name: Build BDS Pack
+    needs: prepare-mods-release
+    if: needs.prepare-mods-release.outputs.new_release_published == 'true'
+    uses: ./.github/workflows/build-mod-bds.yml
+    with:
+      version: ${{ needs.prepare-mods-release.outputs.new_release_version }}
+    secrets: inherit
+
+  # Job 11: Upload client/server release assets to GitHub
   upload-assets:
     name: Upload Release Assets
     needs: [prepare-release, build-server, build-android, build-client, build-macos-client]
@@ -239,15 +337,236 @@ jobs:
           echo "- \`ghcr.io/alaydriem/bedrock-voice-chat/server:v${VERSION}\`" >> $GITHUB_STEP_SUMMARY
           echo "- \`ghcr.io/alaydriem/bedrock-voice-chat/server:latest\`" >> $GITHUB_STEP_SUMMARY
 
-  # Job 7: Release Mods (reuses server build artifacts)
-  release-mods:
-    name: Release Mods
-    needs: [prepare-release, build-server]
-    if: needs.prepare-release.outputs.new_release == 'true'
-    uses: ./.github/workflows/release-mods.yml
-    with:
-      skip_server_build: true
-      version: ${{ needs.prepare-release.outputs.new_version }}
-      dry-run: ${{ inputs.dry_run }}
-      parent_run_id: ${{ github.run_id }}
-    secrets: inherit
+  # Job 12: Publish Fabric to Modrinth
+  publish-modrinth-fabric:
+    name: Publish Fabric to Modrinth
+    needs: [prepare-mods-release, build-mod-fabric]
+    if: needs.prepare-mods-release.outputs.new_release_published == 'true' && inputs.dry_run == false && needs.build-mod-fabric.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: bedrock-voice-chat-fabric-${{ needs.prepare-mods-release.outputs.new_release_version }}.jar
+          path: ./artifacts
+
+      - name: List artifacts
+        run: ls -la ./artifacts
+
+      - name: Publish to Modrinth
+        uses: cloudnode-pro/modrinth-publish@v2
+        with:
+          token: ${{ secrets.MODRITH_PAT }}
+          project: ${{ secrets.MODRITH_ID }}
+          files: ./artifacts/bedrock-voice-chat-${{ needs.prepare-mods-release.outputs.new_release_version }}.jar
+          primary-file: bedrock-voice-chat-${{ needs.prepare-mods-release.outputs.new_release_version }}.jar
+          version: ${{ needs.prepare-mods-release.outputs.new_release_version }}
+          name: Bedrock Voice Chat ${{ needs.prepare-mods-release.outputs.new_release_version }} (Fabric)
+          changelog: ${{ needs.prepare-mods-release.outputs.new_release_notes }}
+          dependencies: |-
+            [{
+              "project_id": "P7dR8mSH",
+              "dependency_type": "required"
+            }]
+          loaders: |-
+            fabric
+          game-versions: |-
+            1.21.11
+          channel: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}
+
+  # Job 13: Publish Paper to Modrinth
+  publish-modrinth-paper:
+    name: Publish Paper to Modrinth
+    needs: [prepare-mods-release, build-mod-paper]
+    if: needs.prepare-mods-release.outputs.new_release_published == 'true' && inputs.dry_run == false && needs.build-mod-paper.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: bedrock-voice-chat-paper-${{ needs.prepare-mods-release.outputs.new_release_version }}.jar
+          path: ./artifacts
+
+      - name: List artifacts
+        run: ls -la ./artifacts
+
+      - name: Publish to Modrinth
+        uses: cloudnode-pro/modrinth-publish@v2
+        with:
+          token: ${{ secrets.MODRITH_PAT }}
+          project: ${{ secrets.MODRITH_ID }}
+          files: ./artifacts/bedrock-voice-chat-paper-${{ needs.prepare-mods-release.outputs.new_release_version }}.jar
+          primary-file: bedrock-voice-chat-paper-${{ needs.prepare-mods-release.outputs.new_release_version }}.jar
+          version: ${{ needs.prepare-mods-release.outputs.new_release_version }}-paper
+          name: Bedrock Voice Chat ${{ needs.prepare-mods-release.outputs.new_release_version }} (Paper)
+          changelog: ${{ needs.prepare-mods-release.outputs.new_release_notes }}
+          loaders: |-
+            paper
+            spigot
+            bukkit
+          game-versions: |-
+            1.21.11
+          channel: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}
+
+  # Job 14: Publish Hytale to CurseForge
+  publish-curseforge-hytale:
+    name: Publish Hytale to CurseForge
+    needs: [prepare-mods-release, build-mod-hytale]
+    if: needs.prepare-mods-release.outputs.new_release_published == 'true' && inputs.dry_run == false && needs.build-mod-hytale.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: bedrock-voice-chat-hytale-${{ needs.prepare-mods-release.outputs.new_release_version }}.jar
+          path: ./artifacts
+
+      - name: List artifacts
+        run: ls -la ./artifacts
+
+      - name: Publish to CurseForge
+        uses: itsmeow/curseforge-upload@v3
+        with:
+          token: ${{ secrets.CURSEFORGE_API_TOKEN }}
+          project_id: 1445994
+          game_endpoint: minecraft
+          file_path: ./artifacts/bedrock-voice-chat-hytale-${{ needs.prepare-mods-release.outputs.new_release_version }}.jar
+          changelog: ${{ needs.prepare-mods-release.outputs.new_release_notes }}
+          changelog_type: markdown
+          display_name: Bedrock Voice Chat ${{ needs.prepare-mods-release.outputs.new_release_version }}
+          release_type: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}
+
+  # Job 15: Publish BDS to CurseForge
+  publish-curseforge-bds:
+    name: Publish BDS to CurseForge
+    needs: [prepare-mods-release, build-mod-bds]
+    if: needs.prepare-mods-release.outputs.new_release_published == 'true' && inputs.dry_run == false && needs.build-mod-bds.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: bedrock-voice-chat-bds-${{ needs.prepare-mods-release.outputs.new_release_version }}.zip
+          path: ./artifacts
+
+      - name: List artifacts
+        run: ls -la ./artifacts
+
+      - name: Rename to mcpack for CurseForge
+        run: |
+          mv ./artifacts/bedrock-voice-chat-${{ needs.prepare-mods-release.outputs.new_release_version }}.zip \
+             ./artifacts/bedrock-voice-chat-${{ needs.prepare-mods-release.outputs.new_release_version }}.mcpack
+
+      - name: Publish to CurseForge
+        uses: itsmeow/curseforge-upload@v3
+        with:
+          token: ${{ secrets.CURSEFORGE_API_TOKEN }}
+          project_id: 1445992
+          game_endpoint: minecraft
+          file_path: ./artifacts/bedrock-voice-chat-${{ needs.prepare-mods-release.outputs.new_release_version }}.mcpack
+          changelog: ${{ needs.prepare-mods-release.outputs.new_release_notes }}
+          changelog_type: markdown
+          display_name: Bedrock Voice Chat ${{ needs.prepare-mods-release.outputs.new_release_version }}
+          game_versions: Bedrock
+          release_type: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}
+
+  # Job 16: Upload mod artifacts to mods GitHub Release
+  upload-mod-release-assets:
+    name: Upload Mod Release Assets
+    needs: [prepare-mods-release, build-mod-fabric, build-mod-paper, build-mod-hytale, build-mod-bds]
+    if: always() && needs.prepare-mods-release.outputs.new_release_published == 'true' && inputs.dry_run == false && (needs.build-mod-fabric.result == 'success' || needs.build-mod-paper.result == 'success' || needs.build-mod-hytale.result == 'success' || needs.build-mod-bds.result == 'success')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Fabric artifact
+        if: needs.build-mod-fabric.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: bedrock-voice-chat-fabric-${{ needs.prepare-mods-release.outputs.new_release_version }}.jar
+          path: ./release-files
+
+      - name: Download Paper artifact
+        if: needs.build-mod-paper.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: bedrock-voice-chat-paper-${{ needs.prepare-mods-release.outputs.new_release_version }}.jar
+          path: ./release-files
+
+      - name: Download Hytale artifact
+        if: needs.build-mod-hytale.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: bedrock-voice-chat-hytale-${{ needs.prepare-mods-release.outputs.new_release_version }}.jar
+          path: ./release-files
+
+      - name: Download BDS artifact
+        if: needs.build-mod-bds.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: bedrock-voice-chat-bds-${{ needs.prepare-mods-release.outputs.new_release_version }}.zip
+          path: ./release-files
+
+      - name: Rename artifacts
+        run: |
+          VERSION="${{ needs.prepare-mods-release.outputs.new_release_version }}"
+          cd ./release-files
+
+          # Rename to consistent naming
+          if [ -f "bedrock-voice-chat-${VERSION}.jar" ]; then
+            mv "bedrock-voice-chat-${VERSION}.jar" "bvc-fabric-mod-${VERSION}.jar"
+          fi
+
+          if [ -f "bedrock-voice-chat-paper-${VERSION}.jar" ]; then
+            mv "bedrock-voice-chat-paper-${VERSION}.jar" "bvc-paper-plugin-${VERSION}.jar"
+          fi
+
+          if [ -f "bedrock-voice-chat-hytale-${VERSION}.jar" ]; then
+            mv "bedrock-voice-chat-hytale-${VERSION}.jar" "bvc-hytale-plugin-${VERSION}.jar"
+          fi
+
+          if [ -f "bedrock-voice-chat-${VERSION}.zip" ]; then
+            mv "bedrock-voice-chat-${VERSION}.zip" "bvc-bds-pack-${VERSION}.zip"
+          fi
+
+          echo "=== Release files ==="
+          ls -la
+
+      - name: Upload assets to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: mods-v${{ needs.prepare-mods-release.outputs.new_release_version }}
+          files: |
+            ./release-files/*.jar
+            ./release-files/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release summary
+        run: |
+          VERSION="${{ needs.prepare-mods-release.outputs.new_release_version }}"
+          {
+            echo "## Mods Release Assets Uploaded"
+            echo ""
+            echo "Version: **mods-v${VERSION}**"
+            echo ""
+            echo "### Uploaded Files"
+            echo ""
+            for file in ./release-files/*; do
+              if [ -f "$file" ]; then
+                echo "- \`$(basename $file)\`"
+              fi
+            done
+          } >> $GITHUB_STEP_SUMMARY

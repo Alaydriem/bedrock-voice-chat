@@ -177,6 +177,23 @@ function patchInfoPlist(filePath, version) {
 }
 
 /**
+ * Patch Cargo.lock - updates the version for a specific package
+ */
+function patchCargoLock(filePath, packageName, version) {
+  if (!fs.existsSync(filePath)) {
+    console.log(`Skipping (not found): ${filePath}`);
+    return;
+  }
+  const content = fs.readFileSync(filePath, 'utf8');
+  const pattern = new RegExp(
+    `(\\[\\[package\\]\\]\\nname = "${packageName}"\\nversion = ")[^"]*"`,
+  );
+  const updated = content.replace(pattern, `$1${version}"`);
+  fs.writeFileSync(filePath, updated);
+  console.log(`Patched: ${filePath} (${packageName} -> ${version})`);
+}
+
+/**
  * Patch gradle.properties - updates modVersion field
  */
 function patchGradleProperties(filePath, encodedVersion) {
@@ -212,7 +229,10 @@ console.log(`Android versionCode will be: ${calculateVersionCode(version)}`);
 console.log('');
 
 patchCargoToml(path.join(rootDir, 'server/server/Cargo.toml'), version);
+patchCargoLock(path.join(rootDir, 'server/Cargo.lock'), 'bedrock-voice-chat-server', version);
 patchCargoToml(path.join(rootDir, 'client/src-tauri/Cargo.toml'), version);
+patchCargoLock(path.join(rootDir, 'Cargo.lock'), 'bedrock-voice-chat-client', version);
+patchCargoLock(path.join(rootDir, 'client/src-tauri/Cargo.lock'), 'bedrock-voice-chat-client', version);
 patchTauriConf(path.join(rootDir, 'client/src-tauri/tauri.conf.json'), version);
 patchInfoPlist(path.join(rootDir, 'client/src-tauri/Info.ios.plist'), version);
 patchPackageJson(path.join(rootDir, 'client/package.json'), version);

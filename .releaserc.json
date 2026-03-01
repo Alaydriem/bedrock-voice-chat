@@ -59,7 +59,10 @@
         "assets": [
           "CHANGELOG.md",
           "server/server/Cargo.toml",
+          "server/Cargo.lock",
           "client/src-tauri/Cargo.toml",
+          "client/src-tauri/Cargo.lock",
+          "Cargo.lock",
           "client/src-tauri/tauri.conf.json",
           "client/src-tauri/Info.ios.plist",
           "client/package.json",
