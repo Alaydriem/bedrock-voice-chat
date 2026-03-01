@@ -43,7 +43,7 @@ on:
 jobs:
   build-ios:
     name: Build iOS (${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }})
-    runs-on: macos-latest
+    runs-on: macos-26
 
     steps:
       - name: Checkout code
@@ -95,7 +95,9 @@ jobs:
           node ../.github/scripts/patch-apple-plists.js
 
       - name: Install Apple certificate and provisioning profile
-        if: github.event_name != 'pull_request'
+        if: >-
+          github.event_name != 'pull_request' &&
+          inputs.build_mode == 'release'
         env:
           APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -127,7 +129,9 @@ jobs:
           echo "Certificate and provisioning profile installed successfully"
 
       - name: Configure code signing
-        if: github.event_name != 'pull_request'
+        if: >-
+          github.event_name != 'pull_request' &&
+          inputs.build_mode == 'release'
         working-directory: ./client
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -146,7 +150,7 @@ jobs:
           echo "Code signing configured with team: $APPLE_TEAM_ID"
 
       - name: Disable code signing for CI
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' || inputs.build_mode != 'release'
         working-directory: ./client
         run: |
           echo "Disabling code signing for CI build..."
@@ -170,8 +174,6 @@ jobs:
       - name: Build iOS (debug)
         if: github.event_name == 'pull_request' || inputs.build_mode != 'release'
         working-directory: ./client
-        env:
-          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           echo "Building iOS in debug mode"
           yarn tauri ios build --debug
@@ -269,6 +271,6 @@ jobs:
             echo "| Build Mode | $BUILD_MODE |"
             echo "| Trigger | ${{ github.event_name }} |"
             echo "| Target | aarch64-apple-ios |"
-            echo "| Signed | ${{ github.event_name != 'pull_request' }} |"
+            echo "| Signed | ${{ inputs.build_mode == 'release' && github.event_name != 'pull_request' }} |"
             echo "| TestFlight Upload | ${{ inputs.testflight_upload || false }} |"
           } >> $GITHUB_STEP_SUMMARY

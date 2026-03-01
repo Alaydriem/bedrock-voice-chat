@@ -43,7 +43,7 @@ on:
 jobs:
   build-macos:
     name: Build macOS Client (${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }})
-    runs-on: macos-latest
+    runs-on: macos-26
 
     steps:
       - name: Checkout code
@@ -147,7 +147,7 @@ jobs:
           security list-keychain -d user -s $KEYCHAIN_PATH
 
           # Embed provisioning profile in the .app bundle
-          APP_DIR="../target/$BUILD_MODE/bundle/macos/Bedrock Voice Chat.app"
+          APP_DIR="./target/$BUILD_MODE/bundle/macos/Bedrock Voice Chat.app"
           cp $PP_PATH "$APP_DIR/Contents/embedded.provisionprofile"
 
           echo "Certificates and provisioning profile installed successfully"
