@@ -222,6 +222,16 @@ jobs:
 
           echo "Code signing disabled"
 
+      - name: Prepare ExportOptions.plist
+        if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
+        working-directory: ./client
+        run: |
+          cp src-tauri/ExportOptions.ios.plist src-tauri/gen/apple/ExportOptions.plist
+          sed -i '' "s/__TEAM_ID__/${{ secrets.APPLE_TEAM_ID }}/g" src-tauri/gen/apple/ExportOptions.plist
+          sed -i '' "s/__PP_UUID__/${{ steps.install-signing.outputs.pp_uuid }}/g" src-tauri/gen/apple/ExportOptions.plist
+          echo "ExportOptions.plist:"
+          cat src-tauri/gen/apple/ExportOptions.plist
+
       - name: Build frontend
         working-directory: ./client
         run: yarn build
@@ -233,40 +243,14 @@ jobs:
           echo "Building iOS in debug mode"
           yarn tauri ios build --debug
 
-      - name: Prepare ExportOptions.plist
-        if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
-        working-directory: ./client
-        run: |
-          cp src-tauri/ExportOptions.ios.plist src-tauri/gen/apple/ExportOptions.plist
-          sed -i '' "s/__TEAM_ID__/${{ secrets.APPLE_TEAM_ID }}/g" src-tauri/gen/apple/ExportOptions.plist
-          sed -i '' "s/__PP_UUID__/${{ steps.install-signing.outputs.pp_uuid }}/g" src-tauri/gen/apple/ExportOptions.plist
-          echo "ExportOptions.plist:"
-          cat src-tauri/gen/apple/ExportOptions.plist
-
       - name: Build iOS (release)
         if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
         working-directory: ./client
         env:
           APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          echo "Archiving iOS release build..."
-          ARCHIVE_PATH="src-tauri/gen/apple/build/App.xcarchive"
-
-          xcodebuild archive \
-            -project src-tauri/gen/apple/bedrock-voice-chat-client.xcodeproj \
-            -scheme bedrock-voice-chat-client_iOS \
-            -configuration release \
-            -destination 'generic/platform=iOS' \
-            -archivePath "$ARCHIVE_PATH"
-
-          echo "Exporting IPA..."
-          xcodebuild -exportArchive \
-            -archivePath "$ARCHIVE_PATH" \
-            -exportOptionsPlist src-tauri/gen/apple/ExportOptions.plist \
-            -exportPath src-tauri/gen/apple/build/export
-
-          echo "Export complete"
-          find src-tauri/gen/apple/build/export -type f -ls
+          echo "Building iOS release..."
+          yarn tauri ios build --export-method app-store-connect
 
       - name: Prepare iOS artifacts
         working-directory: ./client
