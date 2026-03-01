@@ -156,33 +156,52 @@ jobs:
           echo "Configuring manual code signing..."
           PBXPROJ="src-tauri/gen/apple/bedrock-voice-chat-client.xcodeproj/project.pbxproj"
 
-          # Switch to manual signing
-          sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' "$PBXPROJ"
+          # 1. Switch ProvisioningStyle from Automatic to Manual in target attributes
+          sed -i '' 's/ProvisioningStyle = Automatic;/ProvisioningStyle = Manual;/g' "$PBXPROJ"
 
-          # Set the development team
-          sed -i '' 's/DEVELOPMENT_TEAM = "[^"]*"/DEVELOPMENT_TEAM = "'"$APPLE_TEAM_ID"'"/g' "$PBXPROJ"
-          if ! grep -q "DEVELOPMENT_TEAM" "$PBXPROJ"; then
-            sed -i '' 's/PRODUCT_BUNDLE_IDENTIFIER = "com.alaydriem.bvc.client";/PRODUCT_BUNDLE_IDENTIFIER = "com.alaydriem.bvc.client";\n\t\t\t\tDEVELOPMENT_TEAM = "'"$APPLE_TEAM_ID"'";/g' "$PBXPROJ"
-          fi
+          # 2. Inject manual signing build settings into every buildSettings block.
+          #    We use PRODUCT_NAME as an anchor since it exists in every build config.
+          #    This adds the settings if they don't already exist.
+          sed -i '' '/buildSettings = {/,/};/ {
+            /PRODUCT_NAME/ {
+              n
+              /CODE_SIGN_STYLE/!i\
+\t\t\t\tCODE_SIGN_STYLE = Manual;
+            }
+          }' "$PBXPROJ"
 
-          # Set code signing identity to Apple Distribution
-          sed -i '' 's/CODE_SIGN_IDENTITY = "[^"]*"/CODE_SIGN_IDENTITY = "Apple Distribution"/g' "$PBXPROJ"
-          if ! grep -q "CODE_SIGN_IDENTITY" "$PBXPROJ"; then
-            sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Manual;\n\t\t\t\tCODE_SIGN_IDENTITY = "Apple Distribution";/g' "$PBXPROJ"
-          fi
-
-          # Set provisioning profile UUID
-          sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = "[^"]*"/PROVISIONING_PROFILE_SPECIFIER = ""/g' "$PBXPROJ"
-          if ! grep -q "PROVISIONING_PROFILE" "$PBXPROJ"; then
-            sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Manual;\n\t\t\t\tPROVISIONING_PROFILE = "'"$PP_UUID"'";/g' "$PBXPROJ"
+          # 3. Set DEVELOPMENT_TEAM everywhere (replace existing or add)
+          if grep -q 'DEVELOPMENT_TEAM' "$PBXPROJ"; then
+            sed -i '' 's/DEVELOPMENT_TEAM = "[^"]*"/DEVELOPMENT_TEAM = "'"$APPLE_TEAM_ID"'"/g' "$PBXPROJ"
           else
+            sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Manual;\
+\t\t\t\tDEVELOPMENT_TEAM = "'"$APPLE_TEAM_ID"'";/g' "$PBXPROJ"
+          fi
+
+          # 4. Set CODE_SIGN_IDENTITY (replace existing or add)
+          if grep -q 'CODE_SIGN_IDENTITY' "$PBXPROJ"; then
+            sed -i '' 's/CODE_SIGN_IDENTITY = "[^"]*"/CODE_SIGN_IDENTITY = "Apple Distribution"/g' "$PBXPROJ"
+          else
+            sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Manual;\
+\t\t\t\tCODE_SIGN_IDENTITY = "Apple Distribution";/g' "$PBXPROJ"
+          fi
+
+          # 5. Set PROVISIONING_PROFILE_SPECIFIER to empty and PROVISIONING_PROFILE to UUID
+          sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = "[^"]*"/PROVISIONING_PROFILE_SPECIFIER = ""/g' "$PBXPROJ"
+          if grep -q 'PROVISIONING_PROFILE =' "$PBXPROJ"; then
             sed -i '' 's/PROVISIONING_PROFILE = "[^"]*"/PROVISIONING_PROFILE = "'"$PP_UUID"'"/g' "$PBXPROJ"
+          else
+            sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Manual;\
+\t\t\t\tPROVISIONING_PROFILE = "'"$PP_UUID"'";/g' "$PBXPROJ"
           fi
 
           echo "Manual code signing configured:"
           echo "  Team: $APPLE_TEAM_ID"
           echo "  Identity: Apple Distribution"
           echo "  Profile UUID: $PP_UUID"
+          echo ""
+          echo "Verifying pbxproj signing settings:"
+          grep -n "ProvisioningStyle\|CODE_SIGN_STYLE\|CODE_SIGN_IDENTITY\|DEVELOPMENT_TEAM\|PROVISIONING_PROFILE" "$PBXPROJ" || true
 
       - name: Disable code signing for CI
         if: github.event_name == 'pull_request' || inputs.build_mode != 'release'
