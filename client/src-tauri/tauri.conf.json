@@ -33,6 +33,7 @@
     },
     "macOS": {
       "bundleVersion": "1000508",
+      "minimumSystemVersion": "26.0",
       "infoPlist": "./Info.macos.plist"
     },
     "createUpdaterArtifacts": true,

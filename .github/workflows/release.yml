@@ -184,7 +184,7 @@ jobs:
       ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
       version: ${{ needs.prepare-release.outputs.new_version }}
       build_number: ${{ needs.prepare-release.outputs.build_number }}
-      play_store_track: ${{ !inputs.dry_run && (github.ref == 'refs/heads/beta' && 'beta' || 'production') || '' }}
+      play_store_track: ${{ !inputs.dry_run && (github.ref == 'refs/heads/beta' && 'Beta Early Access' || 'production') || '' }}
     secrets: inherit
 
   # Job 5: Build iOS client (release mode, signed + TestFlight upload)

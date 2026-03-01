@@ -15,5 +15,9 @@
     </array>
     <key>NSMicrophoneUsageDescription</key>
     <string>Microphone for Bedrock Voice Chat</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.social-networking</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>26.0</string>
 </dict>
 </plist>

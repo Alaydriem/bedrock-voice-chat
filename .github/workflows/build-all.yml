@@ -148,7 +148,7 @@ jobs:
     with:
       build_mode: ${{ needs.changes.outputs.is_release_branch == 'true' && 'release' || needs.changes.outputs.build_mode }}
       build_number: ${{ needs.changes.outputs.build_number }}
-      play_store_track: ${{ github.ref == 'refs/heads/beta' && 'beta' || github.ref == 'refs/heads/master' && 'production' || '' }}
+      play_store_track: ${{ github.ref == 'refs/heads/beta' && 'Beta Early Access' || github.ref == 'refs/heads/master' && 'production' || '' }}
     secrets: inherit
 
   # Build iOS client
