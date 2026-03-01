@@ -77,8 +77,8 @@ jobs:
         id: build-number
         uses: ./.github/actions/get-build-number
         with:
-          redis_url: ${{ secrets.UPSTASH_REDIS_URL }}
-          redis_token: ${{ secrets.UPSTASH_REDIS_TOKEN }}
+          redis_url: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          redis_token: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
 
       - name: Run semantic-release
         id: semantic

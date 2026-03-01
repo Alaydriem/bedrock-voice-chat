@@ -127,8 +127,8 @@ jobs:
         id: build-number
         uses: ./.github/actions/get-build-number
         with:
-          redis_url: ${{ secrets.UPSTASH_REDIS_URL }}
-          redis_token: ${{ secrets.UPSTASH_REDIS_TOKEN }}
+          redis_url: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          redis_token: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
 
   # Build server for multiple platforms (always runs - produces native library needed by mods)
   build-server:
