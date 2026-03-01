@@ -107,9 +107,7 @@ jobs:
             --plist "../target/$BUILD_MODE/bundle/macos/Bedrock Voice Chat.app/Contents/Info.plist"
 
       - name: Install Apple certificates and provisioning profile
-        if: >-
-          github.event_name != 'pull_request' &&
-          inputs.build_mode == 'release'
+        if: github.event_name != 'pull_request'
         env:
           APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -122,6 +120,13 @@ jobs:
           INSTALLER_CERT_PATH=$RUNNER_TEMP/installer_distribution.p12
           PP_PATH=$RUNNER_TEMP/macos_profile.provisionprofile
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+
+          # Determine build mode for provisioning profile embedding
+          if [ "${{ inputs.build_mode }}" = "release" ]; then
+            BUILD_MODE="release"
+          else
+            BUILD_MODE="debug"
+          fi
 
           # Decode certificates and provisioning profile from secrets
           echo -n "$APPLE_CERTIFICATE_BASE64" | base64 --decode -o $CERT_PATH
@@ -142,20 +147,23 @@ jobs:
           security list-keychain -d user -s $KEYCHAIN_PATH
 
           # Embed provisioning profile in the .app bundle
-          APP_DIR="../target/release/bundle/macos/Bedrock Voice Chat.app"
+          APP_DIR="../target/$BUILD_MODE/bundle/macos/Bedrock Voice Chat.app"
           cp $PP_PATH "$APP_DIR/Contents/embedded.provisionprofile"
 
           echo "Certificates and provisioning profile installed successfully"
 
       - name: Sign macOS app
-        if: >-
-          github.event_name != 'pull_request' &&
-          inputs.build_mode == 'release'
+        if: github.event_name != 'pull_request'
         working-directory: ./client
         env:
           KEYCHAIN_PATH: ${{ runner.temp }}/app-signing.keychain-db
         run: |
-          APP_DIR="../target/release/bundle/macos/Bedrock Voice Chat.app"
+          if [ "${{ inputs.build_mode }}" = "release" ]; then
+            BUILD_MODE="release"
+          else
+            BUILD_MODE="debug"
+          fi
+          APP_DIR="../target/$BUILD_MODE/bundle/macos/Bedrock Voice Chat.app"
           ENTITLEMENTS="src-tauri/Entitlements.macos.plist"
 
           echo "Signing .app with Apple Distribution certificate..."
@@ -268,7 +276,7 @@ jobs:
             echo "| Build Mode | $BUILD_MODE |"
             echo "| Trigger | ${{ github.event_name }} |"
             echo "| Target | aarch64-apple-darwin |"
-            echo "| Apple Signed | ${{ inputs.build_mode == 'release' && github.event_name != 'pull_request' }} |"
+            echo "| Apple Signed | ${{ github.event_name != 'pull_request' }} |"
             echo "| TestFlight Upload | ${{ inputs.testflight_upload || false }} |"
             echo "| Artifact (.app.zip) | bvc-macos-$BUILD_MODE.app.zip |"
           } >> $GITHUB_STEP_SUMMARY

@@ -95,9 +95,7 @@ jobs:
           node ../.github/scripts/patch-apple-plists.js
 
       - name: Install Apple certificate and provisioning profile
-        if: >-
-          github.event_name != 'pull_request' &&
-          (inputs.build_mode == 'release')
+        if: github.event_name != 'pull_request'
         env:
           APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -129,14 +127,12 @@ jobs:
           echo "Certificate and provisioning profile installed successfully"
 
       - name: Configure code signing
-        if: >-
-          github.event_name != 'pull_request' &&
-          (inputs.build_mode == 'release')
+        if: github.event_name != 'pull_request'
         working-directory: ./client
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          echo "Configuring code signing for release build..."
+          echo "Configuring code signing..."
           PBXPROJ="src-tauri/gen/apple/bedrock-voice-chat-client.xcodeproj/project.pbxproj"
 
           # Set the development team
@@ -150,7 +146,7 @@ jobs:
           echo "Code signing configured with team: $APPLE_TEAM_ID"
 
       - name: Disable code signing for CI
-        if: github.event_name == 'pull_request' || inputs.build_mode != 'release'
+        if: github.event_name == 'pull_request'
         working-directory: ./client
         run: |
           echo "Disabling code signing for CI build..."
@@ -174,6 +170,8 @@ jobs:
       - name: Build iOS (debug)
         if: github.event_name == 'pull_request' || inputs.build_mode != 'release'
         working-directory: ./client
+        env:
+          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           echo "Building iOS in debug mode"
           yarn tauri ios build --debug
@@ -271,6 +269,6 @@ jobs:
             echo "| Build Mode | $BUILD_MODE |"
             echo "| Trigger | ${{ github.event_name }} |"
             echo "| Target | aarch64-apple-ios |"
-            echo "| Signed | ${{ inputs.build_mode == 'release' && github.event_name != 'pull_request' }} |"
+            echo "| Signed | ${{ github.event_name != 'pull_request' }} |"
             echo "| TestFlight Upload | ${{ inputs.testflight_upload || false }} |"
           } >> $GITHUB_STEP_SUMMARY
