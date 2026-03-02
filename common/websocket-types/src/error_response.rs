@@ -1,7 +1,6 @@
-use serde::{Deserialize, Serialize};
 use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
-/// Error response wrapper
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ErrorResponse {
     pub success: bool,

@@ -20,6 +20,7 @@ tauri-build = { version = "^2.4", features = [] }
 
 [dependencies]
 common = { path = "./../../common", features = ["quic", "audio", "browser"] }
+websocket-types = { path = "./../../common/websocket-types" }
 tokio = { version = "^1", features = ["full"] }
 
 serde = { version = "^1", features = ["derive"] }

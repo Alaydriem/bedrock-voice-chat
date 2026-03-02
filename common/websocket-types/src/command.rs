@@ -1,30 +1,23 @@
-use serde::{Deserialize, Serialize};
 use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+
 use super::DeviceType;
 
-/// Base command structure with action discriminator
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "action", rename_all = "lowercase")]
 pub enum Command {
-    /// Health check command - returns pong response
     Ping,
-    /// Toggle mute for input or output device - returns current mute status
     Mute { device: DeviceType },
-    /// Toggle recording on/off - returns current recording status
     Record,
-    /// Query current state (muted, deafened, recording)
     State,
 }
 
 impl Command {
-    /// Parse command from JSON text
     pub fn from_json(text: &str) -> Result<Self, serde_json::Error> {
         serde_json::from_str(text)
     }
 }
 
-/// Wrapper that extracts the optional auth key alongside the command.
-/// Parses key and command separately to avoid serde's flatten+tag incompatibility.
 #[derive(Debug, Clone)]
 pub struct CommandMessage {
     pub key: Option<String>,
@@ -37,7 +30,6 @@ struct KeyExtractor {
 }
 
 impl CommandMessage {
-    /// Parse a full message (with optional key) from JSON text
     pub fn from_json(text: &str) -> Result<Self, serde_json::Error> {
         let key_data: KeyExtractor = serde_json::from_str(text)?;
         let command: Command = serde_json::from_str(text)?;

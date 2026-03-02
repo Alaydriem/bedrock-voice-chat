@@ -881,6 +881,7 @@ dependencies = [
  "ts-rs",
  "url",
  "uuid 1.21.0",
+ "websocket-types",
  "windows-targets 0.53.5",
  "zstd",
 ]
@@ -2899,16 +2900,6 @@ dependencies = [
  "libc",
  "system-deps",
  "x11",
-]
-
-[[package]]
-name = "generate-asyncapi-docs"
-version = "0.1.0"
-dependencies = [
- "bedrock-voice-chat-client",
- "schemars 1.2.1",
- "serde_json",
- "serde_yaml",
 ]
 
 [[package]]
@@ -10056,6 +10047,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "22cfaf3c063993ff62e73cb4311efde4db1efb31ab78a3e5c457939ad5cc0bed"
 dependencies = [
  "rustls-pki-types",
+]
+
+[[package]]
+name = "websocket-types"
+version = "0.1.0"
+dependencies = [
+ "schemars 1.2.1",
+ "serde",
+ "serde_json",
+ "serde_yaml",
 ]
 
 [[package]]
