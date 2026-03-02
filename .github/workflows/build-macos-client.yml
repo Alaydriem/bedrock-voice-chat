@@ -182,11 +182,28 @@ jobs:
           APP_DIR="../target/$BUILD_MODE/bundle/macos/Bedrock Voice Chat.app"
           ENTITLEMENTS="src-tauri/Entitlements.macos.plist"
 
-          echo "Signing .app with Apple Distribution certificate..."
+          echo "Signing inside-out (no --deep)..."
 
-          # Sign the .app bundle with entitlements
-          codesign --deep --force --verify --verbose \
-            --sign "Apple Distribution" \
+          # Sign all nested frameworks and dylibs first
+          find "$APP_DIR/Contents/Frameworks" -type d -name "*.framework" 2>/dev/null | while read fw; do
+            echo "Signing framework: $fw"
+            codesign --force --sign "Apple Distribution" --options runtime "$fw"
+          done
+
+          find "$APP_DIR" -type f \( -name "*.dylib" -o -name "*.so" \) 2>/dev/null | while read lib; do
+            echo "Signing library: $lib"
+            codesign --force --sign "Apple Distribution" --options runtime "$lib"
+          done
+
+          # Sign any nested .app bundles
+          find "$APP_DIR" -mindepth 1 -type d -name "*.app" 2>/dev/null | while read nested; do
+            echo "Signing nested app: $nested"
+            codesign --force --sign "Apple Distribution" --options runtime "$nested"
+          done
+
+          # Sign the main app bundle last with entitlements
+          echo "Signing main app bundle..."
+          codesign --force --sign "Apple Distribution" \
             --entitlements "$ENTITLEMENTS" \
             --options runtime \
             "$APP_DIR"

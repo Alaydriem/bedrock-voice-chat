@@ -19,5 +19,7 @@
     <string>public.app-category.social-networking</string>
     <key>LSMinimumSystemVersion</key>
     <string>26.0</string>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
 </dict>
 </plist>

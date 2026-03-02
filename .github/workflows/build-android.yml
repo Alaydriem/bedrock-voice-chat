@@ -61,6 +61,11 @@ jobs:
         run: |
           node .github/scripts/set-build-number.js "${{ inputs.build_number }}"
 
+      - name: Read display version
+        id: version
+        run: |
+          echo "display_version=$(node -p "require('./client/src-tauri/tauri.conf.json').version")" >> "$GITHUB_OUTPUT"
+
       - name: Set up Java 21
         uses: actions/setup-java@v4
         with:
@@ -474,7 +479,8 @@ jobs:
           packageName: com.alaydriem.bvc.client
           releaseFiles: client/bvc-android-release-signed.aab
           track: ${{ inputs.play_store_track }}
-          status: draft
+          releaseName: "${{ steps.version.outputs.display_version }} (${{ inputs.build_number }})"
+          status: ${{ inputs.play_store_track == 'production' && 'draft' || 'completed' }}
 
       - name: Output artifact information
         run: |
