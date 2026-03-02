@@ -91,6 +91,7 @@ windows-targets = "^0.53.0"
 [dev-dependencies]
 
 [features]
+asyncapi-docs = []
 
 [dependencies.serde_yaml]
 version = "^0.9"
@@ -98,3 +99,4 @@ version = "^0.9"
 [[bin]]
 name = "generate-asyncapi-docs"
 path = "src/bin/generate_asyncapi_docs.rs"
+required-features = ["asyncapi-docs"]
