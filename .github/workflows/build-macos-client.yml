@@ -162,6 +162,12 @@ jobs:
 
           echo "Certificates and provisioning profile installed successfully"
 
+      - name: Prepare entitlements for signing
+        if: github.event_name != 'pull_request'
+        run: |
+          sed -i '' "s/__TEAM_ID__/${{ secrets.APPLE_TEAM_ID }}/g" \
+            client/src-tauri/Entitlements.macos.plist
+
       - name: Sign macOS app
         if: github.event_name != 'pull_request'
         working-directory: ./client

@@ -65,8 +65,6 @@ deadqueue = { version = "^0.2" }
 async-once-cell = { version = "^0.5" }
 moka = { version = "^0.12", features = [
     "future",
-    "async-lock",
-    "async-trait",
     "sync",
 ] }
 async-channel = { version = "^2.3" }

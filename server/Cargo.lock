@@ -3060,25 +3060,21 @@ dependencies = [
 
 [[package]]
 name = "moka"
-version = "0.12.8"
+version = "0.12.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32cf62eb4dd975d2dde76432fb1075c49e3ee2331cf36f1f8fd4b66550d32b6f"
+checksum = "85f8024e1c8e71c778968af91d43700ce1d11b219d127d79fb2934153b82b42b"
 dependencies = [
  "async-lock",
- "async-trait",
  "crossbeam-channel",
  "crossbeam-epoch",
  "crossbeam-utils",
+ "equivalent",
  "event-listener 5.4.1",
  "futures-util",
- "once_cell",
  "parking_lot",
- "quanta",
- "rustc_version",
+ "portable-atomic",
  "smallvec",
  "tagptr",
- "thiserror 1.0.69",
- "triomphe",
  "uuid",
 ]
 
@@ -3850,21 +3846,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "quanta"
-version = "0.12.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3ab5a9d756f0d97bdc89019bd2e4ea098cf9cde50ee7564dde6b81ccc8f06c7"
-dependencies = [
- "crossbeam-utils",
- "libc",
- "once_cell",
- "raw-cpuid",
- "wasi 0.11.1+wasi-snapshot-preview1",
- "web-sys",
- "winapi",
-]
-
-[[package]]
 name = "quinn"
 version = "0.11.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4066,15 +4047,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca3129af7b92a17112d59ad498c6f81eaf463253766b90396d39ea7a39d6613c"
 dependencies = [
  "rand_core 0.5.1",
-]
-
-[[package]]
-name = "raw-cpuid"
-version = "11.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "498cd0dc59d73224351ee52a95fee0f1a617a2eae0e7d9d720cc622c73a54186"
-dependencies = [
- "bitflags 2.11.0",
 ]
 
 [[package]]
@@ -4612,9 +4584,9 @@ checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
 name = "s2n-codec"
-version = "0.74.0"
+version = "0.75.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37a07f4fac48aa62fe8e70ee05eb8671d143689cbb950ad6cca2e7e52313a093"
+checksum = "50c59688d7529e66245e90f387a7608d620d7c026f49e1b2b2e6850e912e6865"
 dependencies = [
  "byteorder",
  "bytes",
@@ -4623,9 +4595,9 @@ dependencies = [
 
 [[package]]
 name = "s2n-quic"
-version = "1.74.0"
+version = "1.75.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab472129b56875c4e42e055903ce95523291a142223b331d1544e3dd9a702293"
+checksum = "485e630643c722636a6c2aad543b417e78153b41df77f2df9e5ff4d536102e90"
 dependencies = [
  "bytes",
  "cfg-if",
@@ -4648,9 +4620,9 @@ dependencies = [
 
 [[package]]
 name = "s2n-quic-core"
-version = "0.74.0"
+version = "0.75.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f526ee912db4354dffc6229d283ac9d7cf297ec1bee8e495b786a7e520138b2"
+checksum = "5a9b8a80ac24812ce182b0d24e0c792a55f4c535d6a7fe3d6b932fcd68cf5ef6"
 dependencies = [
  "atomic-waker",
  "byteorder",
@@ -4670,9 +4642,9 @@ dependencies = [
 
 [[package]]
 name = "s2n-quic-crypto"
-version = "0.74.0"
+version = "0.75.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aec6bbed663012d824ee279833959800837453a32d118d351d971da2ffc0f363"
+checksum = "e4a2d8d8285425c1e07dd6aaca7cc2a8fde4c17c30b377a6dd1802e6c2db428e"
 dependencies = [
  "aws-lc-rs",
  "cfg-if",
@@ -4684,9 +4656,9 @@ dependencies = [
 
 [[package]]
 name = "s2n-quic-platform"
-version = "0.74.0"
+version = "0.75.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7229151d4a48d17cec48d274c0c74c82220ddef932aae91fdc18d9beab7097bc"
+checksum = "1f86496be49056c4e01ae615f65eb2a8dcac82a41438416daff777b0b7fb9de0"
 dependencies = [
  "cfg-if",
  "futures",
@@ -4699,9 +4671,9 @@ dependencies = [
 
 [[package]]
 name = "s2n-quic-rustls"
-version = "0.74.0"
+version = "0.75.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3fff17e3c7bbde694b1cadacfb42aae93d43d57dbc77b726bdbd67518e51b2dd"
+checksum = "feaf59a0ec1a3e45f9481f53e30b39745c791dd5803cfdd4b47a74f42e909c18"
 dependencies = [
  "bytes",
  "rustls 0.23.37",
@@ -4713,9 +4685,9 @@ dependencies = [
 
 [[package]]
 name = "s2n-quic-transport"
-version = "0.74.0"
+version = "0.75.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5627b2561dba83b25908d49afa87ff27afd6f04a4cb3679731349db71967dc16"
+checksum = "efc8742c1ea25f3f32f8897592437a5286c10b1b05b16e493ac02f35784a6503"
 dependencies = [
  "bytes",
  "futures-channel",
@@ -6085,12 +6057,6 @@ dependencies = [
  "tracing-core",
  "tracing-log",
 ]
-
-[[package]]
-name = "triomphe"
-version = "0.1.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "859eb650cfee7434994602c3a68b25d77ad9e68c8a6cd491616ef86661382eb3"
 
 [[package]]
 name = "try-lock"

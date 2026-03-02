@@ -54,8 +54,6 @@ dyn-clone = { version = "^1.0" }
 ron = { version = "^0.12" }
 moka = { version = "^0.12", features = [
     "future",
-    "async-lock",
-    "async-trait",
     "sync",
 ] }
 postcard = { version = "^1.1", features = [ "use-std", "postcard-derive" ] }
@@ -64,7 +62,7 @@ leb128 = { version = "^0.2" }
 serde_bytes = { version = "^0.11" }
 thiserror = { version = "^2" }
 
-s2n-quic = { version = "=1.74.0", default-features = false, features = [
+s2n-quic = { version = "=1.75.0", default-features = false, features = [
     "provider-address-token-default",
     "provider-tls-rustls",
     "provider-event-tracing",
