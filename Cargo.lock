@@ -856,7 +856,6 @@ dependencies = [
  "schemars 1.2.1",
  "serde",
  "serde_json",
- "serde_yaml",
  "shiguredo_mp4",
  "spmc",
  "tar",
@@ -2900,6 +2899,16 @@ dependencies = [
  "libc",
  "system-deps",
  "x11",
+]
+
+[[package]]
+name = "generate-asyncapi-docs"
+version = "0.1.0"
+dependencies = [
+ "bedrock-voice-chat-client",
+ "schemars 1.2.1",
+ "serde_json",
+ "serde_yaml",
 ]
 
 [[package]]

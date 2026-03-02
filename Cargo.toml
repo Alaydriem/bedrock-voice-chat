@@ -1,5 +1,5 @@
 [workspace]
-members = ["common", "client/src-tauri"]
+members = ["common", "client/src-tauri", "tools/asyncapi-docs"]
 resolver = "2"
 
 [profile.release]
