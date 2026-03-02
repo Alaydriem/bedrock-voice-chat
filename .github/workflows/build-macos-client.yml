@@ -1,0 +1,315 @@
+name: Build macOS Client
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      build_mode:
+        description: 'Build mode (debug or release)'
+        required: false
+        default: 'debug'
+        type: string
+      ref:
+        description: 'Git ref to checkout (tag, branch, or SHA)'
+        required: false
+        type: string
+      version:
+        description: 'Version to patch into config files (ensures correct version during dry-run)'
+        required: false
+        default: ''
+        type: string
+      testflight_upload:
+        description: 'Upload signed pkg to TestFlight. Requires release build mode.'
+        required: false
+        default: false
+        type: boolean
+      build_number:
+        description: 'Atomic build number from Redis (overrides bundleVersion)'
+        required: false
+        default: ''
+        type: string
+  workflow_dispatch:
+    inputs:
+      build_mode:
+        description: 'Build mode'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
+      testflight_upload:
+        description: 'Upload to TestFlight (release only)'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  build-macos:
+    name: Build macOS Client (${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }})
+    runs-on: macos-26
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Patch version files
+        if: inputs.version != ''
+        run: |
+          node .github/scripts/patch-versions.js "${{ inputs.version }}"
+
+      - name: Apply build number
+        if: inputs.build_number != ''
+        run: |
+          node .github/scripts/set-build-number.js "${{ inputs.build_number }}"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'yarn'
+          cache-dependency-path: client/yarn.lock
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "."
+
+      - name: Install JavaScript dependencies
+        working-directory: ./client
+        run: yarn install --frozen-lockfile
+
+      - name: Build macOS client (debug)
+        if: github.event_name == 'pull_request' || inputs.build_mode != 'release'
+        working-directory: ./client
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: yarn tauri build --debug --bundles app
+
+      - name: Build macOS client (release)
+        if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
+        working-directory: ./client
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: yarn tauri build --bundles app
+
+      - name: Patch macOS Apple versions
+        working-directory: ./client
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BUILD_MODE="debug"
+          elif [ "${{ inputs.build_mode }}" = "release" ]; then
+            BUILD_MODE="release"
+          else
+            BUILD_MODE="debug"
+          fi
+          node ../.github/scripts/patch-apple-plists.js \
+            --plist "../target/$BUILD_MODE/bundle/macos/Bedrock Voice Chat.app/Contents/Info.plist"
+
+      - name: Install Apple certificates and provisioning profile
+        if: github.event_name != 'pull_request'
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_INSTALLER_CERTIFICATE_BASE64: ${{ secrets.APPLE_INSTALLER_CERTIFICATE_BASE64 }}
+          APPLE_INSTALLER_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          MACOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.MACOS_PROVISIONING_PROFILE_BASE64 }}
+          KEYCHAIN_PASSWORD: ${{ github.run_id }}
+        run: |
+          CERT_PATH=$RUNNER_TEMP/apple_distribution.p12
+          INSTALLER_CERT_PATH=$RUNNER_TEMP/installer_distribution.p12
+          PP_PATH=$RUNNER_TEMP/macos_profile.provisionprofile
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+
+          # Determine build mode for provisioning profile embedding
+          if [ "${{ inputs.build_mode }}" = "release" ]; then
+            BUILD_MODE="release"
+          else
+            BUILD_MODE="debug"
+          fi
+
+          # Decode certificates and provisioning profile from secrets
+          echo -n "$APPLE_CERTIFICATE_BASE64" | base64 --decode -o $CERT_PATH
+          echo -n "$APPLE_INSTALLER_CERTIFICATE_BASE64" | base64 --decode -o $INSTALLER_CERT_PATH
+          echo -n "$MACOS_PROVISIONING_PROFILE_BASE64" | base64 --decode -o $PP_PATH
+
+          # Create temporary keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          # Import Apple Distribution certificate (for signing the .app)
+          security import $CERT_PATH -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          # Import Mac Installer Distribution certificate (for signing the .pkg)
+          security import $INSTALLER_CERT_PATH -P "$APPLE_INSTALLER_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+
+          # Embed provisioning profile in the .app bundle
+          APP_DIR="./target/$BUILD_MODE/bundle/macos/Bedrock Voice Chat.app"
+          cp $PP_PATH "$APP_DIR/Contents/embedded.provisionprofile"
+
+          echo "Certificates and provisioning profile installed successfully"
+
+      - name: Prepare entitlements for signing
+        if: github.event_name != 'pull_request'
+        run: |
+          sed -i '' "s/__TEAM_ID__/${{ secrets.APPLE_TEAM_ID }}/g" \
+            client/src-tauri/Entitlements.macos.plist
+
+      - name: Sign macOS app
+        if: github.event_name != 'pull_request'
+        working-directory: ./client
+        env:
+          KEYCHAIN_PATH: ${{ runner.temp }}/app-signing.keychain-db
+        run: |
+          if [ "${{ inputs.build_mode }}" = "release" ]; then
+            BUILD_MODE="release"
+          else
+            BUILD_MODE="debug"
+          fi
+          APP_DIR="../target/$BUILD_MODE/bundle/macos/Bedrock Voice Chat.app"
+          ENTITLEMENTS="src-tauri/Entitlements.macos.plist"
+
+          echo "Signing inside-out (no --deep)..."
+
+          # Sign all nested frameworks and dylibs first
+          find "$APP_DIR/Contents/Frameworks" -type d -name "*.framework" 2>/dev/null | while read fw; do
+            echo "Signing framework: $fw"
+            codesign --force --sign "Apple Distribution" --options runtime "$fw"
+          done
+
+          find "$APP_DIR" -type f \( -name "*.dylib" -o -name "*.so" \) 2>/dev/null | while read lib; do
+            echo "Signing library: $lib"
+            codesign --force --sign "Apple Distribution" --options runtime "$lib"
+          done
+
+          # Sign any nested .app bundles
+          find "$APP_DIR" -mindepth 1 -type d -name "*.app" 2>/dev/null | while read nested; do
+            echo "Signing nested app: $nested"
+            codesign --force --sign "Apple Distribution" --options runtime "$nested"
+          done
+
+          # Sign the main app bundle last with entitlements
+          echo "Signing main app bundle..."
+          codesign --force --sign "Apple Distribution" \
+            --entitlements "$ENTITLEMENTS" \
+            --options runtime \
+            "$APP_DIR"
+
+          echo "Verifying signature..."
+          codesign --verify --deep --strict --verbose=2 "$APP_DIR"
+
+          echo "macOS .app signed successfully"
+
+      - name: Create and sign installer package
+        if: >-
+          github.event_name != 'pull_request' &&
+          inputs.build_mode == 'release'
+        working-directory: ./client
+        run: |
+          APP_DIR="../target/release/bundle/macos/Bedrock Voice Chat.app"
+
+          echo "Creating signed installer .pkg..."
+          productbuild \
+            --sign "3rd Party Mac Developer Installer" \
+            --component "$APP_DIR" /Applications \
+            "bvc-macos-release.pkg"
+
+          echo "=== Installer package ==="
+          ls -la "bvc-macos-release.pkg"
+          echo "macOS .pkg created and signed successfully"
+
+      - name: Prepare macOS artifacts
+        working-directory: ./client
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BUILD_MODE="debug"
+          elif [ "${{ inputs.build_mode }}" = "release" ]; then
+            BUILD_MODE="release"
+          else
+            BUILD_MODE="debug"
+          fi
+          echo "Effective build mode: $BUILD_MODE"
+
+          APP_DIR="../target/$BUILD_MODE/bundle/macos/Bedrock Voice Chat.app"
+
+          if [ -d "$APP_DIR" ]; then
+            echo "Found .app bundle at: $APP_DIR"
+            cd "../target/$BUILD_MODE/bundle/macos"
+            zip -r -y "../../../../client/bvc-macos-$BUILD_MODE.app.zip" "Bedrock Voice Chat.app"
+            cd "../../../../client"
+            echo "Zipped .app bundle:"
+            ls -la "bvc-macos-$BUILD_MODE.app.zip"
+          else
+            echo "ERROR: .app bundle not found at $APP_DIR!"
+            echo "Listing bundle directory contents:"
+            ls -laR "../target/$BUILD_MODE/bundle/" || echo "Bundle directory does not exist"
+            exit 1
+          fi
+
+      - name: Upload signed macOS pkg artifact
+        if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bvc-macos-release-signed-pkg
+          path: client/bvc-macos-release.pkg
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Upload macOS app.zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bvc-macos-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
+          path: client/bvc-macos-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}.app.zip
+          retention-days: 30
+
+      - name: Upload to TestFlight
+        if: >-
+          github.event_name != 'pull_request' &&
+          inputs.testflight_upload == true &&
+          inputs.build_mode == 'release'
+        uses: apple-actions/upload-testflight-build@v3
+        with:
+          app-path: client/bvc-macos-release.pkg
+          issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
+          api-key-id: ${{ secrets.APPSTORE_API_KEY_ID }}
+          api-private-key: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+
+      - name: Clean up keychain
+        if: always()
+        run: |
+          security delete-keychain $RUNNER_TEMP/app-signing.keychain-db 2>/dev/null || true
+
+      - name: Build summary
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BUILD_MODE="debug"
+          elif [ "${{ inputs.build_mode }}" = "release" ]; then
+            BUILD_MODE="release"
+          else
+            BUILD_MODE="debug"
+          fi
+          {
+            echo "## macOS Client Build Complete"
+            echo ""
+            echo "| Name | Value |"
+            echo "| ---- | ----- |"
+            echo "| Build Mode | $BUILD_MODE |"
+            echo "| Trigger | ${{ github.event_name }} |"
+            echo "| Target | aarch64-apple-darwin |"
+            echo "| Apple Signed | ${{ github.event_name != 'pull_request' }} |"
+            echo "| TestFlight Upload | ${{ inputs.testflight_upload || false }} |"
+            echo "| Artifact (.app.zip) | bvc-macos-$BUILD_MODE.app.zip |"
+          } >> $GITHUB_STEP_SUMMARY

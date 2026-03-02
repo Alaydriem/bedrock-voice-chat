@@ -2,7 +2,8 @@ use std::collections::HashMap;
 
 use crate::audio::types::{get_best_sample_rate, AudioDevice, AudioDeviceHost, AudioDeviceType};
 use anyhow::anyhow;
-use cpal::{
+use rodio::cpal::{
+    self,
     traits::{DeviceTrait, HostTrait},
     HostId, SupportedStreamConfigRange,
 };
@@ -34,7 +35,6 @@ pub(crate) fn get_cpal_hosts() -> Result<Vec<rodio::cpal::platform::Host>, anyho
         }
     }
 
-    // I guess you could run this on a Mac and be playing on a mobile device ?
     #[cfg(any(target_os = "macos", target_os = "ios"))]
     {
         match cpal::host_from_id(HostId::CoreAudio) {
@@ -165,7 +165,7 @@ pub fn refresh_device_config(device: &AudioDevice) -> Option<Vec<crate::audio::t
         };
 
         for cpal_device in devices_iter {
-            if cpal_device.name().ok()? == device.name {
+            if cpal_device.id().ok().map(|id| id.to_string()) == Some(device.id.clone()) {
                 let configs: Vec<SupportedStreamConfigRange> = match device.io {
                     AudioDeviceType::InputDevice => {
                         cpal_device.supported_input_configs().ok()?.collect()
@@ -191,11 +191,19 @@ fn get_device_name(
     device: &cpal::Device,
     stream_configs: Vec<SupportedStreamConfigRange>,
 ) -> Vec<AudioDevice> {
-    let device_name = match device.name() {
-        Ok(name) => name,
+    let device_description = match device.description() {
+        Ok(desc) => desc.name().to_string(),
         Err(e) => {
-            warn!("{}", e.to_string());
+            warn!("Could not get device description: {}", e);
             return vec![];
+        }
+    };
+
+    let device_id = match device.id() {
+        Ok(id) => id.to_string(),
+        Err(e) => {
+            warn!("Could not get device ID, falling back to description: {}", e);
+            device_description.clone()
         }
     };
 
@@ -217,12 +225,13 @@ fn get_device_name(
             for supported_config in supported_stream_configs {
                 devices.push(AudioDevice::new(
                     io.clone(),
-                    device_name.clone(),
+                    device_id.clone(),
+                    device_description.clone(),
                     AudioDeviceHost::try_from(host.id()).unwrap(),
                     vec![supported_config],
                     format!(
                         "{} {} {}",
-                        device_name.clone(),
+                        device_description.clone(),
                         match io {
                             AudioDeviceType::InputDevice => "Input",
                             AudioDeviceType::OutputDevice => "Output",
@@ -236,10 +245,11 @@ fn get_device_name(
         }
         _ => vec![AudioDevice::new(
             io,
-            device_name.clone(),
+            device_id,
+            device_description.clone(),
             AudioDeviceHost::try_from(host.id()).unwrap(),
             stream_configs,
-            device_name.clone(),
+            device_description,
         )],
     }
 }

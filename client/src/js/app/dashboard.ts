@@ -22,6 +22,7 @@ import ChannelManager from './managers/ChannelManager';
 import { AudioActivityManager } from './managers/AudioActivityManager';
 
 import Notification from "../../components/events/Notification.svelte";
+import type { KeybindConfig } from '../bindings/KeybindConfig.ts';
 import type { NoiseGateSettings } from '../bindings/NoiseGateSettings.ts';
 import type { PlayerGainStore } from '../bindings/PlayerGainStore.ts';
 
@@ -33,7 +34,7 @@ import {
   PermissionType,
   isServiceRunning,
   type ServiceResponse,
-  type ServiceStatusResponse
+  type ServiceStatusResponse,
 } from 'tauri-plugin-audio-permissions';
 
 declare global {
@@ -109,6 +110,18 @@ export default class Dashboard extends BVCApp {
             }).catch((e) => {
                 error(`Error auto-starting WebSocket server: ${e}`);
             });
+
+            // Start keybind listener with saved config
+            const keybindConfig = await this.store!.get<KeybindConfig>("keybinds") ?? {
+                toggleMute: "ControlLeft+BracketLeft",
+                toggleDeafen: "ControlLeft+BracketRight",
+                toggleRecording: "ControlLeft+Backslash",
+                pushToTalk: "Backquote",
+                voiceMode: "openMic",
+            };
+            await invoke('start_keybind_listener', { config: keybindConfig }).catch((e) => {
+                error(`Error starting keybind listener: ${e}`);
+            });
         }
 
         // If the audio engine is stopped for either the input or output channel, shutdown the existing one, reinitialize everything
@@ -147,7 +160,12 @@ export default class Dashboard extends BVCApp {
                 // application is backgrounded.
                 const isServiceRunningResult: ServiceStatusResponse = await isServiceRunning();
                 if (!isServiceRunningResult.running) {
-                    const serviceResult: ServiceResponse = await startForegroundService();
+                    const serviceResult: ServiceResponse = await startForegroundService({
+                        onPermissionRevoked: (event) => {
+                            warn(`Permission revoked: ${event.permissionType}`);
+                            window.location.href = "/error?code=PERM1";
+                        }
+                    });
 
                     if (!serviceResult.started) {
                         warn("Foreground service could not be started.");

@@ -117,7 +117,7 @@
                   <span class="px-3 text-slate-400 dark:text-navy-300 text-sm">or</span>
                   <hr class="flex-grow border-slate-300 dark:border-navy-450" />
                 </div>
-                <button id="hytale-login-btn" type="button" class="btn w-full" on:click={(e) => window.App.loginWithHytale(e)}>
+                <button id="hytale-login-btn" type="button" class="btn w-full" onclick={(e) => window.App.loginWithHytale(e)}>
                   <img
                     src="/images/hytale-login-button.svg"
                     alt="Sign in with Hytale"
@@ -134,7 +134,7 @@
             <button
               type="button"
               class="hover:text-slate-500 dark:hover:text-navy-200 hover:underline cursor-pointer"
-              on:click={() => openUrl("https://raw.githubusercontent.com/Alaydriem/bedrock-voice-chat/refs/heads/master/PRIVACY_STATEMENT.md")}
+              onclick={() => openUrl("https://raw.githubusercontent.com/Alaydriem/bedrock-voice-chat/refs/heads/master/PRIVACY_STATEMENT.md")}
             >Privacy Notice</button>
             {#if appVersion}
               <span class="mt-2">v{appVersion}</span>

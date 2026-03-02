@@ -1,5 +1,5 @@
 use common::Coordinate;
-use rodio::{Sink, SpatialSink};
+use rodio::{Player, SpatialPlayer};
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -20,8 +20,8 @@ impl AudioSinkType {
 
 #[derive(Clone)]
 pub(crate) enum AudioSink {
-    Normal(Arc<Sink>),
-    Spatial(Arc<SpatialSink>),
+    Normal(Arc<Player>),
+    Spatial(Arc<SpatialPlayer>),
 }
 
 impl AudioSink {
@@ -70,7 +70,7 @@ impl AudioSink {
     /// Append a source to the sink
     pub fn append<S>(&self, source: S)
     where
-        S: rodio::Source<Item = f32> + Send + 'static,
+        S: rodio::Source + Send + 'static,
     {
         match self {
             AudioSink::Normal(sink) => {

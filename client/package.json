@@ -1,6 +1,6 @@
 {
   "name": "bedrock-voice-chat-client",
-  "version": "1.0.0-beta.7",
+  "version": "1.0.0-beta.8",
   "description": "",
   "type": "module",
   "scripts": {
@@ -10,7 +10,8 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "tauri": "tauri",
-    "asyncapi-docs": "cd src-tauri && cargo run --bin generate-asyncapi-docs"
+    "tauri:ios:init": "tauri ios init && cp src-tauri/Info.ios.plist src-tauri/gen/apple/bedrock-voice-chat-client_iOS/Info.plist && cp -R src-tauri/icons/Assets.xcassets src-tauri/gen/apple/ && node ../.github/scripts/patch-apple-plists.js",
+    "asyncapi-docs": "cargo run --manifest-path ../common/websocket-types/Cargo.toml --bin generate-asyncapi-docs"
   },
   "license": "UNLICENSED",
   "dependencies": {
@@ -20,16 +21,16 @@
     "@tauri-apps/plugin-http": "^2",
     "@tauri-apps/plugin-log": "^2",
     "@tauri-apps/plugin-notification": "^2",
-    "@tauri-apps/plugin-opener": "~2",
+    "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-os": "^2",
     "@tauri-apps/plugin-process": "^2",
     "@tauri-apps/plugin-store": "^2",
     "@tauri-apps/plugin-updater": "^2",
     "@types/sprintf-js": "^1.1",
     "@use-gesture/vanilla": "^10.3",
-    "murmurhash3js": "^3.0.1",
+    "murmurhash3js": "^3.0",
     "tauri-plugin-audio-permissions": "git+https://github.com/charlesportwoodii/tauri-plugin-audio-permissions.git",
-    "tauri-plugin-keyring": "git+https://github.com/charlesportwoodii/tauri-plugin-keyring.git",
+    "tauri-plugin-keyring": "git+https://github.com/charlesportwoodii/tauri-plugin-keyring.git#master",
     "ts-pattern": "^5.6",
     "unique-names-generator": "^4.7",
     "webaudio-controls": "git+https://github.com/g200kg/webaudio-controls.git#master"

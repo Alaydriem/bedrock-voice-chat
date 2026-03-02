@@ -65,7 +65,7 @@
         </div>
 
         <button
-            on:click={handleGetStarted}
+            onclick={handleGetStarted}
             class="btn w-full bg-primary hover:bg-primary-focus focus:bg-primary-focus active:bg-primary-focus/90 dark:bg-accent dark:hover:bg-accent-focus dark:focus:bg-accent-focus dark:active:bg-accent/90 text-white font-semibold py-3"
         >
             Get Started

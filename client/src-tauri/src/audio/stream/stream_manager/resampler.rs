@@ -1,9 +1,11 @@
 use crate::audio::types::OPUS_SAMPLE_RATE;
-use rubato::{FftFixedIn, Resampler};
+use audioadapter_buffers::direct::SequentialSlice;
+use rubato::audioadapter::Adapter;
+use rubato::{Fft, FixedSync, Resampler};
 
 /// Audio resampler for converting any sample rate to 48 kHz (Opus native rate)
 pub struct AudioResampler {
-    resampler: FftFixedIn<f32>,
+    resampler: Fft<f32>,
     input_buffer: Vec<f32>,
     input_frames_needed: usize,
     source_rate: u32,
@@ -27,12 +29,13 @@ impl AudioResampler {
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         let sub_chunks = 2;
 
-        let resampler = match FftFixedIn::<f32>::new(
+        let resampler = match Fft::<f32>::new(
             source_rate as usize,
             OPUS_SAMPLE_RATE as usize,
             chunk_size,
             sub_chunks,
             1, // mono
+            FixedSync::Input,
         ) {
             Ok(r) => r,
             Err(e) => return Some(Err(anyhow::anyhow!("Failed to create resampler: {:?}", e))),
@@ -61,11 +64,13 @@ impl AudioResampler {
 
         while self.input_buffer.len() >= self.input_frames_needed {
             let chunk: Vec<f32> = self.input_buffer.drain(..self.input_frames_needed).collect();
+            let input_adapter =
+                SequentialSlice::new(chunk.as_slice(), 1, chunk.len()).unwrap();
 
-            if let Ok(resampled) = self.resampler.process(&[chunk.as_slice()], None) {
-                if !resampled.is_empty() && !resampled[0].is_empty() {
-                    output.extend_from_slice(&resampled[0]);
-                }
+            if let Ok(resampled) = self.resampler.process(&input_adapter, 0, None) {
+                let frames = resampled.frames();
+                let data = resampled.take_data();
+                output.extend_from_slice(&data[..frames]);
             }
 
             self.input_frames_needed = self.resampler.input_frames_next();

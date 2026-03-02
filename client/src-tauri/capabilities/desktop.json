@@ -6,6 +6,7 @@
   "platforms": ["linux", "macOS", "windows"],
   "permissions": [
     "updater:default",
-    "process:default"
+    "process:default",
+    "global-shortcut:default"
   ]
 }

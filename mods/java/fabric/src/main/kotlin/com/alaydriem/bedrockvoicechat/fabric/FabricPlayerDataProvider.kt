@@ -7,6 +7,7 @@ import com.alaydriem.bedrockvoicechat.dto.PlayerData
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.network.ServerPlayerEntity
 import net.minecraft.server.world.ServerWorld
+import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -20,6 +21,7 @@ class FabricPlayerDataProvider : PlayerDataProvider {
 
     private val onlinePlayers: MutableSet<UUID> = ConcurrentHashMap.newKeySet()
     private val deadPlayers: MutableSet<UUID> = ConcurrentHashMap.newKeySet()
+    private val worldUuidCache = ConcurrentHashMap<String, String>()
 
     fun addPlayer(player: ServerPlayerEntity) {
         onlinePlayers.add(player.uuid)
@@ -45,6 +47,7 @@ class FabricPlayerDataProvider : PlayerDataProvider {
             .mapNotNull { uuid -> srv.playerManager.getPlayer(uuid) }
             .filter { !it.isDisconnected }
             .map { player ->
+                val worldUuid = getWorldUuid(player.entityWorld as ServerWorld)
                 // Check if player is dead - override to death dimension at origin
                 if (deadPlayers.contains(player.uuid)) {
                     PlayerData(
@@ -56,7 +59,8 @@ class FabricPlayerDataProvider : PlayerDataProvider {
                         pitch = 0f,
                         dimension = Dimension.Minecraft.DEATH,
                         deafen = false,
-                        spectator = false
+                        spectator = false,
+                        worldUuid = worldUuid
                     )
                 } else {
                     // Normal player data
@@ -70,13 +74,30 @@ class FabricPlayerDataProvider : PlayerDataProvider {
                         pitch = player.pitch,
                         dimension = dimension,
                         deafen = player.isSneaking,
-                        spectator = player.isSpectator
+                        spectator = player.isSpectator,
+                        worldUuid = worldUuid
                     )
                 }
             }
     }
 
     override fun getGameType(): GameType = GameType.MINECRAFT
+
+    private fun getWorldUuid(world: ServerWorld): String {
+        val dimKey = world.registryKey.value.toString()
+        return worldUuidCache.getOrPut(dimKey) {
+            val worldDir = world.server!!.getRunDirectory().resolve("bvc").toFile()
+            worldDir.mkdirs()
+            val uuidFile = File(worldDir, "world_uuid_${dimKey.replace(":", "_")}.txt")
+            if (uuidFile.exists()) {
+                uuidFile.readText().trim()
+            } else {
+                val newUuid = UUID.randomUUID().toString()
+                uuidFile.writeText(newUuid)
+                newUuid
+            }
+        }
+    }
 
     private fun getDimensionFromPlayer(player: ServerPlayerEntity): Dimension {
         val dimensionId = player.entityWorld.registryKey.value.toString()

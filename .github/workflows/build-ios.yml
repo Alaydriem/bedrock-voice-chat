@@ -10,6 +10,25 @@ on:
         required: false
         default: 'debug'
         type: string
+      ref:
+        description: 'Git ref to checkout (tag, branch, or SHA)'
+        required: false
+        type: string
+      version:
+        description: 'Version to patch into config files (ensures correct bundleVersion during dry-run)'
+        required: false
+        default: ''
+        type: string
+      testflight_upload:
+        description: 'Upload signed IPA to TestFlight. Requires release build mode.'
+        required: false
+        default: false
+        type: boolean
+      build_number:
+        description: 'Atomic build number from Redis (overrides bundleVersion)'
+        required: false
+        default: ''
+        type: string
   workflow_dispatch:
     inputs:
       build_mode:
@@ -20,15 +39,32 @@ on:
         options:
           - debug
           - release
+      testflight_upload:
+        description: 'Upload to TestFlight (release only)'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   build-ios:
     name: Build iOS (${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }})
-    runs-on: macos-latest
+    runs-on: macos-26
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Patch version files
+        if: inputs.version != ''
+        run: |
+          node .github/scripts/patch-versions.js "${{ inputs.version }}"
+
+      - name: Apply build number
+        if: inputs.build_number != ''
+        run: |
+          node .github/scripts/set-build-number.js "${{ inputs.build_number }}"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -60,12 +96,116 @@ jobs:
 
       - name: Initialize Tauri iOS project
         working-directory: ./client
+        run: yarn tauri:ios:init
+
+      - name: Patch Apple version numbers
+        working-directory: ./client
         run: |
-          echo "Initializing Tauri iOS project..."
-          yarn tauri ios init
-          echo "iOS project initialized successfully"
+          echo "Patching generated iOS plists with correct version numbers..."
+          node ../.github/scripts/patch-apple-plists.js
+
+      - name: Install Apple certificate and provisioning profile
+        id: install-signing
+        if: >-
+          github.event_name != 'pull_request' &&
+          inputs.build_mode == 'release'
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          KEYCHAIN_PASSWORD: ${{ github.run_id }}
+        run: |
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+
+          # Decode certificate and provisioning profile from secrets
+          echo -n "$APPLE_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
+          echo -n "$IOS_PROVISIONING_PROFILE_BASE64" | base64 --decode -o $PP_PATH
+
+          # Create temporary keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          # Import certificate to keychain
+          security import $CERTIFICATE_PATH -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+
+          # Extract provisioning profile UUID and install with that name
+          PP_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" /dev/stdin <<< \
+            "$(security cms -D -i $PP_PATH)")
+          echo "Provisioning profile UUID: $PP_UUID"
+
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/${PP_UUID}.mobileprovision
+
+          echo "pp_uuid=$PP_UUID" >> "$GITHUB_OUTPUT"
+          echo "Certificate and provisioning profile installed successfully"
+
+      - name: Configure code signing
+        if: >-
+          github.event_name != 'pull_request' &&
+          inputs.build_mode == 'release'
+        working-directory: ./client
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          PP_UUID: ${{ steps.install-signing.outputs.pp_uuid }}
+        run: |
+          echo "Configuring manual code signing..."
+          node -e "
+          const fs = require('fs');
+          const pbxPath = 'src-tauri/gen/apple/bedrock-voice-chat-client.xcodeproj/project.pbxproj';
+          let pbx = fs.readFileSync(pbxPath, 'utf8');
+
+          const teamId = process.env.APPLE_TEAM_ID;
+          const ppUuid = process.env.PP_UUID;
+
+          // 1. Switch ProvisioningStyle from Automatic to Manual in target attributes
+          pbx = pbx.replace(/ProvisioningStyle = Automatic;/g, 'ProvisioningStyle = Manual;');
+
+          // 2. Inject signing settings into every buildSettings block
+          //    Find each buildSettings = { ... }; and ensure our keys are present
+          pbx = pbx.replace(/buildSettings = \{([^}]*)\}/g, (match, inner) => {
+            let settings = inner;
+            if (!settings.includes('CODE_SIGN_STYLE'))
+              settings += '\n\t\t\t\tCODE_SIGN_STYLE = Manual;\n';
+            if (!settings.includes('DEVELOPMENT_TEAM'))
+              settings += '\t\t\t\tDEVELOPMENT_TEAM = \"' + teamId + '\";\n';
+            if (!settings.includes('CODE_SIGN_IDENTITY'))
+              settings += '\t\t\t\tCODE_SIGN_IDENTITY = \"Apple Distribution\";\n';
+            if (!settings.includes('PROVISIONING_PROFILE_SPECIFIER'))
+              settings += '\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = \"\";\n';
+            if (!/PROVISIONING_PROFILE\b/.test(settings))
+              settings += '\t\t\t\tPROVISIONING_PROFILE = \"' + ppUuid + '\";\n';
+
+            // Also replace existing values
+            settings = settings.replace(/CODE_SIGN_STYLE = [^;]*;/g, 'CODE_SIGN_STYLE = Manual;');
+            settings = settings.replace(/DEVELOPMENT_TEAM = \"[^\"]*\"/g, 'DEVELOPMENT_TEAM = \"' + teamId + '\"');
+            settings = settings.replace(/CODE_SIGN_IDENTITY = \"[^\"]*\"/g, 'CODE_SIGN_IDENTITY = \"Apple Distribution\"');
+            settings = settings.replace(/PROVISIONING_PROFILE_SPECIFIER = \"[^\"]*\"/g, 'PROVISIONING_PROFILE_SPECIFIER = \"\"');
+            settings = settings.replace(/PROVISIONING_PROFILE = \"[^\"]*\"/g, 'PROVISIONING_PROFILE = \"' + ppUuid + '\"');
+
+            return 'buildSettings = {' + settings + '}';
+          });
+
+          fs.writeFileSync(pbxPath, pbx);
+          console.log('Manual code signing configured:');
+          console.log('  Team:', teamId);
+          console.log('  Identity: Apple Distribution');
+          console.log('  Profile UUID:', ppUuid);
+
+          // Verify
+          const lines = pbx.split('\n');
+          lines.forEach((line, i) => {
+            if (/ProvisioningStyle|CODE_SIGN_STYLE|CODE_SIGN_IDENTITY|DEVELOPMENT_TEAM|PROVISIONING_PROFILE/.test(line))
+              console.log((i+1) + ': ' + line.trim());
+          });
+          "
 
       - name: Disable code signing for CI
+        if: github.event_name == 'pull_request' || inputs.build_mode != 'release'
         working-directory: ./client
         run: |
           echo "Disabling code signing for CI build..."
@@ -82,78 +222,108 @@ jobs:
 
           echo "Code signing disabled"
 
-      - name: Build Icons
+      - name: Prepare ExportOptions.plist
+        if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
         working-directory: ./client
         run: |
-          echo "Copying custom iOS icons..."
-
-          SOURCE_ICONS="src-tauri/icons/Assets.xcassets"
-          TARGET_ASSETS="src-tauri/gen/apple/bedrock-voice-chat-client_iOS/Assets.xcassets"
-
-          if [ ! -d "$SOURCE_ICONS" ]; then
-            echo "Warning: Source icons path not found: $SOURCE_ICONS"
-            exit 1
-          fi
-
-          if [ ! -d "src-tauri/gen/apple/bedrock-voice-chat-client_iOS" ]; then
-            echo "Warning: Target iOS project path not found"
-            ls -la src-tauri/gen/apple/ || true
-            exit 1
-          fi
-
-          # Copy the entire Assets.xcassets directory
-          cp -R "$SOURCE_ICONS" "$TARGET_ASSETS"
-
-          echo "iOS icon copying completed."
-
-          # Verify icons were copied
-          echo "Verifying copied icons:"
-          ls -la "$TARGET_ASSETS/AppIcon.appiconset/" | head -20
-
-      - name: Copy Info.plist
-        working-directory: ./client
-        run: |
-          echo "Copying custom Info.plist..."
-
-          SOURCE_PLIST="../.github/Info.plist"
-          TARGET_PLIST="src-tauri/gen/apple/bedrock-voice-chat-client_iOS/Info.plist"
-
-          if [ ! -f "$SOURCE_PLIST" ]; then
-            echo "Error: Source Info.plist not found at $SOURCE_PLIST"
-            exit 1
-          fi
-
-          cp "$SOURCE_PLIST" "$TARGET_PLIST"
-
-          echo "Info.plist copied successfully"
-          echo "Contents:"
-          cat "$TARGET_PLIST"
+          cp src-tauri/ExportOptions.ios.plist src-tauri/gen/apple/ExportOptions.plist
+          sed -i '' "s/__TEAM_ID__/${{ secrets.APPLE_TEAM_ID }}/g" src-tauri/gen/apple/ExportOptions.plist
+          sed -i '' "s/__PP_UUID__/${{ steps.install-signing.outputs.pp_uuid }}/g" src-tauri/gen/apple/ExportOptions.plist
+          echo "ExportOptions.plist:"
+          cat src-tauri/gen/apple/ExportOptions.plist
 
       - name: Build frontend
         working-directory: ./client
         run: yarn build
 
-      - name: Build Rust for iOS (aarch64)
-        working-directory: ./client/src-tauri
+      - name: Build iOS (debug)
+        if: github.event_name == 'pull_request' || inputs.build_mode != 'release'
+        working-directory: ./client
         run: |
-          # Determine build mode
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "PR detected - building in debug mode"
-            cargo build --target aarch64-apple-ios
-          elif [ "${{ inputs.build_mode || 'debug' }}" = "release" ]; then
-            echo "Building in release mode"
-            cargo build --target aarch64-apple-ios --release
+          echo "Building iOS in debug mode"
+          yarn tauri ios build --debug
+
+      - name: Build iOS (release)
+        if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
+        working-directory: ./client
+        env:
+          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          echo "Building iOS release..."
+          yarn tauri ios build --export-method app-store-connect
+
+      - name: Prepare iOS artifacts
+        working-directory: ./client
+        run: |
+          BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}"
+          echo "Effective build mode: $BUILD_MODE"
+
+          # Search for the IPA generated by tauri ios build
+          echo "Searching for IPA files..."
+          find src-tauri/gen/apple/build -name "*.ipa" -type f 2>/dev/null || echo "No IPA files found in build directory"
+
+          IPA_PATH=$(find src-tauri/gen/apple/build -name "*.ipa" -type f 2>/dev/null | head -1)
+
+          if [ -n "$IPA_PATH" ]; then
+            echo "Found IPA at: $IPA_PATH"
+            cp "$IPA_PATH" "bvc-ios-${BUILD_MODE}.ipa"
+            echo "=== Final IPA ==="
+            ls -la "bvc-ios-${BUILD_MODE}.ipa"
           else
-            echo "Building in debug mode"
-            cargo build --target aarch64-apple-ios
+            echo "No IPA found, searching for .app bundles..."
+            find src-tauri/gen/apple/build -type d -name "*.app" 2>/dev/null || echo "No .app bundles found"
+
+            APP_PATH=$(find src-tauri/gen/apple/build -type d -name "*.app" 2>/dev/null | head -1)
+            if [ -n "$APP_PATH" ]; then
+              echo "Found .app bundle at: $APP_PATH, zipping..."
+              cd "$(dirname "$APP_PATH")"
+              zip -r -y "$OLDPWD/bvc-ios-${BUILD_MODE}.app.zip" "$(basename "$APP_PATH")"
+              cd "$OLDPWD"
+              ls -la "bvc-ios-${BUILD_MODE}.app.zip"
+            else
+              echo "WARNING: No IPA or .app bundle found"
+              echo "=== Full build directory listing ==="
+              find src-tauri/gen/apple/build -type f 2>/dev/null | head -50 || echo "Build directory does not exist"
+            fi
           fi
 
-      - name: Upload iOS artifact
+      - name: Upload signed iOS IPA artifact
+        if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bvc-ios-release-signed-ipa
+          path: client/bvc-ios-release.ipa
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Upload unsigned iOS build artifact
+        if: github.event_name == 'pull_request' || inputs.build_mode != 'release'
         uses: actions/upload-artifact@v4
         with:
           name: ios-build-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
-          path: client/src-tauri/target/aarch64-apple-ios/${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}/
+          path: |
+            client/bvc-ios-*.ipa
+            client/bvc-ios-*.app.zip
           retention-days: 7
+          if-no-files-found: warn
+
+      - name: Upload to TestFlight
+        if: >-
+          github.event_name != 'pull_request' &&
+          inputs.testflight_upload == true &&
+          inputs.build_mode == 'release'
+        uses: apple-actions/upload-testflight-build@v3
+        with:
+          app-path: client/bvc-ios-release.ipa
+          issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
+          api-key-id: ${{ secrets.APPSTORE_API_KEY_ID }}
+          api-private-key: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+
+      - name: Clean up keychain and provisioning profile
+        if: always()
+        run: |
+          security delete-keychain $RUNNER_TEMP/app-signing.keychain-db 2>/dev/null || true
+          rm -f ~/Library/MobileDevice/Provisioning\ Profiles/build_pp.mobileprovision 2>/dev/null || true
 
       - name: Build summary
         run: |
@@ -166,4 +336,6 @@ jobs:
             echo "| Build Mode | $BUILD_MODE |"
             echo "| Trigger | ${{ github.event_name }} |"
             echo "| Target | aarch64-apple-ios |"
+            echo "| Signed | ${{ inputs.build_mode == 'release' && github.event_name != 'pull_request' }} |"
+            echo "| TestFlight Upload | ${{ inputs.testflight_upload || false }} |"
           } >> $GITHUB_STEP_SUMMARY

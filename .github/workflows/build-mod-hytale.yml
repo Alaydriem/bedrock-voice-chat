@@ -103,8 +103,15 @@ jobs:
             VERSION=$(grep "modVersion" gradle.properties | cut -d'=' -f2)
             echo "Using gradle.properties version: $VERSION"
           fi
+
+          # Encode version if it contains a pre-release tag (e.g., 1.0.0-beta.7 -> 1.0.507)
+          if echo "$VERSION" | grep -q '-'; then
+            VERSION=$(node ../../.github/scripts/encode-version.js "$VERSION")
+            echo "Encoded version: $VERSION"
+          fi
+
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "artifact-name=bedrock-voice-chat-hytale-$VERSION.jar" >> $GITHUB_OUTPUT
+          echo "artifact-name=bedrock-voice-chat-hytale-$VERSION" >> $GITHUB_OUTPUT
 
       - name: Setup Hytale credentials
         env:
@@ -147,7 +154,7 @@ jobs:
       - name: Upload JAR artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bedrock-voice-chat-hytale-${{ steps.mod-version.outputs.version }}.jar
+          name: bedrock-voice-chat-hytale-${{ steps.mod-version.outputs.version }}
           path: bedrock-voice-chat-hytale-${{ steps.mod-version.outputs.version }}.jar
           retention-days: 30
 

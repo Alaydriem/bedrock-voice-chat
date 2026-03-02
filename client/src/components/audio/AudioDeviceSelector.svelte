@@ -48,24 +48,14 @@
         try {
             const devices = await invoke<Record<string, AudioDevice[]>>("get_devices");
 
-            let deviceTypes = [
-                "WASAPI"
-            ];
-
-            if (await platformDetector.isWindows()) {
-                deviceTypes.push("ASIO");
-            }
-
-            deviceTypes.forEach((type) => {
-                if (devices[type]) {
-                    devices[type].forEach((device: AudioDevice) => {
-                        if (device.io === "InputDevice") {
-                            inputDevices.push(device);
-                        } else {
-                            outputDevices.push(device);
-                        }
-                    });
-                }
+            Object.keys(devices).forEach((type) => {
+                devices[type].forEach((device: AudioDevice) => {
+                    if (device.io === "InputDevice") {
+                        inputDevices.push(device);
+                    } else {
+                        outputDevices.push(device);
+                    }
+                });
             });
 
             inputDevices.sort();

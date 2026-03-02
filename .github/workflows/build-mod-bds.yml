@@ -27,6 +27,11 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.ref }}
 
+      - name: Patch version files
+        if: inputs.version != ''
+        run: |
+          node .github/scripts/patch-mod-versions.js "${{ inputs.version }}"
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -86,7 +91,7 @@ jobs:
       - name: Upload zip artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bedrock-voice-chat-bds-${{ steps.pack-version.outputs.version }}.zip
+          name: bedrock-voice-chat-bds-${{ steps.pack-version.outputs.version }}
           path: bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.zip
           retention-days: 30
 

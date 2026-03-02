@@ -5,7 +5,7 @@ use ringbuf::{
     HeapRb,
 };
 
-const MAX_OPUS_FRAME_MS: usize = 480; // worst-case single decode span
+const MAX_OPUS_FRAME_MS: usize = 480;
 
 #[derive(Debug)]
 pub enum AudioProcessorError {
@@ -24,7 +24,6 @@ impl std::fmt::Display for AudioProcessorError {
 
 impl std::error::Error for AudioProcessorError {}
 
-/// Core audio processing state - focused solely on decoding and output
 pub struct AudioProcessor {
     decoder: Decoder,
     pub current_sample_rate: u32,

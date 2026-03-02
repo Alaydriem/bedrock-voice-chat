@@ -54,7 +54,7 @@ pub async fn start_websocket_server(
 
 #[tauri::command]
 pub async fn generate_encryption_key() -> Result<String, String> {
-    use rand::Rng;
+    use rand::RngExt;
     const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
     let mut rng = rand::rng();
 

@@ -17,7 +17,7 @@ data class PlayerData(
 ) {
     /**
      * Constructor for Minecraft players (Fabric/Paper).
-     * Does not include worldUuid since Minecraft dimensions are global.
+     * Accepts an optional worldUuid for multi-world isolation.
      */
     constructor(
         name: String,
@@ -25,13 +25,14 @@ data class PlayerData(
         yaw: Float, pitch: Float,
         dimension: Dimension?,
         deafen: Boolean,
-        spectator: Boolean = false
+        spectator: Boolean = false,
+        worldUuid: String? = null
     ) : this(
         name = name,
         coordinates = Coordinates(x, y, z),
         orientation = Orientation(yaw, pitch),
         dimension = dimension?.toApiString(),
-        worldUuid = null,
+        worldUuid = worldUuid,
         deafen = deafen,
         spectator = spectator
     )

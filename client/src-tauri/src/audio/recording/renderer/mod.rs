@@ -1,6 +1,6 @@
 mod stream;
 mod bwav;
-mod mp4;
+pub mod mp4;
 
 use async_trait::async_trait;
 use common::structs::recording::{RecordingHeader, SessionManifest};

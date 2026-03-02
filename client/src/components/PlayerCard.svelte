@@ -123,7 +123,7 @@
     });
 </script>
 
-<svelte:window on:click={handleClickOutside} on:keydown={handleKeydown} />
+<svelte:window onclick={handleClickOutside} onkeydown={handleKeydown} />
 
 <!-- Gradient border wrapper with consistent sizing -->
 <div class="player-card-wrapper {isCurrentlySpeaking ? 'speaking' : ''} {isGroupMember ? 'rounded-lg bg-gradient-to-r from-violet-400 to-purple-600 p-1' : ''}"
@@ -160,7 +160,7 @@
                     max="1.5"
                     step="0.05"
                     bind:value={gain}
-                    on:input={updateGain}
+                    oninput={updateGain}
                     disabled={isMuted}
                     class="flex-1 h-2 rounded-lg appearance-none cursor-pointer
                             bg-slate-700 border border-slate-600
@@ -177,7 +177,7 @@
             <div class="control-pill">
                 <!-- Mute button (left side) -->
                 <button class="control-pill-button {isMuted ? 'text-error' : 'text-slate-300'}"
-                        on:click={toggleMute}
+                        onclick={toggleMute}
                         title={isMuted ? `Unmute ${player} (restore ${Math.round(gain * 100)}%)` : `Mute ${player}`}
                         aria-label={isMuted ? `Unmute ${player}` : `Mute ${player}`}>
                     <i class="fas fa-microphone{isMuted ? '-slash' : ''} text-xs"></i>
@@ -189,7 +189,7 @@
                 <!-- Volume button (right side) -->
                 <button class="control-pill-button volume-button text-slate-300 {showVolumeSlider ? 'bg-slate-700' : ''}"
                         class:text-slate-500={isMuted}
-                        on:click={toggleVolumeSlider}
+                        onclick={toggleVolumeSlider}
                         title="{Math.round(gain * 100)}%"
                         aria-label="Toggle volume slider for {player}">
                     <i class="fas {volumeIcon} text-xs"></i>

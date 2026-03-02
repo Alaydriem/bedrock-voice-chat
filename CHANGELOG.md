@@ -1,3 +1,34 @@
+# [1.0.0-beta.8](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.7...v1.0.0-beta.8) (2026-02-28)
+
+
+### Bug Fixes
+
+* docker image ([310b74f](https://github.com/Alaydriem/bedrock-voice-chat/commit/310b74fbc7dd9461f23f64adeeac17aa5bab9648))
+* docker image runtime build path ([4df1ad4](https://github.com/Alaydriem/bedrock-voice-chat/commit/4df1ad41b81631fec1fbd31808f5963cd2b256be))
+* fixes group members being excluded from recordings ([4446b59](https://github.com/Alaydriem/bedrock-voice-chat/commit/4446b594a3bfc5ee7d04b9d850774e6836297ffe)), closes [#99](https://github.com/Alaydriem/bedrock-voice-chat/issues/99)
+* hambuger menu behavior and dashboard behavior on desktop ([f1f3f4b](https://github.com/Alaydriem/bedrock-voice-chat/commit/f1f3f4b14335836924ec1b50d943b6f47a88f36d)), closes [#114](https://github.com/Alaydriem/bedrock-voice-chat/issues/114) [#115](https://github.com/Alaydriem/bedrock-voice-chat/issues/115)
+* noise gate cutoffs ([#133](https://github.com/Alaydriem/bedrock-voice-chat/issues/133)) ([7f17efc](https://github.com/Alaydriem/bedrock-voice-chat/commit/7f17efc6e47f066948360fdf53682cc37dd62e24)), closes [#100](https://github.com/Alaydriem/bedrock-voice-chat/issues/100)
+* player disconnect while in groups not clearing ([5c66372](https://github.com/Alaydriem/bedrock-voice-chat/commit/5c66372240f0a2e05181b7eb92dd96d6945f93dd)), closes [#116](https://github.com/Alaydriem/bedrock-voice-chat/issues/116)
+* store on migration ([#137](https://github.com/Alaydriem/bedrock-voice-chat/issues/137)) ([4c9977a](https://github.com/Alaydriem/bedrock-voice-chat/commit/4c9977a6489fdf670ca7fc42a90ebe915a4e8202))
+* svelte5 improvements [ci skip] ([#136](https://github.com/Alaydriem/bedrock-voice-chat/issues/136)) ([421b8e9](https://github.com/Alaydriem/bedrock-voice-chat/commit/421b8e9e5a13e1222a1697c907afb1b7e675272a))
+* websocket docs not generating ([b76f4b0](https://github.com/Alaydriem/bedrock-voice-chat/commit/b76f4b027feb2c795ddc82306a655acfb448086a))
+* workflow [ci skip] ([2dd140e](https://github.com/Alaydriem/bedrock-voice-chat/commit/2dd140e020a805eb39ef14240634c5f7ae503d6f))
+* workflow [ci skip] ([50037e0](https://github.com/Alaydriem/bedrock-voice-chat/commit/50037e0b1e99b8e865b53e96b387293a5d78566f))
+* workflow [ci skip] ([6db202d](https://github.com/Alaydriem/bedrock-voice-chat/commit/6db202d971603d77a003ca0abe73b3695490a9ee))
+* workflow changes ([#135](https://github.com/Alaydriem/bedrock-voice-chat/issues/135)) ([5c8060f](https://github.com/Alaydriem/bedrock-voice-chat/commit/5c8060f918482ee09050dc14a986f7b3b59b7078))
+
+
+### Features
+
+* about page ([#131](https://github.com/Alaydriem/bedrock-voice-chat/issues/131)) ([d27bc8f](https://github.com/Alaydriem/bedrock-voice-chat/commit/d27bc8fc0a06a14db0f6084560bed50c4f21f610)), closes [#101](https://github.com/Alaydriem/bedrock-voice-chat/issues/101)
+* Android 11 + 12 Support ([#132](https://github.com/Alaydriem/bedrock-voice-chat/issues/132)) ([fafa37d](https://github.com/Alaydriem/bedrock-voice-chat/commit/fafa37d6e6c86ba19ec573167c82d2cffb5bb106)), closes [#103](https://github.com/Alaydriem/bedrock-voice-chat/issues/103) [#104](https://github.com/Alaydriem/bedrock-voice-chat/issues/104) [#105](https://github.com/Alaydriem/bedrock-voice-chat/issues/105)
+* disconnect detection + automatic reconnect ([d18f31f](https://github.com/Alaydriem/bedrock-voice-chat/commit/d18f31f7789784470a25f1c1323ca8774fd63204)), closes [#112](https://github.com/Alaydriem/bedrock-voice-chat/issues/112)
+* keybinds + ptt ([#125](https://github.com/Alaydriem/bedrock-voice-chat/issues/125)) ([111e2fd](https://github.com/Alaydriem/bedrock-voice-chat/commit/111e2fdd70e04a3b178b1dd2757c995510cce71b))
+* minecraft world-uuid ([#130](https://github.com/Alaydriem/bedrock-voice-chat/issues/130)) ([4ea8899](https://github.com/Alaydriem/bedrock-voice-chat/commit/4ea889936298ff645cc05e64e117b43275863bad)), closes [#127](https://github.com/Alaydriem/bedrock-voice-chat/issues/127)
+* protocol mismatch events improvement ([9fa00b6](https://github.com/Alaydriem/bedrock-voice-chat/commit/9fa00b6e608075268bcfc095c78bbb6b52feb49b))
+* Send + Sync Streams from CPAL 17 + Rodio 0.22 (mainline) update ([#126](https://github.com/Alaydriem/bedrock-voice-chat/issues/126)) ([776bdf1](https://github.com/Alaydriem/bedrock-voice-chat/commit/776bdf1755966e13ceb3b2a232f95169199b28f8))
+* workflow improvements ([0ea4982](https://github.com/Alaydriem/bedrock-voice-chat/commit/0ea4982bc4696d74efb50cc8846c5b6a81ffbabb))
+
 # [1.0.0-beta.7](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.6...v1.0.0-beta.7) (2026-01-27)
 
 

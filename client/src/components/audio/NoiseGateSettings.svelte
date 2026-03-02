@@ -10,7 +10,6 @@
         toggleStyle?: "switch" | "checkbox";
         knobsContainerClass?: string;
         showDescription?: boolean;
-        showDeepFilterNet?: boolean;
         store?: Store | null;
     }
 
@@ -18,7 +17,6 @@
         toggleStyle = "checkbox",
         knobsContainerClass = "grid grid-cols-2 md:grid-cols-5 gap-4 mt-6",
         showDescription = true,
-        showDeepFilterNet = false,
         store: storeProps = null
     }: Props = $props();
 
@@ -214,21 +212,6 @@
         {/if}
 
         <div id="noise-gate-audio-controls" class={knobsContainerClass} class:hidden={!noiseGateEnabled}></div>
-
-        {#if showDeepFilterNet}
-        <label class="inline-flex items-center space-x-2 pb-2 pt-2">
-            <input
-                disabled
-                type="checkbox"
-                class={toggleStyle === "switch"
-                    ? "form-switch h-5 w-10 rounded-full bg-slate-300 before:rounded-full before:bg-slate-50 checked:bg-primary checked:before:bg-white dark:bg-navy-900 dark:before:bg-navy-300 dark:checked:bg-accent dark:checked:before:bg-white"
-                    : "form-checkbox h-5 w-5 rounded border-slate-300 bg-transparent checked:border-primary checked:bg-primary hover:border-primary focus:border-primary dark:border-navy-400 dark:checked:border-accent dark:checked:bg-accent dark:hover:border-accent dark:focus:border-accent"}
-            />
-            <span x-tooltip.light="'Experimental. A more advanced filtering neural network.'">
-                Deep Filter Net
-            </span>
-        </label>
-        {/if}
     </div>
     {/if}
 </div>

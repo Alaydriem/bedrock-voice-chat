@@ -10,7 +10,7 @@
 //! - User data box (udta) with session metadata
 
 mod boxes;
-mod constants;
+pub mod constants;
 mod timecode;
 
 use boxes::BoxWriter;

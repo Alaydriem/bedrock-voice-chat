@@ -1,6 +1,7 @@
 use log::error;
 use rodio::Source;
 use std::collections::VecDeque;
+use std::num::NonZero;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -387,12 +388,12 @@ impl Source for JitterBufferSource {
         None // Infinite stream
     }
 
-    fn channels(&self) -> u16 {
-        1
+    fn channels(&self) -> NonZero<u16> {
+        NonZero::new(1).unwrap()
     }
 
-    fn sample_rate(&self) -> u32 {
-        self.audio_processor.current_sample_rate
+    fn sample_rate(&self) -> NonZero<u32> {
+        NonZero::new(self.audio_processor.current_sample_rate).expect("sample rate must be > 0")
     }
 
     fn total_duration(&self) -> Option<Duration> {

@@ -26,6 +26,10 @@ pub use errors::{
 #[cfg(feature = "quic")]
 pub use s2n_quic;
 
+// Re-export cpal when audio feature is enabled
+#[cfg(feature = "audio")]
+pub use rodio::cpal;
+
 // Re-export important types for easy access
 pub use structs::player_source::PlayerSource;
 pub use structs::recording::{RecordingPlayerData, SessionManifest};

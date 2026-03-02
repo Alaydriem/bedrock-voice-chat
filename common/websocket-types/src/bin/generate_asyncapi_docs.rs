@@ -1,40 +1,25 @@
-// This binary is only useful on desktop, but we need a main() for all targets
-#[cfg(not(desktop))]
-fn main() {
-    eprintln!("AsyncAPI docs generation is only supported on desktop platforms");
-}
-
-#[cfg(desktop)]
 use schemars::schema_for;
-#[cfg(desktop)]
-use bvc_client_lib::websocket::structs::*;
-#[cfg(desktop)]
 use serde_json::{json, Value};
-#[cfg(desktop)]
 use std::fs;
-#[cfg(desktop)]
 use std::path::Path;
+use websocket_types::*;
 
-#[cfg(desktop)]
 fn main() {
-    // Generate JSON schemas for our types
     let command_schema_value = serde_json::to_value(&schema_for!(Command)).unwrap();
     let success_schema_value = serde_json::to_value(&schema_for!(SuccessResponse)).unwrap();
     let error_schema_value = serde_json::to_value(&schema_for!(ErrorResponse)).unwrap();
 
-    // Extract nested definitions for AsyncAPI components
     let device_type_schema = extract_def(&command_schema_value, "DeviceType");
     let pong_data_schema = extract_def(&success_schema_value, "PongData");
     let mute_data_schema = extract_def(&success_schema_value, "MuteData");
     let record_data_schema = extract_def(&success_schema_value, "RecordData");
+    let state_data_schema = extract_def(&success_schema_value, "StateData");
     let response_data_schema = extract_def(&success_schema_value, "ResponseData");
 
-    // Remove $defs from payloads and update refs
     let command_payload = remove_defs(command_schema_value.clone());
     let success_payload = remove_defs(success_schema_value.clone());
     let error_payload = remove_defs(error_schema_value.clone());
 
-    // Build AsyncAPI spec as a JSON value
     let spec = json!({
         "asyncapi": "3.0.0",
         "info": {
@@ -97,59 +82,60 @@ fn main() {
                 "PongData": pong_data_schema,
                 "MuteData": mute_data_schema,
                 "RecordData": record_data_schema,
+                "StateData": state_data_schema,
                 "ResponseData": response_data_schema
             }
         }
     });
 
-    // Write AsyncAPI spec to file
-    let output_path = Path::new("../../docs/websocket-api.yaml");
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let output_path = Path::new(manifest_dir).join("../../docs/websocket-api.yaml");
     fs::create_dir_all(output_path.parent().unwrap())
         .expect("Failed to create docs directory");
 
-    let yaml = serde_yaml::to_string(&spec)
-        .expect("Failed to serialize AsyncAPI spec to YAML");
+    let yaml =
+        serde_yaml::to_string(&spec).expect("Failed to serialize AsyncAPI spec to YAML");
 
-    fs::write(output_path, yaml)
-        .expect("Failed to write AsyncAPI spec");
+    fs::write(&output_path, yaml).expect("Failed to write AsyncAPI spec");
 
-    println!("✓ Generated AsyncAPI spec at: {:?}", output_path.canonicalize().unwrap());
+    println!(
+        "Generated AsyncAPI spec at: {:?}",
+        output_path.canonicalize().unwrap()
+    );
 }
 
-#[cfg(desktop)]
 fn extract_def(schema_value: &Value, def_name: &str) -> Value {
-    let mut def = schema_value.get("$defs")
+    let mut def = schema_value
+        .get("$defs")
         .and_then(|defs| defs.get(def_name))
         .cloned()
         .unwrap_or(json!({}));
 
-    // Update refs in the extracted definition too
     update_refs(&mut def);
 
     def
 }
 
-#[cfg(desktop)]
 fn remove_defs(mut schema_value: Value) -> Value {
-    // Remove $defs from schema and update references to point to components
     if let Some(obj) = schema_value.as_object_mut() {
         obj.remove("$defs");
     }
 
-    // Update all $ref paths from #/$defs/X to #/components/schemas/X
     update_refs(&mut schema_value);
 
     schema_value
 }
 
-#[cfg(desktop)]
 fn update_refs(value: &mut Value) {
     match value {
         Value::Object(map) => {
             if let Some(Value::String(ref_str)) = map.get("$ref") {
                 if ref_str.starts_with("#/$defs/") {
                     let def_name = ref_str.strip_prefix("#/$defs/").unwrap();
-                    map.insert("$ref".to_string(), Value::String(format!("#/components/schemas/{}", def_name)));
+                    map.insert(
+                        "$ref".to_string(),
+                        Value::String(format!("#/components/schemas/{}", def_name)),
+                    );
                 }
             }
             for val in map.values_mut() {

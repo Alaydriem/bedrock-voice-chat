@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Bedrock Voice Chat",
-  "version": "1.0.0-beta.7",
+  "version": "1.0.508",
   "identifier": "com.alaydriem.bvc.client",
   "build": {
     "beforeDevCommand": "yarn dev",
@@ -23,17 +23,21 @@
   },
   "bundle": {
     "android": {
-      "minSdkVersion": 33,
-      "versionCode": 1000107
+      "minSdkVersion": 30,
+      "versionCode": 1000508
     },
     "iOS": {
       "minimumSystemVersion": "26.0",
-      "infoPlist": "./Info.plist"
+      "bundleVersion": "1000508",
+      "infoPlist": "./Info.ios.plist"
+    },
+    "macOS": {
+      "bundleVersion": "1000508",
+      "minimumSystemVersion": "26.0",
+      "infoPlist": "./Info.macos.plist"
     },
     "createUpdaterArtifacts": true,
-    "resources": [
-      "data.json"
-    ],
+    "resources": [],
     "active": true,
     "targets": [
       "app",
@@ -65,7 +69,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDUyMjJCRTQ1MzAzOTFEQkQKUldTOUhUa3dSYjRpVW5DRmtWVjJyeUlnZ282cjV4OHpnK1o0WjZyNm5lZUNmTXl4OUFUZStUakoK",
       "endpoints": [
-        "https://github.com/alaydriem/bedrock-voice-chat/releases/latest/download/latest.json"
+        "https://alaydriem.github.io/bedrock-voice-chat/updater/latest.json"
       ],
       "windows": {
         "installMode": "passive"

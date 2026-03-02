@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>bedrock-voice-chat</string>
+            </array>
+            <key>CFBundleURLName</key>
+            <string>bedrock-voice-chat</string>
+        </dict>
+    </array>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Microphone for Bedrock Voice Chat</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.social-networking</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>26.0</string>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
+</dict>
+</plist>

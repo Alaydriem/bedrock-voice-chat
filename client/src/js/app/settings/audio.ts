@@ -40,24 +40,14 @@ export default class AudioSettings  {
                 let inputDevices = Array<AudioDevice>();
                 let outputDevices = Array<AudioDevice>();
 
-                let deviceTypes = [
-                    "WASAPI"
-                ];
-
-                if (await this.platformDetector.isWindows()) {
-                    deviceTypes.push("ASIO");
-                }
-
-                deviceTypes.forEach((type) => {
-                    if (devices[type]) {
-                        devices[type].forEach((device: AudioDevice) => {
-                            if (device.io == "InputDevice") {
-                                inputDevices.push(device);
-                            } else {
-                                outputDevices.push(device);
-                            }
-                        });
-                    }
+                Object.keys(devices).forEach((type) => {
+                    devices[type].forEach((device: AudioDevice) => {
+                        if (device.io == "InputDevice") {
+                            inputDevices.push(device);
+                        } else {
+                            outputDevices.push(device);
+                        }
+                    });
                 });
 
                 const currentInputDevice = await invoke<AudioDevice>("get_audio_device", { io: "InputDevice" });

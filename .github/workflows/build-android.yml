@@ -14,6 +14,21 @@ on:
         description: 'Git ref to checkout (tag, branch, or SHA)'
         required: false
         type: string
+      version:
+        description: 'Version to patch into config files (ensures correct versionCode during dry-run)'
+        required: false
+        default: ''
+        type: string
+      play_store_track:
+        description: 'Google Play track (alpha/beta/production). Empty = no upload.'
+        required: false
+        default: ''
+        type: string
+      build_number:
+        description: 'Atomic build number from Redis (overrides versionCode)'
+        required: false
+        default: ''
+        type: string
   workflow_dispatch:
     inputs:
       build_mode:
@@ -35,6 +50,21 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
+
+      - name: Patch version files
+        if: inputs.version != ''
+        run: |
+          node .github/scripts/patch-versions.js "${{ inputs.version }}"
+
+      - name: Apply build number
+        if: inputs.build_number != ''
+        run: |
+          node .github/scripts/set-build-number.js "${{ inputs.build_number }}"
+
+      - name: Read display version
+        id: version
+        run: |
+          echo "display_version=$(node -p "require('./client/src-tauri/tauri.conf.json').version")" >> "$GITHUB_OUTPUT"
 
       - name: Set up Java 21
         uses: actions/setup-java@v4
@@ -120,16 +150,6 @@ jobs:
         working-directory: ./client
         run: yarn install --frozen-lockfile
 
-      - name: Download and setup ASIO SDK
-        if: runner.os == 'Windows'
-        working-directory: ./client/src-tauri
-        run: |
-          echo "Downloading ASIO SDK..."
-          curl -L -o asiosdk.zip "https://download.steinberg.net/sdk_downloads/asiosdk_2.3.3_2019-06-14.zip"
-          unzip -q asiosdk.zip
-          ls -la
-          echo "ASIO SDK downloaded and extracted"
-
       - name: Set up Android environment and fix LIBCLANG_PATH
         run: |
           # The setup-ndk action sets ANDROID_NDK_ROOT, but we need to ensure all common NDK env vars are set
@@ -190,9 +210,9 @@ jobs:
           echo "Initializing Tauri Android project..."
           yarn tauri android init
           # Groovy
-          sed -i 's/minSdkVersion[[:space:]]\+[0-9]\+/minSdkVersion 33/' src-tauri/gen/android/app/build.gradle || true
+          sed -i 's/minSdkVersion[[:space:]]\+[0-9]\+/minSdkVersion 30/' src-tauri/gen/android/app/build.gradle || true
           # Kotlin DSL
-          sed -i 's/minSdk[[:space:]]*=[[:space:]]*[0-9]\+/minSdk = 33/' src-tauri/gen/android/app/build.gradle.kts || true
+          sed -i 's/minSdk[[:space:]]*=[[:space:]]*[0-9]\+/minSdk = 30/' src-tauri/gen/android/app/build.gradle.kts || true
 
           # Optional: also raise compileSdk/targetSdk if present (must be integers, not floats)
           sed -i 's/compileSdk[[:space:]]*=[[:space:]]*[0-9]\+/compileSdk = 36/' src-tauri/gen/android/app/build.gradle.kts || true
@@ -367,7 +387,7 @@ jobs:
         uses: actions/upload-artifact@v4
         id: upload-android
         with:
-          name: bvc-android-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}.apk
+          name: bvc-android-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}-apk
           path: client/bvc-android-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}.apk
           retention-days: 30
 
@@ -376,7 +396,7 @@ jobs:
         uses: actions/upload-artifact@v4
         id: upload-android-aab
         with:
-          name: bvc-android-release.aab
+          name: bvc-android-release-aab
           path: client/bvc-android-release.aab
           retention-days: 30
 
@@ -436,7 +456,7 @@ jobs:
         if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
         uses: actions/upload-artifact@v4
         with:
-          name: bvc-android-release-signed.apk
+          name: bvc-android-release-signed-apk
           path: client/bvc-android-release-signed.apk
           retention-days: 90
 
@@ -444,9 +464,23 @@ jobs:
         if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
         uses: actions/upload-artifact@v4
         with:
-          name: bvc-android-release-signed.aab
+          name: bvc-android-release-signed-aab
           path: client/bvc-android-release-signed.aab
           retention-days: 90
+
+      - name: Upload to Google Play Console
+        if: >-
+          github.event_name != 'pull_request' &&
+          inputs.play_store_track != '' &&
+          inputs.build_mode == 'release'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.SERVICE_ACCOUNT_JSON }}
+          packageName: com.alaydriem.bvc.client
+          releaseFiles: client/bvc-android-release-signed.aab
+          track: ${{ inputs.play_store_track }}
+          releaseName: "${{ steps.version.outputs.display_version }} (${{ inputs.build_number }})"
+          status: ${{ inputs.play_store_track == 'production' && 'draft' || 'completed' }}
 
       - name: Output artifact information
         run: |
@@ -461,4 +495,5 @@ jobs:
             echo "| Artifact | bvc-android-$BUILD_MODE.apk |"
             echo "| Artifact URL | [View Run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) |"
             echo "| Retention | 30 days |"
+            echo "| Play Store Track | ${{ inputs.play_store_track || 'N/A' }} |"
           } >> $GITHUB_STEP_SUMMARY

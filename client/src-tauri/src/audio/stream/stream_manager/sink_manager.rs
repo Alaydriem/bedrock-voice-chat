@@ -5,7 +5,8 @@ use std::time::Duration;
 use flume::Receiver;
 use log::{info, warn};
 use moka::sync::Cache;
-use rodio::{mixer::Mixer, Sink, SpatialSink, Source};
+use std::num::NonZero;
+use rodio::{mixer::Mixer, Player, SpatialPlayer, Source};
 use tauri::Emitter;
 use tokio::task::JoinHandle;
 
@@ -22,7 +23,7 @@ use common::traits::player_data::PlayerData;
 /// Converts a mono Source to stereo by duplicating each sample to both L and R channels
 struct MonoToStereo<S>
 where
-    S: Source<Item = f32>,
+    S: Source,
 {
     inner: S,
     pending_sample: Option<f32>,
@@ -30,7 +31,7 @@ where
 
 impl<S> MonoToStereo<S>
 where
-    S: Source<Item = f32>,
+    S: Source,
 {
     fn new(source: S) -> Self {
         Self {
@@ -42,7 +43,7 @@ where
 
 impl<S> Iterator for MonoToStereo<S>
 where
-    S: Source<Item = f32>,
+    S: Source,
 {
     type Item = f32;
 
@@ -66,23 +67,29 @@ where
 
 impl<S> Source for MonoToStereo<S>
 where
-    S: Source<Item = f32>,
+    S: Source,
 {
     fn current_span_len(&self) -> Option<usize> {
         self.inner.current_span_len().map(|len| len * 2)
     }
 
-    fn channels(&self) -> u16 {
-        2
+    fn channels(&self) -> NonZero<u16> {
+        NonZero::new(2).unwrap()
     }
 
-    fn sample_rate(&self) -> u32 {
+    fn sample_rate(&self) -> NonZero<u32> {
         self.inner.sample_rate()
     }
 
     fn total_duration(&self) -> Option<Duration> {
         self.inner.total_duration()
     }
+}
+
+/// Convert a linear slider position (0.0-1.5) to a perceptually-correct amplitude factor.
+/// Uses a power curve (x^2.5) so equal slider increments produce roughly equal loudness changes.
+fn perceptual_gain(linear_position: f32) -> f32 {
+    linear_position.powf(2.5)
 }
 
 #[derive(Clone, Default)]
@@ -266,7 +273,7 @@ impl SinkManager {
 
                 if use_spatial {
                     if bundle.spatial.is_none() {
-                        let rodio_sink = Arc::new(SpatialSink::connect_new(
+                        let rodio_sink = Arc::new(SpatialPlayer::connect_new(
                             &mixer,
                             [0.0, 0.0, 0.0],
                             [0.0, 0.0, 0.0],
@@ -300,7 +307,7 @@ impl SinkManager {
                         } else {
                             1.0
                         };
-                        let volume = spatial_data.gain * gain_settings.gain * mute_mult;
+                        let volume = spatial_data.gain * perceptual_gain(gain_settings.gain) * mute_mult;
                         spatial_sink.update_spatial_position(
                             &emitter_coordinate,
                             &spatial_data.left_ear,
@@ -341,7 +348,7 @@ impl SinkManager {
                     }
                 } else {
                     if bundle.normal.is_none() {
-                        let rodio_sink = Arc::new(Sink::connect_new(&mixer));
+                        let rodio_sink = Arc::new(Player::connect_new(&mixer));
                         let sink = Arc::new(AudioSink::Normal(rodio_sink));
                         sink.play();
                         bundle.normal = Some(sink);
@@ -353,7 +360,7 @@ impl SinkManager {
                         } else {
                             1.0
                         };
-                        let volume = 1.3 * gain_settings.gain * mute_mult;
+                        let volume = 1.3 * perceptual_gain(gain_settings.gain) * mute_mult;
                         normal_sink.update_spatial_position(
                             &Coordinate::default(),
                             &Coordinate::default(),

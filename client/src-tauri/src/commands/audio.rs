@@ -1,6 +1,5 @@
 use crate::audio::types::{AudioDevice, AudioDeviceType};
-use crate::audio::{AudioPacket, RecordingManager};
-use crate::network::NetworkPacket;
+use crate::audio::{AudioActionsManager, RecordingManager};
 use crate::{structs::app_state::AppState, AudioStreamManager};
 use common::structs::audio::StreamEvent;
 use flume::{Receiver, Sender};
@@ -140,11 +139,10 @@ pub(crate) async fn get_devices() -> Result<HashMap<String, Vec<AudioDevice>>, (
 #[tauri::command]
 pub(crate) async fn mute(
     device: AudioDeviceType,
-    asm: State<'_, Mutex<AudioStreamManager>>,
+    actions: State<'_, AudioActionsManager>,
 ) -> Result<(), ()> {
-    let mut asm = asm.lock().await;
-    _ = asm.toggle(&device, StreamEvent::Mute).await;
-
+    actions.toggle_mute(device).await;
+    actions.broadcast_state().await;
     Ok(())
 }
 
@@ -188,14 +186,13 @@ pub(crate) async fn is_stopped(
 pub(crate) async fn start_recording(
     app: AppHandle,
     recording_manager: State<'_, Arc<Mutex<RecordingManager>>>,
+    actions: State<'_, AudioActionsManager>,
 ) -> Result<String, String> {
     let current_player = extract_current_player(&app).await
         .ok_or_else(|| "No current player set for recording".to_string())?;
 
-    // Recording is now controlled by RecordingManager's shared flag
-    // No need to toggle stream recording separately
     let mut manager = recording_manager.lock().await;
-    match manager.start_recording(current_player).await {
+    let result = match manager.start_recording(current_player).await {
         Ok(_) => {
             if let Some(session_id) = manager.current_session_id() {
                 Ok(session_id)
@@ -204,23 +201,30 @@ pub(crate) async fn start_recording(
             }
         },
         Err(e) => Err(format!("Failed to start recording: {:?}", e)),
-    }
+    };
+    drop(manager);
+
+    actions.broadcast_state().await;
+
+    result
 }
 
 /// Stop current recording session
 #[tauri::command]
 pub(crate) async fn stop_recording(
     recording_manager: State<'_, Arc<Mutex<RecordingManager>>>,
+    actions: State<'_, AudioActionsManager>,
 ) -> Result<(), String> {
-    // Recording is now controlled by RecordingManager's shared flag
-    // No need to toggle stream recording separately
     let mut manager = recording_manager.lock().await;
-    match manager.stop_recording().await {
-        Ok(()) => {
-            Ok(())
-        },
+    let result = match manager.stop_recording().await {
+        Ok(()) => Ok(()),
         Err(e) => Err(format!("Failed to stop recording: {:?}", e)),
-    }
+    };
+    drop(manager);
+
+    actions.broadcast_state().await;
+
+    result
 }
 
 /// Get current recording status
