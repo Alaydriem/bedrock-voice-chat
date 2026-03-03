@@ -2,17 +2,19 @@ use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use super::channel_player::ChannelPlayer;
+use crate::Game;
+
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, TS)]
 #[ts(export, export_to = "./../../client/src/js/bindings/")]
 pub struct Channel {
     id: String,
     pub name: String,
-    pub players: Vec<String>,
+    pub players: Vec<ChannelPlayer>,
     pub creator: String,
 }
 
 impl Channel {
-    /// Creates a new channel with a randomly generated ID
     pub fn new(name: String, creator: String) -> Self {
         Self {
             id: nanoid!(),
@@ -22,28 +24,20 @@ impl Channel {
         }
     }
 
-    /// Returns the channel ID
     pub fn id(&self) -> String {
         self.id.clone()
     }
 
-    /// Adds a player to the channel
-    pub fn add_player(&mut self, name: String) -> Result<(), anyhow::Error> {
-        if !self.players.contains(&name) {
-            self.players.push(name);
+    pub fn add_player(&mut self, player: ChannelPlayer) -> Result<(), anyhow::Error> {
+        if !self.players.iter().any(|p| p.name == player.name) {
+            self.players.push(player);
         }
 
         Ok(())
     }
 
-    /// Removes a player from the channel
-    pub fn remove_player(&mut self, name: String) -> Result<(), anyhow::Error> {
-        if self.players.contains(&name) {
-            if let Some(id) = self.players.iter().position(|each| *each == name) {
-                self.players.remove(id);
-            }
-        }
-
+    pub fn remove_player(&mut self, name: &str) -> Result<(), anyhow::Error> {
+        self.players.retain(|p| p.name != name);
         Ok(())
     }
 }
@@ -61,10 +55,12 @@ pub enum ChannelEvents {
 #[ts(export, export_to = "./../../client/src/js/bindings/")]
 pub struct ChannelEvent {
     pub event: ChannelEvents,
+    #[serde(default)]
+    pub game: Option<Game>,
 }
 
 impl ChannelEvent {
     pub fn new(event: ChannelEvents) -> Self {
-        Self { event }
+        Self { event, game: None }
     }
 }

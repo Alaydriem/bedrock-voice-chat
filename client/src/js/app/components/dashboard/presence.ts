@@ -1,11 +1,15 @@
 import type { PlayerGainSettings } from '../../../bindings/PlayerGainSettings';
 import type { PlayerGainStore } from '../../../bindings/PlayerGainStore';
 import type { PlayerSource } from '../../../bindings/PlayerSource';
+import type { GamerpicResponse } from '../../../bindings/GamerpicResponse';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { Store } from '@tauri-apps/plugin-store';
 import { debug, info, error } from '@tauri-apps/plugin-log';
 import { invoke } from '@tauri-apps/api/core';
 import type { PlayerManager } from '../../managers/PlayerManager';
+import ImageCache from '../imageCache';
+import ImageCacheOptions from '../imageCacheOptions';
+import GameNameUtils from '../../utils/GameNameUtils';
 
 export class PlayerPresenceManager {
     private store: Store;
@@ -13,6 +17,8 @@ export class PlayerPresenceManager {
     private unlisten?: () => void;
     private isInitialized = false;
     private syncInterval?: ReturnType<typeof setInterval>;
+    private imageCache: ImageCache = new ImageCache();
+    private gamerpicFetchInProgress: Set<string> = new Set();
 
     constructor(store: Store, playerManager: PlayerManager) {
         this.store = store;
@@ -110,6 +116,8 @@ export class PlayerPresenceManager {
             const success = await this.playerManager.addPlayerSource(playerName, 'Proximity', settings);
             if (success) {
                 await this.savePlayerToStore(playerName, settings);
+                // Fire-and-forget gamerpic fetch
+                this.fetchAndSetGamepic(playerName);
             }
         } else if (status === 'disconnected') {
             // Remove only from 'Proximity' source
@@ -205,6 +213,39 @@ export class PlayerPresenceManager {
 
     isPlayerActive(playerName: string): boolean {
         return this.playerManager.has(playerName);
+    }
+
+    private async fetchAndSetGamepic(playerName: string): Promise<void> {
+        // Prevent duplicate fetches for the same player
+        if (this.gamerpicFetchInProgress.has(playerName)) {
+            return;
+        }
+        this.gamerpicFetchInProgress.add(playerName);
+
+        try {
+            const game = GameNameUtils.extractGame(playerName);
+            const gamertag = GameNameUtils.stripPrefix(playerName);
+
+            // Ask the server for the gamerpic URL
+            const response = await invoke<GamerpicResponse>('api_get_player_gamerpic', {
+                game,
+                gamertag
+            });
+
+            if (!response.gamerpic) {
+                return;
+            }
+
+            // Server returns base64-encoded URL, decode first
+            const gamerpicUrl = atob(response.gamerpic);
+            const options = new ImageCacheOptions(gamerpicUrl, 2592000);
+            const dataUrl = await this.imageCache.getImage(options);
+            this.playerManager.updatePlayerGamepic(playerName, dataUrl);
+        } catch (err) {
+            debug(`Failed to fetch gamerpic for ${playerName}: ${err}`);
+        } finally {
+            this.gamerpicFetchInProgress.delete(playerName);
+        }
     }
 
     cleanup(): void {

@@ -14,9 +14,11 @@
     import type { Channel } from "../../../js/bindings/Channel";
     import type { PlayerManager } from "../../../js/app/managers/PlayerManager";
     import type ChannelManager from "../../../js/app/managers/ChannelManager";
+    import GameNameUtils from "../../../js/app/utils/GameNameUtils";
 
     export let playerManager: PlayerManager;
     export let channelManager: ChannelManager;
+    export let store: any;
     export let serverUrl: string;
     export let onClose: (() => void) | undefined = undefined;
 
@@ -38,7 +40,7 @@
     $: isListening = isListeningStore ? $isListeningStore : false;
     $: isLoading = isLoadingStore ? $isLoadingStore : false;
     $: currentUser = currentUserStore ? $currentUserStore : "";
-    $: currentUserChannel = channels.find((channel: Channel) => channel.players && channel.players.includes(currentUser));
+    $: currentUserChannel = channels.find((channel: Channel) => channel.players && channel.players.some(p => GameNameUtils.namesMatch(p.name, currentUser)));
     $: userCurrentChannelId = currentUserChannel?.id || null;
 
     const initializeApiIfNeeded = async () => {

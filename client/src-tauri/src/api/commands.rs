@@ -1,5 +1,6 @@
 use crate::structs::app_state::AppState;
 use common::consts::version::PROTOCOL_VERSION;
+use common::response::GamerpicResponse;
 use common::structs::channel::{Channel, ChannelEvent};
 use common::structs::config::ApiConfig;
 use tauri::{async_runtime::Mutex, State};
@@ -204,4 +205,26 @@ pub(crate) async fn api_channel_event(
     };
 
     api.channel_event(channelId, event).await
+}
+
+#[tauri::command(async)]
+pub(crate) async fn api_get_player_gamerpic(
+    app_state: State<'_, Mutex<AppState>>,
+    game: String,
+    gamertag: String,
+    server: Option<String>,
+) -> Result<GamerpicResponse, String> {
+    let state = app_state.lock().await;
+
+    let api = match server {
+        Some(endpoint) => {
+            drop(state);
+            app_state.lock().await.get_api_client_for_server(&endpoint).await?
+        },
+        None => {
+            state.get_api_client()?.clone()
+        }
+    };
+
+    api.get_gamerpic(&game, &gamertag).await
 }

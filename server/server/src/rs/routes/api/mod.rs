@@ -1,6 +1,7 @@
 mod auth;
 mod channel;
 mod config;
+mod gamerpic;
 mod positions;
 mod ping;
 
@@ -11,6 +12,7 @@ pub use auth::{
     HytaleSessionCache,
 };
 pub use config::get_config;
+pub use gamerpic::get_gamerpic;
 pub use positions::position;
 pub use positions::update_position;
 pub use ping::pong;

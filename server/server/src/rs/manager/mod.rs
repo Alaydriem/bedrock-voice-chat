@@ -119,6 +119,12 @@ impl RocketManager {
                             routes::api::channel_event,
                             routes::api::channel_list
                         ],
+                    )
+                    .mount(
+                        "/api/gamerpic",
+                        routes![
+                            routes::api::get_gamerpic
+                        ],
                     );
 
                 match rocket.ignite().await {

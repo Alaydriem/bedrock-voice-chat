@@ -13,6 +13,7 @@
             gain: number;
             muted: boolean;
         };
+        gamerpic?: string;
     }
 
     // Manager props (injected via dependency injection)
@@ -60,6 +61,7 @@
                     initialGain={player.settings.gain}
                     initialMuted={player.settings.muted}
                     isGroupMember={isPlayerGroupMember(player)}
+                    gamerpic={player.gamerpic}
                     onGainChange={(gain) => handleGainChange(player.name, gain)}
                     onMuteToggle={(muted) => handleMuteToggle(player.name, muted)}
                     {audioActivityManager}

@@ -1,5 +1,5 @@
 
-import { mkdir, writeFile, exists, readFile } from '@tauri-apps/plugin-fs';
+import { mkdir, writeFile, exists, readFile, stat } from '@tauri-apps/plugin-fs';
 import { appCacheDir } from '@tauri-apps/api/path';
 import { error, debug } from '@tauri-apps/plugin-log';
 import axios from "axios";
@@ -26,14 +26,16 @@ export default class ImageCache {
 
         // Check if the file exists on disk
         if (await exists(cachedImagePath)) {
-            // Read the file and determine the MIME type
-            const fileData = await readFile(cachedImagePath);
-            const mimeType = this.getMimeType(fileData);
-            const base64Data = this.arrayBufferToBase64(fileData);
-            return `data:${mimeType};base64,${base64Data}`;
+            const isExpired = await this.isCacheExpired(cachedImagePath, options.ttl);
+            if (!isExpired) {
+                const fileData = await readFile(cachedImagePath);
+                const mimeType = this.getMimeType(fileData);
+                const base64Data = this.arrayBufferToBase64(fileData);
+                return `data:${mimeType};base64,${base64Data}`;
+            }
         }
 
-        // If the file doesn't exist, fetch it from the remote destination
+        // If the file doesn't exist or is expired, fetch it from the remote destination
         return await axios.get(options.url, { responseType: "arraybuffer" }).then(async (response) => {
             if (response.status !== 200) {
                 error(`Error fetching image: ${response.statusText}`);
@@ -54,6 +56,19 @@ export default class ImageCache {
             error(`Error fetching or caching image: ${err}`);
             throw err;
         });
+    }
+
+    async isCacheExpired(path: string, ttlSeconds: number): Promise<boolean> {
+        try {
+            const fileStat = await stat(path);
+            if (!fileStat.mtime) {
+                return true;
+            }
+            const ageMs = Date.now() - fileStat.mtime.getTime();
+            return ageMs > ttlSeconds * 1000;
+        } catch {
+            return true;
+        }
     }
 
     /**

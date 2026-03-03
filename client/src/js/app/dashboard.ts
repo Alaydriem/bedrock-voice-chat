@@ -271,6 +271,10 @@ export default class Dashboard extends BVCApp {
             if (dropdownAvatarElement) {
                 dropdownAvatarElement.setAttribute("src", avatarSrc);
             }
+
+            if (avatarSrc && this.channelManager) {
+                this.channelManager.setCurrentUserGamepic(avatarSrc);
+            }
         }
 
         // Set player name in dropdown

@@ -1,6 +1,10 @@
 <script lang="ts">
     import type { Channel } from "../../../../js/bindings/Channel";
+    import type { ChannelPlayer } from "../../../../js/bindings/ChannelPlayer";
     import { debug, info } from '@tauri-apps/plugin-log';
+    import GameNameUtils from "../../../../js/app/utils/GameNameUtils";
+    import ImageCache from "../../../../js/app/components/imageCache";
+    import ImageCacheOptions from "../../../../js/app/components/imageCacheOptions";
 
     export let channel: Channel;
     export let currentUser: string;
@@ -10,21 +14,19 @@
     export let onDelete: (channelId: string) => void;
 
     $: isCurrentUserChannel = userCurrentChannelId === channel.id;
-    $: isOwner = currentUser && channel.creator === currentUser;
-    $: isUserInChannel = currentUser && channel.players.includes(currentUser);
+    $: isOwner = currentUser && GameNameUtils.namesMatch(channel.creator, currentUser);
+    $: isUserInChannel = currentUser && channel.players.some(p => GameNameUtils.namesMatch(p.name, currentUser));
     $: shouldShowMenu = isUserInChannel;
-
 
     // Sort players so owner appears first, then regular members
     $: sortedPlayers = (() => {
-        const ownerInChannel = channel.players.includes(channel.creator);
-        const otherMembers = channel.players.filter(player => player !== channel.creator);
+        const owner = channel.players.find(p => GameNameUtils.namesMatch(p.name, channel.creator));
+        const otherMembers = channel.players.filter(p => !GameNameUtils.namesMatch(p.name, channel.creator));
 
-        if (ownerInChannel) {
-            return [channel.creator, ...otherMembers];
+        if (owner) {
+            return [owner, ...otherMembers];
         } else {
-            // Owner has left but should still be shown first in red
-            return [channel.creator, ...otherMembers];
+            return [...otherMembers];
         }
     })();
 
@@ -33,21 +35,50 @@
     $: hasMorePlayers = sortedPlayers.length > 6;
     $: additionalCount = sortedPlayers.length - 6;
 
+    // Gamerpic resolution state
+    const imageCache = new ImageCache();
+    let resolvedGamepics: Record<string, string> = {};
+    let pendingFetches: Set<string> = new Set();
+
+    $: {
+        for (const player of channel.players) {
+            if (player.gamerpic && !resolvedGamepics[player.name] && !pendingFetches.has(player.name)) {
+                // If already a data URL (e.g. from optimistic update), use directly
+                if (player.gamerpic.startsWith('data:')) {
+                    resolvedGamepics = { ...resolvedGamepics, [player.name]: player.gamerpic };
+                } else {
+                    pendingFetches.add(player.name);
+                    const playerName = player.name;
+                    // Server stores gamerpic as base64-encoded URL, decode first
+                    try {
+                        const gamerpicUrl = atob(player.gamerpic);
+                        imageCache.getImage(new ImageCacheOptions(gamerpicUrl, 2592000)).then(dataUrl => {
+                            resolvedGamepics = { ...resolvedGamepics, [playerName]: dataUrl };
+                        }).catch(() => {
+                            // Silently fail, fall back to initials
+                        }).finally(() => {
+                            pendingFetches.delete(playerName);
+                        });
+                    } catch {
+                        pendingFetches.delete(playerName);
+                    }
+                }
+            }
+        }
+    }
+
     // Helper function to determine avatar styling
-    const getAvatarClasses = (player: string) => {
-        const isPlayerOwner = player === channel.creator;
-        const isPlayerInChannel = channel.players.includes(player);
+    const getAvatarClasses = (player: ChannelPlayer) => {
+        const isPlayerOwner = GameNameUtils.namesMatch(player.name, channel.creator);
+        const isPlayerInChannel = channel.players.some(p => GameNameUtils.namesMatch(p.name, player.name));
 
         if (isPlayerOwner) {
             if (isPlayerInChannel) {
-                // Owner is in channel - purple
                 return "bg-gradient-to-br from-purple-500 to-purple-700";
             } else {
-                // Owner has left - red
                 return "bg-gradient-to-br from-red-500 to-red-700";
             }
         } else {
-            // Regular member - blue (original color)
             return "bg-gradient-to-br from-blue-500 to-blue-700";
         }
     };
@@ -101,11 +132,19 @@
                 {#if sortedPlayers.length > 0}
                     {#each displayPlayers as player}
                         <div class="avatar size-7 hover:z-10 transition-transform hover:scale-110">
-                            <div
-                                class="is-initial rounded-full {getAvatarClasses(player)} text-xs font-semibold uppercase text-white ring-2 ring-white dark:ring-navy-700 shadow-sm"
-                            >
-                                {player.slice(0, 2).toLowerCase()}
-                            </div>
+                            {#if resolvedGamepics[player.name]}
+                                <img
+                                    src={resolvedGamepics[player.name]}
+                                    alt={GameNameUtils.stripPrefix(player.name)}
+                                    class="rounded-full size-7 ring-2 ring-white dark:ring-navy-700 shadow-sm object-cover"
+                                />
+                            {:else}
+                                <div
+                                    class="is-initial rounded-full {getAvatarClasses(player)} text-xs font-semibold uppercase text-white ring-2 ring-white dark:ring-navy-700 shadow-sm"
+                                >
+                                    {GameNameUtils.stripPrefix(player.name).slice(0, 2).toLowerCase()}
+                                </div>
+                            {/if}
                         </div>
                     {/each}
                     {#if hasMorePlayers}
