@@ -445,14 +445,18 @@ export default class ChannelManager {
                 break;
 
             case 'join':
-                // Update the channel's player list with a ChannelPlayer object
-                const newPlayer: ChannelPlayer = { name: player_name, game: null, gamerpic: null };
+                // Update the channel's player list with a ChannelPlayer object (upsert)
                 this.channelsStore.update((channels: Channel[]) =>
                     channels.map((channel: Channel) => {
-                        if (channel.id === channel_id && !channel.players.some(p => p.name === player_name)) {
-                            return { ...channel, players: [...channel.players, newPlayer] };
+                        if (channel.id !== channel_id) return channel;
+
+                        const existingIndex = channel.players.findIndex(p => GameNameUtils.namesMatch(p.name, player_name));
+                        if (existingIndex >= 0) {
+                            return channel;
                         }
-                        return channel;
+
+                        const newPlayer: ChannelPlayer = { name: player_name, game: null, gamerpic: null };
+                        return { ...channel, players: [...channel.players, newPlayer] };
                     })
                 );
 
@@ -486,7 +490,7 @@ export default class ChannelManager {
                 this.channelsStore.update((channels: Channel[]) =>
                     channels.map((channel: Channel) => {
                         if (channel.id === channel_id) {
-                            return { ...channel, players: channel.players.filter((p: ChannelPlayer) => p.name !== player_name) };
+                            return { ...channel, players: channel.players.filter((p: ChannelPlayer) => !GameNameUtils.namesMatch(p.name, player_name)) };
                         }
                         return channel;
                     })
