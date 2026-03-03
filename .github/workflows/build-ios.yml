@@ -200,24 +200,6 @@ jobs:
           });
           "
 
-      - name: Disable code signing for CI
-        if: github.event_name == 'pull_request' || inputs.build_mode != 'release'
-        working-directory: ./client
-        run: |
-          echo "Disabling code signing for CI build..."
-          PBXPROJ="src-tauri/gen/apple/bedrock-voice-chat-client.xcodeproj/project.pbxproj"
-
-          # Disable code signing in the Xcode project
-          sed -i '' 's/CODE_SIGN_IDENTITY = "[^"]*"/CODE_SIGN_IDENTITY = "-"/g' "$PBXPROJ"
-          sed -i '' 's/DEVELOPMENT_TEAM = "[^"]*"/DEVELOPMENT_TEAM = ""/g' "$PBXPROJ"
-
-          # Ensure CODE_SIGNING_REQUIRED and CODE_SIGNING_ALLOWED are set to NO
-          if ! grep -q "CODE_SIGNING_REQUIRED" "$PBXPROJ"; then
-            sed -i '' 's/CLANG_ENABLE_MODULES = YES;/CLANG_ENABLE_MODULES = YES;\n\t\t\t\tCODE_SIGNING_REQUIRED = NO;\n\t\t\t\tCODE_SIGNING_ALLOWED = NO;/g' "$PBXPROJ"
-          fi
-
-          echo "Code signing disabled"
-
       - name: Prepare ExportOptions.plist
         if: true
         working-directory: ./client
@@ -239,7 +221,7 @@ jobs:
           APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           echo "Building iOS in debug mode"
-          yarn tauri ios build --debug
+          yarn tauri ios build --debug --export-method app-store-connect
 
       - name: Build iOS (release)
         if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
