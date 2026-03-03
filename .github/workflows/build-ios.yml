@@ -106,9 +106,7 @@ jobs:
 
       - name: Install Apple certificate and provisioning profile
         id: install-signing
-        if: >-
-          github.event_name != 'pull_request' &&
-          inputs.build_mode == 'release'
+        if: true
         env:
           APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -145,9 +143,7 @@ jobs:
           echo "Certificate and provisioning profile installed successfully"
 
       - name: Configure code signing
-        if: >-
-          github.event_name != 'pull_request' &&
-          inputs.build_mode == 'release'
+        if: true
         working-directory: ./client
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -223,7 +219,7 @@ jobs:
           echo "Code signing disabled"
 
       - name: Prepare ExportOptions.plist
-        if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
+        if: true
         working-directory: ./client
         run: |
           cp src-tauri/ExportOptions.ios.plist src-tauri/gen/apple/ExportOptions.plist
@@ -239,6 +235,8 @@ jobs:
       - name: Build iOS (debug)
         if: github.event_name == 'pull_request' || inputs.build_mode != 'release'
         working-directory: ./client
+        env:
+          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           echo "Building iOS in debug mode"
           yarn tauri ios build --debug
@@ -288,24 +286,16 @@ jobs:
           fi
 
       - name: Upload signed iOS IPA artifact
-        if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
+        if: >-
+          github.event_name != 'pull_request' &&
+          inputs.testflight_upload == true &&
+          inputs.build_mode == 'release'
         uses: actions/upload-artifact@v4
         with:
           name: bvc-ios-release-signed-ipa
           path: client/bvc-ios-release.ipa
           retention-days: 90
           if-no-files-found: error
-
-      - name: Upload unsigned iOS build artifact
-        if: github.event_name == 'pull_request' || inputs.build_mode != 'release'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-build-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
-          path: |
-            client/bvc-ios-*.ipa
-            client/bvc-ios-*.app.zip
-          retention-days: 7
-          if-no-files-found: warn
 
       - name: Upload to TestFlight
         if: >-
