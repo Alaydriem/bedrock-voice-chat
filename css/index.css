@@ -1,0 +1,272 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap');
+
+:root{
+    --btn-color: #fdfdfd;
+    --btn-bg: #28bae1;
+    --btn-bg-download: #3bd869;
+    --primary-text-color: #28bae1;
+    --header-link-hover: #28bae1;
+    --input-hover-bd-color: #28bae1;
+}
+
+html {
+    scroll-behavior: smooth;
+    font-family: "Roboto", sans-serif;
+}
+
+header > .collapsible-header{
+    display: flex;
+    gap: 1rem;
+    width: 100%;
+    background-color: inherit;
+    align-items: center;
+    justify-content: space-between;
+    overflow: hidden;
+    transition: width 0.3s ease;
+}
+
+.animated-collapse{
+    transition: width 0.3s ease;
+}
+
+.header-links {
+    display: flex;
+    align-items: center;
+    min-width: fit-content;
+    border-radius: 10px;
+    padding: 5px 10px;
+    transition: background-color 0.5s, color 0.5s;
+}
+
+.header-links:hover {
+    color: var(--header-link-hover);
+}
+
+.primary-text-color{
+    color: var(--primary-text-color);
+}
+
+/* Hero title - clean white with cyan glow (replaces gradient-text) */
+.hero-title{
+    color: #ffffff;
+    text-shadow: 0 0 40px rgba(40, 186, 225, 0.3);
+}
+
+.hero-section{
+    background-image: url("../assets/images/background/dots.svg");
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+}
+
+.hero-bg-gradient{
+    background: linear-gradient(180deg, rgba(24,27,32,0.95) 20%, rgba(24,27,32,0.7) 60%, rgba(24,27,32,0.95) 100%);
+}
+
+/* Dots background for non-hero sections */
+.dots-bg {
+    background-image: url("../assets/images/background/dots.svg");
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-color: #181B20;
+}
+.dots-bg::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(24,27,32,0.92) 0%, rgba(24,27,32,0.85) 50%, rgba(24,27,32,0.92) 100%);
+    pointer-events: none;
+    z-index: 0;
+}
+.dots-bg > * {
+    position: relative;
+    z-index: 1;
+}
+
+.opacity-0{
+    opacity: 0 !important;
+}
+
+.opacity-100{
+    opacity: 100 !important;
+}
+
+.btn{
+    padding: 10px 15px;
+    width: max-content;
+    border-radius: 24px;
+    color: var(--btn-color);
+    background-color: var(--btn-bg);
+    justify-content: center;
+    align-items: center;
+    display: flex;
+    cursor: pointer;
+    transition: background-color 0.3s, transform 0.3s;
+}
+
+.btn:hover{
+    opacity: 0.9;
+    transform: scale(1.03);
+}
+
+.btn:disabled{
+    cursor: default;
+}
+
+/* Green download CTA */
+.btn-download {
+    padding: 12px 24px;
+    width: max-content;
+    border-radius: 24px;
+    color: #ffffff;
+    background-color: var(--btn-bg-download);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: background-color 0.3s, transform 0.3s;
+}
+.btn-download:hover {
+    background-color: #33c45e;
+    transform: scale(1.03);
+}
+
+/* Cyan outline button */
+.btn-outline {
+    padding: 10px 20px;
+    width: max-content;
+    border-radius: 24px;
+    color: #28bae1;
+    background-color: transparent;
+    border: 2px solid #28bae1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: background-color 0.3s, color 0.3s;
+}
+.btn-outline:hover {
+    background-color: rgba(40, 186, 225, 0.1);
+}
+
+/* Platform download badge */
+.platform-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 24px;
+    border-radius: 12px;
+    border: 1px solid #333a44;
+    background-color: #1d2127;
+    transition: border-color 0.3s, transform 0.3s;
+    text-align: center;
+}
+.platform-badge:hover {
+    border-color: #28bae1;
+    transform: translateY(-4px);
+}
+.platform-badge.coming-soon {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+/* Feature card */
+.feature-card {
+    transition: border-color 0.3s, transform 0.3s;
+    border: 1px solid transparent;
+    border-radius: 12px;
+}
+.feature-card:hover {
+    border-color: #333a44;
+    transform: translateY(-2px);
+}
+
+/* Mod distribution card */
+.mod-card {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px 28px;
+    border-radius: 12px;
+    border: 1px solid #333a44;
+    background-color: #1d2127;
+    transition: border-color 0.3s, transform 0.3s;
+    text-decoration: none;
+    color: #ffffff;
+}
+.mod-card:hover {
+    border-color: #28bae1;
+    transform: translateY(-2px);
+}
+
+/* Video embed container */
+.video-embed {
+    position: relative;
+    padding-bottom: 56.25%;
+    height: 0;
+    overflow: hidden;
+    border-radius: 12px;
+    border: 1px solid #333a44;
+}
+.video-embed iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+/* Doc link card */
+.doc-card {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 24px;
+    border-radius: 12px;
+    border: 1px solid #333a44;
+    background-color: #1d2127;
+    transition: border-color 0.3s, transform 0.3s;
+    text-decoration: none;
+    color: #ffffff;
+}
+.doc-card:hover {
+    border-color: #28bae1;
+    transform: translateY(-2px);
+}
+
+.footer-link{
+    transition: color 0.3s;
+}
+
+.footer-link:hover{
+    color: #28bae1;
+}
+
+@media not all and (min-width: 1024px) {
+    header .collapsible-header {
+        position: fixed;
+        right: 0px;
+        flex-direction: column;
+        opacity: 0;
+        height: 100vh;
+        min-height: 100vh;
+        height: 100dvh;
+        width: 0vw;
+        justify-content: space-between;
+        padding: 5px;
+        padding-top: 5%;
+        padding-bottom: 5%;
+        place-items: end;
+        background-color: #181B20;
+        color: #ffffff;
+        overflow-y: auto;
+        box-shadow: 2px 0px 3px #9f9f9f;
+    }
+
+    .header-links{
+        color: rgb(255, 255, 255);
+    }
+}

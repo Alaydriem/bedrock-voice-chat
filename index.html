@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Bedrock Voice Chat - Proximity Voice Chat for Minecraft</title>
+        <meta name="description" content="High-performance, low-latency, encrypted proximity voice chat for Minecraft Bedrock, Java, and Hytale." />
+        <link rel="icon" type="image/png" href="./favicon-96x96.png" sizes="96x96" />
+        <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+        <link rel="shortcut icon" href="./favicon.ico" />
+
+        <!-- Open Graph / Facebook -->
+        <meta property="og:title" content="Bedrock Voice Chat" />
+        <meta property="og:description" content="High-performance proximity voice chat for Minecraft Bedrock, Java, and Hytale" />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://www.bedrockvoicechat.com" />
+        <meta property="og:image" content="./assets/images/og-image.jpeg" />
+
+        <link rel="stylesheet" href="./css/tailwind-build.css">
+        <link rel="stylesheet" href="css/index.css" />
+
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css"
+            integrity="sha512-dPXYcDub/aeb08c63jRq/k6GaKccl256JQy/AnOq7CAnEZ9FzSL9wSbcZkMp4R26vBsMLFYH4kQ67/bbV8XaCQ=="
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer"
+        />
+    </head>
+    <body class="tw-flex tw-font-mono tw-min-h-[100vh] tw-flex-col tw-bg-[#181B20] tw-text-white">
+
+        <!-- ========== HEADER ========== -->
+        <header
+            class="tw-absolute tw-top-0 tw-z-20 tw-flex tw-items-center tw-h-[60px] tw-w-full tw-bg-opacity-0 tw-px-[5%] tw-text-white"
+        >
+            <a class="tw-flex tw-items-center tw-gap-2 tw-h-[60px] tw-shrink-0 tw-whitespace-nowrap" href="#">
+                <img
+                    src="./assets/logo/app-logo-transparent.svg"
+                    alt="Bedrock Voice Chat logo"
+                    class="tw-h-[40px] tw-w-[40px] tw-object-contain"
+                />
+                <span class="tw-font-semibold tw-text-lg max-md:tw-hidden">Bedrock Voice Chat</span>
+            </a>
+            <div
+                class="collapsible-header animated-collapse max-lg:tw-shadow-md lg:tw-flex-1"
+                id="collapsed-header-items"
+            >
+                <div
+                    class="tw-flex tw-h-full tw-w-max tw-gap-5 tw-text-base tw-text-white max-lg:tw-mt-[30px] max-lg:tw-flex-col max-lg:tw-place-items-end max-lg:tw-gap-5 lg:tw-mx-auto lg:tw-place-items-center"
+                >
+                    <a class="header-links" href="#downloads">Downloads</a>
+                    <a class="header-links" href="#features">Features</a>
+                    <a class="header-links" href="https://github.com/Alaydriem/bedrock-voice-chat/wiki" target="_blank" rel="noopener">Wiki</a>
+                    <a class="header-links" href="https://alaydriem.github.io/bedrock-voice-chat/websocket" target="_blank" rel="noopener">Websocket Docs</a>
+                    <a class="header-links" href="https://www.patreon.com/c/Alaydriem" target="_blank" rel="noopener">Support on Patreon</a>
+                    <a class="header-links" href="https://marketplace.elgato.com/product/bedrock-voice-chat-c5a151d6-3669-487f-9548-bfe689e50203" target="_blank" rel="noopener">Streamdeck App</a>
+                    <a class="header-links" href="https://youtube.com/@alaydriem" target="_blank" rel="noopener"><i class="bi bi-youtube"></i> Watch on YouTube</a>
+                </div>
+                <div
+                    class="tw-mx-4 tw-flex tw-place-items-center tw-gap-[16px] tw-text-base max-md:tw-w-full max-md:tw-flex-col max-md:tw-place-content-center"
+                >
+                    <a
+                        href="https://discord.gg/CdtchD5zxr"
+                        target="_blank"
+                        rel="noopener"
+                        aria-label="Discord"
+                        class="tw-flex tw-items-center tw-gap-2 tw-rounded-full tw-bg-[#5865F2] tw-px-3 tw-py-2 tw-text-white tw-text-sm tw-font-semibold tw-transition-transform tw-duration-[0.3s] hover:tw-scale-[1.05]"
+                    >
+                        <i class="bi bi-discord"></i>
+                        <span class="max-md:tw-hidden">Join Discord</span>
+                    </a>
+                    <a
+                        href="#downloads"
+                        aria-label="download"
+                        class="tw-rounded-full tw-bg-accent tw-px-3 tw-py-2 tw-text-white tw-font-semibold tw-transition-transform tw-duration-[0.3s] hover:tw-translate-x-2"
+                    >
+                        <span>Download</span>
+                        <i class="bi bi-download tw-ml-1"></i>
+                    </a>
+                </div>
+            </div>
+            <button
+                class="bi bi-list tw-absolute tw-right-3 tw-top-3 tw-z-50 tw-text-3xl tw-text-white lg:tw-hidden"
+                onclick="toggleHeader()"
+                aria-label="menu"
+                id="collapse-btn"
+            ></button>
+        </header>
+
+        <!-- ========== HERO ========== -->
+        <section
+            class="tw-relative tw-flex tw-min-h-[100vh] hero-section tw-w-full tw-max-w-[100vw] tw-flex-col tw-overflow-hidden max-md:tw-mt-[50px]"
+            id="hero-section"
+        >
+            <div
+                class="hero-bg-gradient tw-flex tw-h-full tw-min-h-[100vh] tw-w-full tw-flex-col tw-place-content-center tw-gap-6 tw-p-[5%] max-lg:tw-p-4 max-xl:tw-place-items-center"
+            >
+                <div class="tw-flex tw-flex-col tw-place-content-center tw-items-center">
+                    <div class="reveal-up tw-mb-6">
+                        <img
+                            src="./assets/logo/app-logo-transparent.svg"
+                            alt="Bedrock Voice Chat"
+                            class="tw-h-[160px] tw-w-[160px] tw-object-contain max-md:tw-h-[120px] max-md:tw-w-[120px]"
+                        />
+                    </div>
+                    <h1
+                        class="reveal-up tw-text-center hero-title tw-text-6xl tw-font-semibold tw-leading-[80px] max-lg:tw-text-4xl max-md:tw-leading-snug"
+                    >
+                        Bedrock Voice Chat
+                    </h1>
+                    <div
+                        class="reveal-up tw-mt-6 tw-max-w-[600px] tw-p-2 tw-text-center tw-text-lg tw-text-gray-300"
+                    >
+                        High-performance, low-latency, encrypted proximity voice chat
+                        for Minecraft Bedrock, Java, and Hytale.
+                    </div>
+                    <div class="reveal-up tw-mt-3 tw-text-sm tw-text-gray-400" data-bvc-version>
+                        v{{VERSION}} &middot; Source Available
+                    </div>
+
+                    <div
+                        class="reveal-up tw-mt-6 tw-flex tw-place-items-center tw-gap-4 tw-overflow-hidden tw-p-2"
+                    >
+                        <a class="btn-download" href="#downloads">
+                            <i class="bi bi-download"></i>
+                            Download Now
+                        </a>
+                        <a class="btn-outline" href="#features">
+                            Learn More
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== SCREENSHOTS ========== -->
+        <!-- Place your BVC screenshots in ./assets/images/screenshots/ -->
+        <section
+            class="tw-relative tw-flex tw-w-full tw-max-w-[100vw] tw-flex-col tw-place-items-center tw-overflow-hidden tw-py-16 tw-px-6"
+            id="screenshots"
+        >
+            <div class="reveal-up tw-flex tw-flex-col tw-gap-3 tw-text-center tw-mb-10">
+                <h3 class="tw-text-xl tw-text-primary">See the App</h3>
+                <h2 class="tw-text-4xl tw-font-semibold">Screenshots</h2>
+            </div>
+            <div class="tw-flex tw-w-full tw-max-w-[1200px] tw-flex-wrap tw-place-content-center tw-gap-6">
+                <!-- SCREENSHOT 1: Drop your image in ./assets/images/screenshots/ and update the filename -->
+                <div class="reveal-up tw-w-[560px] tw-overflow-hidden tw-rounded-xl tw-border tw-border-[#333a44] tw-shadow-lg max-lg:tw-w-full max-lg:tw-max-w-[560px]">
+                    <img
+                        src="./assets/images/screenshots/"
+                        alt="BVC Desktop Client"
+                        class="tw-w-full tw-h-auto tw-object-cover"
+                        onerror="this.parentElement.innerHTML='<div class=\'tw-flex tw-h-[315px] tw-w-full tw-items-center tw-justify-center tw-bg-[#1d2127] tw-text-gray-500\'>Coming Soon</div>'"
+                    />
+                </div>
+                <!-- SCREENSHOT 2: Drop your image in ./assets/images/screenshots/ and update the filename -->
+                <div class="reveal-up tw-w-[560px] tw-overflow-hidden tw-rounded-xl tw-border tw-border-[#333a44] tw-shadow-lg max-lg:tw-w-full max-lg:tw-max-w-[560px]">
+                    <img
+                        src="./assets/images/screenshots/"
+                        alt="BVC In-Game"
+                        class="tw-w-full tw-h-auto tw-object-cover"
+                        onerror="this.parentElement.innerHTML='<div class=\'tw-flex tw-h-[315px] tw-w-full tw-items-center tw-justify-center tw-bg-[#1d2127] tw-text-gray-500\'>Coming Soon</div>'"
+                    />
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== FEATURES ========== -->
+        <section
+            class="dots-bg tw-relative tw-flex tw-w-full tw-max-w-[100vw] tw-min-h-[100vh] tw-flex-col tw-place-content-center tw-place-items-center tw-overflow-hidden tw-p-6 tw-py-20"
+            id="features"
+        >
+            <div class="tw-mt-8 tw-flex tw-flex-col tw-place-items-center tw-gap-5">
+                <div class="reveal-up tw-mt-5 tw-flex tw-flex-col tw-gap-3 tw-text-center">
+                    <h3 class="tw-text-xl tw-text-primary">
+                        Why Bedrock Voice Chat?
+                    </h3>
+                    <h2 class="tw-text-4xl tw-font-semibold">Built for Gamers</h2>
+                </div>
+                <div
+                    class="tw-mt-6 tw-flex tw-max-w-[1200px] tw-flex-wrap tw-place-content-center tw-gap-2 max-lg:tw-flex-col"
+                >
+                    <!-- Feature 1: Proximity Chat -->
+                    <div class="reveal-up feature-card tw-flex tw-h-[250px] tw-w-[350px] tw-flex-col tw-gap-2 tw-p-4 tw-text-center">
+                        <i class="bi bi-broadcast tw-text-5xl tw-text-primary"></i>
+                        <h3 class="tw-text-2xl tw-font-semibold">Proximity Chat</h3>
+                        <div class="tw-text-gray-300">
+                            Positional spatial audio, with configurable voice ranges and falloff curves for realistic in-game communication, whisper modes, and spectator mode support
+                        </div>
+                    </div>
+                    <!-- Feature 2: End-to-End Encrypted -->
+                    <div class="reveal-up feature-card tw-flex tw-h-[250px] tw-w-[350px] tw-flex-col tw-gap-2 tw-p-4 tw-text-center">
+                        <i class="bi bi-shield-lock-fill tw-text-5xl tw-text-primary"></i>
+                        <h3 class="tw-text-2xl tw-font-semibold">Encrypted</h3>
+                        <div class="tw-text-gray-300">
+                            All voice data is fully encrypted. Your conversations stay
+                            private and secure.
+                        </div>
+                    </div>
+                    <!-- Feature 3: Group Chats -->
+                    <div class="reveal-up feature-card tw-flex tw-h-[250px] tw-w-[350px] tw-flex-col tw-gap-2 tw-p-4 tw-text-center">
+                        <i class="bi bi-people-fill tw-text-5xl tw-text-primary"></i>
+                        <h3 class="tw-text-2xl tw-font-semibold">Group Chats</h3>
+                        <div class="tw-text-gray-300">
+                            Create persistent audio channels for teams, parties, or
+                            server-wide communication.
+                        </div>
+                    </div>
+                    <!-- Feature 4: Audio Controls -->
+                    <div class="reveal-up feature-card tw-flex tw-h-[250px] tw-w-[350px] tw-flex-col tw-gap-2 tw-p-4 tw-text-center">
+                        <i class="bi bi-sliders tw-text-5xl tw-text-primary"></i>
+                        <h3 class="tw-text-2xl tw-font-semibold">Audio Controls</h3>
+                        <div class="tw-text-gray-300">
+                            Mute, deafen, adjust individual player volume from 0-150%,
+                            noise suppression, and voice amplification.
+                        </div>
+                    </div>
+                    <!-- Feature 5: Audio Recording -->
+                    <div class="reveal-up feature-card tw-flex tw-h-[250px] tw-w-[350px] tw-flex-col tw-gap-2 tw-p-4 tw-text-center">
+                        <i class="bi bi-record-circle tw-text-5xl tw-text-primary"></i>
+                        <h3 class="tw-text-2xl tw-font-semibold">Audio Recording</h3>
+                        <div class="tw-text-gray-300">
+                            Record voice sessions to separate tracks per player with
+                            timecode support for content creation.
+                        </div>
+                    </div>
+                    <!-- Feature 6: Cross-Platform -->
+                    <div class="reveal-up feature-card tw-flex tw-h-[250px] tw-w-[350px] tw-flex-col tw-gap-2 tw-p-4 tw-text-center">
+                        <i class="bi bi-phone-fill tw-text-5xl tw-text-primary"></i>
+                        <h3 class="tw-text-2xl tw-font-semibold">Cross-Platform</h3>
+                        <div class="tw-text-gray-300">
+                            Available on Windows and Android. macOS and iOS coming soon.
+                            Console players can use the mobile app.
+                        </div>
+                    </div>
+                    <!-- Feature 7: Cross-Game -->
+                    <div class="reveal-up feature-card tw-flex tw-h-[250px] tw-w-[350px] tw-flex-col tw-gap-2 tw-p-4 tw-text-center">
+                        <i class="bi bi-controller tw-text-5xl tw-text-primary"></i>
+                        <h3 class="tw-text-2xl tw-font-semibold">Cross-Game</h3>
+                        <div class="tw-text-gray-300">
+                            Works with Minecraft Bedrock Edition, Java Edition (Fabric &amp; Paper),
+                            and Hytale.
+                        </div>
+                    </div>
+                    <!-- Feature 8: Smart Voice Detection -->
+                    <div class="reveal-up feature-card tw-flex tw-h-[250px] tw-w-[350px] tw-flex-col tw-gap-2 tw-p-4 tw-text-center">
+                        <i class="bi bi-mic-fill tw-text-5xl tw-text-primary"></i>
+                        <h3 class="tw-text-2xl tw-font-semibold">Smart Voice Detection</h3>
+                        <div class="tw-text-gray-300">
+                            Automatic voice activation or Push-to-Talk. Supports ASIO
+                            and WASAPI audio devices.
+                        </div>
+                    </div>
+                    <!-- Feature 9: WebSocket API -->
+                    <div class="reveal-up feature-card tw-flex tw-h-[250px] tw-w-[350px] tw-flex-col tw-gap-2 tw-p-4 tw-text-center">
+                        <i class="bi bi-code-slash tw-text-5xl tw-text-primary"></i>
+                        <h3 class="tw-text-2xl tw-font-semibold">WebSocket API</h3>
+                        <div class="tw-text-gray-300">
+                            Automate and integrate with Stream Deck, custom plugins,
+                            and other automation tools.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== DOWNLOADS ========== -->
+        <section
+            class="tw-relative tw-flex tw-w-full tw-max-w-[100vw] tw-flex-col tw-place-items-center tw-overflow-hidden tw-p-6 tw-py-20"
+            id="downloads"
+        >
+            <div class="reveal-up tw-flex tw-flex-col tw-gap-3 tw-text-center">
+                <h3 class="tw-text-xl tw-text-primary">Get Started</h3>
+                <h2 class="tw-text-4xl tw-font-semibold">Download for Your Platform</h2>
+            </div>
+
+            <div class="tw-mt-10 tw-flex tw-flex-wrap tw-place-content-center tw-gap-6 max-lg:tw-flex-col max-lg:tw-items-center">
+                <!-- Windows -->
+                <div class="reveal-up platform-badge tw-w-[220px]">
+                    <i class="bi bi-windows tw-text-5xl tw-text-primary"></i>
+                    <h3 class="tw-text-xl tw-font-semibold">Windows</h3>
+                    <span class="tw-text-sm tw-text-gray-400">Full Release</span>
+                    <a href="https://github.com/Alaydriem/bedrock-voice-chat/releases/tag/v{{VERSION}}" data-bvc-version-href target="_blank" rel="noopener" class="btn-download tw-mt-2 tw-text-sm">
+                        <i class="bi bi-download"></i> Download
+                    </a>
+                </div>
+                <!-- Android -->
+                <div class="reveal-up platform-badge tw-w-[220px]">
+                    <i class="bi bi-android2 tw-text-5xl tw-text-accent"></i>
+                    <h3 class="tw-text-xl tw-font-semibold">Android</h3>
+                    <span class="tw-text-sm tw-text-gray-400">Open Beta</span>
+                    <a href="https://play.google.com/store/apps/details?id=com.alaydriem.bvc.client" target="_blank" rel="noopener" class="btn-download tw-mt-2 tw-text-sm">
+                        <i class="bi bi-google-play"></i> Google Play
+                    </a>
+                </div>
+                <!-- macOS -->
+                <div class="reveal-up platform-badge tw-w-[220px] coming-soon">
+                    <i class="bi bi-apple tw-text-5xl"></i>
+                    <h3 class="tw-text-xl tw-font-semibold">macOS</h3>
+                    <span class="tw-text-sm tw-text-gray-400">Coming Soon</span>
+                </div>
+                <!-- iOS -->
+                <div class="reveal-up platform-badge tw-w-[220px] coming-soon">
+                    <i class="bi bi-phone tw-text-5xl"></i>
+                    <h3 class="tw-text-xl tw-font-semibold">iOS</h3>
+                    <span class="tw-text-sm tw-text-gray-400">Coming Soon</span>
+                </div>
+                <!-- Linux -->
+                <div class="reveal-up platform-badge tw-w-[220px] coming-soon">
+                    <i class="bi bi-terminal tw-text-5xl"></i>
+                    <h3 class="tw-text-xl tw-font-semibold">Linux</h3>
+                    <span class="tw-text-sm tw-text-gray-400">Coming Soon</span>
+                </div>
+            </div>
+
+            <p class="reveal-up tw-mt-8 tw-text-center tw-text-gray-400 tw-text-sm tw-max-w-[500px]">
+                Xbox, Nintendo Switch, and PlayStation players can use the Android or iOS mobile app to connect.
+            </p>
+        </section>
+
+        <!-- ========== SERVER MODS ========== -->
+        <section
+            class="tw-relative tw-flex tw-w-full tw-max-w-[100vw] tw-flex-col tw-place-items-center tw-overflow-hidden tw-p-6 tw-py-20"
+            id="server-mods"
+        >
+            <div class="reveal-up tw-flex tw-flex-col tw-gap-3 tw-text-center">
+                <h3 class="tw-text-xl tw-text-primary">Server Plugin</h3>
+                <h2 class="tw-text-4xl tw-font-semibold">Add Voice Chat to Your Server</h2>
+            </div>
+
+            <div class="tw-mt-10 tw-flex tw-flex-wrap tw-place-content-center tw-gap-6 max-lg:tw-flex-col max-lg:tw-items-center">
+                <a href="https://modrinth.com/mod/bedrock-voice-chat" target="_blank" rel="noopener" class="reveal-up mod-card tw-w-[300px]">
+                    <i class="bi bi-box-seam tw-text-4xl tw-text-green-400"></i>
+                    <div>
+                        <h3 class="tw-text-lg tw-font-semibold">Modrinth</h3>
+                        <p class="tw-text-sm tw-text-gray-400">Get the mod on Modrinth</p>
+                    </div>
+                    <i class="bi bi-arrow-right tw-ml-auto tw-text-gray-400"></i>
+                </a>
+                <a href="https://www.curseforge.com/minecraft-bedrock/addons/bedrock-voice-chat" target="_blank" rel="noopener" class="reveal-up mod-card tw-w-[300px]">
+                    <i class="bi bi-fire tw-text-4xl tw-text-orange-400"></i>
+                    <div>
+                        <h3 class="tw-text-lg tw-font-semibold">CurseForge</h3>
+                        <p class="tw-text-sm tw-text-gray-400">Bedrock addon</p>
+                    </div>
+                    <i class="bi bi-arrow-right tw-ml-auto tw-text-gray-400"></i>
+                </a>
+                <a href="https://www.curseforge.com/hytale/mods/bedrock-voice-chat" target="_blank" rel="noopener" class="reveal-up mod-card tw-w-[300px]">
+                    <i class="bi bi-fire tw-text-4xl tw-text-orange-400"></i>
+                    <div>
+                        <h3 class="tw-text-lg tw-font-semibold">CurseForge</h3>
+                        <p class="tw-text-sm tw-text-gray-400">Hytale mod</p>
+                    </div>
+                    <i class="bi bi-arrow-right tw-ml-auto tw-text-gray-400"></i>
+                </a>
+                <a href="https://github.com/Alaydriem/bedrock-voice-chat/releases/tag/{{MODS_VERSION}}" data-bvc-mods-href target="_blank" rel="noopener" class="reveal-up mod-card tw-w-[300px]">
+                    <i class="bi bi-github tw-text-4xl"></i>
+                    <div>
+                        <h3 class="tw-text-lg tw-font-semibold">GitHub Releases</h3>
+                        <p class="tw-text-sm tw-text-gray-400" data-bvc-version>Direct download (v{{VERSION}})</p>
+                    </div>
+                    <i class="bi bi-arrow-right tw-ml-auto tw-text-gray-400"></i>
+                </a>
+            </div>
+        </section>
+
+        <!-- ========== VIDEOS & UPDATES ========== -->
+        <section
+            class="tw-relative tw-flex tw-w-full tw-max-w-[100vw] tw-flex-col tw-place-items-center tw-overflow-hidden tw-p-6 tw-py-20"
+            id="media"
+        >
+            <div class="reveal-up tw-flex tw-flex-col tw-gap-3 tw-text-center">
+                <h3 class="tw-text-xl tw-text-primary">See It In Action</h3>
+                <h2 class="tw-text-4xl tw-font-semibold">Videos &amp; Updates</h2>
+            </div>
+
+            <div class="tw-mt-10 tw-flex tw-w-full tw-max-w-[1100px] tw-flex-wrap tw-place-content-center tw-gap-8 max-lg:tw-flex-col max-lg:tw-items-center">
+                <!-- Announcement Video -->
+                <div class="reveal-up tw-flex tw-w-[500px] tw-flex-col tw-gap-3 max-lg:tw-w-full max-lg:tw-max-w-[500px]">
+                    <div class="video-embed">
+                        <iframe width="560" height="315" src="https://www.youtube.com/embed/VON56xnHfnQ?si=d1tAYa3mFi8XQSTe" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+                    </div>
+                    <h3 class="tw-text-lg tw-font-semibold">Announcement</h3>
+                </div>
+                <!-- Setup Guide Video -->
+                <div class="reveal-up tw-flex tw-w-[500px] tw-flex-col tw-gap-3 max-lg:tw-w-full max-lg:tw-max-w-[500px]">
+                    <div class="video-embed">
+                        <iframe width="560" height="315" src="https://www.youtube.com/embed/0ciAc_d81a0?si=PpIablyW3TflK7nh" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+                    </div>
+                    <h3 class="tw-text-lg tw-font-semibold">Setup Guide</h3>
+                </div>
+            </div>
+
+            <div class="tw-mt-10 tw-flex tw-flex-wrap tw-place-content-center tw-gap-6 max-lg:tw-flex-col max-lg:tw-items-center">
+                <a href="https://youtube.com/@alaydriem" target="_blank" rel="noopener" class="reveal-up mod-card tw-w-[300px]">
+                    <i class="bi bi-youtube tw-text-4xl tw-text-red-500"></i>
+                    <div>
+                        <h3 class="tw-text-lg tw-font-semibold">YouTube Channel</h3>
+                        <p class="tw-text-sm tw-text-gray-400">Watch more videos</p>
+                    </div>
+                    <i class="bi bi-arrow-right tw-ml-auto tw-text-gray-400"></i>
+                </a>
+                <a href="https://www.patreon.com/c/Alaydriem" target="_blank" rel="noopener" class="reveal-up mod-card tw-w-[300px]">
+                    <i class="bi bi-heart-fill tw-text-4xl tw-text-orange-400"></i>
+                    <div>
+                        <h3 class="tw-text-lg tw-font-semibold">Development Blog</h3>
+                        <p class="tw-text-sm tw-text-gray-400">Updates on Patreon</p>
+                    </div>
+                    <i class="bi bi-arrow-right tw-ml-auto tw-text-gray-400"></i>
+                </a>
+            </div>
+        </section>
+
+        <!-- ========== DOCUMENTATION ========== -->
+        <section
+            class="dots-bg tw-relative tw-flex tw-w-full tw-max-w-[100vw] tw-flex-col tw-place-items-center tw-overflow-hidden tw-p-6 tw-py-20"
+            id="docs"
+        >
+            <div class="reveal-up tw-flex tw-flex-col tw-gap-3 tw-text-center">
+                <h3 class="tw-text-xl tw-text-primary">Documentation</h3>
+                <h2 class="tw-text-4xl tw-font-semibold">Resources &amp; Docs</h2>
+            </div>
+
+            <div class="tw-mt-10 tw-flex tw-flex-wrap tw-place-content-center tw-gap-6 max-lg:tw-flex-col max-lg:tw-items-center">
+                <a href="https://github.com/Alaydriem/bedrock-voice-chat/wiki" target="_blank" rel="noopener" class="reveal-up doc-card tw-w-[280px]">
+                    <i class="bi bi-book tw-text-3xl tw-text-primary"></i>
+                    <div>
+                        <h3 class="tw-text-base tw-font-semibold">Wiki</h3>
+                        <p class="tw-text-xs tw-text-gray-400">Setup guides, config &amp; FAQ</p>
+                    </div>
+                </a>
+                <a href="https://alaydriem.github.io/bedrock-voice-chat/websocket" target="_blank" rel="noopener" class="reveal-up doc-card tw-w-[280px]">
+                    <i class="bi bi-plug tw-text-3xl tw-text-primary"></i>
+                    <div>
+                        <h3 class="tw-text-base tw-font-semibold">WebSocket API</h3>
+                        <p class="tw-text-xs tw-text-gray-400">Integrate with plugins &amp; tools</p>
+                    </div>
+                </a>
+                <a href="https://marketplace.elgato.com/product/bedrock-voice-chat-c5a151d6-3669-487f-9548-bfe689e50203" target="_blank" rel="noopener" class="reveal-up doc-card tw-w-[280px]">
+                    <i class="bi bi-grid-3x3-gap tw-text-3xl tw-text-primary"></i>
+                    <div>
+                        <h3 class="tw-text-base tw-font-semibold">Stream Deck App</h3>
+                        <p class="tw-text-xs tw-text-gray-400">Elgato Marketplace</p>
+                    </div>
+                </a>
+                <a href="https://github.com/Alaydriem/bedrock-voice-chat" target="_blank" rel="noopener" class="reveal-up doc-card tw-w-[280px]">
+                    <i class="bi bi-github tw-text-3xl tw-text-primary"></i>
+                    <div>
+                        <h3 class="tw-text-base tw-font-semibold">Source Code</h3>
+                        <p class="tw-text-xs tw-text-gray-400">Source available on GitHub</p>
+                    </div>
+                </a>
+            </div>
+        </section>
+
+        <!-- ========== FOOTER ========== -->
+        <footer
+            class="tw-mt-auto tw-flex tw-w-full tw-place-content-around tw-gap-8 tw-p-[5%] tw-px-[10%] tw-text-white tw-border-t tw-border-[#333a44] max-md:tw-flex-col"
+        >
+            <!-- Brand Column -->
+            <div class="tw-flex tw-h-full tw-w-[280px] tw-flex-col tw-gap-4 max-md:tw-w-full">
+                <div class="tw-flex tw-items-center tw-gap-3">
+                    <img
+                        src="./assets/logo/app-logo-transparent.svg"
+                        alt="Bedrock Voice Chat"
+                        class="tw-h-[50px] tw-w-[50px] tw-object-contain"
+                    />
+                    <span class="tw-text-lg tw-font-semibold">Bedrock Voice Chat</span>
+                </div>
+                <p class="tw-text-sm tw-text-gray-400">
+                    High-performance proximity voice chat for Minecraft Bedrock, Java, and Hytale.
+                </p>
+                <div class="tw-flex tw-gap-4 tw-text-2xl tw-mt-2">
+                    <a href="https://discord.gg/CdtchD5zxr" target="_blank" rel="noopener" aria-label="Discord" class="footer-link">
+                        <i class="bi bi-discord"></i>
+                    </a>
+                    <a href="https://youtube.com/@alaydriem" target="_blank" rel="noopener" aria-label="YouTube" class="footer-link">
+                        <i class="bi bi-youtube"></i>
+                    </a>
+                    <a href="https://github.com/Alaydriem/bedrock-voice-chat" target="_blank" rel="noopener" aria-label="GitHub" class="footer-link">
+                        <i class="bi bi-github"></i>
+                    </a>
+                    <a href="https://www.patreon.com/c/Alaydriem" target="_blank" rel="noopener" aria-label="Patreon" class="footer-link">
+                        <i class="bi bi-heart-fill"></i>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Downloads Column -->
+            <div class="tw-flex tw-h-full tw-w-[200px] tw-flex-col tw-gap-3 max-md:tw-w-full">
+                <h2 class="tw-text-lg tw-font-semibold">Downloads</h2>
+                <div class="tw-flex tw-flex-col tw-gap-2 tw-text-sm">
+                    <a href="https://github.com/Alaydriem/bedrock-voice-chat/releases/tag/v{{VERSION}}" data-bvc-version-href target="_blank" rel="noopener" class="footer-link">Windows</a>
+                    <a href="https://play.google.com/store/apps/details?id=com.alaydriem.bvc.client" target="_blank" rel="noopener" class="footer-link">Android (Google Play)</a>
+                    <a href="https://modrinth.com/mod/bedrock-voice-chat" target="_blank" rel="noopener" class="footer-link">Server Mods (Modrinth)</a>
+                    <a href="https://www.curseforge.com/minecraft-bedrock/addons/bedrock-voice-chat" target="_blank" rel="noopener" class="footer-link">Server Mods (CurseForge)</a>
+                </div>
+            </div>
+
+            <!-- Resources Column -->
+            <div class="tw-flex tw-h-full tw-w-[200px] tw-flex-col tw-gap-3 max-md:tw-w-full">
+                <h2 class="tw-text-lg tw-font-semibold">Resources</h2>
+                <div class="tw-flex tw-flex-col tw-gap-2 tw-text-sm">
+                    <a href="https://github.com/Alaydriem/bedrock-voice-chat/wiki" target="_blank" rel="noopener" class="footer-link">Wiki</a>
+                    <a href="https://alaydriem.github.io/bedrock-voice-chat/websocket" target="_blank" rel="noopener" class="footer-link">WebSocket Docs</a>
+                    <a href="https://marketplace.elgato.com/product/bedrock-voice-chat-c5a151d6-3669-487f-9548-bfe689e50203" target="_blank" rel="noopener" class="footer-link">Stream Deck App</a>
+                    <a href="https://discord.gg/CdtchD5zxr" target="_blank" rel="noopener" class="footer-link">Discord Community</a>
+                    <a href="https://www.patreon.com/c/Alaydriem" target="_blank" rel="noopener" class="footer-link">Patreon Blog</a>
+                </div>
+            </div>
+        </footer>
+
+        <div class="tw-w-full tw-text-center tw-py-4 tw-text-xs tw-text-gray-500 tw-border-t tw-border-[#333a44]">
+            &copy; 2025 Alaydriem. Bedrock Voice Chat is source available on Github
+        </div>
+    </body>
+
+    <script
+        src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.0/gsap.min.js"
+        integrity="sha512-B1lby8cGcAUU3GR+Fd809/ZxgHbfwJMp0jLTVfHiArTuUt++VqSlJpaJvhNtRf3NERaxDNmmxkdx2o+aHd4bvw=="
+        crossorigin="anonymous"
+        referrerpolicy="no-referrer"
+    ></script>
+    <script
+        src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.0/ScrollTrigger.min.js"
+        integrity="sha512-AY2+JxnBETJ0wcXnLPCcZJIJx0eimyhz3OJ55k2Jx4RtYC+XdIi2VtJQ+tP3BaTst4otlGG1TtPJ9fKrAUnRdQ=="
+        crossorigin="anonymous"
+        referrerpolicy="no-referrer"
+    ></script>
+
+    <script src="./index.js"></script>
+</html>
