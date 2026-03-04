@@ -1,4 +1,4 @@
-use tauri::{AppHandle, State};
+use tauri::State;
 use tauri::async_runtime::Mutex;
 use crate::websocket::{WebSocketManager, WebSocketConfig};
 use common::traits::StreamTrait;

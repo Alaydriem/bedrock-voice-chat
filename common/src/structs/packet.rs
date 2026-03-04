@@ -184,13 +184,13 @@ impl QuicNetworkPacket {
     }
 
     /// Helper function to get all channels a player is in
-    async fn get_player_channels(
+    fn get_player_channels(
         player_name: &str,
-        channel_membership: &Cache<String, std::collections::HashSet<String>>,
+        channel_cache: &Cache<String, super::channel::Channel>,
     ) -> Vec<String> {
         let mut player_channels = Vec::new();
-        for (channel_id, members) in channel_membership.iter() {
-            if members.contains(player_name) {
+        for (channel_id, channel) in channel_cache.iter() {
+            if channel.players.iter().any(|p| p.name == player_name) {
                 player_channels.push((*channel_id).clone());
             }
         }
@@ -201,7 +201,7 @@ impl QuicNetworkPacket {
     pub async fn is_receivable(
         &mut self,
         recipient: PacketOwner,
-        channel_membership: Arc<Cache<String, std::collections::HashSet<String>>>,
+        channel_cache: Arc<Cache<String, super::channel::Channel>>,
         position_data: Arc<Cache<String, crate::PlayerEnum>>,
         range: f32,
     ) -> bool {
@@ -245,11 +245,9 @@ impl QuicNetworkPacket {
                             }
                         }
 
-                        // Get channels for both players concurrently
-                        let (sender_channels, receiver_channels) = tokio::join!(
-                            Self::get_player_channels(current_player, &channel_membership),
-                            Self::get_player_channels(receiver_name, &channel_membership)
-                        );
+                        // Get channels for both players
+                        let sender_channels = Self::get_player_channels(current_player, &channel_cache);
+                        let receiver_channels = Self::get_player_channels(receiver_name, &channel_cache);
 
                         // Check if they share any channels (O(k*m) where k,m = channels per player, typically 1-2)
                         let players_in_same_channel = sender_channels.iter()

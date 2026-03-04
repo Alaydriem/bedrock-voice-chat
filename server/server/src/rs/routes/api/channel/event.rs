@@ -1,5 +1,5 @@
 use crate::rs::pool::AppDb;
-use crate::stream::quic::WebhookReceiver;
+use crate::stream::quic::{CacheManager, WebhookReceiver};
 use common::structs::{
     channel::{
         ChannelEvent,
@@ -17,16 +17,11 @@ use sea_orm::QueryFilter;
 use sea_orm::ColumnTrait;
 use sea_orm_rocket::Connection as SeaOrmConnection;
 
-use moka::future::Cache;
-use std::sync::Arc;
-
 #[put("/<id>", data = "<event>")]
 pub async fn channel_event<'r>(
     identity: Certificate<'r>,
     db: SeaOrmConnection<'_, AppDb>,
-    channel_cache: &State<
-        Arc<async_mutex::Mutex<Cache<String, common::structs::channel::Channel>>>,
-    >,
+    cache_manager: &State<CacheManager>,
     id: &str,
     webhook_receiver: &State<WebhookReceiver>,
     event: Json<ChannelEvent>,
@@ -40,8 +35,7 @@ pub async fn channel_event<'r>(
 
     let event = event.0;
 
-    let lock = channel_cache.lock_arc().await;
-    let mut channel = match lock.get(id).await {
+    let channel = match cache_manager.get_channel(id).await {
         Some(channel) => channel,
         None => {
             if event.event.eq(&Delete) {
@@ -77,16 +71,16 @@ pub async fn channel_event<'r>(
                 game: event.game.clone(),
                 gamerpic,
             };
-            _ = channel.add_player(channel_player);
+            cache_manager.add_player_to_channel(channel_player, id).await;
         }
         Leave => {
-            _ = channel.remove_player(&user);
+            cache_manager.remove_player_from_channel(&user, id).await;
         }
-        _ => {}
+        _ => {
+            // Channel exists but unhandled event — just drop through to broadcast
+            drop(channel);
+        }
     }
-
-    _ = lock.insert(id.to_string(), channel).await;
-    drop(lock);
 
     let packet = QuicNetworkPacket {
         owner: Some(PacketOwner {

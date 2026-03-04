@@ -1,4 +1,4 @@
-use crate::stream::quic::WebhookReceiver;
+use crate::stream::quic::{CacheManager, WebhookReceiver};
 use common::structs::{
     channel::ChannelEvents::Rename,
     packet::{
@@ -7,15 +7,10 @@ use common::structs::{
 };
 use rocket::{http::Status, mtls::Certificate, response::status, serde::json::Json, State};
 
-use moka::future::Cache;
-use std::sync::Arc;
-
 #[patch("/<id>", data = "<name>")]
 pub async fn channel_rename<'r>(
     identity: Certificate<'r>,
-    channel_cache: &State<
-        Arc<async_mutex::Mutex<Cache<String, common::structs::channel::Channel>>>,
-    >,
+    cache_manager: &State<CacheManager>,
     webhook_receiver: &State<WebhookReceiver>,
     id: &str,
     name: Json<String>,
@@ -27,8 +22,7 @@ pub async fn channel_rename<'r>(
         }
     };
 
-    let lock = channel_cache.lock_arc().await;
-    let mut channel = match lock.get(id).await {
+    let channel = match cache_manager.get_channel(id).await {
         Some(channel) => channel,
         None => {
             return status::Custom(Status::NotFound, Some(Json(false)));
@@ -40,9 +34,7 @@ pub async fn channel_rename<'r>(
     }
 
     let new_name = name.0;
-    channel.rename(new_name.clone());
-    _ = lock.insert(id.to_string(), channel).await;
-    drop(lock);
+    cache_manager.rename_channel(id, new_name.clone()).await;
 
     let packet = QuicNetworkPacket {
         owner: Some(PacketOwner {

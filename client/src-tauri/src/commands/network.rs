@@ -1,14 +1,9 @@
-use crate::audio::AudioPacket;
-use crate::network::NetworkPacket;
 use crate::{structs::app_state::AppState, NetworkStreamManager};
 use common::structs::config::LoginResponse;
-use flume::{Receiver, Sender};
 use log::{error, info};
 use std::net::SocketAddr;
-use std::sync::Arc;
-use std::time::Duration;
 use tauri::async_runtime::Mutex;
-use tauri::{AppHandle, Manager, State};
+use tauri::State;
 use trust_dns_resolver::{
     config::{ResolverConfig, ResolverOpts},
     Resolver, TokioAsyncResolver,

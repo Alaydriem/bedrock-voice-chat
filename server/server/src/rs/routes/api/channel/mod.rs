@@ -4,6 +4,7 @@ pub(crate) mod event;
 pub(crate) mod rename;
 
 use crate::rs::pool::AppDb;
+use crate::stream::quic::CacheManager;
 use entity::player;
 use rocket::{http::Status, mtls::Certificate, response::status, serde::json::Json, State};
 use sea_orm::EntityTrait;
@@ -11,34 +12,25 @@ use sea_orm::QueryFilter;
 use sea_orm::ColumnTrait;
 use sea_orm_rocket::Connection as SeaOrmConnection;
 
-use moka::future::Cache;
-use std::sync::Arc;
-
 use common::structs::channel::Channel;
 
 #[get("/?<id>")]
 pub async fn channel_list<'r>(
     _identity: Certificate<'r>,
     db: SeaOrmConnection<'_, AppDb>,
-    channel_cache: &State<
-        Arc<async_mutex::Mutex<Cache<String, common::structs::channel::Channel>>>,
-    >,
+    cache_manager: &State<CacheManager>,
     id: Option<String>,
 ) -> status::Custom<Json<Vec<Channel>>> {
-    let mut channels: Vec<Channel> = Vec::new();
-    for (i, channel) in channel_cache.lock_arc().await.clone().iter() {
-        match id.clone() {
-            Some(id) => match id.eq(&i.to_string()) {
-                true => channels.push(channel),
-                false => {
-                    continue;
-                }
-            },
-            None => channels.push(channel),
+    let mut channels: Vec<Channel> = if let Some(ref id) = id {
+        match cache_manager.get_channel(id).await {
+            Some(channel) => vec![channel],
+            None => vec![],
         }
-    }
+    } else {
+        cache_manager.list_channels()
+    };
 
-    if id.is_some() && channels.len() == 0 {
+    if id.is_some() && channels.is_empty() {
         return status::Custom(Status::NotFound, Json(channels));
     }
 

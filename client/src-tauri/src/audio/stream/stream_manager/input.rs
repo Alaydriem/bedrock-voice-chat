@@ -281,7 +281,7 @@ impl InputStream {
                                     });
                                 };
 
-                                let mut callback_count = 0u64;
+                                let callback_count = 0u64;
                                 let mut consecutive_silent_frames: u32 = 0;
 
                                 // Trailing frame count scales with release_rate (20ms per frame at 48kHz)

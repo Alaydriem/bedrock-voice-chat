@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
 
 use flume::Receiver;
-use log::{debug, info, warn};
+use log::{info, warn};
 use moka::sync::Cache;
 use std::num::NonZero;
 use rodio::{mixer::Mixer, Player, SpatialPlayer, Source};
@@ -287,6 +287,7 @@ impl SinkManager {
                     let dx = emitter_coordinate.x - listener_coordinate.x;
                     let dy = emitter_coordinate.y - listener_coordinate.y;
                     let dz = emitter_coordinate.z - listener_coordinate.z;
+                    #[allow(unused)]
                     let actual_distance = (dx * dx + dy * dy + dz * dz).sqrt();
 
                     let spatial_data: SpatialAudioData =
