@@ -175,6 +175,7 @@ impl CacheManager {
 
                                 tracing::info!("Channel {} deleted", channel_data.channel);
                             }
+                            ChannelEvents::Rename => {}
                         }
                     }
                 }

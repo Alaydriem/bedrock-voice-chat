@@ -117,7 +117,8 @@ impl RocketManager {
                             routes::api::channel_create,
                             routes::api::channel_delete,
                             routes::api::channel_event,
-                            routes::api::channel_list
+                            routes::api::channel_list,
+                            routes::api::channel_rename
                         ],
                     )
                     .mount(

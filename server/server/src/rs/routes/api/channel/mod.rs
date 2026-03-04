@@ -1,6 +1,7 @@
 pub(crate) mod create;
 pub(crate) mod delete;
 pub(crate) mod event;
+pub(crate) mod rename;
 
 use crate::rs::pool::AppDb;
 use entity::player;

@@ -17,7 +17,7 @@ use common::{
             PlayerPresenceEvent, QuicNetworkPacket, ServerErrorPacket, ServerErrorType,
         },
     },
-    PlayerEnum, RecordingPlayerData,
+    Coordinate, Game, GenericPlayer, Orientation, PlayerEnum, RecordingPlayerData,
 };
 use common::traits::player_data::PlayerData;
 use log::{error, info, warn};
@@ -341,6 +341,22 @@ impl OutputStream {
             None => return Err(anyhow!("Playback stream cannot start without a player name set. Hint: .metadata('current_player', String) first."))
         };
 
+        // Seed the player cache with a default entry for the current player.
+        // In group channels (non-proximity), the server may never send PlayerDataPacket,
+        // so the listener would otherwise never appear in the cache.
+        // This default is overwritten when real position data arrives.
+        if players.get(&current_player_name).is_none() {
+            players.insert(
+                current_player_name.clone(),
+                PlayerEnum::Generic(GenericPlayer {
+                    name: current_player_name.clone(),
+                    coordinates: Coordinate::default(),
+                    orientation: Orientation { x: 0.0, y: 0.0 },
+                    game: Game::Minecraft,
+                }),
+            );
+        }
+
         match self.device.clone() {
             Some(device) => match device.get_stream_config() {
                 Ok(stored_config) => {
@@ -516,6 +532,7 @@ impl OutputStream {
                         common::structs::channel::ChannelEvents::Delete => "delete",
                         common::structs::channel::ChannelEvents::Join => "join",
                         common::structs::channel::ChannelEvents::Leave => "leave",
+                        common::structs::channel::ChannelEvents::Rename => "rename",
                     };
 
                     info!(

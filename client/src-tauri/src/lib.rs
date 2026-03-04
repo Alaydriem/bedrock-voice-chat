@@ -105,6 +105,7 @@ pub fn run() {
             crate::api::commands::api_list_channels,
             crate::api::commands::api_get_channel,
             crate::api::commands::api_channel_event,
+            crate::api::commands::api_rename_channel,
             crate::api::commands::api_get_player_gamerpic,
             // WebSocket Server
             crate::commands::websocket::update_websocket_config,

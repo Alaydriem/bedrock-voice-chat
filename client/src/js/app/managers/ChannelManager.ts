@@ -200,6 +200,30 @@ export default class ChannelManager {
         }
     }
 
+    async renameChannel(channelId: string, newName: string): Promise<boolean> {
+        try {
+            this.clearError();
+
+            const success = await invoke<boolean>('api_rename_channel', { channelId, name: newName });
+
+            if (success) {
+                this.channelsStore.update((channels: Channel[]) =>
+                    channels.map((channel: Channel) => {
+                        if (channel.id === channelId) {
+                            return { ...channel, name: newName };
+                        }
+                        return channel;
+                    })
+                );
+            }
+
+            return success;
+        } catch (error) {
+            this.handleError(error);
+            return false;
+        }
+    }
+
     private async getActiveGame(): Promise<Game | null> {
         try {
             const activeGame = await this.store.get("active_game") as string | null;
@@ -536,6 +560,19 @@ export default class ChannelManager {
                     } else {
                         this.playerManager.removePlayerSource(player_name, 'Group');
                     }
+                }
+                break;
+
+            case 'rename':
+                if (channel_name) {
+                    this.channelsStore.update((channels: Channel[]) =>
+                        channels.map((channel: Channel) => {
+                            if (channel.id === channel_id) {
+                                return { ...channel, name: channel_name };
+                            }
+                            return channel;
+                        })
+                    );
                 }
                 break;
 

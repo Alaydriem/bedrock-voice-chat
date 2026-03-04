@@ -21,3 +21,4 @@ pub use channel::channel_list;
 pub use channel::create::channel_create;
 pub use channel::delete::channel_delete;
 pub use channel::event::channel_event;
+pub use channel::rename::channel_rename;

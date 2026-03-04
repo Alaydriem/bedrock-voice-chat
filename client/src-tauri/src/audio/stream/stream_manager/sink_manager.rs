@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
 
 use flume::Receiver;
-use log::{info, warn};
+use log::{debug, info, warn};
 use moka::sync::Cache;
 use std::num::NonZero;
 use rodio::{mixer::Mixer, Player, SpatialPlayer, Source};
@@ -234,14 +234,10 @@ impl SinkManager {
                     });
 
                 if listener_info.is_none() {
-                    let cached_players: Vec<String> = players.iter()
-                        .map(|(k, _)| k.as_ref().clone())
-                        .collect();
-                    log::warn!(
-                        "Listener '{}' not found in player cache (cache size: {}, cached players: {:?})",
+                    log::debug!(
+                        "Listener '{}' not found in player cache (cache size: {})",
                         current_player_name,
                         players.entry_count(),
-                        cached_players
                     );
                 }
 

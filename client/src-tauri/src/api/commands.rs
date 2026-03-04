@@ -208,6 +208,29 @@ pub(crate) async fn api_channel_event(
 }
 
 #[tauri::command(async)]
+pub(crate) async fn api_rename_channel(
+    app_state: State<'_, Mutex<AppState>>,
+    #[allow(non_snake_case)]
+    channelId: String,
+    name: String,
+    server: Option<String>,
+) -> Result<bool, String> {
+    let state = app_state.lock().await;
+
+    let api = match server {
+        Some(endpoint) => {
+            drop(state);
+            app_state.lock().await.get_api_client_for_server(&endpoint).await?
+        },
+        None => {
+            state.get_api_client()?.clone()
+        }
+    };
+
+    api.rename_channel(&channelId, &name).await
+}
+
+#[tauri::command(async)]
 pub(crate) async fn api_get_player_gamerpic(
     app_state: State<'_, Mutex<AppState>>,
     game: common::Game,

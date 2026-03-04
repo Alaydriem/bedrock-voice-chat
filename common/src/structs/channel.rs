@@ -40,6 +40,10 @@ impl Channel {
         self.players.retain(|p| p.name != name);
         Ok(())
     }
+
+    pub fn rename(&mut self, name: String) {
+        self.name = name;
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, TS)]
@@ -49,6 +53,7 @@ pub enum ChannelEvents {
     Leave,
     Create,
     Delete,
+    Rename,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, TS)]

@@ -16,8 +16,9 @@
         onJoin: (channelId: string) => void;
         onLeave: (channelId: string) => void;
         onDelete: (channelId: string) => void;
+        onRename?: (channelId: string, newName: string) => void;
     }
-    let { channel, currentUser, userCurrentChannelId, onJoin, onLeave, onDelete }: Props = $props();
+    let { channel, currentUser, userCurrentChannelId, onJoin, onLeave, onDelete, onRename }: Props = $props();
 
     let isCurrentUserChannel = $derived(userCurrentChannelId === channel.id);
     let isOwner = $derived(currentUser && GameNameUtils.namesMatch(channel.creator, currentUser));
@@ -110,6 +111,8 @@
     };
 
     let dropdownOpen = $state(false);
+    let isEditing = $state(false);
+    let editName = $state('');
 
     const handleGroupClick = () => {
         if (!isUserInChannel) {
@@ -125,6 +128,35 @@
     const handleDeleteGroup = () => {
         onDelete(channel.id);
         dropdownOpen = false;
+    };
+
+    const handleCopyGroupId = async () => {
+        await navigator.clipboard.writeText(channel.id);
+        dropdownOpen = false;
+    };
+
+    const handleNameClick = (event: Event) => {
+        if (isOwner && onRename) {
+            event.stopPropagation();
+            isEditing = true;
+            editName = channel.name;
+        }
+    };
+
+    const handleRenameSubmit = () => {
+        const trimmed = editName.trim();
+        if (trimmed && trimmed !== channel.name && onRename) {
+            onRename(channel.id, trimmed);
+        }
+        isEditing = false;
+    };
+
+    const handleRenameKeydown = (event: KeyboardEvent) => {
+        if (event.key === 'Enter') {
+            handleRenameSubmit();
+        } else if (event.key === 'Escape') {
+            isEditing = false;
+        }
     };
 
     const toggleDropdown = (event: Event) => {
@@ -150,9 +182,28 @@
 >
     <div class="flex min-w-0 flex-1 items-center justify-between gap-3">
         <div class="min-w-0 flex-1">
-            <p class="truncate text-slate-800 dark:text-navy-100 font-medium text-sm mb-2">
-               {channel.name}
-            </p>
+            {#if isEditing}
+                <!-- svelte-ignore a11y_autofocus -->
+                <input
+                    type="text"
+                    bind:value={editName}
+                    onblur={handleRenameSubmit}
+                    onkeydown={handleRenameKeydown}
+                    onclick={(e) => e.stopPropagation()}
+                    autofocus
+                    class="w-full truncate text-slate-800 dark:text-navy-100 font-medium text-sm mb-2 bg-transparent border-b border-indigo-500 outline-none px-0 py-0"
+                />
+            {:else}
+                <p
+                    class="truncate text-slate-800 dark:text-navy-100 font-medium text-sm mb-2 {isOwner && onRename ? 'cursor-text hover:border-b hover:border-slate-300 dark:hover:border-navy-400' : ''}"
+                    onclick={handleNameClick}
+                    role={isOwner && onRename ? "button" : undefined}
+                    tabindex={isOwner && onRename ? 0 : undefined}
+                    onkeydown={(e) => { if (isOwner && onRename && e.key === 'Enter') handleNameClick(e); }}
+                >
+                   {channel.name}
+                </p>
+            {/if}
             <div class="flex flex-wrap -space-x-2">
                 {#if sortedPlayers.length > 0}
                     {#each displayPlayers as player}
@@ -213,25 +264,24 @@
 
                 {#if dropdownOpen}
                     <div class="absolute right-0 top-full mt-1 z-50 w-48 rounded-lg bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 dark:bg-navy-700 dark:ring-navy-800 border border-slate-200 dark:border-navy-600">
+                        <button
+                            class="block w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-navy-100 dark:hover:bg-navy-600 transition-colors duration-150"
+                            onclick={handleCopyGroupId}
+                        >
+                            Copy Group ID
+                        </button>
+                        <button
+                            class="block w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-navy-100 dark:hover:bg-navy-600 transition-colors duration-150"
+                            onclick={handleLeaveGroup}
+                        >
+                            Leave Group
+                        </button>
                         {#if isOwner}
-                            <button
-                                class="block w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-navy-100 dark:hover:bg-navy-600 transition-colors duration-150"
-                                onclick={handleLeaveGroup}
-                            >
-                                Leave Group
-                            </button>
                             <button
                                 class="block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 transition-colors duration-150 font-medium"
                                 onclick={handleDeleteGroup}
                             >
                                 Close Group
-                            </button>
-                        {:else}
-                            <button
-                                class="block w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-navy-100 dark:hover:bg-navy-600 transition-colors duration-150"
-                                onclick={handleLeaveGroup}
-                            >
-                                Leave Group
                             </button>
                         {/if}
                     </div>

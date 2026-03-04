@@ -143,6 +143,10 @@
         await channelManager.deleteChannel(channelId);
     };
 
+    const handleRenameGroup = async (channelId: string, newName: string) => {
+        await channelManager.renameChannel(channelId, newName);
+    };
+
     const clearError = () => {
         channelManager.clearError();
     };
@@ -254,6 +258,7 @@
                                 onJoin={handleJoinGroup}
                                 onLeave={handleLeaveGroup}
                                 onDelete={handleDeleteGroup}
+                                onRename={handleRenameGroup}
                             />
                         {/each}
                     {:else if isLoading}
