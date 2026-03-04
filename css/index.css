@@ -26,7 +26,7 @@ header > .collapsible-header{
 }
 
 .animated-collapse{
-    transition: width 0.3s ease;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
 }
 
 .header-links {
@@ -247,26 +247,33 @@ header > .collapsible-header{
 
 @media not all and (min-width: 1024px) {
     header .collapsible-header {
-        position: fixed;
-        right: 0px;
+        position: absolute;
+        top: 60px;
+        left: 0;
+        right: 0;
         flex-direction: column;
+        max-height: 0;
         opacity: 0;
-        height: 100vh;
-        min-height: 100vh;
-        height: 100dvh;
-        width: 0vw;
-        justify-content: space-between;
-        padding: 5px;
-        padding-top: 5%;
-        padding-bottom: 5%;
-        place-items: end;
+        overflow: hidden;
+        width: 100%;
         background-color: #181B20;
         color: #ffffff;
-        overflow-y: auto;
-        box-shadow: 2px 0px 3px #9f9f9f;
+        border-bottom: 1px solid transparent;
+        transition: max-height 0.3s ease, opacity 0.3s ease, padding 0.3s ease, border-color 0.3s ease;
+        padding: 0 5%;
+        gap: 0;
     }
 
-    .header-links{
+    header .collapsible-header.menu-open {
+        max-height: 80vh;
+        opacity: 1;
+        overflow-y: auto;
+        padding: 20px 5%;
+        gap: 1rem;
+        border-bottom-color: #333a44;
+    }
+
+    .header-links {
         color: rgb(255, 255, 255);
     }
 }
