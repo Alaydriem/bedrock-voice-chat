@@ -210,7 +210,7 @@ pub(crate) async fn api_channel_event(
 #[tauri::command(async)]
 pub(crate) async fn api_get_player_gamerpic(
     app_state: State<'_, Mutex<AppState>>,
-    game: String,
+    game: common::Game,
     gamertag: String,
     server: Option<String>,
 ) -> Result<GamerpicResponse, String> {
@@ -226,5 +226,5 @@ pub(crate) async fn api_get_player_gamerpic(
         }
     };
 
-    api.get_gamerpic(&game, &gamertag).await
+    api.get_gamerpic(game.as_str(), &gamertag).await
 }

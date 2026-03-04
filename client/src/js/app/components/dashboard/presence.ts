@@ -78,10 +78,19 @@ export class PlayerPresenceManager {
             for (const playerName of toAdd) {
                 const settings = await this.getPlayerSettings(playerName);
                 await this.playerManager.addPlayerSource(playerName, 'Proximity', settings);
+                this.fetchAndSetGamepic(playerName);
             }
 
             for (const playerName of toRemove) {
                 this.playerManager.removePlayerSource(playerName, 'Proximity');
+            }
+
+            // Retry gamerpic fetch for existing proximity players missing one
+            for (const playerName of backendPlayers) {
+                const player = this.playerManager.get(playerName);
+                if (player && !player.gamerpic) {
+                    this.fetchAndSetGamepic(playerName);
+                }
             }
         } catch (err) {
             error(`Failed to sync current players: ${err}`);
@@ -236,9 +245,7 @@ export class PlayerPresenceManager {
                 return;
             }
 
-            // Server returns base64-encoded URL, decode first
-            const gamerpicUrl = atob(response.gamerpic);
-            const options = new ImageCacheOptions(gamerpicUrl, 2592000);
+            const options = new ImageCacheOptions(response.gamerpic, 2592000);
             const dataUrl = await this.imageCache.getImage(options);
             this.playerManager.updatePlayerGamepic(playerName, dataUrl);
         } catch (err) {

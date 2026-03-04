@@ -1,4 +1,6 @@
 use crate::rs::pool::AppDb;
+use crate::services::GamerpicDecoder;
+use common::Game;
 use common::response::GamerpicResponse;
 use entity::player;
 use rocket::{http::Status, mtls::Certificate, response::status, serde::json::Json};
@@ -11,24 +13,19 @@ use sea_orm_rocket::Connection as SeaOrmConnection;
 pub async fn get_gamerpic<'r>(
     _identity: Certificate<'r>,
     db: SeaOrmConnection<'_, AppDb>,
-    game: &str,
+    game: Game,
     gamertag: &str,
 ) -> status::Custom<Json<GamerpicResponse>> {
     let conn = db.into_inner();
 
-    let parsed_game: common::Game = match game {
-        "hytale" => common::Game::Hytale,
-        _ => common::Game::Minecraft,
-    };
-
     let result = player::Entity::find()
         .filter(player::Column::Gamertag.eq(gamertag))
-        .filter(player::Column::Game.eq(parsed_game))
+        .filter(player::Column::Game.eq(game.clone()))
         .one(conn)
         .await;
 
     let gamerpic = match result {
-        Ok(Some(record)) => record.gamerpic,
+        Ok(Some(record)) => GamerpicDecoder::decode(record.gamerpic),
         _ => None,
     };
 
@@ -36,7 +33,7 @@ pub async fn get_gamerpic<'r>(
         Status::Ok,
         Json(GamerpicResponse {
             gamertag: gamertag.to_string(),
-            game: game.to_string(),
+            game,
             gamerpic,
         }),
     )

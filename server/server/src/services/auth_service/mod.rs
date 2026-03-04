@@ -109,9 +109,12 @@ impl AuthService {
                     AuthError::CertificateError(e.to_string())
                 })?;
 
+        let decoded_gamerpic = crate::services::GamerpicDecoder::decode(Some(gamerpic))
+            .unwrap_or_default();
+
         Ok(LoginResponse::new(
             gamertag,
-            gamerpic,
+            decoded_gamerpic,
             Keypair {
                 pk: kp.get_public_key(),
                 sk: kp.get_public_key(),

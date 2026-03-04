@@ -111,6 +111,8 @@ async fn lookup_gamerpic(
     gamertag: &str,
     game: Option<&common::Game>,
 ) -> Option<String> {
+    use crate::services::GamerpicDecoder;
+
     let mut query = player::Entity::find()
         .filter(player::Column::Gamertag.eq(gamertag));
 
@@ -119,7 +121,7 @@ async fn lookup_gamerpic(
     }
 
     match query.one(conn).await {
-        Ok(Some(record)) => record.gamerpic,
+        Ok(Some(record)) => GamerpicDecoder::decode(record.gamerpic),
         _ => None,
     }
 }

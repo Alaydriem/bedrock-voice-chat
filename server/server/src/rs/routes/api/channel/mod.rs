@@ -98,7 +98,7 @@ pub(crate) async fn enrich_channel_gamerpics(
             });
 
             if let Some(db_player) = matching {
-                channel_player.gamerpic = db_player.gamerpic.clone();
+                channel_player.gamerpic = crate::services::GamerpicDecoder::decode(db_player.gamerpic.clone());
                 if channel_player.game.is_none() {
                     channel_player.game = Some(db_player.game.clone());
                 }

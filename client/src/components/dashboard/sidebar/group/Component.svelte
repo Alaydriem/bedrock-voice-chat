@@ -1,25 +1,30 @@
 <script lang="ts">
+    import { untrack } from "svelte";
     import type { Channel } from "../../../../js/bindings/Channel";
     import type { ChannelPlayer } from "../../../../js/bindings/ChannelPlayer";
-    import { debug, info } from '@tauri-apps/plugin-log';
+    import type { GamerpicResponse } from "../../../../js/bindings/GamerpicResponse";
+    import { debug } from '@tauri-apps/plugin-log';
+    import { invoke } from '@tauri-apps/api/core';
     import GameNameUtils from "../../../../js/app/utils/GameNameUtils";
     import ImageCache from "../../../../js/app/components/imageCache";
     import ImageCacheOptions from "../../../../js/app/components/imageCacheOptions";
 
-    export let channel: Channel;
-    export let currentUser: string;
-    export let userCurrentChannelId: string | null;
-    export let onJoin: (channelId: string) => void;
-    export let onLeave: (channelId: string) => void;
-    export let onDelete: (channelId: string) => void;
+    interface Props {
+        channel: Channel;
+        currentUser: string;
+        userCurrentChannelId: string | null;
+        onJoin: (channelId: string) => void;
+        onLeave: (channelId: string) => void;
+        onDelete: (channelId: string) => void;
+    }
+    let { channel, currentUser, userCurrentChannelId, onJoin, onLeave, onDelete }: Props = $props();
 
-    $: isCurrentUserChannel = userCurrentChannelId === channel.id;
-    $: isOwner = currentUser && GameNameUtils.namesMatch(channel.creator, currentUser);
-    $: isUserInChannel = currentUser && channel.players.some(p => GameNameUtils.namesMatch(p.name, currentUser));
-    $: shouldShowMenu = isUserInChannel;
+    let isCurrentUserChannel = $derived(userCurrentChannelId === channel.id);
+    let isOwner = $derived(currentUser && GameNameUtils.namesMatch(channel.creator, currentUser));
+    let isUserInChannel = $derived(currentUser && channel.players.some(p => GameNameUtils.namesMatch(p.name, currentUser)));
+    let shouldShowMenu = $derived(isUserInChannel);
 
-    // Sort players so owner appears first, then regular members
-    $: sortedPlayers = (() => {
+    let sortedPlayers = $derived((() => {
         const owner = channel.players.find(p => GameNameUtils.namesMatch(p.name, channel.creator));
         const otherMembers = channel.players.filter(p => !GameNameUtils.namesMatch(p.name, channel.creator));
 
@@ -28,46 +33,67 @@
         } else {
             return [...otherMembers];
         }
-    })();
+    })());
 
-    // Generate a shorter display version of player names for UI
-    $: displayPlayers = sortedPlayers.slice(0, 6);
-    $: hasMorePlayers = sortedPlayers.length > 6;
-    $: additionalCount = sortedPlayers.length - 6;
+    let displayPlayers = $derived(sortedPlayers.slice(0, 6));
+    let hasMorePlayers = $derived(sortedPlayers.length > 6);
+    let additionalCount = $derived(sortedPlayers.length - 6);
 
-    // Gamerpic resolution state
     const imageCache = new ImageCache();
-    let resolvedGamepics: Record<string, string> = {};
+    let resolvedGamepics: Record<string, string> = $state({});
     let pendingFetches: Set<string> = new Set();
 
-    $: {
-        for (const player of channel.players) {
-            if (player.gamerpic && !resolvedGamepics[player.name] && !pendingFetches.has(player.name)) {
-                // If already a data URL (e.g. from optimistic update), use directly
-                if (player.gamerpic.startsWith('data:')) {
-                    resolvedGamepics = { ...resolvedGamepics, [player.name]: player.gamerpic };
-                } else {
-                    pendingFetches.add(player.name);
-                    const playerName = player.name;
-                    // Server stores gamerpic as base64-encoded URL, decode first
-                    try {
-                        const gamerpicUrl = atob(player.gamerpic);
-                        imageCache.getImage(new ImageCacheOptions(gamerpicUrl, 2592000)).then(dataUrl => {
-                            resolvedGamepics = { ...resolvedGamepics, [playerName]: dataUrl };
-                        }).catch(() => {
-                            // Silently fail, fall back to initials
-                        }).finally(() => {
-                            pendingFetches.delete(playerName);
-                        });
-                    } catch {
-                        pendingFetches.delete(playerName);
-                    }
+    function playerKey(player: ChannelPlayer): string {
+        const game = player.game || GameNameUtils.extractGame(player.name);
+        const gamertag = GameNameUtils.stripPrefix(player.name);
+        return `${game}:${gamertag}`;
+    }
+
+    $effect(() => {
+        const players = channel.players;
+
+        untrack(() => {
+            for (const player of players) {
+                const key = playerKey(player);
+                if (!resolvedGamepics[key] && !pendingFetches.has(key)) {
+                    resolveGamepic(player, key);
                 }
             }
+        });
+    });
+
+    async function resolveGamepic(player: ChannelPlayer, key: string): Promise<void> {
+        pendingFetches.add(key);
+        const game = player.game || GameNameUtils.extractGame(player.name);
+        const gamertag = GameNameUtils.stripPrefix(player.name);
+
+        try {
+            if (player.gamerpic) {
+                if (player.gamerpic.startsWith('data:')) {
+                    resolvedGamepics = { ...resolvedGamepics, [key]: player.gamerpic };
+                    return;
+                }
+                try {
+                    const dataUrl = await imageCache.getImage(new ImageCacheOptions(player.gamerpic, 2592000));
+                    resolvedGamepics = { ...resolvedGamepics, [key]: dataUrl };
+                    return;
+                } catch {
+                    // Fall through to API
+                }
+            }
+
+            const response = await invoke<GamerpicResponse>('api_get_player_gamerpic', { game, gamertag });
+            if (response.gamerpic) {
+                const dataUrl = await imageCache.getImage(new ImageCacheOptions(response.gamerpic, 2592000));
+                resolvedGamepics = { ...resolvedGamepics, [key]: dataUrl };
+            }
+        } catch (err) {
+            debug(`Failed to resolve gamerpic for ${key}: ${err}`);
+        } finally {
+            pendingFetches.delete(key);
         }
     }
 
-    // Helper function to determine avatar styling
     const getAvatarClasses = (player: ChannelPlayer) => {
         const isPlayerOwner = GameNameUtils.namesMatch(player.name, channel.creator);
         const isPlayerInChannel = channel.players.some(p => GameNameUtils.namesMatch(p.name, player.name));
@@ -83,7 +109,7 @@
         }
     };
 
-    let dropdownOpen = false;
+    let dropdownOpen = $state(false);
 
     const handleGroupClick = () => {
         if (!isUserInChannel) {
@@ -106,7 +132,6 @@
         dropdownOpen = !dropdownOpen;
     };
 
-    // Close dropdown when clicking outside
     const handleOutsideClick = (event: Event) => {
         if (!event.target || !(event.target as Element).closest('.group-dropdown')) {
             dropdownOpen = false;
@@ -131,10 +156,10 @@
             <div class="flex flex-wrap -space-x-2">
                 {#if sortedPlayers.length > 0}
                     {#each displayPlayers as player}
-                        <div class="avatar size-7 hover:z-10 transition-transform hover:scale-110">
-                            {#if resolvedGamepics[player.name]}
+                        <div class="avatar size-7 hover:z-10 transition-transform hover:scale-110" data-player={playerKey(player)}>
+                            {#if resolvedGamepics[playerKey(player)]}
                                 <img
-                                    src={resolvedGamepics[player.name]}
+                                    src={resolvedGamepics[playerKey(player)]}
                                     alt={GameNameUtils.stripPrefix(player.name)}
                                     class="rounded-full size-7 ring-2 ring-white dark:ring-navy-700 shadow-sm object-cover"
                                 />

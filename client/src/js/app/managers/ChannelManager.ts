@@ -9,10 +9,13 @@ import type { ChannelEvent } from '../../bindings/ChannelEvent';
 import type { ChannelEvents } from '../../bindings/ChannelEvents';
 import type { Game } from '../../bindings/Game';
 import type { PlayerSource } from '../../bindings/PlayerSource';
+import type { GamerpicResponse } from '../../bindings/GamerpicResponse';
 import type { PlayerManager } from './PlayerManager';
 import { updateNotification } from 'tauri-plugin-audio-permissions';
 import PlatformDetector from '../utils/PlatformDetector';
 import GameNameUtils from '../utils/GameNameUtils';
+import ImageCache from '../components/imageCache';
+import ImageCacheOptions from '../components/imageCacheOptions';
 
 interface ChannelStoreState {
     channels: Channel[];
@@ -39,6 +42,7 @@ export default class ChannelManager {
     private eventUnlisten: (() => void) | null = null;
     private playerManager: PlayerManager;
     private currentUserGamepic: string | null = null;
+    private imageCache: ImageCache = new ImageCache();
 
     // Readonly exports for components
     public readonly channels: Readable<Channel[]>;
@@ -220,6 +224,22 @@ export default class ChannelManager {
                 return true;
             }
 
+            // Check if user is already in the channel's player list (e.g. server added them on create)
+            const existingChannels = get(this.channelsStore);
+            const targetChannel = existingChannels.find(c => c.id === channelId);
+            if (targetChannel?.players.some(p => GameNameUtils.namesMatch(p.name, currentUser))) {
+                this.currentUserChannelIdStore.set(channelId);
+                const isMobile = await this.platformDetector.checkMobile();
+                if (isMobile) {
+                    await updateNotification({
+                        title: "Bedrock Voice Chat",
+                        message: "In public group channel"
+                    });
+                }
+                await this.addExistingGroupMembers(channelId, currentUser);
+                return true;
+            }
+
             const activeGame = await this.getActiveGame();
             const event: ChannelEvent = { event: "Join" as ChannelEvents, game: activeGame };
 
@@ -338,7 +358,16 @@ export default class ChannelManager {
         for (const member of channel.players) {
             if (!GameNameUtils.namesMatch(member.name, currentUser)) {
                 try {
-                    const success = await this.playerManager.addPlayerSource(member.name, 'Group', undefined, member.gamerpic ?? undefined);
+                    let resolvedGamepic: string | undefined;
+                    if (member.gamerpic) {
+                        try {
+                            const options = new ImageCacheOptions(member.gamerpic, 2592000);
+                            resolvedGamepic = await this.imageCache.getImage(options);
+                        } catch {
+                            // Fall through with undefined gamerpic
+                        }
+                    }
+                    const success = await this.playerManager.addPlayerSource(member.name, 'Group', undefined, resolvedGamepic);
                     if (!success) {
                         warn(`ChannelManager: Failed to add existing group member: ${member.name}`);
                     }
@@ -466,6 +495,7 @@ export default class ChannelManager {
                     const userChannel = channels.find(c => c.players.some(p => GameNameUtils.namesMatch(p.name, currentUser)));
                     if (userChannel && userChannel.id === channel_id && !GameNameUtils.namesMatch(player_name, currentUser)) {
                         await this.playerManager.addPlayerSource(player_name, 'Group');
+                        this.fetchAndSetGroupMemberGamepic(player_name);
                     }
                 }
                 break;
@@ -511,6 +541,26 @@ export default class ChannelManager {
 
             default:
                 logError(`Unknown channel event type: ${event_type}`);
+        }
+    }
+
+    private async fetchAndSetGroupMemberGamepic(playerName: string): Promise<void> {
+        try {
+            const game = GameNameUtils.extractGame(playerName);
+            const gamertag = GameNameUtils.stripPrefix(playerName);
+
+            const response = await invoke<GamerpicResponse>('api_get_player_gamerpic', {
+                game,
+                gamertag
+            });
+
+            if (response.gamerpic) {
+                const options = new ImageCacheOptions(response.gamerpic, 2592000);
+                const dataUrl = await this.imageCache.getImage(options);
+                this.playerManager.updatePlayerGamepic(playerName, dataUrl);
+            }
+        } catch (err) {
+            debug(`ChannelManager: Failed to fetch gamerpic for ${playerName}: ${err}`);
         }
     }
 

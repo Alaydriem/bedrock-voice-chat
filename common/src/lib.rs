@@ -53,9 +53,31 @@ pub enum Game {
     Hytale,
 }
 
+impl Game {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Game::Minecraft => "minecraft",
+            Game::Hytale => "hytale",
+        }
+    }
+}
+
 impl fmt::Display for Game {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self)
+    }
+}
+
+#[cfg(feature = "server")]
+impl<'r> rocket::request::FromParam<'r> for Game {
+    type Error = &'r str;
+
+    fn from_param(param: &'r str) -> Result<Self, Self::Error> {
+        match param {
+            "minecraft" => Ok(Game::Minecraft),
+            "hytale" => Ok(Game::Hytale),
+            _ => Err(param),
+        }
     }
 }
 
