@@ -2,6 +2,7 @@
     import { onDestroy } from 'svelte';
     import { info } from '@tauri-apps/plugin-log';
     import type { AudioActivityManager } from '../js/app/managers/AudioActivityManager';
+    import GameNameUtils from '../js/app/utils/GameNameUtils';
 
     export let player: string;
     export let initialGain: number = 1.0;
@@ -10,6 +11,7 @@
     export let onMuteToggle: ((muted: boolean) => void) | undefined = undefined;
     export let isGroupMember: boolean = false;
     export let audioActivityManager: AudioActivityManager;
+    export let gamerpic: string | undefined = undefined;
 
     let isMuted = initialMuted;
     let gain = initialGain;
@@ -44,9 +46,10 @@
 
     // Function to get consistent random color for a player (deterministic based on name)
     function getPlayerCardColor(playerName: string): string {
+        const stripped = GameNameUtils.stripPrefix(playerName);
         let hash = 0;
-        for (let i = 0; i < playerName.length; i++) {
-            const char = playerName.charCodeAt(i);
+        for (let i = 0; i < stripped.length; i++) {
+            const char = stripped.charCodeAt(i);
             hash = ((hash << 5) - hash) + char;
             hash = hash & hash;
         }
@@ -54,6 +57,7 @@
     }
 
     const randomCardColor = getPlayerCardColor(player);
+    const displayName = GameNameUtils.stripPrefix(player);
 
     function toggleMute() {
         isMuted = !isMuted;
@@ -137,9 +141,13 @@
 
         <!-- Avatar with status indicator -->
         <div class="avatar w-20 h-20 mask is-octagon relative mx-auto mt-6">
-            <div class="is-initial bg-gray-600 text-white flex items-center justify-center text-lg font-semibold">
-                {player.slice(0, 3).toUpperCase()}
-            </div>
+            {#if gamerpic}
+                <img src={gamerpic} alt={displayName} class="w-full h-full object-cover" />
+            {:else}
+                <div class="is-initial bg-gray-600 text-white flex items-center justify-center text-lg font-semibold">
+                    {displayName.slice(0, 3).toUpperCase()}
+                </div>
+            {/if}
         </div>
         <!-- Status indicator - positioned absolutely relative to the avatar container -->
         <div class="absolute top-5 right-1/2 transform translate-x-8 w-4 h-4 rounded-full border-2 border-white
@@ -148,7 +156,7 @@
         </div>
 
         <!-- Player name -->
-        <h3 class="mt-4 text-sm font-medium text-navy-100 dark:text-navy-100 px-2 truncate">{player}</h3>
+        <h3 class="mt-4 text-sm font-medium text-navy-100 dark:text-navy-100 px-2 truncate">{displayName}</h3>
 
     <!-- Floating Volume Popover (Lineone style) -->
     {#if showVolumeSlider}

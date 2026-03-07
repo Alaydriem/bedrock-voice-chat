@@ -1,20 +1,20 @@
 use crate::stream::quic::{CacheManager, WebhookReceiver};
 use common::structs::{
-    channel::{Channel, ChannelEvents::Create},
+    channel::ChannelEvents::Rename,
     packet::{
         ChannelEventPacket, PacketOwner, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
     },
 };
 use rocket::{http::Status, mtls::Certificate, response::status, serde::json::Json, State};
 
-/// Creates a new channel
-#[post("/", data = "<name>")]
-pub async fn channel_create<'r>(
+#[patch("/<id>", data = "<name>")]
+pub async fn channel_rename<'r>(
     identity: Certificate<'r>,
     cache_manager: &State<CacheManager>,
     webhook_receiver: &State<WebhookReceiver>,
+    id: &str,
     name: Json<String>,
-) -> status::Custom<Option<Json<String>>> {
+) -> status::Custom<Option<Json<bool>>> {
     let user = match identity.subject().common_name() {
         Some(user) => user.to_string(),
         None => {
@@ -22,11 +22,19 @@ pub async fn channel_create<'r>(
         }
     };
 
-    let channel = Channel::new(name.0.clone(), user.clone());
-    let channel_id = channel.id();
-    let channel_name = channel.name.clone();
+    let channel = match cache_manager.get_channel(id).await {
+        Some(channel) => channel,
+        None => {
+            return status::Custom(Status::NotFound, Some(Json(false)));
+        }
+    };
 
-    cache_manager.create_channel(channel).await;
+    if !channel.creator.eq(&user) {
+        return status::Custom(Status::Unauthorized, Some(Json(false)));
+    }
+
+    let new_name = name.0;
+    cache_manager.rename_channel(id, new_name.clone()).await;
 
     let packet = QuicNetworkPacket {
         owner: Some(PacketOwner {
@@ -35,17 +43,17 @@ pub async fn channel_create<'r>(
         }),
         packet_type: PacketType::ChannelEvent,
         data: QuicNetworkPacketData::ChannelEvent(ChannelEventPacket::new_full(
-            Create,
-            user.clone(),
-            channel_id.clone(),
-            Some(channel_name),
-            Some(user.clone()),
+            Rename,
+            user,
+            id.to_string(),
+            Some(new_name),
+            None,
         )),
     };
 
     if let Err(e) = webhook_receiver.send_packet(packet).await {
-        tracing::error!("Failed to send channel create packet to QUIC server: {}", e);
+        tracing::error!("Failed to send channel rename packet to QUIC server: {}", e);
     }
 
-    return status::Custom(Status::Ok, Some(Json(channel_id)));
+    status::Custom(Status::Ok, Some(Json(true)))
 }

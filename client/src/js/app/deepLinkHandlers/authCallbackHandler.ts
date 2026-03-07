@@ -77,26 +77,29 @@ export class AuthCallbackHandler {
                 await this.store.set("active_game", "minecraft");
 
                 if (await this.store.has("server_list")) {
-                    let serverList = await this.store.get("server_list") as Array<{ server: string, player: string }>;
+                    let serverList = await this.store.get("server_list") as Array<{ server: string, player: string, game?: string }>;
                     let hasServer = false;
                     serverList.forEach(server => {
                         if (server.server == authStateEndpoint) {
                             hasServer = true;
+                            server.game = "minecraft";
                         }
                     });
 
                     if (!hasServer) {
                         serverList.push({
                             "server": authStateEndpoint,
-                            "player": response.gamertag
+                            "player": response.gamertag,
+                            "game": "minecraft"
                         });
-                        await this.store.set("server_list", serverList);
                     }
+                    await this.store.set("server_list", serverList);
                 } else {
                     let serverList = [];
                     serverList.push({
                         "server": authStateEndpoint,
-                        "player": response.gamertag
+                        "player": response.gamertag,
+                        "game": "minecraft"
                     });
                     await this.store.set("server_list", serverList);
                 }

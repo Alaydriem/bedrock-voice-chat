@@ -234,14 +234,10 @@ impl SinkManager {
                     });
 
                 if listener_info.is_none() {
-                    let cached_players: Vec<String> = players.iter()
-                        .map(|(k, _)| k.as_ref().clone())
-                        .collect();
-                    log::warn!(
-                        "Listener '{}' not found in player cache (cache size: {}, cached players: {:?})",
+                    log::debug!(
+                        "Listener '{}' not found in player cache (cache size: {})",
                         current_player_name,
                         players.entry_count(),
-                        cached_players
                     );
                 }
 
@@ -291,6 +287,7 @@ impl SinkManager {
                     let dx = emitter_coordinate.x - listener_coordinate.x;
                     let dy = emitter_coordinate.y - listener_coordinate.y;
                     let dz = emitter_coordinate.z - listener_coordinate.z;
+                    #[allow(unused)]
                     let actual_distance = (dx * dx + dy * dy + dz * dz).sqrt();
 
                     let spatial_data: SpatialAudioData =

@@ -5,12 +5,14 @@ import type { PlayerGainSettings } from '../../bindings/PlayerGainSettings';
 import type { PlayerGainStore } from '../../bindings/PlayerGainStore';
 import type { PlayerSource } from '../../bindings/PlayerSource';
 import type { Store } from '@tauri-apps/plugin-store';
+import GameNameUtils from '../utils/GameNameUtils';
 
 // Define PlayerData interface locally
 interface PlayerData {
     name: string;
     settings: PlayerGainSettings;
     sources: Set<PlayerSource>;
+    gamerpic?: string;
 }
 
 /**
@@ -43,7 +45,7 @@ export class PlayerManager {
             [this.playersMapStore, this.currentUserStore],
             ([playersMap, currentUser]) => {
                 const players = Array.from(playersMap.values());
-                return players.filter(player => player.name !== currentUser);
+                return players.filter(player => !GameNameUtils.namesMatch(player.name, currentUser));
             }
         );
 
@@ -186,7 +188,7 @@ export class PlayerManager {
      * Add a source to a player, creating the player if it doesn't exist
      * If no settings provided, will load from persistent store
      */
-    async addPlayerSource(name: string, source: PlayerSource, settings?: PlayerGainSettings): Promise<boolean> {
+    async addPlayerSource(name: string, source: PlayerSource, settings?: PlayerGainSettings, gamerpic?: string): Promise<boolean> {
         try {
             // Load settings if not provided
             const playerSettings = settings || await this.loadPlayerSettings(name);
@@ -196,13 +198,17 @@ export class PlayerManager {
                 if (existing) {
                     // Player exists, just add the source
                     existing.sources.add(source);
+                    if (gamerpic && !existing.gamerpic) {
+                        existing.gamerpic = gamerpic;
+                    }
                     map.set(name, { ...existing });
                 } else {
                     // New player, create with this source and loaded settings
                     map.set(name, {
                         name,
                         settings: playerSettings,
-                        sources: new Set([source])
+                        sources: new Set([source]),
+                        gamerpic
                     });
                 }
                 return new Map(map);
@@ -212,6 +218,20 @@ export class PlayerManager {
             error(`PlayerManager: Failed to add ${source} source for player ${name}: ${err}`);
             return false;
         }
+    }
+
+    /**
+     * Update a player's gamerpic
+     */
+    updatePlayerGamepic(name: string, gamerpic: string): void {
+        this.playersMapStore.update(map => {
+            const player = map.get(name);
+            if (player) {
+                player.gamerpic = gamerpic;
+                map.set(name, { ...player });
+            }
+            return new Map(map);
+        });
     }
 
     /**

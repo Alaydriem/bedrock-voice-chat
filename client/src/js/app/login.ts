@@ -348,13 +348,16 @@ export default class Login extends BVCApp {
       await store.set("active_game", "hytale");
 
       // Add to server list if not already present
-      const serverList = await store.get("server_list") as Array<{ server: string, player: string }> | null;
+      const serverList = await store.get("server_list") as Array<{ server: string, player: string, game?: string }> | null;
       const servers = serverList || [];
 
-      if (!servers.some(s => s.server === server)) {
-        servers.push({ server: server, player: loginResponse.gamertag });
-        await store.set("server_list", servers);
+      const existing = servers.find(s => s.server === server);
+      if (existing) {
+        existing.game = "hytale";
+      } else {
+        servers.push({ server: server, player: loginResponse.gamertag, game: "hytale" });
       }
+      await store.set("server_list", servers);
 
       // Clean up Hytale session data
       await store.delete("hytale_session_id");

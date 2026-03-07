@@ -1,5 +1,6 @@
 pub mod audio;
 pub mod channel;
+pub mod channel_player;
 pub mod config;
 pub mod events;
 pub mod keybinds;
@@ -10,5 +11,6 @@ pub mod player_source;
 pub mod recording;
 
 pub use audio::{AudioDevice, AudioDeviceHost, AudioDeviceType, AudioFormat, MuteEvent, StreamConfig};
+pub use channel_player::ChannelPlayer;
 pub use events::DeepLink;
 pub use network::ConnectionHealth;

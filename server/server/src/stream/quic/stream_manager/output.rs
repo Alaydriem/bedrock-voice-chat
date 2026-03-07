@@ -1,6 +1,7 @@
 use crate::stream::quic::client_id_hash;
 use anyhow::Error;
 use bytes::Bytes;
+use common::structs::channel::Channel;
 use common::structs::packet::QuicNetworkPacket;
 use common::traits::StreamTrait;
 use common::PlayerEnum;
@@ -12,15 +13,11 @@ use tokio::sync::broadcast;
 
 pub(crate) struct OutputStream {
     connection: Option<Arc<Connection>>,
-    // Direct broadcast receiver instead of mutex consumer
     broadcast_rx: Option<broadcast::Receiver<QuicNetworkPacket>>,
     is_stopped: Arc<AtomicBool>,
-    // Player identity for filtering (shared with corresponding InputStream)
     pub(crate) player_id: Arc<std::sync::Mutex<Option<String>>>,
-    // Client id for enriched logging
     pub(crate) client_id: Arc<std::sync::Mutex<Option<Vec<u8>>>>,
-    // Caches needed for packet filtering
-    channel_membership: Option<Arc<Cache<String, std::collections::HashSet<String>>>>,
+    channel_cache: Option<Arc<Cache<String, Channel>>>,
     player_cache: Option<Arc<Cache<String, PlayerEnum>>>,
     broadcast_range: f32,
 }
@@ -33,7 +30,7 @@ impl OutputStream {
             is_stopped: Arc::new(AtomicBool::new(true)),
             player_id: Arc::new(std::sync::Mutex::new(None)),
             client_id: Arc::new(std::sync::Mutex::new(None)),
-            channel_membership: None,
+            channel_cache: None,
             player_cache: None,
             broadcast_range: 20.0, // Default value
         }
@@ -45,12 +42,11 @@ impl OutputStream {
 
     pub fn set_caches(
         &mut self,
-        channel_membership: Arc<Cache<String, std::collections::HashSet<String>>>,
+        channel_cache: Arc<Cache<String, Channel>>,
         player_cache: Arc<Cache<String, PlayerEnum>>,
         broadcast_range: f32,
     ) {
-        // Set up caches for packet filtering
-        self.channel_membership = Some(channel_membership);
+        self.channel_cache = Some(channel_cache);
         self.player_cache = Some(player_cache);
         self.broadcast_range = broadcast_range;
     }
@@ -91,9 +87,8 @@ impl OutputStream {
             None => return true, // Pass through until we have identity
         };
 
-        // If we don't have caches set up, use simple filtering
-        let (channel_membership, player_cache) = match (&self.channel_membership, &self.player_cache) {
-            (Some(cm), Some(pc)) => (cm.clone(), pc.clone()),
+        let (channel_cache, player_cache) = match (&self.channel_cache, &self.player_cache) {
+            (Some(cc), Some(pc)) => (cc.clone(), pc.clone()),
             _ => {
                 // Fallback to simple self-filtering if caches aren't available
                 match &packet.owner {
@@ -109,9 +104,8 @@ impl OutputStream {
             client_id: vec![], // Client ID not needed for filtering
         };
 
-        // Use the existing packet filtering logic
         packet
-            .is_receivable(recipient, channel_membership, player_cache, self.broadcast_range)
+            .is_receivable(recipient, channel_cache, player_cache, self.broadcast_range)
             .await
     }
 }

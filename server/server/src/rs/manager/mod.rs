@@ -8,7 +8,6 @@ use crate::{
 use anyhow::Error;
 use common::ncryptflib as ncryptf;
 use migration::{Migrator, MigratorTrait};
-use moka::future::Cache;
 use rocket::http::Method;
 use rocket::{self, routes};
 use rocket_cors::{AllowedOrigins, CorsOptions};
@@ -22,25 +21,21 @@ ncryptf::ek_route!();
 pub struct RocketManager {
     config: ApplicationConfig,
     webhook_receiver: WebhookReceiver,
-    channel_cache: Arc<async_mutex::Mutex<Cache<String, common::structs::channel::Channel>>>,
     cache_manager: CacheManager,
     player_registrar: PlayerRegistrarService,
     hytale_session_cache: routes::api::HytaleSessionCache,
 }
 
 impl RocketManager {
-    /// Creates a new RocketManager with the given configuration and dependencies
     pub fn new(
         config: ApplicationConfig,
         webhook_receiver: WebhookReceiver,
-        channel_cache: Arc<async_mutex::Mutex<Cache<String, common::structs::channel::Channel>>>,
         cache_manager: CacheManager,
         player_registrar: PlayerRegistrarService,
     ) -> Self {
         Self {
             config,
             webhook_receiver,
-            channel_cache,
             cache_manager,
             player_registrar,
             hytale_session_cache: routes::api::HytaleSessionCache::new(),
@@ -83,7 +78,6 @@ impl RocketManager {
                     .manage(cache_wrapper)
                     .manage(self.config.server.clone())
                     .manage(self.webhook_receiver.clone())
-                    .manage(self.channel_cache.clone())
                     .manage(self.cache_manager.clone())
                     .manage(self.player_registrar.clone())
                     .manage(self.hytale_session_cache.clone())
@@ -117,7 +111,14 @@ impl RocketManager {
                             routes::api::channel_create,
                             routes::api::channel_delete,
                             routes::api::channel_event,
-                            routes::api::channel_list
+                            routes::api::channel_list,
+                            routes::api::channel_rename
+                        ],
+                    )
+                    .mount(
+                        "/api/gamerpic",
+                        routes![
+                            routes::api::get_gamerpic
                         ],
                     );
 

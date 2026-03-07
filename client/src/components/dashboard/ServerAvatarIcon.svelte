@@ -23,7 +23,13 @@
         autoSave: false,
         defaults: {}
     });
-    store.set("current_server", server);
+    await store.set("current_server", server);
+    const serverList = await store.get("server_list") as Array<{ server: string, player: string, game?: string }> | null;
+    const entry = serverList?.find(s => s.server === server);
+    if (entry) {
+        await store.set("current_player", entry.player);
+        await store.set("active_game", entry.game || "minecraft");
+    }
     await store.save();
     window.location.href = "/dashboard?server=" + server;
   }

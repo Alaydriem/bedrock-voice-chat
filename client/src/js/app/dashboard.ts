@@ -252,7 +252,11 @@ export default class Dashboard extends BVCApp {
 
             if (this.currentServerCredentials?.gamerpic) {
                 try {
-                    const avatarUrl = atob(this.currentServerCredentials.gamerpic);
+                    // Normalize: existing keyring data may be base64-encoded
+                    let avatarUrl = this.currentServerCredentials.gamerpic;
+                    if (!avatarUrl.startsWith('http')) {
+                        try { avatarUrl = atob(avatarUrl); } catch { }
+                    }
 
                     const imageCache = new ImageCache();
                     const options = new ImageCacheOptions(avatarUrl, 86400);
@@ -270,6 +274,10 @@ export default class Dashboard extends BVCApp {
             avatarElement.setAttribute("src", avatarSrc);
             if (dropdownAvatarElement) {
                 dropdownAvatarElement.setAttribute("src", avatarSrc);
+            }
+
+            if (avatarSrc && this.channelManager) {
+                this.channelManager.setCurrentUserGamepic(avatarSrc);
             }
         }
 

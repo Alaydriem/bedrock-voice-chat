@@ -3,6 +3,7 @@ use common::structs::config::ApiConfig;
 use log::error;
 mod channel;
 mod client;
+mod gamerpic;
 
 use reqwest::{
     header::{HeaderMap, HeaderValue},

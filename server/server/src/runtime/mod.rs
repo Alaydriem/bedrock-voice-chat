@@ -6,7 +6,6 @@ use crate::services::{CertificateService, PlayerRegistrarService};
 use crate::stream::quic::{QuicServerManager, WebhookReceiver};
 
 use anyhow::anyhow;
-use common::structs::channel::Channel;
 use faccess::PathExt;
 use rcgen::{
     CertificateParams, DistinguishedName, ExtendedKeyUsagePurpose, IsCa, KeyPair, KeyUsagePurpose,
@@ -121,13 +120,6 @@ impl ServerRuntime {
             *pr = Some(player_registrar.clone());
         }
 
-        // State cache for recording groups a player is in
-        let channel_cache = Arc::new(async_mutex::Mutex::new(
-            moka::future::Cache::<String, Channel>::builder()
-                .max_capacity(100)
-                .build(),
-        ));
-
         // QUIC server manager
         let mut quic_manager = QuicServerManager::new(self.config.clone());
         let webhook_receiver = quic_manager.get_webhook_receiver().clone();
@@ -144,7 +136,6 @@ impl ServerRuntime {
         let rocket_manager = RocketManager::new(
             self.config.clone(),
             webhook_receiver,
-            channel_cache.clone(),
             cache_manager,
             player_registrar,
         );

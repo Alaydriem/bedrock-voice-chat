@@ -168,6 +168,45 @@ impl Api {
         }
     }
 
+    /// Renames a channel (owner only)
+    pub(crate) async fn rename_channel(&self, channel_id: &str, name: &str) -> Result<bool, String> {
+        let client = self.get_client(Some(self.endpoint.as_str())).await;
+
+        let mut headers = HeaderMap::new();
+        headers.insert("Content-Type", HeaderValue::from_static("application/json"));
+        headers.insert("Accept", HeaderValue::from_static("application/json"));
+
+        let url = format!("{}/api/channel/{}", self.endpoint, channel_id);
+        let body = json!(name);
+
+        match client.patch(url).headers(headers).json(&body).send().await {
+            Ok(response) => match response.status() {
+                StatusCode::OK => Ok(true),
+                StatusCode::UNAUTHORIZED => {
+                    error!("Not authorized to rename channel {}", channel_id);
+                    Err("You are not authorized to rename this channel".to_string())
+                }
+                StatusCode::NOT_FOUND => {
+                    error!("Channel {} not found", channel_id);
+                    Err("Channel not found".to_string())
+                }
+                status => {
+                    error!("Channel rename failed with status: {}", status);
+                    Err(format!("Request failed with status: {}", status))
+                }
+            },
+            Err(e) => {
+                error!("Failed to rename channel: {}", e);
+                let mut source = e.source();
+                while let Some(cause) = source {
+                    error!("Caused by: {}", cause);
+                    source = cause.source();
+                }
+                Err("Network error occurred".to_string())
+            }
+        }
+    }
+
     /// Sends a channel event (join/leave)
     pub(crate) async fn channel_event(
         &self,
