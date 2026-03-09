@@ -130,4 +130,21 @@ impl PlayerEnum {
             _ => None,
         }
     }
+
+    /// Get the alternative identity if one exists (e.g., Xbox gamertag for Floodgate players)
+    pub fn get_alternative_identity(&self) -> Option<&str> {
+        match self {
+            PlayerEnum::Minecraft(mc) => mc.alternative_identity.as_deref(),
+            _ => None,
+        }
+    }
+
+    /// Set the player name (used for identity resolution)
+    pub fn set_name(&mut self, name: String) {
+        match self {
+            PlayerEnum::Minecraft(mc) => mc.name = name,
+            PlayerEnum::Hytale(h) => h.name = name,
+            PlayerEnum::Generic(g) => g.name = name,
+        }
+    }
 }

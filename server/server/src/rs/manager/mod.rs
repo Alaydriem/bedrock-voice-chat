@@ -2,7 +2,7 @@ use crate::{
     config::ApplicationConfig,
     rs::pool::AppDb,
     rs::routes,
-    services::PlayerRegistrarService,
+    services::{PlayerIdentityService, PlayerRegistrarService},
     stream::quic::{CacheManager, WebhookReceiver},
 };
 use anyhow::Error;
@@ -23,6 +23,7 @@ pub struct RocketManager {
     webhook_receiver: WebhookReceiver,
     cache_manager: CacheManager,
     player_registrar: PlayerRegistrarService,
+    identity_service: PlayerIdentityService,
     hytale_session_cache: routes::api::HytaleSessionCache,
 }
 
@@ -32,12 +33,14 @@ impl RocketManager {
         webhook_receiver: WebhookReceiver,
         cache_manager: CacheManager,
         player_registrar: PlayerRegistrarService,
+        identity_service: PlayerIdentityService,
     ) -> Self {
         Self {
             config,
             webhook_receiver,
             cache_manager,
             player_registrar,
+            identity_service,
             hytale_session_cache: routes::api::HytaleSessionCache::new(),
         }
     }
@@ -82,6 +85,7 @@ impl RocketManager {
                     .manage(self.webhook_receiver.clone())
                     .manage(self.cache_manager.clone())
                     .manage(self.player_registrar.clone())
+                    .manage(self.identity_service.clone())
                     .manage(self.hytale_session_cache.clone())
                     .attach(AppDb::init())
                     .attach(cors.to_cors().unwrap())
@@ -98,6 +102,7 @@ impl RocketManager {
                             routes::api::hytale_start_device_flow,
                             routes::api::hytale_poll_status,
                             routes::api::code_authenticate,
+                            routes::api::link_java_identity,
                             routes::api::get_config,
                             routes::api::update_position,
                             routes::api::position,
@@ -160,10 +165,14 @@ async fn migrate(rocket: rocket::Rocket<rocket::Build>) -> rocket::fairing::Resu
     let conn = match AppDb::fetch(&rocket) {
         Some(db) => &db.conn,
         None => {
+            tracing::error!("Migration: Failed to fetch database connection from Rocket");
             return Err(rocket);
         }
     };
 
-    let _ = Migrator::up(conn, None).await;
+    match Migrator::up(conn, None).await {
+        Ok(_) => tracing::info!("Migration: All migrations applied successfully"),
+        Err(e) => tracing::error!("Migration: Failed to run migrations: {}", e),
+    }
     Ok(rocket)
 }

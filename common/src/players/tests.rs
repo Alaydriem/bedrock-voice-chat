@@ -15,6 +15,7 @@ mod tests {
             deafen: false,
             spectator: false,
             world_uuid: None,
+            alternative_identity: None,
         };
 
         let player_enum = PlayerEnum::Minecraft(minecraft_player.clone());

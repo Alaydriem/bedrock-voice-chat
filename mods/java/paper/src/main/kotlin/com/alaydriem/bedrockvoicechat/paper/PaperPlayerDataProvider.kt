@@ -4,6 +4,7 @@ import com.alaydriem.bedrockvoicechat.api.PlayerDataProvider
 import com.alaydriem.bedrockvoicechat.dto.Dimension
 import com.alaydriem.bedrockvoicechat.dto.GameType
 import com.alaydriem.bedrockvoicechat.dto.PlayerData
+import com.alaydriem.bedrockvoicechat.integration.FloodgateIntegration
 import org.bukkit.World
 import org.bukkit.entity.Player
 import java.util.UUID
@@ -14,7 +15,10 @@ import java.util.concurrent.ConcurrentHashMap
  * Uses event-driven player tracking via ConcurrentHashMap.
  * Stores UUIDs and looks up fresh player references each tick to avoid stale entity references.
  */
-class PaperPlayerDataProvider : PlayerDataProvider {
+class PaperPlayerDataProvider(
+    private val floodgate: FloodgateIntegration = FloodgateIntegration(),
+    private val floodgatePrefix: String? = null
+) : PlayerDataProvider {
     var server: org.bukkit.Server? = null
 
     private val onlinePlayers: MutableSet<UUID> = ConcurrentHashMap.newKeySet()
@@ -44,6 +48,8 @@ class PaperPlayerDataProvider : PlayerDataProvider {
             .mapNotNull { uuid -> srv.getPlayer(uuid) }
             .filter { it.isOnline }
             .map { player ->
+                val altIdentity = resolveAlternativeIdentity(player)
+
                 // Check if player is dead - override to death dimension at origin
                 if (deadPlayers.contains(player.uniqueId)) {
                     PlayerData(
@@ -56,7 +62,8 @@ class PaperPlayerDataProvider : PlayerDataProvider {
                         dimension = Dimension.Minecraft.DEATH,
                         deafen = false,
                         spectator = false,
-                        worldUuid = player.location.world?.uid?.toString()
+                        worldUuid = player.location.world?.uid?.toString(),
+                        alternativeIdentity = altIdentity
                     )
                 } else {
                     // Normal player data
@@ -72,10 +79,29 @@ class PaperPlayerDataProvider : PlayerDataProvider {
                         dimension = dimension,
                         deafen = player.isSneaking,
                         spectator = player.gameMode == org.bukkit.GameMode.SPECTATOR,
-                        worldUuid = location.world?.uid?.toString()
+                        worldUuid = location.world?.uid?.toString(),
+                        alternativeIdentity = altIdentity
                     )
                 }
             }
+    }
+
+    /**
+     * Resolve the alternative identity (Xbox gamertag) for a player.
+     * Tries Floodgate API first, then falls back to prefix stripping from config.
+     */
+    private fun resolveAlternativeIdentity(player: Player): String? {
+        // Try Floodgate API first
+        val floodgateGamertag = floodgate.getXboxGamertag(player.uniqueId)
+        if (floodgateGamertag != null) return floodgateGamertag
+
+        // Fall back to prefix stripping if configured
+        val prefix = floodgatePrefix
+        if (prefix != null && player.name.startsWith(prefix)) {
+            return player.name.removePrefix(prefix)
+        }
+
+        return null
     }
 
     override fun getGameType(): GameType = GameType.MINECRAFT

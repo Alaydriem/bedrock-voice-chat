@@ -4,6 +4,7 @@ import com.alaydriem.bedrockvoicechat.api.PlayerDataProvider
 import com.alaydriem.bedrockvoicechat.dto.Dimension
 import com.alaydriem.bedrockvoicechat.dto.GameType
 import com.alaydriem.bedrockvoicechat.dto.PlayerData
+import com.alaydriem.bedrockvoicechat.integration.FloodgateIntegration
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.network.ServerPlayerEntity
 import net.minecraft.server.world.ServerWorld
@@ -16,7 +17,10 @@ import java.util.concurrent.ConcurrentHashMap
  * Uses event-driven player tracking via ConcurrentHashMap.
  * Stores UUIDs and looks up fresh player references each tick to avoid stale entity references.
  */
-class FabricPlayerDataProvider : PlayerDataProvider {
+class FabricPlayerDataProvider(
+    private val floodgate: FloodgateIntegration = FloodgateIntegration(),
+    private val floodgatePrefix: String? = null
+) : PlayerDataProvider {
     var server: MinecraftServer? = null
 
     private val onlinePlayers: MutableSet<UUID> = ConcurrentHashMap.newKeySet()
@@ -48,6 +52,8 @@ class FabricPlayerDataProvider : PlayerDataProvider {
             .filter { !it.isDisconnected }
             .map { player ->
                 val worldUuid = getWorldUuid(player.entityWorld as ServerWorld)
+                val altIdentity = resolveAlternativeIdentity(player)
+
                 // Check if player is dead - override to death dimension at origin
                 if (deadPlayers.contains(player.uuid)) {
                     PlayerData(
@@ -60,7 +66,8 @@ class FabricPlayerDataProvider : PlayerDataProvider {
                         dimension = Dimension.Minecraft.DEATH,
                         deafen = false,
                         spectator = false,
-                        worldUuid = worldUuid
+                        worldUuid = worldUuid,
+                        alternativeIdentity = altIdentity
                     )
                 } else {
                     // Normal player data
@@ -75,10 +82,30 @@ class FabricPlayerDataProvider : PlayerDataProvider {
                         dimension = dimension,
                         deafen = player.isSneaking,
                         spectator = player.isSpectator,
-                        worldUuid = worldUuid
+                        worldUuid = worldUuid,
+                        alternativeIdentity = altIdentity
                     )
                 }
             }
+    }
+
+    /**
+     * Resolve the alternative identity (Xbox gamertag) for a player.
+     * Tries Floodgate API first, then falls back to prefix stripping from config.
+     */
+    private fun resolveAlternativeIdentity(player: ServerPlayerEntity): String? {
+        // Try Floodgate API first
+        val floodgateGamertag = floodgate.getXboxGamertag(player.uuid)
+        if (floodgateGamertag != null) return floodgateGamertag
+
+        // Fall back to prefix stripping if configured
+        val prefix = floodgatePrefix
+        val playerName = player.name.string
+        if (prefix != null && playerName.startsWith(prefix)) {
+            return playerName.removePrefix(prefix)
+        }
+
+        return null
     }
 
     override fun getGameType(): GameType = GameType.MINECRAFT

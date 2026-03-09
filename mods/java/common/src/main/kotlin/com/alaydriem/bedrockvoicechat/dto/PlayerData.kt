@@ -13,7 +13,9 @@ data class PlayerData(
     @SerializedName("world_uuid")
     val worldUuid: String?,
     val deafen: Boolean,
-    val spectator: Boolean = false
+    val spectator: Boolean = false,
+    @SerializedName("alternative_identity")
+    val alternativeIdentity: String? = null
 ) {
     /**
      * Constructor for Minecraft players (Fabric/Paper).
@@ -26,7 +28,8 @@ data class PlayerData(
         dimension: Dimension?,
         deafen: Boolean,
         spectator: Boolean = false,
-        worldUuid: String? = null
+        worldUuid: String? = null,
+        alternativeIdentity: String? = null
     ) : this(
         name = name,
         coordinates = Coordinates(x, y, z),
@@ -34,7 +37,8 @@ data class PlayerData(
         dimension = dimension?.toApiString(),
         worldUuid = worldUuid,
         deafen = deafen,
-        spectator = spectator
+        spectator = spectator,
+        alternativeIdentity = alternativeIdentity
     )
 
     /**

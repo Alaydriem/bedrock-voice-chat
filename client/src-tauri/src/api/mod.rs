@@ -1,5 +1,7 @@
 pub(crate) mod commands;
 use common::structs::config::ApiConfig;
+use common::request::LinkJavaIdentityRequest;
+use common::response::LinkJavaIdentityResponse;
 use log::error;
 mod channel;
 mod client;
@@ -52,6 +54,52 @@ impl Api {
                     source = cause.source();
                 }
                 Err(false)
+            }
+        }
+    }
+
+    pub(crate) async fn link_java_identity(
+        &self,
+        code: String,
+        redirect_uri: String,
+        client_id: String,
+        gamertag: String,
+    ) -> Result<LinkJavaIdentityResponse, String> {
+        let client = self.get_client(Some(self.endpoint.as_str())).await;
+
+        let mut headers = HeaderMap::new();
+        headers.insert("Content-Type", HeaderValue::from_static("application/json"));
+        headers.insert("Accept", HeaderValue::from_static("application/json"));
+
+        let url = format!("{}/api/auth/link-java", self.endpoint);
+        let payload = LinkJavaIdentityRequest {
+            code,
+            redirect_uri,
+            client_id,
+            gamertag,
+        };
+
+        match client
+            .post(url)
+            .headers(headers)
+            .json(&payload)
+            .send()
+            .await
+        {
+            Ok(response) => match response.status() {
+                StatusCode::OK => {
+                    let body = response
+                        .text()
+                        .await
+                        .map_err(|e| format!("Failed to read response: {}", e))?;
+                    serde_json::from_str::<LinkJavaIdentityResponse>(&body)
+                        .map_err(|e| format!("Failed to parse response: {}", e))
+                }
+                status => Err(format!("Server returned status: {}", status)),
+            },
+            Err(e) => {
+                error!("Failed to link Java identity: {}", e);
+                Err(format!("Connection failed: {}", e))
             }
         }
     }

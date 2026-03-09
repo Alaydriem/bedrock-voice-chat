@@ -39,6 +39,8 @@ pub struct LoginResponse {
     pub certificate_key: String,
     pub certificate_ca: String,
     pub quic_connect_string: String,
+    #[serde(default)]
+    pub minecraft_username: Option<String>,
 }
 
 impl LoginResponse {
@@ -62,6 +64,7 @@ impl LoginResponse {
             certificate_key,
             certificate_ca,
             quic_connect_string,
+            minecraft_username: None,
         }
     }
 }
