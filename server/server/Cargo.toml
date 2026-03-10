@@ -74,6 +74,7 @@ hex = { version = "^0.4" }
 redcon = { version = "^0.1" }
 rocket_cors = "0.6.0"
 semver = "1.0.26"
+dashmap = { version = "^6" }
 cached = { version = "^0.56" }
 
 [build-dependencies]

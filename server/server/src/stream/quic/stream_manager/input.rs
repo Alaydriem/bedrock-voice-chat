@@ -254,14 +254,20 @@ impl StreamTrait for InputStream {
                                                         )
                                                     };
 
-                                                    self.send_event(QuicNetworkPacket {
+                                                    let error_net = QuicNetworkPacket {
                                                         owner: packet.owner.clone(),
                                                         packet_type: PacketType::ServerError,
                                                         data: QuicNetworkPacketData::ServerError(
                                                             error_packet,
                                                         ),
-                                                    })
-                                                    .await;
+                                                    };
+                                                    if let Ok(bytes) = error_net.to_datagram() {
+                                                        let _ = connection.datagram_mut(
+                                                            |dg: &mut common::s2n_quic::provider::datagram::default::Sender| {
+                                                                dg.send_datagram(Bytes::from(bytes))
+                                                            },
+                                                        );
+                                                    }
 
                                                     break;
                                                 }
