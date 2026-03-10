@@ -391,7 +391,7 @@ export default class ChannelManager {
                             // Fall through with undefined gamerpic
                         }
                     }
-                    const success = await this.playerManager.addPlayerSource(member.name, 'Group', undefined, resolvedGamepic);
+                    const success = await this.playerManager.addPlayerSource(member.name, 'Group', undefined, resolvedGamepic, member.game ?? undefined);
                     if (!success) {
                         warn(`ChannelManager: Failed to add existing group member: ${member.name}`);
                     }
@@ -518,7 +518,8 @@ export default class ChannelManager {
                     const channels = get(this.channels);
                     const userChannel = channels.find(c => c.players.some(p => GameNameUtils.namesMatch(p.name, currentUser)));
                     if (userChannel && userChannel.id === channel_id && !GameNameUtils.namesMatch(player_name, currentUser)) {
-                        await this.playerManager.addPlayerSource(player_name, 'Group');
+                        const playerGame = this.playerManager.getPlayerGame(player_name);
+                        await this.playerManager.addPlayerSource(player_name, 'Group', undefined, undefined, playerGame);
                         this.fetchAndSetGroupMemberGamepic(player_name);
                     }
                 }
@@ -583,7 +584,7 @@ export default class ChannelManager {
 
     private async fetchAndSetGroupMemberGamepic(playerName: string): Promise<void> {
         try {
-            const game = GameNameUtils.extractGame(playerName);
+            const game = this.playerManager?.getPlayerGame(playerName) ?? GameNameUtils.extractGame(playerName);
             const gamertag = GameNameUtils.stripPrefix(playerName);
 
             const response = await invoke<GamerpicResponse>('api_get_player_gamerpic', {

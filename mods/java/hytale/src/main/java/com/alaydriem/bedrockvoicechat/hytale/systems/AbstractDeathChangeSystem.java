@@ -33,9 +33,12 @@ public abstract class AbstractDeathChangeSystem extends RefChangeSystem<EntitySt
             Store<EntityStore> store,
             CommandBuffer<EntityStore> commandBuffer
     ) {
-        PlayerRef playerRef = store.getComponent(ref, PlayerRef.getComponentType());
-        if (playerRef != null) {
-            onPlayerDied(playerRef);
+        try {
+            PlayerRef playerRef = store.getComponent(ref, PlayerRef.getComponentType());
+            if (playerRef != null) {
+                onPlayerDied(playerRef);
+            }
+        } catch (Exception ignored) {
         }
     }
 
@@ -57,9 +60,12 @@ public abstract class AbstractDeathChangeSystem extends RefChangeSystem<EntitySt
             Store<EntityStore> store,
             CommandBuffer<EntityStore> commandBuffer
     ) {
-        PlayerRef playerRef = store.getComponent(ref, PlayerRef.getComponentType());
-        if (playerRef != null) {
-            onPlayerRespawned(playerRef);
+        try {
+            PlayerRef playerRef = store.getComponent(ref, PlayerRef.getComponentType());
+            if (playerRef != null) {
+                onPlayerRespawned(playerRef);
+            }
+        } catch (Exception ignored) {
         }
     }
 

@@ -33,9 +33,12 @@ public abstract class AbstractSpectatorChangeSystem extends RefChangeSystem<Enti
             Store<EntityStore> store,
             CommandBuffer<EntityStore> commandBuffer
     ) {
-        PlayerRef playerRef = store.getComponent(ref, PlayerRef.getComponentType());
-        if (playerRef != null) {
-            onSpectatorChanged(playerRef, true);
+        try {
+            PlayerRef playerRef = store.getComponent(ref, PlayerRef.getComponentType());
+            if (playerRef != null) {
+                onSpectatorChanged(playerRef, true);
+            }
+        } catch (Exception ignored) {
         }
     }
 
@@ -57,9 +60,12 @@ public abstract class AbstractSpectatorChangeSystem extends RefChangeSystem<Enti
             Store<EntityStore> store,
             CommandBuffer<EntityStore> commandBuffer
     ) {
-        PlayerRef playerRef = store.getComponent(ref, PlayerRef.getComponentType());
-        if (playerRef != null) {
-            onSpectatorChanged(playerRef, false);
+        try {
+            PlayerRef playerRef = store.getComponent(ref, PlayerRef.getComponentType());
+            if (playerRef != null) {
+                onSpectatorChanged(playerRef, false);
+            }
+        } catch (Exception ignored) {
         }
     }
 

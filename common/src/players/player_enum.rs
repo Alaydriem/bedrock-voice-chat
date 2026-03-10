@@ -139,6 +139,15 @@ impl PlayerEnum {
         }
     }
 
+    /// Get the platform UUID if one exists (e.g., Hytale UUID, Minecraft Java UUID)
+    pub fn get_player_uuid(&self) -> Option<&str> {
+        match self {
+            PlayerEnum::Minecraft(mc) => mc.player_uuid.as_deref(),
+            PlayerEnum::Hytale(h) => h.player_uuid.as_deref(),
+            PlayerEnum::Generic(_) => None,
+        }
+    }
+
     /// Set the player name (used for identity resolution)
     pub fn set_name(&mut self, name: String) {
         match self {

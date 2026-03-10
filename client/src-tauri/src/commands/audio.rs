@@ -258,11 +258,11 @@ async fn extract_current_player(app: &AppHandle) -> Option<String> {
         .map(String::from)
 }
 
-/// Returns the list of currently tracked players from the output stream's presence cache
+/// Returns the currently tracked players with their game type
 #[tauri::command]
 pub(crate) async fn get_current_players(
     asm: State<'_, Mutex<AudioStreamManager>>,
-) -> Result<Vec<String>, ()> {
+) -> Result<std::collections::HashMap<String, Option<String>>, ()> {
     let asm = asm.lock().await;
     Ok(asm.get_current_players())
 }

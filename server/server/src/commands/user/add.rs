@@ -68,7 +68,7 @@ impl Config {
         let db_arc = Arc::new(db);
         let registrar = PlayerRegistrarService::new(db_arc, cert_service);
 
-        registrar.create_player(&self.player, &self.game).await;
+        registrar.create_player(&self.player, &self.game, None).await;
         println!(
             "Successfully added player '{}' for game '{}'",
             self.player, self.game

@@ -53,6 +53,7 @@ class FabricPlayerDataProvider(
             .map { player ->
                 val worldUuid = getWorldUuid(player.entityWorld as ServerWorld)
                 val altIdentity = resolveAlternativeIdentity(player)
+                val playerUuid = player.uuid.toString()
 
                 // Check if player is dead - override to death dimension at origin
                 if (deadPlayers.contains(player.uuid)) {
@@ -67,7 +68,8 @@ class FabricPlayerDataProvider(
                         deafen = false,
                         spectator = false,
                         worldUuid = worldUuid,
-                        alternativeIdentity = altIdentity
+                        alternativeIdentity = altIdentity,
+                        playerUuid = playerUuid
                     )
                 } else {
                     // Normal player data
@@ -83,7 +85,8 @@ class FabricPlayerDataProvider(
                         deafen = player.isSneaking,
                         spectator = player.isSpectator,
                         worldUuid = worldUuid,
-                        alternativeIdentity = altIdentity
+                        alternativeIdentity = altIdentity,
+                        playerUuid = playerUuid
                     )
                 }
             }

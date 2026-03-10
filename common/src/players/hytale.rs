@@ -20,6 +20,8 @@ pub struct HytalePlayer {
     pub deafen: bool,
     #[serde(default)]
     pub spectator: bool,
+    #[serde(default)]
+    pub player_uuid: Option<String>,
 }
 
 impl PlayerData for HytalePlayer {

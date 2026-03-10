@@ -7,4 +7,4 @@ macro_rules! define_protocol_version {
     };
 }
 
-define_protocol_version!("1.4.0");
+define_protocol_version!("1.5.0");

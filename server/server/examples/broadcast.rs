@@ -1,7 +1,9 @@
 use bytes::Bytes;
+use clap::Parser;
 use common::structs::packet::AudioFramePacket;
 use common::structs::packet::PacketType;
 use common::structs::packet::QuicNetworkPacket;
+use common::Game;
 use core::{
     future::Future,
     pin::Pin,
@@ -16,6 +18,34 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::{error::Error, net::SocketAddr};
 use std::{fs::File, io::BufReader, path::Path};
+
+#[derive(Debug, Parser)]
+#[clap(about = "Broadcast audio to a BVC server")]
+struct Args {
+    /// Player name to broadcast as
+    #[clap(short, long, default_value = "Alliedria")]
+    player: String,
+
+    /// Path to the audio file to stream
+    #[clap(short = 'f', long)]
+    audio_file: String,
+
+    /// Server QUIC address (e.g. 127.0.0.1:8443)
+    #[clap(short = 'a', long, default_value = "127.0.0.1:8443")]
+    server_addr: String,
+
+    /// Server TLS name (e.g. local.bedrockvc.stream)
+    #[clap(short = 'n', long, default_value = "local.bedrockvc.stream")]
+    server_name: String,
+
+    /// API token for position updates
+    #[clap(short = 't', long)]
+    api_token: String,
+
+    /// Game type
+    #[clap(short, long, value_enum, default_value = "minecraft")]
+    game: Game,
+}
 
 struct Spiral {
     theta: f32,
@@ -43,19 +73,15 @@ impl Iterator for Spiral {
 
 #[tokio::main]
 async fn main() {
-    let args: Vec<String> = std::env::args().collect();
-
-    if args.len() < 6 {
-        eprintln!("Usage: {} <player_name> <audio_file> <server_addr> <server_name> <api_token>", args[0]);
-        std::process::exit(1);
-    }
+    let args = Args::parse();
 
     let result = client(
-        args[1].to_string().parse::<String>().unwrap(),
-        args[2].to_string().parse::<String>().unwrap(),
-        args[3].to_string().parse::<String>().unwrap(),
-        args[4].to_string().parse::<String>().unwrap(),
-        args[5].to_string(), // API token
+        args.player,
+        args.audio_file,
+        args.server_addr,
+        args.server_name,
+        args.api_token,
+        args.game,
     )
     .await;
     println!("{:?}", result);
@@ -66,7 +92,8 @@ async fn client(
     source_file: String,
     socket_addr: String,
     server_name: String,
-    api_token: String,
+    _api_token: String,
+    game: Game,
 ) -> Result<(), Box<dyn Error>> {
     _ = common::s2n_quic::provider::tls::rustls::rustls::crypto::aws_lc_rs::default_provider()
         .install_default();
@@ -95,7 +122,7 @@ async fn client(
         .with_datagram(dg_endpoint)?
         .start()?;
 
-    println!("I am client: {}", id);
+    println!("I am client: {} (game: {})", id, game.as_str());
     let addr: SocketAddr = socket_addr.parse()?;
     let connect = Connect::new(addr).with_server_name(server_name.clone());
     let mut connection = client.connect(connect).await?;

@@ -54,7 +54,7 @@ var Orientation = class _Orientation {
 // src/dto/player.ts
 import { GameMode } from "@minecraft/server";
 var Player = class _Player {
-  constructor(name, dimension, coordinates, deafen, orientation, spectator = false, world_uuid = void 0) {
+  constructor(name, dimension, coordinates, deafen, orientation, spectator = false, world_uuid = void 0, player_uuid = void 0) {
     this.name = name;
     this.dimension = dimension;
     this.coordinates = coordinates;
@@ -62,6 +62,7 @@ var Player = class _Player {
     this.orientation = orientation;
     this.spectator = spectator;
     this.world_uuid = world_uuid;
+    this.player_uuid = player_uuid;
   }
   static fromMinecraftPlayer(player, worldUuid) {
     return new _Player(
@@ -71,7 +72,8 @@ var Player = class _Player {
       player.isSneaking,
       Orientation.fromMinecraftRotation(player.getRotation()),
       player.getGameMode() === GameMode.Spectator,
-      worldUuid
+      worldUuid,
+      player.id
     );
   }
   /**
@@ -86,7 +88,8 @@ var Player = class _Player {
       player.isSneaking,
       Orientation.fromMinecraftRotation(player.getRotation()),
       false,
-      worldUuid
+      worldUuid,
+      player.id
     );
   }
   toJSON() {
@@ -97,7 +100,8 @@ var Player = class _Player {
       deafen: this.deafen,
       orientation: this.orientation.toJSON(),
       spectator: this.spectator,
-      ...this.world_uuid && { world_uuid: this.world_uuid }
+      ...this.world_uuid && { world_uuid: this.world_uuid },
+      ...this.player_uuid && { player_uuid: this.player_uuid }
     };
   }
 };

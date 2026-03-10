@@ -8,11 +8,12 @@ pub(crate) const PLAYER_PRESENCE: &str = "player_presence";
 pub(crate) struct Presence {
     pub player: String,
     pub status: String,
+    pub game: Option<String>,
 }
 
 impl Presence {
-    pub fn new(player: String, status: String) -> Self {
-        Self { player, status }
+    pub fn new(player: String, status: String, game: Option<String>) -> Self {
+        Self { player, status, game }
     }
 
     #[allow(unused)]

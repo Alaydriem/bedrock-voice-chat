@@ -47,7 +47,8 @@ export class PlayerPresenceManager {
 
     private async syncCurrentPlayers(): Promise<void> {
         try {
-            const backendPlayers = new Set(await invoke<string[]>("get_current_players"));
+            const backendPlayersMap = await invoke<Record<string, string | null>>("get_current_players");
+            const backendPlayerNames = new Set(Object.keys(backendPlayersMap));
             const frontendPlayers = this.playerManager.getAll();
             const frontendPlayerNames = new Set(frontendPlayers.map(p => p.name));
 
@@ -55,7 +56,7 @@ export class PlayerPresenceManager {
             const toAdd: string[] = [];
             const toRemove: string[] = [];
 
-            for (const playerName of backendPlayers) {
+            for (const playerName of backendPlayerNames) {
                 // Only add if not already present with Proximity source
                 if (!this.playerManager.hasPlayerSource(playerName, 'Proximity')) {
                     toAdd.push(playerName);
@@ -64,7 +65,7 @@ export class PlayerPresenceManager {
 
             for (const playerName of frontendPlayerNames) {
                 // Only remove Proximity source if backend doesn't have them
-                if (!backendPlayers.has(playerName) && this.playerManager.hasPlayerSource(playerName, 'Proximity')) {
+                if (!backendPlayerNames.has(playerName) && this.playerManager.hasPlayerSource(playerName, 'Proximity')) {
                     toRemove.push(playerName);
                 }
             }
@@ -77,8 +78,9 @@ export class PlayerPresenceManager {
             // Apply changes
             for (const playerName of toAdd) {
                 const settings = await this.getPlayerSettings(playerName);
-                await this.playerManager.addPlayerSource(playerName, 'Proximity', settings);
-                this.fetchAndSetGamepic(playerName);
+                const playerGame = backendPlayersMap[playerName] ?? undefined;
+                await this.playerManager.addPlayerSource(playerName, 'Proximity', settings, undefined, playerGame);
+                this.fetchAndSetGamepic(playerName, playerGame);
             }
 
             for (const playerName of toRemove) {
@@ -86,10 +88,10 @@ export class PlayerPresenceManager {
             }
 
             // Retry gamerpic fetch for existing proximity players missing one
-            for (const playerName of backendPlayers) {
+            for (const playerName of backendPlayerNames) {
                 const player = this.playerManager.get(playerName);
                 if (player && !player.gamerpic) {
-                    this.fetchAndSetGamepic(playerName);
+                    this.fetchAndSetGamepic(playerName, backendPlayersMap[playerName] ?? undefined);
                 }
             }
         } catch (err) {
@@ -107,6 +109,7 @@ export class PlayerPresenceManager {
         // Support both 'player' (from auto-detection) and 'player_name' (from server events)
         const playerName = payload.player || payload.player_name;
         const status = payload.status;
+        const game: string | undefined = payload.game ?? undefined;
 
         if (!playerName) {
             error(`Player presence event missing player name: ${JSON.stringify(payload)}`);
@@ -122,11 +125,11 @@ export class PlayerPresenceManager {
             const settings = await this.getPlayerSettings(playerName);
 
             // Use source-aware addition with 'Proximity' source for audio detection
-            const success = await this.playerManager.addPlayerSource(playerName, 'Proximity', settings);
+            const success = await this.playerManager.addPlayerSource(playerName, 'Proximity', settings, undefined, game);
             if (success) {
                 await this.savePlayerToStore(playerName, settings);
                 // Fire-and-forget gamerpic fetch
-                this.fetchAndSetGamepic(playerName);
+                this.fetchAndSetGamepic(playerName, game);
             }
         } else if (status === 'disconnected') {
             // Remove only from 'Proximity' source
@@ -224,7 +227,7 @@ export class PlayerPresenceManager {
         return this.playerManager.has(playerName);
     }
 
-    private async fetchAndSetGamepic(playerName: string): Promise<void> {
+    private async fetchAndSetGamepic(playerName: string, gameOverride?: string): Promise<void> {
         // Prevent duplicate fetches for the same player
         if (this.gamerpicFetchInProgress.has(playerName)) {
             return;
@@ -232,7 +235,7 @@ export class PlayerPresenceManager {
         this.gamerpicFetchInProgress.add(playerName);
 
         try {
-            const game = GameNameUtils.extractGame(playerName);
+            const game = gameOverride ?? GameNameUtils.extractGame(playerName);
             const gamertag = GameNameUtils.stripPrefix(playerName);
 
             // Ask the server for the gamerpic URL

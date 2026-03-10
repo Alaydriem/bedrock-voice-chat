@@ -49,6 +49,7 @@ class PaperPlayerDataProvider(
             .filter { it.isOnline }
             .map { player ->
                 val altIdentity = resolveAlternativeIdentity(player)
+                val playerUuid = player.uniqueId.toString()
 
                 // Check if player is dead - override to death dimension at origin
                 if (deadPlayers.contains(player.uniqueId)) {
@@ -63,7 +64,8 @@ class PaperPlayerDataProvider(
                         deafen = false,
                         spectator = false,
                         worldUuid = player.location.world?.uid?.toString(),
-                        alternativeIdentity = altIdentity
+                        alternativeIdentity = altIdentity,
+                        playerUuid = playerUuid
                     )
                 } else {
                     // Normal player data
@@ -80,7 +82,8 @@ class PaperPlayerDataProvider(
                         deafen = player.isSneaking,
                         spectator = player.gameMode == org.bukkit.GameMode.SPECTATOR,
                         worldUuid = location.world?.uid?.toString(),
-                        alternativeIdentity = altIdentity
+                        alternativeIdentity = altIdentity,
+                        playerUuid = playerUuid
                     )
                 }
             }

@@ -36,15 +36,17 @@ class PositionTickingSystem(
         store: Store<EntityStore>,
         commandBuffer: CommandBuffer<EntityStore>
     ) {
-        val playerRef = chunk.getComponent(index, PlayerRef.getComponentType()) ?: return
-        val transform = playerRef.transform ?: return
-        val pos = transform.position ?: return
-        val rot = playerRef.headRotation
+        try {
+            val playerRef = chunk.getComponent(index, PlayerRef.getComponentType()) ?: return
+            playerRef.reference ?: return
+            val transform = playerRef.transform ?: return
+            val pos = transform.position ?: return
+            val rot = playerRef.headRotation
 
-        // Hytale headRotation: x=pitch, y=yaw in radians
-        // BVC Orientation: x=pitch (up/down, ±90°), y=yaw (facing direction, ±180°)
-        val pitchDeg = Math.toDegrees((rot?.x ?: 0f).toDouble()).toFloat()
-        val yawDeg = Math.toDegrees((rot?.y ?: 0f).toDouble()).toFloat()
+            // Hytale headRotation: x=pitch, y=yaw in radians
+            // BVC Orientation: x=pitch (up/down, ±90°), y=yaw (facing direction, ±180°)
+            val pitchDeg = Math.toDegrees((rot?.x ?: 0f).toDouble()).toFloat()
+            val yawDeg = Math.toDegrees((rot?.y ?: 0f).toDouble()).toFloat()
 
         onPositionUpdate(
             playerRef.uuid,
@@ -53,6 +55,8 @@ class PositionTickingSystem(
                 yaw = yawDeg, pitch = pitchDeg,
                 worldUuid = playerRef.worldUuid?.toString() ?: ""
             )
-        )
+        } catch (_: Exception) {
+            return
+        }
     }
 }
