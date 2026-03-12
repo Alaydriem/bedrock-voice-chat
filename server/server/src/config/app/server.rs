@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use super::features::ApplicationConfigFeatures;
 use super::minecraft::ApplicationConfigMinecraft;
 use super::tls::ApplicationConfigServerTLS;
 
@@ -39,6 +40,8 @@ pub struct ApplicationConfigServer {
     #[serde(default)]
     pub tls: ApplicationConfigServerTLS,
     pub minecraft: ApplicationConfigMinecraft,
+    #[serde(default)]
+    pub features: ApplicationConfigFeatures,
 }
 
 impl Default for ApplicationConfigServer {
@@ -51,6 +54,7 @@ impl Default for ApplicationConfigServer {
             assets_path: default_assets_path(),
             tls: ApplicationConfigServerTLS::default(),
             minecraft: ApplicationConfigMinecraft::default(),
+            features: ApplicationConfigFeatures::default(),
         }
     }
 }

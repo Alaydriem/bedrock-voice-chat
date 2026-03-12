@@ -35,8 +35,6 @@ pub struct ApplicationConfig {
     pub log: ApplicationConfigLogger,
     #[serde(default)]
     pub voice: ApplicationConfigVoice,
-    #[serde(default)]
-    pub features: ApplicationConfigFeatures,
 }
 
 impl Default for ApplicationConfig {
@@ -46,7 +44,6 @@ impl Default for ApplicationConfig {
             server: ApplicationConfigServer::default(),
             voice: ApplicationConfigVoice::default(),
             log: ApplicationConfigLogger::default(),
-            features: ApplicationConfigFeatures::default(),
         }
     }
 }

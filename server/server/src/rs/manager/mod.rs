@@ -78,7 +78,7 @@ impl RocketManager {
                     .manage(cache_wrapper)
                     .manage(self.config.server.clone())
                     .manage(self.config.voice.clone())
-                    .manage(self.config.features.clone())
+                    .manage(self.config.server.features.clone())
                     .manage(self.webhook_receiver.clone())
                     .manage(self.cache_manager.clone())
                     .manage(self.player_registrar.clone())
