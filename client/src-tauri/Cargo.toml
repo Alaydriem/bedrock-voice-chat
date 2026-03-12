@@ -30,7 +30,7 @@ log = "^0.4"
 anyhow = { version = "^1" }
 spmc = { version = "^0.3" }
 rand = { version = "^0.10" }
-rodio = { git = "https://github.com/RustAudio/rodio.git", branch = "master" }
+rodio = "0.22.2"
 bytes = { version = "^1.10" }
 async-mutex = { version = "^1.4" }
 moka = { version = "^0.12", features = ["future", "sync"] }

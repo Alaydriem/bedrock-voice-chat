@@ -30,7 +30,7 @@ data class PlayerData(
     ) : this(
         name = name,
         coordinates = Coordinates(x, y, z),
-        orientation = Orientation(yaw, pitch),
+        orientation = Orientation.fromYawPitch(yaw, pitch),
         dimension = dimension?.toApiString(),
         worldUuid = worldUuid,
         deafen = deafen,
@@ -51,7 +51,7 @@ data class PlayerData(
     ) : this(
         name = name,
         coordinates = Coordinates(x, y, z),
-        orientation = Orientation(yaw, pitch),
+        orientation = Orientation.fromYawPitch(yaw, pitch),
         dimension = dimension.toApiString(),
         worldUuid = worldUuid,
         deafen = deafen,

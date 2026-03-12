@@ -117,12 +117,15 @@ impl QuicServerManager {
             .with_datagram(dg_endpoint)?
             .start()?;
 
-        let mut webhook_rx = self.webhook_rx.take().unwrap();
+        let mut webhook_rx = self.webhook_rx.take()
+            .ok_or_else(|| anyhow::anyhow!("QUIC server already started"))?;
         let cache_manager = self.cache_manager.clone();
         let connection_registry = self.connection_registry.clone();
         let player_cache = cache_manager.get_player_cache();
-        let broadcast_range = self.config.voice.broadcast_range;
-        let mut shutdown_rx = self.shutdown_rx.take().unwrap();
+        let broadcast_range = self.config.voice.spatial_audio.broadcast_range;
+        let deafen_distance = self.config.voice.spatial_audio.deafen_distance;
+        let mut shutdown_rx = self.shutdown_rx.take()
+            .ok_or_else(|| anyhow::anyhow!("QUIC server already started"))?;
 
         tracing::info!("QUIC server started on {}", bind_addr);
 
@@ -136,7 +139,7 @@ impl QuicServerManager {
                     match packet.packet_type {
                         PacketType::AudioFrame => {
                             connection_registry
-                                .route_audio_frame(&packet, &player_cache, broadcast_range)
+                                .route_audio_frame(&packet, &player_cache, broadcast_range, deafen_distance)
                                 .await;
                         }
                         _ => {
@@ -202,7 +205,8 @@ impl QuicServerManager {
 
             let connection_registry = self.connection_registry.clone();
             let cache_manager = self.cache_manager.clone();
-            let broadcast_range = self.config.voice.broadcast_range;
+            let broadcast_range = self.config.voice.spatial_audio.broadcast_range;
+            let deafen_distance = self.config.voice.spatial_audio.deafen_distance;
             let webhook_receiver = self.webhook_receiver.clone();
 
             tokio::spawn(async move {
@@ -213,7 +217,7 @@ impl QuicServerManager {
 
                 // Create per-connection mpsc channel for routed packets
                 let (packet_tx, packet_rx) =
-                    mpsc::unbounded_channel::<connection_registry::RoutedPacket>();
+                    mpsc::channel::<connection_registry::RoutedPacket>(500);
 
                 let mut input_stream = InputStream::new(Some(conn_arc.clone()), None);
                 let mut output_stream = OutputStream::new(Some(conn_arc.clone()));
@@ -221,16 +225,16 @@ impl QuicServerManager {
 
                 // Identity callback: set output stream identity + register in connection registry
                 let output_stream_identity_setter = {
-                    let player_id_mutex = output_stream.player_id.clone();
-                    let client_id_mutex = output_stream.client_id.clone();
+                    let player_id_lock = output_stream.player_id.clone();
+                    let client_id_lock = output_stream.client_id.clone();
                     let registry = connection_registry.clone();
                     let tx = packet_tx.clone();
                     move |player_id: String, client_id: Vec<u8>| {
-                        if let Ok(mut guard) = player_id_mutex.lock() {
-                            *guard = Some(player_id.clone());
+                        if player_id_lock.set(player_id.clone()).is_err() {
+                            tracing::warn!("Player ID already set for connection");
                         }
-                        if let Ok(mut guard) = client_id_mutex.lock() {
-                            *guard = Some(client_id.clone());
+                        if client_id_lock.set(client_id.clone()).is_err() {
+                            tracing::warn!("Client ID already set for connection");
                         }
                         registry.register(client_id, player_id, tx.clone());
                     }
@@ -310,6 +314,7 @@ impl QuicServerManager {
                         input_registry,
                         input_cache_manager,
                         broadcast_range,
+                        deafen_distance,
                         input_shutdown_rx,
                         Box::new(output_stream_identity_setter),
                     )
@@ -342,6 +347,7 @@ impl QuicServerManager {
         connection_registry: Arc<ConnectionRegistry>,
         cache_manager: CacheManager,
         broadcast_range: f32,
+        deafen_distance: f32,
         mut shutdown_rx: oneshot::Receiver<()>,
         player_callback: Box<dyn Fn(String, Vec<u8>) + Send + Sync>,
     ) -> Result<(), anyhow::Error> {
@@ -384,7 +390,7 @@ impl QuicServerManager {
                     match updated_packet.packet_type {
                         PacketType::AudioFrame => {
                             connection_registry
-                                .route_audio_frame(&updated_packet, &player_cache, broadcast_range)
+                                .route_audio_frame(&updated_packet, &player_cache, broadcast_range, deafen_distance)
                                 .await;
                         }
                         _ => {

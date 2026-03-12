@@ -25,6 +25,7 @@ import Notification from "../../components/events/Notification.svelte";
 import type { KeybindConfig } from '../bindings/KeybindConfig.ts';
 import type { NoiseGateSettings } from '../bindings/NoiseGateSettings.ts';
 import type { PlayerGainStore } from '../bindings/PlayerGainStore.ts';
+import type { ApiConfig } from '../bindings/ApiConfig.ts';
 
 import {
   checkPermission,
@@ -438,6 +439,20 @@ export default class Dashboard extends BVCApp {
                     value: JSON.stringify(playerGainStore),
                     device: "OutputDevice"
                 });
+
+                // Push spatial audio config from server to audio pipeline
+                try {
+                    const configResponse = await invoke<{ config: ApiConfig }>("api_get_config", { server: currentServer });
+                    if (configResponse?.config?.spatial_audio) {
+                        await invoke("update_stream_metadata", {
+                            key: "spatial_audio_config",
+                            value: JSON.stringify(configResponse.config.spatial_audio),
+                            device: "OutputDevice"
+                        });
+                    }
+                } catch (e) {
+                    warn(`Failed to fetch spatial audio config, using defaults: ${e}`);
+                }
 
                 await this.changeNetworkStream(currentServer, credentials);
 

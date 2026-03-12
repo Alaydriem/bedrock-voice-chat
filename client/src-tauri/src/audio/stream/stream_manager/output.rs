@@ -16,6 +16,7 @@ use common::{
             AudioFramePacket, ChannelEventPacket, ConnectionEventType, PacketType, PlayerDataPacket,
             PlayerPresenceEvent, QuicNetworkPacket, ServerErrorPacket, ServerErrorType,
         },
+        SpatialAudioConfig,
     },
     Coordinate, Game, GenericPlayer, Orientation, PlayerEnum, RecordingPlayerData,
 };
@@ -67,6 +68,14 @@ impl common::traits::StreamTrait for OutputStream {
             "record" => {
                 self.toggle(StreamEvent::Record);
             },
+            "panning_intensity" => {
+                if let Ok(intensity) = value.parse::<f32>() {
+                    if let Some(sink_manager) = self.sink_manager.as_ref() {
+                        sink_manager.update_panning_intensity(intensity);
+                    }
+                }
+                let _ = self.metadata.insert(key.clone(), value.clone()).await;
+            }
             "player_gain_store" => {
                 match serde_json::from_str::<PlayerGainStore>(&value) {
                     Ok(settings) => {
@@ -405,6 +414,26 @@ impl OutputStream {
                             // Keep the stream alive on self first, then get mixer
                             self.playback_stream = Some(stream);
                             let mixer = self.playback_stream.as_ref().unwrap().mixer();
+
+                            let spatial_config = match metadata
+                                .get("spatial_audio_config")
+                                .await
+                            {
+                                Some(json) => {
+                                    serde_json::from_str::<SpatialAudioConfig>(&json)
+                                        .unwrap_or_default()
+                                }
+                                None => SpatialAudioConfig::default(),
+                            };
+
+                            let panning_intensity = match metadata
+                                .get("panning_intensity")
+                                .await
+                            {
+                                Some(val) => val.parse::<f32>().unwrap_or(0.8),
+                                None => 0.8,
+                            };
+
                             let sink_manager = SinkManager::new(
                                 consumer,
                                 (*players).clone(),
@@ -414,6 +443,8 @@ impl OutputStream {
                                 self.app_handle.clone(),
                                 self.recording_producer.as_ref().map(|p| (**p).clone()),
                                 self.recording_active.clone(),
+                                spatial_config,
+                                panning_intensity,
                             );
 
                             self.sink_manager = Some(sink_manager);
@@ -651,7 +682,7 @@ impl OutputStream {
                     data: data.data,
                     route: AudioSinkType::from_spatial(match data.spatial {
                         Some(s) => s,
-                        None => false,
+                        None => true,
                     }),
                     emitter,
                     listener,

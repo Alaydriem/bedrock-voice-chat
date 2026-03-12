@@ -12,6 +12,20 @@
     let isReady = $state(false);
     let isMobile = $state(false);
     let voiceMode: VoiceMode = $state("openMic");
+    let panningIntensity = $state(80);
+
+    async function handlePanningIntensityChange(value: number) {
+        panningIntensity = value;
+        if (!store) return;
+        const normalized = value / 100;
+        await store.set("panning_intensity", normalized);
+        await store.save();
+        await invoke("update_stream_metadata", {
+            key: "panning_intensity",
+            value: normalized.toString(),
+            device: "OutputDevice",
+        });
+    }
 
     async function handleVoiceModeChange(mode: VoiceMode) {
         voiceMode = mode;
@@ -38,6 +52,12 @@
 
         const platformDetector = new PlatformDetector();
         isMobile = await platformDetector.checkMobile();
+
+        // Load panning intensity
+        const savedPanning = await store.get<number>("panning_intensity");
+        if (savedPanning !== null && savedPanning !== undefined) {
+            panningIntensity = Math.round(savedPanning * 100);
+        }
 
         // Load voice mode from keybinds config
         const saved = await store.get<KeybindConfig>("keybinds");
@@ -75,7 +95,34 @@
             eventScope="#audio-settings-page"
         />
 
-        <div class="my-4 h-px  bg-slate-200 dark:bg-navy-500"></div>
+        <div class="my-4 h-px bg-slate-200 dark:bg-navy-500"></div>
+
+        <div class="my-3 flex h-8n flex-col">
+            <h2
+                class="font-medium tracking-wide text-slate-700 line-clamp-1 dark:text-navy-100 lg:text-base pb-2"
+            >
+                Panning Intensity
+            </h2>
+            <p class="text-sm leading-6">
+                Controls how strongly audio is panned between left and right channels based on player position. 100% is full spatial panning, 0% centers all audio.
+            </p>
+        </div>
+
+        <div class="flex items-center space-x-4 mt-2 px-1">
+            <span class="text-xs text-slate-500 dark:text-navy-300 w-6">0%</span>
+            <input
+                type="range"
+                min="0"
+                max="100"
+                step="5"
+                value={panningIntensity}
+                oninput={(e: Event) => handlePanningIntensityChange(parseInt((e.target as HTMLInputElement).value))}
+                class="flex-1 h-1.5 rounded-full appearance-none cursor-pointer bg-slate-200 dark:bg-navy-500 accent-primary dark:accent-accent"
+            />
+            <span class="text-xs text-slate-500 dark:text-navy-300 w-8 text-right">{panningIntensity}%</span>
+        </div>
+
+        <div class="my-4 h-px bg-slate-200 dark:bg-navy-500"></div>
 
         <div class="my-3 flex h-8n flex-col">
             <h2

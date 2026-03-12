@@ -10,10 +10,10 @@ use tokio::sync::mpsc;
 
 pub(crate) struct OutputStream {
     connection: Option<Arc<Connection>>,
-    packet_rx: Option<mpsc::UnboundedReceiver<RoutedPacket>>,
+    packet_rx: Option<mpsc::Receiver<RoutedPacket>>,
     is_stopped: Arc<AtomicBool>,
-    pub(crate) player_id: Arc<std::sync::Mutex<Option<String>>>,
-    pub(crate) client_id: Arc<std::sync::Mutex<Option<Vec<u8>>>>,
+    pub(crate) player_id: Arc<std::sync::OnceLock<String>>,
+    pub(crate) client_id: Arc<std::sync::OnceLock<Vec<u8>>>,
 }
 
 impl OutputStream {
@@ -22,21 +22,21 @@ impl OutputStream {
             connection,
             packet_rx: None,
             is_stopped: Arc::new(AtomicBool::new(true)),
-            player_id: Arc::new(std::sync::Mutex::new(None)),
-            client_id: Arc::new(std::sync::Mutex::new(None)),
+            player_id: Arc::new(std::sync::OnceLock::new()),
+            client_id: Arc::new(std::sync::OnceLock::new()),
         }
     }
 
-    pub fn set_packet_receiver(&mut self, packet_rx: mpsc::UnboundedReceiver<RoutedPacket>) {
+    pub fn set_packet_receiver(&mut self, packet_rx: mpsc::Receiver<RoutedPacket>) {
         self.packet_rx = Some(packet_rx);
     }
 
     pub fn get_player_id(&self) -> Option<String> {
-        self.player_id.lock().ok().and_then(|guard| guard.clone())
+        self.player_id.get().cloned()
     }
 
     pub fn get_client_id(&self) -> Option<Vec<u8>> {
-        self.client_id.lock().ok().and_then(|guard| guard.clone())
+        self.client_id.get().cloned()
     }
 
     fn send_datagram(&self, connection: &Connection, payload: Bytes) -> DatagramResult {
@@ -96,13 +96,6 @@ impl StreamTrait for OutputStream {
             while let Some(routed) = packet_rx.recv().await {
                 let payload = match routed {
                     RoutedPacket::Serialized(bytes) => bytes,
-                    RoutedPacket::Raw(packet) => match packet.to_datagram() {
-                        Ok(bytes) => Bytes::from(bytes),
-                        Err(e) => {
-                            tracing::error!("Failed to serialize packet to datagram: {}", e);
-                            continue;
-                        }
-                    },
                 };
 
                 let player = self.get_player_id().unwrap_or_else(|| "unknown".into());

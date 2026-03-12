@@ -1,7 +1,5 @@
 use bytes::Bytes;
-use common::structs::packet::{
-    AudioFramePacket, QuicNetworkPacket, QuicNetworkPacketData,
-};
+use common::structs::packet::{QuicNetworkPacket, QuicNetworkPacketData};
 use common::traits::player_data::PlayerData;
 use common::PlayerEnum;
 use dashmap::DashMap;
@@ -10,21 +8,24 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 
 pub(crate) enum RoutedPacket {
-    // Pre-serialized datagram bytes (AudioFrame, filtered + serialized on input side)
     Serialized(Bytes),
-    // Raw packet for OutputStream to serialize (non-audio broadcast)
-    Raw(QuicNetworkPacket),
 }
 
 pub(crate) struct ConnectionEntry {
     pub player_name: String,
-    pub tx: mpsc::UnboundedSender<RoutedPacket>,
+    pub tx: mpsc::Sender<RoutedPacket>,
 }
 
 pub(crate) struct ConnectionRegistry {
     connections: DashMap<Vec<u8>, ConnectionEntry>,
     // player_name -> channel_id (one channel per player)
     player_channel: DashMap<String, String>,
+}
+
+impl Default for ConnectionRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ConnectionRegistry {
@@ -39,7 +40,7 @@ impl ConnectionRegistry {
         &self,
         client_id: Vec<u8>,
         player_name: String,
-        tx: mpsc::UnboundedSender<RoutedPacket>,
+        tx: mpsc::Sender<RoutedPacket>,
     ) {
         tracing::info!(
             "Registering connection for player: {} (connections: {})",
@@ -64,11 +65,28 @@ impl ConnectionRegistry {
     }
 
     pub fn broadcast_to_all(&self, packet: QuicNetworkPacket) {
+        let bytes = match packet.to_datagram() {
+            Ok(bytes) => Bytes::from(bytes),
+            Err(e) => {
+                tracing::error!("Failed to serialize broadcast: {}", e);
+                return;
+            }
+        };
+
         let mut dead_keys: Vec<Vec<u8>> = Vec::new();
 
         for entry in self.connections.iter() {
-            if entry.value().tx.send(RoutedPacket::Raw(packet.clone())).is_err() {
-                dead_keys.push(entry.key().clone());
+            match entry.value().tx.try_send(RoutedPacket::Serialized(bytes.clone())) {
+                Ok(()) => {}
+                Err(mpsc::error::TrySendError::Full(_)) => {
+                    tracing::debug!(
+                        "Dropping broadcast packet for player {} (channel full)",
+                        entry.value().player_name,
+                    );
+                }
+                Err(mpsc::error::TrySendError::Closed(_)) => {
+                    dead_keys.push(entry.key().clone());
+                }
             }
         }
 
@@ -94,14 +112,15 @@ impl ConnectionRegistry {
         packet: &QuicNetworkPacket,
         player_cache: &Arc<Cache<String, PlayerEnum>>,
         broadcast_range: f32,
+        deafen_distance: f32,
     ) {
         let sender_name = match &packet.owner {
             Some(owner) => &owner.name,
             None => return,
         };
 
-        let audio_frame: AudioFramePacket = match &packet.data {
-            QuicNetworkPacketData::AudioFrame(af) => af.clone(),
+        let audio_frame = match &packet.data {
+            QuicNetworkPacketData::AudioFrame(af) => af,
             _ => return,
         };
 
@@ -109,50 +128,60 @@ impl ConnectionRegistry {
             self.player_channel.get(sender_name).map(|r| r.clone());
 
         let original_spatial = audio_frame.spatial;
+        let has_sender = audio_frame.sender.is_some();
 
-        // Pre-build two serialized variants
-        let bytes_spatial = {
-            let mut af = audio_frame.clone();
-            af.spatial = Some(true);
-            let mut p = packet.clone();
-            p.data = QuicNetworkPacketData::AudioFrame(af);
-            match p.to_datagram() {
-                Ok(bytes) => Bytes::from(bytes),
-                Err(e) => {
-                    tracing::error!("Failed to serialize spatial audio variant: {}", e);
-                    return;
-                }
+        tracing::debug!(
+            "route_audio_frame: sender={} original_spatial={:?} has_sender={} sender_channel={:?}",
+            sender_name,
+            original_spatial,
+            has_sender,
+            sender_channel,
+        );
+
+        // Pre-build serialized variants (single clone, mutate in-place between serializations)
+        let mut p = packet.clone();
+
+        let bytes_spatial: Option<Bytes> = {
+            if let QuicNetworkPacketData::AudioFrame(ref mut af) = p.data {
+                af.spatial = Some(true);
             }
+            p.to_datagram().ok().map(Bytes::from)
         };
 
-        let bytes_channel = {
-            let mut af = audio_frame.clone();
-            af.spatial = Some(false);
-            let mut p = packet.clone();
-            p.data = QuicNetworkPacketData::AudioFrame(af);
-            match p.to_datagram() {
-                Ok(bytes) => Bytes::from(bytes),
-                Err(e) => {
-                    tracing::error!("Failed to serialize channel audio variant: {}", e);
-                    return;
-                }
+        let bytes_channel: Option<Bytes> = {
+            if let QuicNetworkPacketData::AudioFrame(ref mut af) = p.data {
+                af.spatial = Some(false);
             }
+            p.to_datagram().ok().map(Bytes::from)
         };
+
+        if bytes_spatial.is_none() && bytes_channel.is_none() {
+            return;
+        }
+
+        // Snapshot connections to release DashMap shard locks before any .await
+        let snapshot: Vec<(Vec<u8>, String, mpsc::Sender<RoutedPacket>)> = self
+            .connections
+            .iter()
+            .map(|entry| {
+                (
+                    entry.key().clone(),
+                    entry.value().player_name.clone(),
+                    entry.value().tx.clone(),
+                )
+            })
+            .collect();
 
         let mut dead_keys: Vec<Vec<u8>> = Vec::new();
 
-        // Lazily resolved sender position (only needed for proximity path)
         let mut sender_player: Option<PlayerEnum> = None;
         let mut sender_player_resolved = false;
 
-        for entry in self.connections.iter() {
-            let recipient_name = &entry.value().player_name;
-
+        for (client_id, recipient_name, tx) in &snapshot {
             if recipient_name == sender_name {
                 continue;
             }
 
-            // Channel check FIRST — no position data required
             let recipient_channel: Option<String> =
                 self.player_channel.get(recipient_name).map(|r| r.clone());
 
@@ -162,12 +191,24 @@ impl ConnectionRegistry {
             };
 
             let bytes_to_send = if in_same_channel {
+                tracing::debug!(
+                    "route_audio_frame: {} -> {} IN_CHANNEL spatial={:?}",
+                    sender_name,
+                    recipient_name,
+                    original_spatial,
+                );
                 match original_spatial {
-                    Some(true) => &bytes_spatial,
-                    Some(false) | None => &bytes_channel,
+                    // None = unset by client, treat as spatial (default behavior)
+                    None | Some(true) => match &bytes_spatial {
+                        Some(b) => b,
+                        None => continue,
+                    },
+                    Some(false) => match &bytes_channel {
+                        Some(b) => b,
+                        None => continue,
+                    },
                 }
             } else {
-                // Proximity path: position data required
                 if !sender_player_resolved {
                     sender_player = match &audio_frame.sender {
                         Some(player) => Some(player.clone()),
@@ -190,7 +231,13 @@ impl ConnectionRegistry {
                     continue;
                 }
 
-                if let Err(e) = sp.can_communicate_with(&recipient_player, broadcast_range) {
+                let effective_range = if sp.is_deafened() {
+                    deafen_distance
+                } else {
+                    broadcast_range
+                };
+
+                if let Err(e) = sp.can_communicate_with(&recipient_player, effective_range) {
                     tracing::debug!(
                         "Audio packet {} -> {} rejected: {}",
                         sender_name,
@@ -200,20 +247,27 @@ impl ConnectionRegistry {
                     continue;
                 }
 
-                // Some(false) is REJECTED outside channels
+                // Some(false) is rejected outside channels
                 match original_spatial {
                     Some(false) => continue,
-                    Some(true) | None => &bytes_spatial,
+                    Some(true) | None => match &bytes_spatial {
+                        Some(b) => b,
+                        None => continue,
+                    },
                 }
             };
 
-            if entry
-                .value()
-                .tx
-                .send(RoutedPacket::Serialized(bytes_to_send.clone()))
-                .is_err()
-            {
-                dead_keys.push(entry.key().clone());
+            match tx.try_send(RoutedPacket::Serialized(bytes_to_send.clone())) {
+                Ok(()) => {}
+                Err(mpsc::error::TrySendError::Full(_)) => {
+                    tracing::debug!(
+                        "Dropping audio packet for player {} (channel full)",
+                        recipient_name,
+                    );
+                }
+                Err(mpsc::error::TrySendError::Closed(_)) => {
+                    dead_keys.push(client_id.clone());
+                }
             }
         }
 

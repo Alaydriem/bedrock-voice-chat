@@ -850,7 +850,7 @@ dependencies = [
  "rand 0.10.0",
  "reqwest 0.12.28",
  "ringbuf",
- "rodio",
+ "rodio 0.22.2",
  "ron",
  "rubato",
  "schemars 1.2.1",
@@ -1489,7 +1489,7 @@ dependencies = [
  "residua-zigzag",
  "rocket",
  "rocket_dyn_templates",
- "rodio",
+ "rodio 0.22.1",
  "ron",
  "rustls-pemfile 2.2.0",
  "s2n-quic",
@@ -6508,6 +6508,22 @@ dependencies = [
 name = "rodio"
 version = "0.22.1"
 source = "git+https://github.com/RustAudio/rodio.git?branch=master#1a659cb99b34891f6a080e26fac340b8800ee49f"
+dependencies = [
+ "cpal",
+ "dasp_sample",
+ "num-rational",
+ "rand 0.10.0",
+ "rand_distr",
+ "rtrb",
+ "symphonia",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "rodio"
+version = "0.22.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d0a536bb79db59098ef71a4dd4246c02eb87b316deceb1b68e0cde7167ec01eb"
 dependencies = [
  "cpal",
  "dasp_sample",

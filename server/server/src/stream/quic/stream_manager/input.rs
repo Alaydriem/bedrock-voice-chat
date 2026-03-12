@@ -1,4 +1,4 @@
-use crate::stream::quic::{ServerInputPacket, WebhookReceiver};
+use crate::stream::quic::{client_id_hash, ServerInputPacket, WebhookReceiver};
 use anyhow::Error;
 use bytes::Bytes;
 use common::structs::packet::{
@@ -47,13 +47,6 @@ impl<'c> Future for RecvDatagram<'c> {
 
 async fn recv_one_datagram(conn: &Connection) -> Result<Bytes, anyhow::Error> {
     RecvDatagram::new(conn).await
-}
-
-/// Helper function to create a short hash representation of client_id
-fn client_id_hash(client_id: &[u8]) -> String {
-    let mut hasher = DefaultHasher::new();
-    client_id.hash(&mut hasher);
-    format!("{:x}", hasher.finish() & 0xFFFF) // Take only last 4 hex digits for readability
 }
 
 pub(crate) struct InputStream {
@@ -336,12 +329,10 @@ impl StreamTrait for InputStream {
                         let client_hash = self
                             .client_id
                             .as_ref()
-                            .map(|cid| super::super::client_id_hash(cid))
+                            .map(|cid| client_id_hash(cid))
                             .unwrap_or_else(|| {
-                                // derive from connection id
                                 let dbg_id = format!("{:?}", connection.id());
-                                let mut hasher = std::collections::hash_map::DefaultHasher::new();
-                                use std::hash::{Hash, Hasher};
+                                let mut hasher = DefaultHasher::new();
                                 dbg_id.hash(&mut hasher);
                                 format!("{:x}", hasher.finish() & 0xFFFF)
                             });
