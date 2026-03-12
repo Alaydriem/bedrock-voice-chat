@@ -1,4 +1,5 @@
 mod database;
+mod features;
 mod logger;
 mod minecraft;
 mod server;
@@ -6,6 +7,7 @@ mod tls;
 mod voice;
 
 pub use database::ApplicationConfigDatabase;
+pub use features::ApplicationConfigFeatures;
 pub use logger::ApplicationConfigLogger;
 pub use minecraft::ApplicationConfigMinecraft;
 pub use server::ApplicationConfigServer;
@@ -33,6 +35,8 @@ pub struct ApplicationConfig {
     pub log: ApplicationConfigLogger,
     #[serde(default)]
     pub voice: ApplicationConfigVoice,
+    #[serde(default)]
+    pub features: ApplicationConfigFeatures,
 }
 
 impl Default for ApplicationConfig {
@@ -42,6 +46,7 @@ impl Default for ApplicationConfig {
             server: ApplicationConfigServer::default(),
             voice: ApplicationConfigVoice::default(),
             log: ApplicationConfigLogger::default(),
+            features: ApplicationConfigFeatures::default(),
         }
     }
 }

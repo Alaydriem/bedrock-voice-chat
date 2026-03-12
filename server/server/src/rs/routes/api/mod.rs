@@ -6,6 +6,7 @@ mod positions;
 mod ping;
 
 pub use auth::{
+    code_authenticate,
     minecraft_authenticate,
     hytale_start_device_flow,
     hytale_poll_status,

@@ -78,6 +78,7 @@ impl RocketManager {
                     .manage(cache_wrapper)
                     .manage(self.config.server.clone())
                     .manage(self.config.voice.clone())
+                    .manage(self.config.features.clone())
                     .manage(self.webhook_receiver.clone())
                     .manage(self.cache_manager.clone())
                     .manage(self.player_registrar.clone())
@@ -92,6 +93,7 @@ impl RocketManager {
                             routes::api::minecraft_authenticate,
                             routes::api::hytale_start_device_flow,
                             routes::api::hytale_poll_status,
+                            routes::api::code_authenticate,
                             routes::api::get_config,
                             routes::api::update_position,
                             routes::api::position,

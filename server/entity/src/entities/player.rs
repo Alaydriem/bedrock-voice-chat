@@ -25,8 +25,19 @@ pub struct Model {
     pub game: common::Game,
 }
 
+use super::player_auth_code;
+
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+pub enum Relation {
+    #[sea_orm(has_many = "player_auth_code::Entity")]
+    PlayerAuthCode,
+}
+
+impl Related<player_auth_code::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::PlayerAuthCode.def()
+    }
+}
 
 #[async_trait::async_trait]
 impl ActiveModelBehavior for ActiveModel {

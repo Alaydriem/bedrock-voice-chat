@@ -5,6 +5,7 @@ export type { AudioDeviceHost } from './AudioDeviceHost';
 export type { AudioDeviceType } from './AudioDeviceType';
 export type { AudioFormat } from './AudioFormat';
 export type { Channel } from './Channel';
+export type { CodeLoginRequest } from './CodeLoginRequest';
 export type { ChannelEvent } from './ChannelEvent';
 export type { ChannelEvents } from './ChannelEvents';
 export type { DeepLink } from './DeepLink';
