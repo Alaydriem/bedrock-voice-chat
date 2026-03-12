@@ -68,6 +68,7 @@ pub fn run() {
             crate::auth::commands::logout,
             crate::auth::commands::start_hytale_device_flow,
             crate::auth::commands::poll_hytale_status,
+            crate::auth::commands::code_login,
             // Environment Variable Data
             crate::commands::env::get_env,
             crate::commands::env::get_variant,

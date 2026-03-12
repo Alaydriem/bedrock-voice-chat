@@ -1,4 +1,4 @@
-use crate::auth::{hytale, login};
+use crate::auth::{code_login, hytale, login};
 use crate::structs::app_state::AppState;
 use common::structs::config::{
     HytaleAuthStatus, HytaleDeviceFlowStartResponse, HytaleDeviceFlowStatusResponse, LoginResponse,
@@ -75,6 +75,29 @@ pub(crate) async fn logout(
     state.current_server = None;
 
     Ok(())
+}
+
+#[tauri::command(async)]
+pub(crate) async fn code_login(
+    app_state: State<'_, Mutex<AppState>>,
+    server: String,
+    gamertag: String,
+    code: String,
+) -> Result<LoginResponse, String> {
+    let login_result = code_login::code_login(server.clone(), gamertag, code)
+        .await
+        .map_err(|_| "Code login failed".to_string())?;
+
+    let mut state = app_state.lock().await;
+    state
+        .initialize_api_client(
+            server,
+            login_result.certificate_ca.clone(),
+            login_result.certificate.clone() + &login_result.certificate_key.clone(),
+        )
+        .await;
+
+    Ok(login_result)
 }
 
 #[tauri::command(async)]

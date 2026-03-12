@@ -1,4 +1,5 @@
+pub(crate) mod code_login;
 pub(crate) mod commands;
 mod hytale;
-mod login;
+pub(crate) mod login;
 mod ncryptf;

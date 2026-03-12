@@ -99,6 +99,15 @@ export default class Login extends BVCApp {
     serverInput?.classList.remove("border-error");
     errorMessage?.classList.add("invisible");
 
+    // Check for code login trigger before any validation
+    const rawValue = serverInput?.value?.trim() || "";
+    if (rawValue.startsWith("code@")) {
+      const serverPart = rawValue.substring(5);
+      const sanitized = this.sanitizeServerUrl(serverPart);
+      window.location.href = `/login/code?server=${encodeURIComponent(sanitized)}`;
+      return;
+    }
+
     // Validate the server URL first
     const validation = this.validateServerUrl(serverInput?.value || "");
     if (!validation.valid) {
