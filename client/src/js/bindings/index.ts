@@ -23,6 +23,7 @@ export type { PlayerSource } from './PlayerSource';
 export type { RecordingSession } from './RecordingSession';
 export type { SessionData } from './SessionData';
 export type { SessionManifest } from './SessionManifest';
+export type { SpatialAudioConfig } from './SpatialAudioConfig';
 export type { StreamConfig } from './StreamConfig';
 export type { StreamEvent } from './StreamEvent';
 export type { StreamType } from './StreamType';

@@ -1,5 +1,6 @@
 mod audio_sink;
 mod input;
+mod mono_to_panned;
 mod output;
 mod resampler;
 mod sink_manager;

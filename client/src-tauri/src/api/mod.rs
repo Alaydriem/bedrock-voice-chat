@@ -86,11 +86,11 @@ impl Api {
                     }
 
                     if let Ok(legacy) = serde_json::from_str::<LegacyApiConfig>(&body) {
-                        // Return ApiConfig with empty protocol_version to indicate outdated server
                         return Ok(ApiConfig {
                             status: legacy.status,
                             client_id: legacy.client_id,
-                            protocol_version: String::new(), // Empty = outdated server
+                            protocol_version: String::new(),
+                            spatial_audio: Default::default(),
                         });
                     }
 

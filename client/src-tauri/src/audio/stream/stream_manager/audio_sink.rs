@@ -1,5 +1,4 @@
-use common::Coordinate;
-use rodio::{Player, SpatialPlayer};
+use rodio::Player;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -21,7 +20,7 @@ impl AudioSinkType {
 #[derive(Clone)]
 pub(crate) enum AudioSink {
     Normal(Arc<Player>),
-    Spatial(Arc<SpatialPlayer>),
+    Spatial(Arc<Player>),
 }
 
 impl AudioSink {
@@ -45,29 +44,13 @@ impl AudioSink {
         }
     }
 
-    /// Update spatial positioning using Rodio's built-in methods
-    pub fn update_spatial_position(
-        &self,
-        emitter_pos: &Coordinate,
-        left_ear: &Coordinate,
-        right_ear: &Coordinate,
-        volume: f32,
-    ) {
+    pub fn set_volume(&self, volume: f32) {
         match self {
-            AudioSink::Spatial(sink) => {
-                sink.set_emitter_position([emitter_pos.x, emitter_pos.y, emitter_pos.z]);
-                sink.set_left_ear_position([left_ear.x, left_ear.y, left_ear.z]);
-                sink.set_right_ear_position([right_ear.x, right_ear.y, right_ear.z]);
-                sink.set_volume(volume);
-            }
-            AudioSink::Normal(sink) => {
-                // For non-spatial sinks, just set volume
-                sink.set_volume(volume);
-            }
+            AudioSink::Normal(sink) => sink.set_volume(volume),
+            AudioSink::Spatial(sink) => sink.set_volume(volume),
         }
     }
 
-    /// Append a source to the sink
     pub fn append<S>(&self, source: S)
     where
         S: rodio::Source + Send + 'static,

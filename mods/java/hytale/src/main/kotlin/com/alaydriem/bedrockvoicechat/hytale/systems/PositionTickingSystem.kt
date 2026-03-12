@@ -50,7 +50,7 @@ class PositionTickingSystem(
             playerRef.uuid,
             CachedPosition(
                 x = pos.x, y = pos.y, z = pos.z,
-                yaw = pitchDeg, pitch = yawDeg,
+                yaw = yawDeg, pitch = pitchDeg,
                 worldUuid = playerRef.worldUuid?.toString() ?: ""
             )
         )

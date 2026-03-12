@@ -8,15 +8,15 @@ use std::time::Duration;
 use super::jitter_buffer_source::{JitterBufferError, JitterBufferSource};
 use super::EncodedAudioFramePacket;
 use crate::audio::recording::RecordingProducer;
-use common::{Coordinate, Orientation};
+use common::structs::SpatialAudioConfig;
+use common::{Coordinate, Game, Orientation};
 
 #[derive(Debug, Clone)]
 pub struct SpatialAudioData {
-    #[allow(dead_code)]
-    pub emitter: Coordinate,
-    pub left_ear: Coordinate,
-    pub right_ear: Coordinate,
-    pub gain: f32,
+    // +1.0 = left, -1.0 = right
+    pub pan: f32,
+    // 0.0 to 1.0, distance-based
+    pub volume: f32,
 }
 
 #[derive(Clone)]
@@ -28,7 +28,6 @@ impl JitterBufferHandle {
     pub fn enqueue(
         &self,
         packet: EncodedAudioFramePacket,
-        _spatial: Option<SpatialAudioData>,
     ) -> Result<(), JitterBufferError> {
         self.tx
             .send(Some(packet))
@@ -88,121 +87,82 @@ impl JitterBuffer {
         Ok((jitter_buffer, handle))
     }
 
-    pub fn calculate_virtual_listener_audio_data(
+    pub fn calculate_spatial_audio_data(
         emitter: &Coordinate,
         deafen_emitter: bool,
         listener: &Coordinate,
         orientation: &Orientation,
+        game: Game,
+        config: &SpatialAudioConfig,
     ) -> SpatialAudioData {
-        // Compute delta and full 3D distance for gain
         let dx = emitter.x - listener.x;
         let dy = emitter.y - listener.y;
         let dz = emitter.z - listener.z;
-
         let distance = (dx * dx + dy * dy + dz * dz).sqrt();
 
-        // Constants
-        let virtual_distance = 1.33;
-        let close_threshold = 12.0;
-        let falloff_distance = 48.0;
-        let steepen_start = 38.0;
-        let deafen_distance = 3.0;
-        let deafen_multiplier = 0.35;
-
-        let target_min_volume = 1.0 / (12.0 * 12.0);
-        let target_max_volume = 1.0 / (virtual_distance * virtual_distance);
-
-        // Direction vector in full 3D
-        let direction = if distance > 0.01 {
-            [dx / distance, dy / distance, dz / distance]
-        } else {
-            [0.0, 0.0, -1.0]
-        };
-
-        // Virtual listener position logic
-        let virtual_listener = if distance <= close_threshold {
-            Coordinate {
-                x: emitter.x - direction[0] * virtual_distance,
-                y: emitter.y - direction[1] * virtual_distance,
-                z: emitter.z - direction[2] * virtual_distance,
-            }
-        } else if distance <= falloff_distance {
-            let t = (distance - close_threshold) / (falloff_distance - close_threshold); // 0 → 1
-            let mut volume = target_max_volume + t * (target_min_volume - target_max_volume);
-
-            if distance >= steepen_start {
-                let s = (distance - steepen_start) / (falloff_distance - steepen_start); // 0 → 1
-                let steep_factor = s.powf(2.0); // steeper near end
-                volume *= 1.0 - 0.5 * steep_factor; // reduce volume more aggressively
-            }
-
-            let mapped_distance = 1.0 / volume.sqrt();
-            Coordinate {
-                x: emitter.x - direction[0] * mapped_distance,
-                y: emitter.y - direction[1] * mapped_distance,
-                z: emitter.z - direction[2] * mapped_distance,
-            }
-        } else {
-            listener.clone()
-        };
-
-        // Compute yaw (rotation about Y axis)
-        let yaw_rad = orientation.y.to_radians();
-        let forward_x = yaw_rad.sin();
-        let forward_z = -yaw_rad.cos();
-        let left_x = -forward_z;
-        let left_z = forward_x;
-        let ear_offset = 0.3;
-
-        let mut left_ear = Coordinate {
-            x: virtual_listener.x + left_x * ear_offset,
-            y: virtual_listener.y,
-            z: virtual_listener.z + left_z * ear_offset,
-        };
-        let mut right_ear = Coordinate {
-            x: virtual_listener.x - left_x * ear_offset,
-            y: virtual_listener.y,
-            z: virtual_listener.z - left_z * ear_offset,
-        };
-
-        // There's stereo inversion at 24 units away???
-        if distance >= 24.0 {
-            right_ear = Coordinate {
-                x: virtual_listener.x + left_x * ear_offset,
-                y: virtual_listener.y,
-                z: virtual_listener.z + left_z * ear_offset,
-            };
-            left_ear = Coordinate {
-                x: virtual_listener.x - left_x * ear_offset,
-                y: virtual_listener.y,
-                z: virtual_listener.z - left_z * ear_offset,
+        // Deafen: server enforces deafen_distance, so if we receive the packet just play it
+        if deafen_emitter {
+            return SpatialAudioData {
+                pan: 0.0,
+                volume: 1.0,
             };
         }
 
-        // Gain logic
-        let gain = match deafen_emitter {
-            true => {
-                if distance <= deafen_distance {
-                    1.0 * deafen_multiplier
-                } else {
-                    0.0
-                }
-            }
-            false => {
-                if distance <= falloff_distance {
-                    1.0
-                } else {
-                    0.0
-                }
-            }
+        // Beyond falloff: silence
+        if distance > config.falloff_distance {
+            return SpatialAudioData {
+                pan: 0.0,
+                volume: 0.0,
+            };
+        }
+
+        // Pan: dot product of XZ direction with listener's left vector
+        let raw_pan = if distance > 0.01 {
+            let dir_x = dx / distance;
+            let dir_z = dz / distance;
+
+            let yaw_rad = orientation.y.to_radians();
+            let (left_x, left_z) = match game {
+                // Minecraft: yaw 0 = South (+Z), clockwise
+                Game::Minecraft => (yaw_rad.cos(), yaw_rad.sin()),
+                // Hytale: yaw 0 = North (-Z), counter-clockwise
+                Game::Hytale => (-yaw_rad.cos(), yaw_rad.sin()),
+            };
+
+            dir_x * left_x + dir_z * left_z
+        } else {
+            0.0
         };
 
-        SpatialAudioData {
-            emitter: emitter.clone(),
-            left_ear,
-            right_ear,
-            gain,
-        }
+        // Suppress panning at close range
+        let proximity_factor = if distance <= config.panning_start {
+            0.0
+        } else if distance <= config.close_threshold {
+            (distance - config.panning_start) / (config.close_threshold - config.panning_start)
+        } else {
+            1.0
+        };
+        let pan = raw_pan * proximity_factor.clamp(0.0, 1.0);
+
+        // dB-based volume attenuation
+        let volume = if distance <= config.close_threshold {
+            1.0
+        } else {
+            let t = (distance - config.close_threshold)
+                / (config.falloff_distance - config.close_threshold);
+            let db_atten = t * config.max_attenuation_db;
+            let mut vol = 10.0_f32.powf(-db_atten / 20.0);
+
+            if distance >= config.steepen_start {
+                let s = (distance - config.steepen_start)
+                    / (config.falloff_distance - config.steepen_start);
+                vol *= 1.0 - s;
+            }
+
+            vol
+        };
+
+        SpatialAudioData { pan, volume }
     }
 }
 
@@ -242,5 +202,155 @@ impl Iterator for JitterBuffer {
             error!("Failed to lock jitter buffer source");
             None
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn default_config() -> SpatialAudioConfig {
+        SpatialAudioConfig::default()
+    }
+
+    fn listener_at_origin() -> Coordinate {
+        Coordinate { x: 0.0, y: 0.0, z: 0.0 }
+    }
+
+    #[test]
+    fn minecraft_facing_south_emitter_east_pans_left() {
+        // Minecraft: yaw 0 = facing south (+Z). Emitter to the east (+X) should be on the left.
+        let emitter = Coordinate { x: 20.0, y: 0.0, z: 0.0 };
+        let orientation = Orientation { x: 0.0, y: 0.0 };
+        let result = JitterBuffer::calculate_spatial_audio_data(
+            &emitter, false, &listener_at_origin(), &orientation, Game::Minecraft, &default_config(),
+        );
+        assert!(result.pan > 0.5, "Expected positive pan (left), got {}", result.pan);
+    }
+
+    #[test]
+    fn minecraft_facing_south_emitter_west_pans_right() {
+        let emitter = Coordinate { x: -20.0, y: 0.0, z: 0.0 };
+        let orientation = Orientation { x: 0.0, y: 0.0 };
+        let result = JitterBuffer::calculate_spatial_audio_data(
+            &emitter, false, &listener_at_origin(), &orientation, Game::Minecraft, &default_config(),
+        );
+        assert!(result.pan < -0.5, "Expected negative pan (right), got {}", result.pan);
+    }
+
+    #[test]
+    fn minecraft_facing_south_emitter_ahead_centered() {
+        let emitter = Coordinate { x: 0.0, y: 0.0, z: 20.0 };
+        let orientation = Orientation { x: 0.0, y: 0.0 };
+        let result = JitterBuffer::calculate_spatial_audio_data(
+            &emitter, false, &listener_at_origin(), &orientation, Game::Minecraft, &default_config(),
+        );
+        assert!(result.pan.abs() < 0.01, "Expected centered pan, got {}", result.pan);
+    }
+
+    #[test]
+    fn minecraft_facing_south_emitter_behind_centered() {
+        let emitter = Coordinate { x: 0.0, y: 0.0, z: -20.0 };
+        let orientation = Orientation { x: 0.0, y: 0.0 };
+        let result = JitterBuffer::calculate_spatial_audio_data(
+            &emitter, false, &listener_at_origin(), &orientation, Game::Minecraft, &default_config(),
+        );
+        assert!(result.pan.abs() < 0.01, "Expected centered pan, got {}", result.pan);
+    }
+
+    #[test]
+    fn minecraft_facing_west_emitter_south_pans_left() {
+        // yaw 90 = facing west (-X). Emitter to the south (+Z) is on the left.
+        let emitter = Coordinate { x: 0.0, y: 0.0, z: 20.0 };
+        let orientation = Orientation { x: 0.0, y: 90.0 };
+        let result = JitterBuffer::calculate_spatial_audio_data(
+            &emitter, false, &listener_at_origin(), &orientation, Game::Minecraft, &default_config(),
+        );
+        assert!(result.pan > 0.5, "Expected positive pan (left), got {}", result.pan);
+    }
+
+    #[test]
+    fn hytale_facing_north_emitter_west_pans_left() {
+        // Hytale: yaw 0 = facing north (-Z). Emitter to the west (-X) should be on the left.
+        let emitter = Coordinate { x: -20.0, y: 0.0, z: 0.0 };
+        let orientation = Orientation { x: 0.0, y: 0.0 };
+        let result = JitterBuffer::calculate_spatial_audio_data(
+            &emitter, false, &listener_at_origin(), &orientation, Game::Hytale, &default_config(),
+        );
+        assert!(result.pan > 0.5, "Expected positive pan (left), got {}", result.pan);
+    }
+
+    #[test]
+    fn hytale_facing_north_emitter_east_pans_right() {
+        let emitter = Coordinate { x: 20.0, y: 0.0, z: 0.0 };
+        let orientation = Orientation { x: 0.0, y: 0.0 };
+        let result = JitterBuffer::calculate_spatial_audio_data(
+            &emitter, false, &listener_at_origin(), &orientation, Game::Hytale, &default_config(),
+        );
+        assert!(result.pan < -0.5, "Expected negative pan (right), got {}", result.pan);
+    }
+
+    #[test]
+    fn close_range_suppresses_panning() {
+        // At 5 units, within panning_start (8.0) -> no panning
+        let emitter = Coordinate { x: 5.0, y: 0.0, z: 0.0 };
+        let orientation = Orientation { x: 0.0, y: 0.0 };
+        let result = JitterBuffer::calculate_spatial_audio_data(
+            &emitter, false, &listener_at_origin(), &orientation, Game::Minecraft, &default_config(),
+        );
+        assert!(result.pan.abs() < 0.01, "Expected suppressed pan at close range, got {}", result.pan);
+        assert!((result.volume - 1.0).abs() < 0.01, "Expected full volume at close range, got {}", result.volume);
+    }
+
+    #[test]
+    fn mid_range_ramps_panning() {
+        // At 10 units, between panning_start (8.0) and close_threshold (12.0) -> partial panning
+        let emitter = Coordinate { x: 10.0, y: 0.0, z: 0.0 };
+        let orientation = Orientation { x: 0.0, y: 0.0 };
+        let result = JitterBuffer::calculate_spatial_audio_data(
+            &emitter, false, &listener_at_origin(), &orientation, Game::Minecraft, &default_config(),
+        );
+        assert!(result.pan > 0.0 && result.pan < 1.0, "Expected partial pan, got {}", result.pan);
+    }
+
+    #[test]
+    fn beyond_falloff_is_silent() {
+        let emitter = Coordinate { x: 50.0, y: 0.0, z: 0.0 };
+        let orientation = Orientation { x: 0.0, y: 0.0 };
+        let result = JitterBuffer::calculate_spatial_audio_data(
+            &emitter, false, &listener_at_origin(), &orientation, Game::Minecraft, &default_config(),
+        );
+        assert!(result.volume < 0.001, "Expected silence beyond falloff, got {}", result.volume);
+    }
+
+    #[test]
+    fn volume_attenuates_with_distance() {
+        let config = default_config();
+        let orientation = Orientation { x: 0.0, y: 0.0 };
+
+        let near = JitterBuffer::calculate_spatial_audio_data(
+            &Coordinate { x: 0.0, y: 0.0, z: 15.0 }, false, &listener_at_origin(),
+            &orientation, Game::Minecraft, &config,
+        );
+        let far = JitterBuffer::calculate_spatial_audio_data(
+            &Coordinate { x: 0.0, y: 0.0, z: 35.0 }, false, &listener_at_origin(),
+            &orientation, Game::Minecraft, &config,
+        );
+
+        assert!(near.volume > far.volume, "Near volume {} should exceed far volume {}", near.volume, far.volume);
+        assert!(near.volume > 0.0 && near.volume < 1.0);
+        assert!(far.volume > 0.0);
+    }
+
+    #[test]
+    fn deafen_plays_at_full_volume() {
+        let config = default_config();
+        let emitter = Coordinate { x: 2.0, y: 0.0, z: 0.0 };
+        let orientation = Orientation { x: 0.0, y: 0.0 };
+        let result = JitterBuffer::calculate_spatial_audio_data(
+            &emitter, true, &listener_at_origin(), &orientation, Game::Minecraft, &config,
+        );
+        assert!((result.volume - 1.0).abs() < 0.01);
+        assert!(result.pan.abs() < 0.01);
     }
 }

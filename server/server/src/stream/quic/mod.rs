@@ -1,47 +1,42 @@
 //! QUIC Server Manager
 //!
-//! Event-driven QUIC server implementation with proper async/await patterns and broadcast channels.
+//! Event-driven QUIC server implementation with ConnectionRegistry-based packet routing.
 //!
 //! ## Architecture:
 //! - Each QUIC connection spawns a pair of InputStream/OutputStream
-//! - InputStreams receive packets and broadcast them to all OutputStreams via broadcast channels
-//! - OutputStreams filter packets based on player identity (no echo-back)
+//! - InputStreams receive packets and route them via ConnectionRegistry
+//! - AudioFrame packets are routed to specific recipients based on spatial/channel logic
+//! - Non-audio packets (PlayerData, ChannelEvent, PlayerPresence) are broadcast to all
 //! - CacheManager processes packets and updates coordinates for AudioFrame packets
 //! - Graceful shutdown via oneshot channels
-//!
-//! ## QUIC Protocol Features:
-//! - Player identity extracted from first PlayerData packet
-//! - QUIC disconnect signaling with error code 204
-//! - Coordinate updates for AudioFrame packets
-//! - Bidirectional disconnect handling
-//! - Callback system for cache cleanup on disconnect
 
 mod cache_manager;
+pub(crate) mod connection_registry;
 mod stream_manager;
 mod webhook_receiver;
 
 use crate::config::ApplicationConfig;
 use anyhow;
-use common::structs::packet::QuicNetworkPacket;
+use common::structs::packet::{PacketType, QuicNetworkPacket};
 use common::traits::StreamTrait;
 use common::s2n_quic::Server;
+use connection_registry::ConnectionRegistry;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use stream_manager::{InputStream, OutputStream};
-use tokio::sync::{broadcast, mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot};
 
 /// Helper function to create a short hash representation of client_id
 pub(crate) fn client_id_hash(client_id: &[u8]) -> String {
     let mut hasher = DefaultHasher::new();
     client_id.hash(&mut hasher);
-    format!("{:x}", hasher.finish() & 0xFFFF) // Take only last 4 hex digits for readability
+    format!("{:x}", hasher.finish() & 0xFFFF)
 }
 
 pub use cache_manager::CacheManager;
 pub use webhook_receiver::WebhookReceiver;
 
-// Define packet types similar to client
 #[derive(Debug, Clone)]
 pub struct ServerInputPacket {
     pub data: QuicNetworkPacket,
@@ -49,34 +44,28 @@ pub struct ServerInputPacket {
 
 pub struct QuicServerManager {
     config: ApplicationConfig,
-    // Broadcast channel for distributing packets to all connected clients
-    broadcast_tx: broadcast::Sender<QuicNetworkPacket>,
-    // Channel for receiving packets from HTTP webhooks
+    connection_registry: Arc<ConnectionRegistry>,
     webhook_rx: Option<mpsc::UnboundedReceiver<QuicNetworkPacket>>,
-    // Cache manager for player positions and channels
     cache_manager: CacheManager,
-    // Webhook receiver for HTTP API integration
     webhook_receiver: WebhookReceiver,
-    // Shutdown signal
     shutdown_tx: Option<oneshot::Sender<()>>,
     shutdown_rx: Option<oneshot::Receiver<()>>,
 }
 
 impl QuicServerManager {
-    /// Creates a new QuicServerManager with the given application configuration
     pub fn new(config: ApplicationConfig) -> Self {
-        // Use configured receive capacity as an upper bound for broadcast buffering
-        let (broadcast_tx, _) = broadcast::channel(config.voice.datagram_recv_capacity.max(1024));
+        let connection_registry = Arc::new(ConnectionRegistry::new());
         let (webhook_tx, webhook_rx) = mpsc::unbounded_channel();
         let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
-        let cache_manager = CacheManager::new();
+        let mut cache_manager = CacheManager::new();
+        cache_manager.set_connection_registry(connection_registry.clone());
 
         let webhook_receiver = WebhookReceiver::new(webhook_tx.clone());
 
         Self {
             config: config.clone(),
-            broadcast_tx,
+            connection_registry,
             webhook_rx: Some(webhook_rx),
             cache_manager,
             webhook_receiver,
@@ -85,30 +74,23 @@ impl QuicServerManager {
         }
     }
 
-    /// Main entry point - starts the QUIC server and runs until shutdown
-    /// This should be the only blocking call that manages all connections
     pub async fn start(&mut self) -> Result<(), anyhow::Error> {
         tracing::info!("Starting QUIC server manager");
 
-        // Generate/load certificates
         let (ca_cert, ca_key) = self.get_certificates().await?;
 
-        // Setup TLS provider
         let provider = common::rustls::MtlsProvider::new_from_vec(
             ca_cert.as_bytes().to_vec(),
-            ca_cert.as_bytes().to_vec(), // Using same cert for both CA and server
+            ca_cert.as_bytes().to_vec(),
             ca_key.as_bytes().to_vec(),
         )
         .await?;
 
-        // Create bind address
         let bind_addr = format!(
             "{}:{}",
             self.config.server.listen, self.config.server.quic_port
         );
 
-        // Start QUIC server
-        // Configure DATAGRAM support using the default endpoint/provider with capacities from config
         let dg_endpoint = {
             let send_cap = if self.config.voice.datagram_send_capacity == 0 {
                 1024
@@ -135,30 +117,33 @@ impl QuicServerManager {
             .with_datagram(dg_endpoint)?
             .start()?;
 
-        // Get webhook receiver and set up webhook processing
-        let mut webhook_rx = self.webhook_rx.take().unwrap();
-        let broadcast_tx = self.broadcast_tx.clone();
+        let mut webhook_rx = self.webhook_rx.take()
+            .ok_or_else(|| anyhow::anyhow!("QUIC server already started"))?;
         let cache_manager = self.cache_manager.clone();
-        let mut shutdown_rx = self.shutdown_rx.take().unwrap();
+        let connection_registry = self.connection_registry.clone();
+        let player_cache = cache_manager.get_player_cache();
+        let broadcast_range = self.config.voice.spatial_audio.broadcast_range;
+        let deafen_distance = self.config.voice.spatial_audio.deafen_distance;
+        let mut shutdown_rx = self.shutdown_rx.take()
+            .ok_or_else(|| anyhow::anyhow!("QUIC server already started"))?;
 
         tracing::info!("QUIC server started on {}", bind_addr);
 
-        // Main event loop with proper async/await
         tokio::select! {
-            // Handle webhook packets
             _ = async {
                 while let Some(packet) = webhook_rx.recv().await {
-                    // Process packet with cache manager
                     if let Err(e) = cache_manager.process_packet(packet.clone()).await {
                         tracing::error!("Failed to process packet in cache manager: {}", e);
                     }
 
-                    // Broadcast to all connected clients
-                    if let Err(e) = broadcast_tx.send(packet) {
-                        match e {
-                            broadcast::error::SendError(_) => {
-                                tracing::debug!("No active receivers for broadcast packet (no clients connected)");
-                            }
+                    match packet.packet_type {
+                        PacketType::AudioFrame => {
+                            connection_registry
+                                .route_audio_frame(&packet, &player_cache, broadcast_range, deafen_distance)
+                                .await;
+                        }
+                        _ => {
+                            connection_registry.broadcast_to_all(packet);
                         }
                     }
                 }
@@ -166,12 +151,10 @@ impl QuicServerManager {
                 tracing::info!("Webhook processing completed");
             }
 
-            // Handle QUIC connections
             _ = self.accept_connections(server) => {
                 tracing::info!("QUIC connection handler completed");
             }
 
-            // Wait for shutdown signal
             _ = &mut shutdown_rx => {
                 tracing::info!("Shutdown signal received");
             }
@@ -180,11 +163,9 @@ impl QuicServerManager {
         Ok(())
     }
 
-    /// Stops the QUIC server gracefully
     pub async fn stop(&mut self) -> Result<(), anyhow::Error> {
         tracing::info!("Stopping QUIC server");
 
-        // Signal shutdown by sending to the oneshot channel
         if let Some(shutdown_tx) = self.shutdown_tx.take() {
             let _ = shutdown_tx.send(());
         }
@@ -193,22 +174,18 @@ impl QuicServerManager {
         Ok(())
     }
 
-    /// Gets the cache manager for shared access between components
     pub fn get_cache_manager(&self) -> CacheManager {
         self.cache_manager.clone()
     }
 
-    /// Gets a reference to the webhook receiver for HTTP API integration
     pub fn get_webhook_receiver(&self) -> &WebhookReceiver {
         &self.webhook_receiver
     }
 
-    /// Generates or loads certificates from the configuration
     async fn get_certificates(&self) -> Result<(String, String), anyhow::Error> {
         let cert_path = format!("{}/ca.crt", self.config.server.tls.certs_path);
         let key_path = format!("{}/ca.key", self.config.server.tls.certs_path);
 
-        // Try to read existing certificates
         if let (Ok(cert), Ok(key)) = (
             std::fs::read_to_string(&cert_path),
             std::fs::read_to_string(&key_path),
@@ -216,23 +193,20 @@ impl QuicServerManager {
             return Ok((cert, key));
         }
 
-        // If certificates don't exist, we should generate them
-        // For now, return an error - certificate generation should be handled elsewhere
         Err(anyhow::anyhow!(
             "Certificates not found. Please generate certificates first."
         ))
     }
 
-    /// Main connection acceptance loop
-    /// Creates new InputStream/OutputStream pairs for each connection
     async fn accept_connections(&self, mut server: Server) -> Result<(), anyhow::Error> {
         while let Some(mut connection) = server.accept().await {
             let connection_id = format!("{:?}", connection.id());
             tracing::info!("New QUIC connection accepted: {}", connection_id);
 
-            let broadcast_tx = self.broadcast_tx.clone();
+            let connection_registry = self.connection_registry.clone();
             let cache_manager = self.cache_manager.clone();
-            let broadcast_range = self.config.voice.broadcast_range;
+            let broadcast_range = self.config.voice.spatial_audio.broadcast_range;
+            let deafen_distance = self.config.voice.spatial_audio.deafen_distance;
             let webhook_receiver = self.webhook_receiver.clone();
 
             tokio::spawn(async move {
@@ -241,35 +215,40 @@ impl QuicServerManager {
                 }
                 let conn_arc = Arc::new(connection);
 
-                // Construct streams
+                // Create per-connection mpsc channel for routed packets
+                let (packet_tx, packet_rx) =
+                    mpsc::channel::<connection_registry::RoutedPacket>(500);
+
                 let mut input_stream = InputStream::new(Some(conn_arc.clone()), None);
                 let mut output_stream = OutputStream::new(Some(conn_arc.clone()));
+                output_stream.set_packet_receiver(packet_rx);
 
-                output_stream.set_caches(
-                    cache_manager.get_channel_cache(),
-                    cache_manager.get_player_cache(),
-                    broadcast_range,
-                );
-
+                // Identity callback: set output stream identity + register in connection registry
                 let output_stream_identity_setter = {
-                    let player_id_mutex = output_stream.player_id.clone();
-                    let client_id_mutex = output_stream.client_id.clone();
+                    let player_id_lock = output_stream.player_id.clone();
+                    let client_id_lock = output_stream.client_id.clone();
+                    let registry = connection_registry.clone();
+                    let tx = packet_tx.clone();
                     move |player_id: String, client_id: Vec<u8>| {
-                        if let Ok(mut guard) = player_id_mutex.lock() {
-                            *guard = Some(player_id.clone());
+                        if player_id_lock.set(player_id.clone()).is_err() {
+                            tracing::warn!("Player ID already set for connection");
                         }
-                        if let Ok(mut guard) = client_id_mutex.lock() {
-                            *guard = Some(client_id.clone());
+                        if client_id_lock.set(client_id.clone()).is_err() {
+                            tracing::warn!("Client ID already set for connection");
                         }
+                        registry.register(client_id, player_id, tx.clone());
                     }
                 };
 
+                // Disconnect callback: unregister from registry + cache cleanup
                 let cache_manager_for_callback = cache_manager.clone();
                 let webhook_receiver_for_callback = webhook_receiver.clone();
+                let registry_for_callback = connection_registry.clone();
                 input_stream.set_disconnect_callback(Box::new(
                     move |player_id: String, client_id: Vec<u8>| {
                         let cache_manager = cache_manager_for_callback.clone();
                         let webhook_receiver = webhook_receiver_for_callback.clone();
+                        let registry = registry_for_callback.clone();
                         tokio::spawn(async move {
                             let client_hash = client_id_hash(&client_id);
                             tracing::info!(
@@ -278,10 +257,10 @@ impl QuicServerManager {
                                 client_hash
                             );
 
-                            // Remove player from caches and get the channels they were in
+                            registry.unregister(&client_id);
+
                             match cache_manager.remove_player(&player_id).await {
                                 Ok(removed_channels) => {
-                                    // Broadcast channel leave events for each channel the player was in
                                     for channel_id in removed_channels {
                                         let leave_packet = common::structs::packet::QuicNetworkPacket {
                                             owner: Some(common::structs::packet::PacketOwner {
@@ -323,18 +302,19 @@ impl QuicServerManager {
                 ));
 
                 input_stream.set_webhook_receiver(webhook_receiver.clone());
-                output_stream.set_broadcast_receiver(broadcast_tx.subscribe());
 
                 let (input_shutdown_tx, input_shutdown_rx) = oneshot::channel();
                 let (output_shutdown_tx, output_shutdown_rx) = oneshot::channel();
 
-                let input_broadcast_tx = broadcast_tx.clone();
+                let input_registry = connection_registry.clone();
                 let input_cache_manager = cache_manager.clone();
                 let input_task = tokio::spawn(async move {
                     if let Err(e) = Self::run_input_stream_with_player_callback(
                         input_stream,
-                        input_broadcast_tx,
+                        input_registry,
                         input_cache_manager,
+                        broadcast_range,
+                        deafen_distance,
                         input_shutdown_rx,
                         Box::new(output_stream_identity_setter),
                     )
@@ -362,30 +342,28 @@ impl QuicServerManager {
         Ok(())
     }
 
-    /// Run an input stream with player identity callback - handles incoming packets from a single connection
     async fn run_input_stream_with_player_callback(
         mut input_stream: InputStream,
-        broadcast_tx: broadcast::Sender<QuicNetworkPacket>,
+        connection_registry: Arc<ConnectionRegistry>,
         cache_manager: CacheManager,
+        broadcast_range: f32,
+        deafen_distance: f32,
         mut shutdown_rx: oneshot::Receiver<()>,
         player_callback: Box<dyn Fn(String, Vec<u8>) + Send + Sync>,
     ) -> Result<(), anyhow::Error> {
-        // Set up the input stream to broadcast received packets
         let (packet_tx, mut packet_rx) = mpsc::unbounded_channel();
         input_stream.set_producer(packet_tx);
 
-        // Start the input stream
         let stream_task = tokio::spawn(async move { input_stream.start().await });
 
+        let player_cache = cache_manager.get_player_cache();
         let mut has_set_identity = false;
 
-        // Process received packets with shutdown support
         loop {
             tokio::select! {
                 Some(server_packet) = packet_rx.recv() => {
                     let packet = server_packet.data;
 
-                    // Extract player identity from first packet with owner and notify output stream
                     if !has_set_identity && packet.owner.is_some() {
                         let owner = packet.owner.as_ref().unwrap();
                         player_callback(owner.name.clone(), owner.client_id.clone());
@@ -393,13 +371,11 @@ impl QuicServerManager {
                         tracing::info!("Notified output stream of player identity: {}", owner.name);
                     }
 
-                    // Process packet with cache manager
                     if let Err(e) = cache_manager.process_packet(packet.clone()).await {
                         tracing::error!("Failed to process packet in cache manager: {}", e);
                     }
 
-                    // Update coordinates for AudioFrame packets
-                    let updated_packet = if packet.packet_type == common::structs::packet::PacketType::AudioFrame {
+                    let updated_packet = if packet.packet_type == PacketType::AudioFrame {
                         match cache_manager.update_coordinates(packet).await {
                             Ok(updated) => updated,
                             Err(e) => {
@@ -411,10 +387,15 @@ impl QuicServerManager {
                         packet
                     };
 
-                    // Broadcast to all connected clients
-                    if let Err(e) = broadcast_tx.send(updated_packet) {
-                        tracing::error!("Failed to broadcast received packet: {}", e);
-                        break;
+                    match updated_packet.packet_type {
+                        PacketType::AudioFrame => {
+                            connection_registry
+                                .route_audio_frame(&updated_packet, &player_cache, broadcast_range, deafen_distance)
+                                .await;
+                        }
+                        _ => {
+                            connection_registry.broadcast_to_all(updated_packet);
+                        }
                     }
                 }
                 _ = &mut shutdown_rx => {
@@ -424,20 +405,15 @@ impl QuicServerManager {
             }
         }
 
-        // Stop the stream
         let _ = stream_task.await;
 
         Ok(())
     }
 
-    /// Run an output stream - handles outgoing packets to a single connection
     async fn run_output_stream(
         mut output_stream: OutputStream,
         mut shutdown_rx: oneshot::Receiver<()>,
     ) -> Result<(), anyhow::Error> {
-        // Output stream now handles broadcast receiver directly, no more mpsc/mutex
-
-        // Start the output stream with shutdown support
         tokio::select! {
             result = output_stream.start() => {
                 if let Err(e) = result {

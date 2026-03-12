@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
 
@@ -6,19 +6,28 @@ use flume::Receiver;
 use log::{info, warn};
 use moka::sync::Cache;
 use std::num::NonZero;
-use rodio::{mixer::Mixer, Player, SpatialPlayer, Source};
+use rodio::{mixer::Mixer, Player, Source};
 use tauri::Emitter;
 use tokio::task::JoinHandle;
 
 use crate::audio::recording::RecordingProducer;
 use crate::audio::stream::jitter_buffer::{
-    EncodedAudioFramePacket, JitterBuffer, SpatialAudioData,
+    EncodedAudioFramePacket, JitterBuffer, PanState,
 };
 use crate::audio::stream::stream_manager::audio_sink::AudioSink;
+use crate::audio::stream::stream_manager::mono_to_panned::MonoToPanned;
 use crate::audio::stream::ActivityUpdate;
 use common::structs::audio::{PlayerGainSettings, PlayerGainStore};
-use common::{Coordinate, PlayerEnum};
+use common::structs::SpatialAudioConfig;
+use common::PlayerEnum;
 use common::traits::player_data::PlayerData;
+
+// Negate pan on platforms where the audio backend outputs channels
+// in the opposite order to what we expect ([R,L] instead of [L,R]).
+// Test each platform and flip the sign here if panning is inverted.
+fn platform_adjusted_pan(pan: f32) -> f32 {
+    pan
+}
 
 /// Converts a mono Source to stereo by duplicating each sample to both L and R channels
 struct MonoToStereo<S>
@@ -98,12 +107,14 @@ struct PlayerSinks {
     spatial: Option<Arc<AudioSink>>,
     normal_handle: Option<crate::audio::stream::jitter_buffer::JitterBufferHandle>,
     spatial_handle: Option<crate::audio::stream::jitter_buffer::JitterBufferHandle>,
+    spatial_pan_state: Option<Arc<PanState>>,
 }
 
 pub struct SinkManager {
     consumer: Option<Receiver<EncodedAudioFramePacket>>,
     shutdown: Arc<AtomicBool>,
     global_mute: Arc<AtomicBool>,
+    panning_intensity: Arc<AtomicU32>,
     players: Cache<String, PlayerEnum>,
     current_player_name: String,
     player_gain_store: Arc<StdMutex<PlayerGainStore>>,
@@ -112,9 +123,9 @@ pub struct SinkManager {
     activity_tx: Option<flume::Sender<ActivityUpdate>>,
     #[allow(unused)]
     app_handle: tauri::AppHandle,
-    // Recording support - captures audio at playback time for proper timecode alignment
     recording_producer: Option<RecordingProducer>,
     recording_active: Option<Arc<AtomicBool>>,
+    spatial_config: SpatialAudioConfig,
 }
 
 impl SinkManager {
@@ -127,6 +138,8 @@ impl SinkManager {
         app_handle: tauri::AppHandle,
         recording_producer: Option<RecordingProducer>,
         recording_active: Option<Arc<AtomicBool>>,
+        spatial_config: SpatialAudioConfig,
+        panning_intensity: f32,
     ) -> Self {
         // Create activity streaming channel
         let (activity_tx, activity_rx) = flume::unbounded::<ActivityUpdate>();
@@ -161,6 +174,7 @@ impl SinkManager {
             consumer: Some(consumer),
             shutdown: Arc::new(AtomicBool::new(false)),
             global_mute: Arc::new(AtomicBool::new(false)),
+            panning_intensity: Arc::new(AtomicU32::new(panning_intensity.clamp(0.0, 1.0).to_bits())),
             players,
             current_player_name,
             player_gain_store,
@@ -173,6 +187,7 @@ impl SinkManager {
             app_handle,
             recording_producer,
             recording_active,
+            spatial_config,
         }
     }
 
@@ -184,6 +199,11 @@ impl SinkManager {
 
     pub fn update_global_mute(&self, muted: bool) {
         self.global_mute.store(muted, Ordering::Relaxed);
+    }
+
+    pub fn update_panning_intensity(&self, intensity: f32) {
+        self.panning_intensity
+            .store(intensity.clamp(0.0, 1.0).to_bits(), Ordering::Relaxed);
     }
 
     pub async fn listen(&mut self) -> Result<JoinHandle<()>, anyhow::Error> {
@@ -200,9 +220,11 @@ impl SinkManager {
         let sinks = self.sinks.clone();
         let mixer = self.mixer.clone();
         let global_mute = self.global_mute.clone();
+        let panning_intensity = self.panning_intensity.clone();
         let activity_tx = self.activity_tx.clone();
         let recording_producer = self.recording_producer.clone();
         let recording_active = self.recording_active.clone();
+        let spatial_config = self.spatial_config.clone();
 
         // Spawn an async task; use async recv to avoid blocking
         let handle = tokio::spawn(async move {
@@ -220,10 +242,12 @@ impl SinkManager {
                 };
 
                 let emitter_pos = packet.emitter.player_data.as_ref().map(|p| {
-                    use common::traits::player_data::PlayerData;
                     p.get_position().clone()
                 });
-                let emitter_spatial = packet.emitter.spatial.unwrap_or(false);
+                let deafen_emitter = packet.emitter.player_data.as_ref()
+                    .map(|p| p.is_deafened())
+                    .unwrap_or(false);
+                let emitter_spatial = packet.emitter.spatial.unwrap_or(true);
 
                 let listener_info = players
                     .get(&current_player_name)
@@ -269,48 +293,46 @@ impl SinkManager {
 
                 if use_spatial {
                     if bundle.spatial.is_none() {
-                        let rodio_sink = Arc::new(SpatialPlayer::connect_new(
-                            &mixer,
-                            [0.0, 0.0, 0.0],
-                            [0.0, 0.0, 0.0],
-                            [0.0, 0.0, 0.0],
-                        ));
+                        let rodio_sink = Arc::new(Player::connect_new(&mixer));
                         let sink = Arc::new(AudioSink::Spatial(rodio_sink));
                         sink.play();
                         bundle.spatial = Some(sink);
+                        bundle.spatial_pan_state = Some(Arc::new(PanState::new()));
                     }
 
                     let (listener_coordinate, listener_orientation) = listener_info.unwrap();
                     let emitter_coordinate = emitter_pos.unwrap();
 
-                    // Calculate actual distance for logging
-                    let dx = emitter_coordinate.x - listener_coordinate.x;
-                    let dy = emitter_coordinate.y - listener_coordinate.y;
-                    let dz = emitter_coordinate.z - listener_coordinate.z;
-                    #[allow(unused)]
-                    let actual_distance = (dx * dx + dy * dy + dz * dz).sqrt();
+                    let listener_player = players.get(&current_player_name);
+                    let game = listener_player
+                        .as_ref()
+                        .map(|p| p.get_game())
+                        .unwrap_or(common::Game::Minecraft);
 
-                    let spatial_data: SpatialAudioData =
-                        JitterBuffer::calculate_virtual_listener_audio_data(
-                            &emitter_coordinate,
-                            false,
-                            &listener_coordinate,
-                            &listener_orientation,
-                        );
+                    let spatial_data = JitterBuffer::calculate_spatial_audio_data(
+                        &emitter_coordinate,
+                        deafen_emitter,
+                        &listener_coordinate,
+                        &listener_orientation,
+                        game,
+                        &spatial_config,
+                    );
 
-                    if let Some(spatial_sink) = &bundle.spatial {
+                    if let Some(pan_state) = &bundle.spatial_pan_state {
                         let mute_mult = if global_mute.load(Ordering::Relaxed) {
                             0.0
                         } else {
                             1.0
                         };
-                        let volume = spatial_data.gain * perceptual_gain(gain_settings.gain) * mute_mult;
-                        spatial_sink.update_spatial_position(
-                            &emitter_coordinate,
-                            &spatial_data.left_ear,
-                            &spatial_data.right_ear,
-                            volume,
-                        );
+                        let volume = spatial_data.volume
+                            * perceptual_gain(gain_settings.gain)
+                            * mute_mult;
+
+                        let intensity = f32::from_bits(panning_intensity.load(Ordering::Relaxed));
+                        let scaled_pan = platform_adjusted_pan((spatial_data.pan * intensity).clamp(-1.0, 1.0));
+                        let left = ((1.0 + scaled_pan) / 2.0).sqrt();
+                        let right = ((1.0 - scaled_pan) / 2.0).sqrt();
+                        pan_state.update(left, right, volume);
                     }
 
                     if bundle.spatial_handle.is_none() {
@@ -323,10 +345,12 @@ impl SinkManager {
                             recording_active.clone(),
                         ) {
                             Ok((jitter_buffer, handle)) => {
-                                if let Some(spatial_sink) = &bundle.spatial {
-                                    // Convert mono jitter buffer to stereo for proper playback
-                                    let stereo_source = MonoToStereo::new(jitter_buffer);
-                                    spatial_sink.append(stereo_source);
+                                if let (Some(spatial_sink), Some(pan_state)) =
+                                    (&bundle.spatial, &bundle.spatial_pan_state)
+                                {
+                                    let panned_source =
+                                        MonoToPanned::new(jitter_buffer, pan_state.clone());
+                                    spatial_sink.append(panned_source);
                                 }
                                 bundle.spatial_handle = Some(handle.clone());
                             }
@@ -338,10 +362,8 @@ impl SinkManager {
                                 continue;
                             }
                         }
-                    } else {
-                        if let Some(handle) = &bundle.spatial_handle {
-                            let _ = handle.enqueue(packet.clone(), Some(spatial_data));
-                        }
+                    } else if let Some(handle) = &bundle.spatial_handle {
+                        let _ = handle.enqueue(packet.clone());
                     }
                 } else {
                     if bundle.normal.is_none() {
@@ -358,12 +380,7 @@ impl SinkManager {
                             1.0
                         };
                         let volume = 1.3 * perceptual_gain(gain_settings.gain) * mute_mult;
-                        normal_sink.update_spatial_position(
-                            &Coordinate::default(),
-                            &Coordinate::default(),
-                            &Coordinate::default(),
-                            volume,
-                        );
+                        normal_sink.set_volume(volume);
                     }
 
                     if bundle.normal_handle.is_none() {
@@ -377,7 +394,6 @@ impl SinkManager {
                         ) {
                             Ok((jitter_buffer, handle)) => {
                                 if let Some(normal_sink) = &bundle.normal {
-                                    // Convert mono jitter buffer to stereo for proper playback
                                     let stereo_source = MonoToStereo::new(jitter_buffer);
                                     normal_sink.append(stereo_source);
                                 }
@@ -391,10 +407,8 @@ impl SinkManager {
                                 continue;
                             }
                         }
-                    } else {
-                        if let Some(handle) = &bundle.normal_handle {
-                            let _ = handle.enqueue(packet.clone(), None);
-                        }
+                    } else if let Some(handle) = &bundle.normal_handle {
+                        let _ = handle.enqueue(packet.clone());
                     }
                 }
 

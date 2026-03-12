@@ -9,7 +9,7 @@ use anyhow::Error;
 use common::ncryptflib as ncryptf;
 use migration::{Migrator, MigratorTrait};
 use rocket::http::Method;
-use rocket::{self, routes};
+use rocket::{self, catchers, routes};
 use rocket_cors::{AllowedOrigins, CorsOptions};
 use sea_orm_rocket::Database;
 use std::sync::{Arc, Mutex};
@@ -77,6 +77,7 @@ impl RocketManager {
                 let rocket = rocket::custom(figment)
                     .manage(cache_wrapper)
                     .manage(self.config.server.clone())
+                    .manage(self.config.voice.clone())
                     .manage(self.webhook_receiver.clone())
                     .manage(self.cache_manager.clone())
                     .manage(self.player_registrar.clone())
@@ -120,7 +121,8 @@ impl RocketManager {
                         routes![
                             routes::api::get_gamerpic
                         ],
-                    );
+                    )
+                    .register("/", catchers![routes::catchers::default_catcher]);
 
                 match rocket.ignite().await {
                     Ok(ignite) => {

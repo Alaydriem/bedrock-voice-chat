@@ -1,3 +1,4 @@
+use crate::stream::quic::connection_registry::ConnectionRegistry;
 use anyhow::Error;
 use common::structs::channel::{Channel, ChannelEvents};
 use common::structs::channel_player::ChannelPlayer;
@@ -16,6 +17,7 @@ pub struct CacheManager {
     player_cache: Arc<Cache<String, PlayerEnum>>,
     /// Channel cache (channel_id -> Channel)
     channel_cache: Arc<Cache<String, Channel>>,
+    connection_registry: Option<Arc<ConnectionRegistry>>,
 }
 
 impl CacheManager {
@@ -32,15 +34,16 @@ impl CacheManager {
         Self {
             player_cache,
             channel_cache,
+            connection_registry: None,
         }
+    }
+
+    pub fn set_connection_registry(&mut self, registry: Arc<ConnectionRegistry>) {
+        self.connection_registry = Some(registry);
     }
 
     pub fn get_player_cache(&self) -> Arc<Cache<String, PlayerEnum>> {
         self.player_cache.clone()
-    }
-
-    pub fn get_channel_cache(&self) -> Arc<Cache<String, Channel>> {
-        self.channel_cache.clone()
     }
 
     /// Get a specific channel by ID
@@ -90,17 +93,6 @@ impl CacheManager {
             self.channel_cache.insert(channel_id.to_string(), channel).await;
             tracing::debug!("Removed player {} from channel {}", player_name, channel_id);
         }
-    }
-
-    /// Get all channels a player is currently in
-    pub fn get_player_channels(&self, player_name: &str) -> Vec<String> {
-        let mut channels = Vec::new();
-        for (channel_id, channel) in self.channel_cache.iter() {
-            if channel.players.iter().any(|p| p.name == player_name) {
-                channels.push((*channel_id).clone());
-            }
-        }
-        channels
     }
 
     /// Remove a player from all channels (used when player disconnects)
@@ -165,6 +157,13 @@ impl CacheManager {
                                 };
                                 self.add_player_to_channel(player, &channel_data.channel).await;
 
+                                if let Some(registry) = &self.connection_registry {
+                                    registry.update_player_channel(
+                                        channel_data.name.clone(),
+                                        channel_data.channel.clone(),
+                                    );
+                                }
+
                                 tracing::info!(
                                     "Player {} joined channel {}",
                                     channel_data.name,
@@ -174,6 +173,10 @@ impl CacheManager {
                             ChannelEvents::Leave => {
                                 self.remove_player_from_channel(&channel_data.name, &channel_data.channel).await;
 
+                                if let Some(registry) = &self.connection_registry {
+                                    registry.remove_player_channel(&channel_data.name);
+                                }
+
                                 tracing::info!("Player {} left channel {}", channel_data.name, channel_data.channel);
                             }
                             ChannelEvents::Create => {
@@ -181,6 +184,10 @@ impl CacheManager {
                             },
                             ChannelEvents::Delete => {
                                 self.channel_cache.remove(&channel_data.channel).await;
+
+                                if let Some(registry) = &self.connection_registry {
+                                    registry.remove_channel(&channel_data.channel);
+                                }
 
                                 tracing::info!("Channel {} deleted", channel_data.channel);
                             }
@@ -215,6 +222,10 @@ impl CacheManager {
     /// Returns the list of channel IDs the player was removed from
     pub async fn remove_player(&self, player_name: &str) -> Result<Vec<String>, Error> {
         self.player_cache.remove(player_name).await;
+
+        if let Some(registry) = &self.connection_registry {
+            registry.remove_player_channel(player_name);
+        }
 
         let removed_channels = self.remove_player_from_all_channels(player_name).await;
 
