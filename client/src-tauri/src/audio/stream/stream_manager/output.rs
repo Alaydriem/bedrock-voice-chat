@@ -140,6 +140,7 @@ impl common::traits::StreamTrait for OutputStream {
         self.jobs.is_empty()
     }
 
+    #[tracing::instrument(skip(self))]
     async fn start(&mut self) -> Result<(), anyhow::Error> {
         _ = self.shutdown.store(false, Ordering::Relaxed);
 

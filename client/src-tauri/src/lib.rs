@@ -40,6 +40,7 @@ pub fn run() {
         sentry::ClientOptions {
             release: Some(env!("SENTRY_RELEASE").into()),
             enable_logs: true,
+            traces_sample_rate: 0.1,
             environment: Some(
                 match get_variant() {
                     Variant::Dev => "development",
@@ -54,6 +55,11 @@ pub fn run() {
     let _minidump = sentry_rust_minidump::init(&sentry_guard)
         .map_err(|e| warn!("Minidump crash reporter failed to initialize: {e}"))
         .ok();
+
+    use tracing_subscriber::prelude::*;
+    tracing_subscriber::registry()
+        .with(sentry::integrations::tracing::layer())
+        .init();
 
     let mut builder = tauri::Builder::default();
 
@@ -206,6 +212,7 @@ pub fn run() {
                         id
                     }
                 };
+                log::info!("Platform ID: {}", install_id);
                 sentry::configure_scope(|scope| {
                     scope.set_user(Some(sentry::User {
                         id: Some(install_id),

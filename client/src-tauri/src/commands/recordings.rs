@@ -110,6 +110,7 @@ pub async fn delete_recording_session(app_handle: tauri::AppHandle, session_id: 
 }
 
 #[tauri::command]
+#[tracing::instrument(skip(app_handle), fields(session_id = %session_id, format = ?format, players = selected_players.len()))]
 pub async fn export_recording(
     session_id: String,
     selected_players: Vec<String>,
@@ -137,18 +138,21 @@ pub async fn export_recording(
     let _ = fs::create_dir_all(render_path.clone().to_path_buf());
     let render_path_for_open = render_path.clone();
 
-    let task = tokio::spawn(async move {
-        for player in selected_players {
-            let output_path = render_path.join(format!("{}.{}", &player, format.extension()));
-            match format.render(&session_path, &player, &output_path).await {
-                Ok(()) => {
-                    info!("Rendered {}", &player);
-                },
-                Err(e) => {
-                    error!("Error rendering audio for {}: {}", &player, e);
+    let task = tokio::spawn({
+        use tracing::Instrument;
+        async move {
+            for player in selected_players {
+                let output_path = render_path.join(format!("{}.{}", &player, format.extension()));
+                match format.render(&session_path, &player, &output_path).await {
+                    Ok(()) => {
+                        info!("Rendered {}", &player);
+                    },
+                    Err(e) => {
+                        error!("Error rendering audio for {}: {}", &player, e);
+                    }
                 }
             }
-        }
+        }.instrument(tracing::Span::current())
     });
 
     match task.await {

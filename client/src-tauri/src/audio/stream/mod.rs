@@ -159,6 +159,7 @@ impl AudioStreamManager {
     /// This will stop the stream, create a new StreamManager with the same underlying device
     /// Then start a new stream in its place
     #[allow(unused)]
+    #[tracing::instrument(skip(self), fields(device = ?device))]
     pub async fn restart(&mut self, device: AudioDeviceType) -> Result<(), Error> {
         // Stop the audio strema
         _ = self.stop(device.clone());

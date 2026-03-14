@@ -75,8 +75,10 @@ url = { version = "2" }
 tar = { version = "^0.4" }
 zstd = { version = "^0.13" }
 sentry = { version = "^0.46", default-features = false, features = [
-  "panic", "backtrace", "contexts", "debug-images", "anyhow", "log", "logs", "reqwest", "rustls"
+  "panic", "backtrace", "contexts", "debug-images", "anyhow", "log", "logs", "reqwest", "rustls", "tracing"
 ] }
+tracing = { version = "^0.1" }
+tracing-subscriber = { version = "^0.3", default-features = false, features = ["registry"] }
 parking_lot = { version = "^0.12" }
 shiguredo_mp4 = { version = "2026.1.0" }
 

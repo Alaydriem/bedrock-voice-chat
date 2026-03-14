@@ -904,6 +904,8 @@ dependencies = [
  "tauri-plugin-updater",
  "tokio",
  "tokio-tungstenite",
+ "tracing",
+ "tracing-subscriber",
  "trust-dns-resolver",
  "ts-rs",
  "url",
