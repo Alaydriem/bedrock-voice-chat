@@ -1,7 +1,8 @@
 <script lang="ts">
-    import { onMount } from "svelte";
+    import { onMount, onDestroy } from "svelte";
     import { invoke } from "@tauri-apps/api/core";
     import { openUrl } from "@tauri-apps/plugin-opener";
+    import { error, info, warn } from "@tauri-apps/plugin-log";
 
     interface AppInfo {
         app_version: string;
@@ -42,6 +43,30 @@
     let isReady = $state(false);
     let isExporting = $state(false);
     let exportError = $state("");
+
+    let variantClickCount = $state(0);
+    let variantClickTimer: ReturnType<typeof setTimeout> | null = null;
+
+    function handleVariantClick() {
+        variantClickCount++;
+
+        if (variantClickTimer) clearTimeout(variantClickTimer);
+        variantClickTimer = setTimeout(() => { variantClickCount = 0; }, 2000);
+
+        switch (variantClickCount) {
+            case 3: error("debug trigger: error (click 3)"); break;
+            case 4: info("debug trigger: info (click 4)"); break;
+            case 5: warn("debug trigger: warn (click 5)"); break;
+            case 6:
+                error("debug trigger: error (click 6)");
+                variantClickCount = 0;
+                break;
+        }
+    }
+
+    onDestroy(() => {
+        if (variantClickTimer) clearTimeout(variantClickTimer);
+    });
 
     async function handleExportLogs() {
         isExporting = true;
@@ -94,7 +119,12 @@
             </div>
             <div class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-slate-50 dark:hover:bg-navy-600">
                 <span class="text-sm font-medium text-slate-700 dark:text-navy-100">Build Variant</span>
-                <span class="badge {appInfo.build_variant === 'dev' ? 'bg-warning text-white' : 'bg-success text-white'}">
+                <span
+                    class="badge {appInfo.build_variant === 'dev' ? 'bg-warning text-white' : 'bg-success text-white'} cursor-pointer select-none"
+                    onclick={handleVariantClick}
+                    role="button"
+                    tabindex="0"
+                >
                     {appInfo.build_variant}
                 </span>
             </div>

@@ -1,7 +1,7 @@
 
 import { mkdir, writeFile, exists, readFile, stat } from '@tauri-apps/plugin-fs';
 import { appCacheDir } from '@tauri-apps/api/path';
-import { error, debug } from '@tauri-apps/plugin-log';
+import { info, error, warn } from '@tauri-apps/plugin-log';
 import axios from "axios";
 
 // @ts-ignore
@@ -15,6 +15,8 @@ export default class ImageCache {
      * @returns
      */
     async getImage(options: ImageCacheOptions): Promise<string> {
+        if (!options.url || !options.url.startsWith("http")) return "";
+
         const cacheDir = await appCacheDir() + "/images";
         const hash = this.hashImageUrl(options.url);
         const cachedImagePath = `${cacheDir}/${hash}`;
@@ -37,9 +39,11 @@ export default class ImageCache {
 
         // If the file doesn't exist or is expired, fetch it from the remote destination
         return await axios.get(options.url, { responseType: "arraybuffer" }).then(async (response) => {
-            if (response.status !== 200) {
-                error(`Error fetching image: ${response.statusText}`);
-                throw new Error(`Error fetching image: ${response.statusText}`);
+            if (response.status != 200) {
+                warn(`Error fetching image: ${response.statusText}`);
+                if (response.status != 404) {
+                    throw new Error(`Error fetching image: ${response.statusText}`);
+                }
             }
             return new Uint8Array(response.data);
         }).then(async (imageData) => {
@@ -53,7 +57,8 @@ export default class ImageCache {
             const base64Data = this.arrayBufferToBase64(imageData);
             return `data:${mimeType};base64,${base64Data}`;
         }).catch((err) => {
-            error(`Error fetching or caching image: ${err}`);
+            if (axios.isAxiosError(err) && err.response?.status === 404) return "";
+            warn(`Could not fetch or cache image: ${err}`);
             throw err;
         });
     }

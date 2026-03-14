@@ -1,8 +1,10 @@
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
 use tauri_plugin_opener::OpenerExt;
-use tauri_plugin_log::log::info;
+use log::info;
 use std::fs;
+
+use crate::commands::env::get_variant;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AppInfo {
@@ -18,11 +20,7 @@ pub(crate) fn get_app_info() -> AppInfo {
         app_version: env!("CARGO_PKG_VERSION").to_string(),
         protocol_version: common::consts::version::PROTOCOL_VERSION.to_string(),
         build_commit: env!("BUILD_COMMIT").to_string(),
-        build_variant: if cfg!(dev) {
-            "dev".to_string()
-        } else {
-            "release".to_string()
-        },
+        build_variant: get_variant(),
     }
 }
 

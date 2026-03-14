@@ -1,7 +1,7 @@
 use common::structs::DeepLink;
 use tauri::{AppHandle, Emitter};
 use tauri_plugin_store::StoreExt;
-use tauri_plugin_log::log::{info, error};
+use log::{info, error};
 
 /// Trait for handling deep link events
 pub trait DeepLinkHandler {

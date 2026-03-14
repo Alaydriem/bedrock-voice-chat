@@ -87,6 +87,10 @@ impl RocketManager {
                     .attach(cors.to_cors().unwrap())
                     .attach(rocket::fairing::AdHoc::try_on_ignite("Migrations", migrate))
                     .mount("/assets", rocket::fs::FileServer::from(&self.config.server.assets_path))
+                    .mount("/assets", routes![
+                        routes::assets::get_avatar,
+                        routes::assets::get_canvas,
+                    ])
                     .mount(
                         "/api",
                         routes![

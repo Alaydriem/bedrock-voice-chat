@@ -5,9 +5,9 @@ pub(crate) fn get_env(name: &str) -> String {
 
 #[tauri::command]
 pub(crate) fn get_variant() -> String {
-    if cfg!(dev) {
-        return String::from("dev");
-    } else {
-        return String::from("release");
+    use common::consts::variant::Variant;
+    match common::consts::variant::get_variant() {
+        Variant::Dev => "dev".to_string(),
+        Variant::Release => "release".to_string(),
     }
 }
