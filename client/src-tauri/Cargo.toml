@@ -73,10 +73,13 @@ async-trait = "^0.1"
 url = "2"
 tar = "^0.4"
 zstd = "^0.13"
-
+sentry = { version = "^0.47", default-features =  false, features = [
+  "panic", "backtrace", "contexts", "transport", "debug-images", "reqwest", "rustls", "anyhow"
+] }
 
 # MP4 muxing with Opus support
 shiguredo_mp4 = "2026.1.0"
+
 
 # Desktop Targets
 [target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]
