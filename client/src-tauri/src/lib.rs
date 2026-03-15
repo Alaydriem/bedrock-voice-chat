@@ -56,11 +56,6 @@ pub fn run() {
         .map_err(|e| warn!("Minidump crash reporter failed to initialize: {e}"))
         .ok();
 
-    use tracing_subscriber::prelude::*;
-    tracing_subscriber::registry()
-        .with(sentry::integrations::tracing::layer())
-        .init();
-
     let mut builder = tauri::Builder::default();
 
     // For desktop applications, enforce only a single running instance at a time
@@ -73,6 +68,8 @@ pub fn run() {
                 .set_focus();
         }));
     }
+
+    let sentry_logger = Arc::new(logging::SentryLogger::new(true));
 
     builder
         .plugin(
@@ -89,7 +86,7 @@ pub fn run() {
                     tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir { file_name: None }),
                     tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Dispatch(
                         fern::Dispatch::new()
-                            .chain(Box::new(logging::SentryLogger::new()) as Box<dyn log::Log>),
+                            .chain(Box::new(sentry_logger.clone()) as Box<dyn log::Log>),
                     )),
                 ])
                 .build()
@@ -102,11 +99,18 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_deep_link::init())
-        .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_store::Builder::default()
+            .default_serialize_fn(|cache| {
+                let sorted: std::collections::BTreeMap<_, _> = cache.iter().collect();
+                serde_json::to_vec_pretty(&sorted).map_err(Into::into)
+            })
+            .build())
         .invoke_handler(tauri::generate_handler![
             // About
             crate::commands::about::get_app_info,
             crate::commands::about::export_logs,
+            crate::commands::about::get_telemetry,
+            crate::commands::about::set_telemetry,
             // Authentication
             crate::auth::commands::server_login,
             crate::auth::commands::logout,
@@ -164,7 +168,8 @@ pub fn run() {
             #[cfg(desktop)]
             crate::commands::updater::check_for_updates
         ])
-        .setup(|app| {
+        .setup(move |app| {
+            let sentry_logger = sentry_logger.clone();
             // Set Windows timer resolution for high-precision audio timing
             #[cfg(target_os = "windows")]
             {
@@ -201,6 +206,21 @@ pub fn run() {
             let sentry_enabled = sentry::Hub::current().client().map(|c| c.is_enabled()).unwrap_or(false);
             info!("Sentry: {}", if sentry_enabled { "initialized" } else { "not configured (DSN missing or invalid)" });
             let store = app.store("store.json")?;
+
+            let telemetry = Arc::new(crate::logging::Telemetry::new(store.get("telemetry").and_then(|v| v.as_bool()).unwrap_or(true)));
+
+            sentry_logger.set(telemetry.is_enabled());
+
+            let telemetry_filter = telemetry.clone();
+            use tracing_subscriber::prelude::*;
+            tracing_subscriber::registry()
+                .with(
+                    sentry::integrations::tracing::layer()
+                        .with_filter(tracing_subscriber::filter::dynamic_filter_fn(move |_, _| {
+                            telemetry_filter.is_enabled()
+                        }))
+                )
+                .init();
 
             if sentry_enabled {
                 let install_id = match store.get("install_id").and_then(|v| v.as_str().map(String::from)) {
@@ -275,6 +295,8 @@ pub fn run() {
             }
 
             let app_state = AppState::new(store.clone(), handle.clone());
+            app.manage(telemetry);
+            app.manage(sentry_logger);
             app.manage(Mutex::new(app_state));
 
             // This is our audio producer and consumer

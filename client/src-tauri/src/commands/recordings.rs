@@ -110,7 +110,7 @@ pub async fn delete_recording_session(app_handle: tauri::AppHandle, session_id: 
 }
 
 #[tauri::command]
-#[tracing::instrument(skip(app_handle), fields(session_id = %session_id, format = ?format, players = selected_players.len()))]
+#[tracing::instrument(skip(app_handle, selected_players), fields(session_id = %session_id, format = ?format, player_count = selected_players.len()))]
 pub async fn export_recording(
     session_id: String,
     selected_players: Vec<String>,
@@ -119,9 +119,9 @@ pub async fn export_recording(
     app_handle: tauri::AppHandle
 ) -> Result<bool, String> {
     log::info!(
-        "Export recording called - Session ID: {}, Selected Players: {:?}, Spatial: {}, Format: {:?}",
+        "Export recording called - Session ID: {}, Players: {}, Spatial: {}, Format: {:?}",
         session_id,
-        selected_players,
+        selected_players.len(),
         spatial,
         format
     );
@@ -141,16 +141,19 @@ pub async fn export_recording(
     let task = tokio::spawn({
         use tracing::Instrument;
         async move {
-            for player in selected_players {
-                let output_path = render_path.join(format!("{}.{}", &player, format.extension()));
-                match format.render(&session_path, &player, &output_path).await {
-                    Ok(()) => {
-                        info!("Rendered {}", &player);
-                    },
-                    Err(e) => {
-                        error!("Error rendering audio for {}: {}", &player, e);
+            for (index, player) in selected_players.iter().enumerate() {
+                let span = tracing::info_span!("render_player", index = index);
+                let output_path = render_path.join(format!("{}.{}", player, format.extension()));
+                async {
+                    match format.render(&session_path, player, &output_path).await {
+                        Ok(()) => {
+                            info!("Rendered player {}", index);
+                        },
+                        Err(e) => {
+                            error!("Error rendering player {}: {}", index, e);
+                        }
                     }
-                }
+                }.instrument(span).await;
             }
         }.instrument(tracing::Span::current())
     });

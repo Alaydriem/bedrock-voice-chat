@@ -43,6 +43,7 @@
     let isReady = $state(false);
     let isExporting = $state(false);
     let exportError = $state("");
+    let telemetry = $state(true);
 
     let variantClickCount = $state(0);
     let variantClickTimer: ReturnType<typeof setTimeout> | null = null;
@@ -81,9 +82,15 @@
         }
     }
 
+    async function handleTelemetryToggle() {
+        telemetry = !telemetry;
+        await invoke("set_telemetry", { value: telemetry });
+    }
+
     onMount(async () => {
         try {
             appInfo = await invoke<AppInfo>("get_app_info");
+            telemetry = await invoke<boolean>("get_telemetry");
         } catch (e) {
             console.error("Failed to get app info:", e);
         }
@@ -160,6 +167,38 @@
                 </svg>
             </button>
             {/each}
+        </div>
+    </div>
+
+    <!-- Privacy & Telemetry -->
+    <div class="card px-5 pb-4 sm:px-5">
+        <div class="my-3 flex flex-col">
+            <h2 class="font-medium tracking-wide text-slate-700 dark:text-navy-100 lg:text-base pb-2">
+                Privacy & Telemetry
+            </h2>
+            <p class="text-sm leading-6 hidden md:block">
+                Control whether BVC sends crash reports and usage data.
+            </p>
+        </div>
+
+        <div class="space-y-1 mt-2">
+            <div class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-slate-50 dark:hover:bg-navy-600">
+                <div>
+                    <span class="text-sm font-medium text-slate-700 dark:text-navy-100">Error Reporting & Analytics</span>
+                    <p class="text-xs text-slate-500 dark:text-navy-300 mt-0.5">
+                        Send crash reports and usage data to help improve BVC.
+                        {#if !telemetry}
+                            <span class="text-warning font-medium">Telemetry is currently disabled.</span>
+                        {/if}
+                    </p>
+                </div>
+                <input
+                    type="checkbox"
+                    checked={telemetry}
+                    onchange={handleTelemetryToggle}
+                    class="form-switch h-5 w-10 rounded-full bg-slate-300 before:rounded-full before:bg-slate-50 checked:bg-primary checked:before:bg-white dark:bg-navy-900 dark:before:bg-navy-300 dark:checked:bg-accent dark:checked:before:bg-white"
+                />
+            </div>
         </div>
     </div>
 

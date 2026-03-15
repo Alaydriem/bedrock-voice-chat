@@ -32,6 +32,7 @@ pub trait AudioFormatRenderer {
 
 #[async_trait]
 impl AudioFormatRenderer for AudioFormat {
+    #[tracing::instrument(skip(session_path, player_name, output_path), fields(format = ?self))]
     async fn render(
         &self,
         session_path: &Path,

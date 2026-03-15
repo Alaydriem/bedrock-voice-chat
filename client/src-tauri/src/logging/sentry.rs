@@ -1,3 +1,5 @@
+use std::sync::atomic::AtomicBool;
+
 use log::{Log, Metadata, Record};
 use once_cell::sync::Lazy;
 
@@ -6,20 +8,32 @@ const BREADCRUMB_BUFFER_SIZE: usize = 100;
 static BREADCRUMB_BUFFER: Lazy<(flume::Sender<sentry::Breadcrumb>, flume::Receiver<sentry::Breadcrumb>)> =
     Lazy::new(|| flume::bounded(BREADCRUMB_BUFFER_SIZE));
 
-pub struct SentryLogger;
+pub struct SentryLogger {
+    enabled: AtomicBool
+}
 
 impl SentryLogger {
-    pub fn new() -> Self {
-        Self
+    pub fn new(enabled: bool) -> Self {
+        Self {
+            enabled: AtomicBool::new(enabled)
+        }
+    }
+
+    pub fn set(&self, enabled: bool) {
+        self.enabled.store(enabled, std::sync::atomic::Ordering::Relaxed);
     }
 }
 
 impl Log for SentryLogger {
     fn enabled(&self, _metadata: &Metadata) -> bool {
-        true
+        self.enabled.load(std::sync::atomic::Ordering::Relaxed)
     }
 
     fn log(&self, record: &Record) {
+        if !self.enabled.load(std::sync::atomic::Ordering::Relaxed) {
+            return;
+        }
+
         if !sentry::Hub::current().client().map(|c| c.is_enabled()).unwrap_or(false) {
             return;
         }
