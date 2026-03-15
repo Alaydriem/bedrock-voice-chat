@@ -10,7 +10,7 @@ fn default_db_database() -> String {
 
 /// Database configuration for MySQL/MariaDB/SQLite
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ApplicationConfigDatabase {
+pub struct Database {
     #[serde(default = "default_db_scheme")]
     pub scheme: String,
     #[serde(default = "default_db_database")]
@@ -22,7 +22,7 @@ pub struct ApplicationConfigDatabase {
     pub port: Option<u32>,
 }
 
-impl Default for ApplicationConfigDatabase {
+impl Default for Database {
     fn default() -> Self {
         Self {
             scheme: default_db_scheme(),

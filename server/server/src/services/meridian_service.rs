@@ -1,7 +1,7 @@
-use crate::config::ApplicationConfigMeridian;
+use crate::config::Meridian;
 
 pub struct MeridianService {
-    config: ApplicationConfigMeridian,
+    config: Meridian,
     public_addr: String,
     tls_port: u32,
     quic_port: u32,
@@ -10,7 +10,7 @@ pub struct MeridianService {
 
 impl MeridianService {
     pub fn new(
-        config: ApplicationConfigMeridian,
+        config: Meridian,
         public_addr: String,
         tls_port: u32,
         quic_port: u32,

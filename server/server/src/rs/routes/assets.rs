@@ -1,4 +1,4 @@
-use crate::config::ApplicationConfigServer;
+use crate::config::Server;
 use rocket::{http::ContentType, State};
 
 static DEFAULT_AVATAR: &[u8] = include_bytes!("../../../assets/avatar.png");
@@ -19,11 +19,11 @@ impl AssetsHandler {
 }
 
 #[get("/avatar.png")]
-pub async fn get_avatar(config: &State<ApplicationConfigServer>) -> (ContentType, Vec<u8>) {
+pub async fn get_avatar(config: &State<Server>) -> (ContentType, Vec<u8>) {
     AssetsHandler::serve(&config.assets_path, "avatar.png", DEFAULT_AVATAR)
 }
 
 #[get("/canvas.png")]
-pub async fn get_canvas(config: &State<ApplicationConfigServer>) -> (ContentType, Vec<u8>) {
+pub async fn get_canvas(config: &State<Server>) -> (ContentType, Vec<u8>) {
     AssetsHandler::serve(&config.assets_path, "canvas.png", DEFAULT_CANVAS)
 }

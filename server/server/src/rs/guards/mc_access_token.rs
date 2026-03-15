@@ -5,7 +5,7 @@ use rocket::{
     State,
 };
 
-use crate::config::ApplicationConfigServer;
+use crate::config::Server;
 
 /// Extracts the Access Token from the ncryptf request
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -24,7 +24,7 @@ impl<'r> FromRequest<'r> for MCAccessToken {
         return match req.headers().get_one("X-MC-Access-Token") {
             Some(key) => {
                 let at = req
-                    .guard::<&State<ApplicationConfigServer>>()
+                    .guard::<&State<Server>>()
                     .await
                     .map(|config| MCAccessToken(config.minecraft.access_token.clone()));
                 let current = Outcome::Success(MCAccessToken(key.to_string()));

@@ -12,7 +12,7 @@ use rocket::{http::Status, State};
 
 use sea_orm_rocket::Connection as SeaOrmConnection;
 
-use crate::config::ApplicationConfigServer;
+use crate::config::Server;
 use crate::rs::pool::AppDb;
 use crate::rs::dtos::ncryptf::JsonMessage;
 use crate::rs::dtos::{HytaleSession, HytaleSessionCache};
@@ -65,7 +65,7 @@ pub async fn start_device_flow(
 #[get("/auth/hytale/status")]
 pub async fn poll_status(
     db: SeaOrmConnection<'_, AppDb>,
-    config: &State<ApplicationConfigServer>,
+    config: &State<Server>,
     session_cache: &State<HytaleSessionCache>,
     session_id: HytaleSessionId,
 ) -> ncryptf::rocket::JsonResponse<JsonMessage<HytaleDeviceFlowStatusResponse>> {

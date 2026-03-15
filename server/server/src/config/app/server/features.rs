@@ -5,14 +5,14 @@ fn default_code_login() -> bool {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ApplicationConfigFeatures {
+pub struct Features {
     #[serde(default = "default_code_login")]
     pub code_login: bool,
 }
 
-impl Default for ApplicationConfigFeatures {
+impl Default for Features {
     fn default() -> Self {
-        ApplicationConfigFeatures {
+        Features {
             code_login: default_code_login(),
         }
     }

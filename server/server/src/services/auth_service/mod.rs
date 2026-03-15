@@ -9,7 +9,7 @@ use common::{
 use entity::player;
 use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
 
-use crate::config::ApplicationConfigServer;
+use crate::config::Server;
 
 /// Errors that can occur during authentication
 #[derive(Debug)]
@@ -51,7 +51,7 @@ impl AuthService {
     /// * `game` - Game type (Minecraft, Hytale)
     pub async fn build_login_response<C: ConnectionTrait>(
         conn: &C,
-        config: &ApplicationConfigServer,
+        config: &Server,
         gamertag: String,
         gamerpic: String,
         game: Game,
