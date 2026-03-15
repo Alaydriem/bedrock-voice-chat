@@ -108,7 +108,7 @@ impl QuicServerManager {
             .with_io(bind_addr.as_str())?
             .with_datagram(dg_endpoint)?;
 
-        let server = if let Some(instance_id) = self.config.server.instance_id {
+        let server = if let Some(instance_id) = self.config.server.meridian.as_ref().map(|m| m.instance_id) {
             tracing::info!(instance_id, "Using prefixed connection ID format");
             builder
                 .with_connection_id(PrefixedConnectionIdFormat::new(instance_id))?

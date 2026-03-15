@@ -2,7 +2,7 @@ pub mod position_updater;
 
 use crate::config::ApplicationConfig;
 use crate::rs::manager::RocketManager;
-use crate::services::{CertificateService, PlayerRegistrarService};
+use crate::services::{CertificateService, MeridianService, PlayerRegistrarService};
 use crate::stream::quic::{QuicServerManager, WebhookReceiver};
 
 use anyhow::anyhow;
@@ -141,6 +141,25 @@ impl ServerRuntime {
         );
 
         self.state = RuntimeState::Running;
+
+        // Register with Meridian if configured
+        if let Some(meridian_config) = &self.config.server.meridian {
+            let hostname = self.config.server.tls.names.first()
+                .cloned()
+                .unwrap_or_else(|| self.config.server.public_addr.clone());
+
+            let service = MeridianService::new(
+                meridian_config.clone(),
+                self.config.server.public_addr.clone(),
+                self.config.server.port,
+                self.config.server.quic_port,
+                hostname,
+            );
+
+            if let Err(e) = service.register().await {
+                tracing::error!(error = %e, "Failed to register with Meridian");
+            }
+        }
 
         let shutdown_flag = self.shutdown_flag.clone();
 

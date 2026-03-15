@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::features::ApplicationConfigFeatures;
+use super::meridian::ApplicationConfigMeridian;
 use super::minecraft::ApplicationConfigMinecraft;
 use super::tls::ApplicationConfigServerTLS;
 
@@ -43,7 +44,7 @@ pub struct ApplicationConfigServer {
     #[serde(default)]
     pub features: ApplicationConfigFeatures,
     #[serde(default)]
-    pub instance_id: Option<u16>,
+    pub meridian: Option<ApplicationConfigMeridian>,
 }
 
 impl Default for ApplicationConfigServer {
@@ -57,7 +58,7 @@ impl Default for ApplicationConfigServer {
             tls: ApplicationConfigServerTLS::default(),
             minecraft: ApplicationConfigMinecraft::default(),
             features: ApplicationConfigFeatures::default(),
-            instance_id: None,
+            meridian: None,
         }
     }
 }

@@ -1,6 +1,7 @@
 mod database;
 mod features;
 mod logger;
+mod meridian;
 mod minecraft;
 mod server;
 mod tls;
@@ -9,6 +10,7 @@ mod voice;
 pub use database::ApplicationConfigDatabase;
 pub use features::ApplicationConfigFeatures;
 pub use logger::ApplicationConfigLogger;
+pub use meridian::ApplicationConfigMeridian;
 pub use minecraft::ApplicationConfigMinecraft;
 pub use server::ApplicationConfigServer;
 pub use tls::ApplicationConfigServerTLS;
