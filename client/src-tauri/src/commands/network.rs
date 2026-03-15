@@ -20,6 +20,7 @@ pub(crate) async fn stop_network_stream(
 }
 
 #[tauri::command]
+#[tracing::instrument(skip(state, network_stream, data), fields(server = %server))]
 pub(crate) async fn change_network_stream(
     server: String,
     data: LoginResponse,

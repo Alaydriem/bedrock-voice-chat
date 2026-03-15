@@ -91,7 +91,7 @@ impl common::traits::StreamTrait for InputStream {
             crate::events::event::notification::Notification::new(
                 "Network Stream Stopped".to_string(),
                 "The input network stream has been stopped.".to_string(),
-                Some("warn".to_string()),
+                Some("info".to_string()),
                 None,
                 None,
                 None,

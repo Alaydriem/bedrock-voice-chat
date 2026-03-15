@@ -109,7 +109,8 @@
                   type="button"
                   class="btn mt-5 w-full bg-primary font-medium text-white hover:bg-primary-focus focus:bg-primary-focus active:bg-primary-focus/90 dark:bg-accent dark:hover:bg-accent-focus dark:focus:bg-accent-focus dark:active:bg-accent/90"
                   onclick={() => {
-                    const server = (document.querySelector('#bvc-server-input') as HTMLInputElement)?.value ?? '';
+                    const raw = (document.querySelector('#bvc-server-input') as HTMLInputElement)?.value ?? '';
+                    const server = raw.replace(/^(https?:\/\/)?code@/, (_, proto) => proto ?? 'https://');
                     window.location.href = `/login/code?server=${encodeURIComponent(server)}`;
                   }}
                 >

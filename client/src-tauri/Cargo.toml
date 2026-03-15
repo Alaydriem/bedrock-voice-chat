@@ -25,12 +25,12 @@ tokio = { version = "^1", features = ["full"] }
 
 serde = { version = "^1", features = ["derive"] }
 base64 = { version = "^0.22" }
-serde_json = "^1"
-log = "^0.4"
+serde_json = { version = "^1" }
+log = { version = "^0.4" }
 anyhow = { version = "^1" }
 spmc = { version = "^0.3" }
 rand = { version = "^0.10" }
-rodio = "0.22.2"
+rodio = { version = "0.22.2" }
 bytes = { version = "^1.10" }
 async-mutex = { version = "^1.4" }
 moka = { version = "^0.12", features = ["future", "sync"] }
@@ -40,16 +40,16 @@ audio-gate = { version = "^0.2" }
 flume = { version = "^0.12" }
 rubato = { version = "^1" }
 audioadapter-buffers = { version = "^2" }
-futures-util = "^0.3"
-tokio-tungstenite = "^0.28"
+futures-util = { version = "^0.3" }
+tokio-tungstenite = { version = "^0.28" }
 trust-dns-resolver = { version = "^0.23", features = ["tokio-runtime", "tokio-rustls", "rustls", "serde"] }
-ringbuf = "^0.4"
+ringbuf = { version = "^0.4" }
 schemars = { version = "^1.0", features = ["derive"] }
 ts-rs = { version = "^12.0" }
 tauri = { version = "^2", features = ["rustls-tls"] }
-tauri-plugin-opener = "^2"
+tauri-plugin-opener = { version = "^2" }
 tauri-plugin-deep-link = { git = "https://github.com/charlesportwoodii/tauri-plugin-deep-link", branch = "master" }
-tauri-plugin-fs = "^2"
+tauri-plugin-fs = { version = "^2" }
 tauri-plugin-http = { version = "^2", default-features = false, features = [
   "rustls-tls",
   "charset",
@@ -58,39 +58,40 @@ tauri-plugin-http = { version = "^2", default-features = false, features = [
 ] }
 tauri-plugin-audio-permissions = { git = "https://github.com/charlesportwoodii/tauri-plugin-audio-permissions" }
 tauri-plugin-keyring = { git = "https://github.com/charlesportwoodii/tauri-plugin-keyring" }
-tauri-plugin-store = "^2"
-tauri-plugin-notification = "^2"
-tauri-plugin-log = "^2"
-tauri-plugin-os = "^2"
+tauri-plugin-store = { version = "^2" }
+tauri-plugin-notification = { version = "^2" }
+tauri-plugin-log = { version = "^2" }
+tauri-plugin-os = { version = "^2" }
 once_cell = { version = "^1.21", features = ["atomic-polyfill"] }
-reqwest = { version = "0.12", features = ["rustls-tls", "json", "multipart"], default-features = false }
-nano-wal = { version ="^0.5" }
+reqwest = { version = "^0.12", features = ["rustls-tls", "json", "multipart"], default-features = false }
+nano-wal = { version = "^0.5" }
 uuid = { version = "^1.18", features = ["v7"] }
 postcard = { version = "^1.0", features = ["alloc"] }
-bwavfile = "2.0.1"
-chrono = "^0.4"
-async-trait = "^0.1"
-url = "2"
-tar = "^0.4"
-zstd = "^0.13"
-sentry = { version = "^0.47", default-features =  false, features = [
-  "panic", "backtrace", "contexts", "transport", "debug-images", "reqwest", "rustls", "anyhow"
+bwavfile = { version = "2.0.1" }
+chrono = { version = "^0.4" }
+fern = { version = "^0.7" }
+async-trait = { version = "^0.1" }
+url = { version = "2" }
+tar = { version = "^0.4" }
+zstd = { version = "^0.13" }
+sentry = { version = "^0.46", default-features = false, features = [
+  "panic", "backtrace", "contexts", "debug-images", "anyhow", "log", "logs", "reqwest", "rustls", "tracing"
 ] }
-
-# MP4 muxing with Opus support
-shiguredo_mp4 = "2026.1.0"
-
+tracing = { version = "^0.1" }
+tracing-subscriber = { version = "^0.3", default-features = false, features = ["registry"] }
+parking_lot = { version = "^0.12" }
+shiguredo_mp4 = { version = "2026.1.0" }
 
 # Desktop Targets
 [target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]
-tauri-plugin-single-instance =  { version = "^2.3", features = ["deep-link"] }
-tauri-plugin-updater = "^2.9"
-tauri-plugin-process = "^2.3"
-tauri-plugin-global-shortcut = "^2"
-parking_lot = "^0.12"
+tauri-plugin-single-instance = { version = "^2.3", features = ["deep-link"] }
+tauri-plugin-updater = { version = "^2.9" }
+tauri-plugin-process = { version = "^2.3" }
+tauri-plugin-global-shortcut = { version = "^2" }
+sentry-rust-minidump = { version = "^0.14" }
 
 [target."cfg(any(target_os = \"windows\"))".dependencies]
-windows-targets = "^0.53.0"
+windows-targets = { version = "^0.53.0" }
 
 [dev-dependencies]
 

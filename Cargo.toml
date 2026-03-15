@@ -19,3 +19,5 @@ codegen-units = 4
 
 [patch.crates-io]
 tauri-plugin-deep-link = { git = "https://github.com/charlesportwoodii/tauri-plugin-deep-link", branch = "master" }
+sentry = { git = "https://github.com/Alaydriem/sentry-rust", branch = "0.46.x" }
+sentry-rust-minidump = { git = "https://github.com/Alaydriem/sentry-rust-minidump", branch = "master" }

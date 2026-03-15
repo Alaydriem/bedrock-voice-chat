@@ -242,6 +242,10 @@ impl AppState {
         }
     }
 
+    pub fn get_store(&self) -> Arc<Store<Wry>> {
+        self.store.clone()
+    }
+
     /// Returns the current server from the store, None otherwise
     /// If this returns None, then we should redirect to /servers list
     /// And determin the appropriate server there, and then redirect

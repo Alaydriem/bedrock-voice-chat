@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { info, error } from "@tauri-apps/plugin-log";
+import { info, warn } from "@tauri-apps/plugin-log";
 import PlatformDetector from "./utils/PlatformDetector.ts";
 import BVCApp from "./BVCApp.ts";
 
@@ -36,7 +36,7 @@ export default class Splash extends BVCApp {
       info("No updates available.");
       window.location.href = "/server";
     } catch (e) {
-      error("Update check failed: " + e);
+      warn("Update check failed: " + e);
       window.location.href = "/server";
     }
   }

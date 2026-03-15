@@ -48,6 +48,7 @@ impl common::traits::StreamTrait for OutputStream {
         self.jobs.len() == 0
     }
 
+    #[tracing::instrument(skip(self))]
     async fn start(&mut self) -> Result<(), anyhow::Error> {
         _ = self.shutdown.store(false, Ordering::Relaxed);
 

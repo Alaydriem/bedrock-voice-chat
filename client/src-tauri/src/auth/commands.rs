@@ -7,6 +7,7 @@ use tauri::{async_runtime::Mutex, State};
 use tauri_plugin_store::StoreExt;
 
 #[tauri::command(async)]
+#[tracing::instrument(skip(app_state, code))]
 pub(crate) async fn server_login(
     app_state: State<'_, Mutex<AppState>>,
     server: String,
@@ -78,6 +79,7 @@ pub(crate) async fn logout(
 }
 
 #[tauri::command(async)]
+#[tracing::instrument(skip(app_state, code))]
 pub(crate) async fn code_login(
     app_state: State<'_, Mutex<AppState>>,
     server: String,
@@ -108,6 +110,7 @@ pub(crate) async fn start_hytale_device_flow(
 }
 
 #[tauri::command(async)]
+#[tracing::instrument(skip(app_state))]
 pub(crate) async fn poll_hytale_status(
     app_state: State<'_, Mutex<AppState>>,
     server: String,
