@@ -42,6 +42,8 @@ pub struct ApplicationConfigServer {
     pub minecraft: ApplicationConfigMinecraft,
     #[serde(default)]
     pub features: ApplicationConfigFeatures,
+    #[serde(default)]
+    pub instance_id: Option<u16>,
 }
 
 impl Default for ApplicationConfigServer {
@@ -55,6 +57,7 @@ impl Default for ApplicationConfigServer {
             tls: ApplicationConfigServerTLS::default(),
             minecraft: ApplicationConfigMinecraft::default(),
             features: ApplicationConfigFeatures::default(),
+            instance_id: None,
         }
     }
 }

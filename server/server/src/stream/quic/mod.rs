@@ -11,36 +11,28 @@
 //! - Graceful shutdown via oneshot channels
 
 mod cache_manager;
+mod client_id_hasher;
+mod connection_id_format;
 pub(crate) mod connection_registry;
+mod server_input_packet;
 mod stream_manager;
 mod webhook_receiver;
 
 use crate::config::ApplicationConfig;
 use anyhow;
+use client_id_hasher::ClientIdHasher;
 use common::structs::packet::{PacketType, QuicNetworkPacket};
 use common::traits::StreamTrait;
 use common::s2n_quic::Server;
 use connection_registry::ConnectionRegistry;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use stream_manager::{InputStream, OutputStream};
 use tokio::sync::{mpsc, oneshot};
 
-/// Helper function to create a short hash representation of client_id
-pub(crate) fn client_id_hash(client_id: &[u8]) -> String {
-    let mut hasher = DefaultHasher::new();
-    client_id.hash(&mut hasher);
-    format!("{:x}", hasher.finish() & 0xFFFF)
-}
-
 pub use cache_manager::CacheManager;
+pub use connection_id_format::PrefixedConnectionIdFormat;
+pub use server_input_packet::ServerInputPacket;
 pub use webhook_receiver::WebhookReceiver;
-
-#[derive(Debug, Clone)]
-pub struct ServerInputPacket {
-    pub data: QuicNetworkPacket,
-}
 
 pub struct QuicServerManager {
     config: ApplicationConfig,
@@ -110,12 +102,20 @@ impl QuicServerManager {
             builder.build().expect("datagram endpoint build")
         };
 
-        let server = Server::builder()
+        let builder = Server::builder()
             .with_event(common::s2n_quic::provider::event::tracing::Subscriber::default())?
             .with_tls(provider)?
             .with_io(bind_addr.as_str())?
-            .with_datagram(dg_endpoint)?
-            .start()?;
+            .with_datagram(dg_endpoint)?;
+
+        let server = if let Some(instance_id) = self.config.server.instance_id {
+            tracing::info!(instance_id, "Using prefixed connection ID format");
+            builder
+                .with_connection_id(PrefixedConnectionIdFormat::new(instance_id))?
+                .start()?
+        } else {
+            builder.start()?
+        };
 
         let mut webhook_rx = self.webhook_rx.take()
             .ok_or_else(|| anyhow::anyhow!("QUIC server already started"))?;
@@ -250,7 +250,7 @@ impl QuicServerManager {
                         let webhook_receiver = webhook_receiver_for_callback.clone();
                         let registry = registry_for_callback.clone();
                         tokio::spawn(async move {
-                            let client_hash = client_id_hash(&client_id);
+                            let client_hash = ClientIdHasher::hash(&client_id);
                             tracing::info!(
                                 "Player {} (client: {}) disconnected",
                                 player_id,
