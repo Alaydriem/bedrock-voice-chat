@@ -75,15 +75,15 @@ redcon = { version = "^0.1" }
 rocket_cors = "0.6.0"
 semver = "1.0.26"
 dashmap = { version = "^6" }
-cached = { version = "^0.56" }
-meridian = { path = "../../../meridian", default-features = false, features = ["client"] }
+cached = { version = "^0.58" }
+meridian-proxy = { git = "https://github.com/Alaydriem/meridian", default-features = false, features = ["client"] }
 
 [build-dependencies]
 built = { version = "^0.7", features = ["git2", "chrono", "semver"] }
 
 [dev-dependencies]
 opus2 = { version = "^0.3" }
-rodio = { version = "^0.21" }
+rodio = { version = "^0.22" }
 async-ringbuf = { version = "^0.3" }
 ringbuf = { version = "0.4" }
 hound = "^3.5"
