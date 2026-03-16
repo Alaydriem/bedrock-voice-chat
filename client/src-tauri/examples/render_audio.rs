@@ -1,7 +1,8 @@
 use std::env;
 use std::path::Path;
 
-use bvc_client_lib::audio::recording::renderer::{AudioFormat, AudioFormatRenderer};
+use bvc_client_lib::audio::recording::renderer::AudioFormatRenderer;
+use common::structs::AudioFormat;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -23,7 +24,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let player_name = &args[2];
     let output_path = Path::new(&args[3]);
 
-    let format = AudioFormat::Bwav;
+    let format = match output_path.extension().and_then(|e| e.to_str()) {
+        Some("m4a") => AudioFormat::Mp4Opus,
+        _ => AudioFormat::Bwav,
+    };
 
     println!("Rendering audio for player '{}' from session at {:?}", player_name, session_path);
     println!("Output file: {:?}", output_path);
