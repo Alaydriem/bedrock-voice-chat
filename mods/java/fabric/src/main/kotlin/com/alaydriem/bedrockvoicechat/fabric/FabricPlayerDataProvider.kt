@@ -97,13 +97,20 @@ class FabricPlayerDataProvider(
      * Tries Floodgate API first, then falls back to prefix stripping from config.
      */
     private fun resolveAlternativeIdentity(player: ServerPlayerEntity): String? {
+        val playerName = player.name.string
+        val result = resolveRawAlternativeIdentity(player, playerName)
+        // No mapping needed if the resolved identity matches the player name
+        if (result != null && result == playerName) return null
+        return result
+    }
+
+    private fun resolveRawAlternativeIdentity(player: ServerPlayerEntity, playerName: String): String? {
         // Try Floodgate API first
         val floodgateGamertag = floodgate.getXboxGamertag(player.uuid)
         if (floodgateGamertag != null) return floodgateGamertag
 
         // Fall back to prefix stripping if configured
         val prefix = floodgatePrefix
-        val playerName = player.name.string
         if (prefix != null && playerName.startsWith(prefix)) {
             return playerName.removePrefix(prefix)
         }

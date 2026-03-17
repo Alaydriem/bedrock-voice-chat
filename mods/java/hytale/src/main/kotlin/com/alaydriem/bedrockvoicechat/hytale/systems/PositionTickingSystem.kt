@@ -48,12 +48,13 @@ class PositionTickingSystem(
             val pitchDeg = Math.toDegrees((rot?.x ?: 0f).toDouble()).toFloat()
             val yawDeg = Math.toDegrees((rot?.y ?: 0f).toDouble()).toFloat()
 
-        onPositionUpdate(
-            playerRef.uuid,
-            CachedPosition(
-                x = pos.x, y = pos.y, z = pos.z,
-                yaw = yawDeg, pitch = pitchDeg,
-                worldUuid = playerRef.worldUuid?.toString() ?: ""
+            onPositionUpdate(
+                playerRef.uuid,
+                CachedPosition(
+                    x = pos.x, y = pos.y, z = pos.z,
+                    yaw = yawDeg, pitch = pitchDeg,
+                    worldUuid = playerRef.worldUuid?.toString() ?: ""
+                )
             )
         } catch (_: Exception) {
             return

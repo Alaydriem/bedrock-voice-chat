@@ -43,10 +43,18 @@ class FloodgateIntegration {
 
             val playerClass = floodgatePlayer.javaClass
             return try {
-                val getUsername = playerClass.getMethod("getUsername")
-                getUsername.invoke(floodgatePlayer) as? String
+                // getCorrectUsername() returns the actual Xbox/Bedrock gamertag,
+                // whereas getUsername() returns the Java-visible name (which may include prefix)
+                val getCorrectUsername = playerClass.getMethod("getCorrectUsername")
+                getCorrectUsername.invoke(floodgatePlayer) as? String
             } catch (_: Exception) {
-                null
+                // Fall back to getUsername if getCorrectUsername is not available
+                try {
+                    val getUsername = playerClass.getMethod("getUsername")
+                    getUsername.invoke(floodgatePlayer) as? String
+                } catch (_: Exception) {
+                    null
+                }
             }
         } catch (_: Exception) {
             return null

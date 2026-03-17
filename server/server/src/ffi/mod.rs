@@ -443,7 +443,10 @@ pub unsafe extern "C" fn bvc_update_positions(
         if let Some(ref id_service) = identity_service {
             // Process any alternative_identity fields from Floodgate-aware mods
             for player in &players {
-                if let Some(alt_identity) = player.get_alternative_identity() {
+                let name = player.get_name();
+                let alt = player.get_alternative_identity();
+
+                if let Some(alt_identity) = alt {
                     let name = player.get_name();
                     if let Some(player_id) = id_service
                         .find_player_id_by_gamertag(alt_identity, &game_type)

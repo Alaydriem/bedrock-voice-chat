@@ -30,8 +30,8 @@ struct Args {
     #[clap(short = 'f', long)]
     audio_file: String,
 
-    /// Server QUIC address (e.g. 127.0.0.1:8443)
-    #[clap(short = 'a', long, default_value = "127.0.0.1:8443")]
+    /// Server QUIC address (e.g. 127.0.0.1:443)
+    #[clap(short = 'a', long, default_value = "127.0.0.1:443")]
     server_addr: String,
 
     /// Server TLS name (e.g. local.bedrockvc.stream)

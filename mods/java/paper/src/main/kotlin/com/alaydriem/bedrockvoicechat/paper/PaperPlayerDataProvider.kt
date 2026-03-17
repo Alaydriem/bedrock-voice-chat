@@ -94,6 +94,13 @@ class PaperPlayerDataProvider(
      * Tries Floodgate API first, then falls back to prefix stripping from config.
      */
     private fun resolveAlternativeIdentity(player: Player): String? {
+        val result = resolveRawAlternativeIdentity(player)
+        // No mapping needed if the resolved identity matches the player name
+        if (result != null && result == player.name) return null
+        return result
+    }
+
+    private fun resolveRawAlternativeIdentity(player: Player): String? {
         // Try Floodgate API first
         val floodgateGamertag = floodgate.getXboxGamertag(player.uniqueId)
         if (floodgateGamertag != null) return floodgateGamertag

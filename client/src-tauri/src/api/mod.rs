@@ -138,6 +138,7 @@ impl Api {
                             status: legacy.status,
                             client_id: legacy.client_id,
                             protocol_version: String::new(),
+                            quic_port: 0,
                             spatial_audio: Default::default(),
                         });
                     }

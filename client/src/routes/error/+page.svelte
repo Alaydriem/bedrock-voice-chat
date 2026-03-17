@@ -4,6 +4,7 @@
   import { onMount } from 'svelte';
   import { invoke } from "@tauri-apps/api/core";
   import { stopForegroundService, isServiceRunning } from 'tauri-plugin-audio-permissions';
+  import { Store } from "@tauri-apps/plugin-store";
   import PlatformDetector from "../../js/app/utils/PlatformDetector";
 
   /**
@@ -103,6 +104,22 @@
         style: 'primary'
       }
     },
+    'CONN01': {
+      code: 'CONN01',
+      title: 'Connection Failed',
+      message: 'Unable to establish a voice connection to the server. The server may be offline, unreachable, or your certificates may have expired. Please try again.',
+      icon: 'fa-solid fa-plug-circle-xmark',
+      primaryAction: {
+        label: 'Try Again',
+        url: '/dashboard',
+        style: 'primary'
+      },
+      secondaryAction: {
+        label: 'Choose Different Server',
+        url: '/server',
+        style: 'secondary'
+      }
+    },
     // Default error (used when code is not found or not provided)
     'DEFAULT': {
       code: 'ERROR',
@@ -146,6 +163,23 @@
         ...ERROR_DEFINITIONS['DEFAULT'],
         code: errorCode
       };
+    }
+
+    // Only show "Choose Different Server" actions when multiple servers exist
+    const store = await Store.load("store.json", { autoSave: false });
+    const serverList = await store.get("server_list") as Array<{ server: string; player: string }> | null;
+    const hasMultipleServers = serverList != null && serverList.length > 1;
+
+    if (!hasMultipleServers) {
+      if (currentError.secondaryAction?.url === '/server') {
+        currentError = { ...currentError, secondaryAction: undefined };
+      }
+      if (currentError.primaryAction.url === '/server') {
+        currentError = {
+          ...currentError,
+          primaryAction: { ...ERROR_DEFINITIONS['DEFAULT'].primaryAction }
+        };
+      }
     }
   });
 </script>

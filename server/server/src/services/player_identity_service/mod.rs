@@ -124,7 +124,7 @@ impl PlayerIdentityService {
                 .await;
         }
 
-        tracing::info!(
+        tracing::debug!(
             "Created/updated identity alias: {} -> player_id {} ({:?}, type: {})",
             alias,
             player_id,
