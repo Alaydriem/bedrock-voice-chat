@@ -31,7 +31,7 @@ anyhow = { version = "^1" }
 spmc = { version = "^0.3" }
 rand = { version = "^0.10" }
 rodio = { version = "0.22.2" }
-bytes = { version = "^1.10" }
+bytes = { version = "^1.11.1" }
 async-mutex = { version = "^1.4" }
 moka = { version = "^0.12", features = ["future", "sync"] }
 opus2 = { version = "^0.3" }
