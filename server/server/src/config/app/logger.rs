@@ -10,14 +10,14 @@ fn default_log_out() -> String {
 
 /// Logger Configuration
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ApplicationConfigLogger {
+pub struct Logger {
     #[serde(default = "default_log_level")]
     pub level: String,
     #[serde(default = "default_log_out")]
     pub out: String,
 }
 
-impl Default for ApplicationConfigLogger {
+impl Default for Logger {
     fn default() -> Self {
         Self {
             level: default_log_level(),

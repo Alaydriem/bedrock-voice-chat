@@ -294,9 +294,16 @@ impl ConnectionHealthManager {
 
     /// Probe the server's HTTP endpoint to check availability and version compatibility
     async fn probe_server(server_url: &str) -> ProbeResult {
-        let client = match reqwest::Client::builder()
-            .timeout(Duration::from_secs(5))
-            .danger_accept_invalid_certs(true)
+
+        let mut builder = common::reqwest::Client::builder()
+            .timeout(Duration::from_secs(5));
+
+        #[cfg(dev)]
+        {
+            builder = builder.danger_accept_invalid_certs(true);
+        }
+
+        let client = match builder
             .build()
         {
             Ok(c) => c,

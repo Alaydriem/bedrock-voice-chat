@@ -70,11 +70,16 @@ impl Opt {
         let mut builder = reqwest::Client::builder()
             .use_rustls_tls()
             .timeout(Duration::new(5, 0))
-            .danger_accept_invalid_certs(false)
             .add_root_certificate(self.get_ca_bytes().await.unwrap())
             .identity(self.get_identity_bytes().await.unwrap());
 
-        builder = builder.danger_accept_invalid_certs(true);
+            let mut builder = common::reqwest::Client::builder()
+            .timeout(Duration::from_secs(5));
+
+        #[cfg(dev)]
+        {
+            builder = builder.danger_accept_invalid_certs(true);
+        }
 
         return builder.build().unwrap();
     }

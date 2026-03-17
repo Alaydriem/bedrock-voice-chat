@@ -4,6 +4,8 @@ on: [pull_request]
 jobs:
   commits_check_job:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     name: Commits Check
     steps:
     - name: Get PR Commits

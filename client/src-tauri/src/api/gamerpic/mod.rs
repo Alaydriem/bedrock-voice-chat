@@ -2,7 +2,7 @@ use crate::api::Api;
 
 use common::response::GamerpicResponse;
 use log::error;
-use reqwest::{
+use common::reqwest::{
     header::{HeaderMap, HeaderValue},
     StatusCode,
 };

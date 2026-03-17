@@ -2,12 +2,12 @@ use common::consts::version::PROTOCOL_VERSION;
 use common::structs::config::ApiConfig;
 use rocket::{serde::json::Json, State};
 
-use crate::config::{ApplicationConfigServer, ApplicationConfigVoice};
+use crate::config::{Server, Voice};
 
 #[get("/config")]
 pub async fn get_config(
-    config: &State<ApplicationConfigServer>,
-    voice: &State<ApplicationConfigVoice>,
+    config: &State<Server>,
+    voice: &State<Voice>,
 ) -> Json<ApiConfig> {
     Json(ApiConfig {
         status: String::from("Ok"),

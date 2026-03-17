@@ -8,7 +8,7 @@ use rocket::{http::Status, serde::json::Json, State};
 
 use sea_orm_rocket::Connection as SeaOrmConnection;
 
-use crate::config::ApplicationConfigServer;
+use crate::config::Server;
 use crate::rs::pool::AppDb;
 use crate::rs::dtos::ncryptf::JsonMessage;
 use crate::services::{AuthError, AuthService};
@@ -18,7 +18,7 @@ use crate::services::{AuthError, AuthService};
 pub async fn authenticate(
     db: SeaOrmConnection<'_, AppDb>,
     payload: Json<LoginRequest>,
-    config: &State<ApplicationConfigServer>,
+    config: &State<Server>,
 ) -> ncryptf::rocket::JsonResponse<JsonMessage<LoginResponse>> {
     let conn = db.into_inner();
 

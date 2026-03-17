@@ -1,18 +1,16 @@
 mod database;
-mod features;
 mod logger;
-mod minecraft;
-mod server;
-mod tls;
+pub mod server;
 mod voice;
 
-pub use database::ApplicationConfigDatabase;
-pub use features::ApplicationConfigFeatures;
-pub use logger::ApplicationConfigLogger;
-pub use minecraft::ApplicationConfigMinecraft;
-pub use server::ApplicationConfigServer;
-pub use tls::ApplicationConfigServerTLS;
-pub use voice::ApplicationConfigVoice;
+pub use database::Database;
+pub use logger::Logger;
+pub use server::Features;
+pub use server::Meridian;
+pub use server::Minecraft;
+pub use server::Server;
+pub use server::Tls;
+pub use voice::Voice;
 
 use common::ncryptflib::randombytes_buf;
 use rocket::{
@@ -21,7 +19,7 @@ use rocket::{
 };
 
 use anyhow::anyhow;
-use sea_orm::{ConnectOptions, Database, DatabaseConnection};
+use sea_orm::{ConnectOptions, DatabaseConnection};
 use serde::{Deserialize, Serialize};
 use tracing::Level;
 
@@ -29,21 +27,21 @@ use tracing::Level;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ApplicationConfig {
     #[serde(default)]
-    pub database: ApplicationConfigDatabase,
-    pub server: ApplicationConfigServer,
+    pub database: Database,
+    pub server: Server,
     #[serde(default)]
-    pub log: ApplicationConfigLogger,
+    pub log: Logger,
     #[serde(default)]
-    pub voice: ApplicationConfigVoice,
+    pub voice: Voice,
 }
 
 impl Default for ApplicationConfig {
     fn default() -> Self {
         ApplicationConfig {
-            database: ApplicationConfigDatabase::default(),
-            server: ApplicationConfigServer::default(),
-            voice: ApplicationConfigVoice::default(),
-            log: ApplicationConfigLogger::default(),
+            database: Database::default(),
+            server: Server::default(),
+            voice: Voice::default(),
+            log: Logger::default(),
         }
     }
 }
@@ -174,7 +172,7 @@ impl ApplicationConfig {
             .idle_timeout(std::time::Duration::from_secs(60))
             .sqlx_logging(false);
 
-        let conn = Database::connect(options).await?;
+        let conn = sea_orm::Database::connect(options).await?;
         Ok(conn)
     }
 }

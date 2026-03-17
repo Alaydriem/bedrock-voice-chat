@@ -1,5 +1,5 @@
 use log::error;
-use reqwest::Client as ReqwestClient;
+use common::reqwest::Client as ReqwestClient;
 use std::net::Ipv4Addr;
 use std::time::Duration;
 use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};

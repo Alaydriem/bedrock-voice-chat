@@ -10,7 +10,7 @@ fn default_datagram_recv_capacity() -> usize {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ApplicationConfigVoice {
+pub struct Voice {
     // Maximum number of outbound datagrams buffered per connection before backpressure / drops
     #[serde(default = "default_datagram_send_capacity")]
     pub datagram_send_capacity: usize,
@@ -21,7 +21,7 @@ pub struct ApplicationConfigVoice {
     pub spatial_audio: SpatialAudioConfig,
 }
 
-impl Default for ApplicationConfigVoice {
+impl Default for Voice {
     fn default() -> Self {
         Self {
             datagram_send_capacity: default_datagram_send_capacity(),

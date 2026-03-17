@@ -5,7 +5,7 @@ mod channel;
 mod client;
 mod gamerpic;
 
-use reqwest::{
+use common::reqwest::{
     header::{HeaderMap, HeaderValue},
     Client as ReqwestClient, StatusCode,
 };

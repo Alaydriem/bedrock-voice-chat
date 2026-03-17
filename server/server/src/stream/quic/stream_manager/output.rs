@@ -1,4 +1,4 @@
-use crate::stream::quic::client_id_hash;
+use crate::stream::quic::client_id_hasher::ClientIdHasher;
 use crate::stream::quic::connection_registry::RoutedPacket;
 use anyhow::Error;
 use bytes::Bytes;
@@ -101,7 +101,7 @@ impl StreamTrait for OutputStream {
                 let player = self.get_player_id().unwrap_or_else(|| "unknown".into());
                 let client_hash = self
                     .get_client_id()
-                    .map(|cid| client_id_hash(&cid))
+                    .map(|cid| ClientIdHasher::hash(&cid))
                     .unwrap_or_else(|| "????".into());
 
                 match self.send_datagram(&connection, payload) {

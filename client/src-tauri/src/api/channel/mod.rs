@@ -1,7 +1,7 @@
 use crate::api::Api;
 
 use log::error;
-use reqwest::{
+use common::reqwest::{
     header::{HeaderMap, HeaderValue},
     StatusCode,
 };

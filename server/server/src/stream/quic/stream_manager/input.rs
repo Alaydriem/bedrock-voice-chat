@@ -1,4 +1,5 @@
-use crate::stream::quic::{client_id_hash, ServerInputPacket, WebhookReceiver};
+use crate::stream::quic::client_id_hasher::ClientIdHasher;
+use crate::stream::quic::{ServerInputPacket, WebhookReceiver};
 use anyhow::Error;
 use bytes::Bytes;
 use common::structs::packet::{
@@ -208,10 +209,10 @@ impl StreamTrait for InputStream {
                                             self.last_seen_ts.insert(key.clone(), ts);
                                             if large_jump {
                                                 let client_hash = match &self.client_id {
-                                                    Some(cid) => client_id_hash(cid),
+                                                    Some(cid) => ClientIdHasher::hash(cid),
                                                     None => {
                                                         // If we don't know the client yet, hash the derived key for some stability
-                                                        client_id_hash(&key)
+                                                        ClientIdHasher::hash(&key)
                                                     }
                                                 };
                                                 let prev = last_seen.unwrap_or(0);
@@ -283,7 +284,7 @@ impl StreamTrait for InputStream {
                                     let owner = packet.owner.as_ref().unwrap();
                                     self.player_id = Some(owner.name.clone());
                                     self.client_id = Some(owner.client_id.clone());
-                                    let client_hash = client_id_hash(&owner.client_id);
+                                    let client_hash = ClientIdHasher::hash(&owner.client_id);
                                     tracing::info!(
                                         "Initialized player identity: {} (client: {})",
                                         owner.name,
@@ -329,7 +330,7 @@ impl StreamTrait for InputStream {
                         let client_hash = self
                             .client_id
                             .as_ref()
-                            .map(|cid| client_id_hash(cid))
+                            .map(|cid| ClientIdHasher::hash(cid))
                             .unwrap_or_else(|| {
                                 let dbg_id = format!("{:?}", connection.id());
                                 let mut hasher = DefaultHasher::new();

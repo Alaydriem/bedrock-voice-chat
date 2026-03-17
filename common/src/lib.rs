@@ -23,9 +23,13 @@ pub use errors::{
     MinecraftCommunicationError,
 };
 
+pub use reqwest;
+
 // Re-export s2n-quic when feature is enabled
 #[cfg(feature = "quic")]
 pub use s2n_quic;
+#[cfg(feature = "quic")]
+pub use s2n_quic_core;
 
 // Re-export cpal when audio feature is enabled
 #[cfg(feature = "audio")]
