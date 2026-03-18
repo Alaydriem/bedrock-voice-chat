@@ -770,6 +770,42 @@ jobs:
       - name: Documentation deployed
         run: echo "WebSocket docs deployed to https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/websocket/${{ needs.prepare-release.outputs.new_version }}"
 
+  # Post-approval: Update version on GitHub Pages landing page (beta only for now)
+  update-gh-pages-version:
+    name: Update GitHub Pages Version
+    needs: [prepare-release, approve-publish]
+    if: needs.approve-publish.result == 'success' && contains(needs.prepare-release.outputs.new_version, '-beta')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate GitHub App token
+        id: generate-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          token: ${{ steps.generate-token.outputs.token }}
+
+      - name: Update version in index.js
+        run: |
+          VERSION="${{ needs.prepare-release.outputs.new_version }}"
+          sed -i "s|const BVC_VERSION = \".*\"|const BVC_VERSION = \"${VERSION}\"|" index.js
+          sed -i "s|const BVC_MODS_VERSION = \".*\"|const BVC_MODS_VERSION = \"mods-v${VERSION}\"|" index.js
+          echo "Updated index.js:"
+          head -3 index.js
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.js
+          git diff --staged --quiet || git commit -m "chore: update version to ${{ needs.prepare-release.outputs.new_version }}"
+          git push
+
   # Post-approval: Build and push Docker image
   publish-docker:
     name: Publish Docker Image

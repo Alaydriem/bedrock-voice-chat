@@ -235,6 +235,32 @@ jobs:
     uses: ./.github/workflows/build-mod-bds.yml
     secrets: inherit
 
+  # Deploy WebSocket docs to GitHub Pages (branch pushes only)
+  deploy-docs:
+    name: Deploy WebSocket Docs (${{ github.ref_name }})
+    needs: [changes, build-client]
+    if: github.event_name == 'push' && needs.build-client.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download AsyncAPI YAML
+        uses: actions/download-artifact@v4
+        with:
+          name: asyncapi-yaml
+          path: docs
+
+      - name: Generate HTML from AsyncAPI spec
+        run: npx -y @asyncapi/generator@2 docs/websocket-api.yaml @asyncapi/html-template -o docs/websocket-api-html --force-write -p singleFile=true
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs/websocket-api-html
+          destination_dir: ${{ github.ref_name == 'master' && 'websocket' || 'websocket/beta' }}
+          keep_files: true
+
   # Collect and organize all artifacts
   collect-artifacts:
     name: Collect All Artifacts
