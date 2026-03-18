@@ -263,7 +263,8 @@ jobs:
     if: ${{ !inputs.skip_docker }}
     uses: ./.github/workflows/build-server-docker.yml
     with:
-      version: ${{ github.ref_name }}
+      version: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || (inputs.ref != '' && startsWith(inputs.ref, 'v') && inputs.ref) || github.ref_name }}
+      ref: ${{ inputs.ref || github.ref }}
       build_mode: ${{ inputs.build_mode || (startsWith(github.ref, 'refs/tags/') && 'release' || 'debug') }}
       push: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/beta' }}
     secrets: inherit
