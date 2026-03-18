@@ -68,11 +68,11 @@ function readSig(filename) {
 
 const platforms = {};
 
-const winSig = readSig('bvc-client-windows-x64-updater.nsis.zip.sig');
+const winSig = readSig('bvc-client-windows-x64-updater.exe.sig');
 if (winSig) {
   platforms['windows-x86_64'] = {
     signature: winSig,
-    url: `${baseUrl}/bvc-client-windows-x64-updater.nsis.zip`
+    url: `${baseUrl}/bvc-client-windows-x64-updater.exe`
   };
 }
 

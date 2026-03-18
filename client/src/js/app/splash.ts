@@ -29,12 +29,14 @@ export default class Splash extends BVCApp {
     }
 
     try {
-      // Rust-side update check with dynamic endpoint selection.
-      // If an update is found, Rust downloads, installs, and restarts the app.
-      // If no update, returns null and we navigate to /server.
-      await invoke<string | null>("check_for_updates");
-      info("No updates available.");
-      window.location.href = "/server";
+      const version = await invoke<string | null>("check_for_updates");
+      if (version) {
+        info(`Update available: v${version}`);
+        window.location.href = `/error?code=UPD01&version=${encodeURIComponent(version)}`;
+      } else {
+        info("No updates available.");
+        window.location.href = "/server";
+      }
     } catch (e) {
       warn("Update check failed: " + e);
       window.location.href = "/server";

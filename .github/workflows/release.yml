@@ -130,7 +130,7 @@ jobs:
             -H 'Content-Type: application/json' \
             -d '{"version": "${{ needs.prepare-release.outputs.new_version }}"}'
 
-  # Job 3: Run mod semantic-release (patches gradle.properties, BDS files, creates mods-v tag + GH release)
+  # Job 3: Create mods release tag + GH release using the main release version
   prepare-mods-release:
     name: Prepare Mods Release
     needs: [prepare-release, build-server]
@@ -140,49 +140,59 @@ jobs:
     permissions:
       contents: write
     outputs:
-      new_release_published: ${{ steps.semantic-release.outputs.new_release_published }}
-      new_release_version: ${{ steps.semantic-release.outputs.new_release_version }}
-      new_release_git_tag: ${{ steps.semantic-release.outputs.new_release_git_tag }}
-      new_release_notes: ${{ steps.semantic-release.outputs.new_release_notes }}
+      new_release_published: ${{ steps.version.outputs.published }}
+      new_release_version: ${{ steps.version.outputs.version }}
+      new_release_git_tag: ${{ steps.version.outputs.tag }}
+      new_release_notes: ${{ steps.version.outputs.notes }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           show-progress: false
-          ref: ${{ github.ref }}
+          ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
 
-      - name: Fetch all tags
-        run: git fetch --tags --force
+      - name: Set version outputs
+        id: version
+        run: |
+          VERSION="${{ needs.prepare-release.outputs.new_version }}"
+          TAG="mods-v${VERSION}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "published=true" >> $GITHUB_OUTPUT
+          echo "notes=Mod builds for Bedrock Voice Chat v${VERSION}" >> $GITHUB_OUTPUT
 
-      - name: Semantic Release
-        id: semantic-release
-        uses: cycjimmy/semantic-release-action@v4
-        with:
-          working_directory: ./mods/java
-          dry_run: ${{ inputs.dry_run }}
-          extra_plugins: |
-            @semantic-release/changelog
-            @semantic-release/exec
-            @semantic-release/git
+      - name: Create mods release tag and GitHub release
+        if: inputs.dry_run != true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.prepare-release.outputs.new_version }}"
+          TAG="mods-v${VERSION}"
+          REF="${{ needs.prepare-release.outputs.new_tag }}"
+
+          git tag "${TAG}" "${REF}" 2>/dev/null || echo "Tag ${TAG} already exists"
+          git push origin "${TAG}" 2>/dev/null || echo "Tag ${TAG} already pushed"
+
+          gh release create "${TAG}" \
+            --title "Mods v${VERSION}" \
+            --notes "Mod builds for Bedrock Voice Chat v${VERSION}" \
+            ${{ inputs.draft == true && '--draft' || '' }} \
+            ${{ contains(needs.prepare-release.outputs.new_version, '-') && '--prerelease' || '' }} \
+            2>/dev/null || echo "Release for ${TAG} already exists"
 
       - name: Summary
-        if: ${{ steps.semantic-release.outputs.new_release_published }}
         run: |
+          VERSION="${{ needs.prepare-release.outputs.new_version }}"
+          TAG="mods-v${VERSION}"
           {
-              echo "## Mods Release ${{ steps.semantic-release.outputs.new_release_version }}"
+              echo "## Mods Release ${VERSION}"
               echo ""
               echo "| Name | Value |"
               echo "| ---- | ----- |"
-              echo "| Release | [${{ steps.semantic-release.outputs.new_release_version }}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${{ steps.semantic-release.outputs.new_release_git_tag }}) |"
-              echo "| Release Type | ${{ github.ref_name == 'beta' && 'beta' || 'release' }} |"
-              echo "| Old Version | [${{ steps.semantic-release.outputs.last_release_git_tag }}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${{ steps.semantic-release.outputs.last_release_git_tag }}) |"
-              echo "| Diff | [${{ steps.semantic-release.outputs.last_release_git_tag }}...${{ steps.semantic-release.outputs.new_release_git_tag }}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/${{ steps.semantic-release.outputs.last_release_git_tag }}...${{ steps.semantic-release.outputs.new_release_git_tag }}) |"
+              echo "| Version | ${VERSION} |"
+              echo "| Tag | ${TAG} |"
               echo "| Dry Run | ${{ inputs.dry_run && 'Yes' || 'No' }} |"
-              echo ""
-              echo "> **Note:** Links to the new version will only work after the release is created"
           } >> $GITHUB_STEP_SUMMARY
 
   # Job 4: Build server (release mode, Docker push gated by approve-publish)
@@ -253,44 +263,48 @@ jobs:
   # Job 8: Build Fabric Mod
   build-mod-fabric:
     name: Build Fabric Mod
-    needs: prepare-mods-release
+    needs: [prepare-release, prepare-mods-release]
     if: needs.prepare-mods-release.outputs.new_release_published == 'true'
     uses: ./.github/workflows/build-mod-fabric.yml
     with:
       version: ${{ needs.prepare-mods-release.outputs.new_release_version }}
+      ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
       artifact_run_id: ${{ github.run_id }}
     secrets: inherit
 
   # Job 9: Build Paper Plugin
   build-mod-paper:
     name: Build Paper Plugin
-    needs: prepare-mods-release
+    needs: [prepare-release, prepare-mods-release]
     if: needs.prepare-mods-release.outputs.new_release_published == 'true'
     uses: ./.github/workflows/build-mod-paper.yml
     with:
       version: ${{ needs.prepare-mods-release.outputs.new_release_version }}
+      ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
       artifact_run_id: ${{ github.run_id }}
     secrets: inherit
 
   # Job 10: Build Hytale Plugin
   build-mod-hytale:
     name: Build Hytale Plugin
-    needs: prepare-mods-release
+    needs: [prepare-release, prepare-mods-release]
     if: needs.prepare-mods-release.outputs.new_release_published == 'true'
     uses: ./.github/workflows/build-mod-hytale.yml
     with:
       version: ${{ needs.prepare-mods-release.outputs.new_release_version }}
+      ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
       artifact_run_id: ${{ github.run_id }}
     secrets: inherit
 
   # Job 11: Build BDS Pack
   build-mod-bds:
     name: Build BDS Pack
-    needs: prepare-mods-release
+    needs: [prepare-release, prepare-mods-release]
     if: needs.prepare-mods-release.outputs.new_release_published == 'true'
     uses: ./.github/workflows/build-mod-bds.yml
     with:
       version: ${{ needs.prepare-mods-release.outputs.new_release_version }}
+      ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
     secrets: inherit
 
   # Job 12: Upload client/server release assets to GitHub
@@ -375,12 +389,12 @@ jobs:
             cp "./artifacts/bvc-windows-nsis-setup/bvc-windows-nsis-setup.exe" ./release-files/bvc-client-windows-x64-setup.exe
           fi
 
-          # Windows updater bundle + signature (for auto-updater)
-          if [ -f "./artifacts/bvc-windows-updater/bvc-windows-updater.nsis.zip" ]; then
-            cp "./artifacts/bvc-windows-updater/bvc-windows-updater.nsis.zip" ./release-files/bvc-client-windows-x64-updater.nsis.zip
+          # Windows updater exe + signature (for auto-updater)
+          if [ -f "./artifacts/bvc-windows-updater/bvc-windows-updater.exe" ]; then
+            cp "./artifacts/bvc-windows-updater/bvc-windows-updater.exe" ./release-files/bvc-client-windows-x64-updater.exe
           fi
-          if [ -f "./artifacts/bvc-windows-updater/bvc-windows-updater.nsis.zip.sig" ]; then
-            cp "./artifacts/bvc-windows-updater/bvc-windows-updater.nsis.zip.sig" ./release-files/bvc-client-windows-x64-updater.nsis.zip.sig
+          if [ -f "./artifacts/bvc-windows-updater/bvc-windows-updater.exe.sig" ]; then
+            cp "./artifacts/bvc-windows-updater/bvc-windows-updater.exe.sig" ./release-files/bvc-client-windows-x64-updater.exe.sig
           fi
 
           echo "=== Release files prepared ==="
@@ -687,8 +701,8 @@ jobs:
       - name: Prepare sig files for script
         run: |
           mkdir -p release-files
-          if [ -f "./artifacts/windows/bvc-windows-updater.nsis.zip.sig" ]; then
-            cp "./artifacts/windows/bvc-windows-updater.nsis.zip.sig" "./release-files/bvc-client-windows-x64-updater.nsis.zip.sig"
+          if [ -f "./artifacts/windows/bvc-windows-updater.exe.sig" ]; then
+            cp "./artifacts/windows/bvc-windows-updater.exe.sig" "./release-files/bvc-client-windows-x64-updater.exe.sig"
           fi
           if [ -f "./artifacts/macos/bvc-macos-updater.app.tar.gz.sig" ]; then
             cp "./artifacts/macos/bvc-macos-updater.app.tar.gz.sig" "./release-files/bvc-client-macos-arm64-updater.app.tar.gz.sig"

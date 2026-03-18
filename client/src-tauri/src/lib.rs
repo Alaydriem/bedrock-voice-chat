@@ -167,7 +167,9 @@ pub fn run() {
             crate::commands::keybinds::start_keybind_listener,
             // Updater
             #[cfg(desktop)]
-            crate::commands::updater::check_for_updates
+            crate::commands::updater::check_for_updates,
+            #[cfg(desktop)]
+            crate::commands::updater::install_update
         ])
         .setup(move |app| {
             let sentry_logger = sentry_logger.clone();

@@ -269,7 +269,6 @@ jobs:
     if: |
       always() &&
       !cancelled() &&
-      !contains(needs.*.result, 'failure') &&
       (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-ios.result == 'success' || needs.build-client.result == 'success' || needs.build-macos-client.result == 'success' || needs.build-fabric-mod.result == 'success' || needs.build-paper-mod.result == 'success' || needs.build-hytale-mod.result == 'success' || needs.build-bds-pack.result == 'success')
     steps:
       - name: Create build summary

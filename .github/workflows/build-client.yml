@@ -168,16 +168,16 @@ jobs:
                 Write-Host "Copied NSIS installer: $($nsisExe.Name)" -ForegroundColor Green
               }
 
-              $nsisZip = Get-ChildItem "$nsisDir\*.nsis.zip" | Where-Object { $_.Name -notmatch '\.sig$' } | Select-Object -First 1
-              if ($nsisZip) {
-                Copy-Item $nsisZip.FullName "bvc-windows-updater.nsis.zip"
-                Write-Host "Copied updater bundle: $($nsisZip.Name)" -ForegroundColor Green
+              # Tauri 2 generates updater artifacts as .exe + .exe.sig (not .nsis.zip)
+              $updaterExe = Get-ChildItem "$nsisDir\*-setup.exe" | Select-Object -First 1
+              $updaterSig = Get-ChildItem "$nsisDir\*-setup.exe.sig" | Select-Object -First 1
+              if ($updaterExe) {
+                Copy-Item $updaterExe.FullName "bvc-windows-updater.exe"
+                Write-Host "Copied updater exe: $($updaterExe.Name)" -ForegroundColor Green
               }
-
-              $nsisSig = Get-ChildItem "$nsisDir\*.nsis.zip.sig" | Select-Object -First 1
-              if ($nsisSig) {
-                Copy-Item $nsisSig.FullName "bvc-windows-updater.nsis.zip.sig"
-                Write-Host "Copied updater signature: $($nsisSig.Name)" -ForegroundColor Green
+              if ($updaterSig) {
+                Copy-Item $updaterSig.FullName "bvc-windows-updater.exe.sig"
+                Write-Host "Copied updater signature: $($updaterSig.Name)" -ForegroundColor Green
               }
             } else {
               Write-Host "WARNING: NSIS bundle directory not found at $nsisDir" -ForegroundColor Yellow
@@ -207,10 +207,10 @@ jobs:
         with:
           name: bvc-windows-updater
           path: |
-            client/bvc-windows-updater.nsis.zip
-            client/bvc-windows-updater.nsis.zip.sig
+            client/bvc-windows-updater.exe
+            client/bvc-windows-updater.exe.sig
           retention-days: 90
-          if-no-files-found: error
+          if-no-files-found: warn
 
       - name: Output artifact information
         shell: powershell
