@@ -107,10 +107,31 @@ jobs:
           echo "Dry run: ${{ inputs.dry_run }}" >> $GITHUB_STEP_SUMMARY
           echo "Draft: ${{ inputs.draft }}" >> $GITHUB_STEP_SUMMARY
 
-  # Job 2: Run mod semantic-release (patches gradle.properties, BDS files, creates mods-v tag + GH release)
+  # Job 2: Notify Sentry of new build/release
+  notify-sentry:
+    name: Notify Sentry
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Sentry (build)
+        run: |
+          curl "${{ secrets.SENTRY_RELEASE_WEBHOOK_URL }}" \
+            -X POST \
+            -H 'Content-Type: application/json' \
+            -d '{"version": "${{ needs.prepare-release.outputs.build_number }}"}'
+
+      - name: Notify Sentry (version)
+        if: needs.prepare-release.outputs.new_release == 'true'
+        run: |
+          curl "${{ secrets.SENTRY_RELEASE_WEBHOOK_URL }}" \
+            -X POST \
+            -H 'Content-Type: application/json' \
+            -d '{"version": "${{ needs.prepare-release.outputs.new_version }}"}'
+
+  # Job 3: Run mod semantic-release (patches gradle.properties, BDS files, creates mods-v tag + GH release)
   prepare-mods-release:
     name: Prepare Mods Release
-    needs: [prepare-release, build-server]
+    needs: [prepare-release, build-server, notify-sentry]
     if: needs.prepare-release.outputs.new_release == 'true' && needs.build-server.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -162,7 +183,7 @@ jobs:
               echo "> **Note:** Links to the new version will only work after the release is created"
           } >> $GITHUB_STEP_SUMMARY
 
-  # Job 3: Build server (release mode)
+  # Job 4: Build server (release mode)
   build-server:
     name: Build Server (release)
     needs: prepare-release

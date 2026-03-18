@@ -1,5 +1,6 @@
-mod banish;
 mod add;
+mod banish;
+mod generate_code;
 use super::Config as StateConfig;
 use clap::Parser;
 
@@ -9,6 +10,8 @@ pub enum SubCommand {
     Banish(banish::Config),
     /// Adds a user
     Add(add::Config),
+    /// Generates a login code for a player
+    GenerateCode(generate_code::Config),
 }
 
 /// Starts the BVC Server
@@ -25,6 +28,7 @@ impl Config {
         match &self.cmd {
             SubCommand::Banish(command) => command.run(&cfg).await,
             SubCommand::Add(command) => command.run(&cfg).await,
+            SubCommand::GenerateCode(command) => command.run(&cfg).await,
         }
     }
 }

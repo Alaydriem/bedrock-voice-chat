@@ -2,15 +2,14 @@ use crate::{
     config::ApplicationConfig,
     rs::pool::AppDb,
     rs::routes,
-    services::PlayerRegistrarService,
+    services::{PlayerIdentityService, PlayerRegistrarService},
     stream::quic::{CacheManager, WebhookReceiver},
 };
 use anyhow::Error;
 use common::ncryptflib as ncryptf;
 use migration::{Migrator, MigratorTrait};
-use moka::future::Cache;
 use rocket::http::Method;
-use rocket::{self, routes};
+use rocket::{self, catchers, routes};
 use rocket_cors::{AllowedOrigins, CorsOptions};
 use sea_orm_rocket::Database;
 use std::sync::{Arc, Mutex};
@@ -22,27 +21,26 @@ ncryptf::ek_route!();
 pub struct RocketManager {
     config: ApplicationConfig,
     webhook_receiver: WebhookReceiver,
-    channel_cache: Arc<async_mutex::Mutex<Cache<String, common::structs::channel::Channel>>>,
     cache_manager: CacheManager,
     player_registrar: PlayerRegistrarService,
+    identity_service: PlayerIdentityService,
     hytale_session_cache: routes::api::HytaleSessionCache,
 }
 
 impl RocketManager {
-    /// Creates a new RocketManager with the given configuration and dependencies
     pub fn new(
         config: ApplicationConfig,
         webhook_receiver: WebhookReceiver,
-        channel_cache: Arc<async_mutex::Mutex<Cache<String, common::structs::channel::Channel>>>,
         cache_manager: CacheManager,
         player_registrar: PlayerRegistrarService,
+        identity_service: PlayerIdentityService,
     ) -> Self {
         Self {
             config,
             webhook_receiver,
-            channel_cache,
             cache_manager,
             player_registrar,
+            identity_service,
             hytale_session_cache: routes::api::HytaleSessionCache::new(),
         }
     }
@@ -82,21 +80,29 @@ impl RocketManager {
                 let rocket = rocket::custom(figment)
                     .manage(cache_wrapper)
                     .manage(self.config.server.clone())
+                    .manage(self.config.voice.clone())
+                    .manage(self.config.server.features.clone())
                     .manage(self.webhook_receiver.clone())
-                    .manage(self.channel_cache.clone())
                     .manage(self.cache_manager.clone())
                     .manage(self.player_registrar.clone())
+                    .manage(self.identity_service.clone())
                     .manage(self.hytale_session_cache.clone())
                     .attach(AppDb::init())
                     .attach(cors.to_cors().unwrap())
                     .attach(rocket::fairing::AdHoc::try_on_ignite("Migrations", migrate))
                     .mount("/assets", rocket::fs::FileServer::from(&self.config.server.assets_path))
+                    .mount("/assets", routes![
+                        routes::assets::get_avatar,
+                        routes::assets::get_canvas,
+                    ])
                     .mount(
                         "/api",
                         routes![
                             routes::api::minecraft_authenticate,
                             routes::api::hytale_start_device_flow,
                             routes::api::hytale_poll_status,
+                            routes::api::code_authenticate,
+                            routes::api::link_java_identity,
                             routes::api::get_config,
                             routes::api::update_position,
                             routes::api::position,
@@ -117,9 +123,17 @@ impl RocketManager {
                             routes::api::channel_create,
                             routes::api::channel_delete,
                             routes::api::channel_event,
-                            routes::api::channel_list
+                            routes::api::channel_list,
+                            routes::api::channel_rename
                         ],
-                    );
+                    )
+                    .mount(
+                        "/api/gamerpic",
+                        routes![
+                            routes::api::get_gamerpic
+                        ],
+                    )
+                    .register("/", catchers![routes::catchers::default_catcher]);
 
                 match rocket.ignite().await {
                     Ok(ignite) => {
@@ -151,10 +165,14 @@ async fn migrate(rocket: rocket::Rocket<rocket::Build>) -> rocket::fairing::Resu
     let conn = match AppDb::fetch(&rocket) {
         Some(db) => &db.conn,
         None => {
+            tracing::error!("Migration: Failed to fetch database connection from Rocket");
             return Err(rocket);
         }
     };
 
-    let _ = Migrator::up(conn, None).await;
+    match Migrator::up(conn, None).await {
+        Ok(_) => tracing::info!("Migration: All migrations applied successfully"),
+        Err(e) => tracing::error!("Migration: Failed to run migrations: {}", e),
+    }
     Ok(rocket)
 }

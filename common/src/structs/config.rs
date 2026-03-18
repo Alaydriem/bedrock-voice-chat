@@ -2,12 +2,17 @@ use ts_rs::TS;
 
 use serde::{Deserialize, Serialize};
 
+use super::spatial_audio_config::SpatialAudioConfig;
+
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "./../../client/src/js/bindings/")]
 pub struct ApiConfig {
     pub status: String,
     pub client_id: String,
     pub protocol_version: String,
+    pub quic_port: u32,
+    #[serde(default)]
+    pub spatial_audio: SpatialAudioConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -35,6 +40,8 @@ pub struct LoginResponse {
     pub certificate_key: String,
     pub certificate_ca: String,
     pub quic_connect_string: String,
+    #[serde(default)]
+    pub minecraft_username: Option<String>,
 }
 
 impl LoginResponse {
@@ -58,6 +65,7 @@ impl LoginResponse {
             certificate_key,
             certificate_ca,
             quic_connect_string,
+            minecraft_username: None,
         }
     }
 }

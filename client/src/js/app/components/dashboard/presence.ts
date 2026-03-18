@@ -1,11 +1,15 @@
 import type { PlayerGainSettings } from '../../../bindings/PlayerGainSettings';
 import type { PlayerGainStore } from '../../../bindings/PlayerGainStore';
 import type { PlayerSource } from '../../../bindings/PlayerSource';
+import type { GamerpicResponse } from '../../../bindings/GamerpicResponse';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { Store } from '@tauri-apps/plugin-store';
 import { debug, info, error } from '@tauri-apps/plugin-log';
 import { invoke } from '@tauri-apps/api/core';
 import type { PlayerManager } from '../../managers/PlayerManager';
+import ImageCache from '../imageCache';
+import ImageCacheOptions from '../imageCacheOptions';
+import GameNameUtils from '../../utils/GameNameUtils';
 
 export class PlayerPresenceManager {
     private store: Store;
@@ -13,6 +17,8 @@ export class PlayerPresenceManager {
     private unlisten?: () => void;
     private isInitialized = false;
     private syncInterval?: ReturnType<typeof setInterval>;
+    private imageCache: ImageCache = new ImageCache();
+    private gamerpicFetchInProgress: Set<string> = new Set();
 
     constructor(store: Store, playerManager: PlayerManager) {
         this.store = store;
@@ -41,7 +47,8 @@ export class PlayerPresenceManager {
 
     private async syncCurrentPlayers(): Promise<void> {
         try {
-            const backendPlayers = new Set(await invoke<string[]>("get_current_players"));
+            const backendPlayersMap = await invoke<Record<string, string | null>>("get_current_players");
+            const backendPlayerNames = new Set(Object.keys(backendPlayersMap));
             const frontendPlayers = this.playerManager.getAll();
             const frontendPlayerNames = new Set(frontendPlayers.map(p => p.name));
 
@@ -49,7 +56,7 @@ export class PlayerPresenceManager {
             const toAdd: string[] = [];
             const toRemove: string[] = [];
 
-            for (const playerName of backendPlayers) {
+            for (const playerName of backendPlayerNames) {
                 // Only add if not already present with Proximity source
                 if (!this.playerManager.hasPlayerSource(playerName, 'Proximity')) {
                     toAdd.push(playerName);
@@ -58,7 +65,7 @@ export class PlayerPresenceManager {
 
             for (const playerName of frontendPlayerNames) {
                 // Only remove Proximity source if backend doesn't have them
-                if (!backendPlayers.has(playerName) && this.playerManager.hasPlayerSource(playerName, 'Proximity')) {
+                if (!backendPlayerNames.has(playerName) && this.playerManager.hasPlayerSource(playerName, 'Proximity')) {
                     toRemove.push(playerName);
                 }
             }
@@ -71,11 +78,21 @@ export class PlayerPresenceManager {
             // Apply changes
             for (const playerName of toAdd) {
                 const settings = await this.getPlayerSettings(playerName);
-                await this.playerManager.addPlayerSource(playerName, 'Proximity', settings);
+                const playerGame = backendPlayersMap[playerName] ?? undefined;
+                await this.playerManager.addPlayerSource(playerName, 'Proximity', settings, undefined, playerGame);
+                this.fetchAndSetGamepic(playerName, playerGame);
             }
 
             for (const playerName of toRemove) {
                 this.playerManager.removePlayerSource(playerName, 'Proximity');
+            }
+
+            // Retry gamerpic fetch for existing proximity players missing one
+            for (const playerName of backendPlayerNames) {
+                const player = this.playerManager.get(playerName);
+                if (player && !player.gamerpic) {
+                    this.fetchAndSetGamepic(playerName, backendPlayersMap[playerName] ?? undefined);
+                }
             }
         } catch (err) {
             error(`Failed to sync current players: ${err}`);
@@ -92,6 +109,7 @@ export class PlayerPresenceManager {
         // Support both 'player' (from auto-detection) and 'player_name' (from server events)
         const playerName = payload.player || payload.player_name;
         const status = payload.status;
+        const game: string | undefined = payload.game ?? undefined;
 
         if (!playerName) {
             error(`Player presence event missing player name: ${JSON.stringify(payload)}`);
@@ -107,9 +125,11 @@ export class PlayerPresenceManager {
             const settings = await this.getPlayerSettings(playerName);
 
             // Use source-aware addition with 'Proximity' source for audio detection
-            const success = await this.playerManager.addPlayerSource(playerName, 'Proximity', settings);
+            const success = await this.playerManager.addPlayerSource(playerName, 'Proximity', settings, undefined, game);
             if (success) {
                 await this.savePlayerToStore(playerName, settings);
+                // Fire-and-forget gamerpic fetch
+                this.fetchAndSetGamepic(playerName, game);
             }
         } else if (status === 'disconnected') {
             // Remove only from 'Proximity' source
@@ -205,6 +225,37 @@ export class PlayerPresenceManager {
 
     isPlayerActive(playerName: string): boolean {
         return this.playerManager.has(playerName);
+    }
+
+    private async fetchAndSetGamepic(playerName: string, gameOverride?: string): Promise<void> {
+        // Prevent duplicate fetches for the same player
+        if (this.gamerpicFetchInProgress.has(playerName)) {
+            return;
+        }
+        this.gamerpicFetchInProgress.add(playerName);
+
+        try {
+            const game = gameOverride ?? GameNameUtils.extractGame(playerName);
+            const gamertag = GameNameUtils.stripPrefix(playerName);
+
+            // Ask the server for the gamerpic URL
+            const response = await invoke<GamerpicResponse>('api_get_player_gamerpic', {
+                game,
+                gamertag
+            });
+
+            if (!response.gamerpic) {
+                return;
+            }
+
+            const options = new ImageCacheOptions(response.gamerpic, 2592000);
+            const dataUrl = await this.imageCache.getImage(options);
+            this.playerManager.updatePlayerGamepic(playerName, dataUrl);
+        } catch (err) {
+            debug(`Failed to fetch gamerpic for ${playerName}: ${err}`);
+        } finally {
+            this.gamerpicFetchInProgress.delete(playerName);
+        }
     }
 
     cleanup(): void {

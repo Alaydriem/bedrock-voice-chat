@@ -32,6 +32,7 @@ pub trait AudioFormatRenderer {
 
 #[async_trait]
 impl AudioFormatRenderer for AudioFormat {
+    #[tracing::instrument(skip(session_path, player_name, output_path), fields(format = ?self))]
     async fn render(
         &self,
         session_path: &Path,
@@ -244,8 +245,6 @@ impl WalAudioReader {
         const NANO_REC_SIGNATURE: [u8; 6] = *b"NANORC";
         const MAX_HEADER_SIZE: usize = 1024;
         const MAX_CONTENT_SIZE: usize = 50 * 1024;
-        const MAX_RECORDS_PER_FILE: usize = 100_000;
-
         let mut entries = Vec::new();
 
         // Find all segment files for this player (files are named: PlayerName-hash-sequence.log)
@@ -267,6 +266,9 @@ impl WalAudioReader {
             log::info!("Parsing WAL file: {:?}", file_path);
 
             let file_bytes = std::fs::read(&file_path)?;
+            // Each WAL record is at minimum 16 bytes (6 signature + 2 header_len + 8 content_len),
+            // so this limit scales with file size and can never be exceeded by valid data
+            let max_records = file_bytes.len() / 16;
             let mut pos = 0;
 
             const MAX_HEADER_SEARCH_BYTES: usize = 4096;
@@ -286,7 +288,7 @@ impl WalAudioReader {
             }
 
             let mut records_parsed = 0;
-            while pos + 6 <= file_bytes.len() && records_parsed < MAX_RECORDS_PER_FILE {
+            while pos + 6 <= file_bytes.len() && records_parsed < max_records {
                 if &file_bytes[pos..pos + 6] != NANO_REC_SIGNATURE {
                     break;
                 }
@@ -354,8 +356,8 @@ impl WalAudioReader {
                 records_parsed += 1;
             }
 
-            if records_parsed >= MAX_RECORDS_PER_FILE {
-                log::warn!("Hit MAX_RECORDS_PER_FILE limit in {:?}, stopping parse", file_path);
+            if records_parsed >= max_records {
+                log::warn!("Hit max_records limit in {:?}, stopping parse", file_path);
             }
 
             log::info!("  Parsed {} total records from {:?}", records_parsed, file_path);

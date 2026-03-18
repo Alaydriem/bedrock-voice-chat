@@ -25,6 +25,7 @@ import Notification from "../../components/events/Notification.svelte";
 import type { KeybindConfig } from '../bindings/KeybindConfig.ts';
 import type { NoiseGateSettings } from '../bindings/NoiseGateSettings.ts';
 import type { PlayerGainStore } from '../bindings/PlayerGainStore.ts';
+import type { ApiConfig } from '../bindings/ApiConfig.ts';
 
 import {
   checkPermission,
@@ -252,7 +253,11 @@ export default class Dashboard extends BVCApp {
 
             if (this.currentServerCredentials?.gamerpic) {
                 try {
-                    const avatarUrl = atob(this.currentServerCredentials.gamerpic);
+                    // Normalize: existing keyring data may be base64-encoded
+                    let avatarUrl = this.currentServerCredentials.gamerpic;
+                    if (!avatarUrl.startsWith('http')) {
+                        try { avatarUrl = atob(avatarUrl); } catch { }
+                    }
 
                     const imageCache = new ImageCache();
                     const options = new ImageCacheOptions(avatarUrl, 86400);
@@ -270,6 +275,10 @@ export default class Dashboard extends BVCApp {
             avatarElement.setAttribute("src", avatarSrc);
             if (dropdownAvatarElement) {
                 dropdownAvatarElement.setAttribute("src", avatarSrc);
+            }
+
+            if (avatarSrc && this.channelManager) {
+                this.channelManager.setCurrentUserGamepic(avatarSrc);
             }
         }
 
@@ -431,6 +440,35 @@ export default class Dashboard extends BVCApp {
                     device: "OutputDevice"
                 });
 
+                // Fetch server config to get fresh QUIC port and spatial audio settings
+                try {
+                    const configResponse = await invoke<{ config: ApiConfig }>("api_get_config", { server: currentServer });
+
+                    // Update QUIC port from server config
+                    if (configResponse?.config?.quic_port && credentials) {
+                        const freshPort = configResponse.config.quic_port.toString();
+                        if (credentials.quic_connect_string !== freshPort) {
+                            info(`Updating QUIC port from ${credentials.quic_connect_string} to ${freshPort}`);
+                            credentials.quic_connect_string = freshPort;
+
+                            // Persist to keyring for future sessions
+                            if (this.keyring) {
+                                await this.keyring.insert("quic_connect_string", freshPort);
+                            }
+                        }
+                    }
+
+                    if (configResponse?.config?.spatial_audio) {
+                        await invoke("update_stream_metadata", {
+                            key: "spatial_audio_config",
+                            value: JSON.stringify(configResponse.config.spatial_audio),
+                            device: "OutputDevice"
+                        });
+                    }
+                } catch (e) {
+                    warn(`Failed to fetch server config, using stored values: ${e}`);
+                }
+
                 await this.changeNetworkStream(currentServer, credentials);
 
                 await this.updateAudioDevice("OutputDevice");
@@ -468,14 +506,14 @@ export default class Dashboard extends BVCApp {
     }
 
     async changeNetworkStream(currentServer: string, credentials: LoginResponse | null): Promise<void> {
-        await invoke("stop_network_stream").then(async () => {
-            await invoke("change_network_stream", { server: currentServer, data: credentials })
-                .then(() => {
-                    info(`Changed network stream to ${currentServer}`);
-                }).catch((e) => {
-                    error(`Error changing network stream: ${e}`);
-                });
-        });
+        await invoke("stop_network_stream");
+        try {
+            await invoke("change_network_stream", { server: currentServer, data: credentials });
+            info(`Changed network stream to ${currentServer}`);
+        } catch (e) {
+            error(`Error changing network stream: ${e}`);
+            window.location.href = "/error?code=CONN01";
+        }
     }
 
     async cleanup(): Promise<void> {

@@ -1,14 +1,9 @@
-use crate::audio::AudioPacket;
-use crate::network::NetworkPacket;
 use crate::{structs::app_state::AppState, NetworkStreamManager};
 use common::structs::config::LoginResponse;
-use flume::{Receiver, Sender};
 use log::{error, info};
 use std::net::SocketAddr;
-use std::sync::Arc;
-use std::time::Duration;
 use tauri::async_runtime::Mutex;
-use tauri::{AppHandle, Manager, State};
+use tauri::State;
 use trust_dns_resolver::{
     config::{ResolverConfig, ResolverOpts},
     Resolver, TokioAsyncResolver,
@@ -25,6 +20,7 @@ pub(crate) async fn stop_network_stream(
 }
 
 #[tauri::command]
+#[tracing::instrument(skip(state, network_stream, data), fields(server = %server))]
 pub(crate) async fn change_network_stream(
     server: String,
     data: LoginResponse,

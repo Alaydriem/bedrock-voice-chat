@@ -1,24 +1,27 @@
-use crate::stream::quic::WebhookReceiver;
+use crate::rs::pool::AppDb;
+use crate::stream::quic::{CacheManager, WebhookReceiver};
 use common::structs::{
     channel::{
         ChannelEvent,
         ChannelEvents::{Join, Leave, Delete},
     },
+    channel_player::ChannelPlayer,
     packet::{
         ChannelEventPacket, PacketOwner, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
     },
 };
+use entity::player;
 use rocket::{http::Status, mtls::Certificate, response::status, serde::json::Json, State};
-
-use moka::future::Cache;
-use std::sync::Arc;
+use sea_orm::EntityTrait;
+use sea_orm::QueryFilter;
+use sea_orm::ColumnTrait;
+use sea_orm_rocket::Connection as SeaOrmConnection;
 
 #[put("/<id>", data = "<event>")]
 pub async fn channel_event<'r>(
     identity: Certificate<'r>,
-    channel_cache: &State<
-        Arc<async_mutex::Mutex<Cache<String, common::structs::channel::Channel>>>,
-    >,
+    db: SeaOrmConnection<'_, AppDb>,
+    cache_manager: &State<CacheManager>,
     id: &str,
     webhook_receiver: &State<WebhookReceiver>,
     event: Json<ChannelEvent>,
@@ -32,8 +35,7 @@ pub async fn channel_event<'r>(
 
     let event = event.0;
 
-    let lock = channel_cache.lock_arc().await;
-    let mut channel = match lock.get(id).await {
+    let channel = match cache_manager.get_channel(id).await {
         Some(channel) => channel,
         None => {
             if event.event.eq(&Delete) {
@@ -54,7 +56,6 @@ pub async fn channel_event<'r>(
 
                 return status::Custom(Status::Ok, Some(Json(true)));
             } else {
-                // You can't send channel events to a closed channel
                 return status::Custom(Status::BadRequest, Some(Json(false)));
             }
         }
@@ -62,16 +63,24 @@ pub async fn channel_event<'r>(
 
     match event.event {
         Join => {
-            _ = channel.add_player(user.clone());
+            let conn = db.into_inner();
+            let gamerpic = lookup_gamerpic(conn, &user, event.game.as_ref()).await;
+
+            let channel_player = ChannelPlayer {
+                name: user.clone(),
+                game: event.game.clone(),
+                gamerpic,
+            };
+            cache_manager.add_player_to_channel(channel_player, id).await;
         }
         Leave => {
-            _ = channel.remove_player(user.clone());
+            cache_manager.remove_player_from_channel(&user, id).await;
         }
-        _ => {}
+        _ => {
+            // Channel exists but unhandled event — just drop through to broadcast
+            drop(channel);
+        }
     }
-
-    _ = lock.insert(id.to_string(), channel).await;
-    drop(lock);
 
     let packet = QuicNetworkPacket {
         owner: Some(PacketOwner {
@@ -89,6 +98,26 @@ pub async fn channel_event<'r>(
     send_channel_event(packet, webhook_receiver).await;
 
     return status::Custom(Status::Ok, Some(Json(true)));
+}
+
+async fn lookup_gamerpic(
+    conn: &sea_orm::DatabaseConnection,
+    gamertag: &str,
+    game: Option<&common::Game>,
+) -> Option<String> {
+    use crate::services::GamerpicDecoder;
+
+    let mut query = player::Entity::find()
+        .filter(player::Column::Gamertag.eq(gamertag));
+
+    if let Some(game) = game {
+        query = query.filter(player::Column::Game.eq(game.clone()));
+    }
+
+    match query.one(conn).await {
+        Ok(Some(record)) => GamerpicDecoder::decode(record.gamerpic),
+        _ => None,
+    }
 }
 
 async fn send_channel_event(packet: QuicNetworkPacket, webhook_receiver: &State<WebhookReceiver>) {

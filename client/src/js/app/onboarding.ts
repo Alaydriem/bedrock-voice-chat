@@ -12,6 +12,7 @@ export default class Onboarding extends BVCApp {
         super();
         this.state = {
             welcome: false,
+            privacy: false,
             microphone: false,
             notifications: false,
             devices: false,
@@ -32,6 +33,7 @@ export default class Onboarding extends BVCApp {
 
         if (storedState) {
             this.state.welcome = storedState.welcome === true;
+            this.state.privacy = storedState.privacy === true;
             this.state.microphone = storedState.microphone === true;
             this.state.notifications = storedState.notifications === true;
             this.state.devices = storedState.devices === true;
@@ -56,6 +58,7 @@ export default class Onboarding extends BVCApp {
 
     getNextStep(): string | null {
         if (!this.state.welcome) return "/onboarding/welcome";
+        if (!this.state.privacy) return "/onboarding/privacy";
         if (!this.state.microphone) return "/onboarding/microphone";
         if (!this.state.notifications) return "/onboarding/notifications";
         if (!this.state.devices) return "/onboarding/devices";
@@ -64,6 +67,7 @@ export default class Onboarding extends BVCApp {
 
     isComplete(): boolean {
         return this.state.welcome &&
+            this.state.privacy &&
             this.state.microphone &&
             this.state.notifications &&
             this.state.devices;

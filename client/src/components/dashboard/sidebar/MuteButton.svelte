@@ -63,7 +63,6 @@
     const loadMuteStatus = async () => {
         try {
             const status = await invoke('mute_status', { device: 'InputDevice' }) as boolean;
-            info(`loadMuteStatus: backend returned ${status}`);
             isMuted = status;
         } catch (error) {
             logError(`Failed to get microphone mute status: ${error}`);

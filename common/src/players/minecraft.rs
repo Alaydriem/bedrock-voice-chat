@@ -15,6 +15,10 @@ pub struct MinecraftPlayer {
     pub spectator: bool,
     #[serde(default)]
     pub world_uuid: Option<String>,
+    #[serde(default)]
+    pub alternative_identity: Option<String>,
+    #[serde(default)]
+    pub player_uuid: Option<String>,
 }
 
 impl PlayerData for MinecraftPlayer {
@@ -102,6 +106,8 @@ impl From<crate::Player> for MinecraftPlayer {
             deafen: player.deafen,
             spectator: player.spectator,
             world_uuid: None,
+            alternative_identity: None,
+            player_uuid: None,
         }
     }
 }
@@ -132,6 +138,8 @@ mod tests {
             deafen: false,
             spectator: false,
             world_uuid: world_uuid.map(String::from),
+            alternative_identity: None,
+            player_uuid: None,
         }
     }
 

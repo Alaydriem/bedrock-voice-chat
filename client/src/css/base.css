@@ -43,9 +43,21 @@ html.dark {
 
 body {
   @apply bg-slate-50 font-sans text-sm leading-5 text-slate-500 antialiased [text-rendering:optimizeLegibility] dark:bg-navy-900 dark:text-navy-200 dark:[color-scheme:dark];
-  overflow-x: hidden;
+  overflow: hidden;
   overscroll-behavior: none;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  height: 100vh;
+  height: 100dvh;
+  position: fixed;
+  width: 100%;
 }
+
+body.android {
+  --android-status-bar-height: 36px;
+  padding-top: var(--android-status-bar-height);
+}
+
 
 body.is-monochrome::before {
   @apply pointer-events-none fixed inset-0 z-[999999] -m-[5rem] h-[calc(100%+10rem)] w-[calc(100%+10rem)] backdrop-grayscale backdrop-opacity-[.92] content-[''];
@@ -97,6 +109,11 @@ body.is-monochrome::before {
   height: 100dvh;
 }
 
+body.android .main-sidebar {
+  top: var(--android-status-bar-height);
+  height: calc(100dvh - var(--android-status-bar-height));
+}
+
 /* Remove this rule since main sidebar should always be visible */
 /* .is-sidebar-open .main-sidebar {
   @apply translate-x-0;
@@ -109,6 +126,11 @@ body.is-monochrome::before {
   /* iOS safe area support - dvh accounts for dynamic viewport on mobile */
   height: 100vh;
   height: 100dvh;
+}
+
+body.android .sidebar-panel {
+  top: var(--android-status-bar-height);
+  height: calc(100dvh - var(--android-status-bar-height));
 }
 
 .is-sidebar-open .sidebar-panel {
@@ -137,6 +159,10 @@ nav.header {
   @apply fixed top-0 right-0 z-20 flex h-[61px] border-b border-slate-150 transition-all duration-[.25s] dark:border-navy-700;
   /* Always account for main sidebar since it's always visible */
   width: calc(100% - var(--main-sidebar-width));
+}
+
+body.android nav.header {
+  top: var(--android-status-bar-height);
 }
 
 nav.header:before {

@@ -9,7 +9,7 @@ use common::{
 use entity::player;
 use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
 
-use crate::config::ApplicationConfigServer;
+use crate::config::Server;
 
 /// Errors that can occur during authentication
 #[derive(Debug)]
@@ -51,7 +51,7 @@ impl AuthService {
     /// * `game` - Game type (Minecraft, Hytale)
     pub async fn build_login_response<C: ConnectionTrait>(
         conn: &C,
-        config: &ApplicationConfigServer,
+        config: &Server,
         gamertag: String,
         gamerpic: String,
         game: Game,
@@ -109,9 +109,12 @@ impl AuthService {
                     AuthError::CertificateError(e.to_string())
                 })?;
 
+        let decoded_gamerpic = crate::services::GamerpicDecoder::decode(Some(gamerpic))
+            .unwrap_or_default();
+
         Ok(LoginResponse::new(
             gamertag,
-            gamerpic,
+            decoded_gamerpic,
             Keypair {
                 pk: kp.get_public_key(),
                 sk: kp.get_public_key(),

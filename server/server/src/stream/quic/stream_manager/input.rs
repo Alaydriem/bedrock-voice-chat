@@ -1,3 +1,4 @@
+use crate::stream::quic::client_id_hasher::ClientIdHasher;
 use crate::stream::quic::{ServerInputPacket, WebhookReceiver};
 use anyhow::Error;
 use bytes::Bytes;
@@ -47,13 +48,6 @@ impl<'c> Future for RecvDatagram<'c> {
 
 async fn recv_one_datagram(conn: &Connection) -> Result<Bytes, anyhow::Error> {
     RecvDatagram::new(conn).await
-}
-
-/// Helper function to create a short hash representation of client_id
-fn client_id_hash(client_id: &[u8]) -> String {
-    let mut hasher = DefaultHasher::new();
-    client_id.hash(&mut hasher);
-    format!("{:x}", hasher.finish() & 0xFFFF) // Take only last 4 hex digits for readability
 }
 
 pub(crate) struct InputStream {
@@ -215,10 +209,10 @@ impl StreamTrait for InputStream {
                                             self.last_seen_ts.insert(key.clone(), ts);
                                             if large_jump {
                                                 let client_hash = match &self.client_id {
-                                                    Some(cid) => client_id_hash(cid),
+                                                    Some(cid) => ClientIdHasher::hash(cid),
                                                     None => {
                                                         // If we don't know the client yet, hash the derived key for some stability
-                                                        client_id_hash(&key)
+                                                        ClientIdHasher::hash(&key)
                                                     }
                                                 };
                                                 let prev = last_seen.unwrap_or(0);
@@ -254,14 +248,20 @@ impl StreamTrait for InputStream {
                                                         )
                                                     };
 
-                                                    self.send_event(QuicNetworkPacket {
+                                                    let error_net = QuicNetworkPacket {
                                                         owner: packet.owner.clone(),
                                                         packet_type: PacketType::ServerError,
                                                         data: QuicNetworkPacketData::ServerError(
                                                             error_packet,
                                                         ),
-                                                    })
-                                                    .await;
+                                                    };
+                                                    if let Ok(bytes) = error_net.to_datagram() {
+                                                        let _ = connection.datagram_mut(
+                                                            |dg: &mut common::s2n_quic::provider::datagram::default::Sender| {
+                                                                dg.send_datagram(Bytes::from(bytes))
+                                                            },
+                                                        );
+                                                    }
 
                                                     break;
                                                 }
@@ -284,7 +284,7 @@ impl StreamTrait for InputStream {
                                     let owner = packet.owner.as_ref().unwrap();
                                     self.player_id = Some(owner.name.clone());
                                     self.client_id = Some(owner.client_id.clone());
-                                    let client_hash = client_id_hash(&owner.client_id);
+                                    let client_hash = ClientIdHasher::hash(&owner.client_id);
                                     tracing::info!(
                                         "Initialized player identity: {} (client: {})",
                                         owner.name,
@@ -330,12 +330,10 @@ impl StreamTrait for InputStream {
                         let client_hash = self
                             .client_id
                             .as_ref()
-                            .map(|cid| super::super::client_id_hash(cid))
+                            .map(|cid| ClientIdHasher::hash(cid))
                             .unwrap_or_else(|| {
-                                // derive from connection id
                                 let dbg_id = format!("{:?}", connection.id());
-                                let mut hasher = std::collections::hash_map::DefaultHasher::new();
-                                use std::hash::{Hash, Hasher};
+                                let mut hasher = DefaultHasher::new();
                                 dbg_id.hash(&mut hasher);
                                 format!("{:x}", hasher.finish() & 0xFFFF)
                             });

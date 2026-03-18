@@ -41,35 +41,34 @@ class CrouchTickingSystem(
         store: Store<EntityStore>,
         commandBuffer: CommandBuffer<EntityStore>
     ) {
-        // Get the PlayerRef component for this entity
-        val playerRef = chunk.getComponent(index, PlayerRef.getComponentType()) ?: return
+        try {
+            val playerRef = chunk.getComponent(index, PlayerRef.getComponentType()) ?: return
+            playerRef.reference ?: return
 
-        // Get the MovementStatesComponent
-        val movementStatesComponent = chunk.getComponent(index, MovementStatesComponent.getComponentType()) ?: return
-        val states = movementStatesComponent.movementStates ?: return
+            val movementStatesComponent = chunk.getComponent(index, MovementStatesComponent.getComponentType()) ?: return
+            val states = movementStatesComponent.movementStates ?: return
 
-        val playerUuid = playerRef.uuid
-        val currentCrouching = states.crouching
+            val playerUuid = playerRef.uuid
+            val currentCrouching = states.crouching
 
-        // Check if state changed
-        val previousCrouching = previousCrouchState[playerUuid]
-        if (previousCrouching == null) {
-            // First time seeing this player, store initial state
-            previousCrouchState[playerUuid] = currentCrouching
-            if (currentCrouching) {
-                // If they joined while crouching, report it
-                logger.log(Level.FINE, "[BVC] Player '${playerRef.username}' started CROUCHING (initial)")
-                onCrouchChange.accept(playerUuid, true)
+            val previousCrouching = previousCrouchState[playerUuid]
+            if (previousCrouching == null) {
+                previousCrouchState[playerUuid] = currentCrouching
+                if (currentCrouching) {
+                    logger.log(Level.FINE, "[BVC] Player '${playerRef.username}' started CROUCHING (initial)")
+                    onCrouchChange.accept(playerUuid, true)
+                }
+            } else if (previousCrouching != currentCrouching) {
+                previousCrouchState[playerUuid] = currentCrouching
+                if (currentCrouching) {
+                    logger.log(Level.FINE, "[BVC] Player '${playerRef.username}' started CROUCHING")
+                } else {
+                    logger.log(Level.FINE, "[BVC] Player '${playerRef.username}' stopped CROUCHING")
+                }
+                onCrouchChange.accept(playerUuid, currentCrouching)
             }
-        } else if (previousCrouching != currentCrouching) {
-            // State changed
-            previousCrouchState[playerUuid] = currentCrouching
-            if (currentCrouching) {
-                logger.log(Level.FINE, "[BVC] Player '${playerRef.username}' started CROUCHING")
-            } else {
-                logger.log(Level.FINE, "[BVC] Player '${playerRef.username}' stopped CROUCHING")
-            }
-            onCrouchChange.accept(playerUuid, currentCrouching)
+        } catch (_: Exception) {
+            return
         }
     }
 

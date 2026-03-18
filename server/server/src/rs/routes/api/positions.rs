@@ -1,9 +1,10 @@
+use common::traits::player_data::PlayerData;
 use common::Game;
 use rocket::{http::Status, serde::json::Json, State};
 
 use crate::{
     rs::guards::MCAccessToken,
-    services::PlayerRegistrarService,
+    services::{PlayerIdentityService, PlayerRegistrarService},
     stream::quic::{CacheManager, WebhookReceiver},
 };
 
@@ -16,17 +17,37 @@ pub async fn update_position(
     positions: Json<common::GameDataCollection>,
     webhook_receiver: &State<WebhookReceiver>,
     player_registrar: &State<PlayerRegistrarService>,
+    identity_service: &State<PlayerIdentityService>,
 ) -> Status {
-    // Get the game type from the request, defaulting to Minecraft for backwards compatibility
     let game_type = positions.0.game.clone().unwrap_or(Game::Minecraft);
 
-    // Collect all players for broadcasting
-    let all_players: Vec<_> = positions.0.players.clone();
+    let mut all_players: Vec<_> = positions.0.players.clone();
 
-    // Process players through the registrar (checks cache, creates new players as needed)
-    player_registrar.process_players(&all_players, game_type).await;
+    for player in &all_players {
+        let name = player.get_name();
+        let alt = player.get_alternative_identity();
 
-    // Broadcast positions to connected QUIC clients
+        if let Some(alt_identity) = alt {
+            let name = player.get_name();
+            if let Some(player_id) = identity_service
+                .find_player_id_by_gamertag(alt_identity, &game_type)
+                .await
+            {
+                let _ = identity_service
+                    .create_alias(player_id, name, &game_type, "floodgate")
+                    .await;
+            }
+        }
+    }
+
+    identity_service
+        .resolve_and_remap_players(&mut all_players, &game_type)
+        .await;
+
+    player_registrar
+        .process_players(&all_players, game_type)
+        .await;
+
     position_updater::broadcast_positions(all_players, webhook_receiver).await;
 
     Status::Ok
@@ -34,21 +55,16 @@ pub async fn update_position(
 
 #[get("/position")]
 pub async fn position(
-    // Guard the request so it's only accepted if we have a valid access token
     _access_token: MCAccessToken,
-    // Cache manager state for accessing player positions
     cache_manager: &State<CacheManager>,
 ) -> Json<Vec<common::PlayerEnum>> {
-    // Get all current player positions from the cache
     let player_cache = cache_manager.get_player_cache();
 
-    // Collect all cached players
     let mut players = Vec::new();
 
     for (_, player) in player_cache.iter() {
         players.push(player.clone());
     }
 
-    // Return the collected players
     Json(players)
 }

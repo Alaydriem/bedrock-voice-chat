@@ -2,11 +2,10 @@ pub mod position_updater;
 
 use crate::config::ApplicationConfig;
 use crate::rs::manager::RocketManager;
-use crate::services::{CertificateService, PlayerRegistrarService};
+use crate::services::{CertificateService, MeridianService, PlayerIdentityService, PlayerRegistrarService};
 use crate::stream::quic::{QuicServerManager, WebhookReceiver};
 
 use anyhow::anyhow;
-use common::structs::channel::Channel;
 use faccess::PathExt;
 use rcgen::{
     CertificateParams, DistinguishedName, ExtendedKeyUsagePurpose, IsCa, KeyPair, KeyUsagePurpose,
@@ -44,6 +43,8 @@ pub struct ServerRuntime {
     webhook_receiver: Arc<RwLock<Option<WebhookReceiver>>>,
     /// Player registrar for handling player registration (populated after start)
     player_registrar: Arc<RwLock<Option<PlayerRegistrarService>>>,
+    /// Player identity service for cross-platform name resolution (populated after start)
+    identity_service: Arc<RwLock<Option<PlayerIdentityService>>>,
     _logger_guard: Option<WorkerGuard>,
 }
 
@@ -56,6 +57,7 @@ impl ServerRuntime {
             shutdown_flag: Arc::new(AtomicBool::new(false)),
             webhook_receiver: Arc::new(RwLock::new(None)),
             player_registrar: Arc::new(RwLock::new(None)),
+            identity_service: Arc::new(RwLock::new(None)),
             _logger_guard: None,
         })
     }
@@ -112,7 +114,10 @@ impl ServerRuntime {
         let cert_manager = CertificateService::new_shared(&self.config.server.tls.certs_path)?;
 
         // Create player registrar for shared player registration logic
-        let player_registrar = PlayerRegistrarService::new(db_conn, cert_manager);
+        let player_registrar = PlayerRegistrarService::new(db_conn.clone(), cert_manager);
+
+        // Create player identity service for cross-platform name resolution
+        let identity_service = PlayerIdentityService::new(db_conn);
 
         // Store player_registrar for FFI access
         {
@@ -121,12 +126,12 @@ impl ServerRuntime {
             *pr = Some(player_registrar.clone());
         }
 
-        // State cache for recording groups a player is in
-        let channel_cache = Arc::new(async_mutex::Mutex::new(
-            moka::future::Cache::<String, Channel>::builder()
-                .max_capacity(100)
-                .build(),
-        ));
+        // Store identity_service for FFI access
+        {
+            let mut is = self.identity_service.write()
+                .map_err(|_| anyhow!("identity_service lock poisoned"))?;
+            *is = Some(identity_service.clone());
+        }
 
         // QUIC server manager
         let mut quic_manager = QuicServerManager::new(self.config.clone());
@@ -144,12 +149,31 @@ impl ServerRuntime {
         let rocket_manager = RocketManager::new(
             self.config.clone(),
             webhook_receiver,
-            channel_cache.clone(),
             cache_manager,
             player_registrar,
+            identity_service,
         );
 
         self.state = RuntimeState::Running;
+
+        // Register with Meridian if configured
+        if let Some(meridian_config) = &self.config.server.meridian {
+            let hostname = self.config.server.tls.names.first()
+                .cloned()
+                .unwrap_or_else(|| self.config.server.public_addr.clone());
+
+            let service = MeridianService::new(
+                meridian_config.clone(),
+                self.config.server.public_addr.clone(),
+                self.config.server.port,
+                self.config.server.quic_port,
+                hostname,
+            );
+
+            if let Err(e) = service.register().await {
+                tracing::error!(error = %e, "Failed to register with Meridian");
+            }
+        }
 
         let shutdown_flag = self.shutdown_flag.clone();
 
@@ -203,6 +227,11 @@ impl ServerRuntime {
     /// Get a clone of the player registrar Arc for external use (FFI)
     pub fn get_player_registrar(&self) -> Arc<RwLock<Option<PlayerRegistrarService>>> {
         self.player_registrar.clone()
+    }
+
+    /// Get a clone of the identity service Arc for external use (FFI)
+    pub fn get_identity_service(&self) -> Arc<RwLock<Option<PlayerIdentityService>>> {
+        self.identity_service.clone()
     }
 
     /// Update player positions directly (bypasses HTTP).

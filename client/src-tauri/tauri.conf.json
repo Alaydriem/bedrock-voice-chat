@@ -13,8 +13,8 @@
     "windows": [
       {
         "title": "Bedrock Voice Chat",
-        "width": 1355,
-        "height": 800
+        "width": 1440,
+        "height": 900
       }
     ],
     "security": {
@@ -34,7 +34,8 @@
     "macOS": {
       "bundleVersion": "1000508",
       "minimumSystemVersion": "26.0",
-      "infoPlist": "./Info.macos.plist"
+      "infoPlist": "./Info.macos.plist",
+      "hardenedRuntime": true
     },
     "createUpdaterArtifacts": true,
     "resources": [],

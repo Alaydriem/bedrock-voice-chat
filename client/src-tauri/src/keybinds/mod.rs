@@ -2,7 +2,7 @@ pub(crate) mod listener;
 
 use common::structs::keybinds::{KeybindAction, KeybindConfig, VoiceMode};
 use listener::KeybindListener;
-use log::{error, info};
+use log::{info, error};
 use std::sync::Arc;
 use tauri::AppHandle;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};

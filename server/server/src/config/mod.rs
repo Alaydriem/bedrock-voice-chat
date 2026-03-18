@@ -1,9 +1,11 @@
 mod app;
 
 pub use app::ApplicationConfig;
-pub use app::ApplicationConfigDatabase;
-pub use app::ApplicationConfigLogger;
-pub use app::ApplicationConfigMinecraft;
-pub use app::ApplicationConfigServer;
-pub use app::ApplicationConfigServerTLS;
-pub use app::ApplicationConfigVoice;
+pub use app::Database;
+pub use app::Features;
+pub use app::Logger;
+pub use app::Meridian;
+pub use app::Minecraft;
+pub use app::Server;
+pub use app::Tls;
+pub use app::Voice;

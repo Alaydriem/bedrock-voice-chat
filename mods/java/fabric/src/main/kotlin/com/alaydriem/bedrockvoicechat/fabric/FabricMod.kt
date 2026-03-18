@@ -20,7 +20,7 @@ class FabricMod : ModInitializer {
     private val logger = LoggerFactory.getLogger("Bedrock Voice Chat")
 
     private val configProvider = FabricConfigProvider()
-    private val playerDataProvider = FabricPlayerDataProvider()
+    private lateinit var playerDataProvider: FabricPlayerDataProvider
 
     private var embeddedServer: BvcServerManager? = null
     private var positionSender: PositionSender? = null
@@ -42,6 +42,9 @@ class FabricMod : ModInitializer {
         }
 
         minimumPlayers = config.minimumPlayers
+        playerDataProvider = FabricPlayerDataProvider(
+            floodgatePrefix = config.floodgatePrefix
+        )
 
         // Initialize embedded server if configured
         if (config.useEmbeddedServer) {

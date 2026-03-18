@@ -1,15 +1,30 @@
 import { defineConfig } from "vite";
 import { sveltekit } from "@sveltejs/kit/vite";
 import tailwindcss from "@tailwindcss/vite";
+import { sentryVitePlugin } from "@sentry/vite-plugin";
 
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vitejs.dev/config/
 export default defineConfig(async () => ({
-  plugins: [tailwindcss(), sveltekit()],
+  // Expose SENTRY_DSN to the frontend bundle without requiring a VITE_ prefix
+  envPrefix: ["VITE_", "SENTRY_"],
+
+  plugins: [
+    tailwindcss(),
+    sveltekit(),
+    sentryVitePlugin({
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+      disable: !process.env.SENTRY_AUTH_TOKEN,
+    }),
+  ],
 
   build: {
+    // Required for Sentry source map uploads to produce meaningful stack traces
+    sourcemap: true,
     // Android 11 WebView is Chrome ~87-90. Target Chrome 87 for safety.
     target: ['es2020', 'chrome87'],
   },

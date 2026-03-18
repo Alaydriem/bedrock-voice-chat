@@ -13,6 +13,7 @@
             gain: number;
             muted: boolean;
         };
+        gamerpic?: string;
     }
 
     // Manager props (injected via dependency injection)
@@ -49,10 +50,10 @@
     }
 </script>
 
-<div class="player-presence-section flex-1 p-4 flex flex-col h-full">
+<div class="player-presence-section flex-1 p-4 flex flex-col min-h-0 overflow-y-auto">
 
     <!-- Responsive flex layout for Discord-like card layout with auto-spacing -->
-    <div class="flex flex-wrap justify-evenly gap-y-4 flex-1 min-h-0">
+    <div class="flex flex-wrap justify-evenly gap-y-4 content-start min-h-0">
         {#each activePlayers as player (player.name)}
             <div class="player-card-container">
                 <PlayerCard
@@ -60,6 +61,7 @@
                     initialGain={player.settings.gain}
                     initialMuted={player.settings.muted}
                     isGroupMember={isPlayerGroupMember(player)}
+                    gamerpic={player.gamerpic}
                     onGainChange={(gain) => handleGainChange(player.name, gain)}
                     onMuteToggle={(muted) => handleMuteToggle(player.name, muted)}
                     {audioActivityManager}

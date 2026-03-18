@@ -1,3 +1,4 @@
+use common::consts::variant::{Variant, get_variant};
 use crate::structs::app_state::AppState;
 use audio::AudioPacket;
 use flume::{Receiver, Sender};
@@ -7,7 +8,7 @@ use tauri::async_runtime::Mutex;
 use tauri::Manager;
 use tauri_plugin_store::StoreExt;
 use tauri_plugin_deep_link::DeepLinkExt;
-use tauri_plugin_log::log::{info, error, warn};
+use log::{info, error, warn};
 use audio::AudioStreamManager;
 use audio::recording::RecordingManager;
 use network::NetworkStreamManager;
@@ -24,16 +25,40 @@ mod deep_links;
 mod events;
 #[cfg(desktop)]
 pub mod keybinds;
+mod logging;
 mod network;
 mod structs;
 pub mod websocket;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    _ = common::s2n_quic::provider::tls::rustls::rustls::crypto::aws_lc_rs::default_provider()
+        .install_default();
+
+    let sentry_guard = sentry::init((
+        option_env!("SENTRY_DSN").unwrap_or(""),
+        sentry::ClientOptions {
+            release: Some(env!("SENTRY_RELEASE").into()),
+            enable_logs: true,
+            traces_sample_rate: 0.1,
+            environment: Some(
+                match get_variant() {
+                    Variant::Dev => "development",
+                    Variant::Release => "production"
+                }.into()
+            ),
+            ..Default::default()
+        },
+    ));
+
+    #[cfg(desktop)]
+    let _minidump = sentry_rust_minidump::init(&sentry_guard)
+        .map_err(|e| warn!("Minidump crash reporter failed to initialize: {e}"))
+        .ok();
+
     let mut builder = tauri::Builder::default();
 
     // For desktop applications, enforce only a single running instance at a time
-    // And enable logging
     #[cfg(desktop)]
     {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -44,11 +69,27 @@ pub fn run() {
         }));
     }
 
+    let sentry_logger = Arc::new(logging::SentryLogger::new(true));
+
     builder
         .plugin(
             tauri_plugin_log::Builder::new()
-                .level(log::LevelFilter::Info)
-                .build(),
+                .level(
+                    std::env::var("LOG_LEVEL")
+                        .ok()
+                        .and_then(|s| s.parse::<log::LevelFilter>().ok())
+                        .unwrap_or(log::LevelFilter::Info),
+                )
+                .targets([
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stderr),
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir { file_name: None }),
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Dispatch(
+                        fern::Dispatch::new()
+                            .chain(Box::new(sentry_logger.clone()) as Box<dyn log::Log>),
+                    )),
+                ])
+                .build()
         )
         .plugin(tauri_plugin_audio_permissions::init())
         .plugin(tauri_plugin_keyring::init())
@@ -58,16 +99,25 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_deep_link::init())
-        .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_store::Builder::default()
+            .default_serialize_fn(|cache| {
+                let sorted: std::collections::BTreeMap<_, _> = cache.iter().collect();
+                serde_json::to_vec_pretty(&sorted).map_err(Into::into)
+            })
+            .build())
         .invoke_handler(tauri::generate_handler![
             // About
             crate::commands::about::get_app_info,
             crate::commands::about::export_logs,
+            crate::commands::about::get_telemetry,
+            crate::commands::about::set_telemetry,
             // Authentication
             crate::auth::commands::server_login,
             crate::auth::commands::logout,
             crate::auth::commands::start_hytale_device_flow,
             crate::auth::commands::poll_hytale_status,
+            crate::auth::commands::code_login,
+            crate::auth::commands::link_java_identity,
             // Environment Variable Data
             crate::commands::env::get_env,
             crate::commands::env::get_variant,
@@ -105,6 +155,8 @@ pub fn run() {
             crate::api::commands::api_list_channels,
             crate::api::commands::api_get_channel,
             crate::api::commands::api_channel_event,
+            crate::api::commands::api_rename_channel,
+            crate::api::commands::api_get_player_gamerpic,
             // WebSocket Server
             crate::commands::websocket::update_websocket_config,
             crate::commands::websocket::start_websocket_server,
@@ -117,7 +169,8 @@ pub fn run() {
             #[cfg(desktop)]
             crate::commands::updater::check_for_updates
         ])
-        .setup(|app| {
+        .setup(move |app| {
+            let sentry_logger = sentry_logger.clone();
             // Set Windows timer resolution for high-precision audio timing
             #[cfg(target_os = "windows")]
             {
@@ -151,7 +204,44 @@ pub fn run() {
 
             info!("BVC Variant {:?}", crate::commands::env::get_variant());
             info!("Protocol Version: {}", common::consts::version::PROTOCOL_VERSION);
+            let sentry_enabled = sentry::Hub::current().client().map(|c| c.is_enabled()).unwrap_or(false);
+            info!("Sentry: {}", if sentry_enabled { "initialized" } else { "not configured (DSN missing or invalid)" });
             let store = app.store("store.json")?;
+
+            let telemetry = Arc::new(crate::logging::Telemetry::new(store.get("telemetry").and_then(|v| v.as_bool()).unwrap_or(true)));
+
+            sentry_logger.set(telemetry.is_enabled());
+
+            let telemetry_filter = telemetry.clone();
+            use tracing_subscriber::prelude::*;
+            tracing_subscriber::registry()
+                .with(
+                    sentry::integrations::tracing::layer()
+                        .with_filter(tracing_subscriber::filter::dynamic_filter_fn(move |_, _| {
+                            telemetry_filter.is_enabled()
+                        }))
+                )
+                .init();
+
+            if sentry_enabled {
+                let install_id = match store.get("install_id").and_then(|v| v.as_str().map(String::from)) {
+                    Some(id) => id,
+                    None => {
+                        let id = uuid::Uuid::now_v7().to_string();
+                        store.set("install_id", id.clone());
+                        let _ = store.save();
+                        id
+                    }
+                };
+                log::info!("Platform ID: {}", install_id);
+                sentry::configure_scope(|scope| {
+                    scope.set_user(Some(sentry::User {
+                        id: Some(install_id),
+                        ..Default::default()
+                    }));
+                });
+            }
+
             let handle = app.handle().clone();
 
             // Register deep links for Desktop targets
@@ -190,11 +280,11 @@ pub fn run() {
                         }
                     },
                     None => {
-                        warn!("No cold-start deep links found or error");
+                        info!("No cold-start deep links found");
                     }
                 }
                 Err(e) => {
-                    warn!("No cold-start deep links found or error: {}", e);
+                    warn!("cold-start deep links error: {}", e);
                 }
             }
 
@@ -206,6 +296,8 @@ pub fn run() {
             }
 
             let app_state = AppState::new(store.clone(), handle.clone());
+            app.manage(telemetry);
+            app.manage(sentry_logger);
             app.manage(Mutex::new(app_state));
 
             // This is our audio producer and consumer
@@ -287,10 +379,6 @@ pub fn run() {
                     keybinds::KeybindManager::new(handle.clone(), listener, action_map);
                 app.manage(keybind_manager);
             }
-
-            // This is necessary to setup s2n_quic. It doesn't need to be called elsewhere
-            _ = common::s2n_quic::provider::tls::rustls::rustls::crypto::aws_lc_rs::default_provider()
-                .install_default();
 
             let network_stream = NetworkStreamManager::new(
                 handle.state::<Arc<Sender<AudioPacket>>>().inner().clone(),

@@ -3,10 +3,17 @@
     import "../../css/settings-responsive.css";
     import Settings from "../../js/app/settings.ts";
     import Sidebar from "../../components/settings/Sidebar.svelte";
+    import { platform } from "@tauri-apps/plugin-os";
 
     import { onMount } from "svelte";
 
-    onMount(() => {
+    onMount(async () => {
+      try {
+        const os = platform();
+        if (os === "android") document.body.classList.add("android");
+        if (os === "ios") document.body.classList.add("ios");
+      } catch {}
+
       window.App = new Settings();
       window.dispatchEvent(new CustomEvent("app:mounted"));
       document.querySelector("body")?.classList.add("is-sidebar-open");
@@ -18,7 +25,7 @@
 <div id="root" class="min-h-100vh cloak flex grow bg-slate-50 dark:bg-navy-900">
   <!-- Desktop sidebar -->
   <div id="main-sidebar-container" class="sidebar print:hidden">
-    <Sidebar activePage="audio.svelte" />
+    <Sidebar activePage="account.svelte" />
   </div>
 
   <main class="main-content flex-1 settings-main-content 

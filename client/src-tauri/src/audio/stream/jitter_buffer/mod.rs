@@ -7,8 +7,10 @@ pub mod audio_processor;
 mod jitter_buffer;
 pub mod jitter_buffer_source;
 pub mod metrics;
+pub mod pan_state;
 
-pub use jitter_buffer::{JitterBuffer, JitterBufferHandle, SpatialAudioData};
+pub use jitter_buffer::{JitterBuffer, JitterBufferHandle};
+pub use pan_state::PanState;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]

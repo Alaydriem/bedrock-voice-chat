@@ -1,5 +1,6 @@
 name: Refresh Hytale Token
-
+permissions:
+  contents: read
 on:
   schedule:
     # Run hourly (access tokens expire after ~1 hour)

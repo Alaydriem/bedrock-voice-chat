@@ -1,7 +1,14 @@
-use serde::{Deserialize, Serialize};
+pub mod features;
+pub mod meridian;
+pub mod minecraft;
+pub mod tls;
 
-use super::minecraft::ApplicationConfigMinecraft;
-use super::tls::ApplicationConfigServerTLS;
+pub use features::Features;
+pub use meridian::Meridian;
+pub use minecraft::Minecraft;
+pub use tls::Tls;
+
+use serde::{Deserialize, Serialize};
 
 fn default_listen() -> String {
     "0.0.0.0".to_string()
@@ -23,9 +30,8 @@ fn default_assets_path() -> String {
     "./assets".to_string()
 }
 
-/// Common server configuration
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ApplicationConfigServer {
+pub struct Server {
     #[serde(default = "default_listen")]
     pub listen: String,
     #[serde(default = "default_http_port")]
@@ -37,11 +43,15 @@ pub struct ApplicationConfigServer {
     #[serde(default = "default_assets_path")]
     pub assets_path: String,
     #[serde(default)]
-    pub tls: ApplicationConfigServerTLS,
-    pub minecraft: ApplicationConfigMinecraft,
+    pub tls: Tls,
+    pub minecraft: Minecraft,
+    #[serde(default)]
+    pub features: Features,
+    #[serde(default)]
+    pub meridian: Option<Meridian>,
 }
 
-impl Default for ApplicationConfigServer {
+impl Default for Server {
     fn default() -> Self {
         Self {
             listen: default_listen(),
@@ -49,8 +59,10 @@ impl Default for ApplicationConfigServer {
             quic_port: default_quic_port(),
             public_addr: default_public_addr(),
             assets_path: default_assets_path(),
-            tls: ApplicationConfigServerTLS::default(),
-            minecraft: ApplicationConfigMinecraft::default(),
+            tls: Tls::default(),
+            minecraft: Minecraft::default(),
+            features: Features::default(),
+            meridian: None,
         }
     }
 }

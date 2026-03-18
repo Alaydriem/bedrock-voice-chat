@@ -13,7 +13,10 @@ use reqwest::header::HeaderMap;
 use reqwest::Url;
 
 use crate::auth::provider::{AuthError, AuthResult};
-use dtos::{AccessTokenResponse, ProfileResponse, XboxAuthResponse};
+use dtos::{
+    AccessTokenResponse, MinecraftLoginResponse, MinecraftProfileResponse, ProfileResponse,
+    XboxAuthResponse,
+};
 
 /// Minecraft authentication provider using Xbox Live
 pub struct MinecraftAuthProvider {
@@ -65,11 +68,35 @@ impl MinecraftAuthProvider {
             .get_user_profile(&client, &user_hash, &xsts_token, &xuid)
             .await?;
 
-        Ok(profile)
+        let minecraft_username: Option<String> = None;
+
+        Ok(profile.with_minecraft_username(minecraft_username))
     }
 }
 
 impl MinecraftAuthProvider {
+    /// Authenticate only enough to get the Minecraft Java profile.
+    /// Runs Steps 1 (token exchange), 2 (XBL auth), and 6 (MC Services).
+    /// Skips Xbox profile/XUID lookup since we only need the MC username.
+    pub async fn authenticate_for_java_profile(
+        &self,
+        code: String,
+        redirect_uri: Url,
+    ) -> Result<String, AuthError> {
+        let client = reqwest::Client::builder()
+            .build()
+            .map_err(|e| AuthError::Network(e.to_string()))?;
+
+        let token = self
+            .exchange_code_for_token(&client, &code, &redirect_uri)
+            .await?;
+
+        let (xbl_token, user_hash) = self.authenticate_xbox_live(&client, &token).await?;
+
+        self.get_minecraft_java_profile(&client, &user_hash, &xbl_token)
+            .await
+    }
+
     async fn exchange_code_for_token(
         &self,
         client: &reqwest::Client,
@@ -264,5 +291,119 @@ impl MinecraftAuthProvider {
                 "Profile missing required attributes".to_string(),
             )),
         }
+    }
+
+    /// Get the player's Minecraft Java Edition profile (username + UUID).
+    /// Returns None if the player doesn't own Java Edition.
+    async fn get_minecraft_java_profile(
+        &self,
+        client: &reqwest::Client,
+        user_hash: &str,
+        xbl_token: &str,
+    ) -> Result<String, AuthError> {
+        // Get a separate XSTS token for Minecraft Services
+        let mc_xsts_token = self
+            .get_minecraft_xsts_token(client, xbl_token)
+            .await
+            .map_err(|e| {
+                tracing::warn!("MC Services: XSTS token request failed: {}", e);
+                e
+            })?;
+
+        // Authenticate with Minecraft Services
+        let identity_token = format!("XBL3.0 x={};{}", user_hash, mc_xsts_token);
+
+        let mc_login_response = client
+            .post("https://api.minecraftservices.com/authentication/login_with_xbox")
+            .json(&serde_json::json!({
+                "identityToken": identity_token,
+            }))
+            .send()
+            .await?;
+
+        let mc_login_status = mc_login_response.status();
+        if !mc_login_status.is_success() {
+            let body = mc_login_response.text().await.unwrap_or_default();
+            tracing::error!("MC Services: login_with_xbox failed ({}): {}", mc_login_status, body);
+            return Err(AuthError::AuthenticationFailed(format!(
+                "MC Services login failed ({}): {}",
+                mc_login_status, body
+            )));
+        }
+
+        let mc_login: MinecraftLoginResponse = mc_login_response
+            .json()
+            .await
+            .map_err(|e| AuthError::InvalidResponse(e.to_string()))?;
+        tracing::info!("MC Services: Got MC access token successfully");
+
+        // Fetch the Minecraft profile
+        tracing::info!("MC Services: Fetching Minecraft profile");
+        let profile_response = client
+            .get("https://api.minecraftservices.com/minecraft/profile")
+            .header("Authorization", format!("Bearer {}", mc_login.access_token))
+            .send()
+            .await?;
+
+        let profile_status = profile_response.status();
+        if !profile_status.is_success() {
+            let body = profile_response.text().await.unwrap_or_default();
+            tracing::warn!("MC Services: profile fetch failed ({}): {}", profile_status, body);
+            return Err(AuthError::AuthenticationFailed(format!(
+                "MC profile fetch failed ({})",
+                profile_status
+            )));
+        }
+
+        let profile: MinecraftProfileResponse = profile_response
+            .json()
+            .await
+            .map_err(|e| AuthError::InvalidResponse(e.to_string()))?;
+
+        Ok(profile.name)
+    }
+
+    /// Get an XSTS token authorized for Minecraft Services
+    async fn get_minecraft_xsts_token(
+        &self,
+        client: &reqwest::Client,
+        xbl_token: &str,
+    ) -> Result<String, AuthError> {
+        let json = serde_json::json!({
+            "Properties": {
+                "SandboxId": "RETAIL",
+                "UserTokens": [xbl_token]
+            },
+            "RelyingParty": "rp://api.minecraftservices.com/",
+            "TokenType": "JWT"
+        });
+
+        let mut headers = HeaderMap::new();
+        headers.insert("Accept", "application/json".parse().unwrap());
+        headers.insert("Content-Type", "application/json".parse().unwrap());
+
+        let xsts_response = client
+            .post("https://xsts.auth.xboxlive.com/xsts/authorize")
+            .json(&json)
+            .headers(headers)
+            .send()
+            .await?;
+
+        let xsts_status = xsts_response.status();
+        if !xsts_status.is_success() {
+            let body = xsts_response.text().await.unwrap_or_default();
+            tracing::warn!("MC Services: XSTS authorize failed ({}): {}", xsts_status, body);
+            return Err(AuthError::AuthenticationFailed(format!(
+                "MC XSTS authorize failed ({})",
+                xsts_status
+            )));
+        }
+
+        let response: XboxAuthResponse = xsts_response
+            .json()
+            .await
+            .map_err(|e| AuthError::InvalidResponse(e.to_string()))?;
+
+        Ok(response.token)
     }
 }

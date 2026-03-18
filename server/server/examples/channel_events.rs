@@ -104,15 +104,17 @@ impl Opt {
     pub async fn get_reqwest_client(&self) -> Result<Client, anyhow::Error> {
         let ca_cert = self.get_ca_bytes().await?;
         let identity = self.get_identity_bytes().await?;
-        
+
         let mut builder = reqwest::Client::builder()
             .use_rustls_tls()
             .timeout(Duration::new(10, 0))
-            .danger_accept_invalid_certs(false)
             .add_root_certificate(ca_cert)
             .identity(identity);
 
-        builder = builder.danger_accept_invalid_certs(true);
+        #[cfg(dev)]
+        {
+            builder = builder.danger_accept_invalid_certs(true);
+        }
 
         match builder.build() {
             Ok(client) => Ok(client),
@@ -126,7 +128,7 @@ async fn main() -> anyhow::Result<()> {
     let opt = Opt::parse();
 
     let client = opt.get_reqwest_client().await?;
-    
+
     let mut headers = HeaderMap::new();
     headers.append("Accept", HeaderValue::from_static("application/json"));
     headers.append("Content-Type", HeaderValue::from_static("application/json"));
@@ -151,7 +153,7 @@ async fn main() -> anyhow::Result<()> {
                 Err(e) => println!("❌ Error: {}", e),
             }
         }
-        
+
         Commands::Delete { id } => {
             println!("🗑️ Deleting channel '{}'...", id);
             let url = format!("{}/api/channel/{}", opt.uri, id);
@@ -169,7 +171,7 @@ async fn main() -> anyhow::Result<()> {
                 Err(e) => println!("❌ Error: {}", e),
             }
         }
-        
+
         Commands::Join { id } => {
             println!("� Joining channel '{}'...", id);
             let url = format!("{}/api/channel/{}", opt.uri, id);
@@ -188,7 +190,7 @@ async fn main() -> anyhow::Result<()> {
                 Err(e) => println!("❌ Error: {}", e),
             }
         }
-        
+
         Commands::Leave { id } => {
             println!("🚪 Leaving channel '{}'...", id);
             let url = format!("{}/api/channel/{}", opt.uri, id);
@@ -207,7 +209,7 @@ async fn main() -> anyhow::Result<()> {
                 Err(e) => println!("❌ Error: {}", e),
             }
         }
-        
+
         Commands::List => {
             println!("📋 Listing all channels...");
             let url = format!("{}/api/channel", opt.uri);

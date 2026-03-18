@@ -2,12 +2,11 @@ use crate::audio::types::{AudioDevice, AudioDeviceType};
 use crate::audio::{AudioActionsManager, RecordingManager};
 use crate::{structs::app_state::AppState, AudioStreamManager};
 use common::structs::audio::StreamEvent;
-use flume::{Receiver, Sender};
 use log::info;
 use std::sync::Arc;
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap};
 use tauri::async_runtime::Mutex;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, State};
 use tauri_plugin_store::StoreExt;
 
 /// Returns the active audio device for the given device type
@@ -259,11 +258,11 @@ async fn extract_current_player(app: &AppHandle) -> Option<String> {
         .map(String::from)
 }
 
-/// Returns the list of currently tracked players from the output stream's presence cache
+/// Returns the currently tracked players with their game type
 #[tauri::command]
 pub(crate) async fn get_current_players(
     asm: State<'_, Mutex<AudioStreamManager>>,
-) -> Result<Vec<String>, ()> {
+) -> Result<std::collections::HashMap<String, Option<String>>, ()> {
     let asm = asm.lock().await;
     Ok(asm.get_current_players())
 }

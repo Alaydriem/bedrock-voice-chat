@@ -130,4 +130,30 @@ impl PlayerEnum {
             _ => None,
         }
     }
+
+    /// Get the alternative identity if one exists (e.g., Xbox gamertag for Floodgate players)
+    pub fn get_alternative_identity(&self) -> Option<&str> {
+        match self {
+            PlayerEnum::Minecraft(mc) => mc.alternative_identity.as_deref(),
+            _ => None,
+        }
+    }
+
+    /// Get the platform UUID if one exists (e.g., Hytale UUID, Minecraft Java UUID)
+    pub fn get_player_uuid(&self) -> Option<&str> {
+        match self {
+            PlayerEnum::Minecraft(mc) => mc.player_uuid.as_deref(),
+            PlayerEnum::Hytale(h) => h.player_uuid.as_deref(),
+            PlayerEnum::Generic(_) => None,
+        }
+    }
+
+    /// Set the player name (used for identity resolution)
+    pub fn set_name(&mut self, name: String) {
+        match self {
+            PlayerEnum::Minecraft(mc) => mc.name = name,
+            PlayerEnum::Hytale(h) => h.name = name,
+            PlayerEnum::Generic(g) => g.name = name,
+        }
+    }
 }

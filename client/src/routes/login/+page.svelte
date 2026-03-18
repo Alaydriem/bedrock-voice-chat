@@ -9,6 +9,7 @@
   const platformDetector = new PlatformDetector();
   let isMobile = $state(false);
   let appVersion = $state("");
+  let isCodeLogin = $state(false);
 
   onMount(async () => {
     isMobile = await platformDetector.checkMobile();
@@ -94,6 +95,7 @@
                     autocapitalize="none"
                     spellcheck="false"
                     autocomplete="url"
+                    oninput={(e) => { isCodeLogin = /^(https?:\/\/)?code@/.test((e.currentTarget as HTMLInputElement).value); }}
                   />
                 </label>
                 <span
@@ -102,30 +104,44 @@
                   >Unable to connect and verify BVC Server. Check the URL?</span
                 >
               </div>
-              <button class="btn mt-5 w-full">
-                <img
-                  src="/images/ms-symbollockup_signin_dark.svg"
-                  alt="Sign in with Microsoft Account"
-                  width="215"
-                  height="41"
-                />
-              </button>
-
-              {#if !isMobile }
-                <div class="flex items-center my-4">
-                  <hr class="flex-grow border-slate-300 dark:border-navy-450" />
-                  <span class="px-3 text-slate-400 dark:text-navy-300 text-sm">or</span>
-                  <hr class="flex-grow border-slate-300 dark:border-navy-450" />
-                </div>
-                <button id="hytale-login-btn" type="button" class="btn w-full" onclick={(e) => window.App.loginWithHytale(e)}>
+              {#if isCodeLogin}
+                <button
+                  type="button"
+                  class="btn mt-5 w-full bg-primary font-medium text-white hover:bg-primary-focus focus:bg-primary-focus active:bg-primary-focus/90 dark:bg-accent dark:hover:bg-accent-focus dark:focus:bg-accent-focus dark:active:bg-accent/90"
+                  onclick={() => {
+                    const raw = (document.querySelector('#bvc-server-input') as HTMLInputElement)?.value ?? '';
+                    const server = raw.replace(/^(https?:\/\/)?code@/, (_, proto) => proto ?? 'https://');
+                    window.location.href = `/login/code?server=${encodeURIComponent(server)}`;
+                  }}
+                >
+                  Login with Code
+                </button>
+              {:else}
+                <button class="btn mt-5 w-full">
                   <img
-                    src="/images/hytale-login-button.svg"
-                    alt="Sign in with Hytale"
+                    src="/images/ms-symbollockup_signin_dark.svg"
+                    alt="Sign in with Microsoft Account"
                     width="215"
                     height="41"
                   />
                 </button>
-             {/if}
+
+                {#if !isMobile}
+                  <div class="flex items-center my-4">
+                    <hr class="flex-grow border-slate-300 dark:border-navy-450" />
+                    <span class="px-3 text-slate-400 dark:text-navy-300 text-sm">or</span>
+                    <hr class="flex-grow border-slate-300 dark:border-navy-450" />
+                  </div>
+                  <button id="hytale-login-btn" type="button" class="btn w-full" onclick={(e) => window.App.loginWithHytale(e)}>
+                    <img
+                      src="/images/hytale-login-button.svg"
+                      alt="Sign in with Hytale"
+                      width="215"
+                      height="41"
+                    />
+                  </button>
+                {/if}
+              {/if}
             </div>
           </form>
           <div

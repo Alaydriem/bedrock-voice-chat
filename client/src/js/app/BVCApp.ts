@@ -73,7 +73,6 @@ export default class BVCApp extends App {
             }
         }).then((unlisten) => {
             this.connectionHealthUnlisten = unlisten;
-            info('BVCApp: connection_health listener registered');
         }).catch((err) => {
             logError(`BVCApp: Failed to register connection health listener: ${err}`);
         });

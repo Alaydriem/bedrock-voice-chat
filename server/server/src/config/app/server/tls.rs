@@ -12,13 +12,10 @@ fn default_tls_ips() -> Vec<String> {
     vec!["127.0.0.1".to_string()]
 }
 
-/// TLS Configuration for server
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ApplicationConfigServerTLS {
-    /// Path to TLS certificate (optional - if not set, uses auto-generated CA cert)
+pub struct Tls {
     #[serde(default)]
     pub certificate: String,
-    /// Path to TLS private key (optional - if not set, uses auto-generated CA key)
     #[serde(default)]
     pub key: String,
     #[serde(default)]
@@ -31,7 +28,7 @@ pub struct ApplicationConfigServerTLS {
     pub ips: Vec<String>,
 }
 
-impl Default for ApplicationConfigServerTLS {
+impl Default for Tls {
     fn default() -> Self {
         Self {
             certificate: String::new(),

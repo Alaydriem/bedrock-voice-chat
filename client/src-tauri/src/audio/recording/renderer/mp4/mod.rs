@@ -187,6 +187,7 @@ impl Mp4Renderer {
             duration: duration_samples,
             data_offset: *data_offset,
             data_size: data.len(),
+            composition_time_offset: Some(0),
         })?;
 
         *data_offset += data.len() as u64;

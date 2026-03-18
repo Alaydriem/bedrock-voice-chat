@@ -5,6 +5,7 @@ use ts_rs::TS;
 #[ts(export, export_to = "./../../client/src/js/bindings/")]
 pub struct OnboardingState {
     pub welcome: bool,
+    pub privacy: bool,
     pub microphone: bool,
     pub notifications: bool,
     pub devices: bool,

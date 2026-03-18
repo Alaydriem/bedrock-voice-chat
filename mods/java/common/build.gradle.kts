@@ -8,6 +8,13 @@ base {
     archivesName.set("$archivesBaseName-common")
 }
 
+repositories {
+    maven {
+        name = "OpenCollab"
+        url = uri("https://repo.opencollab.dev/main/")
+    }
+}
+
 dependencies {
     // Gson for JSON serialization
     api("com.google.code.gson:gson:2.10.1")
@@ -17,6 +24,9 @@ dependencies {
 
     // SLF4J for logging (provided by platform implementations)
     compileOnly("org.slf4j:slf4j-api:2.0.9")
+
+    // Floodgate API for Geyser/Bedrock player detection (optional at runtime)
+    compileOnly("org.geysermc.floodgate:api:2.2.3-SNAPSHOT")
 }
 
 // Native library bundling configuration
