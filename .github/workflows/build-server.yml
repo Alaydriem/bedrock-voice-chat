@@ -12,11 +12,6 @@ on:
         description: 'Git ref to checkout (tag, branch, or SHA)'
         required: false
         type: string
-      skip_docker:
-        description: 'Skip Docker image build'
-        required: false
-        default: false
-        type: boolean
   workflow_dispatch:
     inputs:
       build_mode:
@@ -256,15 +251,3 @@ jobs:
           path: server/target/${{ matrix.target }}/${{ github.event_name == 'pull_request' && 'debug' || startsWith(github.ref, 'refs/tags/') && 'release' || inputs.build_mode || 'debug' }}/${{ steps.lib-name.outputs.lib_name }}
           if-no-files-found: error
           retention-days: 30
-
-  build-docker:
-    name: Build Docker Image
-    needs: build-server
-    if: ${{ !inputs.skip_docker }}
-    uses: ./.github/workflows/build-server-docker.yml
-    with:
-      version: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || (inputs.ref != '' && startsWith(inputs.ref, 'v') && inputs.ref) || github.ref_name }}
-      ref: ${{ inputs.ref || github.ref }}
-      build_mode: ${{ inputs.build_mode || (startsWith(github.ref, 'refs/tags/') && 'release' || 'debug') }}
-      push: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/beta' }}
-    secrets: inherit

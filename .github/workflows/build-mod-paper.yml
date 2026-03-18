@@ -118,20 +118,22 @@ jobs:
             echo "Using gradle.properties version: $VERSION"
           fi
 
-          # Encode version if it contains a pre-release tag (e.g., 1.0.0-beta.7 -> 1.0.507)
+          # Encode version for Gradle build (e.g., 1.0.0-beta.7 -> 1.0.507)
+          BUILD_VERSION="$VERSION"
           if echo "$VERSION" | grep -q '-'; then
-            VERSION=$(node ../../.github/scripts/encode-version.js "$VERSION")
-            echo "Encoded version: $VERSION"
+            BUILD_VERSION=$(node ../../.github/scripts/encode-version.js "$VERSION")
+            echo "Encoded build version: $BUILD_VERSION"
           fi
 
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "build-version=$BUILD_VERSION" >> $GITHUB_OUTPUT
           echo "artifact-name=bedrock-voice-chat-paper-$VERSION" >> $GITHUB_OUTPUT
 
       - name: Build Paper module
         working-directory: ./mods/java
         run: |
           chmod +x gradlew
-          ./gradlew :paper:build --no-daemon -PmodVersion=${{ steps.mod-version.outputs.version }}
+          ./gradlew :paper:build --no-daemon -PmodVersion=${{ steps.mod-version.outputs.build-version }}
 
       - name: Prepare artifact
         shell: bash

@@ -7,11 +7,11 @@ pub(crate) async fn check_for_updates(app: tauri::AppHandle) -> Result<Option<St
         || version.contains("-alpha")
         || version.contains("-rc");
 
-    let endpoint = if is_prerelease {
+    let endpoint = option_env!("BVC_UPDATER_ENDPOINT").unwrap_or(if is_prerelease {
         "https://alaydriem.github.io/bedrock-voice-chat/updater/beta.json"
     } else {
         "https://alaydriem.github.io/bedrock-voice-chat/updater/latest.json"
-    };
+    });
 
     log::info!(
         "Updater: version={}, channel={}, endpoint={}",

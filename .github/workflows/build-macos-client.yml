@@ -231,6 +231,31 @@ jobs:
           ls -la "bvc-macos-release.pkg"
           echo "macOS .pkg created and signed successfully"
 
+      - name: Create updater artifact from signed app
+        if: >-
+          github.event_name != 'pull_request' &&
+          inputs.build_mode == 'release'
+        working-directory: ./client
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          APP_DIR="../target/release/bundle/macos/Bedrock Voice Chat.app"
+
+          # Create tar.gz of the Apple-signed .app for the Tauri updater
+          cd "../target/release/bundle/macos"
+          tar czf "../../../../client/bvc-macos-updater.app.tar.gz" "Bedrock Voice Chat.app"
+          cd "../../../../client"
+
+          echo "Created updater bundle:"
+          ls -la "bvc-macos-updater.app.tar.gz"
+
+          # Sign with Tauri's minisign key
+          yarn tauri signer sign "bvc-macos-updater.app.tar.gz"
+
+          echo "Created updater signature:"
+          ls -la "bvc-macos-updater.app.tar.gz.sig"
+
       - name: Prepare macOS artifacts
         working-directory: ./client
         run: |
@@ -274,6 +299,17 @@ jobs:
           name: bvc-macos-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
           path: client/bvc-macos-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}.app.zip
           retention-days: 30
+
+      - name: Upload macOS updater artifacts
+        if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bvc-macos-updater
+          path: |
+            client/bvc-macos-updater.app.tar.gz
+            client/bvc-macos-updater.app.tar.gz.sig
+          retention-days: 90
+          if-no-files-found: error
 
       - name: Upload to TestFlight
         if: >-

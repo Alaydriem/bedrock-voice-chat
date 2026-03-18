@@ -153,6 +153,37 @@ jobs:
             Get-ChildItem "bvc-windows-$BUILD_MODE.exe" | Format-List Name, Length, LastWriteTime
           }
 
+          # Copy NSIS updater artifacts (release builds only)
+          if ($BUILD_MODE -eq "release") {
+            $nsisDir = "..\target\release\bundle\nsis"
+            if (Test-Path $nsisDir) {
+              Write-Host "Found NSIS bundle directory:" -ForegroundColor Cyan
+              Get-ChildItem $nsisDir | ForEach-Object {
+                Write-Host "  $($_.Name)" -ForegroundColor Cyan
+              }
+
+              $nsisExe = Get-ChildItem "$nsisDir\*-setup.exe" | Select-Object -First 1
+              if ($nsisExe) {
+                Copy-Item $nsisExe.FullName "bvc-windows-nsis-setup.exe"
+                Write-Host "Copied NSIS installer: $($nsisExe.Name)" -ForegroundColor Green
+              }
+
+              $nsisZip = Get-ChildItem "$nsisDir\*.nsis.zip" | Where-Object { $_.Name -notmatch '\.sig$' } | Select-Object -First 1
+              if ($nsisZip) {
+                Copy-Item $nsisZip.FullName "bvc-windows-updater.nsis.zip"
+                Write-Host "Copied updater bundle: $($nsisZip.Name)" -ForegroundColor Green
+              }
+
+              $nsisSig = Get-ChildItem "$nsisDir\*.nsis.zip.sig" | Select-Object -First 1
+              if ($nsisSig) {
+                Copy-Item $nsisSig.FullName "bvc-windows-updater.nsis.zip.sig"
+                Write-Host "Copied updater signature: $($nsisSig.Name)" -ForegroundColor Green
+              }
+            } else {
+              Write-Host "WARNING: NSIS bundle directory not found at $nsisDir" -ForegroundColor Yellow
+            }
+          }
+
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         id: upload-windows
@@ -160,6 +191,26 @@ jobs:
           name: bvc-windows-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
           path: client/bvc-windows-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}.exe
           retention-days: 30
+
+      - name: Upload Windows NSIS installer
+        if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bvc-windows-nsis-setup
+          path: client/bvc-windows-nsis-setup.exe
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Upload Windows updater artifacts
+        if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bvc-windows-updater
+          path: |
+            client/bvc-windows-updater.nsis.zip
+            client/bvc-windows-updater.nsis.zip.sig
+          retention-days: 90
+          if-no-files-found: error
 
       - name: Output artifact information
         shell: powershell
@@ -194,32 +245,3 @@ jobs:
           name: asyncapi-yaml
           path: docs/websocket-api.yaml
           retention-days: 1
-
-  generate-html-and-deploy:
-    name: Generate HTML and Deploy to GitHub Pages
-    runs-on: ubuntu-latest
-    needs: build-windows
-    if: github.ref == 'refs/heads/master'
-
-    steps:
-      - name: Download AsyncAPI YAML
-        uses: actions/download-artifact@v4
-        with:
-          name: asyncapi-yaml
-          path: docs
-
-      - name: Generate HTML from AsyncAPI spec
-        run: npx -y @asyncapi/generator@2 docs/websocket-api.yaml @asyncapi/html-template -o docs/websocket-api-html --force-write -p singleFile=true
-
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./docs/websocket-api-html
-          destination_dir: websocket
-          keep_files: true
-
-      - name: Documentation generation complete
-        run: |
-          echo "AsyncAPI Documentation Generated and Deployed!"
-          echo "URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/websocket"

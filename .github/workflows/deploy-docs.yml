@@ -1,0 +1,57 @@
+name: Deploy WebSocket Docs
+permissions:
+  contents: write
+
+on:
+  push:
+    branches: [master, beta]
+    paths:
+      - 'common/websocket-types/**'
+      - 'client/package.json'
+
+jobs:
+  deploy:
+    name: Deploy WebSocket Docs (${{ github.ref_name }})
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'yarn'
+          cache-dependency-path: client/yarn.lock
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "."
+
+      - name: Install JavaScript dependencies
+        working-directory: ./client
+        run: yarn install --frozen-lockfile
+
+      - name: Generate AsyncAPI YAML
+        working-directory: ./client
+        run: yarn asyncapi-docs
+
+      - name: Generate HTML from AsyncAPI spec
+        run: npx -y @asyncapi/generator@2 docs/websocket-api.yaml @asyncapi/html-template -o docs/websocket-api-html --force-write -p singleFile=true
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs/websocket-api-html
+          destination_dir: ${{ github.ref_name == 'master' && 'websocket' || 'websocket/beta' }}
+          keep_files: true
+
+      - name: Deployment summary
+        run: |
+          DEST="${{ github.ref_name == 'master' && 'websocket' || 'websocket/beta' }}"
+          echo "WebSocket docs deployed to https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${DEST}"
