@@ -11,7 +11,8 @@ export class Player {
     public readonly deafen: boolean,
     public readonly orientation: Orientation,
     public readonly spectator: boolean = false,
-    public readonly world_uuid: string | undefined = undefined
+    public readonly world_uuid: string | undefined = undefined,
+    public readonly player_uuid: string | undefined = undefined
   ) {}
 
   static fromMinecraftPlayer(player: MinecraftPlayer, worldUuid?: string): Player {
@@ -22,7 +23,8 @@ export class Player {
       player.isSneaking,
       Orientation.fromMinecraftRotation(player.getRotation()),
       player.getGameMode() === GameMode.Spectator,
-      worldUuid
+      worldUuid,
+      player.id
     );
   }
 
@@ -38,7 +40,8 @@ export class Player {
       player.isSneaking,
       Orientation.fromMinecraftRotation(player.getRotation()),
       false,
-      worldUuid
+      worldUuid,
+      player.id
     );
   }
 
@@ -51,6 +54,7 @@ export class Player {
       orientation: this.orientation.toJSON(),
       spectator: this.spectator,
       ...(this.world_uuid && { world_uuid: this.world_uuid }),
+      ...(this.player_uuid && { player_uuid: this.player_uuid }),
     };
   }
 }

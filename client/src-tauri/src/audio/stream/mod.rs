@@ -314,11 +314,11 @@ impl AudioStreamManager {
         Ok(())
     }
 
-    /// Returns the list of currently tracked players from the output stream's presence cache
-    pub fn get_current_players(&self) -> Vec<String> {
+    /// Returns the currently tracked players with their game type
+    pub fn get_current_players(&self) -> std::collections::HashMap<String, Option<String>> {
         match &self.output {
             StreamTraitType::Output(stream) => stream.get_current_players(),
-            _ => vec![],
+            _ => std::collections::HashMap::new(),
         }
     }
 }

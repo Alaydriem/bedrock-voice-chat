@@ -67,7 +67,13 @@ class HytalePlayerDataProvider : PlayerDataProvider {
     override fun collectPlayers(): List<PlayerData> {
         return onlinePlayers
             .filter { it.isValid }
-            .mapNotNull { toPlayerData(it) }
+            .mapNotNull { ref ->
+                try {
+                    toPlayerData(ref)
+                } catch (_: Exception) {
+                    null
+                }
+            }
     }
 
     override fun getGameType(): GameType = GameType.HYTALE
@@ -85,7 +91,8 @@ class HytalePlayerDataProvider : PlayerDataProvider {
                 dimension = Dimension.Hytale.DEATH,
                 worldUuid = worldUuid,
                 deafen = false,
-                spectator = false
+                spectator = false,
+                playerUuid = playerUuid.toString()
             )
         }
 
@@ -99,7 +106,8 @@ class HytalePlayerDataProvider : PlayerDataProvider {
             dimension = Dimension.Hytale.ORBIS,
             worldUuid = cached.worldUuid,
             deafen = crouchingPlayers.contains(playerUuid),
-            spectator = spectatorPlayers.contains(playerUuid)
+            spectator = spectatorPlayers.contains(playerUuid),
+            playerUuid = playerUuid.toString()
         )
     }
 }

@@ -169,6 +169,19 @@
   }
 }
 
+/* Android-specific: offset settings mobile header for status bar */
+body.android .settings-mobile-header {
+  top: var(--android-status-bar-height);
+}
+
+body.android .settings-main-content.content-visible {
+  padding-top: calc(3.5rem + 1rem + var(--android-status-bar-height));
+}
+
+body.android .settings-navigation {
+  top: var(--android-status-bar-height);
+}
+
 /* Ripple effect on touch - mobile specific */
 .settings-nav-button::before {
   content: '';

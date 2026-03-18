@@ -63,8 +63,9 @@ tauri-plugin-notification = { version = "^2" }
 tauri-plugin-log = { version = "^2" }
 tauri-plugin-os = { version = "^2" }
 once_cell = { version = "^1.21", features = ["atomic-polyfill"] }
-nano-wal = { version = "^0.5" }
-uuid = { version = "^1.18", features = ["v7"] }
+reqwest = { version = "0.12", features = ["rustls-tls", "json", "multipart"], default-features = false }
+nano-wal = { version ="^0.5" }
+uuid = { version = "^1.18", features = ["v4", "v7"] }
 postcard = { version = "^1.0", features = ["alloc"] }
 bwavfile = { version = "2.0.1" }
 chrono = { version = "^0.4" }

@@ -1,15 +1,17 @@
 //! Player registration service
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
 
+use base64::{engine::general_purpose, Engine as _};
 use common::ncryptflib as ncryptf;
 use common::ncryptflib::rocket::Utc;
 use common::traits::player_data::PlayerData;
 use common::Game;
-use entity::player;
+use entity::{player, player_identity};
 use moka::sync::Cache;
+use sea_orm::sea_query::OnConflict;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
 };
@@ -85,6 +87,15 @@ impl PlayerRegistrarService {
     /// * `players` - List of player position data
     /// * `game_type` - The game type (Minecraft, Hytale, etc.)
     pub async fn process_players(&self, players: &[common::PlayerEnum], game_type: Game) {
+        // Build name → UUID map for players that have a platform UUID
+        let uuid_map: HashMap<String, String> = players
+            .iter()
+            .filter_map(|p| {
+                p.get_player_uuid()
+                    .map(|uuid| (p.get_name().to_string(), uuid.to_string()))
+            })
+            .collect();
+
         // Collect all player names and filter out those we know are registered
         let player_names: Vec<String> = players.iter().map(|p| p.get_name().to_string()).collect();
 
@@ -113,9 +124,20 @@ impl PlayerRegistrarService {
                     .filter_map(|p| p.gamertag.clone())
                     .collect();
 
-                // Add existing players to cache
-                for name in &existing_names {
-                    self.cache.insert(name.clone());
+                // Add existing players to cache + store UUID identity + generate gamerpic
+                for existing in &existing_players {
+                    if let Some(ref name) = existing.gamertag {
+                        self.cache.insert(name.clone());
+
+                        if let Some(uuid) = uuid_map.get(name) {
+                            self.store_platform_uuid(existing.id, uuid, &game_type)
+                                .await;
+
+                            if game_type == Game::Hytale && existing.gamerpic.is_none() {
+                                self.generate_hytale_gamerpic(existing.id, uuid).await;
+                            }
+                        }
+                    }
                 }
 
                 // Find players that don't exist in DB
@@ -126,7 +148,8 @@ impl PlayerRegistrarService {
 
                 // Create new player records
                 for player_name in new_players {
-                    self.create_player(&player_name, &game_type).await;
+                    let uuid = uuid_map.get(&player_name).map(|s| s.as_str());
+                    self.create_player(&player_name, &game_type, uuid).await;
                 }
             }
             Err(e) => {
@@ -136,7 +159,13 @@ impl PlayerRegistrarService {
     }
 
     /// Create a new player record in the database.
-    pub async fn create_player(&self, player_name: &str, game_type: &Game) {
+    /// If a platform UUID is provided and the game is Hytale, a gamerpic is generated.
+    pub async fn create_player(
+        &self,
+        player_name: &str,
+        game_type: &Game,
+        player_uuid: Option<&str>,
+    ) {
         let kp = ncryptf::Keypair::new();
         let signature = ncryptf::Signature::new();
 
@@ -159,10 +188,16 @@ impl PlayerRegistrarService {
             }
         };
 
+        // Generate gamerpic for Hytale players if we have their UUID
+        let gamerpic = match (game_type, player_uuid) {
+            (Game::Hytale, Some(uuid)) => Some(Self::hytale_gamerpic_from_uuid(uuid)),
+            _ => None,
+        };
+
         let p = player::ActiveModel {
             id: ActiveValue::NotSet,
             gamertag: ActiveValue::Set(Some(player_name.to_string())),
-            gamerpic: ActiveValue::Set(None),
+            gamerpic: ActiveValue::Set(gamerpic),
             certificate: ActiveValue::Set(cert.pem()),
             certificate_key: ActiveValue::Set(key.serialize_pem()),
             banished: ActiveValue::Set(false),
@@ -174,10 +209,15 @@ impl PlayerRegistrarService {
         };
 
         match p.insert(self.db.as_ref()).await {
-            Ok(_) => {
+            Ok(inserted) => {
                 tracing::info!("Created player record for: {}", player_name);
-                // Add to cache after successful insert
                 self.cache.insert(player_name.to_string());
+
+                // Store platform UUID identity if provided
+                if let Some(uuid) = player_uuid {
+                    self.store_platform_uuid(inserted.id, uuid, game_type)
+                        .await;
+                }
             }
             Err(e) => {
                 tracing::error!(
@@ -187,5 +227,60 @@ impl PlayerRegistrarService {
                 );
             }
         }
+    }
+
+    /// INSERT OR IGNORE a platform UUID into the player_identity table.
+    async fn store_platform_uuid(&self, player_id: i32, uuid: &str, game_type: &Game) {
+        let now = Utc::now().timestamp() as u32;
+        let identity = player_identity::ActiveModel {
+            id: ActiveValue::NotSet,
+            player_id: ActiveValue::Set(player_id),
+            alias: ActiveValue::Set(uuid.to_string()),
+            game: ActiveValue::Set(game_type.clone()),
+            alias_type: ActiveValue::Set("platform_uuid".to_string()),
+            created_at: ActiveValue::Set(now),
+            updated_at: ActiveValue::Set(now),
+        };
+
+        if let Err(e) = player_identity::Entity::insert(identity)
+            .on_conflict(
+                OnConflict::columns([
+                    player_identity::Column::Alias,
+                    player_identity::Column::Game,
+                ])
+                .do_nothing()
+                .to_owned(),
+            )
+            .exec_without_returning(self.db.as_ref())
+            .await
+        {
+            tracing::error!(
+                "Failed to store platform UUID for player_id {}: {}",
+                player_id,
+                e
+            );
+        }
+    }
+
+    /// Update gamerpic for an existing Hytale player that has none.
+    async fn generate_hytale_gamerpic(&self, player_id: i32, uuid: &str) {
+        let gamerpic = Self::hytale_gamerpic_from_uuid(uuid);
+
+        let mut model: player::ActiveModel = Default::default();
+        model.id = ActiveValue::Unchanged(player_id);
+        model.gamerpic = ActiveValue::Set(Some(gamerpic));
+
+        if let Err(e) = model.update(self.db.as_ref()).await {
+            tracing::error!(
+                "Failed to update gamerpic for player_id {}: {}",
+                player_id,
+                e
+            );
+        }
+    }
+
+    fn hytale_gamerpic_from_uuid(uuid: &str) -> String {
+        let avatar_url = format!("https://crafthead.net/hytale/avatar/{}", uuid);
+        general_purpose::STANDARD.encode(&avatar_url)
     }
 }

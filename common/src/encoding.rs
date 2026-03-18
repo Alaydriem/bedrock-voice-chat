@@ -155,6 +155,8 @@ mod tests {
             deafen: false,
             spectator: false,
             world_uuid: None,
+            alternative_identity: None,
+            player_uuid: None,
         };
         let packet = AudioFramePacket::new(
             test_data.clone(),
@@ -208,6 +210,8 @@ mod tests {
             deafen: false,
             spectator: false,
             world_uuid: None,
+            alternative_identity: None,
+            player_uuid: None,
         };
         let audio_packet = AudioFramePacket::new(
             test_data.clone(),

@@ -23,6 +23,10 @@ class ModConfig {
     @SerializedName(value = "embedded-config", alternate = ["embeddedConfig"])
     var embeddedConfig: EmbeddedConfig? = null
 
+    // Floodgate prefix for Bedrock players on Geyser servers without the Floodgate plugin
+    @SerializedName(value = "floodgate-prefix", alternate = ["floodgatePrefix"])
+    var floodgatePrefix: String? = null
+
     /**
      * Check if the configuration is valid.
      * For embedded mode, we don't need external server URL.

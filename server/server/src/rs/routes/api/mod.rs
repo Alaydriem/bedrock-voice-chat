@@ -10,6 +10,7 @@ pub use auth::{
     minecraft_authenticate,
     hytale_start_device_flow,
     hytale_poll_status,
+    link_java_identity,
     HytaleSessionCache,
 };
 pub use config::get_config;

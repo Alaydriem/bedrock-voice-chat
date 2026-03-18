@@ -19,7 +19,7 @@ import org.bukkit.scheduler.BukkitTask
  */
 class PaperPlugin : JavaPlugin(), Listener {
     private val configProvider = PaperConfigProvider(this)
-    private val playerDataProvider = PaperPlayerDataProvider()
+    private lateinit var playerDataProvider: PaperPlayerDataProvider
 
     private var embeddedServer: BvcServerManager? = null
     private var positionSender: PositionSender? = null
@@ -43,6 +43,9 @@ class PaperPlugin : JavaPlugin(), Listener {
         }
 
         minimumPlayers = config.minimumPlayers
+        playerDataProvider = PaperPlayerDataProvider(
+            floodgatePrefix = config.floodgatePrefix
+        )
 
         // Initialize embedded server if configured
         if (config.useEmbeddedServer) {

@@ -12,6 +12,7 @@
   import { Store } from '@tauri-apps/plugin-store';
   import PlatformDetector from "../../js/app/utils/PlatformDetector";
   import SwipeGestureManager from "../../js/app/utils/SwipeGestureManager";
+  import { platform } from "@tauri-apps/plugin-os";
 
   import { error } from '@tauri-apps/plugin-log';
   import { onMount, onDestroy, mount } from "svelte";
@@ -120,6 +121,10 @@
     try {
       isMobile = await platformDetector.checkMobile();
       document.querySelector("body")!.style = "min-height: 100dvh !important;";
+
+      const os = platform();
+      if (os === "android") document.body.classList.add("android");
+      if (os === "ios") document.body.classList.add("ios");
     } catch (error) {
       isMobile = false;
     }

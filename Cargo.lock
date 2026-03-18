@@ -879,6 +879,7 @@ dependencies = [
  "parking_lot",
  "postcard",
  "rand 0.10.0",
+ "reqwest 0.12.28",
  "ringbuf",
  "rodio 0.22.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "ron",

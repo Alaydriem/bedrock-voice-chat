@@ -1,5 +1,6 @@
 <script lang="ts">
     import { mount, onMount } from "svelte";
+    import account from "../../components/settings/pages/account.svelte";
     import audio from "../../components/settings/pages/audio.svelte";
     import keybinds from "../../components/settings/pages/keybinds.svelte";
     import recordings from "../../components/settings/pages/recordings.svelte";
@@ -7,17 +8,25 @@
     import about from "../../components/settings/pages/about.svelte";
     import PlatformDetector from "../../js/app/utils/PlatformDetector.ts";
 
-    export let activePage: string = "audio.svelte";
+    export let activePage: string = "account.svelte";
 
     let isMobile = false;
 
     // Page state management
-    let currentPageTitle = "Audio Settings";
+    let currentPageTitle = "Account";
 
     const platformDetector = new PlatformDetector();
 
     // Available settings pages
     const settingsPages = [
+        {
+            id: "account.svelte",
+            title: "Account",
+            icon: `<svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+            </svg>`,
+            component: account
+        },
         {
             id: "audio.svelte",
             title: "Audio Settings",

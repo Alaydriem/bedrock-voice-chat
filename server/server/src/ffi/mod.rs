@@ -18,9 +18,10 @@
 
 use crate::config::ApplicationConfig;
 use crate::runtime::{position_updater, ServerRuntime};
-use crate::services::PlayerRegistrarService;
+use crate::services::{PlayerIdentityService, PlayerRegistrarService};
 use crate::stream::quic::WebhookReceiver;
 
+use common::traits::player_data::PlayerData;
 use common::Game;
 use std::ffi::{c_char, c_int, CStr, CString};
 use std::ptr;
@@ -37,6 +38,8 @@ pub struct RuntimeHandle {
     webhook_receiver: Arc<RwLock<Option<WebhookReceiver>>>,
     /// Player registrar for player registration - accessible without locking runtime mutex
     player_registrar: Arc<RwLock<Option<PlayerRegistrarService>>>,
+    /// Player identity service for cross-platform name resolution - accessible without locking runtime mutex
+    identity_service: Arc<RwLock<Option<PlayerIdentityService>>>,
 }
 
 // Thread-local storage for last error message
@@ -112,6 +115,7 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
     let shutdown_flag = runtime.shutdown_flag();
     let webhook_receiver = runtime.get_webhook_receiver();
     let player_registrar = runtime.get_player_registrar();
+    let identity_service = runtime.get_identity_service();
 
     // Create a tokio runtime for the server
     let tokio_runtime = match tokio::runtime::Builder::new_multi_thread()
@@ -131,6 +135,7 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
         shutdown_flag,
         webhook_receiver,
         player_registrar,
+        identity_service,
     });
 
     Box::into_raw(handle)
@@ -417,11 +422,48 @@ pub unsafe extern "C" fn bvc_update_positions(
     let webhook_receiver_clone = webhook_receiver.clone();
     drop(wr_guard);  // Release read lock before blocking
 
+    // Get identity service for name resolution (if available)
+    let is_guard = match handle_ref.identity_service.read() {
+        Ok(g) => g,
+        Err(e) => {
+            set_last_error(&format!("Failed to read identity_service: {}", e));
+            return -1;
+        }
+    };
+
+    let identity_service = is_guard.as_ref().cloned();
+    drop(is_guard);
+
     // Get game type, defaulting to Minecraft for backwards compatibility
     let game_type = game_data.game.clone().unwrap_or(Game::Minecraft);
-    let players = game_data.players;
+    let mut players = game_data.players;
 
     tokio_rt.block_on(async {
+        // Resolve in-game names to canonical gamertags
+        if let Some(ref id_service) = identity_service {
+            // Process any alternative_identity fields from Floodgate-aware mods
+            for player in &players {
+                let name = player.get_name();
+                let alt = player.get_alternative_identity();
+
+                if let Some(alt_identity) = alt {
+                    let name = player.get_name();
+                    if let Some(player_id) = id_service
+                        .find_player_id_by_gamertag(alt_identity, &game_type)
+                        .await
+                    {
+                        let _ = id_service
+                            .create_alias(player_id, name, &game_type, "floodgate")
+                            .await;
+                    }
+                }
+            }
+
+            id_service
+                .resolve_and_remap_players(&mut players, &game_type)
+                .await;
+        }
+
         // Process player registration
         if let Some(registrar) = player_registrar {
             let players_clone = players.clone();

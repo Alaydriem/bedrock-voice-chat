@@ -1,10 +1,14 @@
 use crate::auth::{code_login, hytale, login};
 use crate::structs::app_state::AppState;
+use common::response::LinkJavaIdentityResponse;
 use common::structs::config::{
     HytaleAuthStatus, HytaleDeviceFlowStartResponse, HytaleDeviceFlowStatusResponse, LoginResponse,
 };
 use tauri::{async_runtime::Mutex, State};
 use tauri_plugin_store::StoreExt;
+
+#[cfg(desktop)]
+use crate::auth::mc_oauth_window::McOauthWindow;
 
 #[tauri::command(async)]
 #[tracing::instrument(skip(app_state, code))]
@@ -135,4 +139,29 @@ pub(crate) async fn poll_hytale_status(
     }
 
     poll_result
+}
+
+#[cfg(desktop)]
+#[tauri::command(async)]
+pub(crate) async fn link_java_identity(
+    app_handle: tauri::AppHandle,
+    app_state: State<'_, Mutex<AppState>>,
+    gamertag: String,
+) -> Result<LinkJavaIdentityResponse, String> {
+    let code = McOauthWindow::open(app_handle).await?;
+
+    let state = app_state.lock().await;
+    let api = state.get_api_client()?;
+    api.link_java_identity(
+        code,
+        McOauthWindow::redirect_uri().to_string(),
+        McOauthWindow::client_id().to_string(),
+        gamertag,
+    ).await
+}
+
+#[cfg(not(desktop))]
+#[tauri::command(async)]
+pub(crate) async fn link_java_identity() -> Result<LinkJavaIdentityResponse, String> {
+    Err("Java identity linking is only available on the desktop app".to_string())
 }

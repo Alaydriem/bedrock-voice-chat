@@ -440,9 +440,24 @@ export default class Dashboard extends BVCApp {
                     device: "OutputDevice"
                 });
 
-                // Push spatial audio config from server to audio pipeline
+                // Fetch server config to get fresh QUIC port and spatial audio settings
                 try {
                     const configResponse = await invoke<{ config: ApiConfig }>("api_get_config", { server: currentServer });
+
+                    // Update QUIC port from server config
+                    if (configResponse?.config?.quic_port && credentials) {
+                        const freshPort = configResponse.config.quic_port.toString();
+                        if (credentials.quic_connect_string !== freshPort) {
+                            info(`Updating QUIC port from ${credentials.quic_connect_string} to ${freshPort}`);
+                            credentials.quic_connect_string = freshPort;
+
+                            // Persist to keyring for future sessions
+                            if (this.keyring) {
+                                await this.keyring.insert("quic_connect_string", freshPort);
+                            }
+                        }
+                    }
+
                     if (configResponse?.config?.spatial_audio) {
                         await invoke("update_stream_metadata", {
                             key: "spatial_audio_config",
@@ -451,7 +466,7 @@ export default class Dashboard extends BVCApp {
                         });
                     }
                 } catch (e) {
-                    warn(`Failed to fetch spatial audio config, using defaults: ${e}`);
+                    warn(`Failed to fetch server config, using stored values: ${e}`);
                 }
 
                 await this.changeNetworkStream(currentServer, credentials);
@@ -491,14 +506,14 @@ export default class Dashboard extends BVCApp {
     }
 
     async changeNetworkStream(currentServer: string, credentials: LoginResponse | null): Promise<void> {
-        await invoke("stop_network_stream").then(async () => {
-            await invoke("change_network_stream", { server: currentServer, data: credentials })
-                .then(() => {
-                    info(`Changed network stream to ${currentServer}`);
-                }).catch((e) => {
-                    error(`Error changing network stream: ${e}`);
-                });
-        });
+        await invoke("stop_network_stream");
+        try {
+            await invoke("change_network_stream", { server: currentServer, data: credentials });
+            info(`Changed network stream to ${currentServer}`);
+        } catch (e) {
+            error(`Error changing network stream: ${e}`);
+            window.location.href = "/error?code=CONN01";
+        }
     }
 
     async cleanup(): Promise<void> {

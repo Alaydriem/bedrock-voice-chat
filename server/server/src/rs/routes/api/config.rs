@@ -13,6 +13,7 @@ pub async fn get_config(
         status: String::from("Ok"),
         client_id: config.minecraft.client_id.clone(),
         protocol_version: PROTOCOL_VERSION.to_string(),
+        quic_port: config.quic_port,
         spatial_audio: voice.spatial_audio.clone(),
     })
 }

@@ -34,7 +34,6 @@
     const loadDeafenStatus = async () => {
         try {
             const status = await invoke('mute_status', { device: 'OutputDevice' }) as boolean;
-            info(`loadDeafenStatus: backend returned ${status}`);
             isDeafened = status;
         } catch (error) {
             logError(`Failed to get audio output mute status: ${error}`);
