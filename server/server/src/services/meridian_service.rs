@@ -2,7 +2,7 @@ use crate::config::Meridian;
 
 pub struct MeridianService {
     config: Meridian,
-    public_addr: String,
+    backend: String,
     tls_port: u32,
     quic_port: u32,
     hostname: String,
@@ -11,14 +11,14 @@ pub struct MeridianService {
 impl MeridianService {
     pub fn new(
         config: Meridian,
-        public_addr: String,
+        backend: String,
         tls_port: u32,
         quic_port: u32,
         hostname: String,
     ) -> Self {
         Self {
             config,
-            public_addr,
+            backend,
             tls_port,
             quic_port,
             hostname,
@@ -27,8 +27,8 @@ impl MeridianService {
 
     pub async fn register(&self) -> Result<(), anyhow::Error> {
         let name = nanoid::nanoid!();
-        let tcp_addr = format!("{}:{}", self.public_addr, self.tls_port);
-        let udp_addr = format!("{}:{}", self.public_addr, self.quic_port);
+        let tcp_addr = format!("{}:{}", self.backend, self.tls_port);
+        let udp_addr = format!("{}:{}", self.backend, self.quic_port);
 
         tracing::info!(
             url = %self.config.url,

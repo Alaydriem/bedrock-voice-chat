@@ -6,6 +6,7 @@
     import { platform } from "@tauri-apps/plugin-os";
     import Keyring from "../../../js/app/keyring.ts";
     import type { LinkJavaIdentityResponse } from "../../../js/bindings/LinkJavaIdentityResponse";
+    import type { Game } from "../../../js/bindings/Game";
 
     let gamertag = $state("");
     let gamerpic = $state("");
@@ -14,6 +15,7 @@
     let linkError = $state("");
     let isReady = $state(false);
     let isDesktop = $state(false);
+    let activeGame = $state<Game>("minecraft");
 
     async function loadAccountInfo() {
         try {
@@ -27,6 +29,9 @@
 
             const keyring = await Keyring.new("servers");
             keyring.setServer(currentServer);
+
+            const game = await store.get<string>("active_game");
+            activeGame = (game === "hytale") ? "hytale" : "minecraft";
 
             gamertag = (await keyring.get("gamertag")) as string ?? "";
             gamerpic = (await keyring.get("gamerpic")) as string ?? "";
@@ -95,10 +100,12 @@
     <div class="card px-5 pb-4 sm:px-5">
         <div class="my-3 flex flex-col">
             <h2 class="font-medium tracking-wide text-slate-700 dark:text-navy-100 lg:text-base pb-2">
-                Xbox Account
+                {activeGame === "hytale" ? "Hytale Account" : "Xbox Account"}
             </h2>
             <p class="text-sm leading-6 hidden md:block">
-                Your Xbox Live identity used for voice chat authentication.
+                {activeGame === "hytale"
+                    ? "Your Hytale identity used for voice chat authentication."
+                    : "Your Xbox Live identity used for voice chat authentication."}
             </p>
         </div>
 
@@ -115,12 +122,13 @@
             {/if}
             <div>
                 <span class="text-sm font-medium text-slate-700 dark:text-navy-100">{gamertag || "Unknown"}</span>
-                <p class="text-xs text-slate-500 dark:text-navy-300 mt-0.5">Xbox Gamertag</p>
+                <p class="text-xs text-slate-500 dark:text-navy-300 mt-0.5">{activeGame === "hytale" ? "Hytale Account" : "Xbox Gamertag"}</p>
             </div>
         </div>
         {/if}
     </div>
 
+    {#if activeGame === "minecraft"}
     <!-- Java Identity (Desktop only) -->
     <div class="card px-5 pb-4 sm:px-5">
         <div class="my-3 flex flex-col">
@@ -180,4 +188,5 @@
         </div>
         {/if}
     </div>
+    {/if}
 </div>

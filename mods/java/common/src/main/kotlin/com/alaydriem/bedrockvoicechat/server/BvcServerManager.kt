@@ -195,7 +195,6 @@ class BvcServerManager(
                 "listen" to "0.0.0.0",
                 "port" to embedded.httpPort,
                 "quic_port" to embedded.quicPort,
-                "public_addr" to embedded.publicAddr,
                 "assets_path" to assetsPath,
                 "tls" to mapOf(
                     "certificate" to embedded.tlsCertificate,  // Third-party signed cert for HTTPS
