@@ -1,3 +1,24 @@
+# [1.0.0-beta.9](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.8...v1.0.0-beta.9) (2026-03-19)
+
+
+### Bug Fixes
+
+* add core url detection for reviewers ([b94ecb5](https://github.com/Alaydriem/bedrock-voice-chat/commit/b94ecb5a51a33fc47c32394103edbcca834092b7))
+* apple workflows ([2a54183](https://github.com/Alaydriem/bedrock-voice-chat/commit/2a5418313b1d9bec9ff9101d24fa38ff15d1556f))
+* properly extract async-api-doc-generator ([73b6d74](https://github.com/Alaydriem/bedrock-voice-chat/commit/73b6d7474e8e8102c6ac59f978c14cf1d95bf978))
+* recording length was capped at 33:20 instead of the actual length ([#151](https://github.com/Alaydriem/bedrock-voice-chat/issues/151)) ([c17195a](https://github.com/Alaydriem/bedrock-voice-chat/commit/c17195ace7501ede8d449c445085a6058ea0115c))
+* workflow improvements for apple ([6b0bd48](https://github.com/Alaydriem/bedrock-voice-chat/commit/6b0bd482793a20c68c7720e0326e82f7e26062c0))
+* workflow improvements for failed release upload after beta.8 ([9c46183](https://github.com/Alaydriem/bedrock-voice-chat/commit/9c46183aacd1e600aeca1fa03d8dd77ce4f263c7))
+
+
+### Features
+
+* channel + Group Improvements ([#145](https://github.com/Alaydriem/bedrock-voice-chat/issues/145)) ([b8e4ff1](https://github.com/Alaydriem/bedrock-voice-chat/commit/b8e4ff16fa5b95c7204ad0e2c255c912a06b3996)), closes [#144](https://github.com/Alaydriem/bedrock-voice-chat/issues/144) [#143](https://github.com/Alaydriem/bedrock-voice-chat/issues/143)
+* improved geyser player mapping ([#146](https://github.com/Alaydriem/bedrock-voice-chat/issues/146)) ([3ac71b7](https://github.com/Alaydriem/bedrock-voice-chat/commit/3ac71b7896d4b776d2c6eea6eca3698ba758c6e2))
+* meridian lb proxy ([#150](https://github.com/Alaydriem/bedrock-voice-chat/issues/150)) ([a2f0269](https://github.com/Alaydriem/bedrock-voice-chat/commit/a2f0269a2ed82da6af0026dd27f6db09faf4e22e))
+* reviewer support ([#148](https://github.com/Alaydriem/bedrock-voice-chat/issues/148)) ([c93634e](https://github.com/Alaydriem/bedrock-voice-chat/commit/c93634e3a4f784ec80583c76e32d162b6bc2787e))
+* sentry ([#149](https://github.com/Alaydriem/bedrock-voice-chat/issues/149)) ([b4b2996](https://github.com/Alaydriem/bedrock-voice-chat/commit/b4b29960618deec9701dce4f22f66af1221e83c4)), closes [#86](https://github.com/Alaydriem/bedrock-voice-chat/issues/86)
+
 # [1.0.0-beta.8](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.7...v1.0.0-beta.8) (2026-02-28)
 
 
