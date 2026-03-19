@@ -1,7 +1,7 @@
 {
   "Group": "com.alaydriem",
   "Name": "bedrock-voice-chat",
-  "Version": "1.0.508",
+  "Version": "1.0.509",
   "Main": "com.alaydriem.bedrockvoicechat.hytale.HytalePlugin",
   "Description": "Bedrock Voice Chat integration for Hytale",
   "ServerVersion": "${hytaleServerVersion}"

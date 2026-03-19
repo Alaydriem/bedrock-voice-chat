@@ -139,6 +139,18 @@ jobs:
       build_mode: ${{ needs.changes.outputs.build_mode }}
     secrets: inherit
 
+  # Build Docker image from server binaries
+  build-docker:
+    name: Build Docker Image
+    needs: [changes, build-server]
+    if: needs.build-server.result == 'success'
+    uses: ./.github/workflows/build-server-docker.yml
+    with:
+      version: ${{ github.ref_name }}
+      build_mode: ${{ needs.changes.outputs.build_mode }}
+      push: ${{ github.ref == 'refs/heads/master' || github.ref == 'refs/heads/beta' }}
+    secrets: inherit
+
   # Build Android client
   build-android:
     name: Build Android Client (${{ needs.changes.outputs.is_release_branch == 'true' && 'release' || needs.changes.outputs.build_mode }})
@@ -223,6 +235,32 @@ jobs:
     uses: ./.github/workflows/build-mod-bds.yml
     secrets: inherit
 
+  # Deploy WebSocket docs to GitHub Pages (branch pushes only)
+  deploy-docs:
+    name: Deploy WebSocket Docs (${{ github.ref_name }})
+    needs: [changes, build-client]
+    if: github.event_name == 'push' && needs.build-client.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download AsyncAPI YAML
+        uses: actions/download-artifact@v4
+        with:
+          name: asyncapi-yaml
+          path: docs
+
+      - name: Generate HTML from AsyncAPI spec
+        run: npx -y @asyncapi/generator@2 docs/websocket-api.yaml @asyncapi/html-template -o docs/websocket-api-html --force-write -p singleFile=true
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs/websocket-api-html
+          destination_dir: ${{ github.ref_name == 'master' && 'websocket' || 'websocket/beta' }}
+          keep_files: true
+
   # Collect and organize all artifacts
   collect-artifacts:
     name: Collect All Artifacts
@@ -231,7 +269,6 @@ jobs:
     if: |
       always() &&
       !cancelled() &&
-      !contains(needs.*.result, 'failure') &&
       (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-ios.result == 'success' || needs.build-client.result == 'success' || needs.build-macos-client.result == 'success' || needs.build-fabric-mod.result == 'success' || needs.build-paper-mod.result == 'success' || needs.build-hytale-mod.result == 'success' || needs.build-bds-pack.result == 'success')
     steps:
       - name: Create build summary

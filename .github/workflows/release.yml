@@ -35,23 +35,24 @@ jobs:
       new_tag: ${{ steps.semantic.outputs.new_release_git_tag }}
       build_number: ${{ steps.build-number.outputs.build_number }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: true
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
       - name: Generate GitHub App token
         id: generate-token
         uses: actions/create-github-app-token@v1
         with:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+          token: ${{ steps.generate-token.outputs.token }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Configure draft release
         if: inputs.draft == true
@@ -111,9 +112,11 @@ jobs:
   notify-sentry:
     name: Notify Sentry
     needs: prepare-release
+    if: needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false
     runs-on: ubuntu-latest
     steps:
       - name: Notify Sentry (build)
+        continue-on-error: true
         run: |
           curl "${{ secrets.SENTRY_RELEASE_WEBHOOK_URL }}" \
             -X POST \
@@ -121,69 +124,79 @@ jobs:
             -d '{"version": "${{ needs.prepare-release.outputs.build_number }}"}'
 
       - name: Notify Sentry (version)
-        if: needs.prepare-release.outputs.new_release == 'true'
+        continue-on-error: true
         run: |
           curl "${{ secrets.SENTRY_RELEASE_WEBHOOK_URL }}" \
             -X POST \
             -H 'Content-Type: application/json' \
             -d '{"version": "${{ needs.prepare-release.outputs.new_version }}"}'
 
-  # Job 3: Run mod semantic-release (patches gradle.properties, BDS files, creates mods-v tag + GH release)
+  # Job 3: Create mods release tag + GH release using the main release version
   prepare-mods-release:
     name: Prepare Mods Release
-    needs: [prepare-release, build-server, notify-sentry]
+    needs: [prepare-release, build-server]
     if: needs.prepare-release.outputs.new_release == 'true' && needs.build-server.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: write
     outputs:
-      new_release_published: ${{ steps.semantic-release.outputs.new_release_published }}
-      new_release_version: ${{ steps.semantic-release.outputs.new_release_version }}
-      new_release_git_tag: ${{ steps.semantic-release.outputs.new_release_git_tag }}
-      new_release_notes: ${{ steps.semantic-release.outputs.new_release_notes }}
+      new_release_published: ${{ steps.version.outputs.published }}
+      new_release_version: ${{ steps.version.outputs.version }}
+      new_release_git_tag: ${{ steps.version.outputs.tag }}
+      new_release_notes: ${{ steps.version.outputs.notes }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           show-progress: false
-          ref: ${{ github.ref }}
+          ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
 
-      - name: Fetch all tags
-        run: git fetch --tags --force
+      - name: Set version outputs
+        id: version
+        run: |
+          VERSION="${{ needs.prepare-release.outputs.new_version }}"
+          TAG="mods-v${VERSION}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "published=true" >> $GITHUB_OUTPUT
+          echo "notes=Mod builds for Bedrock Voice Chat v${VERSION}" >> $GITHUB_OUTPUT
 
-      - name: Semantic Release
-        id: semantic-release
-        uses: cycjimmy/semantic-release-action@v4
-        with:
-          working_directory: ./mods/java
-          dry_run: ${{ inputs.dry_run }}
-          extra_plugins: |
-            @semantic-release/changelog
-            @semantic-release/exec
-            @semantic-release/git
+      - name: Create mods release tag and GitHub release
+        if: inputs.dry_run != true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.prepare-release.outputs.new_version }}"
+          TAG="mods-v${VERSION}"
+          REF="${{ needs.prepare-release.outputs.new_tag }}"
+
+          git tag "${TAG}" "${REF}" 2>/dev/null || echo "Tag ${TAG} already exists"
+          git push origin "${TAG}" 2>/dev/null || echo "Tag ${TAG} already pushed"
+
+          gh release create "${TAG}" \
+            --title "Mods v${VERSION}" \
+            --notes "Mod builds for Bedrock Voice Chat v${VERSION}" \
+            ${{ inputs.draft == true && '--draft' || '' }} \
+            ${{ contains(needs.prepare-release.outputs.new_version, '-') && '--prerelease' || '' }} \
+            2>/dev/null || echo "Release for ${TAG} already exists"
 
       - name: Summary
-        if: ${{ steps.semantic-release.outputs.new_release_published }}
         run: |
+          VERSION="${{ needs.prepare-release.outputs.new_version }}"
+          TAG="mods-v${VERSION}"
           {
-              echo "## Mods Release ${{ steps.semantic-release.outputs.new_release_version }}"
+              echo "## Mods Release ${VERSION}"
               echo ""
               echo "| Name | Value |"
               echo "| ---- | ----- |"
-              echo "| Release | [${{ steps.semantic-release.outputs.new_release_version }}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${{ steps.semantic-release.outputs.new_release_git_tag }}) |"
-              echo "| Release Type | ${{ github.ref_name == 'beta' && 'beta' || 'release' }} |"
-              echo "| Old Version | [${{ steps.semantic-release.outputs.last_release_git_tag }}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${{ steps.semantic-release.outputs.last_release_git_tag }}) |"
-              echo "| Diff | [${{ steps.semantic-release.outputs.last_release_git_tag }}...${{ steps.semantic-release.outputs.new_release_git_tag }}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/${{ steps.semantic-release.outputs.last_release_git_tag }}...${{ steps.semantic-release.outputs.new_release_git_tag }}) |"
+              echo "| Version | ${VERSION} |"
+              echo "| Tag | ${TAG} |"
               echo "| Dry Run | ${{ inputs.dry_run && 'Yes' || 'No' }} |"
-              echo ""
-              echo "> **Note:** Links to the new version will only work after the release is created"
           } >> $GITHUB_STEP_SUMMARY
 
-  # Job 4: Build server (release mode)
+  # Job 4: Build server (release mode, Docker push gated by approve-publish)
   build-server:
     name: Build Server (release)
     needs: prepare-release
@@ -251,44 +264,48 @@ jobs:
   # Job 8: Build Fabric Mod
   build-mod-fabric:
     name: Build Fabric Mod
-    needs: prepare-mods-release
+    needs: [prepare-release, prepare-mods-release]
     if: needs.prepare-mods-release.outputs.new_release_published == 'true'
     uses: ./.github/workflows/build-mod-fabric.yml
     with:
       version: ${{ needs.prepare-mods-release.outputs.new_release_version }}
+      ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
       artifact_run_id: ${{ github.run_id }}
     secrets: inherit
 
   # Job 9: Build Paper Plugin
   build-mod-paper:
     name: Build Paper Plugin
-    needs: prepare-mods-release
+    needs: [prepare-release, prepare-mods-release]
     if: needs.prepare-mods-release.outputs.new_release_published == 'true'
     uses: ./.github/workflows/build-mod-paper.yml
     with:
       version: ${{ needs.prepare-mods-release.outputs.new_release_version }}
+      ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
       artifact_run_id: ${{ github.run_id }}
     secrets: inherit
 
   # Job 10: Build Hytale Plugin
   build-mod-hytale:
     name: Build Hytale Plugin
-    needs: prepare-mods-release
+    needs: [prepare-release, prepare-mods-release]
     if: needs.prepare-mods-release.outputs.new_release_published == 'true'
     uses: ./.github/workflows/build-mod-hytale.yml
     with:
       version: ${{ needs.prepare-mods-release.outputs.new_release_version }}
+      ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
       artifact_run_id: ${{ github.run_id }}
     secrets: inherit
 
   # Job 11: Build BDS Pack
   build-mod-bds:
     name: Build BDS Pack
-    needs: prepare-mods-release
+    needs: [prepare-release, prepare-mods-release]
     if: needs.prepare-mods-release.outputs.new_release_published == 'true'
     uses: ./.github/workflows/build-mod-bds.yml
     with:
       version: ${{ needs.prepare-mods-release.outputs.new_release_version }}
+      ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
     secrets: inherit
 
   # Job 12: Upload client/server release assets to GitHub
@@ -360,6 +377,27 @@ jobs:
             cp "./artifacts/bvc-macos-release-signed-pkg/bvc-macos-release.pkg" ./release-files/bvc-macos-${VERSION}.pkg
           fi
 
+          # macOS updater bundle + signature (for auto-updater)
+          if [ -f "./artifacts/bvc-macos-updater/bvc-macos-updater.app.tar.gz" ]; then
+            cp "./artifacts/bvc-macos-updater/bvc-macos-updater.app.tar.gz" ./release-files/bvc-client-macos-arm64-updater.app.tar.gz
+          fi
+          if [ -f "./artifacts/bvc-macos-updater/bvc-macos-updater.app.tar.gz.sig" ]; then
+            cp "./artifacts/bvc-macos-updater/bvc-macos-updater.app.tar.gz.sig" ./release-files/bvc-client-macos-arm64-updater.app.tar.gz.sig
+          fi
+
+          # Windows NSIS installer (for manual download)
+          if [ -f "./artifacts/bvc-windows-nsis-setup/bvc-windows-nsis-setup.exe" ]; then
+            cp "./artifacts/bvc-windows-nsis-setup/bvc-windows-nsis-setup.exe" ./release-files/bvc-client-windows-x64-setup.exe
+          fi
+
+          # Windows updater exe + signature (for auto-updater)
+          if [ -f "./artifacts/bvc-windows-updater/bvc-windows-updater.exe" ]; then
+            cp "./artifacts/bvc-windows-updater/bvc-windows-updater.exe" ./release-files/bvc-client-windows-x64-updater.exe
+          fi
+          if [ -f "./artifacts/bvc-windows-updater/bvc-windows-updater.exe.sig" ]; then
+            cp "./artifacts/bvc-windows-updater/bvc-windows-updater.exe.sig" ./release-files/bvc-client-windows-x64-updater.exe.sig
+          fi
+
           echo "=== Release files prepared ==="
           ls -la ./release-files/
 
@@ -387,17 +425,23 @@ jobs:
               echo "- \`$(basename $file)\`" >> $GITHUB_STEP_SUMMARY
             fi
           done
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Docker Images" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- \`ghcr.io/alaydriem/bedrock-voice-chat/server:v${VERSION}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`ghcr.io/alaydriem/bedrock-voice-chat/server:latest\`" >> $GITHUB_STEP_SUMMARY
+
+  # Gate: Approval required before publishing to external services
+  approve-publish:
+    name: Approve Release Publish
+    needs: [prepare-release, upload-assets, upload-mod-release-assets]
+    if: always() && needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false && needs.upload-assets.result == 'success'
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - name: Approve
+        run: echo "Release publish approved for v${{ needs.prepare-release.outputs.new_version }}"
 
   # Job 13: Publish Fabric to Modrinth
   publish-modrinth-fabric:
     name: Publish Fabric to Modrinth
-    needs: [prepare-mods-release, build-mod-fabric]
-    if: needs.prepare-mods-release.outputs.new_release_published == 'true' && inputs.dry_run == false && needs.build-mod-fabric.result == 'success'
+    needs: [prepare-mods-release, build-mod-fabric, approve-publish]
+    if: needs.approve-publish.result == 'success' && needs.prepare-mods-release.outputs.new_release_published == 'true' && needs.build-mod-fabric.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -406,7 +450,7 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-fabric-${{ needs.prepare-mods-release.outputs.new_release_version }}.jar
+          name: bedrock-voice-chat-fabric-${{ needs.prepare-mods-release.outputs.new_release_version }}
           path: ./artifacts
 
       - name: List artifacts
@@ -436,8 +480,8 @@ jobs:
   # Job 14: Publish Paper to Modrinth
   publish-modrinth-paper:
     name: Publish Paper to Modrinth
-    needs: [prepare-mods-release, build-mod-paper]
-    if: needs.prepare-mods-release.outputs.new_release_published == 'true' && inputs.dry_run == false && needs.build-mod-paper.result == 'success'
+    needs: [prepare-mods-release, build-mod-paper, approve-publish]
+    if: needs.approve-publish.result == 'success' && needs.prepare-mods-release.outputs.new_release_published == 'true' && needs.build-mod-paper.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -446,7 +490,7 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-paper-${{ needs.prepare-mods-release.outputs.new_release_version }}.jar
+          name: bedrock-voice-chat-paper-${{ needs.prepare-mods-release.outputs.new_release_version }}
           path: ./artifacts
 
       - name: List artifacts
@@ -473,8 +517,8 @@ jobs:
   # Job 15: Publish Hytale to CurseForge
   publish-curseforge-hytale:
     name: Publish Hytale to CurseForge
-    needs: [prepare-mods-release, build-mod-hytale]
-    if: needs.prepare-mods-release.outputs.new_release_published == 'true' && inputs.dry_run == false && needs.build-mod-hytale.result == 'success'
+    needs: [prepare-mods-release, build-mod-hytale, approve-publish]
+    if: needs.approve-publish.result == 'success' && needs.prepare-mods-release.outputs.new_release_published == 'true' && needs.build-mod-hytale.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -483,7 +527,7 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-hytale-${{ needs.prepare-mods-release.outputs.new_release_version }}.jar
+          name: bedrock-voice-chat-hytale-${{ needs.prepare-mods-release.outputs.new_release_version }}
           path: ./artifacts
 
       - name: List artifacts
@@ -504,8 +548,8 @@ jobs:
   # Job 16: Publish BDS to CurseForge
   publish-curseforge-bds:
     name: Publish BDS to CurseForge
-    needs: [prepare-mods-release, build-mod-bds]
-    if: needs.prepare-mods-release.outputs.new_release_published == 'true' && inputs.dry_run == false && needs.build-mod-bds.result == 'success'
+    needs: [prepare-mods-release, build-mod-bds, approve-publish]
+    if: needs.approve-publish.result == 'success' && needs.prepare-mods-release.outputs.new_release_published == 'true' && needs.build-mod-bds.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -514,7 +558,7 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-bds-${{ needs.prepare-mods-release.outputs.new_release_version }}.zip
+          name: bedrock-voice-chat-bds-${{ needs.prepare-mods-release.outputs.new_release_version }}
           path: ./artifacts
 
       - name: List artifacts
@@ -551,28 +595,28 @@ jobs:
         if: needs.build-mod-fabric.result == 'success'
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-fabric-${{ needs.prepare-mods-release.outputs.new_release_version }}.jar
+          name: bedrock-voice-chat-fabric-${{ needs.prepare-mods-release.outputs.new_release_version }}
           path: ./release-files
 
       - name: Download Paper artifact
         if: needs.build-mod-paper.result == 'success'
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-paper-${{ needs.prepare-mods-release.outputs.new_release_version }}.jar
+          name: bedrock-voice-chat-paper-${{ needs.prepare-mods-release.outputs.new_release_version }}
           path: ./release-files
 
       - name: Download Hytale artifact
         if: needs.build-mod-hytale.result == 'success'
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-hytale-${{ needs.prepare-mods-release.outputs.new_release_version }}.jar
+          name: bedrock-voice-chat-hytale-${{ needs.prepare-mods-release.outputs.new_release_version }}
           path: ./release-files
 
       - name: Download BDS artifact
         if: needs.build-mod-bds.result == 'success'
         uses: actions/download-artifact@v4
         with:
-          name: bedrock-voice-chat-bds-${{ needs.prepare-mods-release.outputs.new_release_version }}.zip
+          name: bedrock-voice-chat-bds-${{ needs.prepare-mods-release.outputs.new_release_version }}
           path: ./release-files
 
       - name: Rename artifacts
@@ -626,3 +670,166 @@ jobs:
               fi
             done
           } >> $GITHUB_STEP_SUMMARY
+
+  # Post-approval: Deploy updater manifest to GitHub Pages
+  deploy-updater-manifest:
+    name: Deploy Updater Manifest
+    needs: [prepare-release, approve-publish]
+    if: needs.approve-publish.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare-release.outputs.new_tag }}
+
+      - name: Download Windows updater artifacts
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: bvc-windows-updater
+          path: ./artifacts/windows
+
+      - name: Download macOS updater artifacts
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: bvc-macos-updater
+          path: ./artifacts/macos
+
+      - name: Prepare sig files for script
+        run: |
+          mkdir -p release-files
+          if [ -f "./artifacts/windows/bvc-windows-updater.exe.sig" ]; then
+            cp "./artifacts/windows/bvc-windows-updater.exe.sig" "./release-files/bvc-client-windows-x64-updater.exe.sig"
+          fi
+          if [ -f "./artifacts/macos/bvc-macos-updater.app.tar.gz.sig" ]; then
+            cp "./artifacts/macos/bvc-macos-updater.app.tar.gz.sig" "./release-files/bvc-client-macos-arm64-updater.app.tar.gz.sig"
+          fi
+
+      - name: Generate updater JSON
+        env:
+          RELEASE_FILES_DIR: ./release-files
+        run: |
+          VERSION="${{ needs.prepare-release.outputs.new_version }}"
+          TAG="${{ needs.prepare-release.outputs.new_tag }}"
+          REPO="${{ github.repository }}"
+          IS_PRERELEASE="${{ contains(needs.prepare-release.outputs.new_version, '-') }}"
+
+          mkdir -p updater-pages
+
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            OUTPUT_PATH=updater-pages/beta.json node .github/scripts/generate-updater-json.js "$VERSION" "$REPO" "$TAG"
+          else
+            OUTPUT_PATH=updater-pages/latest.json node .github/scripts/generate-updater-json.js "$VERSION" "$REPO" "$TAG"
+          fi
+
+          echo "=== Generated updater JSON ==="
+          cat updater-pages/*.json
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./updater-pages
+          destination_dir: updater
+          keep_files: true
+
+      - name: Updater manifest summary
+        run: |
+          VERSION="${{ needs.prepare-release.outputs.new_version }}"
+          IS_PRERELEASE="${{ contains(needs.prepare-release.outputs.new_version, '-') }}"
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            FILENAME="beta.json"
+          else
+            FILENAME="latest.json"
+          fi
+          {
+            echo "## Updater Manifest Deployed"
+            echo ""
+            echo "| Name | Value |"
+            echo "| ---- | ----- |"
+            echo "| Version | ${VERSION} |"
+            echo "| Manifest | [\`${FILENAME}\`](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/updater/${FILENAME}) |"
+            echo "| Channel | $([ "$IS_PRERELEASE" = "true" ] && echo "prerelease" || echo "stable") |"
+          } >> $GITHUB_STEP_SUMMARY
+
+  # Post-approval: Deploy versioned AsyncAPI docs to GitHub Pages
+  deploy-docs:
+    name: Deploy WebSocket Docs (v${{ needs.prepare-release.outputs.new_version }})
+    needs: [prepare-release, build-client, approve-publish]
+    if: needs.approve-publish.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download AsyncAPI YAML
+        uses: actions/download-artifact@v4
+        with:
+          name: asyncapi-yaml
+          path: docs
+
+      - name: Generate HTML from AsyncAPI spec
+        run: npx -y @asyncapi/generator@2 docs/websocket-api.yaml @asyncapi/html-template -o docs/websocket-api-html --force-write -p singleFile=true
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs/websocket-api-html
+          destination_dir: websocket/${{ needs.prepare-release.outputs.new_version }}
+          keep_files: true
+
+      - name: Documentation deployed
+        run: echo "WebSocket docs deployed to https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/websocket/${{ needs.prepare-release.outputs.new_version }}"
+
+  # Post-approval: Update version on GitHub Pages landing page (beta only for now)
+  update-gh-pages-version:
+    name: Update GitHub Pages Version
+    needs: [prepare-release, approve-publish]
+    if: needs.approve-publish.result == 'success' && contains(needs.prepare-release.outputs.new_version, '-beta')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate GitHub App token
+        id: generate-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          token: ${{ steps.generate-token.outputs.token }}
+
+      - name: Update version in index.js
+        run: |
+          VERSION="${{ needs.prepare-release.outputs.new_version }}"
+          sed -i "s|const BVC_VERSION = \".*\"|const BVC_VERSION = \"${VERSION}\"|" index.js
+          sed -i "s|const BVC_MODS_VERSION = \".*\"|const BVC_MODS_VERSION = \"mods-v${VERSION}\"|" index.js
+          echo "Updated index.js:"
+          head -3 index.js
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.js
+          git diff --staged --quiet || git commit -m "chore: update version to ${{ needs.prepare-release.outputs.new_version }}"
+          git push
+
+  # Post-approval: Build and push Docker image
+  publish-docker:
+    name: Publish Docker Image
+    needs: [prepare-release, build-server, approve-publish]
+    if: needs.approve-publish.result == 'success'
+    uses: ./.github/workflows/build-server-docker.yml
+    with:
+      version: ${{ needs.prepare-release.outputs.new_version }}
+      ref: ${{ needs.prepare-release.outputs.new_tag }}
+      build_mode: release
+      push: true
+    secrets: inherit

@@ -120,6 +120,22 @@
         style: 'secondary'
       }
     },
+    'UPD01': {
+      code: 'UPD01',
+      title: 'Update Available',
+      message: 'A new version of Bedrock Voice Chat is available. This will download and install the update immediately.',
+      icon: 'fa-solid fa-cloud-arrow-down',
+      primaryAction: {
+        label: 'Update Now',
+        url: '',
+        style: 'primary'
+      },
+      secondaryAction: {
+        label: 'Stay on This Version',
+        url: '/server',
+        style: 'secondary'
+      }
+    },
     // Default error (used when code is not found or not provided)
     'DEFAULT': {
       code: 'ERROR',
@@ -134,7 +150,7 @@
     }
   };
 
-  let currentError = ERROR_DEFINITIONS['DEFAULT'];
+  let currentError = $state(ERROR_DEFINITIONS['DEFAULT']);
 
   // Button style configurations
   const BUTTON_STYLES = {
@@ -143,42 +159,69 @@
     danger: 'btn mt-3 w-full bg-error font-medium text-white hover:bg-error-focus focus:bg-error-focus active:bg-error-focus/90'
   };
 
+  let isUpdating = $state(false);
+  let updateError = $state<string | null>(null);
+
+  async function handleUpdate(): Promise<void> {
+    isUpdating = true;
+    updateError = null;
+    try {
+      await invoke("install_update");
+    } catch (e) {
+      updateError = String(e);
+      isUpdating = false;
+    }
+  }
+
   onMount(async () => {
     window.App = new App();
     window.dispatchEvent(new CustomEvent("app:mounted"));
     window.App.preloader();
 
-    // Stop all active streams and services
-    await teardown();
-
     // Read error code from query parameter
     const urlParams = new URLSearchParams(window.location.search);
     const errorCode = urlParams.get('code');
 
+    // Skip teardown for update page — no streams running from splash
+    if (errorCode !== 'UPD01') {
+      await teardown();
+    }
+
     if (errorCode && ERROR_DEFINITIONS[errorCode]) {
       currentError = ERROR_DEFINITIONS[errorCode];
     } else if (errorCode) {
-      // If code is provided but not found, use default with the provided code
       currentError = {
         ...ERROR_DEFINITIONS['DEFAULT'],
         code: errorCode
       };
     }
 
-    // Only show "Choose Different Server" actions when multiple servers exist
-    const store = await Store.load("store.json", { autoSave: false });
-    const serverList = await store.get("server_list") as Array<{ server: string; player: string }> | null;
-    const hasMultipleServers = serverList != null && serverList.length > 1;
+    // Append version to update message if provided
+    const version = urlParams.get('version');
+    if (errorCode === 'UPD01' && version) {
+      currentError = {
+        ...currentError,
+        message: `A new version (v${version}) of Bedrock Voice Chat is available. This will download and install the update immediately.`
+      };
+    }
 
-    if (!hasMultipleServers) {
-      if (currentError.secondaryAction?.url === '/server') {
-        currentError = { ...currentError, secondaryAction: undefined };
-      }
-      if (currentError.primaryAction.url === '/server') {
-        currentError = {
-          ...currentError,
-          primaryAction: { ...ERROR_DEFINITIONS['DEFAULT'].primaryAction }
-        };
+    // Only show "Choose Different Server" actions when multiple servers exist
+    // Skip for UPD01 — "Stay on This Version" should always be available
+    if (errorCode !== 'UPD01') {
+      const store = await Store.load("store.json", { autoSave: false });
+      const serverList = await store.get("server_list") as Array<{ server: string; player: string }> | null;
+      const hasMultipleServers = serverList != null && serverList.length > 1;
+
+      if (!hasMultipleServers) {
+        if (currentError.secondaryAction?.url === '/server') {
+          currentError = { ...currentError, secondaryAction: undefined };
+        }
+        if (currentError.primaryAction.url === '/server') {
+          currentError = {
+            ...currentError,
+            primaryAction: { ...ERROR_DEFINITIONS['DEFAULT'].primaryAction }
+          };
+        }
       }
     }
   });
@@ -210,12 +253,12 @@
               <!-- Error Icon -->
               {#if currentError.icon}
                 <div class="mb-4">
-                  <i class="{currentError.icon} text-5xl text-error"></i>
+                  <i class="{currentError.icon} text-5xl {currentError.code === 'UPD01' ? 'text-success' : 'text-error'}"></i>
                 </div>
               {/if}
 
               <!-- Error Code -->
-              <p class="text-5xl font-bold text-primary dark:text-accent">
+              <p class="text-5xl font-bold {currentError.code === 'UPD01' ? 'text-success' : 'text-primary dark:text-accent'}">
                 {currentError.code}
               </p>
 
@@ -229,22 +272,57 @@
                 {currentError.message}
               </p>
 
+              {#if updateError}
+                <div class="mt-3 rounded-lg bg-error/10 border border-error/20 p-3 text-sm text-error">
+                  <i class="fa-solid fa-circle-exclamation mr-1"></i>
+                  Update failed. Please try again.
+                </div>
+              {/if}
+
               <!-- Primary Action Button -->
-              <a
-                href={currentError.primaryAction.url}
-                class={BUTTON_STYLES[currentError.primaryAction.style || 'primary']}
-              >
-                {currentError.primaryAction.label}
-              </a>
+              {#if currentError.code === 'UPD01'}
+                <button
+                  onclick={handleUpdate}
+                  disabled={isUpdating}
+                  class="{BUTTON_STYLES[currentError.primaryAction.style || 'primary']}{isUpdating ? ' opacity-75 cursor-not-allowed' : ''}"
+                >
+                  {#if isUpdating}
+                    <i class="fa-solid fa-spinner fa-spin mr-2"></i>
+                    Updating...
+                  {:else}
+                    {currentError.primaryAction.label}
+                  {/if}
+                </button>
+              {:else}
+                <a
+                  href={currentError.primaryAction.url}
+                  class={BUTTON_STYLES[currentError.primaryAction.style || 'primary']}
+                >
+                  {currentError.primaryAction.label}
+                </a>
+              {/if}
 
               <!-- Secondary Action Button (Optional) -->
               {#if currentError.secondaryAction}
-                <a
-                  href={currentError.secondaryAction.url}
-                  class={BUTTON_STYLES[currentError.secondaryAction.style || 'secondary']}
-                >
-                  {currentError.secondaryAction.label}
-                </a>
+                {#if isUpdating}
+                  <span class="{BUTTON_STYLES[currentError.secondaryAction.style || 'secondary']} opacity-50 cursor-not-allowed pointer-events-none">
+                    {currentError.secondaryAction.label}
+                  </span>
+                {:else if currentError.code === 'UPD01'}
+                  <button
+                    onclick={() => { window.location.href = currentError.secondaryAction!.url; }}
+                    class={BUTTON_STYLES[currentError.secondaryAction.style || 'secondary']}
+                  >
+                    {currentError.secondaryAction.label}
+                  </button>
+                {:else}
+                  <a
+                    href={currentError.secondaryAction.url}
+                    class={BUTTON_STYLES[currentError.secondaryAction.style || 'secondary']}
+                  >
+                    {currentError.secondaryAction.label}
+                  </a>
+                {/if}
               {/if}
             </div>
           </div>

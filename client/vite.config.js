@@ -6,12 +6,25 @@ import { sentryVitePlugin } from "@sentry/vite-plugin";
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
 
+// Patches webaudio-controls `const` reassignment bug that Rolldown rejects
+function patchWebaudioControls() {
+  return {
+    name: "patch-webaudio-controls",
+    transform(code, id) {
+      if (id.includes("webaudio-controls")) {
+        return { code: code.replaceAll("const delta = this.step", "let delta = this.step") };
+      }
+    },
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(async () => ({
   // Expose SENTRY_DSN to the frontend bundle without requiring a VITE_ prefix
   envPrefix: ["VITE_", "SENTRY_"],
 
   plugins: [
+    patchWebaudioControls(),
     tailwindcss(),
     sveltekit(),
     sentryVitePlugin({
@@ -27,12 +40,6 @@ export default defineConfig(async () => ({
     sourcemap: true,
     // Android 11 WebView is Chrome ~87-90. Target Chrome 87 for safety.
     target: ['es2020', 'chrome87'],
-  },
-
-  esbuild: {
-    supported: {
-      'top-level-await': true //browsers can handle top-level-await features
-    },
   },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`

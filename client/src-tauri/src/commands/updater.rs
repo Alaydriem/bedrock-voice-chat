@@ -1,38 +1,73 @@
 use tauri_plugin_updater::UpdaterExt;
 
-#[tauri::command]
-pub(crate) async fn check_for_updates(app: tauri::AppHandle) -> Result<Option<String>, String> {
-    let version = env!("CARGO_PKG_VERSION");
-    let is_prerelease = version.contains("-beta")
-        || version.contains("-alpha")
-        || version.contains("-rc");
+pub(crate) struct UpdaterHelper;
 
-    let endpoint = if is_prerelease {
-        "https://alaydriem.github.io/bedrock-voice-chat/updater/beta.json"
-    } else {
-        "https://alaydriem.github.io/bedrock-voice-chat/updater/latest.json"
-    };
+impl UpdaterHelper {
+    fn endpoint() -> &'static str {
+        let version = env!("CARGO_PKG_VERSION");
+        let is_prerelease = version.contains("-beta")
+            || version.contains("-alpha")
+            || version.contains("-rc");
 
-    log::info!(
-        "Updater: version={}, channel={}, endpoint={}",
-        version,
-        if is_prerelease { "prerelease" } else { "stable" },
+        let endpoint = option_env!("BVC_UPDATER_ENDPOINT").unwrap_or(if is_prerelease {
+            "https://alaydriem.github.io/bedrock-voice-chat/updater/beta.json"
+        } else {
+            "https://alaydriem.github.io/bedrock-voice-chat/updater/latest.json"
+        });
+
+        log::info!(
+            "Updater: version={}, channel={}, endpoint={}",
+            version,
+            if is_prerelease { "prerelease" } else { "stable" },
+            endpoint
+        );
+
         endpoint
-    );
+    }
 
-    let updater = app
-        .updater_builder()
-        .endpoints(vec![endpoint.parse().map_err(|e: url::ParseError| e.to_string())?])
-        .map_err(|e| e.to_string())?
-        .build()
-        .map_err(|e| e.to_string())?;
+    async fn check(
+        app: &tauri::AppHandle,
+    ) -> Result<Option<tauri_plugin_updater::Update>, String> {
+        let endpoint = Self::endpoint();
 
-    let update = updater.check().await.map_err(|e| e.to_string())?;
+        let updater = app
+            .updater_builder()
+            .endpoints(vec![endpoint
+                .parse()
+                .map_err(|e: url::ParseError| e.to_string())?])
+            .map_err(|e| e.to_string())?
+            .build()
+            .map_err(|e| e.to_string())?;
+
+        updater.check().await.map_err(|e| e.to_string())
+    }
+}
+
+#[tauri::command]
+pub(crate) async fn check_for_updates(
+    app: tauri::AppHandle,
+) -> Result<Option<String>, String> {
+    let update = UpdaterHelper::check(&app).await?;
 
     match update {
         Some(update) => {
-            let new_version = update.version.clone();
-            log::info!("Update available: v{new_version}");
+            log::info!("Update available: v{}", update.version);
+            Ok(Some(update.version.clone()))
+        }
+        None => {
+            log::info!("No updates available");
+            Ok(None)
+        }
+    }
+}
+
+#[tauri::command]
+pub(crate) async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
+    let update = UpdaterHelper::check(&app).await?;
+
+    match update {
+        Some(update) => {
+            log::info!("Installing update v{}...", update.version);
 
             update
                 .download_and_install(
@@ -49,9 +84,6 @@ pub(crate) async fn check_for_updates(app: tauri::AppHandle) -> Result<Option<St
             log::info!("Update installed, restarting...");
             app.restart();
         }
-        None => {
-            log::info!("No updates available");
-            Ok(None)
-        }
+        None => Err("No update available".to_string()),
     }
 }
