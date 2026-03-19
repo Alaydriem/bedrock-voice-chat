@@ -585,7 +585,7 @@ jobs:
   upload-mod-release-assets:
     name: Upload Mod Release Assets
     needs: [prepare-mods-release, build-mod-fabric, build-mod-paper, build-mod-hytale, build-mod-bds]
-    if: always() && needs.prepare-mods-release.outputs.new_release_published == 'true' && (needs.build-mod-fabric.result == 'success' || needs.build-mod-paper.result == 'success' || needs.build-mod-hytale.result == 'success' || needs.build-mod-bds.result == 'success')
+    if: always() && needs.prepare-mods-release.outputs.new_release_published == 'true' && inputs.dry_run == false && (needs.build-mod-fabric.result == 'success' || needs.build-mod-paper.result == 'success' || needs.build-mod-hytale.result == 'success' || needs.build-mod-bds.result == 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: write
