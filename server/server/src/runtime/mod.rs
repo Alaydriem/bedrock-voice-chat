@@ -158,13 +158,17 @@ impl ServerRuntime {
 
         // Register with Meridian if configured
         if let Some(meridian_config) = &self.config.server.meridian {
-            let hostname = self.config.server.tls.names.first()
-                .cloned()
-                .unwrap_or_else(|| self.config.server.public_addr.clone());
+            let hostname = meridian_config.host.clone()
+                .or_else(|| {
+                    self.config.server.tls.names.iter()
+                        .find(|name| name.parse::<std::net::IpAddr>().is_err())
+                        .cloned()
+                })
+                .unwrap_or_else(|| "localhost".to_string());
 
             let service = MeridianService::new(
                 meridian_config.clone(),
-                self.config.server.public_addr.clone(),
+                meridian_config.backend.clone(),
                 self.config.server.port,
                 self.config.server.quic_port,
                 hostname,

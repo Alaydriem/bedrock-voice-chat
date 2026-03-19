@@ -98,9 +98,9 @@ async fn client(
     _ = common::s2n_quic::provider::tls::rustls::rustls::crypto::aws_lc_rs::default_provider()
         .install_default();
 
-    let ca_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test_certs/ca.crt");
-    let cert_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test_certs/test.crt");
-    let key_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test_certs/test.key");
+    let ca_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test_certs_tbs7/ca.crt");
+    let cert_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test_certs_tbs7/test.crt");
+    let key_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test_certs_tbs7/test.key");
 
     let ca = Path::new(ca_path);
     let cert = Path::new(cert_path);
