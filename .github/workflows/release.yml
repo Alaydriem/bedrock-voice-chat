@@ -35,23 +35,24 @@ jobs:
       new_tag: ${{ steps.semantic.outputs.new_release_git_tag }}
       build_number: ${{ steps.build-number.outputs.build_number }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: true
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
       - name: Generate GitHub App token
         id: generate-token
         uses: actions/create-github-app-token@v1
         with:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+          token: ${{ steps.generate-token.outputs.token }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Configure draft release
         if: inputs.draft == true
