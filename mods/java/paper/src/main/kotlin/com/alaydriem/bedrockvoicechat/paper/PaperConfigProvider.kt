@@ -37,8 +37,6 @@ class PaperConfigProvider(private val plugin: JavaPlugin) : ConfigProvider {
                         yamlConfig.getInt("embedded.httpPort", 8444))
                     quicPort = yamlConfig.getInt("embedded.quic-port",
                         yamlConfig.getInt("embedded.quicPort", 8443))
-                    publicAddr = yamlConfig.getString("embedded.public-addr")
-                        ?: yamlConfig.getString("embedded.publicAddr", "127.0.0.1")!!
                     broadcastRange = yamlConfig.getDouble("embedded.broadcast-range",
                         yamlConfig.getDouble("embedded.broadcastRange", 32.0)).toFloat()
                     tlsCertificate = yamlConfig.getString("embedded.tls-certificate")
@@ -72,7 +70,6 @@ class PaperConfigProvider(private val plugin: JavaPlugin) : ConfigProvider {
         config.embeddedConfig?.let { embedded ->
             yamlConfig.set("embedded.http-port", embedded.httpPort)
             yamlConfig.set("embedded.quic-port", embedded.quicPort)
-            yamlConfig.set("embedded.public-addr", embedded.publicAddr)
             yamlConfig.set("embedded.broadcast-range", embedded.broadcastRange)
             yamlConfig.set("embedded.tls-certificate", embedded.tlsCertificate)
             yamlConfig.set("embedded.tls-key", embedded.tlsKey)
