@@ -2480,7 +2480,7 @@ dependencies = [
  "libc",
  "percent-encoding",
  "pin-project-lite",
- "socket2 0.6.3",
+ "socket2 0.5.10",
  "system-configuration",
  "tokio",
  "tower-service",
@@ -3092,8 +3092,8 @@ dependencies = [
 
 [[package]]
 name = "meridian-proxy"
-version = "1.0.0"
-source = "git+https://github.com/Alaydriem/meridian#b3bf106e75e45a94055f13d842727d59ee5ed1d1"
+version = "1.1.0"
+source = "git+https://github.com/Alaydriem/meridian#559006c17310f134bd1d468dd10da041d76a656c"
 dependencies = [
  "anyhow",
  "reqwest 0.13.2",
@@ -4002,7 +4002,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash",
  "rustls 0.23.37",
- "socket2 0.6.3",
+ "socket2 0.5.10",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -4040,7 +4040,7 @@ dependencies = [
  "cfg_aliases",
  "libc",
  "once_cell",
- "socket2 0.6.3",
+ "socket2 0.5.10",
  "tracing",
  "windows-sys 0.60.2",
 ]
@@ -6826,7 +6826,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
