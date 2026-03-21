@@ -3,6 +3,7 @@
     import { invoke } from "@tauri-apps/api/core";
     import { openUrl } from "@tauri-apps/plugin-opener";
     import { error, info, warn } from "@tauri-apps/plugin-log";
+    import Analytics from "../../../js/app/analytics";
 
     interface AppInfo {
         app_version: string;
@@ -83,8 +84,14 @@
     }
 
     async function handleTelemetryToggle() {
+        if (telemetry) {
+            Analytics.track("AnalyticsToggled", { enabled: 0 });
+        }
         telemetry = !telemetry;
         await invoke("set_telemetry", { value: telemetry });
+        if (telemetry) {
+            Analytics.track("AnalyticsToggled", { enabled: 1 });
+        }
     }
 
     onMount(async () => {

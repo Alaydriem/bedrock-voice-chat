@@ -2,6 +2,7 @@
     import { info, error as logError } from '@tauri-apps/plugin-log';
     import { onMount, onDestroy } from 'svelte';
     import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
+    import Analytics from '../../../js/app/analytics';
 
     export let disabled: boolean = false;
 
@@ -12,6 +13,7 @@
         try {
             isRefreshing = true;
             info('Refreshing audio engine...');
+            Analytics.track("Reload");
 
             if (window.App) {
                 await window.App.shutdown();

@@ -1,3 +1,5 @@
+pub mod analytics_event;
+pub mod analytics_event_data;
 pub mod audio;
 pub mod channel;
 pub mod channel_player;
@@ -11,6 +13,8 @@ pub mod player_source;
 pub mod recording;
 pub mod spatial_audio_config;
 
+pub use analytics_event::AnalyticsEvent;
+pub use analytics_event_data::AnalyticsEventData;
 pub use audio::{AudioDevice, AudioDeviceHost, AudioDeviceType, AudioFormat, MuteEvent, StreamConfig};
 pub use channel_player::ChannelPlayer;
 pub use events::DeepLink;

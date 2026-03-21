@@ -2,6 +2,7 @@
   import ImageCache from "../../js/app/components/imageCache";
   import ImageCacheOptions from "../../js/app/components/imageCacheOptions";
   import { Store } from '@tauri-apps/plugin-store';
+  import Analytics from "../../js/app/analytics";
 
   export let id: string;
   export let server: string;
@@ -31,6 +32,7 @@
         await store.set("active_game", entry.game || "minecraft");
     }
     await store.save();
+    Analytics.track("ServerChanged");
     window.location.href = "/dashboard?server=" + server;
   }
 </script>

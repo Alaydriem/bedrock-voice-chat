@@ -6,7 +6,7 @@ use core::{
     pin::Pin,
     task::{Context, Poll},
 };
-use log::{error, warn};
+use log::{error, info, warn};
 use common::s2n_quic::Connection;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -64,7 +64,7 @@ impl common::traits::StreamTrait for InputStream {
             log::info!("Started network recv stream.");
             while let Ok(bytes) = recv_one_datagram(&connection).await {
                 if shutdown.load(Ordering::Relaxed) {
-                    warn!("Network stream input handler stopped.");
+                    info!("Network stream input handler stopped.");
                     break;
                 }
                 match QuicNetworkPacket::from_datagram(&bytes) {

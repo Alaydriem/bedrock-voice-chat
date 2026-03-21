@@ -1,6 +1,7 @@
 // @ts-ignore
 import murmurHash3 from "murmurhash3js";
 import { mount } from 'svelte';
+import { error } from '@tauri-apps/plugin-log';
 import ServerAvatarIcon from "../../../../components/dashboard/ServerAvatarIcon.svelte";
 
 export default class Sidebar {
@@ -18,7 +19,7 @@ export default class Sidebar {
   async render() {
     const container = document.getElementById('dashboard-server-links');
       if (!container) {
-        console.error("Container for server avatars not found");
+        error("Container for server avatars not found");
         return;
       }
 

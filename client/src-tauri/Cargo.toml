@@ -17,6 +17,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "^2.4", features = [] }
+dotenvy = { version = "^0.15" }
 
 [dependencies]
 common = { path = "./../../common", features = ["quic", "audio", "browser"] }
@@ -80,6 +81,7 @@ sentry = { version = "^0.46", default-features = false, features = [
 tracing = { version = "^0.1" }
 tracing-subscriber = { version = "^0.3", default-features = false, features = ["registry"] }
 parking_lot = { version = "^0.12" }
+open-feature = { version = "0.3", features = ["serde_json"] }
 shiguredo_mp4 = { version = "2026.1.0" }
 
 # Desktop Targets

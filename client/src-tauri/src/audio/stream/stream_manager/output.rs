@@ -405,7 +405,7 @@ impl OutputStream {
                             };
                             let stream_config: rodio::cpal::StreamConfig = config.clone().into();
                             let builder = builder.with_config(&stream_config);
-                            let stream = match builder.open_sink_or_fallback() {
+                            let mut stream = match builder.open_sink_or_fallback() {
                                 Ok(s) => s,
                                 Err(e) => {
                                     error!("Could not acquire MixerDeviceSink. Try restarting the stream? {:?}", e);
@@ -413,7 +413,7 @@ impl OutputStream {
                                 }
                             };
 
-                            // Keep the stream alive on self first, then get mixer
+                            stream.log_on_drop(false);
                             self.playback_stream = Some(stream);
                             let mixer = self.playback_stream.as_ref().unwrap().mixer();
 

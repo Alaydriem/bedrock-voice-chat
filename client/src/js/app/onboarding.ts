@@ -1,5 +1,6 @@
 import BVCApp from "./BVCApp";
 import { Store } from "@tauri-apps/plugin-store";
+import Analytics from "./analytics";
 import type { OnboardingState } from "../bindings/OnboardingState";
 import { info } from "@tauri-apps/plugin-log";
 
@@ -82,6 +83,7 @@ export default class Onboarding extends BVCApp {
         if (nextStep) {
             window.location.href = nextStep;
         } else {
+            Analytics.track("OnboardingCompleted");
             window.location.href = "/dashboard";
         }
     }

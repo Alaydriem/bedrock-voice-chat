@@ -5,6 +5,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { invoke } from '@tauri-apps/api/core';
 import BVCApp from './BVCApp.ts';
 import Keyring from './keyring.ts';
+import Analytics from './analytics';
 import type { HytaleDeviceFlowStartResponse, HytaleDeviceFlowStatusResponse, HytaleAuthStatus, LoginResponse } from '../bindings/index.ts';
 
 declare global {
@@ -372,6 +373,7 @@ export default class Login extends BVCApp {
       await store.delete("hytale_session_id");
       await store.save();
 
+      Analytics.track("LoginCompleted", { game_type: "hytale" });
       window.location.href = "/onboarding/welcome";
     } catch (e) {
       error(`Failed to save login data: ${String(e)}`);

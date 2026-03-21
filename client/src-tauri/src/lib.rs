@@ -16,13 +16,14 @@ use network::NetworkStreamManager;
 use common::structs::DeepLink;
 use deep_links::DeepLinkHandler;
 
+mod analytics;
 mod api;
 pub mod audio;
 mod auth;
 mod commands;
-mod core;
 mod deep_links;
 mod events;
+mod feature_flags;
 #[cfg(desktop)]
 pub mod keybinds;
 mod logging;
@@ -163,8 +164,12 @@ pub fn run() {
             crate::commands::websocket::stop_websocket_server,
             crate::commands::websocket::is_websocket_running,
             crate::commands::websocket::generate_encryption_key,
+            // Analytics
+            crate::commands::analytics::track_event,
             // Keybinds
             crate::commands::keybinds::start_keybind_listener,
+            // Feature Flags
+            crate::commands::feature_flags::get_feature_flag,
             // Updater
             #[cfg(desktop)]
             crate::commands::updater::check_for_updates,
@@ -225,24 +230,75 @@ pub fn run() {
                 )
                 .init();
 
+            let install_id = match store.get("install_id").and_then(|v| v.as_str().map(String::from)) {
+                Some(id) => id,
+                None => {
+                    let id = uuid::Uuid::now_v7().to_string();
+                    store.set("install_id", id.clone());
+                    let _ = store.save();
+                    id
+                }
+            };
+            log::info!("Platform ID: {}", install_id);
+
             if sentry_enabled {
-                let install_id = match store.get("install_id").and_then(|v| v.as_str().map(String::from)) {
-                    Some(id) => id,
-                    None => {
-                        let id = uuid::Uuid::now_v7().to_string();
-                        store.set("install_id", id.clone());
-                        let _ = store.save();
-                        id
-                    }
-                };
-                log::info!("Platform ID: {}", install_id);
                 sentry::configure_scope(|scope| {
                     scope.set_user(Some(sentry::User {
-                        id: Some(install_id),
+                        id: Some(install_id.clone()),
                         ..Default::default()
                     }));
                 });
             }
+
+            let feature_flag_service = Arc::new(
+                feature_flags::FeatureFlagService::new(
+                    option_env!("FLAGSMITH_KEY").unwrap_or("").to_string(),
+                    option_env!("FLAGSMITH_SERVER")
+                        .unwrap_or("https://flagsmith.bedrockvoicechat.com")
+                        .to_string(),
+                    install_id.clone(),
+                    std::time::Duration::from_secs(3600),
+                )
+            );
+            app.manage(feature_flag_service.clone());
+
+            let ffs = feature_flag_service.clone();
+            tauri::async_runtime::spawn(async move {
+                ffs.initialize().await;
+            });
+
+            // Analytics service with provider pattern
+            let mut analytics_service = analytics::AnalyticsService::new(
+                telemetry.clone(),
+                install_id,
+            );
+
+            if let (Some(key), Some(host)) = (option_env!("APTABASE_KEY"), option_env!("APTABASE_SERVER")) {
+                if !key.is_empty() {
+                    analytics_service.add_provider(
+                        analytics::AnalyticsProviderType::Aptabase(
+                            analytics::aptabase::Provider::new(host.to_string(), key.to_string())
+                        )
+                    );
+                    info!("Aptabase analytics provider configured");
+                }
+            }
+
+            let analytics_service = Arc::new(analytics_service);
+            analytics_service.track(common::structs::AnalyticsEvent::AppStarted, None);
+
+            let flush_analytics = analytics_service.clone();
+            tauri::async_runtime::spawn(async move {
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+                loop {
+                    interval.tick().await;
+                    if let Err(e) = flush_analytics.flush().await {
+                        log::warn!("Analytics flush failed: {}", e);
+                    }
+                }
+            });
+
+            app.manage(analytics_service);
 
             let handle = app.handle().clone();
 
@@ -396,6 +452,14 @@ pub fn run() {
             crate::events::Notification::register(app);
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            if let tauri::RunEvent::Exit = event {
+                let analytics = app_handle.state::<Arc<analytics::AnalyticsService>>();
+                analytics.track(common::structs::AnalyticsEvent::AppExited, None);
+                tauri::async_runtime::block_on(analytics.flush())
+                    .unwrap_or_else(|e| log::warn!("Final analytics flush failed: {}", e));
+            }
+        });
 }

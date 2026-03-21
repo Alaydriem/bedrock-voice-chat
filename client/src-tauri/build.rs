@@ -1,4 +1,6 @@
 fn main() {
+    dotenvy::from_path("../.env.local").ok();
+
     let output = std::process::Command::new("git")
         .args(["rev-parse", "--short", "HEAD"])
         .output();
@@ -14,10 +16,29 @@ fn main() {
     }
 
     println!("cargo:rerun-if-changed=../../.git/HEAD");
+    println!("cargo:rerun-if-changed=../.env.local");
 
     println!("cargo:rerun-if-env-changed=SENTRY_DSN");
     if let Ok(dsn) = std::env::var("SENTRY_DSN") {
         println!("cargo:rustc-env=SENTRY_DSN={}", dsn);
+    }
+
+    println!("cargo:rerun-if-env-changed=APTABASE_KEY");
+    if let Ok(key) = std::env::var("APTABASE_KEY") {
+        println!("cargo:rustc-env=APTABASE_KEY={}", key);
+    }
+    println!("cargo:rerun-if-env-changed=APTABASE_SERVER");
+    if let Ok(server) = std::env::var("APTABASE_SERVER") {
+        println!("cargo:rustc-env=APTABASE_SERVER={}", server);
+    }
+
+    println!("cargo:rerun-if-env-changed=FLAGSMITH_KEY");
+    if let Ok(key) = std::env::var("FLAGSMITH_KEY") {
+        println!("cargo:rustc-env=FLAGSMITH_KEY={}", key);
+    }
+    println!("cargo:rerun-if-env-changed=FLAGSMITH_SERVER");
+    if let Ok(server) = std::env::var("FLAGSMITH_SERVER") {
+        println!("cargo:rustc-env=FLAGSMITH_SERVER={}", server);
     }
 
     let version = std::env::var("CARGO_PKG_VERSION").unwrap_or_default();

@@ -4,6 +4,7 @@
     import { info, error as logError } from '@tauri-apps/plugin-log';
     import { onMount, onDestroy } from "svelte";
     import PlatformDetector from '../../../js/app/utils/PlatformDetector';
+    import Analytics from '../../../js/app/analytics';
 
     // Props
     export let disabled: boolean = false;
@@ -39,11 +40,13 @@
                 await invoke('stop_recording');
                 // State will be updated by 'recording:stopped' event listener
                 info('Recording stopped');
+                Analytics.track("RecordingStopped");
             } else {
                 // Start recording
                 const sessionId = await invoke('start_recording');
                 // State will be updated by 'recording:started' event listener
                 info(`Recording started with session ID: ${sessionId}`);
+                Analytics.track("RecordingStarted");
             }
 
         } catch (error) {

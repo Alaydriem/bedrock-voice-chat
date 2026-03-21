@@ -5,6 +5,7 @@
     import { info, error } from '@tauri-apps/plugin-log';
     import { Store } from '@tauri-apps/plugin-store';
     import PlatformDetector from '../../js/app/utils/PlatformDetector';
+    import Analytics from '../../js/app/analytics';
     import selectSvelte from '../forms/select.svelte';
     import type { AudioDevice } from '../../js/bindings/AudioDevice';
 
@@ -114,6 +115,9 @@
                         try {
                             await invoke("set_audio_device", { device: targetDevice });
                             info(`Audio device changed to ${targetDevice.display_name} for ${target.id}`);
+                            Analytics.track("AudioDeviceChanged", {
+                                device_type: target.id === "input-audio-device" ? "InputDevice" : "OutputDevice"
+                            });
                             await invoke("change_audio_device");
                         } catch (e) {
                             error(`Error changing audio device: ${e}`);

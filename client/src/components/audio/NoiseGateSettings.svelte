@@ -2,6 +2,7 @@
     import { onMount, mount, tick } from 'svelte';
     import { invoke } from "@tauri-apps/api/core";
     import { Store } from '@tauri-apps/plugin-store';
+    import Analytics from '../../js/app/analytics';
     import '../../../node_modules/webaudio-controls/webaudio-controls.js';
     import Knob from '../forms/knob.svelte';
 
@@ -72,6 +73,7 @@
             device: "InputDevice",
         });
         await store.save();
+        Analytics.track("NoiseGateToggled", { enabled: noiseGateEnabled ? 1 : 0 });
 
         if (noiseGateEnabled) {
             // Wait for Svelte to update the DOM (unhide the container)

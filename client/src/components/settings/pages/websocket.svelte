@@ -2,6 +2,7 @@
     import { onMount, onDestroy } from "svelte";
     import { invoke } from "@tauri-apps/api/core";
     import { Store } from '@tauri-apps/plugin-store';
+    import Analytics from "../../../js/app/analytics";
 
     interface WebSocketConfig {
         enabled: boolean;
@@ -106,6 +107,7 @@
             await saveConfig(true);
             await invoke('start_websocket_server');
             isRunning = true;
+            Analytics.track("WebsocketServerToggled", { enabled: 1 });
         } catch (e) {
             console.error(e);
         }
@@ -116,6 +118,7 @@
             await invoke('stop_websocket_server');
             isRunning = false;
             await saveConfig(false);
+            Analytics.track("WebsocketServerToggled", { enabled: 0 });
         } catch (e) {
             console.error(e);
         }
