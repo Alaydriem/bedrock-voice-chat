@@ -10,6 +10,7 @@ pub struct AnalyticsService {
     queue: parking_lot::Mutex<Vec<QueuedEvent>>,
     telemetry: Arc<Telemetry>,
     install_id: String,
+    session_id: String,
 }
 
 impl AnalyticsService {
@@ -19,6 +20,7 @@ impl AnalyticsService {
             queue: parking_lot::Mutex::new(Vec::new()),
             telemetry,
             install_id,
+            session_id: uuid::Uuid::new_v4().to_string(),
         }
     }
 
@@ -52,7 +54,7 @@ impl AnalyticsService {
 
         let mut any_success = false;
         for provider in &self.providers {
-            match provider.send_batch(&events, &self.install_id).await {
+            match provider.send_batch(&events, &self.install_id, &self.session_id).await {
                 Ok(()) => any_success = true,
                 Err(e) => log::warn!("Analytics provider flush failed: {}", e),
             }

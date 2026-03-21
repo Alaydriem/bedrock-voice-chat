@@ -263,7 +263,7 @@ pub fn run() {
             app.manage(feature_flag_service.clone());
 
             let ffs = feature_flag_service.clone();
-            tokio::spawn(async move {
+            tauri::async_runtime::spawn(async move {
                 ffs.initialize().await;
             });
 
@@ -288,7 +288,7 @@ pub fn run() {
             analytics_service.track(common::structs::AnalyticsEvent::AppStarted, None);
 
             let flush_analytics = analytics_service.clone();
-            tokio::spawn(async move {
+            tauri::async_runtime::spawn(async move {
                 let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
                 loop {
                     interval.tick().await;

@@ -10,9 +10,10 @@ impl AnalyticsProviderType {
         &self,
         events: &[QueuedEvent],
         install_id: &str,
+        session_id: &str,
     ) -> Result<(), anyhow::Error> {
         match self {
-            Self::Aptabase(p) => p.send_batch(events, install_id).await,
+            Self::Aptabase(p) => p.send_batch(events, install_id, session_id).await,
         }
     }
 }

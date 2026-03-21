@@ -8,6 +8,7 @@ pub struct SystemProps {
     pub os_version: String,
     pub app_version: String,
     pub app_build_number: String,
+    pub sdk_version: String,
 }
 
 impl SystemProps {
@@ -18,6 +19,7 @@ impl SystemProps {
             os_version: String::new(),
             app_version,
             app_build_number: String::new(),
+            sdk_version: "bvc@1.0.0".to_string(),
         }
     }
 }

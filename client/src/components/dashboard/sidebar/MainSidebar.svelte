@@ -1,3 +1,15 @@
+<script lang="ts">
+    import { onMount } from "svelte";
+    import { invoke } from "@tauri-apps/api/core";
+
+    let multiServerEnabled = $state(false);
+
+    onMount(async () => {
+        multiServerEnabled = await invoke<boolean>("get_feature_flag", { flag: "client.multi-server-enabled" })
+            .catch(() => false);
+    });
+</script>
+
 <div class="main-sidebar">
     <div
         class="flex h-full w-full flex-col items-center border-r border-slate-150 bg-white dark:border-navy-700 dark:bg-navy-800"
@@ -19,6 +31,17 @@
 
         <!-- Bottom Links -->
         <div class="flex flex-col items-center space-y-3 py-3">
+            {#if multiServerEnabled}
+                <!-- Add Server -->
+                <button
+                    onclick={() => { window.location.href = '/login?addserver=true'; }}
+                    aria-label="Add Server"
+                    class="flex size-11 items-center justify-center rounded-lg text-2xl font-light text-slate-400 outline-hidden transition-colors duration-200 hover:bg-primary/20 focus:bg-primary/20 active:bg-primary/25 dark:hover:bg-navy-300/20 dark:focus:bg-navy-300/20 dark:active:bg-navy-300/25"
+                >
+                    +
+                </button>
+                <hr class="w-8 border-slate-150 dark:border-navy-500" />
+            {/if}
             <!-- Settings -->
             <a
                 href="/settings#audio"

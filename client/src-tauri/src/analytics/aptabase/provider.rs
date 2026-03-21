@@ -26,6 +26,7 @@ impl Provider {
         &self,
         events: &[QueuedEvent],
         install_id: &str,
+        session_id: &str,
     ) -> Result<(), anyhow::Error> {
         if events.is_empty() {
             return Ok(());
@@ -56,7 +57,7 @@ impl Provider {
 
                     Event {
                         timestamp: e.timestamp,
-                        session_id: install_id.to_string(),
+                        session_id: session_id.to_string(),
                         event_name: e.event.name().to_string(),
                         system_props: self.system_props.clone(),
                         props: serde_json::Value::Object(map),
@@ -77,10 +78,9 @@ impl Provider {
             match response {
                 Ok(resp) => {
                     let status = resp.status();
-                    if status.is_server_error() {
-                        log::warn!("Aptabase server error: {}. Continuing with remaining chunks.", status);
-                    } else if status.is_client_error() {
-                        log::warn!("Aptabase client error: {}. Events discarded.", status);
+                    if status.is_server_error() || status.is_client_error() {
+                        let body = resp.text().await.unwrap_or_default();
+                        log::warn!("Aptabase error: {} - {}", status, body);
                     }
                 }
                 Err(e) => {

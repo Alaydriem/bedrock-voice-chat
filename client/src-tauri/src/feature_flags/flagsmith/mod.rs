@@ -70,6 +70,7 @@ impl FlagsmithProvider {
         let mut cache = self.cache.write().await;
         cache.clear();
         for flag in identity_response.flags {
+            info!("Flag '{}': enabled={}, value={:?}", flag.feature.name, flag.enabled, flag.value);
             cache.insert(flag.feature.name.clone(), flag);
         }
         info!("Refreshed {} feature flags for identity {}", cache.len(), self.install_id);

@@ -23,6 +23,15 @@ fn main() {
         println!("cargo:rustc-env=SENTRY_DSN={}", dsn);
     }
 
+    println!("cargo:rerun-if-env-changed=APTABASE_KEY");
+    if let Ok(key) = std::env::var("APTABASE_KEY") {
+        println!("cargo:rustc-env=APTABASE_KEY={}", key);
+    }
+    println!("cargo:rerun-if-env-changed=APTABASE_SERVER");
+    if let Ok(server) = std::env::var("APTABASE_SERVER") {
+        println!("cargo:rustc-env=APTABASE_SERVER={}", server);
+    }
+
     println!("cargo:rerun-if-env-changed=FLAGSMITH_KEY");
     if let Ok(key) = std::env::var("FLAGSMITH_KEY") {
         println!("cargo:rustc-env=FLAGSMITH_KEY={}", key);
