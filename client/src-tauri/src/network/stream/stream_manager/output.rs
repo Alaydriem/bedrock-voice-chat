@@ -89,7 +89,7 @@ impl common::traits::StreamTrait for OutputStream {
                 match packet {
                     Ok(network_packet) => {
                         if shutdown.load(Ordering::Relaxed) {
-                            warn!("Network stream output handler stopped.");
+                            info!("Network stream output handler stopped.");
                             break;
                         }
 

@@ -539,12 +539,6 @@ impl InputStream {
                                         if let Err(e) = stream.pause() {
                                             warn!("Failed to pause stream (may already be stopped): {:?}", e);
                                         }
-
-                                        warn!(
-                                            "{} {} ended.",
-                                            device.io.to_string(),
-                                            device.display_name
-                                        );
                                         drop(stream);
                                     }
                                     Err(e) => {

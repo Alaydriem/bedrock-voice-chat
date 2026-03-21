@@ -7,7 +7,7 @@ use crate::audio::recording::RecordingManager;
 use crate::NetworkPacket;
 use anyhow::Error;
 use common::structs::audio::StreamEvent;
-use log::warn;
+use log::{error, info, warn};
 use std::sync::Arc;
 use tauri::async_runtime::Mutex as TauriMutex;
 use tauri::Emitter;
@@ -93,7 +93,7 @@ impl AudioStreamManager {
                 while let Some(event) = recovery_rx.recv().await {
                     match event {
                         StreamRecoveryEvent::DeviceError { device_type, error } => {
-                            warn!("Stream recovery triggered for {:?}: {}", device_type, error);
+                            info!("Stream recovery triggered for {:?}: {}", device_type, error);
                             // Emit event for frontend to handle recovery
                             let _ = app_handle.emit(
                                 "audio-stream-recovery",
