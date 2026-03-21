@@ -1,7 +1,9 @@
 pub(crate) mod about;
+pub(crate) mod analytics;
 pub(crate) mod audio;
 pub(crate) mod env;
 pub(crate) mod event;
+pub(crate) mod feature_flags;
 pub(crate) mod keybinds;
 pub(crate) mod network;
 pub(crate) mod recordings;

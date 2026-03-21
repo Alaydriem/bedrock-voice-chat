@@ -16,6 +16,7 @@ import PlatformDetector from '../utils/PlatformDetector';
 import GameNameUtils from '../utils/GameNameUtils';
 import ImageCache from '../components/imageCache';
 import ImageCacheOptions from '../components/imageCacheOptions';
+import Analytics from '../analytics';
 
 interface ChannelStoreState {
     channels: Channel[];
@@ -273,6 +274,12 @@ export default class ChannelManager {
             });
 
             if (success) {
+                const existingChannels = get(this.channelsStore);
+                const joinedChannel = existingChannels.find(c => c.id === channelId);
+                Analytics.track("ChannelJoined", {
+                    participant_count: (joinedChannel?.players.length ?? 0) + 1
+                });
+
                 // Update local state optimistically
                 this.currentUserChannelIdStore.set(channelId);
                 const optimisticPlayer: ChannelPlayer = {
@@ -328,6 +335,8 @@ export default class ChannelManager {
             });
 
             if (success) {
+                Analytics.track("ChannelLeft");
+
                 // Update notification on mobile only
                 const isMobile = await this.platformDetector.checkMobile();
                 if (isMobile) {

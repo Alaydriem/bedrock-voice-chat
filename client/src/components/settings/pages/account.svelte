@@ -5,6 +5,7 @@
     import { info, error as logError } from "@tauri-apps/plugin-log";
     import { platform } from "@tauri-apps/plugin-os";
     import Keyring from "../../../js/app/keyring.ts";
+    import Analytics from "../../../js/app/analytics";
     import type { LinkJavaIdentityResponse } from "../../../js/bindings/LinkJavaIdentityResponse";
     import type { Game } from "../../../js/bindings/Game";
 
@@ -74,6 +75,7 @@
                 await keyring.insert("minecraft_username", response.minecraft_username);
 
                 info(`Linked Java identity: ${response.minecraft_username}`);
+                Analytics.track("JavaIdentityLinked");
             } else {
                 linkError = "Could not retrieve Java username.";
             }

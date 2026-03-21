@@ -5,6 +5,7 @@
     import AudioDeviceSelector from '../../audio/AudioDeviceSelector.svelte';
     import NoiseGateSettings from '../../audio/NoiseGateSettings.svelte';
     import PlatformDetector from "../../../js/app/utils/PlatformDetector.ts";
+    import Analytics from "../../../js/app/analytics";
     import type { KeybindConfig } from "../../../js/bindings/KeybindConfig.ts";
     import type { VoiceMode } from "../../../js/bindings/VoiceMode.ts";
 
@@ -42,6 +43,7 @@
         await store.set("keybinds", config);
         await store.save();
         await invoke('start_keybind_listener', { config });
+        Analytics.track("VoiceModeChanged", { mode });
     }
 
     onMount(async () => {

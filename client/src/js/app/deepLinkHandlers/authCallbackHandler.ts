@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { info, error as logError } from '@tauri-apps/plugin-log';
 import { platform } from '@tauri-apps/plugin-os';
 import Keyring from '../keyring.ts';
+import Analytics from '../analytics';
 import { type LoginResponse } from "../../bindings/LoginResponse";
 
 export class AuthCallbackHandler {
@@ -108,6 +109,7 @@ export class AuthCallbackHandler {
                 await this.store.delete("auth_state_endpoint");
                 await this.store.save();
 
+                Analytics.track("LoginCompleted", { game_type: "minecraft" });
                 window.location.href = "/onboarding/welcome";
             } else {
                 throw new Error("authStateEndpoint is undefined");

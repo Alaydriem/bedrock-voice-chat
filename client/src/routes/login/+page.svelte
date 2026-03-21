@@ -4,12 +4,14 @@
   import { onMount } from 'svelte';
   import { openUrl } from '@tauri-apps/plugin-opener';
   import { getVersion } from '@tauri-apps/api/app';
+  import { invoke } from '@tauri-apps/api/core';
   import PlatformDetector from "../../js/app/utils/PlatformDetector.ts";
 
   const platformDetector = new PlatformDetector();
   let isMobile = $state(false);
   let appVersion = $state("");
   let isCodeLogin = $state(false);
+  let isAddServer = $state(false);
 
   onMount(async () => {
     isMobile = await platformDetector.checkMobile();
@@ -17,12 +19,17 @@
     window.App = new Login();
     window.dispatchEvent(new CustomEvent("app:mounted"));
 
+    // Stop any running audio/network streams
+    await invoke("reset_asm").catch(() => {});
+    await invoke("reset_nsm").catch(() => {});
+
     // Initialize and check for pending deep link callbacks
     await window.App.initialize();
 
     window.App.preloader();
 
     const urlParams = new URLSearchParams(window.location.search);
+    isAddServer = urlParams.has("addserver");
 
     document.querySelector("#login-form")
       ?.addEventListener("submit", (e) => {
@@ -58,6 +65,19 @@
     >
       <main class="w-full">
         <div class="w-full max-w-[26rem] mx-auto p-4 sm:px-5">
+          {#if isAddServer}
+            <div class="mb-4">
+              <a
+                href="/dashboard"
+                class="inline-flex items-center space-x-2 text-sm text-slate-500 hover:text-primary dark:text-navy-200 dark:hover:text-accent-light transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                </svg>
+                <span>Back to Dashboard</span>
+              </a>
+            </div>
+          {/if}
           <div class="text-center">
             <img
               class="mx-auto h-32 w-32"

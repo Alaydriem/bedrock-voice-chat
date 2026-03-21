@@ -22,6 +22,7 @@ import ChannelManager from './managers/ChannelManager';
 import { AudioActivityManager } from './managers/AudioActivityManager';
 
 import Notification from "../../components/events/Notification.svelte";
+import Analytics from './analytics';
 import type { KeybindConfig } from '../bindings/KeybindConfig.ts';
 import type { NoiseGateSettings } from '../bindings/NoiseGateSettings.ts';
 import type { PlayerGainStore } from '../bindings/PlayerGainStore.ts';
@@ -339,8 +340,9 @@ export default class Dashboard extends BVCApp {
      */
     private async handleLogout(): Promise<void> {
         try {
+            Analytics.track("Logout");
             await invoke("logout").then(async () => {
-                await this.cleanup().then(() => {
+                await this.shutdown().then(() => {
                     window.location.href = "/login";
                 });
             });
@@ -542,6 +544,15 @@ export default class Dashboard extends BVCApp {
     }
 
     async shutdown() {
+        try {
+            const recording = await invoke<boolean>("is_recording");
+            if (recording) {
+                await invoke("stop_recording");
+            }
+        } catch (err) {
+            error(`Error stopping recording during shutdown: ${err}`);
+        }
+
         await this.cleanup();
         await invoke("reset_asm");
         await invoke("reset_nsm");

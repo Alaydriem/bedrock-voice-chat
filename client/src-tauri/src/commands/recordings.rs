@@ -1,8 +1,11 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tauri::Manager;
 use common::structs::recording::SessionManifest;
+use common::structs::{AnalyticsEvent, AnalyticsEventData};
+use crate::analytics::AnalyticsService;
 use crate::audio::recording::renderer::AudioFormatRenderer;
 use common::structs::AudioFormat;
 use tauri_plugin_opener::OpenerExt;
@@ -133,10 +136,19 @@ pub async fn export_recording(
         .join("recordings")
         .join(&session_id);
 
+    let session_json_path = rec_path.join("session.json");
+    let session_manifest: Option<SessionManifest> = fs::read_to_string(&session_json_path)
+        .ok()
+        .and_then(|json| serde_json::from_str(&json).ok());
+
     let session_path = rec_path.clone();
     let render_path = rec_path.join("renders");
     let _ = fs::create_dir_all(render_path.clone().to_path_buf());
     let render_path_for_open = render_path.clone();
+
+    let export_player_count = selected_players.len();
+    let export_format = format!("{:?}", format);
+    let render_start = std::time::Instant::now();
 
     let task = tokio::spawn({
         use tracing::Instrument;
@@ -160,6 +172,17 @@ pub async fn export_recording(
 
     match task.await {
         Ok(()) => {
+            let render_time_ms = render_start.elapsed().as_millis() as u64;
+
+            let analytics = app_handle.state::<Arc<AnalyticsService>>();
+            let event_data = AnalyticsEventData::new()
+                .insert("participant_count", session_manifest.as_ref().map(|m| m.participants.len() as u64).unwrap_or(0))
+                .insert("export_count", export_player_count as u64)
+                .insert("duration_ms", session_manifest.as_ref().and_then(|m| m.duration_ms).unwrap_or(0))
+                .insert("format", export_format)
+                .insert("render_time_ms", render_time_ms);
+            analytics.track(AnalyticsEvent::RecordingExported, Some(event_data));
+
             let _ = app_handle.opener().open_path(render_path_for_open.to_string_lossy().to_string(), None::<&str>);
         },
         Err(e) => {
