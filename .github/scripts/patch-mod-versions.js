@@ -88,16 +88,7 @@ if (fs.existsSync(bdsPackage)) {
 // 3. Patch BDS manifest files (uses encoded array)
 const encodedVersion = [encoded.major, encoded.minor, encoded.encodedPatch];
 
-// 3a. Patch root manifest.json
-const bdsManifest = path.join(modsDir, 'bds/manifest.json');
-if (fs.existsSync(bdsManifest)) {
-  const content = JSON.parse(fs.readFileSync(bdsManifest, 'utf8'));
-  content.header.version = encodedVersion;
-  fs.writeFileSync(bdsManifest, JSON.stringify(content, null, 2) + '\n');
-  console.log(`Patched: bds/manifest.json -> version=[${encodedVersion}]`);
-}
-
-// 3b. Patch bp/manifest.json (behavior pack — bundled into .mcaddon)
+// 3a. Patch bp/manifest.json (behavior pack — bundled into .mcaddon)
 const bdsBpManifest = path.join(modsDir, 'bds/bp/manifest.json');
 if (fs.existsSync(bdsBpManifest)) {
   const content = JSON.parse(fs.readFileSync(bdsBpManifest, 'utf8'));
@@ -106,7 +97,7 @@ if (fs.existsSync(bdsBpManifest)) {
   console.log(`Patched: bds/bp/manifest.json -> version=[${encodedVersion}]`);
 }
 
-// 3c. Patch rp/manifest.json (resource pack — bundled into .mcaddon)
+// 3b. Patch rp/manifest.json (resource pack — bundled into .mcaddon)
 const bdsRpManifest = path.join(modsDir, 'bds/rp/manifest.json');
 if (fs.existsSync(bdsRpManifest)) {
   const content = JSON.parse(fs.readFileSync(bdsRpManifest, 'utf8'));
