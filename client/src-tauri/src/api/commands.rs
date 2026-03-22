@@ -1,7 +1,7 @@
 use crate::structs::app_state::AppState;
 use common::consts::version::PROTOCOL_VERSION;
 use common::response::GamerpicResponse;
-use common::structs::channel::{Channel, ChannelEvent};
+use common::structs::channels::{Channel, ChannelEvent};
 use common::structs::config::ApiConfig;
 use tauri::{async_runtime::Mutex, State};
 

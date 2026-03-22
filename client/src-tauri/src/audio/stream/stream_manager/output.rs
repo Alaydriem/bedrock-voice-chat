@@ -569,11 +569,11 @@ impl OutputStream {
             match channel_event {
                 Ok(event) => {
                     let event_type = match event.event {
-                        common::structs::channel::ChannelEvents::Create => "create",
-                        common::structs::channel::ChannelEvents::Delete => "delete",
-                        common::structs::channel::ChannelEvents::Join => "join",
-                        common::structs::channel::ChannelEvents::Leave => "leave",
-                        common::structs::channel::ChannelEvents::Rename => "rename",
+                        common::structs::channels::ChannelEvents::Create => "create",
+                        common::structs::channels::ChannelEvents::Delete => "delete",
+                        common::structs::channels::ChannelEvents::Join => "join",
+                        common::structs::channels::ChannelEvents::Leave => "leave",
+                        common::structs::channels::ChannelEvents::Rename => "rename",
                     };
 
                     info!(

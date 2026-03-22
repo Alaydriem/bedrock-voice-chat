@@ -273,14 +273,14 @@ pub fn run() {
                 install_id,
             );
 
-            if let (Some(key), Some(host)) = (option_env!("APTABASE_KEY"), option_env!("APTABASE_SERVER")) {
+            if let (Some(key), Some(host)) = (option_env!("POSTHOG_KEY"), option_env!("POSTHOG_HOST")) {
                 if !key.is_empty() {
                     analytics_service.add_provider(
-                        analytics::AnalyticsProviderType::Aptabase(
-                            analytics::aptabase::Provider::new(host.to_string(), key.to_string())
+                        analytics::AnalyticsProviderType::PostHog(
+                            analytics::posthog::Provider::new(host.to_string(), key.to_string())
                         )
                     );
-                    info!("Aptabase analytics provider configured");
+                    info!("PostHog analytics provider configured");
                 }
             }
 

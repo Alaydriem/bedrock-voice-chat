@@ -36,7 +36,7 @@ pub use s2n_quic_core;
 pub use rodio::cpal;
 
 // Re-export important types for easy access
-pub use structs::player_source::PlayerSource;
+pub use structs::players::PlayerSource;
 pub use structs::recording::{RecordingPlayerData, SessionManifest};
 
 // Re-export new player system types

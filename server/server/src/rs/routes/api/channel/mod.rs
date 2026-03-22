@@ -12,7 +12,7 @@ use sea_orm::QueryFilter;
 use sea_orm::ColumnTrait;
 use sea_orm_rocket::Connection as SeaOrmConnection;
 
-use common::structs::channel::Channel;
+use common::structs::channels::Channel;
 
 #[get("/?<id>")]
 pub async fn channel_list<'r>(

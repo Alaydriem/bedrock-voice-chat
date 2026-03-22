@@ -1,22 +1,20 @@
-pub mod analytics_event;
-pub mod analytics_event_data;
+pub mod analytics;
 pub mod audio;
-pub mod channel;
-pub mod channel_player;
+pub mod channels;
 pub mod config;
 pub mod events;
 pub mod keybinds;
 pub mod network;
 pub mod onboarding;
 pub mod packet;
-pub mod player_source;
+pub mod players;
 pub mod recording;
 pub mod spatial_audio_config;
 
-pub use analytics_event::AnalyticsEvent;
-pub use analytics_event_data::AnalyticsEventData;
+pub use analytics::{AnalyticsEvent, AnalyticsEventData};
 pub use audio::{AudioDevice, AudioDeviceHost, AudioDeviceType, AudioFormat, MuteEvent, StreamConfig};
-pub use channel_player::ChannelPlayer;
+pub use channels::ChannelPlayer;
 pub use events::DeepLink;
 pub use network::ConnectionHealth;
+pub use players::PlayerSource;
 pub use spatial_audio_config::SpatialAudioConfig;

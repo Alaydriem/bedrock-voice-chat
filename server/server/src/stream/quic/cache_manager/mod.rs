@@ -1,7 +1,6 @@
 use crate::stream::quic::connection_registry::ConnectionRegistry;
 use anyhow::Error;
-use common::structs::channel::{Channel, ChannelEvents};
-use common::structs::channel_player::ChannelPlayer;
+use common::structs::channels::{Channel, ChannelEvents, ChannelPlayer};
 use common::structs::packet::{
     ChannelEventPacket, PacketType, PlayerDataPacket, QuicNetworkPacket,
 };

@@ -1,11 +1,11 @@
 use crate::rs::pool::AppDb;
 use crate::stream::quic::{CacheManager, WebhookReceiver};
 use common::structs::{
-    channel::{
+    channels::{
         ChannelEvent,
         ChannelEvents::{Join, Leave, Delete},
+        ChannelPlayer,
     },
-    channel_player::ChannelPlayer,
     packet::{
         ChannelEventPacket, PacketOwner, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
     },

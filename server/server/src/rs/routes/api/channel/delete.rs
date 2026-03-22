@@ -1,6 +1,6 @@
 use crate::stream::quic::{CacheManager, WebhookReceiver};
 use common::structs::{
-    channel::ChannelEvents::Delete,
+    channels::ChannelEvents::Delete,
     packet::{
         ChannelEventPacket, PacketOwner, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
     },
