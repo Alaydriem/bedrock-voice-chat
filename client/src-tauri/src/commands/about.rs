@@ -1,10 +1,10 @@
+use log::info;
 use serde::{Deserialize, Serialize};
+use std::fs;
 use std::sync::Arc;
+use tauri::async_runtime::Mutex;
 use tauri::{Manager, State};
 use tauri_plugin_opener::OpenerExt;
-use log::info;
-use std::fs;
-use tauri::async_runtime::Mutex;
 
 use crate::commands::env::get_variant;
 use crate::logging::{SentryLogger, Telemetry};
@@ -45,7 +45,9 @@ pub(crate) async fn set_telemetry(
 
     let store = state.lock().await.get_store().clone();
     store.set("telemetry", value);
-    store.save().map_err(|e| format!("Failed to save telemetry setting: {}", e))?;
+    store
+        .save()
+        .map_err(|e| format!("Failed to save telemetry setting: {}", e))?;
     Ok(())
 }
 

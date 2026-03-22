@@ -4,7 +4,6 @@
     import { invoke } from "@tauri-apps/api/core";
     import { info, error as logError } from "@tauri-apps/plugin-log";
     import { platform } from "@tauri-apps/plugin-os";
-    import Keyring from "../../../js/app/keyring.ts";
     import Analytics from "../../../js/app/analytics";
     import type { LinkJavaIdentityResponse } from "../../../js/bindings/LinkJavaIdentityResponse";
     import type { Game } from "../../../js/bindings/Game";
@@ -28,17 +27,14 @@
 
             if (!currentServer) return;
 
-            const keyring = await Keyring.new("servers");
-            keyring.setServer(currentServer);
-
             const game = await store.get<string>("active_game");
             activeGame = (game === "hytale") ? "hytale" : "minecraft";
 
-            gamertag = (await keyring.get("gamertag")) as string ?? "";
-            gamerpic = (await keyring.get("gamerpic")) as string ?? "";
+            gamertag = await invoke<string>("get_credential", { server: currentServer, key: "gamertag" }).catch(() => "");
+            gamerpic = await invoke<string>("get_credential", { server: currentServer, key: "gamerpic" }).catch(() => "");
 
             try {
-                const raw = (await keyring.get("minecraft_username")) as string;
+                const raw = await invoke<string>("get_credential", { server: currentServer, key: "minecraft_username" });
                 minecraftUsername = (!raw || raw === "null" || raw === "") ? null : raw;
             } catch {
                 minecraftUsername = null;
@@ -70,9 +66,11 @@
             if (response.minecraft_username) {
                 minecraftUsername = response.minecraft_username;
 
-                const keyring = await Keyring.new("servers");
-                keyring.setServer(currentServer);
-                await keyring.insert("minecraft_username", response.minecraft_username);
+                await invoke("set_credential", {
+                    server: currentServer,
+                    key: "minecraft_username",
+                    value: response.minecraft_username
+                });
 
                 info(`Linked Java identity: ${response.minecraft_username}`);
                 Analytics.track("JavaIdentityLinked");

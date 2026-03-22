@@ -3,9 +3,9 @@ mod stream_manager;
 
 use crate::AudioPacket;
 use crate::NetworkPacket;
-use common::structs::packet::PacketOwner;
-use common::s2n_quic::client::Connect;
 use common::s2n_quic::Client;
+use common::s2n_quic::client::Connect;
+use common::structs::packet::PacketOwner;
 use std::error::Error;
 use std::net::SocketAddr;
 use std::sync::Arc;

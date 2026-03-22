@@ -1,9 +1,9 @@
+pub use common::consts::audio::BUFFER_SIZE;
 pub use common::structs::audio::{AudioDevice, AudioDeviceHost, AudioDeviceType, StreamConfig};
-pub use common::structs::audio::{BUFFER_SIZE, get_best_sample_rate};
 
 use rodio::{
-    cpal::{self, traits::HostTrait, HostId},
     DeviceTrait,
+    cpal::{self, HostId, traits::HostTrait},
 };
 
 /// Native sample rate for Opus encoding
@@ -75,9 +75,8 @@ impl AudioDeviceCpal for AudioDevice {
                 }
 
                 match host.input_devices() {
-                    Ok(mut devices) => {
-                        devices.find(|x| x.id().map(|id| id.to_string() == self.id).unwrap_or(false))
-                    }
+                    Ok(mut devices) => devices
+                        .find(|x| x.id().map(|id| id.to_string() == self.id).unwrap_or(false)),
                     Err(_) => None,
                 }
             }
@@ -87,9 +86,8 @@ impl AudioDeviceCpal for AudioDevice {
                 }
 
                 match host.output_devices() {
-                    Ok(mut devices) => {
-                        devices.find(|x| x.id().map(|id| id.to_string() == self.id).unwrap_or(false))
-                    }
+                    Ok(mut devices) => devices
+                        .find(|x| x.id().map(|id| id.to_string() == self.id).unwrap_or(false)),
                     Err(_) => None,
                 }
             }

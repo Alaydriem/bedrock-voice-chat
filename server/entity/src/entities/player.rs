@@ -75,7 +75,7 @@ impl Model {
     }
 
     /// Returns true if the certificate in storage is expiring
-    pub(crate) fn is_certificate_expiring(&self) -> Result<bool, anyhow::Error> {
+    pub fn is_certificate_expiring(&self) -> Result<bool, anyhow::Error> {
         let cp = self.get_certificate_params()?;
 
         // If the certificate is expiring in 15 days, renew it.

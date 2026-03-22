@@ -2,6 +2,7 @@ use common::structs::packet::QuicNetworkPacket;
 
 pub(crate) mod actions;
 pub(crate) mod device;
+pub mod encode;
 pub mod recording;
 pub(crate) mod types;
 

@@ -261,6 +261,46 @@ jobs:
           destination_dir: ${{ github.ref_name == 'master' && 'websocket' || 'websocket/beta' }}
           keep_files: true
 
+  # Deploy OpenAPI docs to GitHub Pages (branch pushes only)
+  deploy-openapi-docs:
+    name: Deploy OpenAPI Docs (${{ github.ref_name }})
+    needs: [changes, build-server]
+    if: github.event_name == 'push' && needs.build-server.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download OpenAPI JSON
+        uses: actions/download-artifact@v4
+        with:
+          name: openapi-json
+          path: docs
+
+      - name: Generate Scalar HTML
+        run: |
+          cat > docs/index.html << 'SCALAR_EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>BVC Server API</title>
+              <meta charset="utf-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1" />
+          </head>
+          <body>
+              <script id="api-reference" data-url="./openapi.json"></script>
+              <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+          </body>
+          </html>
+          SCALAR_EOF
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs
+          destination_dir: ${{ github.ref_name == 'master' && 'api' || 'api/beta' }}
+          keep_files: true
+
   # Collect and organize all artifacts
   collect-artifacts:
     name: Collect All Artifacts

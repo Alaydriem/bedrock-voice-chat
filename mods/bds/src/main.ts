@@ -7,6 +7,9 @@ import {
 } from '@minecraft/server-net';
 import { variables } from '@minecraft/server-admin';
 import { Payload } from './dto';
+import { AudioPlayerManager } from './audio/player_manager';
+import { AudioComponentRegistry } from './audio/components';
+import { DiscCommand } from './commands/mod';
 
 const bvc_server: string = variables.get('bvc_server');
 const access_token: string = variables.get('bvc_access_token');
@@ -65,6 +68,14 @@ function randomHex(length: number): string {
 
 console.info("[BVC] Connecting to: " + bvc_server);
 
+// Initialize audio system
+const audioManager = new AudioPlayerManager(bvc_server, access_token);
+const componentRegistry = new AudioComponentRegistry(audioManager, getWorldUuid);
+componentRegistry.register();
+
+// Register custom commands (cheats not required)
+DiscCommand.register(bvc_server, access_token);
+
 // Subscribe to player death events
 world.afterEvents.entityDie.subscribe(
   (event) => {
@@ -102,7 +113,7 @@ system.runInterval(async () => {
 
     const request = new HttpRequest(`${bvc_server}/api/position`);
     request.setBody(payload.toJSONString());
-    request.setMethod(HttpRequestMethod.Post);
+    request.setMethod((HttpRequestMethod as any).Post);
     request.setHeaders([
       new HttpHeader('Content-Type', 'application/json'),
       new HttpHeader('X-MC-Access-Token', access_token),

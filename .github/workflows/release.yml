@@ -785,6 +785,49 @@ jobs:
       - name: Documentation deployed
         run: echo "WebSocket docs deployed to https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/websocket/${{ needs.prepare-release.outputs.new_version }}"
 
+  # Post-approval: Deploy versioned OpenAPI docs to GitHub Pages
+  deploy-openapi-docs:
+    name: Deploy OpenAPI Docs (v${{ needs.prepare-release.outputs.new_version }})
+    needs: [prepare-release, build-server, approve-publish]
+    if: needs.approve-publish.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download OpenAPI JSON
+        uses: actions/download-artifact@v4
+        with:
+          name: openapi-json
+          path: docs
+
+      - name: Generate Scalar HTML
+        run: |
+          cat > docs/index.html << 'SCALAR_EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>BVC Server API</title>
+              <meta charset="utf-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1" />
+          </head>
+          <body>
+              <script id="api-reference" data-url="./openapi.json"></script>
+              <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+          </body>
+          </html>
+          SCALAR_EOF
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs
+          destination_dir: api/${{ needs.prepare-release.outputs.new_version }}
+          keep_files: true
+
+      - name: Documentation deployed
+        run: echo "OpenAPI docs deployed to https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/api/${{ needs.prepare-release.outputs.new_version }}"
+
   # Post-approval: Update version on GitHub Pages landing page (beta only for now)
   update-gh-pages-version:
     name: Update GitHub Pages Version

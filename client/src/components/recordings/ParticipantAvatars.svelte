@@ -1,14 +1,17 @@
 <script lang="ts">
-    export let participants: string[] = [];
-    export let maxVisible: number = 4;
+    interface Props {
+        participants?: string[];
+        gamerpicMap?: Record<string, string>;
+        maxVisible?: number;
+    }
 
-    // Get first letter of each participant name
+    let { participants = [], gamerpicMap = {}, maxVisible = 4 }: Props = $props();
+
     function getInitials(name: string): string {
         return name.charAt(0).toUpperCase();
     }
 
-    // Generate color for participant based on name
-    function getColorClass(name: string, index: number): string {
+    function getColorClass(_name: string, index: number): string {
         const colors = [
             'bg-primary text-white',
             'bg-secondary text-white',
@@ -20,16 +23,20 @@
         return colors[index % colors.length];
     }
 
-    $: visibleParticipants = participants.slice(0, maxVisible);
-    $: remainingCount = Math.max(0, participants.length - maxVisible);
+    let visibleParticipants = $derived(participants.slice(0, maxVisible));
+    let remainingCount = $derived(Math.max(0, participants.length - maxVisible));
 </script>
 
 <div class="flex flex-wrap -space-x-2">
     {#each visibleParticipants as participant, index}
         <div class="avatar size-8 hover:z-10">
-            <div class="is-initial rounded-full text-xs-plus uppercase ring-2 ring-white dark:ring-navy-700 {getColorClass(participant, index)}">
-                {getInitials(participant)}
-            </div>
+            {#if gamerpicMap[participant]}
+                <img src={gamerpicMap[participant]} alt={participant} class="rounded-full ring-2 ring-white dark:ring-navy-700" />
+            {:else}
+                <div class="is-initial rounded-full text-xs-plus uppercase ring-2 ring-white dark:ring-navy-700 {getColorClass(participant, index)}">
+                    {getInitials(participant)}
+                </div>
+            {/if}
         </div>
     {/each}
 

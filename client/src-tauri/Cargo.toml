@@ -91,6 +91,7 @@ tauri-plugin-updater = { version = "^2.9" }
 tauri-plugin-process = { version = "^2.3" }
 tauri-plugin-global-shortcut = { version = "^2" }
 sentry-rust-minidump = { version = "^0.14" }
+tauri-plugin-dialog = "^2"
 
 [target."cfg(any(target_os = \"windows\"))".dependencies]
 windows-targets = { version = "^0.53.0" }

@@ -5,22 +5,25 @@ use once_cell::sync::Lazy;
 
 const BREADCRUMB_BUFFER_SIZE: usize = 100;
 
-static BREADCRUMB_BUFFER: Lazy<(flume::Sender<sentry::Breadcrumb>, flume::Receiver<sentry::Breadcrumb>)> =
-    Lazy::new(|| flume::bounded(BREADCRUMB_BUFFER_SIZE));
+static BREADCRUMB_BUFFER: Lazy<(
+    flume::Sender<sentry::Breadcrumb>,
+    flume::Receiver<sentry::Breadcrumb>,
+)> = Lazy::new(|| flume::bounded(BREADCRUMB_BUFFER_SIZE));
 
 pub struct SentryLogger {
-    enabled: AtomicBool
+    enabled: AtomicBool,
 }
 
 impl SentryLogger {
     pub fn new(enabled: bool) -> Self {
         Self {
-            enabled: AtomicBool::new(enabled)
+            enabled: AtomicBool::new(enabled),
         }
     }
 
     pub fn set(&self, enabled: bool) {
-        self.enabled.store(enabled, std::sync::atomic::Ordering::Relaxed);
+        self.enabled
+            .store(enabled, std::sync::atomic::Ordering::Relaxed);
     }
 }
 
@@ -34,7 +37,11 @@ impl Log for SentryLogger {
             return;
         }
 
-        if !sentry::Hub::current().client().map(|c| c.is_enabled()).unwrap_or(false) {
+        if !sentry::Hub::current()
+            .client()
+            .map(|c| c.is_enabled())
+            .unwrap_or(false)
+        {
             return;
         }
 

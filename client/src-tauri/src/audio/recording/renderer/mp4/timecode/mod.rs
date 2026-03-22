@@ -42,8 +42,8 @@ pub use sample::TimecodeSample;
 pub use track::TimecodeTrack;
 pub use user_data::UserDataBox;
 
-use crate::audio::recording::renderer::stream::opus::OpusStreamInfo;
 use crate::audio::recording::renderer::mp4::constants::AUDIO_FRAMES_PER_SECOND;
+use crate::audio::recording::renderer::stream::opus::OpusStreamInfo;
 use chrono::{DateTime, Local, Timelike};
 
 /// Timecode derived from wall-clock timestamp
@@ -75,8 +75,7 @@ impl Timecode {
     /// Uses the session start timestamp plus the first packet's relative timestamp
     /// to get the actual wall-clock time when audio capture began.
     pub fn from_stream_info(info: &OpusStreamInfo) -> Self {
-        let actual_timestamp =
-            info.session_info.start_timestamp + info.first_packet_timestamp_ms;
+        let actual_timestamp = info.session_info.start_timestamp + info.first_packet_timestamp_ms;
         Self::new(actual_timestamp, info.sample_rate)
     }
 
@@ -194,7 +193,12 @@ mod timecode_tests {
         // Test that frames stay in bounds 0-49
         for ms in (0..1000).step_by(20) {
             let tc = Timecode::new(ms, 48000);
-            assert!(tc.frames() < 50, "Frame {} out of bounds for {}ms", tc.frames(), ms);
+            assert!(
+                tc.frames() < 50,
+                "Frame {} out of bounds for {}ms",
+                tc.frames(),
+                ms
+            );
         }
     }
 }

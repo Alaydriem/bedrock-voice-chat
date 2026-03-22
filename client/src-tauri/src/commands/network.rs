@@ -1,12 +1,12 @@
-use crate::{structs::app_state::AppState, NetworkStreamManager};
-use common::structs::config::LoginResponse;
+use crate::{NetworkStreamManager, structs::app_state::AppState};
+use common::response::LoginResponse;
 use log::{error, info};
 use std::net::SocketAddr;
-use tauri::async_runtime::Mutex;
 use tauri::State;
+use tauri::async_runtime::Mutex;
 use trust_dns_resolver::{
-    config::{ResolverConfig, ResolverOpts},
     Resolver, TokioAsyncResolver,
+    config::{ResolverConfig, ResolverOpts},
 };
 use url::Url;
 
@@ -52,7 +52,9 @@ pub(crate) async fn change_network_stream(
         Ok(response) => match response.iter().next() {
             Some(ip) => SocketAddr::new(ip, data.quic_connect_string.parse().unwrap()),
             None => {
-                error!("TrustDNS Lookup was successful, but no IP's were returned. Networking issue, restart BVC.");
+                error!(
+                    "TrustDNS Lookup was successful, but no IP's were returned. Networking issue, restart BVC."
+                );
                 return Err(());
             }
         },
@@ -61,7 +63,9 @@ pub(crate) async fn change_network_stream(
                 Ok(response) => match response.iter().next() {
                     Some(ip) => SocketAddr::new(ip, data.quic_connect_string.parse().unwrap()),
                     None => {
-                        error!("TrustDNS Lookup was successful, but no IP's were returned. Networking issue, restart BVC.");
+                        error!(
+                            "TrustDNS Lookup was successful, but no IP's were returned. Networking issue, restart BVC."
+                        );
                         return Err(());
                     }
                 },
@@ -107,9 +111,7 @@ pub(crate) async fn change_network_stream(
 }
 
 #[tauri::command]
-pub(crate) async fn reset_nsm(
-    nsm: State<'_, Mutex<NetworkStreamManager>>,
-) -> Result<(), ()> {
+pub(crate) async fn reset_nsm(nsm: State<'_, Mutex<NetworkStreamManager>>) -> Result<(), ()> {
     let mut nsm = nsm.lock().await;
     _ = nsm.reset().await;
     Ok(())

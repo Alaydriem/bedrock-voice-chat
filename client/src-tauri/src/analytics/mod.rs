@@ -1,5 +1,5 @@
-pub mod posthog;
 pub mod dtos;
+pub mod posthog;
 pub mod provider;
 pub mod service;
 

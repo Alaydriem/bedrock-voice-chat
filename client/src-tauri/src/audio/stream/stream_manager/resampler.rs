@@ -63,9 +63,11 @@ impl AudioResampler {
         let mut output = Vec::new();
 
         while self.input_buffer.len() >= self.input_frames_needed {
-            let chunk: Vec<f32> = self.input_buffer.drain(..self.input_frames_needed).collect();
-            let input_adapter =
-                SequentialSlice::new(chunk.as_slice(), 1, chunk.len()).unwrap();
+            let chunk: Vec<f32> = self
+                .input_buffer
+                .drain(..self.input_frames_needed)
+                .collect();
+            let input_adapter = SequentialSlice::new(chunk.as_slice(), 1, chunk.len()).unwrap();
 
             if let Ok(resampled) = self.resampler.process(&input_adapter, 0, None) {
                 let frames = resampled.frames();

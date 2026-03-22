@@ -1,10 +1,10 @@
 use crate::audio::types::{AudioDevice, AudioDeviceType};
 use crate::audio::{AudioActionsManager, RecordingManager};
-use crate::{structs::app_state::AppState, AudioStreamManager};
+use crate::{AudioStreamManager, structs::app_state::AppState};
 use common::structs::audio::StreamEvent;
 use log::info;
+use std::collections::HashMap;
 use std::sync::Arc;
-use std::{collections::HashMap};
 use tauri::async_runtime::Mutex;
 use tauri::{AppHandle, State};
 use tauri_plugin_store::StoreExt;
@@ -79,9 +79,7 @@ pub(crate) async fn update_stream_metadata(
 }
 
 #[tauri::command]
-pub(crate) async fn reset_asm(
-    asm: State<'_, Mutex<AudioStreamManager>>,
-) -> Result<(), ()> {
+pub(crate) async fn reset_asm(asm: State<'_, Mutex<AudioStreamManager>>) -> Result<(), ()> {
     let mut asm = asm.lock().await;
     _ = asm.reset().await;
     Ok(())
@@ -146,12 +144,14 @@ pub(crate) async fn mute(
 }
 
 #[tauri::command]
-pub(crate) async fn record(
-    asm: State<'_, Mutex<AudioStreamManager>>,
-) -> Result<(), ()> {
+pub(crate) async fn record(asm: State<'_, Mutex<AudioStreamManager>>) -> Result<(), ()> {
     let mut asm = asm.lock().await;
-    _ = asm.toggle(&AudioDeviceType::InputDevice, StreamEvent::Record).await;
-    _ = asm.toggle(&AudioDeviceType::OutputDevice, StreamEvent::Record).await;
+    _ = asm
+        .toggle(&AudioDeviceType::InputDevice, StreamEvent::Record)
+        .await;
+    _ = asm
+        .toggle(&AudioDeviceType::OutputDevice, StreamEvent::Record)
+        .await;
 
     Ok(())
 }
@@ -187,7 +187,8 @@ pub(crate) async fn start_recording(
     recording_manager: State<'_, Arc<Mutex<RecordingManager>>>,
     actions: State<'_, AudioActionsManager>,
 ) -> Result<String, String> {
-    let current_player = extract_current_player(&app).await
+    let current_player = extract_current_player(&app)
+        .await
         .ok_or_else(|| "No current player set for recording".to_string())?;
 
     let mut manager = recording_manager.lock().await;
@@ -198,7 +199,7 @@ pub(crate) async fn start_recording(
             } else {
                 Err("Recording started but no session ID available".to_string())
             }
-        },
+        }
         Err(e) => Err(format!("Failed to start recording: {:?}", e)),
     };
     drop(manager);
@@ -252,7 +253,8 @@ pub(crate) async fn is_recording(
 
 /// Helper function to extract current player from app metadata
 async fn extract_current_player(app: &AppHandle) -> Option<String> {
-    app.store("store.json").ok()?
+    app.store("store.json")
+        .ok()?
         .get("current_player")?
         .as_str()
         .map(String::from)

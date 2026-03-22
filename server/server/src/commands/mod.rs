@@ -5,6 +5,7 @@ use serde_json::Value;
 use std::fs;
 use std::{process::exit, sync::Arc};
 
+mod permission;
 pub(crate) mod server;
 mod user;
 #[derive(clap::Subcommand, Debug, Clone)]
@@ -12,11 +13,12 @@ pub enum SubCommand {
     /// Start the BVC Server
     Server(server::Config),
     User(user::Config),
+    Permission(permission::Config),
 }
 
 #[derive(Debug, Parser, Clone)]
 #[clap(author, version, about, long_about = None)]
-pub struct Config {
+pub struct Cli {
     // Path to bvc configuration file
     #[clap(
         global = true,
@@ -36,17 +38,17 @@ pub struct Config {
     pub cmd: SubCommand,
 }
 
-pub async fn launch() {
-    // Parse arguments with clap => config::Config struct
-    let cfg = Config::get_config();
+impl Cli {
+    pub async fn run() {
+        let cfg = Self::get_config();
 
-    match &cfg.cmd {
-        SubCommand::Server(command) => command.run(&cfg).await,
-        SubCommand::User(command) => command.run(&cfg).await,
+        match &cfg.cmd {
+            SubCommand::Server(command) => command.run(&cfg).await,
+            SubCommand::User(command) => command.run(&cfg).await,
+            SubCommand::Permission(command) => command.run(&cfg).await,
+        }
     }
-}
 
-impl Config {
     // Parsing command for clap to correctly build the configuration.
     fn get_config() -> Arc<Self> {
         let mut data = Self::parse();

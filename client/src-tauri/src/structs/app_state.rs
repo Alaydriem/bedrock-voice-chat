@@ -1,6 +1,9 @@
-use crate::audio::types::{AudioDevice, AudioDeviceHost, AudioDeviceType, StreamConfig};
 use crate::api::Api;
-use rodio::cpal::{self, traits::{DeviceTrait, HostTrait}};
+use crate::audio::types::{AudioDevice, AudioDeviceHost, AudioDeviceType, StreamConfig};
+use rodio::cpal::{
+    self,
+    traits::{DeviceTrait, HostTrait},
+};
 use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -54,7 +57,9 @@ impl AppState {
 
     /// Get the API client, returning an error if not initialized
     pub fn get_api_client(&self) -> Result<&Api, String> {
-        self.api_client.as_ref().ok_or_else(|| "API client not initialized. Please log in first.".to_string())
+        self.api_client
+            .as_ref()
+            .ok_or_else(|| "API client not initialized. Please log in first.".to_string())
     }
 
     /// Get API client for a specific server from pool
@@ -78,7 +83,8 @@ impl AppState {
                 let request = PermissionRequest {
                     permission_type: PermissionType::Audio,
                 };
-                let response = self.app_handle
+                let response = self
+                    .app_handle
                     .audio_permissions()
                     .check_permission(request)
                     .map_err(|e| format!("Permission check failed: {}", e))?;
@@ -86,7 +92,7 @@ impl AppState {
                 if !response.granted {
                     return Err("Audio permission not granted".to_string());
                 }
-            },
+            }
             _ => {}
         }
 
@@ -103,7 +109,7 @@ impl AppState {
 
         // Change the stored value
         self.store.set(
-            device.io.to_string(),
+            device.io.store_key(),
             json!({
                 "id": device.id,
                 "name": device.name,
@@ -135,7 +141,8 @@ impl AppState {
                     let request = PermissionRequest {
                         permission_type: PermissionType::Audio,
                     };
-                    let response = self.app_handle
+                    let response = self
+                        .app_handle
                         .audio_permissions()
                         .check_permission(request)
                         .map_err(|e| format!("Permission check failed: {}", e))?;
@@ -160,14 +167,14 @@ impl AppState {
     /// Which is the system audio driver default
     fn setup_audio_device(io: AudioDeviceType, store: &Arc<Store<Wry>>) -> AudioDevice {
         // Check if stored config exists and has the new `id` field
-        let use_stored = match store.get(io.to_string()) {
+        let use_stored = match store.get(io.store_key()) {
             Some(s) => {
                 if s.get("id").is_none() {
                     log::warn!(
                         "Detected old-format device config for {} (missing 'id' field). Clearing stored config and reverting to system default.",
-                        io.to_string()
+                        io.store_key()
                     );
-                    store.delete(io.to_string());
+                    store.delete(io.store_key());
                     let _ = store.save();
                     false
                 } else {
@@ -178,9 +185,13 @@ impl AppState {
         };
 
         let (id, name, host, stream_configs, display_name) = if use_stored {
-            let s = store.get(io.to_string()).unwrap();
+            let s = store.get(io.store_key()).unwrap();
             (
-                s.get("id").unwrap().as_str().unwrap_or("default").to_string(),
+                s.get("id")
+                    .unwrap()
+                    .as_str()
+                    .unwrap_or("default")
+                    .to_string(),
                 s.get("name").unwrap().to_string().replace('\"', ""),
                 serde_json::from_str::<AudioDeviceHost>(
                     s.get("host").unwrap().to_string().as_str(),
@@ -215,11 +226,13 @@ impl AppState {
 
             let stream_config = AudioDevice::to_stream_config(default_configs);
 
-            let device_id = default_device.id()
+            let device_id = default_device
+                .id()
                 .map(|id| id.to_string())
                 .unwrap_or_else(|_| "default".to_string());
 
-            let device_display_name = default_device.description()
+            let device_display_name = default_device
+                .description()
                 .map(|desc| desc.name().to_string())
                 .unwrap_or_else(|_| "Default Device".to_string());
 

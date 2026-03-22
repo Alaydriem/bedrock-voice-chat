@@ -1,25 +1,25 @@
 use super::resampler::AudioResampler;
 
 use super::AudioFrame;
-use common::consts::OPUS_FRAME_DURATION_MS;
 use crate::audio::recording::{RawRecordingData, RecordingProducer};
 use crate::audio::stream::{RecoverySender, StreamRecoveryEvent};
 use crate::audio::types::{AudioDevice, AudioDeviceCpal, AudioDeviceType, BUFFER_SIZE};
-use crate::{audio::stream::stream_manager::AudioFrameData, NetworkPacket};
+use crate::{NetworkPacket, audio::stream::stream_manager::AudioFrameData};
 use anyhow::anyhow;
 use audio_gate::NoiseGate;
+use common::RecordingPlayerData;
+use common::consts::OPUS_FRAME_DURATION_MS;
 use common::structs::audio::{NoiseGateSettings, StreamEvent};
 use common::structs::packet::{AudioFramePacket, QuicNetworkPacket, QuicNetworkPacketData};
-use common::RecordingPlayerData;
-use log::{error, debug, warn};
+use log::{debug, error, warn};
 use once_cell::sync::Lazy;
 use opus2::Bitrate;
-use rodio::cpal::traits::StreamTrait as CpalStreamTrait;
 use rodio::DeviceTrait;
+use rodio::cpal::traits::StreamTrait as CpalStreamTrait;
 use std::{
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
     },
     time::Duration,
 };
@@ -47,7 +47,7 @@ pub(crate) struct InputStream {
     #[allow(unused)]
     app_handle: tauri::AppHandle,
     recording_producer: Option<Arc<RecordingProducer>>,
-    recording_active: Option<Arc<AtomicBool>>,  // Shared from RecordingManager
+    recording_active: Option<Arc<AtomicBool>>, // Shared from RecordingManager
     recovery_tx: RecoverySender,
 }
 
@@ -58,11 +58,11 @@ impl common::traits::StreamTrait for InputStream {
             // Toggle Mute
             "mute" => {
                 self.toggle(StreamEvent::Mute);
-            },
+            }
             "record" => {
                 // Recording is now controlled by RecordingManager's shared flag
                 // No action needed here
-            },
+            }
             // Toggle Noise Gate
             "use_noise_gate" => {
                 match value.as_str() {
@@ -127,12 +127,17 @@ impl common::traits::StreamTrait for InputStream {
         let (producer, consumer) = flume::bounded::<AudioFrame>(1000);
 
         // Get current player name from store before starting (fail fast if not set)
-        let store = self.app_handle.store("store.json")
+        let store = self
+            .app_handle
+            .store("store.json")
             .map_err(|e| anyhow!("Failed to access store: {}", e))?;
 
-        let current_player_name = store.get("current_player")
+        let current_player_name = store
+            .get("current_player")
             .and_then(|v| v.as_str().map(|s| s.to_string()))
-            .ok_or_else(|| anyhow!("Cannot start input stream without current_player set in store"))?;
+            .ok_or_else(|| {
+                anyhow!("Cannot start input stream without current_player set in store")
+            })?;
 
         // Start the audio input listener thread
         match self.listener(producer, self.shutdown.clone()) {
@@ -144,7 +149,12 @@ impl common::traits::StreamTrait for InputStream {
         };
 
         // Send the PCM data to the network sender
-        match self.sender(consumer, self.shutdown.clone(), current_player_name, self.recording_active.clone()) {
+        match self.sender(
+            consumer,
+            self.shutdown.clone(),
+            current_player_name,
+            self.recording_active.clone(),
+        ) {
             Ok(job) => jobs.push(job),
             Err(e) => {
                 error!("input sender encountered an error: {:?}", e);
@@ -209,7 +219,10 @@ impl InputStream {
                             fresh_config
                         }
                         _ => {
-                            warn!("Could not refresh device config for {}, using stored config", device.display_name);
+                            warn!(
+                                "Could not refresh device config for {}, using stored config",
+                                device.display_name
+                            );
                             stored_config
                         }
                     };
@@ -553,10 +566,13 @@ impl InputStream {
                             return Ok(handle);
                         }
                         None => {
-                            error!("CPAL output device is not defined. This shouldn't happen! Restart BVC? {:?}", device.clone());
+                            error!(
+                                "CPAL output device is not defined. This shouldn't happen! Restart BVC? {:?}",
+                                device.clone()
+                            );
                             return Err(anyhow::anyhow!(
                                 "Couldn't retrieve native cpal device for {} {}.",
-                                device.io.to_string(),
+                                device.io.store_key(),
                                 device.display_name
                             ));
                         }
@@ -567,7 +583,7 @@ impl InputStream {
             None => {
                 return Err(anyhow!(
                     "InputStream is not initialized with a device! Unable to start stream"
-                ))
+                ));
             }
         };
     }
@@ -598,16 +614,18 @@ impl InputStream {
                         let buffer_size = rodio::cpal::BufferSize::Default;
 
                         #[cfg(not(any(target_os = "ios", target_os = "android")))]
-                        let buffer_size = rodio::cpal::BufferSize::Fixed(crate::audio::types::BUFFER_SIZE);
+                        let buffer_size =
+                            rodio::cpal::BufferSize::Fixed(crate::audio::types::BUFFER_SIZE);
 
                         let original_sample_rate = config.sample_rate();
 
                         // Force 48 kHz if device was not 48 kHz
-                        let effective_sample_rate = if original_sample_rate != crate::audio::types::OPUS_SAMPLE_RATE {
-                            crate::audio::types::OPUS_SAMPLE_RATE
-                        } else {
-                            original_sample_rate
-                        };
+                        let effective_sample_rate =
+                            if original_sample_rate != crate::audio::types::OPUS_SAMPLE_RATE {
+                                crate::audio::types::OPUS_SAMPLE_RATE
+                            } else {
+                                original_sample_rate
+                            };
 
                         let device_config = rodio::cpal::StreamConfig {
                             channels: match config.channels() {
@@ -662,7 +680,9 @@ impl InputStream {
                             #[allow(irrefutable_let_patterns)]
                             while let Ok(sample) = consumer.recv_async().await {
                                 if shutdown.load(Ordering::Relaxed) {
-                                    warn!("Audio Input stream, quic sender received shutdown signal, and is now terminating.");
+                                    warn!(
+                                        "Audio Input stream, quic sender received shutdown signal, and is now terminating."
+                                    );
                                     break;
                                 }
 
@@ -679,9 +699,8 @@ impl InputStream {
 
                                 data_stream.append(&mut raw_sample);
                                 while data_stream.len() >= BUFFER_SIZE as usize {
-                                    let sample_to_process: Vec<f32> = data_stream
-                                        .drain(0..BUFFER_SIZE as usize)
-                                        .collect();
+                                    let sample_to_process: Vec<f32> =
+                                        data_stream.drain(0..BUFFER_SIZE as usize).collect();
 
                                     let encoded_data = match encoder.encode_vec_float(
                                         &sample_to_process,
@@ -698,7 +717,8 @@ impl InputStream {
                                                 // Use the timestamp from when the first sample was captured
                                                 // This ensures the recording timestamp matches actual capture time
                                                 let recording_data = RawRecordingData::InputData {
-                                                    absolute_timestamp_ms: first_sample_timestamp_ms,
+                                                    absolute_timestamp_ms:
+                                                        first_sample_timestamp_ms,
                                                     opus_data: encoded_data.clone(),
                                                     sample_rate: device_config.sample_rate,
                                                     channels: device_config.channels.into(),
@@ -723,19 +743,25 @@ impl InputStream {
 
                                     let packet = NetworkPacket {
                                         data: QuicNetworkPacket {
-                                            packet_type: common::structs::packet::PacketType::AudioFrame,
+                                            packet_type:
+                                                common::structs::packet::PacketType::AudioFrame,
                                             owner: None,
-                                            data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
-                                                encoded_data.clone(),
-                                                device_config.sample_rate,
-                                                None,
-                                                None
-                                            ))
-                                        }
+                                            data: QuicNetworkPacketData::AudioFrame(
+                                                AudioFramePacket::new(
+                                                    encoded_data.clone(),
+                                                    device_config.sample_rate,
+                                                    None,
+                                                    None,
+                                                ),
+                                            ),
+                                        },
                                     };
 
                                     if let Err(e) = tx.send_async(packet).await {
-                                        error!("Sending audio frame to Quic network thread failed: {:?}", e);
+                                        error!(
+                                            "Sending audio frame to Quic network thread failed: {:?}",
+                                            e
+                                        );
                                     }
                                 }
                             }
@@ -749,7 +775,7 @@ impl InputStream {
             None => {
                 return Err(anyhow!(
                     "InputStream is not initialized with a device! Unable to start stream"
-                ))
+                ));
             }
         };
     }
@@ -759,7 +785,7 @@ impl InputStream {
             StreamEvent::Mute => {
                 let current_state = MUTE_INPUT_STREAM.load(Ordering::Relaxed);
                 MUTE_INPUT_STREAM.store(!current_state, Ordering::Relaxed);
-            },
+            }
             _ => {}
         }
     }

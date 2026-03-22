@@ -1,6 +1,10 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+pub mod http_client;
+
+pub use http_client::MtlsHttpClient;
+
 use s2n_quic::provider::tls as s2n_quic_tls_provider;
 #[allow(deprecated)]
 use s2n_quic::provider::tls::rustls::rustls::{
