@@ -59,7 +59,7 @@ pub fn run() {
         .map_err(|e| warn!("Minidump crash reporter failed to initialize: {e}"))
         .ok();
 
-    let mut builder = tauri::Builder::default().plugin(tauri_plugin_dialog::init());
+    let mut builder = tauri::Builder::default();
 
     // For desktop applications, enforce only a single running instance at a time
     #[cfg(desktop)]
@@ -70,6 +70,7 @@ pub fn run() {
                 .expect("no main window")
                 .set_focus();
         }));
+        builder = builder.plugin(tauri_plugin_dialog::init());
     }
 
     let sentry_logger = Arc::new(logging::SentryLogger::new(true));

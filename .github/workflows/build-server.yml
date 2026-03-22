@@ -269,11 +269,19 @@ jobs:
         with:
           workspaces: "./server"
 
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            pkg-config \
+            cmake \
+            build-essential
+
       - name: Generate OpenAPI spec
         working-directory: ./server/server
         run: |
           mkdir -p ../../docs
-          cargo run --example openapi_spec > ../../docs/openapi.json 2>/dev/null
+          cargo run --example openapi_spec > ../../docs/openapi.json
           echo "Generated OpenAPI spec:"
           head -20 ../../docs/openapi.json
 
