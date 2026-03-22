@@ -4,6 +4,7 @@
     import audio from "../../components/settings/pages/audio.svelte";
     import keybinds from "../../components/settings/pages/keybinds.svelte";
     import recordings from "../../components/settings/pages/recordings.svelte";
+    import audioLibrary from "../../components/settings/pages/audioLibrary.svelte";
     import websocket from "../../components/settings/pages/websocket.svelte";
     import about from "../../components/settings/pages/about.svelte";
     import PlatformDetector from "../../js/app/utils/PlatformDetector.ts";
@@ -46,6 +47,14 @@
             component: recordings
         },
         {
+            id: "audioLibrary.svelte",
+            title: "Audio Library",
+            icon: `<svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/>
+            </svg>`,
+            component: audioLibrary
+        },
+        {
             id: "keybinds.svelte",
             title: "Keybinds",
             icon: `<svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -73,7 +82,7 @@
 
     // Reactive filtered pages - hide recordings, websocket, and keybinds on mobile
     $: visiblePages = isMobile
-        ? settingsPages.filter(p => p.id !== "recordings.svelte" && p.id !== "websocket.svelte" && p.id !== "keybinds.svelte")
+        ? settingsPages.filter(p => p.id !== "recordings.svelte" && p.id !== "audioLibrary.svelte" && p.id !== "websocket.svelte" && p.id !== "keybinds.svelte")
         : settingsPages;
 
     function mountPage(page: string, target: Document | Element | ShadowRoot) {

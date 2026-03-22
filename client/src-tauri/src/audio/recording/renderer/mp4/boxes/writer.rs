@@ -143,7 +143,9 @@ mod tests {
         // Size = 8 (header) + 3 (content) = 11 = 0x0000000B
         assert_eq!(
             result,
-            vec![0x00, 0x00, 0x00, 0x0B, b't', b'e', b's', b't', 0x01, 0x02, 0x03]
+            vec![
+                0x00, 0x00, 0x00, 0x0B, b't', b'e', b's', b't', 0x01, 0x02, 0x03
+            ]
         );
     }
 
@@ -164,7 +166,9 @@ mod tests {
 
         assert_eq!(
             result,
-            vec![0x00, 0x00, 0x00, 0x01, b't', b'e', b's', b't', 0x00, 0x00, 0xAB, 0xCD]
+            vec![
+                0x00, 0x00, 0x00, 0x01, b't', b'e', b's', b't', 0x00, 0x00, 0xAB, 0xCD
+            ]
         );
     }
 }

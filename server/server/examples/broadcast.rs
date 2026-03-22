@@ -1,5 +1,9 @@
 use bytes::Bytes;
 use clap::Parser;
+use common::response::auth::AuthStateResponse;
+use common::response::ApiConfig;
+use common::rustls::MtlsHttpClient;
+use common::structs::channel::{Channel, ChannelEvent, ChannelEvents};
 use common::structs::packet::AudioFramePacket;
 use common::structs::packet::PacketType;
 use common::structs::packet::QuicNetworkPacket;
@@ -10,6 +14,7 @@ use core::{
     task::{Context, Poll},
 };
 use hound;
+use rcgen::CertificateParams;
 use rodio::Decoder;
 use common::s2n_quic::{client::Connect, Client, Connection};
 use std::io::BufWriter;
@@ -22,29 +27,25 @@ use std::{fs::File, io::BufReader, path::Path};
 #[derive(Debug, Parser)]
 #[clap(about = "Broadcast audio to a BVC server")]
 struct Args {
-    /// Player name to broadcast as
-    #[clap(short, long, default_value = "Alliedria")]
-    player: String,
+    /// Player name (derived from certificate CN if omitted)
+    #[clap(short, long)]
+    player: Option<String>,
 
     /// Path to the audio file to stream
     #[clap(short = 'f', long)]
     audio_file: String,
 
-    /// Server QUIC address (e.g. 127.0.0.1:443)
-    #[clap(short = 'a', long, default_value = "127.0.0.1:443")]
-    server_addr: String,
-
-    /// Server TLS name (e.g. local.bedrockvc.stream)
+    /// Server name with optional port (e.g. local.bedrockvc.stream:8444)
     #[clap(short = 'n', long, default_value = "local.bedrockvc.stream")]
     server_name: String,
-
-    /// API token for position updates
-    #[clap(short = 't', long)]
-    api_token: String,
 
     /// Game type
     #[clap(short, long, value_enum, default_value = "minecraft")]
     game: Game,
+
+    /// Join or create a group (channel) on the server
+    #[clap(long, default_value = "false")]
+    group: bool,
 }
 
 struct Spiral {
@@ -71,40 +72,121 @@ impl Iterator for Spiral {
     }
 }
 
+fn parse_server_name(server_name: &str) -> (String, u16) {
+    if let Some((host, port_str)) = server_name.split_once(':') {
+        let port = port_str.parse().unwrap_or(443);
+        (host.to_string(), port)
+    } else {
+        (server_name.to_string(), 443)
+    }
+}
+
+fn extract_player_from_cert(cert_path: &str) -> Result<String, Box<dyn Error>> {
+    let cert_pem = std::fs::read_to_string(cert_path)?;
+    let params = CertificateParams::from_ca_cert_pem(&cert_pem)?;
+    let cn = params
+        .distinguished_name
+        .get(&rcgen::DnType::CommonName)
+        .ok_or("No CommonName found in certificate")?;
+
+    let cn_str = match cn {
+        rcgen::DnValue::Utf8String(s) => s.clone(),
+        rcgen::DnValue::PrintableString(s) => s.as_str().to_string(),
+        rcgen::DnValue::Ia5String(s) => s.as_str().to_string(),
+        _ => return Err("Unsupported DN value type for CommonName".into()),
+    };
+
+    // Handle both "game:gamertag" and plain "gamertag" formats
+    let gamertag = match cn_str.split_once(':') {
+        Some((_, name)) => name.to_string(),
+        None => cn_str,
+    };
+    Ok(gamertag)
+}
+
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
 
-    let result = client(
-        args.player,
-        args.audio_file,
-        args.server_addr,
-        args.server_name,
-        args.api_token,
-        args.game,
-    )
-    .await;
+    let result = run(args).await;
     println!("{:?}", result);
 }
 
-async fn client(
-    id: String,
-    source_file: String,
-    socket_addr: String,
-    server_name: String,
-    _api_token: String,
-    game: Game,
-) -> Result<(), Box<dyn Error>> {
+async fn run(args: Args) -> Result<(), Box<dyn Error>> {
     _ = common::s2n_quic::provider::tls::rustls::rustls::crypto::aws_lc_rs::default_provider()
         .install_default();
 
-    let ca_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test_certs_tbs7/ca.crt");
-    let cert_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test_certs_tbs7/test.crt");
-    let key_path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test_certs_tbs7/test.key");
+    let (hostname, api_port) = parse_server_name(&args.server_name);
 
-    let ca = Path::new(ca_path);
-    let cert = Path::new(cert_path);
-    let key = Path::new(key_path);
+    let certs_dir = format!("{}/examples/certs/{}", env!("CARGO_MANIFEST_DIR"), hostname);
+    let ca_path = format!("{}/ca.crt", certs_dir);
+    let cert_path = format!("{}/test.crt", certs_dir);
+    let key_path = format!("{}/test.key", certs_dir);
+
+    let http_client = MtlsHttpClient::new(&ca_path, &cert_path, &key_path).await?;
+
+    let base_url = format!("https://{}:{}", hostname, api_port);
+    println!("Querying API config at {}/api/config", base_url);
+
+    let config: ApiConfig = http_client
+        .client()
+        .get(format!("{}/api/config", base_url))
+        .send()
+        .await?
+        .json()
+        .await?;
+
+    println!(
+        "Server config: protocol={}, quic_port={}",
+        config.protocol_version, config.quic_port
+    );
+
+    // Refresh certificate from server
+    println!("Checking certificate state...");
+    let auth_state: AuthStateResponse = http_client
+        .client()
+        .get(format!("{}/api/auth/state", base_url))
+        .send()
+        .await?
+        .json()
+        .await?;
+
+    if let (Some(fresh_cert), Some(fresh_key)) =
+        (&auth_state.certificate, &auth_state.certificate_key)
+    {
+        println!("Received fresh certificate from server, updating local certs...");
+        std::fs::write(&cert_path, fresh_cert)?;
+        std::fs::write(&key_path, fresh_key)?;
+    }
+
+    // Derive player name from cert CN (uses latest cert after refresh)
+    let id = match args.player {
+        Some(name) => name,
+        None => {
+            let name = extract_player_from_cert(&cert_path)?;
+            println!("Derived player name from certificate: {}", name);
+            name
+        }
+    };
+
+    let quic_addr: SocketAddr =
+        tokio::net::lookup_host(format!("{}:{}", hostname, config.quic_port))
+            .await?
+            .next()
+            .ok_or("Failed to resolve hostname")?;
+
+    println!("Resolved QUIC address: {}", quic_addr);
+
+    // Join or create a group if requested
+    let channel_id = if args.group {
+        Some(join_or_create_group(http_client.client(), &base_url).await?)
+    } else {
+        None
+    };
+
+    let ca = Path::new(&ca_path);
+    let cert = Path::new(&cert_path);
+    let key = Path::new(&key_path);
 
     let provider = common::rustls::MtlsProvider::new(ca, cert, key).await?;
 
@@ -116,28 +198,49 @@ async fn client(
         .build()
         .expect("build dg endpoint");
 
-    let client = Client::builder()
+    let quic_client = Client::builder()
         .with_tls(provider)?
         .with_io("0.0.0.0:0")?
         .with_datagram(dg_endpoint)?
         .start()?;
 
-    println!("I am client: {} (game: {})", id, game.as_str());
-    let addr: SocketAddr = socket_addr.parse()?;
-    let connect = Connect::new(addr).with_server_name(server_name.clone());
-    let mut connection = client.connect(connect).await?;
+    println!("I am client: {} (game: {})", id, args.game.as_str());
+    let connect = Connect::new(quic_addr).with_server_name(hostname.clone());
+    let mut connection = quic_client.connect(connect).await?;
 
     connection.keep_alive(true)?;
 
     let connection = Arc::new(connection);
+    let shutdown = Arc::new(AtomicBool::new(false));
 
-    // Create shutdown signal for API update task
-    let api_shutdown = Arc::new(AtomicBool::new(false));
+    // Ctrl+C handler: signal shutdown and leave channel
+    tokio::spawn({
+        let shutdown = shutdown.clone();
+        let client = http_client.client().clone();
+        let base_url = base_url.clone();
+        let channel_id = channel_id.clone();
+        async move {
+            _ = tokio::signal::ctrl_c().await;
+            println!("\nCtrl+C received, shutting down...");
+            shutdown.store(true, Ordering::SeqCst);
+
+            if let Some(id) = channel_id {
+                let leave = ChannelEvent::new(ChannelEvents::Leave);
+                let _ = client
+                    .put(format!("{}/api/channel/{}", base_url, id))
+                    .json(&leave)
+                    .send()
+                    .await;
+                println!("Left channel {}", id);
+            }
+        }
+    });
 
     let mut tasks = Vec::new();
 
     tasks.push(tokio::spawn({
         let connection = connection.clone();
+        let shutdown = shutdown.clone();
         async move {
             let mut count = 0;
             let mut decoder = opus2::Decoder::new(48000, opus2::Channels::Mono).unwrap();
@@ -153,13 +256,16 @@ async fn client(
             let writer = BufWriter::new(file);
             let mut wav_writer = hound::WavWriter::new(writer, spec).unwrap();
 
-            // Simple gap detection: track last packet timestamp
             let mut last_packet_timestamp: Option<i64> = None;
-            let expected_packet_interval_ms = 10; // Packets arrive every ~10ms
-            let gap_threshold_ms = 50; // Detect gaps > 50ms (indicates silence/pause)
+            let expected_packet_interval_ms = 10;
+            let gap_threshold_ms = 50;
 
             println!("Waiting for incoming datagrams...");
             while let Ok(bytes) = recv_one_datagram(&connection).await {
+                if shutdown.load(Ordering::SeqCst) {
+                    break;
+                }
+
                 match QuicNetworkPacket::from_datagram(&bytes) {
                     Ok(packet) => {
                         if let PacketType::AudioFrame = packet.packet_type {
@@ -168,7 +274,6 @@ async fn client(
                             if let Ok(frame) = data {
                                 let packet_timestamp = frame.timestamp();
 
-                                // Check for gap between packets
                                 if let Some(last_ts) = last_packet_timestamp {
                                     let time_since_last = packet_timestamp - last_ts;
                                     let gap_ms = time_since_last - expected_packet_interval_ms;
@@ -181,10 +286,8 @@ async fn client(
                                             gap_ms
                                         );
 
-                                        // Insert silence: gap_ms * 48 samples/ms, stereo (2 channels)
                                         let silence_samples_mono = (gap_ms as f32 * 48.0) as usize;
                                         for _ in 0..silence_samples_mono {
-                                            // Write silence to both L and R channels
                                             let _ = wav_writer.write_sample(0.0f32);
                                             let _ = wav_writer.write_sample(0.0f32);
                                         }
@@ -193,7 +296,6 @@ async fn client(
 
                                 last_packet_timestamp = Some(packet_timestamp);
 
-                                // Decode and write actual audio data
                                 let mut out = vec![0.0; 960];
                                 let out_len =
                                     match decoder.decode_float(&frame.data, &mut out, false) {
@@ -204,14 +306,11 @@ async fn client(
                                         }
                                     };
                                 if out_len > 0 {
-                                    // Decode is mono (960 samples), but WAV is stereo - duplicate each sample to L and R
                                     for &sample in &out[..out_len] {
                                         let clamped_sample = sample.clamp(-1.0, 1.0);
-                                        // Write to Left channel
                                         if let Err(e) = wav_writer.write_sample(clamped_sample) {
                                             println!("Wav write sample error: {:?}", e);
                                         }
-                                        // Write to Right channel (same as left for mono source)
                                         if let Err(e) = wav_writer.write_sample(clamped_sample) {
                                             println!("Wav write sample error: {:?}", e);
                                         }
@@ -246,11 +345,13 @@ async fn client(
         }
     }));
 
+    let source_file = args.audio_file;
     tasks.push(tokio::spawn({
         let connection = connection.clone();
-        let api_shutdown = api_shutdown.clone();
+        let shutdown = shutdown.clone();
+        let source_file = source_file.clone();
+        let id = id.clone();
         async move {
-            // Windows high-resolution timing setup
             windows_targets::link!("winmm.dll" "system" fn timeBeginPeriod(uperiod: u32) -> u32);
             windows_targets::link!("winmm.dll" "system" fn timeEndPeriod(uperiod: u32) -> u32);
             windows_targets::link!("kernel32.dll" "system" fn QueryPerformanceCounter(lpperformancecount: *mut i64) -> i32);
@@ -260,7 +361,6 @@ async fn client(
                 timeBeginPeriod(1);
             }
 
-            // Get high-resolution timer frequency
             let mut frequency = 0i64;
             let mut start_time = 0i64;
             unsafe {
@@ -290,6 +390,11 @@ async fn client(
             let mut packet_count = 0i64;
 
             for sample in sample_iter {
+                if shutdown.load(Ordering::SeqCst) {
+                    println!("Shutdown signal received, stopping send...");
+                    break;
+                }
+
                 chunk_buffer.push(sample);
 
                 if chunk_buffer.len() < 1920 {
@@ -313,7 +418,6 @@ async fn client(
 
                 let s = encoder.encode_vec(&mono_chunk, 960).unwrap();
 
-                // Don't include sender - let server use position from cache (updated by API task)
                 let packet = QuicNetworkPacket {
                     owner: Some(common::structs::packet::PacketOwner {
                         name: id.clone(),
@@ -324,8 +428,8 @@ async fn client(
                         common::structs::packet::AudioFramePacket::new(
                             s.clone(),
                             48000,
-                            None, // Use position from server cache
-                            None, // Default spatial behavior
+                            None,
+                            None,
                         ),
                     ),
                 };
@@ -345,7 +449,6 @@ async fn client(
                             println!("Datagram send query error: {:?}", e);
                         }
 
-                        // High-resolution timing instead of tokio::time::sleep
                         packet_count += 1;
                         let target_time = start_time + (packet_count * target_interval_ticks);
 
@@ -363,10 +466,8 @@ async fn client(
                             let remaining_ms = remaining_ticks as f64 * 1000.0 / frequency as f64;
 
                             if remaining_ms > 2.0 {
-                                // Use tokio sleep for longer waits to avoid spinning
                                 tokio::time::sleep(Duration::from_millis((remaining_ms - 1.0) as u64)).await;
                             } else {
-                                // Precise spinning for the final 1-2ms
                                 tokio::task::yield_now().await;
                             }
                         }
@@ -377,64 +478,8 @@ async fn client(
                 }
             }
 
-            if !chunk_buffer.is_empty() {
-                println!(
-                    "Sending final partial chunk with {} samples",
-                    chunk_buffer.len()
-                );
-                chunk_buffer.resize(960, 0.0f32);
-
-                let (_x, _y) = spiral.next().unwrap();
-                let final_chunk: Vec<i16> = chunk_buffer
-                    .iter()
-                    .map(|s| (s * i16::MAX as f32).clamp(i16::MIN as f32, i16::MAX as f32) as i16)
-                    .collect();
-                let s = encoder
-                    .encode_vec(&final_chunk, final_chunk.len() * 4)
-                    .unwrap();
-
-                // Don't include sender - let server use position from cache
-                let packet = QuicNetworkPacket {
-                    owner: Some(common::structs::packet::PacketOwner {
-                        name: id.clone(),
-                        client_id: client_id.clone(),
-                    }),
-                    packet_type: common::structs::packet::PacketType::AudioFrame,
-                    data: common::structs::packet::QuicNetworkPacketData::AudioFrame(
-                        common::structs::packet::AudioFramePacket::new(
-                            s.clone(),
-                            48000,
-                            None, // Use position from server cache
-                            None, // Default spatial behavior
-                        ),
-                    ),
-                };
-
-                match packet.to_datagram() {
-                    Ok(rs) => {
-                        let payload = Bytes::from(rs);
-                        let send_res = connection.datagram_mut(
-                            |dg: &mut common::s2n_quic::provider::datagram::default::Sender| {
-                                dg.send_datagram(payload.clone())
-                            },
-                        );
-                        if let Err(e) = send_res {
-                            println!("Datagram send query error: {:?}", e);
-                        }
-                    }
-                    Err(e) => {
-                        println!("{}", e.to_string());
-                    }
-                }
-            }
-
-            tokio::time::sleep(Duration::from_secs(30)).await;
             println!("Send task complete");
 
-            // Signal API update task to shutdown
-            api_shutdown.store(true, Ordering::Relaxed);
-
-            // Clean up Windows timer resolution
             unsafe {
                 timeEndPeriod(1);
             }
@@ -445,7 +490,57 @@ async fn client(
         _ = task.await;
     }
 
+    // Drop connection explicitly to trigger QUIC close handshake
+    drop(connection);
+    println!("Disconnected");
+
     Ok(())
+}
+
+async fn join_or_create_group(
+    client: &reqwest::Client,
+    base_url: &str,
+) -> Result<String, Box<dyn Error>> {
+    println!("Querying channels...");
+    let channels: Vec<Channel> = client
+        .get(format!("{}/api/channel", base_url))
+        .send()
+        .await?
+        .json()
+        .await?;
+
+    let channel_id = if channels.is_empty() {
+        println!("No channels found, creating 'broadcast' channel...");
+        let id: String = client
+            .post(format!("{}/api/channel", base_url))
+            .json(&"broadcast")
+            .send()
+            .await?
+            .json()
+            .await?;
+        println!("Created channel: {}", id);
+        id
+    } else {
+        let channel = &channels[0];
+        println!("Found channel: {} ({})", channel.name, channel.id());
+        channel.id().to_string()
+    };
+
+    println!("Joining channel {}...", channel_id);
+    let join_event = ChannelEvent::new(ChannelEvents::Join);
+    let response = client
+        .put(format!("{}/api/channel/{}", base_url, channel_id))
+        .json(&join_event)
+        .send()
+        .await?;
+
+    if response.status().is_success() {
+        println!("Joined channel successfully");
+    } else {
+        println!("Failed to join channel: {}", response.status());
+    }
+
+    Ok(channel_id)
 }
 
 struct RecvDatagram<'c> {

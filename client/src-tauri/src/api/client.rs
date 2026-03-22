@@ -1,9 +1,9 @@
-use log::error;
 use common::reqwest::Client as ReqwestClient;
+use log::error;
 use std::net::Ipv4Addr;
 use std::time::Duration;
-use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
 use trust_dns_resolver::TokioAsyncResolver;
+use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
 use url::Url;
 
 use anyhow::anyhow;
@@ -93,7 +93,9 @@ impl Client {
     }
 
     // IPv6 Jank on Windows. Only use V4 addresses for now.
-    pub(crate) async fn resolve_ipv4(hostname: &str) -> Result<Ipv4Addr, Box<dyn std::error::Error>> {
+    pub(crate) async fn resolve_ipv4(
+        hostname: &str,
+    ) -> Result<Ipv4Addr, Box<dyn std::error::Error>> {
         let resolver =
             TokioAsyncResolver::tokio(ResolverConfig::cloudflare(), ResolverOpts::default());
         let response = resolver.ipv4_lookup(hostname).await?;

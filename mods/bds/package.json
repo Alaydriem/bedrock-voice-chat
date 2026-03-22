@@ -1,13 +1,13 @@
 {
   "name": "bedrock-voice-chat-scripts",
-  "version": "1.0.0-beta.9",
+  "version": "1.0.0-beta.7",
   "description": "TypeScript scripts for Bedrock Voice Chat addon",
   "private": true,
   "license": "BSD-3-Clause",
   "scripts": {
     "package": "node build.js",
     "watch": "tsc --watch",
-    "clean": "rimraf scripts",
+    "clean": "rimraf bp/scripts",
     "rebuild": "yarn clean && yarn package",
     "bundle": "node bundle.js",
     "pack": "yarn rebuild && yarn bundle"

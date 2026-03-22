@@ -15,7 +15,6 @@ import com.hypixel.hytale.codec.builder.BuilderCodec
 class HytaleEmbeddedConfig {
     @JvmField var httpPort: Int = 8444
     @JvmField var quicPort: Int = 8443
-    @JvmField var publicAddr: String = "127.0.0.1"
     @JvmField var broadcastRange: Float = 32.0f
     /** Path to TLS certificate file (must be signed by trusted CA) */
     @JvmField var tlsCertificate: String = ""
@@ -47,11 +46,6 @@ class HytaleEmbeddedConfig {
                 KeyedCodec<Int>("QuicPort", Codec.INTEGER),
                 { cfg, value, _ -> cfg.quicPort = value },
                 { cfg, _ -> cfg.quicPort }
-            ).add()
-            .append(
-                KeyedCodec<String>("PublicAddr", Codec.STRING),
-                { cfg, value, _ -> cfg.publicAddr = value },
-                { cfg, _ -> cfg.publicAddr }
             ).add()
             .append(
                 KeyedCodec<Float>("BroadcastRange", Codec.FLOAT),

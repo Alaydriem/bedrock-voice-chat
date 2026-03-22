@@ -1,17 +1,31 @@
 <script lang="ts">
-    export let participants: string[] = [];
-    export let initialSelectedParticipants: string[] = [];
-    export let onSelectionChange: (selectedParticipants: string[]) => void = () => {};
-
-    // Initialize with provided selected participants or all participants if not provided
-    let selectedParticipants = new Set<string>(
-        initialSelectedParticipants.length > 0 ? initialSelectedParticipants : participants
-    );
-
-    // Reactive statement to notify parent when selection changes
-    $: {
-        onSelectionChange(Array.from(selectedParticipants));
+    interface Props {
+        participants?: string[];
+        initialSelectedParticipants?: string[];
+        onSelectionChange?: (selectedParticipants: string[]) => void;
+        hasJukeboxes?: boolean;
+        jukeboxesEnabled?: boolean;
+        onJukeboxToggle?: (enabled: boolean) => void;
+        gamerpicMap?: Record<string, string>;
     }
+
+    let {
+        participants = [],
+        initialSelectedParticipants = [],
+        onSelectionChange = () => {},
+        hasJukeboxes = false,
+        jukeboxesEnabled = false,
+        onJukeboxToggle = () => {},
+        gamerpicMap = {},
+    }: Props = $props();
+
+    let selectedParticipants = $state(new Set<string>(
+        initialSelectedParticipants.length > 0 ? initialSelectedParticipants : participants
+    ));
+
+    $effect(() => {
+        onSelectionChange(Array.from(selectedParticipants));
+    });
 
     function toggleParticipant(participant: string) {
         const newSet = new Set(selectedParticipants);
@@ -20,7 +34,7 @@
         } else {
             newSet.add(participant);
         }
-        selectedParticipants = newSet; // Trigger reactivity
+        selectedParticipants = newSet;
     }
 
     function selectAll() {
@@ -66,13 +80,35 @@
                 />
                 <div class="flex items-center space-x-2">
                     <div class="avatar size-8">
-                        <div class="is-initial mask is-squircle bg-primary text-white dark:bg-accent">
-                            <span class="text-sm">{participant.charAt(0).toUpperCase()}</span>
-                        </div>
+                        {#if gamerpicMap[participant]}
+                            <img src={gamerpicMap[participant]} alt={participant} class="mask is-squircle" />
+                        {:else}
+                            <div class="is-initial mask is-squircle bg-primary text-white dark:bg-accent">
+                                <span class="text-sm">{participant.charAt(0).toUpperCase()}</span>
+                            </div>
+                        {/if}
                     </div>
                     <span class="text-sm text-slate-700 dark:text-navy-100">{participant}</span>
                 </div>
             </label>
         {/each}
     </div>
+
+    <!-- Jukeboxes toggle -->
+    {#if hasJukeboxes}
+        <div class="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 dark:border-navy-500">
+            <div class="flex items-center space-x-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="size-5 text-slate-500 dark:text-navy-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                </svg>
+                <span class="text-sm font-medium text-slate-700 dark:text-navy-100">Jukeboxes</span>
+            </div>
+            <input
+                type="checkbox"
+                checked={jukeboxesEnabled}
+                onchange={() => onJukeboxToggle(!jukeboxesEnabled)}
+                class="form-switch h-5 w-10 rounded-full bg-slate-300 before:rounded-full before:bg-white checked:bg-primary checked:before:bg-white dark:bg-navy-500 dark:before:bg-navy-300 dark:checked:bg-accent dark:checked:before:bg-white"
+            />
+        </div>
+    {/if}
 </div>

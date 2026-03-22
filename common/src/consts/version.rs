@@ -8,3 +8,5 @@ macro_rules! define_protocol_version {
 }
 
 define_protocol_version!("1.5.0");
+
+pub const RECORDING_VERSION: &str = "1.1.0";

@@ -1,8 +1,8 @@
 use log::warn;
 use opus2::{Channels, Decoder};
 use ringbuf::{
-    traits::{Consumer, Producer, Split},
     HeapRb,
+    traits::{Consumer, Producer, Split},
 };
 
 const MAX_OPUS_FRAME_MS: usize = 480;
@@ -89,9 +89,7 @@ impl AudioProcessor {
                 .decoder
                 .decode_float(opus_data, &mut self.decode_buffer, false)
             {
-                Ok(samples) => {
-                    samples
-                }
+                Ok(samples) => samples,
                 Err(e) => {
                     self.decode_error_count += 1;
 

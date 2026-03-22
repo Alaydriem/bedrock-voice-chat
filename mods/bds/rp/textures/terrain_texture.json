@@ -1,0 +1,14 @@
+{
+  "resource_pack_name": "bvc",
+  "texture_name": "atlas.terrain",
+  "padding": 8,
+  "num_mip_levels": 4,
+  "texture_data": {
+    "bvc_audio_player": {
+      "textures": "textures/blocks/bvc_audio_player"
+    },
+    "bvc_audio_player_top": {
+      "textures": "textures/blocks/bvc_audio_player_top"
+    }
+  }
+}

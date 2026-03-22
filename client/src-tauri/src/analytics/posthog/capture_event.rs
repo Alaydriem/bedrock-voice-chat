@@ -13,7 +13,10 @@ pub struct CaptureEvent {
 }
 
 impl CaptureEvent {
-    fn serialize_rfc3339<S: serde::Serializer>(dt: &DateTime<Utc>, s: S) -> Result<S::Ok, S::Error> {
+    fn serialize_rfc3339<S: serde::Serializer>(
+        dt: &DateTime<Utc>,
+        s: S,
+    ) -> Result<S::Ok, S::Error> {
         s.serialize_str(&dt.to_rfc3339())
     }
 }

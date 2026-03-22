@@ -26,7 +26,10 @@ impl<'de> Deserialize<'de> for FlagsmithFlag {
         Ok(Self {
             enabled: raw.enabled,
             feature: raw.feature,
-            value: raw.feature_state_value.as_ref().map(FlagsmithFlagValue::from_json),
+            value: raw
+                .feature_state_value
+                .as_ref()
+                .map(FlagsmithFlagValue::from_json),
         })
     }
 }

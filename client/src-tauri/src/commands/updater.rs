@@ -5,9 +5,8 @@ pub(crate) struct UpdaterHelper;
 impl UpdaterHelper {
     fn endpoint() -> &'static str {
         let version = env!("CARGO_PKG_VERSION");
-        let is_prerelease = version.contains("-beta")
-            || version.contains("-alpha")
-            || version.contains("-rc");
+        let is_prerelease =
+            version.contains("-beta") || version.contains("-alpha") || version.contains("-rc");
 
         let endpoint = option_env!("BVC_UPDATER_ENDPOINT").unwrap_or(if is_prerelease {
             "https://alaydriem.github.io/bedrock-voice-chat/updater/beta.json"
@@ -18,23 +17,27 @@ impl UpdaterHelper {
         log::info!(
             "Updater: version={}, channel={}, endpoint={}",
             version,
-            if is_prerelease { "prerelease" } else { "stable" },
+            if is_prerelease {
+                "prerelease"
+            } else {
+                "stable"
+            },
             endpoint
         );
 
         endpoint
     }
 
-    async fn check(
-        app: &tauri::AppHandle,
-    ) -> Result<Option<tauri_plugin_updater::Update>, String> {
+    async fn check(app: &tauri::AppHandle) -> Result<Option<tauri_plugin_updater::Update>, String> {
         let endpoint = Self::endpoint();
 
         let updater = app
             .updater_builder()
-            .endpoints(vec![endpoint
-                .parse()
-                .map_err(|e: url::ParseError| e.to_string())?])
+            .endpoints(vec![
+                endpoint
+                    .parse()
+                    .map_err(|e: url::ParseError| e.to_string())?,
+            ])
             .map_err(|e| e.to_string())?
             .build()
             .map_err(|e| e.to_string())?;
@@ -44,9 +47,7 @@ impl UpdaterHelper {
 }
 
 #[tauri::command]
-pub(crate) async fn check_for_updates(
-    app: tauri::AppHandle,
-) -> Result<Option<String>, String> {
+pub(crate) async fn check_for_updates(app: tauri::AppHandle) -> Result<Option<String>, String> {
     let update = UpdaterHelper::check(&app).await?;
 
     match update {

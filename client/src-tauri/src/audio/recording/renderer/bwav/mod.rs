@@ -27,7 +27,8 @@ impl BwavRenderer {
         first_frame_relative_timestamp_ms: u64,
     ) -> Bext {
         // Convert Unix timestamp (ms) to DateTime, using the actual first packet time
-        let actual_start_timestamp = session_info.start_timestamp + first_frame_relative_timestamp_ms;
+        let actual_start_timestamp =
+            session_info.start_timestamp + first_frame_relative_timestamp_ms;
         let timestamp_secs = actual_start_timestamp / 1000;
         let timestamp_nanos = ((actual_start_timestamp % 1000) * 1_000_000) as u32;
         let dt = DateTime::from_timestamp(timestamp_secs as i64, timestamp_nanos)
@@ -82,7 +83,8 @@ impl AudioRenderer for BwavRenderer {
     ) -> Result<(), anyhow::Error> {
         let stream = PcmStream::new(session_path, player_name)?;
 
-        let info = stream.info()
+        let info = stream
+            .info()
             .ok_or_else(|| anyhow::anyhow!("No audio data found for player: {}", player_name))?
             .clone();
 

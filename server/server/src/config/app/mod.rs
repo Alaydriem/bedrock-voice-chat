@@ -1,10 +1,14 @@
+mod audio;
 mod database;
 mod logger;
+mod permissions;
 pub mod server;
 mod voice;
 
+pub use audio::Audio;
 pub use database::Database;
 pub use logger::Logger;
+pub use permissions::Permissions;
 pub use server::Features;
 pub use server::Meridian;
 pub use server::Minecraft;
@@ -33,6 +37,10 @@ pub struct ApplicationConfig {
     pub log: Logger,
     #[serde(default)]
     pub voice: Voice,
+    #[serde(default)]
+    pub audio: Audio,
+    #[serde(default)]
+    pub permissions: Permissions,
 }
 
 impl Default for ApplicationConfig {
@@ -42,6 +50,8 @@ impl Default for ApplicationConfig {
             server: Server::default(),
             voice: Voice::default(),
             log: Logger::default(),
+            audio: Audio::default(),
+            permissions: Permissions::default(),
         }
     }
 }

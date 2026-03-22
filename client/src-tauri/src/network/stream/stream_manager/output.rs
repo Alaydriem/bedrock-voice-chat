@@ -1,11 +1,11 @@
 use crate::NetworkPacket;
 use bytes::Bytes;
+use common::s2n_quic::Connection;
 use common::structs::packet::{DebugPacket, PacketOwner, QuicNetworkPacket};
 use log::{error, info, warn};
-use common::s2n_quic::Connection;
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
     Arc,
+    atomic::{AtomicBool, Ordering},
 };
 use tauri::Emitter;
 use tokio::{task::AbortHandle, time::Instant};

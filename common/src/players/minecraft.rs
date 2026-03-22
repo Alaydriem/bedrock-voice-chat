@@ -5,6 +5,7 @@ use crate::{Coordinate, Game, Orientation};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "openapi", derive(schemars::JsonSchema))]
 pub struct MinecraftPlayer {
     pub name: String,
     pub coordinates: Coordinate,

@@ -1,13 +1,12 @@
 use std::collections::HashMap;
 
-use crate::audio::types::{get_best_sample_rate, AudioDevice, AudioDeviceHost, AudioDeviceType};
+use crate::audio::types::{AudioDevice, AudioDeviceHost, AudioDeviceType, StreamConfig};
 use anyhow::anyhow;
-use rodio::cpal::{
-    self,
-    traits::{DeviceTrait, HostTrait},
-    HostId, SupportedStreamConfigRange,
-};
 use log::{error, warn};
+use rodio::cpal::{
+    self, HostId, SupportedStreamConfigRange,
+    traits::{DeviceTrait, HostTrait},
+};
 
 /// Returns a Vec of cpal hosts
 /// On Windows, this _should_ be ASIO and WASAPI
@@ -98,18 +97,15 @@ fn process_devices(
                 // Check if device supports any of our required sample rates (48kHz or 44.1kHz)
                 let supports_required_sample_rates = stream_configs
                     .iter()
-                    .any(|config| get_best_sample_rate(config).is_some());
+                    .any(|config| StreamConfig::best_sample_rate(config).is_some());
 
                 if !supports_required_sample_rates {
                     continue;
                 }
 
-                for audio_device in get_device_name(
-                    device_type.clone(),
-                    &host,
-                    &device,
-                    stream_configs,
-                ) {
+                for audio_device in
+                    get_device_name(device_type.clone(), &host, &device, stream_configs)
+                {
                     device_map.push(audio_device);
                 }
             }
@@ -151,7 +147,9 @@ pub fn get_devices() -> Result<HashMap<String, Vec<AudioDevice>>, ()> {
 /// Re-queries CPAL for the current supported configs of a device.
 /// Returns updated stream_configs, or None if device not found or has no valid configs.
 /// This is used to detect when Windows sound settings have changed (e.g., sample rate).
-pub fn refresh_device_config(device: &AudioDevice) -> Option<Vec<crate::audio::types::StreamConfig>> {
+pub fn refresh_device_config(
+    device: &AudioDevice,
+) -> Option<Vec<crate::audio::types::StreamConfig>> {
     let hosts = get_cpal_hosts().ok()?;
 
     for host in hosts {
@@ -202,7 +200,10 @@ fn get_device_name(
     let device_id = match device.id() {
         Ok(id) => id.to_string(),
         Err(e) => {
-            warn!("Could not get device ID, falling back to description: {}", e);
+            warn!(
+                "Could not get device ID, falling back to description: {}",
+                e
+            );
             device_description.clone()
         }
     };
