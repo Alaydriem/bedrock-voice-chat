@@ -452,7 +452,7 @@ jobs:
             echo "   Hytale Plugin: bedrock-voice-chat-hytale (contains .jar file)"
           fi
           if [ "${{ needs.build-bds-pack.result }}" = "success" ]; then
-            echo "   BDS Pack: bedrock-voice-chat-bds (contains .mcpack file)"
+            echo "   BDS Pack: bedrock-voice-chat-bds (contains .mcaddon file)"
           fi
           echo ""
           echo "Download from: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

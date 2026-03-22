@@ -10,6 +10,7 @@ import EmptyState from '../../../components/audioLibrary/EmptyState.svelte';
 
 import type { AudioFileResponse } from '../../bindings/AudioFileResponse';
 import type { AuthStateResponse } from '../../bindings/AuthStateResponse';
+import PlatformDetector from '../utils/PlatformDetector';
 
 export default class AudioLibrarySettings {
     private files: AudioFileResponse[] = [];
@@ -18,10 +19,13 @@ export default class AudioLibrarySettings {
     private currentComponent: any = null;
     private uploadComponent: any = null;
     private activeGame: string | null = null;
+    private isMobile: boolean = false;
 
     constructor() {}
 
     async initialize(): Promise<boolean> {
+        const platformDetector = new PlatformDetector();
+        this.isMobile = await platformDetector.checkMobile();
         const store = await Store.load("store.json", { autoSave: false, defaults: {} });
         this.activeGame = await store.get<string>("active_game") ?? null;
         await this.loadPermissions();
@@ -87,9 +91,9 @@ export default class AudioLibrarySettings {
     private renderContent(): void {
         this.clearCurrentComponent();
 
-        // Render upload section if permitted
+        // Render upload section if permitted (desktop only - tauri-plugin-dialog is not available on mobile)
         const uploadContainer = document.getElementById("audio-library-upload-container");
-        if (uploadContainer && this.hasPermission("audio_upload")) {
+        if (uploadContainer && this.hasPermission("audio_upload") && !this.isMobile) {
             if (this.uploadComponent) {
                 unmount(this.uploadComponent);
             }

@@ -85,13 +85,44 @@ if (fs.existsSync(bdsPackage)) {
   console.log(`Patched: bds/package.json -> version="${version}"`);
 }
 
-// 3. Patch BDS manifest.json (uses encoded array)
+// 3. Patch BDS manifest files (uses encoded array)
+const encodedVersion = [encoded.major, encoded.minor, encoded.encodedPatch];
+
+// 3a. Patch root manifest.json
 const bdsManifest = path.join(modsDir, 'bds/manifest.json');
 if (fs.existsSync(bdsManifest)) {
   const content = JSON.parse(fs.readFileSync(bdsManifest, 'utf8'));
-  content.header.version = [encoded.major, encoded.minor, encoded.encodedPatch];
+  content.header.version = encodedVersion;
   fs.writeFileSync(bdsManifest, JSON.stringify(content, null, 2) + '\n');
-  console.log(`Patched: bds/manifest.json -> version=[${encoded.major}, ${encoded.minor}, ${encoded.encodedPatch}]`);
+  console.log(`Patched: bds/manifest.json -> version=[${encodedVersion}]`);
+}
+
+// 3b. Patch bp/manifest.json (behavior pack — bundled into .mcaddon)
+const bdsBpManifest = path.join(modsDir, 'bds/bp/manifest.json');
+if (fs.existsSync(bdsBpManifest)) {
+  const content = JSON.parse(fs.readFileSync(bdsBpManifest, 'utf8'));
+  content.header.version = encodedVersion;
+  fs.writeFileSync(bdsBpManifest, JSON.stringify(content, null, 2) + '\n');
+  console.log(`Patched: bds/bp/manifest.json -> version=[${encodedVersion}]`);
+}
+
+// 3c. Patch rp/manifest.json (resource pack — bundled into .mcaddon)
+const bdsRpManifest = path.join(modsDir, 'bds/rp/manifest.json');
+if (fs.existsSync(bdsRpManifest)) {
+  const content = JSON.parse(fs.readFileSync(bdsRpManifest, 'utf8'));
+  content.header.version = encodedVersion;
+  // Keep module version in sync
+  for (const mod of content.modules || []) {
+    mod.version = encodedVersion;
+  }
+  // Keep BP dependency version in sync
+  for (const dep of content.dependencies || []) {
+    if (dep.uuid && !dep.module_name) {
+      dep.version = encodedVersion;
+    }
+  }
+  fs.writeFileSync(bdsRpManifest, JSON.stringify(content, null, 2) + '\n');
+  console.log(`Patched: bds/rp/manifest.json -> version=[${encodedVersion}]`);
 }
 
 // 4. Patch Hytale manifest.json

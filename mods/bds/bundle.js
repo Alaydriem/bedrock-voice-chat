@@ -21,11 +21,37 @@ function createZip(name, sourceDir) {
   });
 }
 
+function createAddon(addonName, mcpackFiles) {
+  return new Promise((resolve, reject) => {
+    const output = fs.createWriteStream(path.join(__dirname, addonName));
+    const archive = archiver('zip', { zlib: { level: 9 } });
+
+    output.on('close', () => {
+      console.log(`  ${addonName}: ${archive.pointer()} bytes`);
+      resolve();
+    });
+
+    archive.on('error', reject);
+    archive.pipe(output);
+
+    for (const file of mcpackFiles) {
+      archive.file(path.join(__dirname, file), { name: file });
+    }
+    archive.finalize();
+  });
+}
+
 async function bundle() {
   console.log('Creating BDS pack bundles...');
 
-  await createZip('bedrock-voice-chat-bp.zip', 'bp');
-  await createZip('bedrock-voice-chat-rp.zip', 'rp');
+  const bpPack = 'bedrock-voice-chat-bp.mcpack';
+  const rpPack = 'bedrock-voice-chat-rp.mcpack';
+
+  await createZip(bpPack, 'bp');
+  await createZip(rpPack, 'rp');
+
+  console.log('Creating mcaddon...');
+  await createAddon('bedrock-voice-chat.mcaddon', [bpPack, rpPack]);
 
   console.log('Bundle complete.');
 }

@@ -1,0 +1,8 @@
+{
+  "resource_pack_name": "bvc",
+  "texture_data": {
+    "bvc_audio_player": {
+      "textures": "textures/items/bvc_audio_player"
+    }
+  }
+}

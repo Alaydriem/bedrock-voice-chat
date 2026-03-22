@@ -142,6 +142,28 @@ class BvcServerManager(
     }
 
     /**
+     * Start audio playback via FFI.
+     * @param playJson JSON string matching AudioPlayRequest structure
+     * @return JSON string with AudioEventResponse on success, null on failure
+     */
+    @Synchronized
+    fun audioPlay(playJson: String): String? {
+        val h = handle ?: return null
+        return BvcNative.audioPlay(h, playJson)
+    }
+
+    /**
+     * Stop audio playback via FFI.
+     * @param eventId Event ID to stop
+     * @return true on success
+     */
+    @Synchronized
+    fun audioStop(eventId: String): Boolean {
+        val h = handle ?: return false
+        return BvcNative.audioStop(h, eventId) == 0
+    }
+
+    /**
      * Stop the embedded BVC server gracefully.
      * Synchronized to prevent double-free race condition.
      */

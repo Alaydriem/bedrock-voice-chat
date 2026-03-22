@@ -9,6 +9,7 @@
       }
     },
     "components": {
+      "minecraft:icon": "bvc_audio_player",
       "minecraft:block_placer": {
         "block": "bvc:audio_player",
         "replace_block_item": true
