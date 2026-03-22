@@ -2,7 +2,7 @@ use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use super::channel_player::ChannelPlayer;
+use super::ChannelPlayer;
 use crate::Game;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, TS)]

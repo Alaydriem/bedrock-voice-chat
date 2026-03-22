@@ -1,8 +1,8 @@
-use crate::analytics::aptabase::Provider as AptabaseProvider;
 use crate::analytics::dtos::QueuedEvent;
+use crate::analytics::posthog::Provider as PostHogProvider;
 
 pub enum AnalyticsProviderType {
-    Aptabase(AptabaseProvider),
+    PostHog(PostHogProvider),
 }
 
 impl AnalyticsProviderType {
@@ -13,7 +13,7 @@ impl AnalyticsProviderType {
         session_id: &str,
     ) -> Result<(), anyhow::Error> {
         match self {
-            Self::Aptabase(p) => p.send_batch(events, install_id, session_id).await,
+            Self::PostHog(p) => p.send_batch(events, install_id, session_id).await,
         }
     }
 }

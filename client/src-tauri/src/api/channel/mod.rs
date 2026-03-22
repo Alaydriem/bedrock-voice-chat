@@ -86,7 +86,7 @@ impl Api {
     }
 
     /// Lists all channels
-    pub(crate) async fn list_channels(&self) -> Result<Vec<common::structs::channel::Channel>, String> {
+    pub(crate) async fn list_channels(&self) -> Result<Vec<common::structs::channels::Channel>, String> {
         let client = self.get_client(Some(self.endpoint.as_str())).await;
 
         let mut headers = HeaderMap::new();
@@ -97,7 +97,7 @@ impl Api {
         match client.get(url).headers(headers).send().await {
             Ok(response) => match response.status() {
                 StatusCode::OK => {
-                    match response.json::<Vec<common::structs::channel::Channel>>().await {
+                    match response.json::<Vec<common::structs::channels::Channel>>().await {
                         Ok(channels) => Ok(channels),
                         Err(e) => {
                             error!("Failed to parse channels list response: {}", e);
@@ -123,7 +123,7 @@ impl Api {
     }
 
     /// Gets a specific channel by ID
-    pub(crate) async fn get_channel(&self, channel_id: &str) -> Result<common::structs::channel::Channel, String> {
+    pub(crate) async fn get_channel(&self, channel_id: &str) -> Result<common::structs::channels::Channel, String> {
         let client = self.get_client(Some(self.endpoint.as_str())).await;
 
         let mut headers = HeaderMap::new();
@@ -134,7 +134,7 @@ impl Api {
         match client.get(url).headers(headers).send().await {
             Ok(response) => match response.status() {
                 StatusCode::OK => {
-                    match response.json::<Vec<common::structs::channel::Channel>>().await {
+                    match response.json::<Vec<common::structs::channels::Channel>>().await {
                         Ok(mut channels) => {
                             if let Some(channel) = channels.pop() {
                                 Ok(channel)
@@ -211,7 +211,7 @@ impl Api {
     pub(crate) async fn channel_event(
         &self,
         channel_id: String,
-        event: common::structs::channel::ChannelEvent,
+        event: common::structs::channels::ChannelEvent,
     ) -> Result<bool, String> {
         let client = self.get_client(Some(self.endpoint.as_str())).await;
 

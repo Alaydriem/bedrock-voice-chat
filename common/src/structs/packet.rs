@@ -2,7 +2,7 @@ use anyhow::{anyhow, Error};
 use base64::{engine::general_purpose, Engine as _};
 use serde::{Deserialize, Serialize};
 
-use super::channel::ChannelEvents;
+use super::channels::ChannelEvents;
 use moka::future::Cache;
 use std::sync::Arc;
 
