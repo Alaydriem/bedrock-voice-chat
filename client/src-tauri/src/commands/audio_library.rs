@@ -1,4 +1,5 @@
-use common::response::AudioFileResponse;
+use common::request::AudioFileListQuery;
+use common::response::{AudioFileResponse, PaginatedResponse};
 
 use crate::audio::encode::AudioFileEncoder;
 use crate::keyring::KeyringService;
@@ -44,7 +45,8 @@ pub(crate) async fn list_audio_files(
     app_state: State<'_, Mutex<AppState>>,
     server: Option<String>,
     game: Option<String>,
-) -> Result<Vec<AudioFileResponse>, String> {
+    query: Option<AudioFileListQuery>,
+) -> Result<PaginatedResponse<AudioFileResponse>, String> {
     let state = app_state.lock().await;
     let api = match server {
         Some(endpoint) => {
@@ -58,7 +60,8 @@ pub(crate) async fn list_audio_files(
         None => state.get_api_client()?.clone(),
     };
 
-    api.list_audio_files(game.as_deref()).await
+    let query = query.unwrap_or_default();
+    api.list_audio_files(game.as_deref(), &query).await
 }
 
 #[tauri::command(async)]

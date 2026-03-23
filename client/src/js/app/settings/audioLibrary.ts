@@ -9,11 +9,17 @@ import LoadingState from '../../../components/audioLibrary/LoadingState.svelte';
 import EmptyState from '../../../components/audioLibrary/EmptyState.svelte';
 
 import type { AudioFileResponse } from '../../bindings/AudioFileResponse';
-import type { AuthStateResponse } from '../../bindings/AuthStateResponse';
+import type { PaginatedResponse } from '../../bindings/PaginatedResponse';
 import PlatformDetector from '../utils/PlatformDetector';
 
 export default class AudioLibrarySettings {
     private files: AudioFileResponse[] = [];
+    private totalFiles: number = 0;
+    private currentPage: number = 0;
+    private pageSize: number = 20;
+    private sortBy: string = "created_at";
+    private sortOrder: string = "desc";
+    private searchQuery: string = "";
     private permissions: string[] = [];
     private isLoading: boolean = false;
     private currentComponent: any = null;
@@ -67,15 +73,45 @@ export default class AudioLibrarySettings {
         this.showLoadingState();
 
         try {
-            this.files = await invoke<AudioFileResponse[]>("list_audio_files", { game: this.activeGame ?? undefined });
-            info(`Loaded ${this.files.length} audio files`);
+            const result = await invoke<PaginatedResponse<AudioFileResponse>>("list_audio_files", {
+                game: this.activeGame ?? undefined,
+                query: {
+                    page: this.currentPage,
+                    page_size: this.pageSize,
+                    sort_by: this.sortBy,
+                    sort_order: this.sortOrder,
+                    search: this.searchQuery || null,
+                }
+            });
+            this.files = result.items;
+            this.totalFiles = result.total;
+            info(`Loaded ${this.files.length} of ${this.totalFiles} audio files`);
         } catch (e) {
             error(`Failed to load audio files: ${e}`);
             this.files = [];
+            this.totalFiles = 0;
         } finally {
             this.isLoading = false;
             this.renderContent();
         }
+    }
+
+    async goToPage(page: number): Promise<void> {
+        this.currentPage = page;
+        await this.loadFiles();
+    }
+
+    async setSort(sortBy: string, sortOrder: string): Promise<void> {
+        this.sortBy = sortBy;
+        this.sortOrder = sortOrder;
+        this.currentPage = 0;
+        await this.loadFiles();
+    }
+
+    async setSearch(query: string): Promise<void> {
+        this.searchQuery = query;
+        this.currentPage = 0;
+        await this.loadFiles();
     }
 
     private showLoadingState(): void {
@@ -110,7 +146,7 @@ export default class AudioLibrarySettings {
         const container = document.getElementById("audio-library-table-container");
         if (!container) return;
 
-        if (this.files.length === 0) {
+        if (this.files.length === 0 && !this.searchQuery) {
             this.currentComponent = mount(EmptyState, {
                 target: container
             });
@@ -119,8 +155,17 @@ export default class AudioLibrarySettings {
                 target: container,
                 props: {
                     files: this.files,
+                    total: this.totalFiles,
+                    page: this.currentPage,
+                    pageSize: this.pageSize,
+                    sortBy: this.sortBy,
+                    sortOrder: this.sortOrder,
+                    searchQuery: this.searchQuery,
                     canDelete: this.hasPermission("audio_delete"),
-                    onDelete: (fileId: string) => this.deleteFile(fileId)
+                    onDelete: (fileId: string) => this.deleteFile(fileId),
+                    onPageChange: (page: number) => this.goToPage(page),
+                    onSortChange: (sortBy: string, sortOrder: string) => this.setSort(sortBy, sortOrder),
+                    onSearchChange: (query: string) => this.setSearch(query),
                 }
             });
         }

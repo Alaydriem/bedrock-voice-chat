@@ -74,7 +74,7 @@ const componentRegistry = new AudioComponentRegistry(audioManager, getWorldUuid)
 componentRegistry.register();
 
 // Register custom commands (cheats not required)
-DiscCommand.register(bvc_server, access_token);
+DiscCommand.register();
 
 // Subscribe to player death events
 world.afterEvents.entityDie.subscribe(

@@ -5,10 +5,10 @@
   "num_mip_levels": 4,
   "texture_data": {
     "bvc_audio_player": {
-      "textures": "textures/blocks/bvc_audio_player"
+      "textures": "textures/blocks/jukebox_side"
     },
     "bvc_audio_player_top": {
-      "textures": "textures/blocks/bvc_audio_player_top"
+      "textures": "textures/blocks/jukebox_top"
     }
   }
 }

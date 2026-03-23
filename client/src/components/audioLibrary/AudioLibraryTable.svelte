@@ -3,13 +3,38 @@
 
     interface Props {
         files: AudioFileResponse[];
+        total: number;
+        page: number;
+        pageSize: number;
+        sortBy: string;
+        sortOrder: string;
+        searchQuery: string;
         canDelete: boolean;
         onDelete: (fileId: string) => void;
+        onPageChange: (page: number) => void;
+        onSortChange: (sortBy: string, sortOrder: string) => void;
+        onSearchChange: (query: string) => void;
     }
 
-    let { files = [], canDelete = false, onDelete = () => {} }: Props = $props();
+    let {
+        files = [],
+        total = 0,
+        page = 0,
+        pageSize = 20,
+        sortBy = "created_at",
+        sortOrder = "desc",
+        searchQuery = "",
+        canDelete = false,
+        onDelete = () => {},
+        onPageChange = () => {},
+        onSortChange = () => {},
+        onSearchChange = () => {},
+    }: Props = $props();
+
     let confirmDeleteId: string | null = $state(null);
     let copiedId: string | null = $state(null);
+    let searchTimeout: ReturnType<typeof setTimeout> | null = $state(null);
+    let totalPages = $derived(Math.max(1, Math.ceil(total / pageSize)));
 
     function formatDuration(ms: number): string {
         const totalSeconds = Math.floor(ms / 1000);
@@ -46,94 +71,217 @@
         copiedId = fileId;
         setTimeout(() => { copiedId = null; }, 1500);
     }
+
+    function handleSearch(value: string) {
+        if (searchTimeout) clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            onSearchChange(value);
+        }, 300);
+    }
+
+    function toggleSort(column: string) {
+        if (sortBy === column) {
+            onSortChange(column, sortOrder === "asc" ? "desc" : "asc");
+        } else {
+            onSortChange(column, "asc");
+        }
+    }
 </script>
 
-<div class="is-scrollbar-hidden min-w-full overflow-x-auto">
-    <table class="w-full text-left">
-        <thead>
-            <tr class="border-y border-transparent border-b-slate-200 dark:border-b-navy-500">
-                <th class="whitespace-nowrap px-3 py-3 font-semibold uppercase text-slate-800 dark:text-navy-100 text-xs tracking-wider">
-                    Name
-                </th>
-                <th class="whitespace-nowrap px-3 py-3 font-semibold uppercase text-slate-800 dark:text-navy-100 text-xs tracking-wider">
-                    Duration
-                </th>
-                <th class="whitespace-nowrap px-3 py-3 font-semibold uppercase text-slate-800 dark:text-navy-100 text-xs tracking-wider">
-                    Size
-                </th>
-                <th class="whitespace-nowrap px-3 py-3 font-semibold uppercase text-slate-800 dark:text-navy-100 text-xs tracking-wider">
-                    Date
-                </th>
-                <th class="whitespace-nowrap px-3 py-3 font-semibold uppercase text-slate-800 dark:text-navy-100 text-xs tracking-wider">
-                    Actions
-                </th>
-            </tr>
-        </thead>
-        <tbody>
-            {#each files as file}
-            <tr class="border-y border-transparent border-b-slate-200 dark:border-b-navy-500">
-                <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-600 dark:text-navy-200">
-                    {file.original_filename}
-                </td>
-                <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-600 dark:text-navy-200">
-                    {formatDuration(file.duration_ms)}
-                </td>
-                <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-600 dark:text-navy-200">
-                    {formatFileSize(file.file_size_bytes)}
-                </td>
-                <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-600 dark:text-navy-200">
-                    {formatDate(file.created_at)}
-                </td>
-                <td class="whitespace-nowrap px-3 py-3">
-                    <div class="flex items-center space-x-2">
-                        <button
-                            class="btn size-7 rounded-full p-0 text-slate-400 hover:bg-slate-300/20 focus:bg-slate-300/20 dark:text-navy-300 dark:hover:bg-navy-300/20"
-                            title="Copy ID"
-                            onclick={() => copyId(file.id)}
-                        >
-                            {#if copiedId === file.id}
-                                <svg xmlns="http://www.w3.org/2000/svg" class="size-4 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                                </svg>
-                            {:else}
-                                <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+<!-- Search -->
+<div class="mb-4">
+    <input
+        type="text"
+        class="form-input w-full rounded-lg border border-slate-300 bg-transparent px-3 py-2 placeholder:text-slate-400/70 dark:border-navy-450 dark:placeholder:text-navy-300/50"
+        placeholder="Search by filename..."
+        value={searchQuery}
+        oninput={(e) => handleSearch((e.target as HTMLInputElement).value)}
+    />
+</div>
+
+{#if files.length === 0 && searchQuery}
+    <div class="flex flex-col items-center justify-center py-8 text-slate-400 dark:text-navy-300">
+        <svg xmlns="http://www.w3.org/2000/svg" class="size-12 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+        <p class="text-sm">No files matching "{searchQuery}"</p>
+    </div>
+{:else}
+    <div class="is-scrollbar-hidden min-w-full overflow-x-auto">
+        <table class="w-full text-left">
+            <thead>
+                <tr class="border-y border-transparent border-b-slate-200 dark:border-b-navy-500">
+                    <th
+                        class="whitespace-nowrap px-3 py-3 font-semibold uppercase text-slate-800 dark:text-navy-100 text-xs tracking-wider cursor-pointer select-none"
+                        onclick={() => toggleSort("original_filename")}
+                    >
+                        <div class="flex items-center space-x-1">
+                            <span>Name</span>
+                            {#if sortBy === "original_filename"}
+                                <svg xmlns="http://www.w3.org/2000/svg" class="size-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    {#if sortOrder === "asc"}
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/>
+                                    {:else}
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                    {/if}
                                 </svg>
                             {/if}
-                        </button>
-                        {#if canDelete}
-                            {#if confirmDeleteId === file.id}
-                                <button
-                                    class="btn size-7 rounded-full bg-error/10 p-0 text-error hover:bg-error/20 focus:bg-error/20"
-                                    onclick={() => handleDelete(file.id)}
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        </div>
+                    </th>
+                    <th
+                        class="whitespace-nowrap px-3 py-3 font-semibold uppercase text-slate-800 dark:text-navy-100 text-xs tracking-wider cursor-pointer select-none"
+                        onclick={() => toggleSort("duration_ms")}
+                    >
+                        <div class="flex items-center space-x-1">
+                            <span>Duration</span>
+                            {#if sortBy === "duration_ms"}
+                                <svg xmlns="http://www.w3.org/2000/svg" class="size-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    {#if sortOrder === "asc"}
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/>
+                                    {:else}
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                    {/if}
+                                </svg>
+                            {/if}
+                        </div>
+                    </th>
+                    <th
+                        class="whitespace-nowrap px-3 py-3 font-semibold uppercase text-slate-800 dark:text-navy-100 text-xs tracking-wider cursor-pointer select-none"
+                        onclick={() => toggleSort("file_size_bytes")}
+                    >
+                        <div class="flex items-center space-x-1">
+                            <span>Size</span>
+                            {#if sortBy === "file_size_bytes"}
+                                <svg xmlns="http://www.w3.org/2000/svg" class="size-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    {#if sortOrder === "asc"}
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/>
+                                    {:else}
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                    {/if}
+                                </svg>
+                            {/if}
+                        </div>
+                    </th>
+                    <th
+                        class="whitespace-nowrap px-3 py-3 font-semibold uppercase text-slate-800 dark:text-navy-100 text-xs tracking-wider cursor-pointer select-none"
+                        onclick={() => toggleSort("created_at")}
+                    >
+                        <div class="flex items-center space-x-1">
+                            <span>Date</span>
+                            {#if sortBy === "created_at"}
+                                <svg xmlns="http://www.w3.org/2000/svg" class="size-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    {#if sortOrder === "asc"}
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/>
+                                    {:else}
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                    {/if}
+                                </svg>
+                            {/if}
+                        </div>
+                    </th>
+                    <th class="whitespace-nowrap px-3 py-3 font-semibold uppercase text-slate-800 dark:text-navy-100 text-xs tracking-wider">
+                        Actions
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                {#each files as file}
+                <tr class="border-y border-transparent border-b-slate-200 dark:border-b-navy-500">
+                    <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-600 dark:text-navy-200">
+                        {file.original_filename}
+                    </td>
+                    <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-600 dark:text-navy-200">
+                        {formatDuration(file.duration_ms)}
+                    </td>
+                    <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-600 dark:text-navy-200">
+                        {formatFileSize(file.file_size_bytes)}
+                    </td>
+                    <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-600 dark:text-navy-200">
+                        {formatDate(file.created_at)}
+                    </td>
+                    <td class="whitespace-nowrap px-3 py-3">
+                        <div class="flex items-center space-x-2">
+                            <button
+                                class="btn size-7 rounded-full p-0 text-slate-400 hover:bg-slate-300/20 focus:bg-slate-300/20 dark:text-navy-300 dark:hover:bg-navy-300/20"
+                                title="Copy ID"
+                                onclick={() => copyId(file.id)}
+                            >
+                                {#if copiedId === file.id}
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="size-4 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                                     </svg>
-                                </button>
-                                <button
-                                    class="btn size-7 rounded-full bg-slate-150 p-0 text-slate-500 hover:bg-slate-200 dark:bg-navy-500 dark:text-navy-200 dark:hover:bg-navy-450"
-                                    onclick={cancelDelete}
-                                >
+                                {:else}
                                     <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
                                     </svg>
-                                </button>
-                            {:else}
-                                <button
-                                    class="btn size-7 rounded-full p-0 text-slate-400 hover:bg-slate-300/20 focus:bg-slate-300/20 dark:text-navy-300 dark:hover:bg-navy-300/20"
-                                    onclick={() => handleDelete(file.id)}
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                                    </svg>
-                                </button>
+                                {/if}
+                            </button>
+                            {#if canDelete}
+                                {#if confirmDeleteId === file.id}
+                                    <button
+                                        class="btn size-7 rounded-full bg-error/10 p-0 text-error hover:bg-error/20 focus:bg-error/20"
+                                        onclick={() => handleDelete(file.id)}
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                        </svg>
+                                    </button>
+                                    <button
+                                        class="btn size-7 rounded-full bg-slate-150 p-0 text-slate-500 hover:bg-slate-200 dark:bg-navy-500 dark:text-navy-200 dark:hover:bg-navy-450"
+                                        onclick={cancelDelete}
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                        </svg>
+                                    </button>
+                                {:else}
+                                    <button
+                                        class="btn size-7 rounded-full p-0 text-slate-400 hover:bg-slate-300/20 focus:bg-slate-300/20 dark:text-navy-300 dark:hover:bg-navy-300/20"
+                                        onclick={() => handleDelete(file.id)}
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                        </svg>
+                                    </button>
+                                {/if}
                             {/if}
-                        {/if}
-                    </div>
-                </td>
-            </tr>
-            {/each}
-        </tbody>
-    </table>
-</div>
+                        </div>
+                    </td>
+                </tr>
+                {/each}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {#if total > pageSize}
+        <div class="flex items-center justify-between px-3 py-3 border-t border-slate-200 dark:border-navy-500">
+            <span class="text-sm text-slate-500 dark:text-navy-300">
+                Showing {page * pageSize + 1}–{Math.min((page + 1) * pageSize, total)} of {total}
+            </span>
+            <div class="flex items-center space-x-2">
+                <button
+                    class="btn size-8 rounded-full p-0 text-slate-400 hover:bg-slate-300/20 disabled:opacity-40 disabled:cursor-not-allowed dark:text-navy-300 dark:hover:bg-navy-300/20"
+                    disabled={page === 0}
+                    onclick={() => onPageChange(page - 1)}
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                    </svg>
+                </button>
+                <span class="text-sm text-slate-600 dark:text-navy-200">
+                    Page {page + 1} of {totalPages}
+                </span>
+                <button
+                    class="btn size-8 rounded-full p-0 text-slate-400 hover:bg-slate-300/20 disabled:opacity-40 disabled:cursor-not-allowed dark:text-navy-300 dark:hover:bg-navy-300/20"
+                    disabled={page >= totalPages - 1}
+                    onclick={() => onPageChange(page + 1)}
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    {/if}
+{/if}

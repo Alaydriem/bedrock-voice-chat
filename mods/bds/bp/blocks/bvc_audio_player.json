@@ -3,6 +3,10 @@
   "minecraft:block": {
     "description": {
       "identifier": "bvc:audio_player",
+      "menu_category": {
+        "category": "items",
+        "group": "minecraft:itemGroup.name.record"
+      },
       "states": {
         "bvc:playing": [false, true]
       }

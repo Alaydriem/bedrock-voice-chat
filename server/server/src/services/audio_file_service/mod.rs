@@ -1,9 +1,9 @@
 use entity::{audio_file, player};
-use common::response::AudioFileResponse;
+use common::response::{AudioFileResponse, PaginatedResponse};
 use common::structs::game::UploaderIdentity;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter,
-    RelationTrait,
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, Order,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait,
 };
 use sea_orm::sea_query::JoinType;
 
@@ -82,10 +82,47 @@ impl AudioFileService {
 
     pub async fn list<C: ConnectionTrait>(
         conn: &C,
-    ) -> Result<Vec<AudioFileResponse>, AudioFileError> {
-        let results = audio_file::Entity::find()
-            .filter(audio_file::Column::Deleted.eq(0))
+        page: u32,
+        page_size: u32,
+        sort_by: Option<String>,
+        sort_order: Option<String>,
+        search: Option<String>,
+    ) -> Result<PaginatedResponse<AudioFileResponse>, AudioFileError> {
+        let page_size = page_size.min(100);
+
+        let mut base = audio_file::Entity::find()
+            .filter(audio_file::Column::Deleted.eq(0));
+
+        if let Some(ref search) = search {
+            if !search.is_empty() {
+                base = base.filter(audio_file::Column::OriginalFilename.contains(search));
+            }
+        }
+
+        let sort_column = match sort_by.as_deref() {
+            Some("original_filename") => audio_file::Column::OriginalFilename,
+            Some("duration_ms") => audio_file::Column::DurationMs,
+            Some("file_size_bytes") => audio_file::Column::FileSizeBytes,
+            _ => audio_file::Column::CreatedAt,
+        };
+
+        let order = match sort_order.as_deref() {
+            Some("asc") => Order::Asc,
+            _ => Order::Desc,
+        };
+
+        base = base.order_by(sort_column, order);
+
+        let total = base.clone().count(conn).await.map_err(|e| {
+            tracing::error!("Failed to count audio files: {}", e);
+            AudioFileError::Internal
+        })? as u32;
+
+        let offset = (page as u64) * (page_size as u64);
+        let results = base
             .find_also_related(player::Entity)
+            .offset(Some(offset))
+            .limit(Some(page_size as u64))
             .all(conn)
             .await
             .map_err(|e| {
@@ -93,7 +130,7 @@ impl AudioFileService {
                 AudioFileError::Internal
             })?;
 
-        Ok(results
+        let items = results
             .into_iter()
             .map(|(file, player)| {
                 let gamertag = player
@@ -101,7 +138,14 @@ impl AudioFileService {
                     .unwrap_or_default();
                 Self::to_response(file, gamertag)
             })
-            .collect())
+            .collect();
+
+        Ok(PaginatedResponse {
+            items,
+            total,
+            page,
+            page_size,
+        })
     }
 
     pub async fn delete<C: ConnectionTrait>(

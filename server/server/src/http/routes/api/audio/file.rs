@@ -9,7 +9,7 @@ use rocket::{
 use crate::http::openapi::CustomJsonResponse;
 use rocket_okapi::openapi;
 
-use common::response::AudioFileResponse;
+use common::response::{AudioFileResponse, PaginatedResponse};
 use common::structs::permission::Permission;
 
 use crate::config::{Audio, Permissions};
@@ -65,19 +65,27 @@ pub async fn audio_file_upload(
 }
 
 #[openapi(tag = "Audio")]
-#[get("/file")]
+#[get("/file?<page>&<page_size>&<sort_by>&<sort_order>&<search>")]
 pub async fn audio_file_list(
     identity: Certificate<'_>,
     db: Db<'_>,
-) -> CustomJsonResponse<Vec<AudioFileResponse>> {
+    page: Option<u32>,
+    page_size: Option<u32>,
+    sort_by: Option<String>,
+    sort_order: Option<String>,
+    search: Option<String>,
+) -> CustomJsonResponse<PaginatedResponse<AudioFileResponse>> {
     let conn = db.into_inner();
 
     if let Err(status) = AuthService::player_from_certificate(&identity, conn, None).await {
         return CustomJsonResponse::error(status);
     }
 
-    match AudioFileService::list(conn).await {
-        Ok(files) => CustomJsonResponse::ok(files),
+    let page = page.unwrap_or(0);
+    let page_size = page_size.unwrap_or(20);
+
+    match AudioFileService::list(conn, page, page_size, sort_by, sort_order, search).await {
+        Ok(result) => CustomJsonResponse::ok(result),
         Err(e) => CustomJsonResponse::error(e.status()),
     }
 }

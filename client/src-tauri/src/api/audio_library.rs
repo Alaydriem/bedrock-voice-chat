@@ -4,7 +4,8 @@ use reqwest::{
     header::{HeaderMap, HeaderValue},
 };
 
-use common::response::{ApiError, AudioFileResponse};
+use common::request::AudioFileListQuery;
+use common::response::{ApiError, AudioFileResponse, PaginatedResponse};
 
 use super::Api;
 
@@ -29,9 +30,27 @@ impl Api {
     pub(crate) async fn list_audio_files(
         &self,
         game: Option<&str>,
-    ) -> Result<Vec<AudioFileResponse>, String> {
+        query: &AudioFileListQuery,
+    ) -> Result<PaginatedResponse<AudioFileResponse>, String> {
         let client = self.get_client(Some(self.endpoint.as_str())).await;
         let url = format!("{}/api/audio/file", self.endpoint);
+
+        let mut query_params: Vec<(&str, String)> = Vec::new();
+        if let Some(page) = query.page {
+            query_params.push(("page", page.to_string()));
+        }
+        if let Some(page_size) = query.page_size {
+            query_params.push(("page_size", page_size.to_string()));
+        }
+        if let Some(ref sort_by) = query.sort_by {
+            query_params.push(("sort_by", sort_by.clone()));
+        }
+        if let Some(ref sort_order) = query.sort_order {
+            query_params.push(("sort_order", sort_order.clone()));
+        }
+        if let Some(ref search) = query.search {
+            query_params.push(("search", search.clone()));
+        }
 
         let mut headers = HeaderMap::new();
         headers.insert("Accept", HeaderValue::from_static("application/json"));
@@ -41,7 +60,7 @@ impl Api {
             }
         }
 
-        match client.get(url).headers(headers).send().await {
+        match client.get(url).query(&query_params).headers(headers).send().await {
             Ok(response) if response.status() == StatusCode::OK => {
                 let body = response
                     .text()
