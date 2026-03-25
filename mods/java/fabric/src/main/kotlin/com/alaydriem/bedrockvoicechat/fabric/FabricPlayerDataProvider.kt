@@ -120,7 +120,7 @@ class FabricPlayerDataProvider(
 
     override fun getGameType(): GameType = GameType.MINECRAFT
 
-    private fun getWorldUuid(world: ServerWorld): String {
+    fun getWorldUuid(world: ServerWorld): String {
         val dimKey = world.registryKey.value.toString()
         return worldUuidCache.getOrPut(dimKey) {
             val worldDir = world.server!!.getRunDirectory().resolve("bvc").toFile()

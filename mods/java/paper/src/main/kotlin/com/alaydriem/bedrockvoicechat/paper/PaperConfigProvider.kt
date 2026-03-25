@@ -55,6 +55,8 @@ class PaperConfigProvider(private val plugin: JavaPlugin) : ConfigProvider {
                     }
                     logLevel = yamlConfig.getString("embedded.log-level")
                         ?: yamlConfig.getString("embedded.logLevel", "info")!!
+                    assetsPath = yamlConfig.getString("embedded.assets-path")
+                        ?: yamlConfig.getString("embedded.assetsPath")
                 }
             }
         }
@@ -76,6 +78,7 @@ class PaperConfigProvider(private val plugin: JavaPlugin) : ConfigProvider {
             yamlConfig.set("embedded.tls-names", embedded.tlsNames)
             yamlConfig.set("embedded.tls-ips", embedded.tlsIps)
             yamlConfig.set("embedded.log-level", embedded.logLevel)
+            embedded.assetsPath?.let { yamlConfig.set("embedded.assets-path", it) }
         }
 
         plugin.saveConfig()

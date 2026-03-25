@@ -1,6 +1,10 @@
 package com.alaydriem.bedrockvoicechat.fabric
 
+import com.alaydriem.bedrockvoicechat.audio.AudioEventSender
 import com.alaydriem.bedrockvoicechat.dto.Payload
+import com.alaydriem.bedrockvoicechat.fabric.audio.FabricAudioPlayerManager
+import com.alaydriem.bedrockvoicechat.fabric.audio.JukeboxListener
+import com.alaydriem.bedrockvoicechat.fabric.commands.DiscCommand
 import com.alaydriem.bedrockvoicechat.native.PositionSender
 import com.alaydriem.bedrockvoicechat.network.HttpRequestHandler
 import com.alaydriem.bedrockvoicechat.server.BvcServerManager
@@ -13,9 +17,6 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents
 import net.minecraft.server.network.ServerPlayerEntity
 import org.slf4j.LoggerFactory
 
-/**
- * Fabric mod entry point for Bedrock Voice Chat.
- */
 class FabricMod : ModInitializer {
     private val logger = LoggerFactory.getLogger("Bedrock Voice Chat")
 
@@ -24,13 +25,13 @@ class FabricMod : ModInitializer {
 
     private var embeddedServer: BvcServerManager? = null
     private var positionSender: PositionSender? = null
+    private var audioPlayerManager: FabricAudioPlayerManager? = null
     private var tickCounter = 0
     private var minimumPlayers = 2
 
     override fun onInitialize() {
         logger.info("Initializing Bedrock Voice Chat")
 
-        // Load and validate configuration
         val config = configProvider.load()
         if (!config.isValid()) {
             logger.error("Invalid configuration - mod will not track players")
@@ -46,7 +47,6 @@ class FabricMod : ModInitializer {
             floodgatePrefix = config.floodgatePrefix
         )
 
-        // Initialize embedded server if configured
         if (config.useEmbeddedServer) {
             embeddedServer = BvcServerManager(config, configProvider)
             if (!embeddedServer!!.start()) {
@@ -55,18 +55,23 @@ class FabricMod : ModInitializer {
                 return
             }
 
-            // Embedded mode: use FFI directly, no HTTP handler needed
             positionSender = PositionSender(null, embeddedServer)
+            val audioEventSender = AudioEventSender(null, embeddedServer)
+            audioPlayerManager = FabricAudioPlayerManager(audioEventSender)
 
             val embedded = config.embeddedConfig
             logger.info("Bedrock Voice Chat using embedded server (QUIC port: {})", embedded?.quicPort ?: 8443)
         } else {
-            // External server mode: use HTTP handler
             val httpHandler = HttpRequestHandler(config.bvcServer!!, config.accessToken!!)
             positionSender = PositionSender(httpHandler, null)
+            val audioEventSender = AudioEventSender(httpHandler, null)
+            audioPlayerManager = FabricAudioPlayerManager(audioEventSender)
 
             logger.info("Bedrock Voice Chat will connect to: {}", config.bvcServer)
         }
+
+        JukeboxListener(audioPlayerManager!!, playerDataProvider::getWorldUuid).register()
+        DiscCommand.register()
 
         ServerPlayConnectionEvents.JOIN.register { handler, _, _ ->
             playerDataProvider.addPlayer(handler.player)
@@ -76,14 +81,12 @@ class FabricMod : ModInitializer {
             playerDataProvider.removePlayer(handler.player)
         }
 
-        // Track player deaths for death dimension feature
         ServerLivingEntityEvents.AFTER_DEATH.register { entity, _ ->
             if (entity is ServerPlayerEntity) {
                 playerDataProvider.markDead(entity)
             }
         }
 
-        // Track player respawns to clear death state
         ServerPlayerEvents.AFTER_RESPAWN.register { _, newPlayer, _ ->
             playerDataProvider.markAlive(newPlayer)
         }
@@ -98,8 +101,8 @@ class FabricMod : ModInitializer {
             }
         }
 
-        // Stop embedded server on shutdown
         ServerLifecycleEvents.SERVER_STOPPING.register { _ ->
+            audioPlayerManager?.shutdown()
             embeddedServer?.stop()
         }
     }

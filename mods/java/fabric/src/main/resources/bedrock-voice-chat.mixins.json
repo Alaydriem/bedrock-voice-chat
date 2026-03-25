@@ -1,0 +1,11 @@
+{
+  "required": true,
+  "package": "com.alaydriem.bedrockvoicechat.fabric.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "JukeboxBlockEntityMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
