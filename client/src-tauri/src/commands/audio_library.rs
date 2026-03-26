@@ -127,3 +127,35 @@ pub(crate) async fn refresh_server_state(
 
     Ok(response)
 }
+
+#[tauri::command(async)]
+pub(crate) async fn get_audio_stream_url(
+    app_state: State<'_, Mutex<AppState>>,
+    #[allow(non_snake_case)] fileId: String,
+    server: Option<String>,
+    game: Option<String>,
+) -> Result<String, String> {
+    let state = app_state.lock().await;
+    let endpoint = state.current_server.clone().unwrap_or_default();
+    let api = match server {
+        Some(ref ep) => {
+            drop(state);
+            app_state
+                .lock()
+                .await
+                .get_api_client_for_server(ep)
+                .await?
+        }
+        None => state.get_api_client()?.clone(),
+    };
+
+    let token_response = api
+        .get_audio_stream_token(&fileId, game.as_deref())
+        .await?;
+
+    let base = server.unwrap_or(endpoint);
+    Ok(format!(
+        "{}/api/audio/stream?token={}",
+        base, token_response.token
+    ))
+}

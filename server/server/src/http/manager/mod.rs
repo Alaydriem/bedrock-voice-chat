@@ -2,7 +2,7 @@ use crate::{
     config::{ApplicationConfig, Permissions},
     http::pool::AppDb,
     http::routes,
-    services::{AudioPlaybackService, CertificateService, PlayerIdentityService, PlayerRegistrarService},
+    services::{AudioPlaybackService, AudioStreamTokenCache, CertificateService, PlayerIdentityService, PlayerRegistrarService},
     stream::quic::{CacheManager, WebhookReceiver},
 };
 use anyhow::Error;
@@ -27,6 +27,7 @@ pub struct RocketManager {
     audio_playback_service: Arc<AudioPlaybackService>,
     cert_service: Arc<CertificateService>,
     hytale_session_cache: routes::api::HytaleSessionCache,
+    audio_stream_token_cache: AudioStreamTokenCache,
 }
 
 impl RocketManager {
@@ -48,6 +49,7 @@ impl RocketManager {
             audio_playback_service,
             cert_service,
             hytale_session_cache: routes::api::HytaleSessionCache::new(),
+            audio_stream_token_cache: AudioStreamTokenCache::new(),
         }
     }
 
@@ -97,6 +99,7 @@ impl RocketManager {
                     .manage(self.config.permissions.clone())
                     .manage(self.config.audio.clone())
                     .manage(self.hytale_session_cache.clone())
+                    .manage(self.audio_stream_token_cache.clone())
                     .attach(AppDb::init())
                     .attach(cors.to_cors().unwrap())
                     .attach(rocket::fairing::AdHoc::try_on_ignite("Migrations", migrate))

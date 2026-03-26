@@ -9,13 +9,13 @@ use rocket::{
 use crate::http::openapi::CustomJsonResponse;
 use rocket_okapi::openapi;
 
-use common::response::{AudioFileResponse, PaginatedResponse};
+use common::response::{AudioFileResponse, AudioStreamTokenResponse, PaginatedResponse};
 use common::structs::permission::Permission;
 
 use crate::config::{Audio, Permissions};
 use crate::http::guards::OriginalFilename;
 use crate::http::pool::Db;
-use crate::services::{AuthService, AudioFileService, AudioPlaybackService, PermissionService};
+use crate::services::{AuthService, AudioFileService, AudioPlaybackService, AudioStreamTokenCache, PermissionService};
 
 #[openapi(skip)]
 #[post("/file", data = "<data>")]
@@ -121,4 +121,28 @@ pub async fn audio_file_delete(
         Ok(()) => Status::Ok,
         Err(e) => e.status(),
     }
+}
+
+#[openapi(skip)]
+#[post("/file/<file_id>/token")]
+pub async fn audio_file_token(
+    identity: Certificate<'_>,
+    db: Db<'_>,
+    token_cache: &State<AudioStreamTokenCache>,
+    file_id: &str,
+) -> CustomJsonResponse<AudioStreamTokenResponse> {
+    let conn = db.into_inner();
+
+    if let Err(status) = AuthService::player_from_certificate(&identity, conn, None).await {
+        return CustomJsonResponse::error(status);
+    }
+
+    match AudioFileService::exists(conn, file_id).await {
+        Ok(true) => {}
+        Ok(false) => return CustomJsonResponse::error(Status::NotFound),
+        Err(e) => return CustomJsonResponse::error(e.status()),
+    }
+
+    let token = token_cache.create_token(file_id).await;
+    CustomJsonResponse::ok(AudioStreamTokenResponse { token })
 }

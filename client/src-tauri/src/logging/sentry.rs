@@ -45,7 +45,7 @@ impl Log for SentryLogger {
             return;
         }
 
-        if record.level() <= log::Level::Warn {
+        if record.level() <= log::Level::Error {
             sentry::Hub::current().capture_log(sentry::integrations::log::log_from_record(record));
         }
 

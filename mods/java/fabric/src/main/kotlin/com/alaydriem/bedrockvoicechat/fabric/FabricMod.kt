@@ -14,7 +14,7 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents
-import net.minecraft.server.network.ServerPlayerEntity
+import net.minecraft.server.level.ServerPlayer
 import org.slf4j.LoggerFactory
 
 class FabricMod : ModInitializer {
@@ -82,7 +82,7 @@ class FabricMod : ModInitializer {
         }
 
         ServerLivingEntityEvents.AFTER_DEATH.register { entity, _ ->
-            if (entity is ServerPlayerEntity) {
+            if (entity is ServerPlayer) {
                 playerDataProvider.markDead(entity)
             }
         }

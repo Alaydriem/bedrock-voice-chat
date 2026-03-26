@@ -1,8 +1,10 @@
 pub mod event;
 pub mod file;
+pub mod stream;
 
 pub use event::{audio_event_play, audio_event_stop};
-pub use file::{audio_file_delete, audio_file_list, audio_file_upload};
+pub use file::{audio_file_delete, audio_file_list, audio_file_token, audio_file_upload};
+pub use stream::audio_file_stream;
 
 use crate::http::openapi::{RouteSpec, TagDefinition};
 
@@ -24,7 +26,9 @@ inventory::submit! {
                 event::audio_event_stop,
                 file::audio_file_upload,
                 file::audio_file_list,
-                file::audio_file_delete
+                file::audio_file_delete,
+                file::audio_file_token,
+                stream::audio_file_stream
             ]
         },
     }

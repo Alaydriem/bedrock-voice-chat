@@ -5,7 +5,7 @@ use reqwest::{
 };
 
 use common::request::AudioFileListQuery;
-use common::response::{ApiError, AudioFileResponse, PaginatedResponse};
+use common::response::{ApiError, AudioFileResponse, AudioStreamTokenResponse, PaginatedResponse};
 
 use super::Api;
 
@@ -177,6 +177,39 @@ impl Api {
             Ok(response) => Err(ApiErrorResponse::from_response(response).await),
             Err(e) => {
                 error!("Failed to get server state: {}", e);
+                Err(format!("Connection failed: {}", e))
+            }
+        }
+    }
+
+    pub(crate) async fn get_audio_stream_token(
+        &self,
+        file_id: &str,
+        game: Option<&str>,
+    ) -> Result<AudioStreamTokenResponse, String> {
+        let client = self.get_client(Some(self.endpoint.as_str())).await;
+        let url = format!("{}/api/audio/file/{}/token", self.endpoint, file_id);
+
+        let mut headers = HeaderMap::new();
+        headers.insert("Accept", HeaderValue::from_static("application/json"));
+        if let Some(game) = game {
+            if let Ok(val) = HeaderValue::from_str(game) {
+                headers.insert("X-Game", val);
+            }
+        }
+
+        match client.post(url).headers(headers).send().await {
+            Ok(response) if response.status() == StatusCode::OK => {
+                let body = response
+                    .text()
+                    .await
+                    .map_err(|e| format!("Failed to read response: {}", e))?;
+                serde_json::from_str(&body)
+                    .map_err(|e| format!("Failed to parse stream token: {}", e))
+            }
+            Ok(response) => Err(ApiErrorResponse::from_response(response).await),
+            Err(e) => {
+                error!("Failed to get audio stream token: {}", e);
                 Err(format!("Connection failed: {}", e))
             }
         }

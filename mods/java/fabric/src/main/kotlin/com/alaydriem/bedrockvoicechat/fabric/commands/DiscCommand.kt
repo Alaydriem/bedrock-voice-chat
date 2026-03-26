@@ -4,35 +4,34 @@ import com.alaydriem.bedrockvoicechat.fabric.audio.JukeboxListener
 import com.mojang.brigadier.Command
 import com.mojang.brigadier.arguments.StringArgumentType
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback
-import net.minecraft.command.permission.Permission
-import net.minecraft.command.permission.PermissionLevel
-import net.minecraft.component.DataComponentTypes
-import net.minecraft.server.command.CommandManager
-import net.minecraft.text.Text
+import net.minecraft.commands.Commands
+import net.minecraft.core.component.DataComponents
+import net.minecraft.network.chat.Component
+import net.minecraft.server.permissions.Permissions
 
 object DiscCommand {
     fun register() {
         CommandRegistrationCallback.EVENT.register { dispatcher, _, _ ->
             dispatcher.register(
-                CommandManager.literal("bvc")
+                Commands.literal("bvc")
                     .then(
-                        CommandManager.literal("disc")
-                            .requires { it.permissions.hasPermission(Permission.Level(PermissionLevel.GAMEMASTERS)) }
+                        Commands.literal("disc")
+                            .requires { it.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER) }
                             .then(
-                                CommandManager.argument("audio_id", StringArgumentType.string())
+                                Commands.argument("audio_id", StringArgumentType.string())
                                     .executes { ctx ->
                                         val audioId = StringArgumentType.getString(ctx, "audio_id")
-                                        val player = ctx.source.playerOrThrow
+                                        val player = ctx.source.getPlayerOrException()
 
                                         val disc = JukeboxListener.createBvcDisc(audioId)
-                                        disc.set(DataComponentTypes.CUSTOM_NAME, Text.literal("BVC: $audioId"))
+                                        disc.set(DataComponents.CUSTOM_NAME, Component.literal("BVC: $audioId"))
 
-                                        if (!player.inventory.insertStack(disc)) {
-                                            player.dropItem(disc, false)
+                                        if (!player.inventory.add(disc)) {
+                                            player.drop(disc, false)
                                         }
 
-                                        ctx.source.sendFeedback(
-                                            { Text.literal("Gave BVC audio disc: $audioId") },
+                                        ctx.source.sendSuccess(
+                                            { Component.literal("Gave BVC audio disc: $audioId") },
                                             true
                                         )
 

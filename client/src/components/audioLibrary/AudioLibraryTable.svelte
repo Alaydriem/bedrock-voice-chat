@@ -1,4 +1,7 @@
 <script lang="ts">
+    import { onDestroy } from "svelte";
+    import { invoke } from "@tauri-apps/api/core";
+    import { error } from "@tauri-apps/plugin-log";
     import type { AudioFileResponse } from "../../js/bindings/AudioFileResponse";
 
     interface Props {
@@ -10,6 +13,7 @@
         sortOrder: string;
         searchQuery: string;
         canDelete: boolean;
+        game?: string;
         onDelete: (fileId: string) => void;
         onPageChange: (page: number) => void;
         onSortChange: (sortBy: string, sortOrder: string) => void;
@@ -25,6 +29,7 @@
         sortOrder = "desc",
         searchQuery = "",
         canDelete = false,
+        game,
         onDelete = () => {},
         onPageChange = () => {},
         onSortChange = () => {},
@@ -35,6 +40,10 @@
     let copiedId: string | null = $state(null);
     let searchTimeout: ReturnType<typeof setTimeout> | null = $state(null);
     let totalPages = $derived(Math.max(1, Math.ceil(total / pageSize)));
+
+    let currentlyPlayingId: string | null = $state(null);
+    let loadingFileId: string | null = $state(null);
+    let audioElement: HTMLAudioElement | null = $state(null);
 
     function formatDuration(ms: number): string {
         const totalSeconds = Math.floor(ms / 1000);
@@ -86,6 +95,40 @@
             onSortChange(column, "asc");
         }
     }
+
+    function stopPlayback() {
+        if (audioElement) {
+            audioElement.pause();
+            audioElement.src = "";
+            audioElement = null;
+        }
+        currentlyPlayingId = null;
+    }
+
+    async function togglePlayback(fileId: string) {
+        if (currentlyPlayingId === fileId) {
+            stopPlayback();
+            return;
+        }
+
+        stopPlayback();
+        loadingFileId = fileId;
+
+        try {
+            const url = await invoke<string>("get_audio_stream_url", { fileId, game });
+            audioElement = new Audio(url);
+            audioElement.addEventListener("ended", () => stopPlayback());
+            await audioElement.play();
+            currentlyPlayingId = fileId;
+        } catch (e) {
+            error(`Failed to play audio file: ${e}`);
+            stopPlayback();
+        } finally {
+            loadingFileId = null;
+        }
+    }
+
+    onDestroy(() => stopPlayback());
 </script>
 
 <!-- Search -->
@@ -201,6 +244,29 @@
                     </td>
                     <td class="whitespace-nowrap px-3 py-3">
                         <div class="flex items-center space-x-2">
+                            <button
+                                class="btn size-7 rounded-full p-0 hover:bg-slate-300/20 focus:bg-slate-300/20 dark:hover:bg-navy-300/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                                class:text-primary={currentlyPlayingId === file.id}
+                                class:text-slate-400={currentlyPlayingId !== file.id}
+                                class:dark:text-navy-300={currentlyPlayingId !== file.id}
+                                title={currentlyPlayingId === file.id ? "Stop" : "Preview"}
+                                disabled={loadingFileId !== null && loadingFileId !== file.id}
+                                onclick={() => togglePlayback(file.id)}
+                            >
+                                {#if loadingFileId === file.id}
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="size-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                                    </svg>
+                                {:else if currentlyPlayingId === file.id}
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="currentColor" viewBox="0 0 24 24">
+                                        <rect x="6" y="6" width="12" height="12" rx="1"/>
+                                    </svg>
+                                {:else}
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M8 5v14l11-7z"/>
+                                    </svg>
+                                {/if}
+                            </button>
                             <button
                                 class="btn size-7 rounded-full p-0 text-slate-400 hover:bg-slate-300/20 focus:bg-slate-300/20 dark:text-navy-300 dark:hover:bg-navy-300/20"
                                 title="Copy ID"

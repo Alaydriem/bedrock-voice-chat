@@ -2,6 +2,7 @@
 
 pub mod audio_file_service;
 pub mod audio_playback_service;
+pub mod audio_stream_token_cache;
 pub mod auth_code_service;
 pub mod auth_service;
 pub mod certificate_service;
@@ -12,6 +13,7 @@ pub mod player_identity_service;
 pub mod player_registrar_service;
 
 pub use audio_file_service::{AudioFileError, AudioFileService};
+pub use audio_stream_token_cache::AudioStreamTokenCache;
 pub use audio_playback_service::AudioPlaybackService;
 pub use auth_code_service::{AuthCodeError, AuthCodeService};
 pub use auth_service::{AuthError, AuthService};

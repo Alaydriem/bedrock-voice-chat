@@ -561,17 +561,7 @@ export default class Dashboard extends BVCApp {
     }
 
     async shutdown() {
-        try {
-            const recording = await invoke<boolean>("is_recording");
-            if (recording) {
-                await invoke("stop_recording");
-            }
-        } catch (err) {
-            error(`Error stopping recording during shutdown: ${err}`);
-        }
-
         await this.cleanup();
-        await invoke("reset_asm");
-        await invoke("reset_nsm");
+        await super.shutdown();
     }
 }

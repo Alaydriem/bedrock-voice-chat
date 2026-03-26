@@ -35,7 +35,7 @@ class FabricAudioPlayerManager(
         onStarted: (durationMs: Long) -> Unit
     ) {
         val key = locationKey(worldUuid, x.toInt(), y.toInt(), z.toInt())
-        logger.info("Starting playback: audioId={}, dimension={}, pos=({},{},{}), worldUuid={}, key={}",
+        logger.debug("Starting playback: audioId={}, dimension={}, pos=({},{},{}), worldUuid={}, key={}",
             audioId, dimensionId, x, y, z, worldUuid, key)
         val state = AudioPlayerState(
             audioId = audioId,
@@ -101,7 +101,7 @@ class FabricAudioPlayerManager(
             logger.warn("stopPlayback: eventId is null for key={}", locationKey)
             return
         }
-        logger.info("stopPlayback: stopping eventId={} for key={}", eventId, locationKey)
+        logger.debug("stopPlayback: stopping eventId={} for key={}", eventId, locationKey)
         audioEventSender.stop(eventId)
     }
 

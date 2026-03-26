@@ -7,7 +7,7 @@ pub mod login;
 pub mod paginated;
 
 pub use api_config::ApiConfig;
-pub use audio::{ApiError, AudioEventResponse, AudioFileResponse};
+pub use audio::{ApiError, AudioEventResponse, AudioFileResponse, AudioStreamTokenResponse};
 pub use gamerpic_response::GamerpicResponse;
 pub use link_java_identity_response::LinkJavaIdentityResponse;
 pub use login::LoginResponse;

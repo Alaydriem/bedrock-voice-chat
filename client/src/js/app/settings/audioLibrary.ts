@@ -161,6 +161,7 @@ export default class AudioLibrarySettings {
                     sortBy: this.sortBy,
                     sortOrder: this.sortOrder,
                     searchQuery: this.searchQuery,
+                    game: this.activeGame ?? undefined,
                     canDelete: this.hasPermission("audio_delete"),
                     onDelete: (fileId: string) => this.deleteFile(fileId),
                     onPageChange: (page: number) => this.goToPage(page),

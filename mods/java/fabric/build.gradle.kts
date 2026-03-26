@@ -1,11 +1,10 @@
 plugins {
     java
-    kotlin("jvm") version "2.0.21"
-    id("fabric-loom") version "1.15.1"
+    kotlin("jvm") version "2.3.20"
+    id("net.fabricmc.fabric-loom") version "1.15.5"
 }
 
 val minecraftVersion: String by project
-val yarnMappings: String by project
 val loaderVersion: String by project
 val fabricVersion: String by project
 val archivesBaseName: String by project
@@ -24,22 +23,21 @@ repositories {
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
 }
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
     compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_25)
     }
 }
 
 dependencies {
     // Minecraft and Fabric
     minecraft("com.mojang:minecraft:$minecraftVersion")
-    mappings("net.fabricmc:yarn:$yarnMappings:v2")
-    modImplementation("net.fabricmc:fabric-loader:$loaderVersion")
-    modImplementation("net.fabricmc.fabric-api:fabric-api:$fabricVersion")
+    implementation("net.fabricmc:fabric-loader:$loaderVersion")
+    implementation("net.fabricmc.fabric-api:fabric-api:$fabricVersion")
 
     // Common module (via composite build substitution)
     implementation("com.alaydriem:bedrock-voice-chat-common")

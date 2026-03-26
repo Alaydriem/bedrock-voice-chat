@@ -213,6 +213,21 @@ impl AudioFileService {
         Ok(count)
     }
 
+    pub async fn exists<C: ConnectionTrait>(
+        conn: &C,
+        file_id: &str,
+    ) -> Result<bool, AudioFileError> {
+        let count = audio_file::Entity::find_by_id(file_id.to_string())
+            .filter(audio_file::Column::Deleted.eq(0))
+            .count(conn)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to check audio file existence: {}", e);
+                AudioFileError::Internal
+            })?;
+        Ok(count > 0)
+    }
+
     fn to_response(model: audio_file::Model, gamertag: String) -> AudioFileResponse {
         let uploader = UploaderIdentity::from_game_str(&model.game, gamertag);
         AudioFileResponse {
