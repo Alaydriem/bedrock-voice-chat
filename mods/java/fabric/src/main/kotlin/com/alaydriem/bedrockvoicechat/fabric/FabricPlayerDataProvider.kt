@@ -6,12 +6,17 @@ import com.alaydriem.bedrockvoicechat.dto.GameType
 import com.alaydriem.bedrockvoicechat.dto.PlayerData
 import com.alaydriem.bedrockvoicechat.integration.FloodgateIntegration
 import net.minecraft.server.MinecraftServer
-import net.minecraft.server.level.ServerLevel
-import net.minecraft.server.level.ServerPlayer
+import net.minecraft.server.network.ServerPlayerEntity
+import net.minecraft.server.world.ServerWorld
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
+/**
+ * Fabric-specific player data provider using Minecraft server API.
+ * Uses event-driven player tracking via ConcurrentHashMap.
+ * Stores UUIDs and looks up fresh player references each tick to avoid stale entity references.
+ */
 class FabricPlayerDataProvider(
     private val floodgate: FloodgateIntegration = FloodgateIntegration(),
     private val floodgatePrefix: String? = null
@@ -22,20 +27,20 @@ class FabricPlayerDataProvider(
     private val deadPlayers: MutableSet<UUID> = ConcurrentHashMap.newKeySet()
     private val worldUuidCache = ConcurrentHashMap<String, String>()
 
-    fun addPlayer(player: ServerPlayer) {
+    fun addPlayer(player: ServerPlayerEntity) {
         onlinePlayers.add(player.uuid)
     }
 
-    fun removePlayer(player: ServerPlayer) {
+    fun removePlayer(player: ServerPlayerEntity) {
         onlinePlayers.remove(player.uuid)
         deadPlayers.remove(player.uuid)
     }
 
-    fun markDead(player: ServerPlayer) {
+    fun markDead(player: ServerPlayerEntity) {
         deadPlayers.add(player.uuid)
     }
 
-    fun markAlive(player: ServerPlayer) {
+    fun markAlive(player: ServerPlayerEntity) {
         deadPlayers.remove(player.uuid)
     }
 
@@ -43,13 +48,14 @@ class FabricPlayerDataProvider(
         val srv = server ?: return emptyList()
 
         return onlinePlayers
-            .mapNotNull { uuid -> srv.playerList.getPlayer(uuid) }
-            .filter { !it.hasDisconnected() }
+            .mapNotNull { uuid -> srv.playerManager.getPlayer(uuid) }
+            .filter { !it.isDisconnected }
             .map { player ->
-                val worldUuid = getWorldUuid(player.level())
+                val worldUuid = getWorldUuid(player.entityWorld as ServerWorld)
                 val altIdentity = resolveAlternativeIdentity(player)
                 val playerUuid = player.uuid.toString()
 
+                // Check if player is dead - override to death dimension at origin
                 if (deadPlayers.contains(player.uuid)) {
                     PlayerData(
                         name = player.name.string,
@@ -66,16 +72,17 @@ class FabricPlayerDataProvider(
                         playerUuid = playerUuid
                     )
                 } else {
+                    // Normal player data
                     val dimension = getDimensionFromPlayer(player)
                     PlayerData(
                         name = player.name.string,
                         x = player.x,
                         y = player.y,
                         z = player.z,
-                        yaw = player.yRot,
-                        pitch = player.xRot,
+                        yaw = player.yaw,
+                        pitch = player.pitch,
                         dimension = dimension,
-                        deafen = player.isShiftKeyDown,
+                        deafen = player.isSneaking,
                         spectator = player.isSpectator,
                         worldUuid = worldUuid,
                         alternativeIdentity = altIdentity,
@@ -85,17 +92,24 @@ class FabricPlayerDataProvider(
             }
     }
 
-    private fun resolveAlternativeIdentity(player: ServerPlayer): String? {
+    /**
+     * Resolve the alternative identity (Xbox gamertag) for a player.
+     * Tries Floodgate API first, then falls back to prefix stripping from config.
+     */
+    private fun resolveAlternativeIdentity(player: ServerPlayerEntity): String? {
         val playerName = player.name.string
         val result = resolveRawAlternativeIdentity(player, playerName)
+        // No mapping needed if the resolved identity matches the player name
         if (result != null && result == playerName) return null
         return result
     }
 
-    private fun resolveRawAlternativeIdentity(player: ServerPlayer, playerName: String): String? {
+    private fun resolveRawAlternativeIdentity(player: ServerPlayerEntity, playerName: String): String? {
+        // Try Floodgate API first
         val floodgateGamertag = floodgate.getXboxGamertag(player.uuid)
         if (floodgateGamertag != null) return floodgateGamertag
 
+        // Fall back to prefix stripping if configured
         val prefix = floodgatePrefix
         if (prefix != null && playerName.startsWith(prefix)) {
             return playerName.removePrefix(prefix)
@@ -106,10 +120,10 @@ class FabricPlayerDataProvider(
 
     override fun getGameType(): GameType = GameType.MINECRAFT
 
-    fun getWorldUuid(world: ServerLevel): String {
-        val dimKey = world.dimension().identifier().toString()
+    fun getWorldUuid(world: ServerWorld): String {
+        val dimKey = world.registryKey.value.toString()
         return worldUuidCache.getOrPut(dimKey) {
-            val worldDir = world.server.serverDirectory.resolve("bvc").toFile()
+            val worldDir = world.server!!.getRunDirectory().resolve("bvc").toFile()
             worldDir.mkdirs()
             val uuidFile = File(worldDir, "world_uuid_${dimKey.replace(":", "_")}.txt")
             if (uuidFile.exists()) {
@@ -122,8 +136,8 @@ class FabricPlayerDataProvider(
         }
     }
 
-    private fun getDimensionFromPlayer(player: ServerPlayer): Dimension {
-        val dimensionId = (player.level()).dimension().identifier().toString()
+    private fun getDimensionFromPlayer(player: ServerPlayerEntity): Dimension {
+        val dimensionId = player.entityWorld.registryKey.value.toString()
 
         return when (dimensionId) {
             "minecraft:overworld" -> Dimension.Minecraft.OVERWORLD

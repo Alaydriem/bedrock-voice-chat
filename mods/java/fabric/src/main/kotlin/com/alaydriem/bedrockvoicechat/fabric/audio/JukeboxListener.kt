@@ -3,27 +3,26 @@ package com.alaydriem.bedrockvoicechat.fabric.audio
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents
 import net.fabricmc.fabric.api.event.player.UseBlockCallback
-import net.minecraft.core.BlockPos
-import net.minecraft.core.component.DataComponents
-import net.minecraft.core.particles.ParticleTypes
-import net.minecraft.network.chat.Component
-import net.minecraft.server.level.ServerLevel
-import net.minecraft.server.level.ServerPlayer
-import net.minecraft.world.InteractionHand
-import net.minecraft.world.InteractionResult
-import net.minecraft.world.item.ItemStack
-import net.minecraft.world.item.Items
-import net.minecraft.nbt.CompoundTag
-import net.minecraft.world.item.component.CustomData
-import net.minecraft.world.level.Level
-import net.minecraft.world.level.block.Block
-import net.minecraft.world.level.block.Blocks
-import net.minecraft.world.level.block.JukeboxBlock
-import net.minecraft.world.level.block.entity.JukeboxBlockEntity
+import net.minecraft.block.Blocks
+import net.minecraft.block.JukeboxBlock
+import net.minecraft.block.entity.JukeboxBlockEntity
+import net.minecraft.component.DataComponentTypes
+import net.minecraft.component.type.NbtComponent
+import net.minecraft.item.ItemStack
+import net.minecraft.item.Items
+import net.minecraft.particle.ParticleTypes
+import net.minecraft.server.network.ServerPlayerEntity
+import net.minecraft.server.world.ServerWorld
+import net.minecraft.text.Text
+import net.minecraft.util.ActionResult
+import net.minecraft.util.Hand
+import net.minecraft.util.ItemScatterer
+import net.minecraft.util.math.BlockPos
+import net.minecraft.world.World
 
 class JukeboxListener(
     private val audioPlayerManager: FabricAudioPlayerManager,
-    private val worldUuidResolver: (ServerLevel) -> String
+    private val worldUuidResolver: (ServerWorld) -> String
 ) {
     private data class ActiveJukebox(val pos: BlockPos, val ejectTick: Long)
 
@@ -36,56 +35,74 @@ class JukeboxListener(
 
     fun register() {
         UseBlockCallback.EVENT.register { player, world, hand, hitResult ->
-            if (world.isClientSide) return@register InteractionResult.PASS
-            if (hand != InteractionHand.MAIN_HAND) return@register InteractionResult.PASS
+            if (world.isClient) return@register ActionResult.PASS
+            if (hand != Hand.MAIN_HAND) return@register ActionResult.PASS
 
             val pos = hitResult.blockPos
             val state = world.getBlockState(pos)
-            if (state.block != Blocks.JUKEBOX) return@register InteractionResult.PASS
+            if (state.block != Blocks.JUKEBOX) return@register ActionResult.PASS
 
             val jukebox = world.getBlockEntity(pos) as? JukeboxBlockEntity
-                ?: return@register InteractionResult.PASS
+                ?: return@register ActionResult.PASS
 
-            val heldItem = player.getItemInHand(hand)
+            val heldItem = player.getStackInHand(hand)
 
             if (heldItem.item == Items.MUSIC_DISC_5 && isBvcDisc(heldItem)) {
-                if (!jukebox.theItem.isEmpty) return@register InteractionResult.PASS
+                if (!jukebox.stack.isEmpty) return@register ActionResult.PASS
 
-                // Strip JUKEBOX_PLAYABLE before insertion to prevent vanilla audio.
-                // The mixin handles BVC playback start, block state, and auto-eject.
                 val disc = heldItem.copyWithCount(1)
-                heldItem.shrink(1)
-                disc.remove(DataComponents.JUKEBOX_PLAYABLE)
-                jukebox.setTheItem(disc)
+                heldItem.decrement(1)
+                jukebox.setDisc(disc)
+                disc.remove(DataComponentTypes.JUKEBOX_PLAYABLE)
 
-                (player as? ServerPlayer)?.sendSystemMessage(Component.empty(), true)
+                world.setBlockState(pos, state.with(JukeboxBlock.HAS_RECORD, true))
 
-                InteractionResult.SUCCESS
+                val audioId = getAudioId(disc) ?: return@register ActionResult.SUCCESS
+                val dimensionId = getDimensionId(world)
+                val worldUuid = worldUuidResolver(world as ServerWorld)
+                val key = audioPlayerManager.locationKey(worldUuid, pos.x, pos.y, pos.z)
+
+                audioPlayerManager.startPlayback(
+                    audioId, dimensionId,
+                    pos.x.toDouble(), pos.y.toDouble(), pos.z.toDouble(),
+                    worldUuid
+                ) { durationMs ->
+                    if (durationMs > 0) {
+                        val ejectTick = world.server?.let { it.ticks + (durationMs / 50L) } ?: Long.MAX_VALUE
+                        activeJukeboxes[key] = ActiveJukebox(pos.toImmutable(), ejectTick)
+                    } else {
+                        activeJukeboxes[key] = ActiveJukebox(pos.toImmutable(), Long.MAX_VALUE)
+                    }
+                }
+
+                (player as? ServerPlayerEntity)?.sendMessage(Text.empty(), true)
+
+                ActionResult.SUCCESS
             } else if (heldItem.isEmpty) {
-                val record = jukebox.theItem
-                if (record.isEmpty || !isBvcDisc(record)) return@register InteractionResult.PASS
+                val record = jukebox.stack
+                if (record.isEmpty || !isBvcDisc(record)) return@register ActionResult.PASS
 
-                val worldUuid = worldUuidResolver(world as ServerLevel)
+                val worldUuid = worldUuidResolver(world as ServerWorld)
                 val key = audioPlayerManager.locationKey(worldUuid, pos.x, pos.y, pos.z)
                 audioPlayerManager.stopPlayback(key)
                 activeJukeboxes.remove(key)
-                ejectDisc(world as ServerLevel, pos, jukebox)
+                ejectDisc(world as ServerWorld, pos, jukebox)
 
-                InteractionResult.SUCCESS
+                ActionResult.SUCCESS
             } else {
-                InteractionResult.PASS
+                ActionResult.PASS
             }
         }
 
         PlayerBlockBreakEvents.BEFORE.register { world, player, pos, state, blockEntity ->
             if (state.block != Blocks.JUKEBOX) return@register true
             val jukebox = blockEntity as? JukeboxBlockEntity ?: return@register true
-            if (jukebox.theItem.isEmpty || !isBvcDisc(jukebox.theItem)) return@register true
+            if (jukebox.stack.isEmpty || !isBvcDisc(jukebox.stack)) return@register true
 
-            restoreJukeboxPlayable(jukebox.theItem)
+            restoreJukeboxPlayable(jukebox.stack)
 
             val key = audioPlayerManager.locationKey(
-                worldUuidResolver(world as ServerLevel), pos.x, pos.y, pos.z
+                worldUuidResolver(world as ServerWorld), pos.x, pos.y, pos.z
             )
             audioPlayerManager.stopPlayback(key)
             activeJukeboxes.remove(key)
@@ -93,8 +110,9 @@ class JukeboxListener(
         }
 
         ServerTickEvents.END_SERVER_TICK.register { server ->
-            val currentTick = server.tickCount.toLong()
+            val currentTick = server.ticks.toLong()
 
+            // Auto-eject expired jukeboxes
             val toEject = mutableListOf<String>()
             for ((key, active) in activeJukeboxes) {
                 if (currentTick >= active.ejectTick) {
@@ -104,7 +122,7 @@ class JukeboxListener(
             for (key in toEject) {
                 val active = activeJukeboxes.remove(key) ?: continue
                 audioPlayerManager.stopPlayback(key)
-                for (world in server.allLevels) {
+                for (world in server.worlds) {
                     if (world.getBlockState(active.pos).block == Blocks.JUKEBOX) {
                         val jukebox = world.getBlockEntity(active.pos) as? JukeboxBlockEntity ?: continue
                         ejectDisc(world, active.pos, jukebox)
@@ -113,15 +131,16 @@ class JukeboxListener(
                 }
             }
 
+            // Spawn note particles every 20 ticks
             particleTickCounter++
             if (particleTickCounter < 20) return@register
             particleTickCounter = 0
 
             for ((key, active) in activeJukeboxes) {
                 if (!audioPlayerManager.hasActivePlayback(key)) continue
-                for (world in server.allLevels) {
+                for (world in server.worlds) {
                     if (world.getBlockState(active.pos).block == Blocks.JUKEBOX) {
-                        world.sendParticles(
+                        world.spawnParticles(
                             ParticleTypes.NOTE,
                             active.pos.x + 0.5, active.pos.y + 1.2, active.pos.z + 0.5,
                             1, 0.3, 0.0, 0.3, 0.0
@@ -144,11 +163,10 @@ class JukeboxListener(
         @JvmStatic
         fun onHopperInsert(jukebox: JukeboxBlockEntity, stack: ItemStack) {
             val listener = instance ?: return
-            val world = jukebox.level as? ServerLevel ?: return
-            val pos = jukebox.blockPos
+            val world = jukebox.world as? ServerWorld ?: return
+            val pos = jukebox.pos
 
-            stack.remove(DataComponents.JUKEBOX_PLAYABLE)
-            jukebox.songPlayer.stop(world, world.getBlockState(pos))
+            stack.remove(DataComponentTypes.JUKEBOX_PLAYABLE)
 
             val audioId = getAudioId(stack) ?: return
             val dimensionId = getDimensionId(world)
@@ -157,7 +175,7 @@ class JukeboxListener(
 
             if (listener.audioPlayerManager.hasActivePlayback(key)) return
 
-            world.setBlockAndUpdate(pos, world.getBlockState(pos).setValue(JukeboxBlock.HAS_RECORD, true))
+            world.setBlockState(pos, world.getBlockState(pos).with(JukeboxBlock.HAS_RECORD, true))
 
             listener.audioPlayerManager.startPlayback(
                 audioId, dimensionId,
@@ -165,14 +183,14 @@ class JukeboxListener(
                 worldUuid
             ) { durationMs ->
                 val ejectTick = if (durationMs > 0) {
-                    world.server?.let { it.tickCount + (durationMs / 50L) } ?: Long.MAX_VALUE
+                    world.server?.let { it.ticks + (durationMs / 50L) } ?: Long.MAX_VALUE
                 } else Long.MAX_VALUE
-                listener.activeJukeboxes[key] = ActiveJukebox(pos.immutable(), ejectTick)
+                listener.activeJukeboxes[key] = ActiveJukebox(pos.toImmutable(), ejectTick)
             }
         }
 
-        fun getDimensionId(world: Level): String {
-            val path = world.dimension().identifier().path
+        fun getDimensionId(world: World): String {
+            val path = world.registryKey.value.path
             return when (path) {
                 "the_nether" -> "nether"
                 else -> path
@@ -181,39 +199,39 @@ class JukeboxListener(
 
         fun isBvcDisc(stack: ItemStack): Boolean {
             if (stack.item != Items.MUSIC_DISC_5) return false
-            val nbt = stack.get(DataComponents.CUSTOM_DATA) ?: return false
-            return nbt.copyTag().getBoolean(BVC_DISC_TAG).orElse(false)
+            val nbt = stack.get(DataComponentTypes.CUSTOM_DATA) ?: return false
+            return nbt.copyNbt().getBoolean(BVC_DISC_TAG).orElse(false)
         }
 
         fun getAudioId(stack: ItemStack): String? {
-            val nbt = stack.get(DataComponents.CUSTOM_DATA) ?: return null
-            return nbt.copyTag().getString(AUDIO_ID_TAG).orElse(null)
+            val nbt = stack.get(DataComponentTypes.CUSTOM_DATA) ?: return null
+            return nbt.copyNbt().getString(AUDIO_ID_TAG).orElse(null)
         }
 
         fun createBvcDisc(audioId: String): ItemStack {
             val disc = ItemStack(Items.MUSIC_DISC_5)
-            val tag = CompoundTag()
-            tag.putBoolean(BVC_DISC_TAG, true)
-            tag.putString(AUDIO_ID_TAG, audioId)
-            CustomData.set(DataComponents.CUSTOM_DATA, disc, tag)
+            NbtComponent.set(DataComponentTypes.CUSTOM_DATA, disc) { nbt ->
+                nbt.putBoolean(BVC_DISC_TAG, true)
+                nbt.putString(AUDIO_ID_TAG, audioId)
+            }
             return disc
         }
 
-        private fun ejectDisc(world: ServerLevel, pos: BlockPos, jukebox: JukeboxBlockEntity) {
-            val disc = jukebox.theItem
+        private fun ejectDisc(world: ServerWorld, pos: BlockPos, jukebox: JukeboxBlockEntity) {
+            val disc = jukebox.stack
             if (disc.isEmpty) return
             restoreJukeboxPlayable(disc)
-            jukebox.setTheItem(ItemStack.EMPTY)
-            jukebox.setChanged()
-            world.setBlockAndUpdate(pos, world.getBlockState(pos).setValue(JukeboxBlock.HAS_RECORD, false))
-            Block.popResource(world, pos.above(), disc)
+            jukebox.setStack(ItemStack.EMPTY)
+            jukebox.markDirty()
+            world.setBlockState(pos, world.getBlockState(pos).with(JukeboxBlock.HAS_RECORD, false))
+            ItemScatterer.spawn(world, pos.x + 0.5, pos.y + 1.0, pos.z + 0.5, disc)
         }
 
         private fun restoreJukeboxPlayable(disc: ItemStack) {
-            if (disc.has(DataComponents.JUKEBOX_PLAYABLE)) return
-            val defaultPlayable = ItemStack(Items.MUSIC_DISC_5).get(DataComponents.JUKEBOX_PLAYABLE)
+            if (disc.contains(DataComponentTypes.JUKEBOX_PLAYABLE)) return
+            val defaultPlayable = ItemStack(Items.MUSIC_DISC_5).get(DataComponentTypes.JUKEBOX_PLAYABLE)
             if (defaultPlayable != null) {
-                disc.set(DataComponents.JUKEBOX_PLAYABLE, defaultPlayable)
+                disc.set(DataComponentTypes.JUKEBOX_PLAYABLE, defaultPlayable)
             }
         }
     }
