@@ -185,6 +185,7 @@ pub fn run() {
             crate::commands::keyring::get_credential,
             crate::commands::keyring::set_credential,
             crate::commands::keyring::delete_credentials,
+            crate::commands::keyring::is_certificate_expired,
             // Updater
             #[cfg(desktop)]
             crate::commands::updater::check_for_updates,

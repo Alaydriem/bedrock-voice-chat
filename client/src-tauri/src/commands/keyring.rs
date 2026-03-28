@@ -46,6 +46,16 @@ pub(crate) async fn set_credential(
 }
 
 #[tauri::command(async)]
+pub(crate) async fn is_certificate_expired(
+    keyring: State<'_, Mutex<KeyringService>>,
+    server: String,
+) -> Result<bool, String> {
+    let mut kr = keyring.lock().await;
+    kr.is_certificate_expired(&server)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command(async)]
 pub(crate) async fn delete_credentials(
     keyring: State<'_, Mutex<KeyringService>>,
     server: String,

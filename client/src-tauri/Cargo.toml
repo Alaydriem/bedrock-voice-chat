@@ -73,6 +73,7 @@ chrono = { version = "^0.4" }
 fern = { version = "^0.7" }
 async-trait = { version = "^0.1" }
 url = { version = "2" }
+x509-parser = { version = "0.16" }
 tar = { version = "^0.4" }
 zstd = { version = "^0.13" }
 sentry = { version = "^0.46", default-features = false, features = [

@@ -35,7 +35,7 @@ impl AppState {
                 id: "default".to_string(),
                 name: "default".to_string(),
                 host: AudioDeviceHost::try_from(cpal::default_host().id())
-                    .unwrap_or(AudioDeviceHost::Wasapi),
+                    .unwrap_or_else(|_| AudioDeviceHost::default()),
                 stream_configs: vec![],
                 display_name: "Default Device".to_string(),
             }

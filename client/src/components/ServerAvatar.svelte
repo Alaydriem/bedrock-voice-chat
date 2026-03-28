@@ -50,6 +50,13 @@
     try {
       const credentials = await invoke<LoginResponse>("get_credentials", { server });
 
+      // Check certificate validity before attempting mTLS calls
+      const expired = await invoke<boolean>("is_certificate_expired", { server });
+      if (expired) {
+        showReauthButton();
+        return;
+      }
+
       await invoke("api_initialize_client", {
         endpoint: server,
         cert: credentials.certificate_ca,

@@ -90,6 +90,21 @@ export default class Dashboard extends BVCApp {
 
         const currentServer = await this.store.get<string>("current_server");
 
+        // Check certificate validity before initializing anything that depends on a valid session
+        if (currentServer) {
+            try {
+                const expired = await invoke<boolean>("is_certificate_expired", { server: currentServer });
+                if (expired) {
+                    warn("Certificate expired for " + currentServer + ", logging out and redirecting to login");
+                    await invoke("logout");
+                    window.location.href = "/login?reauth=true&server=" + currentServer;
+                    return;
+                }
+            } catch (e) {
+                warn("Could not check certificate expiry: " + e);
+            }
+        }
+
         // Initialize managers with dependency injection
         await this.initializeManagers();
 

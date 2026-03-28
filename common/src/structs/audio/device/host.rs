@@ -24,6 +24,24 @@ pub enum AudioDeviceHost {
     Alsa,
 }
 
+impl Default for AudioDeviceHost {
+    fn default() -> Self {
+        #[cfg(target_os = "windows")]
+        { AudioDeviceHost::Wasapi }
+        #[cfg(target_os = "android")]
+        { AudioDeviceHost::AAudio }
+        #[cfg(any(target_os = "macos", target_os = "ios"))]
+        { AudioDeviceHost::CoreAudio }
+        #[cfg(any(
+            target_os = "linux",
+            target_os = "dragonfly",
+            target_os = "freebsd",
+            target_os = "netbsd"
+        ))]
+        { AudioDeviceHost::Alsa }
+    }
+}
+
 #[cfg(feature = "audio")]
 impl TryFrom<rodio::cpal::HostId> for AudioDeviceHost {
     type Error = ();

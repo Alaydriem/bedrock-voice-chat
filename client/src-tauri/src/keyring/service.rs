@@ -129,6 +129,11 @@ impl KeyringService {
         Ok(())
     }
 
+    pub fn is_certificate_expired(&mut self, server: &str) -> Result<bool, anyhow::Error> {
+        let cert_pem = self.get_credential(server, KEY_CERTIFICATE)?;
+        super::CertificateValidator::is_expired(&cert_pem)
+    }
+
     pub fn delete_credentials(
         &mut self,
         server: &str,

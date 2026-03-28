@@ -1,4 +1,4 @@
-import { info, error } from '@tauri-apps/plugin-log';
+import { info, error, warn } from '@tauri-apps/plugin-log';
 import { invoke } from "@tauri-apps/api/core";
 
 // @ts-ignore
@@ -46,6 +46,18 @@ export default class Server extends BVCApp {
         error("No credentials found for server " + server + ", redirecting to login page");
         window.location.href="/login";
         return;
+      }
+
+      // Check certificate validity before attempting mTLS calls
+      try {
+        const expired = await invoke<boolean>("is_certificate_expired", { server });
+        if (expired) {
+          info("Certificate expired for server " + server + ", redirecting to login");
+          window.location.href = "/login?reauth=true&server=" + server;
+          return;
+        }
+      } catch (e) {
+        warn("Could not check certificate expiry for " + server + ": " + e);
       }
 
       await invoke("api_initialize_client", {
