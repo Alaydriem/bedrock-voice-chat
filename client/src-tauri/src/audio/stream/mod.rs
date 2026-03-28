@@ -122,7 +122,7 @@ impl AudioStreamManager {
 
         // Stop the current stream if we're re-initializing a new one so we don't
         // have dangling thread pointers
-        _ = self.stop(device.clone().io);
+        _ = self.stop(device.clone().io).await;
 
         // Get recording producer and flag from manager if available
         let (recording_producer, recording_flag) = if let Some(ref rm) = self.recording_manager {
@@ -167,8 +167,8 @@ impl AudioStreamManager {
     #[allow(unused)]
     #[tracing::instrument(skip(self), fields(device = ?device))]
     pub async fn restart(&mut self, device: AudioDeviceType) -> Result<(), Error> {
-        // Stop the audio strema
-        _ = self.stop(device.clone());
+        // Stop the audio stream
+        _ = self.stop(device.clone()).await;
 
         // Get recording producer and flag from manager if available
         let (recording_producer, recording_flag) = if let Some(ref rm) = self.recording_manager {

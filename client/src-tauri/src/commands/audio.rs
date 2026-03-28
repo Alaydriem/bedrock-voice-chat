@@ -1,10 +1,12 @@
 use crate::audio::types::{AudioDevice, AudioDeviceType};
 use crate::audio::{AudioActionsManager, RecordingManager};
+use crate::events::event::notification::{EVENT_NOTIFICATION, Notification};
 use crate::{AudioStreamManager, structs::app_state::AppState};
 use common::structs::audio::StreamEvent;
-use log::info;
+use log::{error, info, warn};
 use std::collections::HashMap;
 use std::sync::Arc;
+use tauri::Emitter;
 use tauri::async_runtime::Mutex;
 use tauri::{AppHandle, State};
 use tauri_plugin_store::StoreExt;
@@ -30,7 +32,7 @@ pub(crate) async fn set_audio_device(
     asm: State<'_, Mutex<AudioStreamManager>>,
 ) -> Result<(), String> {
     let mut state = state.lock().await;
-    _ = update_current_player(app.clone(), asm.clone());
+    let _ = update_current_player(app.clone(), asm.clone()).await;
     state.change_audio_device(device.clone())
 }
 
@@ -42,25 +44,102 @@ pub(crate) async fn change_audio_device(
     state: State<'_, Mutex<AppState>>,
     asm: State<'_, Mutex<AudioStreamManager>>,
 ) -> Result<(), String> {
-    let mut state = state.lock().await;
-    let mut asm_active = asm.lock().await;
+    // Phase 1: Get devices (short state lock, released before slow operations)
+    let (input_device, output_device) = {
+        let mut state = state.lock().await;
+        let input = state.get_audio_device(AudioDeviceType::InputDevice)?;
+        let output = state.get_audio_device(AudioDeviceType::OutputDevice)?;
+        (input, output)
+    };
 
-    // Reset the AudioStreamManager
+    // Phase 2: Reset and init/start streams (asm lock only)
+    let mut asm_active = asm.lock().await;
     _ = asm_active.reset().await;
 
-    // Reinitialize the input and output devices
-    // Input device will be lazily initialized here if permissions are granted
-    let input_device = state.get_audio_device(AudioDeviceType::InputDevice)?;
-    let output_device = state.get_audio_device(AudioDeviceType::OutputDevice)?;
-
+    // Input device: init, start, fallback to default on failure
     asm_active.init(input_device.clone()).await;
-    _ = asm_active.start(input_device.clone().io).await;
+    if let Err(e) = asm_active.start(input_device.clone().io).await {
+        warn!("Input device '{}' failed: {}. Falling back to default.", input_device.display_name, e);
+        drop(asm_active);
+        let fallback_result = {
+            let mut state = state.lock().await;
+            state.clear_audio_device(AudioDeviceType::InputDevice)
+                .and_then(|_| state.get_audio_device(AudioDeviceType::InputDevice))
+        };
+        match fallback_result {
+            Ok(default_input) => {
+                asm_active = asm.lock().await;
+                asm_active.init(default_input.clone()).await;
+                if let Err(e2) = asm_active.start(default_input.clone().io).await {
+                    error!("Default input device also failed: {}", e2);
+                    return Err(format!("NO_INPUT_DEVICE: {}", e2));
+                }
+                let _ = app.emit(
+                    EVENT_NOTIFICATION,
+                    Notification::new(
+                        "Input Device Unavailable".to_string(),
+                        format!("'{}' could not be activated. Switched to default device.", input_device.display_name),
+                        Some("warning".to_string()),
+                        None,
+                        None,
+                        None,
+                    ),
+                );
+            }
+            Err(e) if e.contains("INCOMPATIBLE_DEVICE") => {
+                error!("Incompatible input device: {}", e);
+                return Err(e);
+            }
+            Err(e) => {
+                error!("No input device available: {}", e);
+                return Err(format!("NO_INPUT_DEVICE: {}", e));
+            }
+        }
+    }
+
+    // Output device: init, start, fallback to default on failure
     asm_active.init(output_device.clone()).await;
-    _ = asm_active.start(output_device.clone().io).await;
+    if let Err(e) = asm_active.start(output_device.clone().io).await {
+        warn!("Output device '{}' failed: {}. Falling back to default.", output_device.display_name, e);
+        drop(asm_active);
+        let fallback_result = {
+            let mut state = state.lock().await;
+            state.clear_audio_device(AudioDeviceType::OutputDevice)
+                .and_then(|_| state.get_audio_device(AudioDeviceType::OutputDevice))
+        };
+        match fallback_result {
+            Ok(default_output) => {
+                asm_active = asm.lock().await;
+                asm_active.init(default_output.clone()).await;
+                if let Err(e2) = asm_active.start(default_output.clone().io).await {
+                    error!("Default output device also failed: {}", e2);
+                    return Err(format!("NO_OUTPUT_DEVICE: {}", e2));
+                }
+                let _ = app.emit(
+                    EVENT_NOTIFICATION,
+                    Notification::new(
+                        "Output Device Unavailable".to_string(),
+                        format!("'{}' could not be activated. Switched to default device.", output_device.display_name),
+                        Some("warning".to_string()),
+                        None,
+                        None,
+                        None,
+                    ),
+                );
+            }
+            Err(e) if e.contains("INCOMPATIBLE_DEVICE") => {
+                error!("Incompatible output device: {}", e);
+                return Err(e);
+            }
+            Err(e) => {
+                error!("No output device available: {}", e);
+                return Err(format!("NO_OUTPUT_DEVICE: {}", e));
+            }
+        }
+    }
 
     drop(asm_active);
-
-    _ = update_current_player(app.clone(), asm.clone());
+    let _ = update_current_player(app.clone(), asm.clone()).await;
 
     Ok(())
 }

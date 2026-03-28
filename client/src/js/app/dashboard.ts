@@ -4,8 +4,6 @@ import { info, error, warn } from '@tauri-apps/plugin-log';
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
-import { mount } from "svelte";
-
 import type { AudioDevice } from "../../js/bindings/AudioDevice.ts";
 import type { LoginResponse } from "../../js/bindings/LoginResponse.ts";
 import BVCApp from "./BVCApp";
@@ -18,8 +16,6 @@ import ImageCacheOptions from './components/imageCacheOptions';
 import { PlayerManager } from './managers/PlayerManager';
 import ChannelManager from './managers/ChannelManager';
 import { AudioActivityManager } from './managers/AudioActivityManager';
-
-import Notification from "../../components/events/Notification.svelte";
 import Analytics from './analytics';
 import type { KeybindConfig } from '../bindings/KeybindConfig.ts';
 import type { NoiseGateSettings } from '../bindings/NoiseGateSettings.ts';
@@ -91,20 +87,6 @@ export default class Dashboard extends BVCApp {
         }
 
         const appWebview = getCurrentWebviewWindow();
-
-        // Handle notifications
-        const notificationUnlisten = await appWebview.listen('notification', (event: { payload?: { title?: string, body?: string, level?: string } }) => {
-            info(`Notification received: ${JSON.stringify(event.payload)}`);
-            mount(Notification, {
-                target: document.querySelector("#notification-container")!,
-                props: {
-                    title: event.payload?.title || "",
-                    body: event.payload?.body || "",
-                    level: event.payload?.level || "info"
-                }
-            });
-        });
-        this.eventUnlisteners.push(notificationUnlisten);
 
         const currentServer = await this.store.get<string>("current_server");
 
@@ -364,18 +346,12 @@ export default class Dashboard extends BVCApp {
             });
 
         } catch (err) {
-            // Show error notification
-            const notificationContainer = document.querySelector("#notification-container");
-            if (notificationContainer) {
-                mount(Notification, {
-                    target: notificationContainer,
-                    props: {
-                        title: "Logout Failed",
-                        body: "An error occurred during logout. Please try again.",
-                        level: "error"
-                    }
-                });
-            }
+            const appWebview = getCurrentWebviewWindow();
+            await appWebview.emit('notification', {
+                title: "Logout Failed",
+                body: "An error occurred during logout. Please try again.",
+                level: "error"
+            });
         }
     }
 
@@ -492,7 +468,25 @@ export default class Dashboard extends BVCApp {
 
                 await this.updateAudioDevice("OutputDevice");
                 await this.updateAudioDevice("InputDevice");
-                await invoke("change_audio_device");
+                await invoke("change_audio_device").catch((e) => {
+                    const errStr = String(e);
+                    if (errStr.includes("INCOMPATIBLE_DEVICE")) {
+                        error(`Incompatible audio device: ${e}`);
+                        window.location.href = "/error?code=AUDI01";
+                        return;
+                    }
+                    if (errStr.includes("NO_INPUT_DEVICE")) {
+                        error(`No input device available: ${e}`);
+                        window.location.href = "/error?code=AUDI02";
+                        return;
+                    }
+                    if (errStr.includes("NO_OUTPUT_DEVICE")) {
+                        error(`No output device available: ${e}`);
+                        window.location.href = "/error?code=AUDI03";
+                        return;
+                    }
+                    error(`Audio device error: ${e}`);
+                });
             }).catch((e) => {
                 error(`Error updating current player: ${e}`);
             });
@@ -518,8 +512,8 @@ export default class Dashboard extends BVCApp {
                         return null;
                     });
             })
-            .catch((error) => {
-                error(`Error getting audio device: ${error}`);
+            .catch((err) => {
+                error(`Error getting audio device: ${err}`);
                 return null;
             });
     }
@@ -530,8 +524,17 @@ export default class Dashboard extends BVCApp {
             await invoke("change_network_stream", { server: currentServer, data: credentials });
             info(`Changed network stream to ${currentServer}`);
         } catch (e) {
-            error(`Error changing network stream: ${e}`);
-            window.location.href = "/error?code=CONN01";
+            const errStr = String(e);
+            if (errStr.includes("DNS_FAIL")) {
+                error(`DNS resolution failed: ${e}`);
+                window.location.href = "/error?code=DNS01";
+            } else if (errStr.includes("QUIC_FAIL")) {
+                error(`QUIC connection failed: ${e}`);
+                window.location.href = "/error?code=QUIC01";
+            } else {
+                error(`Error changing network stream: ${e}`);
+                window.location.href = "/error?code=CONN01";
+            }
         }
     }
 

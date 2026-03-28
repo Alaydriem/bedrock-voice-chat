@@ -126,15 +126,6 @@ impl common::traits::StreamTrait for OutputStream {
                 }
             }
 
-            _ = app_handle.emit(crate::events::event::notification::EVENT_NOTIFICATION, crate::events::event::notification::Notification::new(
-                "Network Stream Stopped".to_string(),
-                "The output network stream has been stopped.".to_string(),
-                Some("warn".to_string()),
-                None,
-                None,
-                None
-            ));
-
             // No stream close; connection closed elsewhere if needed
         }));
 

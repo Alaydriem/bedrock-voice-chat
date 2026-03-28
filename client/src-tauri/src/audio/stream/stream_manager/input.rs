@@ -567,8 +567,10 @@ impl InputStream {
                         }
                         None => {
                             error!(
-                                "CPAL output device is not defined. This shouldn't happen! Restart BVC? {:?}",
-                                device.clone()
+                                "CPAL device not found for {} '{}'. Device may have been disconnected or its ID changed. {:?}",
+                                device.io.store_key(),
+                                device.display_name,
+                                device
                             );
                             return Err(anyhow::anyhow!(
                                 "Couldn't retrieve native cpal device for {} {}.",

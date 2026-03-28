@@ -97,6 +97,17 @@ jobs:
           Write-Host "Setting LIBCLANG_PATH to: $libclangPath"
           echo "LIBCLANG_PATH=$libclangPath" >> $env:GITHUB_ENV
 
+      - name: Write client environment file
+        shell: bash
+        run: |
+          cat > client/.env.local << 'ENVEOF'
+          SENTRY_DSN=${{ secrets.SENTRY_DSN }}
+          POSTHOG_KEY=${{ secrets.POSTHOG_KEY }}
+          POSTHOG_HOST=${{ secrets.POSTHOG_HOST }}
+          FLAGSMITH_KEY=${{ secrets.FLAGSMITH_KEY }}
+          FLAGSMITH_SERVER=${{ secrets.FLAGSMITH_SERVER }}
+          ENVEOF
+
       - name: Build Windows client (debug)
         if: github.event_name == 'pull_request' || inputs.build_mode == 'debug' || inputs.build_mode == '' || inputs.build_mode == null
         working-directory: ./client

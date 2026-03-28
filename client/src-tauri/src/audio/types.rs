@@ -29,8 +29,8 @@ impl AudioDeviceCpal for AudioDevice {
         #[cfg(target_os = "windows")]
         {
             host = match self.host {
-                AudioDeviceHost::Asio => cpal::host_from_id(HostId::Asio).unwrap(),
-                AudioDeviceHost::Wasapi => cpal::host_from_id(HostId::Wasapi).unwrap(),
+                AudioDeviceHost::Asio => cpal::host_from_id(HostId::Asio).ok()?,
+                AudioDeviceHost::Wasapi => cpal::host_from_id(HostId::Wasapi).ok()?,
                 _ => return None,
             };
         }
@@ -38,7 +38,7 @@ impl AudioDeviceCpal for AudioDevice {
         #[cfg(target_os = "android")]
         {
             host = match self.host {
-                AudioDeviceHost::AAudio => cpal::host_from_id(HostId::AAudio).unwrap(),
+                AudioDeviceHost::AAudio => cpal::host_from_id(HostId::AAudio).ok()?,
                 _ => return None,
             };
         }
@@ -46,7 +46,7 @@ impl AudioDeviceCpal for AudioDevice {
         #[cfg(any(target_os = "macos", target_os = "ios"))]
         {
             host = match self.host {
-                AudioDeviceHost::CoreAudio => cpal::host_from_id(HostId::CoreAudio).unwrap(),
+                AudioDeviceHost::CoreAudio => cpal::host_from_id(HostId::CoreAudio).ok()?,
                 _ => return None,
             };
         }
@@ -58,7 +58,7 @@ impl AudioDeviceCpal for AudioDevice {
         ))]
         {
             host = match self.host {
-                AudioDeviceHost::Alsa => cpal::host_from_id(HostId::Alsa).unwrap(),
+                AudioDeviceHost::Alsa => cpal::host_from_id(HostId::Alsa).ok()?,
                 _ => return None,
             };
         }

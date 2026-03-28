@@ -74,20 +74,11 @@ impl Model {
         }
     }
 
-    /// Returns true if the certificate in storage is expiring
+    /// Returns true if the certificate in storage is expiring within 15 days
     pub fn is_certificate_expiring(&self) -> Result<bool, anyhow::Error> {
         let cp = self.get_certificate_params()?;
-
-        // If the certificate is expiring in 15 days, renew it.
-        if cp.not_after
-            <= OffsetDateTime::now_utc()
-                .checked_sub(Duration::days(-15))
-                .unwrap()
-        {
-            return Ok(true);
-        }
-
-        return Ok(true);
+        let renewal_threshold = OffsetDateTime::now_utc() + Duration::days(15);
+        Ok(cp.not_after <= renewal_threshold)
     }
 
     /// Returns the certificate params

@@ -86,18 +86,6 @@ impl common::traits::StreamTrait for InputStream {
             }
         }));
 
-        _ = app_handle.emit(
-            crate::events::event::notification::EVENT_NOTIFICATION,
-            crate::events::event::notification::Notification::new(
-                "Network Stream Stopped".to_string(),
-                "The input network stream has been stopped.".to_string(),
-                Some("info".to_string()),
-                None,
-                None,
-                None,
-            ),
-        );
-
         self.jobs = jobs.iter().map(|handle| handle.abort_handle()).collect();
 
         Ok(())

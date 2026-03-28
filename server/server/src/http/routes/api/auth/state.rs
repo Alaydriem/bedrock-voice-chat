@@ -39,7 +39,6 @@ pub async fn auth_state(
     let perm_service = PermissionService::new(perm_config.defaults.clone());
     let allowed = perm_service.evaluate_all(conn, player_model.id).await;
 
-    // NOTE: is_certificate_expiring() currently always returns true (known bug).
     let (certificate, certificate_key) = match player_model.is_certificate_expiring() {
         Ok(true) => {
             let gt = player_model

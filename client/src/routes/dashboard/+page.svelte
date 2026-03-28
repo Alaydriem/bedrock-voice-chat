@@ -6,6 +6,7 @@
   import MainSidebar from "../../components/dashboard/sidebar/MainSidebar.svelte";
   import MainSidebarGroupVcPanel from "../../components/dashboard/sidebar/MainSidebarGroupVCPanel.svelte";
   import PlayerPresenceList from "../../components/PlayerPresenceList.svelte";
+  import Notification from "../../components/events/Notification.svelte";
   import "../../css/app.css";
   import Dashboard from "../../js/app/dashboard.ts";
   import { PlayerPresenceManager } from "../../js/app/components/dashboard/presence.ts";
@@ -252,6 +253,7 @@
         <div class="flex space-x-2"></div>
       </div>
     </div>
+    <Notification />
     <div id="notification-container" class="notification-container"></div>
     <!-- Player Presence List - Now using reactive Svelte component -->
     {#if playerManager && audioActivityManager}
