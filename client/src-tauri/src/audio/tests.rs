@@ -44,7 +44,7 @@ fn get_devices() {
                 // We should always have _something_
                 assert_ne!(0, device_list.len());
                 for device in device_list {
-                    println!("[{}] {} {}", host, device.io.to_string(), device.name);
+                    println!("[{}] {} {}", host, device.io.store_key(), device.name);
                 }
             }
         }

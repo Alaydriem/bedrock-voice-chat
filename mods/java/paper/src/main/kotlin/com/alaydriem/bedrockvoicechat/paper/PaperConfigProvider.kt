@@ -37,8 +37,6 @@ class PaperConfigProvider(private val plugin: JavaPlugin) : ConfigProvider {
                         yamlConfig.getInt("embedded.httpPort", 8444))
                     quicPort = yamlConfig.getInt("embedded.quic-port",
                         yamlConfig.getInt("embedded.quicPort", 8443))
-                    publicAddr = yamlConfig.getString("embedded.public-addr")
-                        ?: yamlConfig.getString("embedded.publicAddr", "127.0.0.1")!!
                     broadcastRange = yamlConfig.getDouble("embedded.broadcast-range",
                         yamlConfig.getDouble("embedded.broadcastRange", 32.0)).toFloat()
                     tlsCertificate = yamlConfig.getString("embedded.tls-certificate")
@@ -57,6 +55,8 @@ class PaperConfigProvider(private val plugin: JavaPlugin) : ConfigProvider {
                     }
                     logLevel = yamlConfig.getString("embedded.log-level")
                         ?: yamlConfig.getString("embedded.logLevel", "info")!!
+                    assetsPath = yamlConfig.getString("embedded.assets-path")
+                        ?: yamlConfig.getString("embedded.assetsPath")
                 }
             }
         }
@@ -72,13 +72,13 @@ class PaperConfigProvider(private val plugin: JavaPlugin) : ConfigProvider {
         config.embeddedConfig?.let { embedded ->
             yamlConfig.set("embedded.http-port", embedded.httpPort)
             yamlConfig.set("embedded.quic-port", embedded.quicPort)
-            yamlConfig.set("embedded.public-addr", embedded.publicAddr)
             yamlConfig.set("embedded.broadcast-range", embedded.broadcastRange)
             yamlConfig.set("embedded.tls-certificate", embedded.tlsCertificate)
             yamlConfig.set("embedded.tls-key", embedded.tlsKey)
             yamlConfig.set("embedded.tls-names", embedded.tlsNames)
             yamlConfig.set("embedded.tls-ips", embedded.tlsIps)
             yamlConfig.set("embedded.log-level", embedded.logLevel)
+            embedded.assetsPath?.let { yamlConfig.set("embedded.assets-path", it) }
         }
 
         plugin.saveConfig()

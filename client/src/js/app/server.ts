@@ -1,4 +1,4 @@
-import { info, error } from '@tauri-apps/plugin-log';
+import { info, error, warn } from '@tauri-apps/plugin-log';
 import { invoke } from "@tauri-apps/api/core";
 
 // @ts-ignore
@@ -6,7 +6,6 @@ import murmurHash3 from "murmurhash3js";
 import { mount } from 'svelte';
 import ServerAvatar from '../../components/ServerAvatar.svelte';
 
-import Keyring from "./keyring.ts";
 import BVCApp from './BVCApp.ts';
 
 import { type LoginResponse } from "../bindings/LoginResponse";
@@ -19,46 +18,8 @@ declare global {
 
 export default class Server extends BVCApp {
 
-  private keyring: Keyring | undefined;
-
   constructor() {
       super();
-  }
-
-  async setKeyring(keyring: Keyring, server: string) {
-    this.keyring = keyring;
-    await this.keyring.setServer(server);
-  }
-
-  async getCredentials(): Promise<LoginResponse | null> {
-    const response: LoginResponse = {} as LoginResponse;
-    const keys: (keyof LoginResponse)[] = [
-      'gamerpic', 'gamertag', 'keypair', 'signature',
-      'certificate', 'certificate_key', 'certificate_ca', 'quic_connect_string'
-    ];
-
-    if (!this.keyring) {
-      throw new Error("Keyring not initialized");
-    }
-
-    for (const key of keys) {
-      const storedValue = await this.keyring.get(key);
-      if (key === "keypair" || key === "signature") {
-        let valueStr: string;
-        if (typeof storedValue === "string") {
-          valueStr = storedValue;
-        } else if (storedValue instanceof Uint8Array) {
-          valueStr = new TextDecoder().decode(storedValue);
-        } else {
-          valueStr = "";
-        }
-        (response as any)[key] = JSON.parse(valueStr);
-      } else {
-        (response as any)[key] = storedValue;
-      }
-    }
-
-    return response;
   }
 
   async initialize() {
@@ -77,15 +38,26 @@ export default class Server extends BVCApp {
     if (serverList.length === 1) {
       // Single server: quick path using default client
       const server = serverList[0].server;
-      this.keyring = await Keyring.new("servers");
-      await this.keyring.setServer(server);
 
-      const credentials = await this.getCredentials();
-
-      if (!credentials) {
+      let credentials: LoginResponse;
+      try {
+        credentials = await invoke<LoginResponse>("get_credentials", { server });
+      } catch (e) {
         error("No credentials found for server " + server + ", redirecting to login page");
         window.location.href="/login";
         return;
+      }
+
+      // Check certificate validity before attempting mTLS calls
+      try {
+        const expired = await invoke<boolean>("is_certificate_expired", { server });
+        if (expired) {
+          info("Certificate expired for server " + server + ", redirecting to login");
+          window.location.href = "/login?reauth=true&server=" + server;
+          return;
+        }
+      } catch (e) {
+        warn("Could not check certificate expiry for " + server + ": " + e);
       }
 
       await invoke("api_initialize_client", {

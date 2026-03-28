@@ -71,11 +71,16 @@ class BvcServerManager(
                 logger.debug("Created certificates directory: {}", certsDir)
             }
 
-            // Create assets directory (for server assets)
-            val assetsDir = configDir.resolve("assets")
-            if (!Files.exists(assetsDir)) {
-                Files.createDirectories(assetsDir)
-                logger.debug("Created assets directory: {}", assetsDir)
+            // Create assets and audio directories
+            val assetsBase = if (embedded.assetsPath != null) {
+                java.nio.file.Paths.get(embedded.assetsPath!!)
+            } else {
+                configDir.resolve("assets")
+            }
+            val audioDir = assetsBase.resolve("audio")
+            if (!Files.exists(audioDir)) {
+                Files.createDirectories(audioDir)
+                logger.info("Created audio assets directory: {}", audioDir.toAbsolutePath())
             }
         } catch (e: Exception) {
             logger.error("Failed to create data directories {}: {}", configDir, e.message)
@@ -91,9 +96,13 @@ class BvcServerManager(
         }
 
         // Use absolute path to avoid issues with relative paths on Windows
-        val runtimeConfig = buildRuntimeConfig(configDir.toAbsolutePath().toString())
+        val configDirAbsolute = configDir.toAbsolutePath().toString()
+        val runtimeConfig = buildRuntimeConfig(configDirAbsolute)
         val configJson = GSON.toJson(runtimeConfig)
 
+        val resolvedAssetsPath = (runtimeConfig["audio"] as? Map<*, *>)?.get("file_path")
+        logger.info("Audio file path: {}", resolvedAssetsPath)
+        logger.info("Assets base path: {}", (runtimeConfig["server"] as? Map<*, *>)?.get("assets_path"))
         logger.debug("Creating server with config: {}", configJson)
 
         val serverHandle = BvcNative.createServer(configJson)
@@ -142,6 +151,28 @@ class BvcServerManager(
     }
 
     /**
+     * Start audio playback via FFI.
+     * @param playJson JSON string matching AudioPlayRequest structure
+     * @return JSON string with AudioEventResponse on success, null on failure
+     */
+    @Synchronized
+    fun audioPlay(playJson: String): String? {
+        val h = handle ?: return null
+        return BvcNative.audioPlay(h, playJson)
+    }
+
+    /**
+     * Stop audio playback via FFI.
+     * @param eventId Event ID to stop
+     * @return true on success
+     */
+    @Synchronized
+    fun audioStop(eventId: String): Boolean {
+        val h = handle ?: return false
+        return BvcNative.audioStop(h, eventId) == 0
+    }
+
+    /**
      * Stop the embedded BVC server gracefully.
      * Synchronized to prevent double-free race condition.
      */
@@ -180,7 +211,7 @@ class BvcServerManager(
     private fun buildRuntimeConfig(configDirPath: String): Map<String, Any?> {
         val embedded = config.embeddedConfig ?: EmbeddedConfig()
         val certsPath = "$configDirPath/certificates"
-        val assetsPath = "$configDirPath/assets"
+        val assetsPath = embedded.assetsPath ?: "$configDirPath/assets"
 
         // Generate a random access token if not configured
         val accessToken = config.accessToken?.takeIf { it.isNotBlank() }
@@ -215,6 +246,9 @@ class BvcServerManager(
             ),
             "voice" to mapOf(
                 "broadcast_range" to embedded.broadcastRange
+            ),
+            "audio" to mapOf(
+                "file_path" to "$assetsPath/audio"
             )
         )
     }

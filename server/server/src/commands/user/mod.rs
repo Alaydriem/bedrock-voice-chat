@@ -1,7 +1,7 @@
 mod add;
 mod banish;
 mod generate_code;
-use super::Config as StateConfig;
+use super::Cli;
 use clap::Parser;
 
 #[derive(clap::Subcommand, Debug, Clone)]
@@ -24,7 +24,7 @@ pub struct Config {
 }
 
 impl Config {
-    pub async fn run<'a>(&'a self, cfg: &StateConfig) {
+    pub async fn run<'a>(&'a self, cfg: &Cli) {
         match &self.cmd {
             SubCommand::Banish(command) => command.run(&cfg).await,
             SubCommand::Add(command) => command.run(&cfg).await,

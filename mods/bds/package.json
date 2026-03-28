@@ -7,7 +7,7 @@
   "scripts": {
     "package": "node build.js",
     "watch": "tsc --watch",
-    "clean": "rimraf scripts",
+    "clean": "rimraf bp/scripts",
     "rebuild": "yarn clean && yarn package",
     "bundle": "node bundle.js",
     "pack": "yarn rebuild && yarn bundle"

@@ -1,5 +1,6 @@
 use crate::AudioPacket;
 use bytes::Bytes;
+use common::s2n_quic::Connection;
 use common::structs::packet::{PacketType, QuicNetworkPacket};
 use core::{
     future::Future,
@@ -7,10 +8,9 @@ use core::{
     task::{Context, Poll},
 };
 use log::{error, info, warn};
-use common::s2n_quic::Connection;
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
     Arc,
+    atomic::{AtomicBool, Ordering},
 };
 use tauri::Emitter;
 use tokio::task::AbortHandle;
@@ -86,18 +86,6 @@ impl common::traits::StreamTrait for InputStream {
             }
         }));
 
-        _ = app_handle.emit(
-            crate::events::event::notification::EVENT_NOTIFICATION,
-            crate::events::event::notification::Notification::new(
-                "Network Stream Stopped".to_string(),
-                "The input network stream has been stopped.".to_string(),
-                Some("info".to_string()),
-                None,
-                None,
-                None,
-            ),
-        );
-
         self.jobs = jobs.iter().map(|handle| handle.abort_handle()).collect();
 
         Ok(())
@@ -134,11 +122,11 @@ impl<'c> RecvDatagram<'c> {
 impl<'c> Future for RecvDatagram<'c> {
     type Output = Result<Bytes, anyhow::Error>;
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match self
-            .conn
-            .datagram_mut(|r: &mut common::s2n_quic::provider::datagram::default::Receiver| {
+        match self.conn.datagram_mut(
+            |r: &mut common::s2n_quic::provider::datagram::default::Receiver| {
                 r.poll_recv_datagram(cx)
-            }) {
+            },
+        ) {
             Ok(Poll::Ready(Ok(bytes))) => Poll::Ready(Ok(bytes)),
             Ok(Poll::Ready(Err(e))) => Poll::Ready(Err(anyhow::anyhow!(e))),
             Ok(Poll::Pending) => Poll::Pending,

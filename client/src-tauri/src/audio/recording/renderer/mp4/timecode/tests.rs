@@ -163,8 +163,8 @@ impl RegressionTestHarness {
                 if let Some(stco) = Self::find_box(trak, &[b"mdia", b"minf", b"stbl", b"stco"]) {
                     // stco: size(4) + type(4) + version/flags(4) + entry_count(4) + offset(4)
                     if stco.len() >= 20 {
-                        let offset = u32::from_be_bytes([stco[16], stco[17], stco[18], stco[19]])
-                            as usize;
+                        let offset =
+                            u32::from_be_bytes([stco[16], stco[17], stco[18], stco[19]]) as usize;
 
                         if offset + 4 <= data.len() {
                             let mut sample = [0u8; 4];
@@ -182,7 +182,9 @@ impl RegressionTestHarness {
     /// Load session info and create stream info for testing
     ///
     /// Returns None if session data cannot be loaded
-    pub fn load_stream_info(&self) -> Option<crate::audio::recording::renderer::stream::opus::OpusStreamInfo> {
+    pub fn load_stream_info(
+        &self,
+    ) -> Option<crate::audio::recording::renderer::stream::opus::OpusStreamInfo> {
         use crate::audio::recording::renderer::stream::opus::OpusPacketStream;
 
         let stream = OpusPacketStream::new(&self.session_path, &self.player_name).ok()?;
@@ -222,7 +224,7 @@ pub fn run_regression_test(session_path: &Path, player_name: &str) {
             "Timecode sample differs from reference for {}",
             player_name
         );
-        println!("  Timecode sample: MATCH (4 bytes)", );
+        println!("  Timecode sample: MATCH (4 bytes)",);
     }
 
     // Test timecode track structure
@@ -309,11 +311,13 @@ pub async fn run_full_render_test(
     // Render using the new code
     println!("Rendering {} to {:?}...", player_name, output_path);
 
-    use crate::audio::recording::renderer::mp4::Mp4Renderer;
     use crate::audio::recording::renderer::AudioRenderer;
+    use crate::audio::recording::renderer::mp4::Mp4Renderer;
 
     let mut renderer = Mp4Renderer::new();
-    renderer.render(session_path, player_name, &output_path).await?;
+    renderer
+        .render(session_path, player_name, &output_path)
+        .await?;
 
     // Read both files
     let mut rendered_data = std::fs::read(&output_path)?;
@@ -331,7 +335,10 @@ pub async fn run_full_render_test(
 
     // Check raw byte-identical first
     let raw_matches = rendered_data == reference_data;
-    println!("  Raw byte-identical: {}", if raw_matches { "YES" } else { "NO" });
+    println!(
+        "  Raw byte-identical: {}",
+        if raw_matches { "YES" } else { "NO" }
+    );
 
     if !raw_matches {
         // Zero out timestamp fields for normalized comparison
@@ -339,7 +346,10 @@ pub async fn run_full_render_test(
         zero_mp4_timestamps(&mut reference_data);
 
         let normalized_matches = rendered_data == reference_data;
-        println!("  Normalized (timestamps zeroed): {}", if normalized_matches { "YES" } else { "NO" });
+        println!(
+            "  Normalized (timestamps zeroed): {}",
+            if normalized_matches { "YES" } else { "NO" }
+        );
 
         if !normalized_matches {
             // Find differences after normalization
@@ -355,15 +365,20 @@ pub async fn run_full_render_test(
             }
 
             if let Some(pos) = first_diff_pos {
-                println!("  First non-timestamp difference at byte {}: rendered={:02x}, reference={:02x}",
-                    pos, rendered_data[pos], reference_data[pos]);
+                println!(
+                    "  First non-timestamp difference at byte {}: rendered={:02x}, reference={:02x}",
+                    pos, rendered_data[pos], reference_data[pos]
+                );
                 println!("  Total non-timestamp bytes different: {}", diff_count);
 
                 // Show context
                 let start = pos.saturating_sub(16);
                 let end = (pos + 32).min(rendered_data.len());
                 println!("  Context (rendered): {:02x?}", &rendered_data[start..end]);
-                println!("  Context (reference): {:02x?}", &reference_data[start..end]);
+                println!(
+                    "  Context (reference): {:02x?}",
+                    &reference_data[start..end]
+                );
             }
 
             let _ = std::fs::remove_file(&output_path);
@@ -387,7 +402,9 @@ mod tests {
     #[test]
     fn test_find_box() {
         // Create a simple nested box structure
-        let inner = [0x00, 0x00, 0x00, 0x0C, b'i', b'n', b'n', b'r', 0x01, 0x02, 0x03, 0x04];
+        let inner = [
+            0x00, 0x00, 0x00, 0x0C, b'i', b'n', b'n', b'r', 0x01, 0x02, 0x03, 0x04,
+        ];
         let mut outer = vec![0x00, 0x00, 0x00, 0x14, b'o', b'u', b't', b'r'];
         outer.extend_from_slice(&inner);
 
@@ -436,7 +453,8 @@ mod tests {
     fn test_regression_with_reference() {
         // Check for test session path in environment
         if let Ok(session_path) = std::env::var("TEST_SESSION_PATH") {
-            let player = std::env::var("TEST_PLAYER_NAME").unwrap_or_else(|_| "Alaydriem".to_string());
+            let player =
+                std::env::var("TEST_PLAYER_NAME").unwrap_or_else(|_| "Alaydriem".to_string());
             run_regression_test(Path::new(&session_path), &player);
         } else {
             println!("Skipping reference-based test: TEST_SESSION_PATH not set");
@@ -458,8 +476,8 @@ mod tests {
 
         let player = std::env::var("TEST_PLAYER_NAME").unwrap_or_else(|_| "Alaydriem".to_string());
 
-        use crate::audio::recording::renderer::mp4::Mp4Renderer;
         use crate::audio::recording::renderer::AudioRenderer;
+        use crate::audio::recording::renderer::mp4::Mp4Renderer;
 
         let session = Path::new(&session_path);
         let renders_dir = session.join("renders");
@@ -490,7 +508,10 @@ mod tests {
         }
 
         let mut renderer = Mp4Renderer::new();
-        renderer.render(session, &player, &output_path).await.expect("Render failed");
+        renderer
+            .render(session, &player, &output_path)
+            .await
+            .expect("Render failed");
 
         let metadata = std::fs::metadata(&output_path).expect("Failed to get file metadata");
         println!("Rendered: {} bytes to {:?}", metadata.len(), output_path);
@@ -526,7 +547,8 @@ mod tests {
             Path::new(&session_path),
             &player,
             Path::new(&reference_path),
-        ).await;
+        )
+        .await;
 
         match result {
             Ok(true) => println!("Full render test PASSED: files are byte-identical"),

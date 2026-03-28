@@ -1,20 +1,22 @@
 pub mod analytics;
 pub mod audio;
-pub mod channels;
+pub mod channel;
 pub mod config;
 pub mod events;
+pub mod game;
 pub mod keybinds;
 pub mod network;
 pub mod onboarding;
 pub mod packet;
+pub mod permission;
 pub mod players;
 pub mod recording;
 pub mod spatial_audio_config;
 
 pub use analytics::{AnalyticsEvent, AnalyticsEventData};
 pub use audio::{AudioDevice, AudioDeviceHost, AudioDeviceType, AudioFormat, MuteEvent, StreamConfig};
-pub use channels::ChannelPlayer;
 pub use events::DeepLink;
+pub use game::{Game, Coordinate, GameData, Orientation, Player, UploaderIdentity};
 pub use network::ConnectionHealth;
 pub use players::PlayerSource;
 pub use spatial_audio_config::SpatialAudioConfig;

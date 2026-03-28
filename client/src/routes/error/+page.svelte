@@ -82,6 +82,38 @@
         style: 'secondary'
       }
     },
+    'AUDI02': {
+      code: 'AUDI02',
+      title: 'No Input Device Found',
+      message: 'No microphone was detected on your system. Connect a microphone or headset, verify it appears in your system sound settings, then try again.',
+      icon: 'fa-solid fa-microphone-slash',
+      primaryAction: {
+        label: 'Try Again',
+        url: '/dashboard',
+        style: 'primary'
+      },
+      secondaryAction: {
+        label: 'Change Audio Devices',
+        url: '/settings',
+        style: 'secondary'
+      }
+    },
+    'AUDI03': {
+      code: 'AUDI03',
+      title: 'No Output Device Found',
+      message: 'No speakers or headphones were detected on your system. Connect an audio output device, verify it appears in your system sound settings, then try again.',
+      icon: 'fa-solid fa-volume-xmark',
+      primaryAction: {
+        label: 'Try Again',
+        url: '/dashboard',
+        style: 'primary'
+      },
+      secondaryAction: {
+        label: 'Change Audio Devices',
+        url: '/settings',
+        style: 'secondary'
+      }
+    },
     'VER01': {
       code: 'VER01',
       title: 'Client Update Required',
@@ -102,6 +134,38 @@
         label: 'Choose Different Server',
         url: '/server',
         style: 'primary'
+      }
+    },
+    'DNS01': {
+      code: 'DNS01',
+      title: 'DNS Resolution Failed',
+      message: 'Could not resolve the server address. Check that the server URL is correct and that your internet connection is working. If you are using a custom DNS provider, ensure it can resolve the server hostname.',
+      icon: 'fa-solid fa-globe',
+      primaryAction: {
+        label: 'Try Again',
+        url: '/dashboard',
+        style: 'primary'
+      },
+      secondaryAction: {
+        label: 'Choose Different Server',
+        url: '/server',
+        style: 'secondary'
+      }
+    },
+    'QUIC01': {
+      code: 'QUIC01',
+      title: 'Voice Connection Blocked',
+      message: 'HTTP connection succeeded but the voice connection (QUIC/UDP) was blocked. This usually means a firewall is blocking UDP traffic on the voice port. Check your firewall settings or contact your server administrator.',
+      icon: 'fa-solid fa-shield-halved',
+      primaryAction: {
+        label: 'Try Again',
+        url: '/dashboard',
+        style: 'primary'
+      },
+      secondaryAction: {
+        label: 'Choose Different Server',
+        url: '/server',
+        style: 'secondary'
       }
     },
     'CONN01': {

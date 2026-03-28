@@ -1,37 +1,47 @@
 <script lang="ts">
-    export let title: string;
-    export let body: string;
-    export let level: string;
+    import { onDestroy } from "svelte";
+    import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+    import { info } from "@tauri-apps/plugin-log";
+    import notification from "../../js/magics/notification";
+
+    const TOAST_COOLDOWN_MS = 10000;
+    const recentToasts = new Map<string, number>();
+
+    const levelToVariant: Record<string, string> = {
+        'info': 'info',
+        'warn': 'warning',
+        'warning': 'warning',
+        'error': 'error',
+    };
+
+    let unlisten: (() => void) | null = null;
+    let destroyed = false;
+
+    const appWebview = getCurrentWebviewWindow();
+    appWebview.listen('notification', (event: { payload?: { title?: string, body?: string, level?: string } }) => {
+        info(`Notification received: ${JSON.stringify(event.payload)}`);
+        const variant = levelToVariant[event.payload?.level || 'info'] || 'info';
+        const text = `${event.payload?.title || ''}: ${event.payload?.body || ''}`;
+
+        const now = Date.now();
+        const lastShown = recentToasts.get(text) || 0;
+        if (now - lastShown < TOAST_COOLDOWN_MS) return;
+        recentToasts.set(text, now);
+
+        notification({
+            text,
+            variant,
+            duration: variant === 'error' ? 8000 : 5000,
+            position: 'right-top',
+            hasCloseBtn: true,
+        });
+    }).then(fn => {
+        if (destroyed) { fn(); return; }
+        unlisten = fn;
+    });
+
+    onDestroy(() => {
+        destroyed = true;
+        if (unlisten) unlisten();
+    });
 </script>
-<template id="notification-template">
-    <div
-      class="flex max-w-xs overflow-hidden rounded-lg bg-navy-600 font-normal"
-    >
-      <div class="p-2">
-        <div class="flex items-center justify-between space-x-2">
-          <h5 id="notification-title"class="font-medium tracking-wide text-navy-100 line-clamp-1 lg:text-base" >{title}</h5>
-          <button
-            aria-label="Remove notification"
-            data-notification-remove
-            class="btn size-7 rounded-full p-0 text-white hover:bg-white/20 focus:bg-white/20 active:bg-white/25"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="size-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M6 18L18 6M6 6l12 12"
-              ></path>
-            </svg>
-          </button>
-        </div>
-        <p class="text-navy-100" id="notification-body">{body}</p>
-      </div>
-    </div>
-  </template>

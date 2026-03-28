@@ -1,11 +1,11 @@
 use crate::NetworkPacket;
 use bytes::Bytes;
+use common::s2n_quic::Connection;
 use common::structs::packet::{DebugPacket, PacketOwner, QuicNetworkPacket};
 use log::{error, info, warn};
-use common::s2n_quic::Connection;
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
     Arc,
+    atomic::{AtomicBool, Ordering},
 };
 use tauri::Emitter;
 use tokio::{task::AbortHandle, time::Instant};
@@ -125,15 +125,6 @@ impl common::traits::StreamTrait for OutputStream {
                     }
                 }
             }
-
-            _ = app_handle.emit(crate::events::event::notification::EVENT_NOTIFICATION, crate::events::event::notification::Notification::new(
-                "Network Stream Stopped".to_string(),
-                "The output network stream has been stopped.".to_string(),
-                Some("warn".to_string()),
-                None,
-                None,
-                None
-            ));
 
             // No stream close; connection closed elsewhere if needed
         }));

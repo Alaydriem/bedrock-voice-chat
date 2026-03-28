@@ -10,7 +10,8 @@
  * - client/src-tauri/Info.ios.plist (CFBundleShortVersionString, CFBundleVersion)
  * - client/package.json
  * - mods/bds/package.json
- * - mods/bds/manifest.json
+ * - mods/bds/bp/manifest.json
+ * - mods/bds/rp/manifest.json
  */
 
 const fs = require('fs');
@@ -138,9 +139,20 @@ function patchBdsManifest(filePath, version) {
   }
   const content = JSON.parse(fs.readFileSync(filePath, 'utf8'));
   const encoded = encodeModVersion(version);
-  content.header.version = [encoded.major, encoded.minor, encoded.encodedPatch];
+  const encodedVersion = [encoded.major, encoded.minor, encoded.encodedPatch];
+  content.header.version = encodedVersion;
+  for (const mod of content.modules || []) {
+    if (Array.isArray(mod.version)) {
+      mod.version = encodedVersion;
+    }
+  }
+  for (const dep of content.dependencies || []) {
+    if (dep.uuid && !dep.module_name && Array.isArray(dep.version)) {
+      dep.version = encodedVersion;
+    }
+  }
   fs.writeFileSync(filePath, JSON.stringify(content, null, 2) + '\n');
-  console.log(`Patched: ${filePath} (version: [${encoded.major}, ${encoded.minor}, ${encoded.encodedPatch}])`);
+  console.log(`Patched: ${filePath} (version: [${encodedVersion}])`);
 }
 
 /**
@@ -235,7 +247,8 @@ patchPackageJson(path.join(rootDir, 'client/package.json'), version);
 
 // BDS mod files
 patchPackageJson(path.join(rootDir, 'mods/bds/package.json'), version);
-patchBdsManifest(path.join(rootDir, 'mods/bds/manifest.json'), version);
+patchBdsManifest(path.join(rootDir, 'mods/bds/bp/manifest.json'), version);
+patchBdsManifest(path.join(rootDir, 'mods/bds/rp/manifest.json'), version);
 
 // Java mod files (using encoded version for consistency with BDS)
 const encoded = encodeModVersion(version);

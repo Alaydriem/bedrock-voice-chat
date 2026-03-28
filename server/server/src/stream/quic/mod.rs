@@ -270,7 +270,7 @@ impl QuicServerManager {
                                             packet_type: common::structs::packet::PacketType::ChannelEvent,
                                             data: common::structs::packet::QuicNetworkPacketData::ChannelEvent(
                                                 common::structs::packet::ChannelEventPacket::new(
-                                                    common::structs::channels::ChannelEvents::Leave,
+                                                    common::structs::channel::ChannelEvents::Leave,
                                                     player_id.clone(),
                                                     channel_id.clone(),
                                                 ),

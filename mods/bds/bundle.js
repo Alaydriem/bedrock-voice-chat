@@ -2,36 +2,61 @@ const archiver = require('archiver');
 const fs = require('fs');
 const path = require('path');
 
-const output = fs.createWriteStream(path.join(__dirname, 'bedrock-voice-chat.zip'));
-const archive = archiver('zip', { zlib: { level: 9 } });
+function createZip(name, sourceDir) {
+  return new Promise((resolve, reject) => {
+    const output = fs.createWriteStream(path.join(__dirname, name));
+    const archive = archiver('zip', { zlib: { level: 9 } });
 
-console.log('Creating bedrock-voice-chat.zip...');
+    output.on('close', () => {
+      console.log(`  ${name}: ${archive.pointer()} bytes`);
+      resolve();
+    });
 
-output.on('close', () => {
-  console.log(`Bundle created successfully: ${archive.pointer()} total bytes`);
-});
+    archive.on('error', reject);
+    archive.pipe(output);
 
-archive.on('error', (err) => {
-  throw err;
-});
-
-archive.pipe(output);
-
-// Add only the files we want in the bundle
-// Add main.js (bundled with all dependencies)
-archive.file(path.join(__dirname, 'scripts', 'main.js'), { name: 'scripts/main.js' });
-
-// Add texts directory
-archive.directory(path.join(__dirname, 'texts'), 'texts');
-
-// Add manifest and icon
-archive.file(path.join(__dirname, 'manifest.json'), { name: 'manifest.json' });
-archive.file(path.join(__dirname, 'pack_icon.png'), { name: 'pack_icon.png' });
-
-// Add README if it exists
-const readmePath = path.join(__dirname, 'README.md');
-if (fs.existsSync(readmePath)) {
-  archive.file(readmePath, { name: 'README.md' });
+    // Add all contents at root level (not nested under the source dir name)
+    archive.directory(path.join(__dirname, sourceDir), false);
+    archive.finalize();
+  });
 }
 
-archive.finalize();
+function createAddon(addonName, mcpackFiles) {
+  return new Promise((resolve, reject) => {
+    const output = fs.createWriteStream(path.join(__dirname, addonName));
+    const archive = archiver('zip', { zlib: { level: 9 } });
+
+    output.on('close', () => {
+      console.log(`  ${addonName}: ${archive.pointer()} bytes`);
+      resolve();
+    });
+
+    archive.on('error', reject);
+    archive.pipe(output);
+
+    for (const file of mcpackFiles) {
+      archive.file(path.join(__dirname, file), { name: file });
+    }
+    archive.finalize();
+  });
+}
+
+async function bundle() {
+  console.log('Creating BDS pack bundles...');
+
+  const bpPack = 'bedrock-voice-chat-bp.mcpack';
+  const rpPack = 'bedrock-voice-chat-rp.mcpack';
+
+  await createZip(bpPack, 'bp');
+  await createZip(rpPack, 'rp');
+
+  console.log('Creating mcaddon...');
+  await createAddon('bedrock-voice-chat.mcaddon', [bpPack, rpPack]);
+
+  console.log('Bundle complete.');
+}
+
+bundle().catch((err) => {
+  console.error('Bundle failed:', err);
+  process.exit(1);
+});

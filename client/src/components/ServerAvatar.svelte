@@ -4,7 +4,6 @@
   import { error } from '@tauri-apps/plugin-log';
   import ImageCache from "../js/app/components/imageCache";
   import ImageCacheOptions from "../js/app/components/imageCacheOptions";
-  import Keyring from "../js/app/keyring.ts";
   import { type LoginResponse } from "../js/bindings/LoginResponse";
   import { type ApiConfig } from "../js/bindings/ApiConfig";
 
@@ -15,15 +14,18 @@
     client_too_old: boolean;
   }
 
-  export let id: string;
-  export let server: string;
+  interface Props {
+    id: string;
+    server: string;
+  }
+  let { id, server }: Props = $props();
 
-  let buttonDisabled = true;
-  let buttonClasses = "bg-primary text-grey";
-  let buttonMessage = "Checking Server";
-  let showSpinner = true;
-  let versionMismatch = false;
-  let clientTooOld = false;
+  let buttonDisabled = $state(true);
+  let buttonClasses = $state("bg-primary text-grey");
+  let buttonMessage = $state("Checking Server");
+  let showSpinner = $state(true);
+  let versionMismatch = $state(false);
+  let clientTooOld = $state(false);
 
   const canvasUrl = `${server}/assets/canvas.png`;
   const avatarUrl = `${server}/assets/avatar.png`;
@@ -46,36 +48,19 @@
 
   async function checkServer() {
     try {
-      // Get credentials from keyring
-      const keyring = await Keyring.new("servers");
-      await keyring.setServer(server);
+      const credentials = await invoke<LoginResponse>("get_credentials", { server });
 
-      const credentials = await getCredentials(keyring);
-
-      if (!credentials) {
+      // Check certificate validity before attempting mTLS calls
+      const expired = await invoke<boolean>("is_certificate_expired", { server });
+      if (expired) {
         showReauthButton();
         return;
       }
 
-      // Initialize client for THIS server
-      const cert = typeof credentials.certificate_ca === 'string'
-        ? credentials.certificate_ca
-        : new TextDecoder().decode(credentials.certificate_ca);
-
-      const certKeyStr = typeof credentials.certificate_key === 'string'
-        ? credentials.certificate_key
-        : new TextDecoder().decode(credentials.certificate_key);
-
-      const certStr = typeof credentials.certificate === 'string'
-        ? credentials.certificate
-        : new TextDecoder().decode(credentials.certificate);
-
-      const pem = certStr + certKeyStr;
-
       await invoke("api_initialize_client", {
         endpoint: server,
-        cert: cert,
-        pem: pem
+        cert: credentials.certificate_ca,
+        pem: credentials.certificate + credentials.certificate_key
       });
 
       // Get config from THIS specific server and check version compatibility
@@ -94,32 +79,6 @@
       error(`Failed to check server ${server}: ${e}`);
       showReauthButton();
     }
-  }
-
-  async function getCredentials(keyring: Keyring): Promise<LoginResponse | null> {
-    const response: LoginResponse = {} as LoginResponse;
-    const keys: (keyof LoginResponse)[] = [
-      'gamerpic', 'gamertag', 'keypair', 'signature',
-      'certificate', 'certificate_key', 'certificate_ca', 'quic_connect_string'
-    ];
-
-    for (const key of keys) {
-      const storedValue = await keyring.get(key);
-      if (key === "keypair" || key === "signature") {
-        let valueStr: string;
-        if (typeof storedValue === "string") {
-          valueStr = storedValue;
-        } else if (storedValue instanceof Uint8Array) {
-          valueStr = new TextDecoder().decode(storedValue);
-        } else {
-          return null;
-        }
-        (response as any)[key] = JSON.parse(valueStr);
-      } else {
-        (response as any)[key] = storedValue;
-      }
-    }
-    return response;
   }
 
   function showConnectButton() {
@@ -149,7 +108,6 @@
 
   async function handleClick() {
     if (versionMismatch) {
-      // Don't allow click when version mismatch
       return;
     }
     if (buttonMessage === "Connect!") {

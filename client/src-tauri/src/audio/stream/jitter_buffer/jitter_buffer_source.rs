@@ -2,14 +2,14 @@ use log::error;
 use rodio::Source;
 use std::collections::VecDeque;
 use std::num::NonZero;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
+use super::EncodedAudioFramePacket;
 use super::adaptive::AdaptationEngine;
 use super::audio_processor::{AudioProcessor, AudioProcessorError};
 use super::metrics::MetricsCollector;
-use super::EncodedAudioFramePacket;
 use crate::audio::recording::{RawRecordingData, RecordingProducer};
 use crate::audio::stream::activity_detector::ActivityUpdate;
 use crate::audio::stream::stream_manager::AudioSinkType;
@@ -91,7 +91,9 @@ impl JitterBufferSource {
         packet_ring.push_back(initial_packet.clone());
 
         let mut pending_recordings = VecDeque::new();
-        let recording_enabled = recording_active.as_ref().map_or(false, |f| f.load(Ordering::SeqCst));
+        let recording_enabled = recording_active
+            .as_ref()
+            .map_or(false, |f| f.load(Ordering::SeqCst));
         if recording_enabled && recording_producer.is_some() {
             let now_ms = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -195,7 +197,12 @@ impl JitterBufferSource {
                     // Queue recording data if recording is enabled
                     // Capture timestamp NOW (at packet arrival) - this is the intended playback time
                     // before the jitter buffer adds its delay
-                    if self.recording_active.as_ref().map_or(false, |f| f.load(Ordering::SeqCst)) && self.recording_producer.is_some() {
+                    if self
+                        .recording_active
+                        .as_ref()
+                        .map_or(false, |f| f.load(Ordering::SeqCst))
+                        && self.recording_producer.is_some()
+                    {
                         let now_ms = std::time::SystemTime::now()
                             .duration_since(std::time::UNIX_EPOCH)
                             .unwrap_or_default()

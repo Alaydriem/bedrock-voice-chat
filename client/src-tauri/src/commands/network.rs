@@ -1,12 +1,12 @@
-use crate::{structs::app_state::AppState, NetworkStreamManager};
-use common::structs::config::LoginResponse;
+use crate::{NetworkStreamManager, structs::app_state::AppState};
+use common::response::LoginResponse;
 use log::{error, info};
 use std::net::SocketAddr;
-use tauri::async_runtime::Mutex;
 use tauri::State;
+use tauri::async_runtime::Mutex;
 use trust_dns_resolver::{
-    config::{ResolverConfig, ResolverOpts},
     Resolver, TokioAsyncResolver,
+    config::{ResolverConfig, ResolverOpts},
 };
 use url::Url;
 
@@ -15,7 +15,7 @@ pub(crate) async fn stop_network_stream(
     network_stream: State<'_, Mutex<NetworkStreamManager>>,
 ) -> Result<(), ()> {
     let mut network_stream = network_stream.lock().await;
-    _ = network_stream.stop();
+    _ = network_stream.stop().await;
     Ok(())
 }
 
@@ -26,16 +26,18 @@ pub(crate) async fn change_network_stream(
     data: LoginResponse,
     state: State<'_, Mutex<AppState>>,
     network_stream: State<'_, Mutex<NetworkStreamManager>>,
-) -> Result<(), ()> {
-    let mut state = state.lock().await;
-    state.current_server = Some(server.clone());
+) -> Result<(), String> {
+    // Short state lock — release before network I/O
+    {
+        let mut state = state.lock().await;
+        state.current_server = Some(server.clone());
+    }
 
     // Parse URL to extract just the hostname (without port) for DNS lookup and SNI
     let server_fqdn = Url::parse(&server)
         .ok()
         .and_then(|u| u.host_str().map(|s| s.to_string()))
         .unwrap_or_else(|| {
-            // Fallback: strip scheme and port manually
             server
                 .replace("https://", "")
                 .replace("http://", "")
@@ -45,39 +47,48 @@ pub(crate) async fn change_network_stream(
                 .to_string()
         });
 
-    let resolver = TokioAsyncResolver::tokio(ResolverConfig::cloudflare(), ResolverOpts::default());
+    // Default to 443 if quic_connect_string is empty or invalid
+    let port: u16 = data.quic_connect_string.parse().unwrap_or(443);
 
-    // Try a DNS lookup for the network, then fallback to the /etc/hosts on the machine
+    // Cloudflare DNS (async), then system resolver fallback (spawn_blocking)
+    let resolver = TokioAsyncResolver::tokio(ResolverConfig::cloudflare(), ResolverOpts::default());
     let socket_addr = match resolver.lookup_ip(server_fqdn.clone()).await {
         Ok(response) => match response.iter().next() {
-            Some(ip) => SocketAddr::new(ip, data.quic_connect_string.parse().unwrap()),
+            Some(ip) => SocketAddr::new(ip, port),
             None => {
-                error!("TrustDNS Lookup was successful, but no IP's were returned. Networking issue, restart BVC.");
-                return Err(());
+                error!("Cloudflare DNS lookup returned no IPs for {}", server_fqdn);
+                return Err("DNS_FAIL: DNS lookup returned no results".to_string());
             }
         },
-        Err(_) => match Resolver::from_system_conf() {
-            Ok(resolver) => match resolver.lookup_ip(server_fqdn.clone()) {
-                Ok(response) => match response.iter().next() {
-                    Some(ip) => SocketAddr::new(ip, data.quic_connect_string.parse().unwrap()),
-                    None => {
-                        error!("TrustDNS Lookup was successful, but no IP's were returned. Networking issue, restart BVC.");
-                        return Err(());
-                    }
-                },
-                Err(e) => {
-                    error!("{:?}", e);
-                    return Err(());
+        Err(cf_err) => {
+            info!("Cloudflare DNS failed for {}: {}. Trying system resolver.", server_fqdn, cf_err);
+            let fqdn = server_fqdn.clone();
+            match tokio::task::spawn_blocking(move || {
+                let resolver = Resolver::from_system_conf().map_err(|e| e.to_string())?;
+                let response = resolver.lookup_ip(&fqdn).map_err(|e| e.to_string())?;
+                response
+                    .iter()
+                    .next()
+                    .map(|ip| SocketAddr::new(ip, port))
+                    .ok_or_else(|| "System DNS returned no IPs".to_string())
+            })
+            .await
+            {
+                Ok(Ok(addr)) => addr,
+                Ok(Err(e)) => {
+                    error!("System DNS resolution failed for {}: {}", server_fqdn, e);
+                    return Err(format!("DNS_FAIL: {}", e));
                 }
-            },
-            Err(e) => {
-                error!("{:?}", e);
-                return Err(());
+                Err(e) => {
+                    error!("System DNS task failed: {:?}", e);
+                    return Err("DNS_FAIL: Could not resolve server address".to_string());
+                }
             }
-        },
+        }
     };
 
     let mut network_stream = network_stream.lock().await;
+    _ = network_stream.stop().await;
     match network_stream
         .restart(
             server_fqdn.clone(),
@@ -91,15 +102,11 @@ pub(crate) async fn change_network_stream(
         .await
     {
         Ok(()) => {
-            info!("Now streaming {}", server.clone());
+            info!("Now streaming {}", server);
         }
         Err(e) => {
-            error!(
-                "Failed to re-initialize network stream: {:?} {}",
-                e,
-                e.to_string()
-            );
-            return Err(());
+            error!("QUIC connection failed to {}: {:?}", server, e);
+            return Err(format!("QUIC_FAIL: {}", e));
         }
     };
 
@@ -107,9 +114,7 @@ pub(crate) async fn change_network_stream(
 }
 
 #[tauri::command]
-pub(crate) async fn reset_nsm(
-    nsm: State<'_, Mutex<NetworkStreamManager>>,
-) -> Result<(), ()> {
+pub(crate) async fn reset_nsm(nsm: State<'_, Mutex<NetworkStreamManager>>) -> Result<(), ()> {
     let mut nsm = nsm.lock().await;
     _ = nsm.reset().await;
     Ok(())

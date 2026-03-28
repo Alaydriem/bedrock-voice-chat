@@ -4,7 +4,6 @@
     import { onMount, onDestroy } from "svelte";
     import { uniqueNamesGenerator, adjectives, colors, animals } from 'unique-names-generator';
     import { Store } from '@tauri-apps/plugin-store';
-    import Keyring from '../../../js/app/keyring';
     import GroupComponent from "./group/Component.svelte";
     import RecordButton from "./RecordButton.svelte";
     import RefreshButton from "./RefreshButton.svelte";
@@ -40,7 +39,7 @@
     $: isListening = isListeningStore ? $isListeningStore : false;
     $: isLoading = isLoadingStore ? $isLoadingStore : false;
     $: currentUser = currentUserStore ? $currentUserStore : "";
-    $: currentUserChannel = channels.find((channel: Channel) => channel.players && channel.players.some(p => GameNameUtils.namesMatch(p.name, currentUser)));
+    $: currentUserChannel = channels.find((channel: Channel) => channel.players && channel.players.some(p => GameNameUtils.namesMatch(p, currentUser)));
     $: userCurrentChannelId = currentUserChannel?.id || null;
 
     const initializeApiIfNeeded = async () => {
@@ -50,32 +49,21 @@
                 return false;
             }
 
-            const keyring = await Keyring.new("servers");
-            await keyring.setServer(serverUrl);
-
-            const certificate = await keyring.get("certificate");
-            const certificateKey = await keyring.get("certificate_key");
-            const certificateCa = await keyring.get("certificate_ca");
-
-            if (!certificate || !certificateKey || !certificateCa) {
-                logError("No certificates found in keyring");
-                return false;
-            }
-
-            const cert = typeof certificateCa === 'string' ? certificateCa : new TextDecoder().decode(certificateCa);
-            const certKeyStr = typeof certificateKey === 'string' ? certificateKey : new TextDecoder().decode(certificateKey);
-            const certStr = typeof certificate === 'string' ? certificate : new TextDecoder().decode(certificate);
-            const pem = certStr + certKeyStr;
+            const credentials = await invoke<{
+                certificate: string;
+                certificate_key: string;
+                certificate_ca: string;
+            }>("get_credentials", { server: serverUrl });
 
             await invoke('api_initialize_client', {
                 endpoint: serverUrl,
-                cert,
-                pem
+                cert: credentials.certificate_ca,
+                pem: credentials.certificate + credentials.certificate_key
             });
 
             return true;
-        } catch (error) {
-            logError(`Failed to initialize API: ${error}`);
+        } catch (err) {
+            logError(`Failed to initialize API: ${err}`);
             return false;
         }
     };

@@ -5,21 +5,19 @@ use std::time::Duration;
 use flume::Receiver;
 use log::{info, warn};
 use moka::sync::Cache;
+use rodio::{Player, Source, mixer::Mixer};
 use std::num::NonZero;
-use rodio::{mixer::Mixer, Player, Source};
 use tauri::Emitter;
 use tokio::task::JoinHandle;
 
 use crate::audio::recording::RecordingProducer;
-use crate::audio::stream::jitter_buffer::{
-    EncodedAudioFramePacket, JitterBuffer, PanState,
-};
+use crate::audio::stream::ActivityUpdate;
+use crate::audio::stream::jitter_buffer::{EncodedAudioFramePacket, JitterBuffer, PanState};
 use crate::audio::stream::stream_manager::audio_sink::AudioSink;
 use crate::audio::stream::stream_manager::mono_to_panned::MonoToPanned;
-use crate::audio::stream::ActivityUpdate;
-use common::structs::audio::{PlayerGainSettings, PlayerGainStore};
-use common::structs::SpatialAudioConfig;
 use common::PlayerEnum;
+use common::structs::SpatialAudioConfig;
+use common::structs::audio::{PlayerGainSettings, PlayerGainStore};
 use common::traits::player_data::PlayerData;
 
 // Negate pan on platforms where the audio backend outputs channels
@@ -174,7 +172,9 @@ impl SinkManager {
             consumer: Some(consumer),
             shutdown: Arc::new(AtomicBool::new(false)),
             global_mute: Arc::new(AtomicBool::new(false)),
-            panning_intensity: Arc::new(AtomicU32::new(panning_intensity.clamp(0.0, 1.0).to_bits())),
+            panning_intensity: Arc::new(AtomicU32::new(
+                panning_intensity.clamp(0.0, 1.0).to_bits(),
+            )),
             players,
             current_player_name,
             player_gain_store,
@@ -241,21 +241,24 @@ impl SinkManager {
                     _ => author.clone(),
                 };
 
-                let emitter_pos = packet.emitter.player_data.as_ref().map(|p| {
-                    p.get_position().clone()
-                });
-                let deafen_emitter = packet.emitter.player_data.as_ref()
+                let emitter_pos = packet
+                    .emitter
+                    .player_data
+                    .as_ref()
+                    .map(|p| p.get_position().clone());
+                let deafen_emitter = packet
+                    .emitter
+                    .player_data
+                    .as_ref()
                     .map(|p| p.is_deafened())
                     .unwrap_or(false);
                 let emitter_spatial = packet.emitter.spatial.unwrap_or(true);
 
-                let listener_info = players
-                    .get(&current_player_name)
-                    .map(|player| {
-                        let pos = player.get_position().clone();
-                        let orient = player.get_orientation().clone();
-                        (pos, orient)
-                    });
+                let listener_info = players.get(&current_player_name).map(|player| {
+                    let pos = player.get_position().clone();
+                    let orient = player.get_orientation().clone();
+                    (pos, orient)
+                });
 
                 if listener_info.is_none() {
                     log::debug!(
@@ -324,12 +327,12 @@ impl SinkManager {
                         } else {
                             1.0
                         };
-                        let volume = spatial_data.volume
-                            * perceptual_gain(gain_settings.gain)
-                            * mute_mult;
+                        let volume =
+                            spatial_data.volume * perceptual_gain(gain_settings.gain) * mute_mult;
 
                         let intensity = f32::from_bits(panning_intensity.load(Ordering::Relaxed));
-                        let scaled_pan = platform_adjusted_pan((spatial_data.pan * intensity).clamp(-1.0, 1.0));
+                        let scaled_pan =
+                            platform_adjusted_pan((spatial_data.pan * intensity).clamp(-1.0, 1.0));
                         let left = ((1.0 + scaled_pan) / 2.0).sqrt();
                         let right = ((1.0 - scaled_pan) / 2.0).sqrt();
                         pan_state.update(left, right, volume);

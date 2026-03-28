@@ -38,9 +38,17 @@ jobs:
       build_mode: ${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
       is_release_branch: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/beta') }}
       build_number: ${{ steps.build-number.outputs.build_number }}
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Extract version from Cargo.toml
+        id: version
+        run: |
+          VERSION=$(grep '^version' server/server/Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Extracted version: $VERSION"
 
       - name: Detect changes
         uses: dorny/paths-filter@v3
@@ -204,6 +212,7 @@ jobs:
     if: needs.build-server.result == 'success' && needs.changes.outputs.fabric-mod == 'true'
     uses: ./.github/workflows/build-mod-fabric.yml
     with:
+      version: ${{ needs.changes.outputs.version }}
       artifact_run_id: ${{ github.run_id }}
     secrets: inherit
 
@@ -214,6 +223,7 @@ jobs:
     if: needs.build-server.result == 'success' && needs.changes.outputs.paper-mod == 'true'
     uses: ./.github/workflows/build-mod-paper.yml
     with:
+      version: ${{ needs.changes.outputs.version }}
       artifact_run_id: ${{ github.run_id }}
     secrets: inherit
 
@@ -224,6 +234,7 @@ jobs:
     if: needs.build-server.result == 'success' && needs.changes.outputs.hytale-mod == 'true'
     uses: ./.github/workflows/build-mod-hytale.yml
     with:
+      version: ${{ needs.changes.outputs.version }}
       artifact_run_id: ${{ github.run_id }}
     secrets: inherit
 
@@ -233,6 +244,8 @@ jobs:
     needs: changes
     if: needs.changes.outputs.bds-pack == 'true'
     uses: ./.github/workflows/build-mod-bds.yml
+    with:
+      version: ${{ needs.changes.outputs.version }}
     secrets: inherit
 
   # Deploy WebSocket docs to GitHub Pages (branch pushes only)
@@ -259,6 +272,46 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./docs/websocket-api-html
           destination_dir: ${{ github.ref_name == 'master' && 'websocket' || 'websocket/beta' }}
+          keep_files: true
+
+  # Deploy OpenAPI docs to GitHub Pages (branch pushes only)
+  deploy-openapi-docs:
+    name: Deploy OpenAPI Docs (${{ github.ref_name }})
+    needs: [changes, build-server]
+    if: github.event_name == 'push' && needs.build-server.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download OpenAPI JSON
+        uses: actions/download-artifact@v4
+        with:
+          name: openapi-json
+          path: docs
+
+      - name: Generate Scalar HTML
+        run: |
+          cat > docs/index.html << 'SCALAR_EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>BVC Server API</title>
+              <meta charset="utf-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1" />
+          </head>
+          <body>
+              <script id="api-reference" data-url="./openapi.json"></script>
+              <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+          </body>
+          </html>
+          SCALAR_EOF
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs
+          destination_dir: ${{ github.ref_name == 'master' && 'api' || 'api/beta' }}
           keep_files: true
 
   # Collect and organize all artifacts
@@ -412,7 +465,7 @@ jobs:
             echo "   Hytale Plugin: bedrock-voice-chat-hytale (contains .jar file)"
           fi
           if [ "${{ needs.build-bds-pack.result }}" = "success" ]; then
-            echo "   BDS Pack: bedrock-voice-chat-bds (contains .mcpack file)"
+            echo "   BDS Pack: bedrock-voice-chat-bds (contains .mcaddon file)"
           fi
           echo ""
           echo "Download from: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
