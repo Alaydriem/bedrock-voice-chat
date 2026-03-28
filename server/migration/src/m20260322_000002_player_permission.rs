@@ -38,6 +38,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
+                    .if_not_exists()
                     .name("idx_player_permission_unique")
                     .table(PlayerPermission::Table)
                     .col(PlayerPermission::PlayerId)

@@ -40,6 +40,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
+                    .if_not_exists()
                     .name("idx_audio_file_uploader")
                     .table(AudioFile::Table)
                     .col(AudioFile::UploaderId)
@@ -50,6 +51,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
+                    .if_not_exists()
                     .name("idx_audio_file_game")
                     .table(AudioFile::Table)
                     .col(AudioFile::Game)

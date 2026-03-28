@@ -62,6 +62,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
+                    .if_not_exists()
                     .name("idx_player_identity_alias_game")
                     .table(PlayerIdentity::Table)
                     .col(PlayerIdentity::Alias)
