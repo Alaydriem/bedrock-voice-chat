@@ -7,7 +7,7 @@ use crate::audio::recording::RecordingManager;
 use crate::audio::types::{AudioDevice, AudioDeviceType};
 use anyhow::Error;
 use common::structs::audio::StreamEvent;
-use log::{error, info, warn};
+use log::info;
 use std::sync::Arc;
 use tauri::Emitter;
 use tauri::async_runtime::Mutex as TauriMutex;

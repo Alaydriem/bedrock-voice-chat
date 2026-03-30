@@ -1,5 +1,4 @@
 use rocket::http::Status;
-use rocket::State;
 use rocket_okapi::openapi;
 use sea_orm::DatabaseConnection;
 

@@ -294,6 +294,7 @@ impl ConnectionHealthManager {
 
     /// Probe the server's HTTP endpoint to check availability and version compatibility
     async fn probe_server(server_url: &str) -> ProbeResult {
+        #[allow(unused_mut)]
         let mut builder = common::reqwest::Client::builder().timeout(Duration::from_secs(5));
 
         #[cfg(dev)]

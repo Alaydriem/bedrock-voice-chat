@@ -2,8 +2,6 @@ pub(crate) mod liveness;
 pub(crate) mod ping;
 pub(crate) mod readiness;
 
-pub use ping::pong;
-
 use crate::http::openapi::{RouteSpec, TagDefinition};
 
 inventory::submit! {

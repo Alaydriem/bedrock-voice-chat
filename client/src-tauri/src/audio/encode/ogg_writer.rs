@@ -1,5 +1,3 @@
-use anyhow::anyhow;
-
 pub(super) struct OggOpusWriter {
     buffer: Vec<u8>,
     serial: u32,

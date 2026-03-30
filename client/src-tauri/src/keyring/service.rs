@@ -3,7 +3,7 @@ use common::response::LoginResponse;
 use common::structs::config::Keypair;
 use common::structs::permission::ServerPermissions;
 use std::collections::HashMap;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 use tauri_plugin_keyring::{CredentialType, CredentialValue, KeyringExt};
 
 const KEY_GAMERPIC: &str = "gamerpic";

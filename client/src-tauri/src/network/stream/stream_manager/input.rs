@@ -7,12 +7,11 @@ use core::{
     pin::Pin,
     task::{Context, Poll},
 };
-use log::{error, info, warn};
+use log::{error, info};
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
-use tauri::Emitter;
 use tokio::task::AbortHandle;
 
 use super::HealthMonitorState;
@@ -58,7 +57,6 @@ impl common::traits::StreamTrait for InputStream {
         let connection = self.connection.clone().unwrap();
 
         let shutdown = self.shutdown.clone();
-        let app_handle = self.app_handle.clone();
         let health_state = self.health_state.clone();
         jobs.push(tokio::spawn(async move {
             log::info!("Started network recv stream.");

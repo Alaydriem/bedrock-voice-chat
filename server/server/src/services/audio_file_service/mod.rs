@@ -3,9 +3,8 @@ use common::response::{AudioFileResponse, PaginatedResponse};
 use common::structs::game::UploaderIdentity;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, Order,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect
 };
-use sea_orm::sea_query::JoinType;
 
 use crate::config::Audio;
 use crate::services::audio_playback_service::ogg_opus_parser::OggOpusParser;

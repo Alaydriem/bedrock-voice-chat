@@ -246,6 +246,11 @@ impl ServerRuntime {
             tracing::error!("Error stopping QUIC server: {}", e);
         }
 
+        // This is unecessary since Rocket will stop when the main function exits
+        if let Err(e) = rocket_manager.stop().await {
+            tracing::error!("Error stopping Rocket server: {}", e);
+        }
+
         self.state = RuntimeState::Stopped;
         Ok(())
     }

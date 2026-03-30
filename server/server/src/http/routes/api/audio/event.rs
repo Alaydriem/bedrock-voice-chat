@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use rocket::{http::Status, mtls::Certificate, serde::json::Json, State};
+use rocket::{http::Status, serde::json::Json, State};
 use crate::http::openapi::CustomJsonResponse;
 use rocket_okapi::openapi;
 use common::request::AudioPlayRequest;

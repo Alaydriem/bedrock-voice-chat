@@ -23,6 +23,7 @@ pub(crate) async fn get_ek(server: String) -> Result<ExportableEncryptionKeyData
 }
 
 pub(crate) fn get_reqwest_client() -> reqwest::Client {
+    #[allow(unused_mut)]
     let mut builder = reqwest::Client::builder()
         .use_rustls_tls()
         .timeout(Duration::new(5, 0))

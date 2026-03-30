@@ -1,5 +1,5 @@
 use crate::{
-    config::{ApplicationConfig, Permissions},
+    config::ApplicationConfig,
     http::pool::AppDb,
     http::routes,
     services::{AudioPlaybackService, AudioStreamTokenCache, CertificateService, PlayerIdentityService, PlayerRegistrarService},

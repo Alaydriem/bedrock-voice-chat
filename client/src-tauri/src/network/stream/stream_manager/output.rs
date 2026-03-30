@@ -2,7 +2,7 @@ use crate::NetworkPacket;
 use bytes::Bytes;
 use common::s2n_quic::Connection;
 use common::structs::packet::{DebugPacket, PacketOwner, QuicNetworkPacket};
-use log::{error, info, warn};
+use log::{error, info};
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},

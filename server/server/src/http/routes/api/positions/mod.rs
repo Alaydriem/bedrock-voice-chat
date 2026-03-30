@@ -43,7 +43,6 @@ pub async fn update_position(
     let mut all_players: Vec<_> = positions.0.players.clone();
 
     for player in &all_players {
-        let name = player.get_name();
         let alt = player.get_alternative_identity();
 
         if let Some(alt_identity) = alt {

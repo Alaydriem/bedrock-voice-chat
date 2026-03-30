@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use entity::player;
-use rocket::{http::Status, mtls::Certificate, State};
+use rocket::{mtls::Certificate, State};
 use sea_orm::{ActiveModelTrait, ActiveValue};
 use crate::http::openapi::CustomJsonResponse;
 use common::response::auth::AuthStateResponse;

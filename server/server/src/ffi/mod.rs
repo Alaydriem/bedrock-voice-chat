@@ -419,13 +419,12 @@ pub unsafe extern "C" fn bvc_update_positions(
     };
 
     let player_registrar = pr_guard.as_ref().cloned();
-    let has_registrar = player_registrar.is_some();
-    drop(pr_guard);  // Release read lock
+    drop(pr_guard);
 
     // Send position update (run async operation on tokio runtime)
     // Clone the webhook_receiver reference to satisfy borrow checker
     let webhook_receiver_clone = webhook_receiver.clone();
-    drop(wr_guard);  // Release read lock before blocking
+    drop(wr_guard);
 
     // Get identity service for name resolution (if available)
     let is_guard = match handle_ref.identity_service.read() {
@@ -448,7 +447,6 @@ pub unsafe extern "C" fn bvc_update_positions(
         if let Some(ref id_service) = identity_service {
             // Process any alternative_identity fields from Floodgate-aware mods
             for player in &players {
-                let name = player.get_name();
                 let alt = player.get_alternative_identity();
 
                 if let Some(alt_identity) = alt {

@@ -4,7 +4,6 @@ use common::structs::AudioFormat;
 use common::structs::recording::SessionManifest;
 use common::structs::{AnalyticsEvent, AnalyticsEventData};
 use log::{error, info};
-use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
