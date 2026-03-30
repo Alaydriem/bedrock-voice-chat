@@ -5,8 +5,8 @@ mod output;
 mod resampler;
 mod sink_manager;
 
-use std::sync::Arc;
 use common::structs::audio::StreamEvent;
+use std::sync::Arc;
 
 use crate::audio::types::AudioDevice;
 
@@ -112,7 +112,7 @@ impl StreamTraitType {
     pub fn toggle(&self, event: StreamEvent) {
         match self {
             Self::Input(stream) => stream.toggle(event),
-            Self::Output(stream) => stream.toggle(event)
+            Self::Output(stream) => stream.toggle(event),
         }
     }
 

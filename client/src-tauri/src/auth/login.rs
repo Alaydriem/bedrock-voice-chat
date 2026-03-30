@@ -1,4 +1,5 @@
-use common::structs::config::{LoginRequest, LoginResponse};
+use common::request::LoginRequest;
+use common::response::LoginResponse;
 use serde::{Deserialize, Serialize};
 
 /// Client-side JsonMessage for deserializing server responses
@@ -10,8 +11,8 @@ pub struct JsonMessage<T> {
 }
 
 use tauri_plugin_http::reqwest::{
-    header::{HeaderMap, HeaderValue},
     StatusCode,
+    header::{HeaderMap, HeaderValue},
 };
 
 use base64::{Engine as _, engine::general_purpose};
@@ -102,13 +103,12 @@ pub(crate) async fn server_login(
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_server_login() {        
+    async fn test_server_login() {
         let server = "https://local.bedrockvc.stream".to_string();
         let code = "test_code".to_string();
         let redirect = "http://localhost:3000/redirect".to_string();

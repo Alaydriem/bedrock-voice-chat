@@ -336,8 +336,7 @@ impl AudioRenderer for Mp4Renderer {
                     .map_err(|e| anyhow::anyhow!("Failed to serialize timecode track: {}", e))?;
 
                 // Build new moov: modified content (with tref in audio trak) + timecode trak + udta
-                let new_size =
-                    8 + modified_content.len() + timecode_track.len() + udta_bytes.len();
+                let new_size = 8 + modified_content.len() + timecode_track.len() + udta_bytes.len();
 
                 let mut new_moov = Vec::with_capacity(new_size);
                 new_moov.extend_from_slice(&(new_size as u32).to_be_bytes());

@@ -13,7 +13,9 @@ use std::time::Duration;
 use async_trait::async_trait;
 use log::{info, warn};
 use open_feature::provider::{FeatureProvider, ProviderMetadata, ResolutionDetails};
-use open_feature::{EvaluationContext, EvaluationError, EvaluationErrorCode, EvaluationResult, StructValue, Value};
+use open_feature::{
+    EvaluationContext, EvaluationError, EvaluationErrorCode, EvaluationResult, StructValue, Value,
+};
 use tokio::sync::RwLock;
 
 use self::identity_response::FlagsmithIdentityResponse;
@@ -29,7 +31,12 @@ pub struct FlagsmithProvider {
 }
 
 impl FlagsmithProvider {
-    pub fn new(api_key: String, server_url: String, install_id: String, refresh_interval: Duration) -> Self {
+    pub fn new(
+        api_key: String,
+        server_url: String,
+        install_id: String,
+        refresh_interval: Duration,
+    ) -> Self {
         let normalized_url = if server_url.ends_with("/api/v1/") {
             server_url
         } else if server_url.ends_with('/') {
@@ -50,7 +57,10 @@ impl FlagsmithProvider {
     }
 
     async fn refresh(&self) -> Result<(), anyhow::Error> {
-        let url = format!("{}identities/?identifier={}", self.server_url, self.install_id);
+        let url = format!(
+            "{}identities/?identifier={}",
+            self.server_url, self.install_id
+        );
         let response = self
             .http_client
             .get(&url)
@@ -70,10 +80,17 @@ impl FlagsmithProvider {
         let mut cache = self.cache.write().await;
         cache.clear();
         for flag in identity_response.flags {
-            info!("Flag '{}': enabled={}, value={:?}", flag.feature.name, flag.enabled, flag.value);
+            info!(
+                "Flag '{}': enabled={}, value={:?}",
+                flag.feature.name, flag.enabled, flag.value
+            );
             cache.insert(flag.feature.name.clone(), flag);
         }
-        info!("Refreshed {} feature flags for identity {}", cache.len(), self.install_id);
+        info!(
+            "Refreshed {} feature flags for identity {}",
+            cache.len(),
+            self.install_id
+        );
         Ok(())
     }
 

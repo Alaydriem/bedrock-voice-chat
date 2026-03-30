@@ -4,13 +4,9 @@ import { info, error, warn } from '@tauri-apps/plugin-log';
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
-import { mount } from "svelte";
-
 import type { AudioDevice } from "../../js/bindings/AudioDevice.ts";
 import type { LoginResponse } from "../../js/bindings/LoginResponse.ts";
 import BVCApp from "./BVCApp";
-import Server from './server.ts';
-import Keyring from './keyring.ts';
 import Sidebar from "./components/dashboard/sidebar.ts";
 import Onboarding from './onboarding';
 import PlatformDetector from './utils/PlatformDetector';
@@ -20,8 +16,6 @@ import ImageCacheOptions from './components/imageCacheOptions';
 import { PlayerManager } from './managers/PlayerManager';
 import ChannelManager from './managers/ChannelManager';
 import { AudioActivityManager } from './managers/AudioActivityManager';
-
-import Notification from "../../components/events/Notification.svelte";
 import Analytics from './analytics';
 import type { KeybindConfig } from '../bindings/KeybindConfig.ts';
 import type { NoiseGateSettings } from '../bindings/NoiseGateSettings.ts';
@@ -46,7 +40,6 @@ declare global {
 }
 
 export default class Dashboard extends BVCApp {
-    private keyring: Keyring | undefined;
     private store: Store | undefined;
     private eventUnlisteners: (() => void)[] = [];
     private currentServerCredentials: LoginResponse | null = null;
@@ -66,6 +59,19 @@ export default class Dashboard extends BVCApp {
         });
         this.platformDetector = new PlatformDetector();
 
+        // Stop any recording that was active before a page refresh.
+        // The Tauri backend persists across webview reloads, so a recording
+        // could still be running silently from the previous session.
+        try {
+            const wasRecording = await invoke<boolean>('is_recording');
+            if (wasRecording) {
+                await invoke('stop_recording');
+                info("Stopped recording that was active before page refresh");
+            }
+        } catch (e) {
+            warn(`Failed to check/stop recording on refresh: ${e}`);
+        }
+
         // Check onboarding status before proceeding
         this.onboarding = new Onboarding(this.store);
         await this.onboarding.initialize();
@@ -82,21 +88,22 @@ export default class Dashboard extends BVCApp {
 
         const appWebview = getCurrentWebviewWindow();
 
-        // Handle notifications
-        const notificationUnlisten = await appWebview.listen('notification', (event: { payload?: { title?: string, body?: string, level?: string } }) => {
-            info(`Notification received: ${JSON.stringify(event.payload)}`);
-            mount(Notification, {
-                target: document.querySelector("#notification-container")!,
-                props: {
-                    title: event.payload?.title || "",
-                    body: event.payload?.body || "",
-                    level: event.payload?.level || "info"
-                }
-            });
-        });
-        this.eventUnlisteners.push(notificationUnlisten);
-
         const currentServer = await this.store.get<string>("current_server");
+
+        // Check certificate validity before initializing anything that depends on a valid session
+        if (currentServer) {
+            try {
+                const expired = await invoke<boolean>("is_certificate_expired", { server: currentServer });
+                if (expired) {
+                    warn("Certificate expired for " + currentServer + ", logging out and redirecting to login");
+                    await invoke("logout");
+                    window.location.href = "/login?reauth=true&server=" + currentServer;
+                    return;
+                }
+            } catch (e) {
+                warn("Could not check certificate expiry: " + e);
+            }
+        }
 
         // Initialize managers with dependency injection
         await this.initializeManagers();
@@ -128,11 +135,17 @@ export default class Dashboard extends BVCApp {
 
         // If the audio engine is stopped for either the input or output channel, shutdown the existing one, reinitialize everything
         if (currentServer) {
-            this.keyring = await Keyring.new("servers");
+            this.currentServerCredentials = await invoke<LoginResponse>("get_credentials", { server: currentServer });
 
-            const server = new Server();
-            server.setKeyring(this.keyring, currentServer);
-            this.currentServerCredentials = await server.getCredentials();
+            // Refresh server permissions and handle certificate re-issuance
+            try {
+                const activeGame = await this.store.get<string>("active_game");
+                await invoke("refresh_server_state", { game: activeGame ?? undefined });
+                // Re-fetch credentials since refresh_server_state persists updates to keyring
+                this.currentServerCredentials = await invoke<LoginResponse>("get_credentials", { server: currentServer });
+            } catch (e) {
+                warn("Failed to refresh server state, using cached permissions");
+            }
 
             const isInputStreamStopped = await invoke("is_stopped", { device: "InputDevice" }).then((stopped) => stopped as boolean);
             const isOutputStreamStopped = await invoke("is_stopped", { device: "OutputDevice" }).then((stopped) => stopped as boolean);
@@ -348,18 +361,12 @@ export default class Dashboard extends BVCApp {
             });
 
         } catch (err) {
-            // Show error notification
-            const notificationContainer = document.querySelector("#notification-container");
-            if (notificationContainer) {
-                mount(Notification, {
-                    target: notificationContainer,
-                    props: {
-                        title: "Logout Failed",
-                        body: "An error occurred during logout. Please try again.",
-                        level: "error"
-                    }
-                });
-            }
+            const appWebview = getCurrentWebviewWindow();
+            await appWebview.emit('notification', {
+                title: "Logout Failed",
+                body: "An error occurred during logout. Please try again.",
+                level: "error"
+            });
         }
     }
 
@@ -453,10 +460,11 @@ export default class Dashboard extends BVCApp {
                             info(`Updating QUIC port from ${credentials.quic_connect_string} to ${freshPort}`);
                             credentials.quic_connect_string = freshPort;
 
-                            // Persist to keyring for future sessions
-                            if (this.keyring) {
-                                await this.keyring.insert("quic_connect_string", freshPort);
-                            }
+                            await invoke("set_credential", {
+                                server: currentServer,
+                                key: "quic_connect_string",
+                                value: freshPort
+                            });
                         }
                     }
 
@@ -475,7 +483,25 @@ export default class Dashboard extends BVCApp {
 
                 await this.updateAudioDevice("OutputDevice");
                 await this.updateAudioDevice("InputDevice");
-                await invoke("change_audio_device");
+                await invoke("change_audio_device").catch((e) => {
+                    const errStr = String(e);
+                    if (errStr.includes("INCOMPATIBLE_DEVICE")) {
+                        error(`Incompatible audio device: ${e}`);
+                        window.location.href = "/error?code=AUDI01";
+                        return;
+                    }
+                    if (errStr.includes("NO_INPUT_DEVICE")) {
+                        error(`No input device available: ${e}`);
+                        window.location.href = "/error?code=AUDI02";
+                        return;
+                    }
+                    if (errStr.includes("NO_OUTPUT_DEVICE")) {
+                        error(`No output device available: ${e}`);
+                        window.location.href = "/error?code=AUDI03";
+                        return;
+                    }
+                    error(`Audio device error: ${e}`);
+                });
             }).catch((e) => {
                 error(`Error updating current player: ${e}`);
             });
@@ -501,8 +527,8 @@ export default class Dashboard extends BVCApp {
                         return null;
                     });
             })
-            .catch((error) => {
-                error(`Error getting audio device: ${error}`);
+            .catch((err) => {
+                error(`Error getting audio device: ${err}`);
                 return null;
             });
     }
@@ -513,8 +539,17 @@ export default class Dashboard extends BVCApp {
             await invoke("change_network_stream", { server: currentServer, data: credentials });
             info(`Changed network stream to ${currentServer}`);
         } catch (e) {
-            error(`Error changing network stream: ${e}`);
-            window.location.href = "/error?code=CONN01";
+            const errStr = String(e);
+            if (errStr.includes("DNS_FAIL")) {
+                error(`DNS resolution failed: ${e}`);
+                window.location.href = "/error?code=DNS01";
+            } else if (errStr.includes("QUIC_FAIL")) {
+                error(`QUIC connection failed: ${e}`);
+                window.location.href = "/error?code=QUIC01";
+            } else {
+                error(`Error changing network stream: ${e}`);
+                window.location.href = "/error?code=CONN01";
+            }
         }
     }
 
@@ -544,17 +579,7 @@ export default class Dashboard extends BVCApp {
     }
 
     async shutdown() {
-        try {
-            const recording = await invoke<boolean>("is_recording");
-            if (recording) {
-                await invoke("stop_recording");
-            }
-        } catch (err) {
-            error(`Error stopping recording during shutdown: ${err}`);
-        }
-
         await this.cleanup();
-        await invoke("reset_asm");
-        await invoke("reset_nsm");
+        await super.shutdown();
     }
 }

@@ -70,29 +70,27 @@ jobs:
         working-directory: ./mods/bds
         run: yarn run pack
 
-      - name: Verify zip creation
+      - name: Verify mcaddon creation
         shell: bash
         run: |
           cd mods/bds
-          ZIP_FILE=$(find . -maxdepth 1 -name "*.zip" -type f | head -n 1)
-          if [ -z "$ZIP_FILE" ]; then
-            echo "No .zip file found!"
+          MCADDON_FILE=$(find . -maxdepth 1 -name "*.mcaddon" -type f | head -n 1)
+          if [ -z "$MCADDON_FILE" ]; then
+            echo "No .mcaddon file found!"
             exit 1
           fi
 
-          echo "Found zip: $ZIP_FILE"
-          ls -lh "$ZIP_FILE"
+          echo "Found mcaddon: $MCADDON_FILE"
+          ls -lh "$MCADDON_FILE"
 
-          # Copy to a consistent name for artifact upload
-          cp "$ZIP_FILE" ../../bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.zip
+          cp "$MCADDON_FILE" ../../bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.mcaddon
+          echo "Prepared artifact: bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.mcaddon"
 
-          echo "Prepared artifact: bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.zip"
-
-      - name: Upload zip artifact
+      - name: Upload mcaddon artifact
         uses: actions/upload-artifact@v4
         with:
           name: bedrock-voice-chat-bds-${{ steps.pack-version.outputs.version }}
-          path: bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.zip
+          path: bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.mcaddon
           retention-days: 30
 
       - name: Output artifact information
@@ -105,7 +103,7 @@ jobs:
             echo "| ---- | ----- |"
             echo "| Version | ${{ steps.pack-version.outputs.version }} |"
             echo "| Trigger | ${{ github.event_name }} |"
-            echo "| Artifact | bedrock-voice-chat-bds-${{ steps.pack-version.outputs.version }}.zip |"
+            echo "| Artifact | bedrock-voice-chat-bds-${{ steps.pack-version.outputs.version }}.mcaddon |"
             echo "| Artifact URL | [View Run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) |"
             echo "| Retention | 30 days |"
           } >> $GITHUB_STEP_SUMMARY

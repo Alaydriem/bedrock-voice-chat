@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// Minecraft world dimensions
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Default)]
+#[cfg_attr(feature = "openapi", derive(schemars::JsonSchema))]
 pub enum Dimension {
     #[default]
     #[serde(rename = "overworld")]

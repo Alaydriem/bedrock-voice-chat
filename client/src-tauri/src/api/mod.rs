@@ -1,6 +1,7 @@
+pub(crate) mod audio_library;
 pub(crate) mod commands;
-use common::structs::config::ApiConfig;
 use common::request::LinkJavaIdentityRequest;
+use common::response::ApiConfig;
 use common::response::LinkJavaIdentityResponse;
 use log::error;
 mod channel;
@@ -8,8 +9,8 @@ mod client;
 mod gamerpic;
 
 use common::reqwest::{
-    header::{HeaderMap, HeaderValue},
     Client as ReqwestClient, StatusCode,
+    header::{HeaderMap, HeaderValue},
 };
 use std::error::Error;
 
@@ -148,7 +149,10 @@ impl Api {
                 status => Err(format!("Server returned status: {}", status)),
             },
             Err(e) => {
-                error!("Unable to get config from BVC Server: {} {}", self.endpoint, e);
+                error!(
+                    "Unable to get config from BVC Server: {} {}",
+                    self.endpoint, e
+                );
                 Err(format!("Connection failed: {}", e))
             }
         }

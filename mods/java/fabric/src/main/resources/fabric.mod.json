@@ -11,6 +11,9 @@
   "entrypoints": {
     "main": ["com.alaydriem.bedrockvoicechat.fabric.FabricMod"]
   },
+  "mixins": [
+    "bedrock-voice-chat.mixins.json"
+  ],
   "depends": {
     "fabricloader": ">=0.16.0",
     "minecraft": ">=1.21",

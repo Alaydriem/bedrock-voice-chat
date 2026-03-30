@@ -58,8 +58,7 @@ impl CertificateService {
         params.not_before = OffsetDateTime::now_utc()
             .checked_sub(Duration::days(3))
             .unwrap();
-        // @todo this should not be 9999 days...
-        params.not_after = OffsetDateTime::now_utc() + Duration::days(9999);
+        params.not_after = OffsetDateTime::now_utc() + Duration::days(90);
 
         params.subject_alt_names = vec![
             SanType::DnsName(player_name.try_into()?),

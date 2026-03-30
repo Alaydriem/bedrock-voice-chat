@@ -78,7 +78,9 @@ impl UserDataBox {
         udta = udta.write_box(b"meta", &meta);
 
         // Wrap in udta
-        BoxWriter::new().write_box(b"udta", udta.as_bytes()).finish()
+        BoxWriter::new()
+            .write_box(b"udta", udta.as_bytes())
+            .finish()
     }
 
     /// Build the meta box

@@ -18,38 +18,34 @@ impl AudioActionsManager {
 
     /// Toggle mute for a device, emit `mute:{device}` event, return new mute status.
     pub async fn toggle_mute(&self, device: AudioDeviceType) -> bool {
-        let asm = self
-            .app_handle
-            .state::<Mutex<AudioStreamManager>>();
+        let asm = self.app_handle.state::<Mutex<AudioStreamManager>>();
         let mut asm = asm.lock().await;
         let _ = asm.toggle(&device, StreamEvent::Mute).await;
         let status = asm.mute_status(&device).await.unwrap_or(false);
         drop(asm);
 
         let mute_event = MuteEvent::from(&device);
-        self.app_handle
-            .emit(&mute_event.to_string(), status)
-            .ok();
+        self.app_handle.emit(&mute_event.to_string(), status).ok();
 
-        info!("{} {}", mute_event, if status { "muted" } else { "unmuted" });
+        info!(
+            "{} {}",
+            mute_event,
+            if status { "muted" } else { "unmuted" }
+        );
 
         status
     }
 
     /// Query mute status without toggling.
     pub async fn is_muted(&self, device: AudioDeviceType) -> bool {
-        let asm = self
-            .app_handle
-            .state::<Mutex<AudioStreamManager>>();
+        let asm = self.app_handle.state::<Mutex<AudioStreamManager>>();
         let mut asm = asm.lock().await;
         asm.mute_status(&device).await.unwrap_or(false)
     }
 
     /// Toggle recording on/off. Returns new recording state.
     pub async fn toggle_recording(&self) -> Result<bool, anyhow::Error> {
-        let recording_manager = self
-            .app_handle
-            .state::<Arc<Mutex<RecordingManager>>>();
+        let recording_manager = self.app_handle.state::<Arc<Mutex<RecordingManager>>>();
         let mut manager = recording_manager.lock().await;
 
         if manager.is_recording() {
@@ -71,9 +67,7 @@ impl AudioActionsManager {
 
     /// Query current muted/deafened/recording state as a DTO.
     pub async fn query_state(&self) -> crate::websocket::StateData {
-        let asm = self
-            .app_handle
-            .state::<Mutex<AudioStreamManager>>();
+        let asm = self.app_handle.state::<Mutex<AudioStreamManager>>();
         let mut asm = asm.lock().await;
         let muted = asm
             .mute_status(&AudioDeviceType::InputDevice)
@@ -85,9 +79,7 @@ impl AudioActionsManager {
             .unwrap_or(false);
         drop(asm);
 
-        let recording_manager = self
-            .app_handle
-            .state::<Arc<Mutex<RecordingManager>>>();
+        let recording_manager = self.app_handle.state::<Arc<Mutex<RecordingManager>>>();
         let manager = recording_manager.lock().await;
         let recording = manager.is_recording();
         drop(manager);

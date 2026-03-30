@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 /// For JSON compatibility with legacy clients, use GameDataCollection's
 /// custom deserialization which handles the game field at the collection level.
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(schemars::JsonSchema))]
 pub enum PlayerEnum {
     Minecraft(MinecraftPlayer),
     Hytale(HytalePlayer),

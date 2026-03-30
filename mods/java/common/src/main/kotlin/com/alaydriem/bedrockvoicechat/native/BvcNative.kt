@@ -24,8 +24,12 @@ object BvcNative {
         fun bvc_server_stop(handle: Pointer): Int
         fun bvc_server_destroy(handle: Pointer): Int
         fun bvc_update_positions(handle: Pointer, gameDataJson: String): Int
+        fun bvc_audio_play(handle: Pointer, playJson: String): Pointer?
+        fun bvc_audio_stop(handle: Pointer, eventId: String): Int
+        fun bvc_free_string(ptr: Pointer)
         fun bvc_get_last_error(): String?
         fun bvc_version(): String
+        fun bvc_protocol_version(): String
     }
 
     /**
@@ -216,6 +220,40 @@ object BvcNative {
     }
 
     /**
+     * Start audio playback via FFI.
+     *
+     * @param handle Server handle from createServer
+     * @param playJson JSON string matching AudioPlayRequest structure
+     * @return JSON string with AudioEventResponse on success, null on failure
+     */
+    fun audioPlay(handle: Pointer, playJson: String): String? {
+        val ptr = getLib().bvc_audio_play(handle, playJson) ?: run {
+            logger.warn("Failed to start audio playback: {}", getLastError())
+            return null
+        }
+        try {
+            return ptr.getString(0)
+        } finally {
+            getLib().bvc_free_string(ptr)
+        }
+    }
+
+    /**
+     * Stop audio playback via FFI.
+     *
+     * @param handle Server handle from createServer
+     * @param eventId Event ID to stop
+     * @return 0 on success, -1 on error
+     */
+    fun audioStop(handle: Pointer, eventId: String): Int {
+        val result = getLib().bvc_audio_stop(handle, eventId)
+        if (result != 0) {
+            logger.warn("Failed to stop audio playback: {}", getLastError())
+        }
+        return result
+    }
+
+    /**
      * Get the last error message from the native library.
      */
     fun getLastError(): String? {
@@ -227,5 +265,12 @@ object BvcNative {
      */
     fun getVersion(): String {
         return getLib().bvc_version()
+    }
+
+    /**
+     * Get the protocol version string.
+     */
+    fun getProtocolVersion(): String {
+        return getLib().bvc_protocol_version()
     }
 }

@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 /// Uses simple coordinate-based distance calculation without game-specific concepts
 /// like dimensions, realms, zones, etc.
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(schemars::JsonSchema))]
 pub struct GenericPlayer {
     pub name: String,
     pub coordinates: Coordinate,

@@ -59,7 +59,8 @@
           "fabric/gradle.properties",
           "hytale/src/main/resources/manifest.json",
           "../bds/package.json",
-          "../bds/manifest.json"
+          "../bds/bp/manifest.json",
+          "../bds/rp/manifest.json"
         ],
         "message": "chore(release): mods-v${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
       }

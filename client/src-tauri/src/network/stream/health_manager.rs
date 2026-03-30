@@ -1,13 +1,13 @@
 use bytes::Bytes;
 use common::consts::version::PROTOCOL_VERSION;
+use common::response::ApiConfig;
 use common::s2n_quic::Connection;
-use common::structs::config::ApiConfig;
 use common::structs::network::ConnectionHealth;
 use common::structs::packet::{
     HealthCheckPacket, PacketOwner, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
 };
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tauri::Emitter;
 use tokio::task::AbortHandle;
@@ -294,18 +294,14 @@ impl ConnectionHealthManager {
 
     /// Probe the server's HTTP endpoint to check availability and version compatibility
     async fn probe_server(server_url: &str) -> ProbeResult {
-
-        let mut builder = common::reqwest::Client::builder()
-            .timeout(Duration::from_secs(5));
+        let mut builder = common::reqwest::Client::builder().timeout(Duration::from_secs(5));
 
         #[cfg(dev)]
         {
             builder = builder.danger_accept_invalid_certs(true);
         }
 
-        let client = match builder
-            .build()
-        {
+        let client = match builder.build() {
             Ok(c) => c,
             Err(e) => {
                 log::warn!("Failed to build HTTP client for probe: {}", e);
@@ -360,9 +356,11 @@ impl ConnectionHealthManager {
                         let client_major = client_parts.first().copied().unwrap_or(0);
                         let client_minor = client_parts.get(1).copied().unwrap_or(0);
 
-                        let compatible = server_major == client_major && server_minor == client_minor;
+                        let compatible =
+                            server_major == client_major && server_minor == client_minor;
                         if !compatible {
-                            let client_too_old = (client_major, client_minor) < (server_major, server_minor);
+                            let client_too_old =
+                                (client_major, client_minor) < (server_major, server_minor);
                             log::warn!(
                                 "Protocol version mismatch: client={}, server={}, client_too_old={}",
                                 client_version,
@@ -390,7 +388,9 @@ impl ConnectionHealthManager {
 
                         match serde_json::from_str::<LegacyApiConfig>(&body) {
                             Ok(legacy) if legacy.status == "Ok" => {
-                                log::warn!("Server is running outdated version without protocol_version field");
+                                log::warn!(
+                                    "Server is running outdated version without protocol_version field"
+                                );
                                 ProbeResult::VersionMismatch {
                                     client_version: PROTOCOL_VERSION.to_string(),
                                     server_version: "unknown (outdated)".to_string(),

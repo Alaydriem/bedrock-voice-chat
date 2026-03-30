@@ -1,10 +1,10 @@
-use crate::audio::types::AudioDeviceType;
 use crate::audio::AudioActionsManager;
+use crate::audio::types::AudioDeviceType;
 use common::structs::keybinds::{KeybindAction, KeybindConfig, PttEvent, VoiceMode};
 use log::info;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
-use tauri::{async_runtime::Mutex, AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, async_runtime::Mutex};
 
 pub struct KeybindListener {
     app_handle: AppHandle,
@@ -27,14 +27,20 @@ impl KeybindListener {
         // Only run the transition if the voice mode actually changed
         let mut last = self.last_voice_mode.lock().await;
         if last.as_ref() == Some(&config.voice_mode) {
-            info!("Voice mode unchanged ({:?}), skipping transition", config.voice_mode);
+            info!(
+                "Voice mode unchanged ({:?}), skipping transition",
+                config.voice_mode
+            );
             return;
         }
         let previous = last.clone();
         *last = Some(config.voice_mode.clone());
         drop(last);
 
-        info!("Voice mode transition: {:?} -> {:?}", previous, config.voice_mode);
+        info!(
+            "Voice mode transition: {:?} -> {:?}",
+            previous, config.voice_mode
+        );
 
         let actions = self.app_handle.state::<AudioActionsManager>();
         let is_muted = actions.is_muted(AudioDeviceType::InputDevice).await;
@@ -90,7 +96,9 @@ impl KeybindListener {
         if actions.is_muted(AudioDeviceType::InputDevice).await {
             actions.toggle_mute(AudioDeviceType::InputDevice).await;
         }
-        self.app_handle.emit(&PttEvent::Active.to_string(), true).ok();
+        self.app_handle
+            .emit(&PttEvent::Active.to_string(), true)
+            .ok();
         actions.broadcast_state().await;
     }
 
@@ -102,7 +110,9 @@ impl KeybindListener {
             if !actions.is_muted(AudioDeviceType::InputDevice).await {
                 actions.toggle_mute(AudioDeviceType::InputDevice).await;
             }
-            self.app_handle.emit(&PttEvent::Active.to_string(), false).ok();
+            self.app_handle
+                .emit(&PttEvent::Active.to_string(), false)
+                .ok();
             actions.broadcast_state().await;
         }
     }

@@ -1,13 +1,16 @@
 use common::traits::StreamTrait;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tokio::sync::{broadcast, watch};
-use tokio::task::AbortHandle;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_store::StoreExt;
-use serde::{Deserialize, Serialize};
+use tokio::sync::{broadcast, watch};
+use tokio::task::AbortHandle;
 
 pub mod structs;
-pub use structs::{Command, CommandMessage, DeviceType, SuccessResponse, ErrorResponse, ResponseData, PongData, MuteData, RecordData, StateData};
+pub use structs::{
+    Command, CommandMessage, DeviceType, ErrorResponse, MuteData, PongData, RecordData,
+    ResponseData, StateData, SuccessResponse,
+};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
@@ -53,7 +56,8 @@ pub struct WebSocketManager {
 
 impl WebSocketManager {
     pub fn new(app_handle: AppHandle) -> Self {
-        let config: Option<WebSocketConfig> = app_handle.store("store.json")
+        let config: Option<WebSocketConfig> = app_handle
+            .store("store.json")
             .ok()
             .and_then(|store| store.get("websocket_server"))
             .and_then(|v| serde_json::from_value(v.clone()).ok());
@@ -86,7 +90,9 @@ impl StreamTrait for WebSocketManager {
         }
 
         // Pre-check: ensure we have valid config
-        let config = self.config.as_ref()
+        let config = self
+            .config
+            .as_ref()
             .ok_or_else(|| anyhow::anyhow!("WebSocket config not set"))?;
 
         if !config.enabled {
@@ -127,11 +133,20 @@ impl StreamTrait for WebSocketManager {
 }
 
 impl WebSocketManager {
-    async fn start_server_loop(&self, shutdown_rx: watch::Receiver<bool>) -> Result<AbortHandle, anyhow::Error> {
-        let config = self.config.as_ref()
+    async fn start_server_loop(
+        &self,
+        shutdown_rx: watch::Receiver<bool>,
+    ) -> Result<AbortHandle, anyhow::Error> {
+        let config = self
+            .config
+            .as_ref()
             .ok_or_else(|| anyhow::anyhow!("No config available"))?;
 
-        let host = if config.localhost_only { "127.0.0.1" } else { "0.0.0.0" };
+        let host = if config.localhost_only {
+            "127.0.0.1"
+        } else {
+            "0.0.0.0"
+        };
         let addr = format!("{}:{}", host, config.port);
         let listener = tokio::net::TcpListener::bind(&addr).await?;
         let config = config.clone();
@@ -146,15 +161,22 @@ impl WebSocketManager {
                 let shutdown_rx = shutdown_rx.clone();
 
                 tokio::spawn(async move {
-                    if let Err(e) = Self::handle_connection(stream, app_handle, key, broadcast_tx, shutdown_rx).await {
+                    if let Err(e) =
+                        Self::handle_connection(stream, app_handle, key, broadcast_tx, shutdown_rx)
+                            .await
+                    {
                         // Connection resets / broken pipes are normal client disconnects
-                        let is_disconnect = e.root_cause()
-                            .downcast_ref::<std::io::Error>()
-                            .map_or(false, |io_err| matches!(io_err.kind(),
-                                std::io::ErrorKind::ConnectionReset |
-                                std::io::ErrorKind::ConnectionAborted |
-                                std::io::ErrorKind::BrokenPipe
-                            ));
+                        let is_disconnect = e.root_cause().downcast_ref::<std::io::Error>().map_or(
+                            false,
+                            |io_err| {
+                                matches!(
+                                    io_err.kind(),
+                                    std::io::ErrorKind::ConnectionReset
+                                        | std::io::ErrorKind::ConnectionAborted
+                                        | std::io::ErrorKind::BrokenPipe
+                                )
+                            },
+                        );
 
                         if !is_disconnect {
                             log::error!("Connection error: {}", e);
@@ -174,8 +196,8 @@ impl WebSocketManager {
         broadcast_tx: broadcast::Sender<String>,
         mut shutdown_rx: watch::Receiver<bool>,
     ) -> Result<(), anyhow::Error> {
+        use futures_util::{SinkExt, StreamExt};
         use tokio_tungstenite::accept_async;
-        use futures_util::{StreamExt, SinkExt};
 
         let ws_stream = accept_async(stream).await?;
         let (mut write, mut read) = ws_stream.split();
@@ -282,8 +304,11 @@ impl WebSocketManager {
                         if let Some(config) = store.get("keybinds") {
                             if let Some(mode) = config.get("voiceMode").and_then(|v| v.as_str()) {
                                 if mode == "pushToTalk" {
-                                    let actions = app_handle.state::<crate::audio::AudioActionsManager>();
-                                    let status = actions.is_muted(crate::audio::types::AudioDeviceType::InputDevice).await;
+                                    let actions =
+                                        app_handle.state::<crate::audio::AudioActionsManager>();
+                                    let status = actions
+                                        .is_muted(crate::audio::types::AudioDeviceType::InputDevice)
+                                        .await;
                                     return Ok(ResponseData::Mute(MuteData {
                                         device: "input".to_string(),
                                         muted: status,
@@ -331,21 +356,33 @@ impl WebSocketManager {
         let asm = app_handle.state::<tauri::async_runtime::Mutex<crate::AudioStreamManager>>();
         let mut asm = asm.lock().await;
 
-        let muted = asm.mute_status(&crate::audio::types::AudioDeviceType::InputDevice).await.unwrap_or(false);
-        let deafened = asm.mute_status(&crate::audio::types::AudioDeviceType::OutputDevice).await.unwrap_or(false);
+        let muted = asm
+            .mute_status(&crate::audio::types::AudioDeviceType::InputDevice)
+            .await
+            .unwrap_or(false);
+        let deafened = asm
+            .mute_status(&crate::audio::types::AudioDeviceType::OutputDevice)
+            .await
+            .unwrap_or(false);
         drop(asm);
 
-        let recording_manager = app_handle.state::<Arc<tauri::async_runtime::Mutex<crate::audio::RecordingManager>>>();
+        let recording_manager =
+            app_handle.state::<Arc<tauri::async_runtime::Mutex<crate::audio::RecordingManager>>>();
         let manager = recording_manager.lock().await;
         let recording = manager.is_recording();
 
-        StateData { muted, deafened, recording }
+        StateData {
+            muted,
+            deafened,
+            recording,
+        }
     }
 
     /// Build a full state JSON string for broadcasting
     async fn build_state_json(app_handle: &AppHandle) -> Result<String, serde_json::Error> {
         let state_data = Self::query_state(app_handle).await;
-        let response = SuccessResponse::state(state_data.muted, state_data.deafened, state_data.recording);
+        let response =
+            SuccessResponse::state(state_data.muted, state_data.deafened, state_data.recording);
         serde_json::to_string(&response)
     }
 }

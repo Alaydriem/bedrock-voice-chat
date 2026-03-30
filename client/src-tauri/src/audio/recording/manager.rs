@@ -1,11 +1,9 @@
-use super::{Recorder, RawRecordingData, RecordingProducer, RecordingConsumer};
+use super::{RawRecordingData, Recorder, RecordingConsumer, RecordingProducer};
 use common::traits::StreamTrait;
 use log::info;
-use std::{
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
 };
 use tauri::Emitter;
 
@@ -57,7 +55,8 @@ impl RecordingManager {
             current_player,
             self.app_handle.clone(),
             self.recording_consumer.clone(),
-        ).await?;
+        )
+        .await?;
 
         // Start the recorder
         recorder.start().await?;
@@ -70,7 +69,10 @@ impl RecordingManager {
         // Emit event to notify UI components
         self.app_handle.emit("recording:started", &session_id).ok();
 
-        info!("Recording session {} started via RecordingManager", session_id);
+        info!(
+            "Recording session {} started via RecordingManager",
+            session_id
+        );
         Ok(())
     }
 
@@ -84,8 +86,11 @@ impl RecordingManager {
         self.recording_state.store(false, Ordering::SeqCst);
 
         if let Some(recorder) = &mut self.recorder {
-            recorder.stop().await?;  // Now drain and finish
-            info!("Recording session {} stopped via RecordingManager", recorder.session_id());
+            recorder.stop().await?; // Now drain and finish
+            info!(
+                "Recording session {} stopped via RecordingManager",
+                recorder.session_id()
+            );
         }
 
         self.recorder = None;

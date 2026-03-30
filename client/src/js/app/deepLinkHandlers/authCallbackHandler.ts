@@ -2,7 +2,6 @@ import { Store } from '@tauri-apps/plugin-store';
 import { invoke } from "@tauri-apps/api/core";
 import { info, error as logError } from '@tauri-apps/plugin-log';
 import { platform } from '@tauri-apps/plugin-os';
-import Keyring from '../keyring.ts';
 import Analytics from '../analytics';
 import { type LoginResponse } from "../../bindings/LoginResponse";
 
@@ -60,19 +59,7 @@ export class AuthCallbackHandler {
                 redirect: redirectUri
             }) as LoginResponse;
 
-            const keyring = await Keyring.new("servers");
             if (authStateEndpoint) {
-                keyring.setServer(authStateEndpoint);
-
-                Object.keys(response).forEach(async key => {
-                    const value = response[key as keyof LoginResponse];
-                    if (typeof value === "string" || value instanceof Uint8Array) {
-                        await keyring.insert(key, value);
-                    } else {
-                        await keyring.insert(key, JSON.stringify(value));
-                    }
-                });
-
                 await this.store.set("current_server", authStateEndpoint);
                 await this.store.set("current_player", response.gamertag);
                 await this.store.set("active_game", "minecraft");

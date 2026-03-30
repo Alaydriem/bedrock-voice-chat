@@ -1,9 +1,9 @@
+pub use common::consts::audio::BUFFER_SIZE;
 pub use common::structs::audio::{AudioDevice, AudioDeviceHost, AudioDeviceType, StreamConfig};
-pub use common::structs::audio::{BUFFER_SIZE, get_best_sample_rate};
 
 use rodio::{
-    cpal::{self, traits::HostTrait, HostId},
     DeviceTrait,
+    cpal::{self, HostId, traits::HostTrait},
 };
 
 /// Native sample rate for Opus encoding
@@ -29,8 +29,8 @@ impl AudioDeviceCpal for AudioDevice {
         #[cfg(target_os = "windows")]
         {
             host = match self.host {
-                AudioDeviceHost::Asio => cpal::host_from_id(HostId::Asio).unwrap(),
-                AudioDeviceHost::Wasapi => cpal::host_from_id(HostId::Wasapi).unwrap(),
+                AudioDeviceHost::Asio => cpal::host_from_id(HostId::Asio).ok()?,
+                AudioDeviceHost::Wasapi => cpal::host_from_id(HostId::Wasapi).ok()?,
                 _ => return None,
             };
         }
@@ -38,7 +38,7 @@ impl AudioDeviceCpal for AudioDevice {
         #[cfg(target_os = "android")]
         {
             host = match self.host {
-                AudioDeviceHost::AAudio => cpal::host_from_id(HostId::AAudio).unwrap(),
+                AudioDeviceHost::AAudio => cpal::host_from_id(HostId::AAudio).ok()?,
                 _ => return None,
             };
         }
@@ -46,7 +46,7 @@ impl AudioDeviceCpal for AudioDevice {
         #[cfg(any(target_os = "macos", target_os = "ios"))]
         {
             host = match self.host {
-                AudioDeviceHost::CoreAudio => cpal::host_from_id(HostId::CoreAudio).unwrap(),
+                AudioDeviceHost::CoreAudio => cpal::host_from_id(HostId::CoreAudio).ok()?,
                 _ => return None,
             };
         }
@@ -58,7 +58,7 @@ impl AudioDeviceCpal for AudioDevice {
         ))]
         {
             host = match self.host {
-                AudioDeviceHost::Alsa => cpal::host_from_id(HostId::Alsa).unwrap(),
+                AudioDeviceHost::Alsa => cpal::host_from_id(HostId::Alsa).ok()?,
                 _ => return None,
             };
         }
@@ -75,9 +75,8 @@ impl AudioDeviceCpal for AudioDevice {
                 }
 
                 match host.input_devices() {
-                    Ok(mut devices) => {
-                        devices.find(|x| x.id().map(|id| id.to_string() == self.id).unwrap_or(false))
-                    }
+                    Ok(mut devices) => devices
+                        .find(|x| x.id().map(|id| id.to_string() == self.id).unwrap_or(false)),
                     Err(_) => None,
                 }
             }
@@ -87,9 +86,8 @@ impl AudioDeviceCpal for AudioDevice {
                 }
 
                 match host.output_devices() {
-                    Ok(mut devices) => {
-                        devices.find(|x| x.id().map(|id| id.to_string() == self.id).unwrap_or(false))
-                    }
+                    Ok(mut devices) => devices
+                        .find(|x| x.id().map(|id| id.to_string() == self.id).unwrap_or(false)),
                     Err(_) => None,
                 }
             }

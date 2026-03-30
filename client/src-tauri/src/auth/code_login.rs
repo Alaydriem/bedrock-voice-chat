@@ -1,9 +1,9 @@
 use common::request::CodeLoginRequest;
-use common::structs::config::LoginResponse;
+use common::response::LoginResponse;
 
 use tauri_plugin_http::reqwest::{
-    header::{HeaderMap, HeaderValue},
     StatusCode,
+    header::{HeaderMap, HeaderValue},
 };
 
 use base64::{Engine as _, engine::general_purpose};
@@ -17,10 +17,7 @@ pub(crate) async fn code_login(
     gamertag: String,
     code: String,
 ) -> Result<LoginResponse, bool> {
-    let payload = CodeLoginRequest {
-        gamertag,
-        code,
-    };
+    let payload = CodeLoginRequest { gamertag, code };
 
     let ek = match crate::auth::ncryptf::get_ek(server.clone()).await {
         Ok(ek) => ek,

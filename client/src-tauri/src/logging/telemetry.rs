@@ -1,13 +1,13 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
 pub struct Telemetry {
-    state: AtomicBool
+    state: AtomicBool,
 }
 
 impl Telemetry {
     pub fn new(state: bool) -> Self {
         Self {
-            state: AtomicBool::new(state)
+            state: AtomicBool::new(state),
         }
     }
 

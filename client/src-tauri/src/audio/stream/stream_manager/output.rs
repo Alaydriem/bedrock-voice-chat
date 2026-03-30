@@ -1,34 +1,35 @@
 use super::sink_manager::SinkManager;
-use crate::audio::stream::stream_manager::AudioSinkType;
-use crate::audio::stream::RecoverySender;
 use crate::audio::recording::RecordingProducer;
+use crate::audio::stream::RecoverySender;
 use crate::audio::stream::jitter_buffer::EncodedAudioFramePacket;
+use crate::audio::stream::stream_manager::AudioSinkType;
 
-use crate::audio::types::{AudioDevice, AudioDeviceCpal};
 use crate::AudioPacket;
+use crate::audio::types::{AudioDevice, AudioDeviceCpal};
 use anyhow::anyhow;
-use base64::engine::{general_purpose, Engine};
+use base64::engine::{Engine, general_purpose};
+use common::traits::player_data::PlayerData;
 use common::{
+    Coordinate, Game, GenericPlayer, Orientation, PlayerEnum, RecordingPlayerData,
     structs::{
+        SpatialAudioConfig,
         audio::{PlayerGainSettings, PlayerGainStore, StreamEvent},
         network::ConnectionHealth,
         packet::{
-            AudioFramePacket, ChannelEventPacket, ConnectionEventType, PacketType, PlayerDataPacket,
-            PlayerPresenceEvent, QuicNetworkPacket, ServerErrorPacket, ServerErrorType,
+            AudioFramePacket, ChannelEventPacket, ConnectionEventType, PacketType,
+            PlayerDataPacket, PlayerPresenceEvent, QuicNetworkPacket, ServerErrorPacket,
+            ServerErrorType,
         },
-        SpatialAudioConfig,
     },
-    Coordinate, Game, GenericPlayer, Orientation, PlayerEnum, RecordingPlayerData,
 };
-use common::traits::player_data::PlayerData;
 use log::{error, info, warn};
 use moka::future::Cache;
 use once_cell::sync::Lazy;
 use rodio::DeviceSinkBuilder;
 use std::{
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc, Mutex as StdMutex,
+        atomic::{AtomicBool, Ordering},
     },
     time::Duration,
 };
@@ -64,10 +65,10 @@ impl common::traits::StreamTrait for OutputStream {
         match key.as_str() {
             "mute" => {
                 self.toggle(StreamEvent::Mute);
-            },
+            }
             "record" => {
                 self.toggle(StreamEvent::Record);
-            },
+            }
             "panning_intensity" => {
                 if let Ok(intensity) = value.parse::<f32>() {
                     if let Some(sink_manager) = self.sink_manager.as_ref() {
@@ -80,7 +81,8 @@ impl common::traits::StreamTrait for OutputStream {
                 match serde_json::from_str::<PlayerGainStore>(&value) {
                     Ok(settings) => {
                         for (player_name, gain_settings) in &settings.0 {
-                            self.player_gain_cache.insert(player_name.clone(), gain_settings.clone());
+                            self.player_gain_cache
+                                .insert(player_name.clone(), gain_settings.clone());
                         }
 
                         if let Some(sink_manager) = self.sink_manager.as_mut() {
@@ -266,60 +268,56 @@ impl OutputStream {
                             }
 
                             match packet {
-                                Ok(packet) => {
-
-                                    match packet.data.get_packet_type() {
-                                        PacketType::AudioFrame => {
-                                            OutputStream::handle_audio_data(
-                                                producer.clone(),
-                                                &packet.data,
-                                                metadata.clone(),
-                                                players.clone(),
-                                                player_gain_cache.clone(),
-                                                player_presence.clone(),
-                                                player_presence_debounce.clone(),
-                                                client_id_to_player.clone(),
-                                                Some(&app_handle.clone()),
-                                            )
-                                            .await
-                                        }
-                                        PacketType::PlayerData => {
-                                            OutputStream::handle_player_data(
-                                                players.clone(),
-                                                &packet.data,
-                                            )
-                                            .await
-                                        }
-                                        PacketType::ServerError => {
-                                            OutputStream::handle_server_error(
-                                                &packet.data,
-                                                Some(&app_handle.clone()),
-                                            )
-                                            .await
-                                        }
-                                        PacketType::PlayerPresence => {
-                                            OutputStream::handle_player_presence(
-                                                &packet.data,
-                                                metadata.clone(),
-                                                Some(&app_handle.clone()),
-                                                player_presence.clone(),
-                                                player_presence_debounce.clone(),
-                                                players.clone(),
-                                            )
-                                            .await
-                                        }
-                                        PacketType::ChannelEvent => {
-                                            OutputStream::handle_channel_event(
-                                                &packet.data,
-                                                Some(&app_handle.clone()),
-                                            )
-                                            .await
-                                        }
-                                        _ => {}
+                                Ok(packet) => match packet.data.get_packet_type() {
+                                    PacketType::AudioFrame => {
+                                        OutputStream::handle_audio_data(
+                                            producer.clone(),
+                                            &packet.data,
+                                            metadata.clone(),
+                                            players.clone(),
+                                            player_gain_cache.clone(),
+                                            player_presence.clone(),
+                                            player_presence_debounce.clone(),
+                                            client_id_to_player.clone(),
+                                            Some(&app_handle.clone()),
+                                        )
+                                        .await
                                     }
+                                    PacketType::PlayerData => {
+                                        OutputStream::handle_player_data(
+                                            players.clone(),
+                                            &packet.data,
+                                        )
+                                        .await
+                                    }
+                                    PacketType::ServerError => {
+                                        OutputStream::handle_server_error(
+                                            &packet.data,
+                                            Some(&app_handle.clone()),
+                                        )
+                                        .await
+                                    }
+                                    PacketType::PlayerPresence => {
+                                        OutputStream::handle_player_presence(
+                                            &packet.data,
+                                            metadata.clone(),
+                                            Some(&app_handle.clone()),
+                                            player_presence.clone(),
+                                            player_presence_debounce.clone(),
+                                            players.clone(),
+                                        )
+                                        .await
+                                    }
+                                    PacketType::ChannelEvent => {
+                                        OutputStream::handle_channel_event(
+                                            &packet.data,
+                                            Some(&app_handle.clone()),
+                                        )
+                                        .await
+                                    }
+                                    _ => {}
                                 },
-                                Err(_e) => {
-                                }
+                                Err(_e) => {}
                             }
                         }
                     });
@@ -331,7 +329,7 @@ impl OutputStream {
             None => {
                 return Err(anyhow!(
                     "Output Stream is not initialized with a device! Unable to start stream"
-                ))
+                ));
             }
         };
     }
@@ -348,8 +346,12 @@ impl OutputStream {
             Some(name) => {
                 log::info!("Starting playback for current player: '{}'", name);
                 name
-            },
-            None => return Err(anyhow!("Playback stream cannot start without a player name set. Hint: .metadata('current_player', String) first."))
+            }
+            None => {
+                return Err(anyhow!(
+                    "Playback stream cannot start without a player name set. Hint: .metadata('current_player', String) first."
+                ));
+            }
         };
 
         // Seed the player cache with a default entry for the current player.
@@ -387,7 +389,10 @@ impl OutputStream {
                             fresh_config
                         }
                         _ => {
-                            warn!("Could not refresh output device config for {}, using stored config", device.display_name);
+                            warn!(
+                                "Could not refresh output device config for {}, using stored config",
+                                device.display_name
+                            );
                             stored_config
                         }
                     };
@@ -408,7 +413,10 @@ impl OutputStream {
                             let mut stream = match builder.open_sink_or_fallback() {
                                 Ok(s) => s,
                                 Err(e) => {
-                                    error!("Could not acquire MixerDeviceSink. Try restarting the stream? {:?}", e);
+                                    error!(
+                                        "Could not acquire MixerDeviceSink. Try restarting the stream? {:?}",
+                                        e
+                                    );
                                     return Err(anyhow::anyhow!(e));
                                 }
                             };
@@ -417,21 +425,13 @@ impl OutputStream {
                             self.playback_stream = Some(stream);
                             let mixer = self.playback_stream.as_ref().unwrap().mixer();
 
-                            let spatial_config = match metadata
-                                .get("spatial_audio_config")
-                                .await
-                            {
-                                Some(json) => {
-                                    serde_json::from_str::<SpatialAudioConfig>(&json)
-                                        .unwrap_or_default()
-                                }
+                            let spatial_config = match metadata.get("spatial_audio_config").await {
+                                Some(json) => serde_json::from_str::<SpatialAudioConfig>(&json)
+                                    .unwrap_or_default(),
                                 None => SpatialAudioConfig::default(),
                             };
 
-                            let panning_intensity = match metadata
-                                .get("panning_intensity")
-                                .await
-                            {
+                            let panning_intensity = match metadata.get("panning_intensity").await {
                                 Some(val) => val.parse::<f32>().unwrap_or(0.8),
                                 None => 0.8,
                             };
@@ -461,10 +461,13 @@ impl OutputStream {
                             listen_handle
                         }
                         None => {
-                            error!("CPAL output device is not defined. This shouldn't happen! Restart BVC? {:?}", device.clone());
+                            error!(
+                                "CPAL output device is not defined. This shouldn't happen! Restart BVC? {:?}",
+                                device.clone()
+                            );
                             return Err(anyhow::anyhow!(
                                 "Couldn't retrieve native cpal device for {} {}.",
-                                device.io.to_string(),
+                                device.io.store_key(),
                                 device.display_name
                             ));
                         }
@@ -480,7 +483,7 @@ impl OutputStream {
             None => {
                 return Err(anyhow!(
                     "Output Stream is not initialized with a device! Unable to start stream"
-                ))
+                ));
             }
         };
     }
@@ -559,21 +562,18 @@ impl OutputStream {
     }
 
     // Process channel events (create, delete, join, leave)
-    async fn handle_channel_event(
-        data: &QuicNetworkPacket,
-        app_handle: Option<&tauri::AppHandle>,
-    ) {
+    async fn handle_channel_event(data: &QuicNetworkPacket, app_handle: Option<&tauri::AppHandle>) {
         if let Some(app_handle) = app_handle {
             let channel_event: Result<ChannelEventPacket, ()> = data.data.to_owned().try_into();
 
             match channel_event {
                 Ok(event) => {
                     let event_type = match event.event {
-                        common::structs::channels::ChannelEvents::Create => "create",
-                        common::structs::channels::ChannelEvents::Delete => "delete",
-                        common::structs::channels::ChannelEvents::Join => "join",
-                        common::structs::channels::ChannelEvents::Leave => "leave",
-                        common::structs::channels::ChannelEvents::Rename => "rename",
+                        common::structs::channel::ChannelEvents::Create => "create",
+                        common::structs::channel::ChannelEvents::Delete => "delete",
+                        common::structs::channel::ChannelEvents::Join => "join",
+                        common::structs::channel::ChannelEvents::Leave => "leave",
+                        common::structs::channel::ChannelEvents::Rename => "rename",
                     };
 
                     info!(
@@ -626,41 +626,44 @@ impl OutputStream {
         if let Some(owner) = &data.owner {
             let player_name = &owner.name;
 
-            // Build client ID to player name mapping for gain control
-            if !player_name.is_empty() && !player_name.eq(&"api") {
-                let client_id = general_purpose::STANDARD.encode(&owner.client_id);
-                client_id_to_player.insert(client_id, player_name.clone());
-            }
+            // Skip presence tracking for synthetic jukebox players
+            if !player_name.starts_with(common::consts::audio::JUKEBOX_PLAYER_PREFIX) {
+                // Build client ID to player name mapping for gain control
+                if !player_name.is_empty() && !player_name.eq(&"api") {
+                    let client_id = general_purpose::STANDARD.encode(&owner.client_id);
+                    client_id_to_player.insert(client_id, player_name.clone());
+                }
 
-            // Don't emit events for ourselves
-            if !player_name.eq(&current_player_name) && !player_name.is_empty() {
-                // Resolve game from player_data cache, or preserve existing value in presence cache
-                let game = players
-                    .get(player_name)
-                    .map(|p| p.get_game().as_str().to_string())
-                    .or_else(|| player_presence.get(player_name).flatten());
+                // Don't emit events for ourselves
+                if !player_name.eq(&current_player_name) && !player_name.is_empty() {
+                    // Resolve game from player_data cache, or preserve existing value in presence cache
+                    let game = players
+                        .get(player_name)
+                        .map(|p| p.get_game().as_str().to_string())
+                        .or_else(|| player_presence.get(player_name).flatten());
 
-                // Always update the presence cache (stores game type alongside presence)
-                player_presence.insert(player_name.clone(), game.clone());
+                    // Always update the presence cache (stores game type alongside presence)
+                    player_presence.insert(player_name.clone(), game.clone());
 
-                // Only emit if not recently debounced
-                if player_presence_debounce.get(player_name).is_none() {
-                    player_presence_debounce.insert(player_name.clone(), ());
+                    // Only emit if not recently debounced
+                    if player_presence_debounce.get(player_name).is_none() {
+                        player_presence_debounce.insert(player_name.clone(), ());
 
-                    // Emit synthetic presence event for new player detected via audio
-                    if let Some(app_handle) = app_handle {
-                        if let Err(e) = app_handle.emit(
-                            crate::events::event::player_presence::PLAYER_PRESENCE,
-                            crate::events::event::player_presence::Presence::new(
-                                player_name.clone(),
-                                String::from("joined"),
-                                game,
-                            ),
-                        ) {
-                            error!(
-                                "Failed to emit auto-detected player presence event: {:?}",
-                                e
-                            );
+                        // Emit synthetic presence event for new player detected via audio
+                        if let Some(app_handle) = app_handle {
+                            if let Err(e) = app_handle.emit(
+                                crate::events::event::player_presence::PLAYER_PRESENCE,
+                                crate::events::event::player_presence::Presence::new(
+                                    player_name.clone(),
+                                    String::from("joined"),
+                                    game,
+                                ),
+                            ) {
+                                error!(
+                                    "Failed to emit auto-detected player presence event: {:?}",
+                                    e
+                                );
+                            }
                         }
                     }
                 }
@@ -675,21 +678,25 @@ impl OutputStream {
                 // Create emitter RecordingPlayerData from packet owner and audio data
                 let emitter = owner
                     .as_ref()
-                    .map(|o| RecordingPlayerData::from_packet_owner(
-                        o,
-                        &data,
-                        player_gain_cache.get(&o.name),
-                    ))
+                    .map(|o| {
+                        RecordingPlayerData::from_packet_owner(
+                            o,
+                            &data,
+                            player_gain_cache.get(&o.name),
+                        )
+                    })
                     .unwrap_or_else(RecordingPlayerData::unknown);
 
                 // Create listener RecordingPlayerData from current player
                 let listener = players
                     .get(&current_player_name)
-                    .map(|p| RecordingPlayerData::from_player_enum(
-                        &p,
-                        current_player_name.clone(),
-                        player_gain_cache.get(&current_player_name),
-                    ))
+                    .map(|p| {
+                        RecordingPlayerData::from_player_enum(
+                            &p,
+                            current_player_name.clone(),
+                            player_gain_cache.get(&current_player_name),
+                        )
+                    })
                     .unwrap_or_else(|| RecordingPlayerData::unknown());
 
                 let timestamp = data.timestamp() as u64;
@@ -772,12 +779,12 @@ impl OutputStream {
     pub fn toggle(&self, event: StreamEvent) {
         match event {
             StreamEvent::Mute => {
-               let current_state = MUTE_OUTPUT_STREAM.load(Ordering::Relaxed);
+                let current_state = MUTE_OUTPUT_STREAM.load(Ordering::Relaxed);
                 MUTE_OUTPUT_STREAM.store(!current_state, Ordering::Relaxed);
                 if let Some(sink_manager) = self.sink_manager.as_ref() {
                     sink_manager.update_global_mute(!current_state);
                 }
-            },
+            }
             StreamEvent::Record => {
                 // Recording state is now owned by RecordingManager
                 // Streams read the shared flag directly - no toggle needed

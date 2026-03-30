@@ -1,7 +1,7 @@
-use std::sync::Arc;
-use common::structs::{AnalyticsEvent, AnalyticsEventData};
-use tauri::State;
 use crate::analytics::AnalyticsService;
+use common::structs::{AnalyticsEvent, AnalyticsEventData};
+use std::sync::Arc;
+use tauri::State;
 
 #[tauri::command]
 pub(crate) async fn track_event(

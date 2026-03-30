@@ -1,9 +1,9 @@
-use std::sync::Arc;
-use chrono::Utc;
-use common::structs::{AnalyticsEvent, AnalyticsEventData};
 use crate::analytics::AnalyticsProviderType;
 use crate::analytics::dtos::QueuedEvent;
 use crate::logging::Telemetry;
+use chrono::Utc;
+use common::structs::{AnalyticsEvent, AnalyticsEventData};
+use std::sync::Arc;
 
 pub struct AnalyticsService {
     providers: Vec<AnalyticsProviderType>,
@@ -54,7 +54,10 @@ impl AnalyticsService {
 
         let mut any_success = false;
         for provider in &self.providers {
-            match provider.send_batch(&events, &self.install_id, &self.session_id).await {
+            match provider
+                .send_batch(&events, &self.install_id, &self.session_id)
+                .await
+            {
                 Ok(()) => any_success = true,
                 Err(e) => log::warn!("Analytics provider flush failed: {}", e),
             }
@@ -66,7 +69,10 @@ impl AnalyticsService {
             for event in events {
                 queue.push(event);
             }
-            log::warn!("All analytics providers failed. {} events re-queued.", requeue_count);
+            log::warn!(
+                "All analytics providers failed. {} events re-queued.",
+                requeue_count
+            );
         }
 
         Ok(())

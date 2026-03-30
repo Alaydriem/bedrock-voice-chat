@@ -38,6 +38,7 @@ rocket = { version = "^0.5", default-features = false, features = [
 ] }
 hcl-rs = { version = "^0.19" }
 anyhow = { version = "^1.0" }
+thiserror = { version = "^2" }
 serde = { version = "^1", features = ["derive"] }
 serde_json = { version = "^1", features = ["raw_value"] }
 async-stream = { version = "^0.3" }
@@ -77,6 +78,13 @@ semver = "1.0.26"
 dashmap = { version = "^6" }
 cached = { version = "^0.58" }
 meridian-proxy = { git = "https://github.com/Alaydriem/meridian", default-features = false, features = ["client"] }
+tokio-util = { version = "^0.7" }
+ogg = { version = "^0.9" }
+uuid = { version = "^1", features = ["v7"] }
+schemars = "0.8"
+okapi = "0.7"
+rocket_okapi = { version = "0.9", features = ["swagger", "mtls"] }
+inventory = "0.3"
 
 [build-dependencies]
 built = { version = "^0.7", features = ["git2", "chrono", "semver"] }

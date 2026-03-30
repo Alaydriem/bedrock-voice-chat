@@ -1,7 +1,7 @@
 use common::structs::DeepLink;
+use log::{error, info};
 use tauri::{AppHandle, Emitter};
 use tauri_plugin_store::StoreExt;
-use log::{info, error};
 
 /// Trait for handling deep link events
 pub trait DeepLinkHandler {
@@ -21,7 +21,10 @@ impl DeepLinkHandler for DeepLink {
         tauri::async_runtime::spawn(async move {
             match app_handle.store("store.json") {
                 Ok(store) => {
-                    store.set("pending_deep_link", serde_json::json!(deep_link.url.clone()));
+                    store.set(
+                        "pending_deep_link",
+                        serde_json::json!(deep_link.url.clone()),
+                    );
                     match store.save() {
                         Ok(_) => {
                             if let Err(e) = app_handle.emit("deep-link-received", deep_link) {

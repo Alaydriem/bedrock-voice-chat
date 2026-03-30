@@ -2,7 +2,4 @@
 import type { HytaleAuthStatus } from "./HytaleAuthStatus";
 import type { LoginResponse } from "./LoginResponse";
 
-/**
- * Response when polling Hytale device flow status
- */
 export type HytaleDeviceFlowStatusResponse = { status: HytaleAuthStatus, login_response: LoginResponse | null, };

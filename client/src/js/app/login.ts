@@ -4,7 +4,6 @@ import { Store } from '@tauri-apps/plugin-store';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { invoke } from '@tauri-apps/api/core';
 import BVCApp from './BVCApp.ts';
-import Keyring from './keyring.ts';
 import Analytics from './analytics';
 import type { HytaleDeviceFlowStartResponse, HytaleDeviceFlowStatusResponse, HytaleAuthStatus, LoginResponse } from '../bindings/index.ts';
 
@@ -335,22 +334,6 @@ export default class Login extends BVCApp {
         autoSave: false,
         defaults: {}
       });
-
-      // Store credentials to keyring (same pattern as Minecraft auth)
-      const keyring = await Keyring.new("servers");
-      await keyring.setServer(server);
-
-      for (const key of Object.keys(loginResponse)) {
-        const value = loginResponse[key as keyof LoginResponse];
-        if (value === null || value === undefined) {
-          continue;
-        }
-        if (typeof value === "string" || value instanceof Uint8Array) {
-          await keyring.insert(key, value);
-        } else {
-          await keyring.insert(key, JSON.stringify(value));
-        }
-      }
 
       // Store current server and player info
       await store.set("current_server", server);

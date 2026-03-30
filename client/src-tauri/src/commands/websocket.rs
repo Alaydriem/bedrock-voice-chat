@@ -1,7 +1,7 @@
+use crate::websocket::{WebSocketConfig, WebSocketManager};
+use common::traits::StreamTrait;
 use tauri::State;
 use tauri::async_runtime::Mutex;
-use crate::websocket::{WebSocketManager, WebSocketConfig};
-use common::traits::StreamTrait;
 
 #[tauri::command]
 pub async fn stop_websocket_server(

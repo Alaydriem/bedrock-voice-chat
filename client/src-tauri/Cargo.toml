@@ -73,6 +73,7 @@ chrono = { version = "^0.4" }
 fern = { version = "^0.7" }
 async-trait = { version = "^0.1" }
 url = { version = "2" }
+x509-parser = { version = "0.16" }
 tar = { version = "^0.4" }
 zstd = { version = "^0.13" }
 sentry = { version = "^0.46", default-features = false, features = [
@@ -91,6 +92,7 @@ tauri-plugin-updater = { version = "^2.9" }
 tauri-plugin-process = { version = "^2.3" }
 tauri-plugin-global-shortcut = { version = "^2" }
 sentry-rust-minidump = { version = "^0.14" }
+tauri-plugin-dialog = "^2"
 
 [target."cfg(any(target_os = \"windows\"))".dependencies]
 windows-targets = { version = "^0.53.0" }

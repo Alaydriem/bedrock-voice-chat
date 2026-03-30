@@ -1,9 +1,9 @@
 use crate::structs::app_state::AppState;
 use common::consts::version::PROTOCOL_VERSION;
+use common::response::ApiConfig;
 use common::response::GamerpicResponse;
-use common::structs::channels::{Channel, ChannelEvent};
-use common::structs::config::ApiConfig;
-use tauri::{async_runtime::Mutex, State};
+use common::structs::channel::{Channel, ChannelEvent};
+use tauri::{State, async_runtime::Mutex};
 
 #[tauri::command(async)]
 pub(crate) async fn api_initialize_client(
@@ -28,8 +28,12 @@ pub(crate) async fn api_ping(
         Some(endpoint) => {
             // Use pool for specific server
             drop(state); // Release lock before async operation
-            app_state.lock().await.get_api_client_for_server(&endpoint).await?
-        },
+            app_state
+                .lock()
+                .await
+                .get_api_client_for_server(&endpoint)
+                .await?
+        }
         None => {
             // Use default client (backwards compatible)
             state.get_api_client()?.clone()
@@ -61,11 +65,13 @@ pub(crate) async fn api_get_config(
     let api = match server {
         Some(endpoint) => {
             drop(state);
-            app_state.lock().await.get_api_client_for_server(&endpoint).await?
-        },
-        None => {
-            state.get_api_client()?.clone()
+            app_state
+                .lock()
+                .await
+                .get_api_client_for_server(&endpoint)
+                .await?
         }
+        None => state.get_api_client()?.clone(),
     };
 
     let config = api.get_config().await?;
@@ -110,11 +116,13 @@ pub(crate) async fn api_create_channel(
     let api = match server {
         Some(endpoint) => {
             drop(state);
-            app_state.lock().await.get_api_client_for_server(&endpoint).await?
-        },
-        None => {
-            state.get_api_client()?.clone()
+            app_state
+                .lock()
+                .await
+                .get_api_client_for_server(&endpoint)
+                .await?
         }
+        None => state.get_api_client()?.clone(),
     };
 
     api.create_channel(name).await
@@ -123,8 +131,7 @@ pub(crate) async fn api_create_channel(
 #[tauri::command(async)]
 pub(crate) async fn api_delete_channel(
     app_state: State<'_, Mutex<AppState>>,
-    #[allow(non_snake_case)]
-    channelId: String,
+    #[allow(non_snake_case)] channelId: String,
     server: Option<String>,
 ) -> Result<bool, String> {
     let state = app_state.lock().await;
@@ -132,11 +139,13 @@ pub(crate) async fn api_delete_channel(
     let api = match server {
         Some(endpoint) => {
             drop(state);
-            app_state.lock().await.get_api_client_for_server(&endpoint).await?
-        },
-        None => {
-            state.get_api_client()?.clone()
+            app_state
+                .lock()
+                .await
+                .get_api_client_for_server(&endpoint)
+                .await?
         }
+        None => state.get_api_client()?.clone(),
     };
 
     api.delete_channel(channelId).await
@@ -152,11 +161,13 @@ pub(crate) async fn api_list_channels(
     let api = match server {
         Some(endpoint) => {
             drop(state);
-            app_state.lock().await.get_api_client_for_server(&endpoint).await?
-        },
-        None => {
-            state.get_api_client()?.clone()
+            app_state
+                .lock()
+                .await
+                .get_api_client_for_server(&endpoint)
+                .await?
         }
+        None => state.get_api_client()?.clone(),
     };
 
     api.list_channels().await
@@ -165,8 +176,7 @@ pub(crate) async fn api_list_channels(
 #[tauri::command(async)]
 pub(crate) async fn api_get_channel(
     app_state: State<'_, Mutex<AppState>>,
-    #[allow(non_snake_case)]
-    channelId: String,
+    #[allow(non_snake_case)] channelId: String,
     server: Option<String>,
 ) -> Result<Channel, String> {
     let state = app_state.lock().await;
@@ -174,11 +184,13 @@ pub(crate) async fn api_get_channel(
     let api = match server {
         Some(endpoint) => {
             drop(state);
-            app_state.lock().await.get_api_client_for_server(&endpoint).await?
-        },
-        None => {
-            state.get_api_client()?.clone()
+            app_state
+                .lock()
+                .await
+                .get_api_client_for_server(&endpoint)
+                .await?
         }
+        None => state.get_api_client()?.clone(),
     };
 
     api.get_channel(&channelId).await
@@ -187,8 +199,7 @@ pub(crate) async fn api_get_channel(
 #[tauri::command(async)]
 pub(crate) async fn api_channel_event(
     app_state: State<'_, Mutex<AppState>>,
-    #[allow(non_snake_case)]
-    channelId: String,
+    #[allow(non_snake_case)] channelId: String,
     event: ChannelEvent,
     server: Option<String>,
 ) -> Result<bool, String> {
@@ -197,11 +208,13 @@ pub(crate) async fn api_channel_event(
     let api = match server {
         Some(endpoint) => {
             drop(state);
-            app_state.lock().await.get_api_client_for_server(&endpoint).await?
-        },
-        None => {
-            state.get_api_client()?.clone()
+            app_state
+                .lock()
+                .await
+                .get_api_client_for_server(&endpoint)
+                .await?
         }
+        None => state.get_api_client()?.clone(),
     };
 
     api.channel_event(channelId, event).await
@@ -210,8 +223,7 @@ pub(crate) async fn api_channel_event(
 #[tauri::command(async)]
 pub(crate) async fn api_rename_channel(
     app_state: State<'_, Mutex<AppState>>,
-    #[allow(non_snake_case)]
-    channelId: String,
+    #[allow(non_snake_case)] channelId: String,
     name: String,
     server: Option<String>,
 ) -> Result<bool, String> {
@@ -220,11 +232,13 @@ pub(crate) async fn api_rename_channel(
     let api = match server {
         Some(endpoint) => {
             drop(state);
-            app_state.lock().await.get_api_client_for_server(&endpoint).await?
-        },
-        None => {
-            state.get_api_client()?.clone()
+            app_state
+                .lock()
+                .await
+                .get_api_client_for_server(&endpoint)
+                .await?
         }
+        None => state.get_api_client()?.clone(),
     };
 
     api.rename_channel(&channelId, &name).await
@@ -242,11 +256,13 @@ pub(crate) async fn api_get_player_gamerpic(
     let api = match server {
         Some(endpoint) => {
             drop(state);
-            app_state.lock().await.get_api_client_for_server(&endpoint).await?
-        },
-        None => {
-            state.get_api_client()?.clone()
+            app_state
+                .lock()
+                .await
+                .get_api_client_for_server(&endpoint)
+                .await?
         }
+        None => state.get_api_client()?.clone(),
     };
 
     api.get_gamerpic(game.as_str(), &gamertag).await

@@ -24,19 +24,20 @@ class HttpRequestHandler(
         private val LOGGER = LoggerFactory.getLogger("Bedrock Voice Chat")
     }
 
-    /**
-     * Send player data payload asynchronously to the BVC server.
-     */
-    fun sendAsync(payload: Payload) {
-        val jsonBody = GSON.toJson(payload)
-        val url = "$serverUrl/api/position"
-
-        val request = HttpRequest.newBuilder()
+    private fun requestBuilder(url: String): HttpRequest.Builder =
+        HttpRequest.newBuilder()
             .uri(URI.create(url))
             .timeout(Duration.ofSeconds(5))
-            .header("Content-Type", "application/json")
             .header("X-MC-Access-Token", accessToken)
+
+    private fun jsonRequestBuilder(url: String): HttpRequest.Builder =
+        requestBuilder(url)
+            .header("Content-Type", "application/json")
             .header("Accept", "application/json")
+
+    fun sendAsync(payload: Payload) {
+        val jsonBody = GSON.toJson(payload)
+        val request = jsonRequestBuilder("$serverUrl/api/position")
             .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
             .build()
 
@@ -50,6 +51,44 @@ class HttpRequestHandler(
             }
             .exceptionally { ex ->
                 LOGGER.error("Failed to send to BVC server: {}", ex.message)
+                null
+            }
+    }
+
+    fun audioPlayAsync(playJson: String, callback: (String?) -> Unit) {
+        val request = jsonRequestBuilder("$serverUrl/api/audio/event")
+            .POST(HttpRequest.BodyPublishers.ofString(playJson))
+            .build()
+
+        httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+            .thenAccept { response ->
+                if (response.statusCode() in 200..299) {
+                    callback(response.body())
+                } else {
+                    LOGGER.warn("BVC server returned error: {} - {}", response.statusCode(), response.body())
+                    callback(null)
+                }
+            }
+            .exceptionally { ex ->
+                LOGGER.error("Failed to start audio playback: {}", ex.message)
+                callback(null)
+                null
+            }
+    }
+
+    fun audioStopAsync(eventId: String) {
+        val request = requestBuilder("$serverUrl/api/audio/event/$eventId")
+            .DELETE()
+            .build()
+
+        httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+            .thenAccept { response ->
+                if (response.statusCode() !in 200..299) {
+                    LOGGER.warn("BVC server returned error stopping audio: {} - {}", response.statusCode(), response.body())
+                }
+            }
+            .exceptionally { ex ->
+                LOGGER.error("Failed to stop audio playback: {}", ex.message)
                 null
             }
     }

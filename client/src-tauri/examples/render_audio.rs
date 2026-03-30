@@ -8,7 +8,10 @@ use common::structs::AudioFormat;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
     if args.len() != 4 {
-        eprintln!("Usage: {} <session_path> <player_name> <output_file>", args[0]);
+        eprintln!(
+            "Usage: {} <session_path> <player_name> <output_file>",
+            args[0]
+        );
         eprintln!();
         eprintln!("Arguments:");
         eprintln!("  session_path  - Path to the recording session directory");
@@ -16,7 +19,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("  output_file   - Output file path (.wav)");
         eprintln!();
         eprintln!("Example:");
-        eprintln!("  {} test-data/019aae95-82e2-7676-9466-ec8d5399e798 Alaydriem output.wav", args[0]);
+        eprintln!(
+            "  {} test-data/019aae95-82e2-7676-9466-ec8d5399e798 Alaydriem output.wav",
+            args[0]
+        );
         std::process::exit(1);
     }
 
@@ -29,7 +35,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         _ => AudioFormat::Bwav,
     };
 
-    println!("Rendering audio for player '{}' from session at {:?}", player_name, session_path);
+    println!(
+        "Rendering audio for player '{}' from session at {:?}",
+        player_name, session_path
+    );
     println!("Output file: {:?}", output_path);
     println!("Format: {:?}", format);
     println!();

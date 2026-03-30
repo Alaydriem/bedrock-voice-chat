@@ -1,0 +1,36 @@
+{
+  "format_version": "1.21.0",
+  "minecraft:recipe_shaped": {
+    "description": {
+      "identifier": "bvc:audio_player"
+    },
+    "tags": [
+      "crafting_table"
+    ],
+    "pattern": [
+      "WWW",
+      "WDW",
+      "WRW"
+    ],
+    "key": {
+      "W": {
+        "item": "minecraft:planks"
+      },
+      "D": {
+        "item": "minecraft:diamond"
+      },
+      "R": {
+        "item": "minecraft:redstone"
+      }
+    },
+    "unlock": [
+      {
+        "item": "minecraft:planks"
+      }
+    ],
+    "result": {
+      "item": "bvc:audio_player",
+      "count": 1
+    }
+  }
+}

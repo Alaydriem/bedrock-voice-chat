@@ -67,7 +67,8 @@
           "client/src-tauri/Info.ios.plist",
           "client/package.json",
           "mods/bds/package.json",
-          "mods/bds/manifest.json",
+          "mods/bds/bp/manifest.json",
+          "mods/bds/rp/manifest.json",
           "mods/java/gradle.properties",
           "mods/java/fabric/gradle.properties",
           "mods/java/hytale/src/main/resources/manifest.json"

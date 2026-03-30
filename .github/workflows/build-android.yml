@@ -277,6 +277,17 @@ jobs:
           echo "Verifying copied icons:"
           find "$TARGET_RES" -name "ic_launcher*" -exec ls -la {} \;
 
+      - name: Write client environment file
+        shell: bash
+        run: |
+          cat > client/.env.local << 'ENVEOF'
+          SENTRY_DSN=${{ secrets.SENTRY_DSN }}
+          POSTHOG_KEY=${{ secrets.POSTHOG_KEY }}
+          POSTHOG_HOST=${{ secrets.POSTHOG_HOST }}
+          FLAGSMITH_KEY=${{ secrets.FLAGSMITH_KEY }}
+          FLAGSMITH_SERVER=${{ secrets.FLAGSMITH_SERVER }}
+          ENVEOF
+
       - name: Build Android
         working-directory: ./client
         env:

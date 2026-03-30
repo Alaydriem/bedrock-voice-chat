@@ -1,6 +1,9 @@
-use crate::audio::types::{AudioDevice, AudioDeviceHost, AudioDeviceType, StreamConfig};
 use crate::api::Api;
-use rodio::cpal::{self, traits::{DeviceTrait, HostTrait}};
+use crate::audio::types::{AudioDevice, AudioDeviceHost, AudioDeviceType, StreamConfig};
+use rodio::cpal::{
+    self,
+    traits::{DeviceTrait, HostTrait},
+};
 use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -22,16 +25,29 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(store: Arc<Store<Wry>>, app_handle: AppHandle) -> Self {
+        let output_device = AppState::setup_audio_device(
+            AudioDeviceType::OutputDevice,
+            &store,
+        ).unwrap_or_else(|e| {
+            log::error!("Failed to initialize default output device: {}. Using placeholder.", e);
+            AudioDevice {
+                io: AudioDeviceType::OutputDevice,
+                id: "default".to_string(),
+                name: "default".to_string(),
+                host: AudioDeviceHost::try_from(cpal::default_host().id())
+                    .unwrap_or_else(|_| AudioDeviceHost::default()),
+                stream_configs: vec![],
+                display_name: "Default Device".to_string(),
+            }
+        });
+
         Self {
             store: store.clone(),
             app_handle,
             // Don't initialize input device at startup - defer until permissions are granted
             // This prevents iOS from prompting for microphone permission on app launch
             input_audio_device: None,
-            output_audio_device: AppState::setup_audio_device(
-                AudioDeviceType::OutputDevice,
-                &store,
-            ),
+            output_audio_device: output_device,
             current_server: AppState::get_current_server(&store),
             api_client: None,
             server_pool: Arc::new(RwLock::new(HashMap::new())),
@@ -54,7 +70,9 @@ impl AppState {
 
     /// Get the API client, returning an error if not initialized
     pub fn get_api_client(&self) -> Result<&Api, String> {
-        self.api_client.as_ref().ok_or_else(|| "API client not initialized. Please log in first.".to_string())
+        self.api_client
+            .as_ref()
+            .ok_or_else(|| "API client not initialized. Please log in first.".to_string())
     }
 
     /// Get API client for a specific server from pool
@@ -78,7 +96,8 @@ impl AppState {
                 let request = PermissionRequest {
                     permission_type: PermissionType::Audio,
                 };
-                let response = self.app_handle
+                let response = self
+                    .app_handle
                     .audio_permissions()
                     .check_permission(request)
                     .map_err(|e| format!("Permission check failed: {}", e))?;
@@ -86,7 +105,7 @@ impl AppState {
                 if !response.granted {
                     return Err("Audio permission not granted".to_string());
                 }
-            },
+            }
             _ => {}
         }
 
@@ -103,7 +122,7 @@ impl AppState {
 
         // Change the stored value
         self.store.set(
-            device.io.to_string(),
+            device.io.store_key(),
             json!({
                 "id": device.id,
                 "name": device.name,
@@ -135,7 +154,8 @@ impl AppState {
                     let request = PermissionRequest {
                         permission_type: PermissionType::Audio,
                     };
-                    let response = self.app_handle
+                    let response = self
+                        .app_handle
                         .audio_permissions()
                         .check_permission(request)
                         .map_err(|e| format!("Permission check failed: {}", e))?;
@@ -148,7 +168,7 @@ impl AppState {
                     self.input_audio_device = Some(Self::setup_audio_device(
                         AudioDeviceType::InputDevice,
                         &self.store,
-                    ));
+                    )?);
                 }
                 Ok(self.input_audio_device.clone().unwrap())
             }
@@ -156,18 +176,16 @@ impl AppState {
         }
     }
 
-    /// Retrieves the current audio device, defaults to `default`,
-    /// Which is the system audio driver default
-    fn setup_audio_device(io: AudioDeviceType, store: &Arc<Store<Wry>>) -> AudioDevice {
+    fn setup_audio_device(io: AudioDeviceType, store: &Arc<Store<Wry>>) -> Result<AudioDevice, String> {
         // Check if stored config exists and has the new `id` field
-        let use_stored = match store.get(io.to_string()) {
+        let use_stored = match store.get(io.store_key()) {
             Some(s) => {
                 if s.get("id").is_none() {
                     log::warn!(
                         "Detected old-format device config for {} (missing 'id' field). Clearing stored config and reverting to system default.",
-                        io.to_string()
+                        io.store_key()
                     );
-                    store.delete(io.to_string());
+                    store.delete(io.store_key());
                     let _ = store.save();
                     false
                 } else {
@@ -178,9 +196,13 @@ impl AppState {
         };
 
         let (id, name, host, stream_configs, display_name) = if use_stored {
-            let s = store.get(io.to_string()).unwrap();
+            let s = store.get(io.store_key()).unwrap();
             (
-                s.get("id").unwrap().as_str().unwrap_or("default").to_string(),
+                s.get("id")
+                    .unwrap()
+                    .as_str()
+                    .unwrap_or("default")
+                    .to_string(),
                 s.get("name").unwrap().to_string().replace('\"', ""),
                 serde_json::from_str::<AudioDeviceHost>(
                     s.get("host").unwrap().to_string().as_str(),
@@ -196,50 +218,72 @@ impl AppState {
         } else {
             let default_host = cpal::default_host();
             let default_device = match io {
-                AudioDeviceType::InputDevice => default_host.default_input_device().unwrap(),
-                AudioDeviceType::OutputDevice => default_host.default_output_device().unwrap(),
+                AudioDeviceType::InputDevice => default_host.default_input_device()
+                    .ok_or_else(|| "No default input device found. Check your system sound settings.".to_string())?,
+                AudioDeviceType::OutputDevice => default_host.default_output_device()
+                    .ok_or_else(|| "No default output device found. Check your system sound settings.".to_string())?,
             };
 
             let default_configs = match io {
                 AudioDeviceType::InputDevice => default_device
                     .supported_input_configs()
-                    .unwrap()
-                    .map(|s| s)
+                    .map_err(|e| format!("Failed to get input configs: {}", e))?
                     .collect(),
                 AudioDeviceType::OutputDevice => default_device
                     .supported_output_configs()
-                    .unwrap()
-                    .map(|s| s)
+                    .map_err(|e| format!("Failed to get output configs: {}", e))?
                     .collect(),
             };
 
-            let stream_config = AudioDevice::to_stream_config(default_configs);
-
-            let device_id = default_device.id()
+            let device_id = default_device
+                .id()
                 .map(|id| id.to_string())
                 .unwrap_or_else(|_| "default".to_string());
 
-            let device_display_name = default_device.description()
+            let device_display_name = default_device
+                .description()
                 .map(|desc| desc.name().to_string())
                 .unwrap_or_else(|_| "Default Device".to_string());
+
+            let stream_config = AudioDevice::to_stream_config(default_configs);
+
+            if stream_config.is_empty() {
+                return Err(format!(
+                    "INCOMPATIBLE_DEVICE: '{}' has no compatible audio configurations (requires 48kHz or 44.1kHz)",
+                    device_display_name
+                ));
+            }
 
             (
                 device_id,
                 "default".to_string(),
-                AudioDeviceHost::try_from(default_host.id()).unwrap(),
+                AudioDeviceHost::try_from(default_host.id())
+                    .map_err(|_| "Unknown audio host".to_string())?,
                 stream_config,
                 device_display_name,
             )
         };
 
-        AudioDevice {
+        Ok(AudioDevice {
             io,
             id,
             name,
             host,
             stream_configs,
             display_name,
+        })
+    }
+
+    /// Clears the stored audio device for the given type and re-initializes from OS default
+    pub fn clear_audio_device(&mut self, io: AudioDeviceType) -> Result<(), String> {
+        self.store.delete(io.store_key());
+        let _ = self.store.save();
+        let default_device = Self::setup_audio_device(io.clone(), &self.store)?;
+        match io {
+            AudioDeviceType::InputDevice => self.input_audio_device = Some(default_device),
+            AudioDeviceType::OutputDevice => self.output_audio_device = default_device,
         }
+        Ok(())
     }
 
     pub fn get_store(&self) -> Arc<Store<Wry>> {

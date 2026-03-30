@@ -1,7 +1,6 @@
 import { info, error as logError } from '@tauri-apps/plugin-log';
 import { invoke } from '@tauri-apps/api/core';
 import BVCApp from './BVCApp.ts';
-import Keyring from './keyring.ts';
 import type { LoginResponse } from '../bindings/LoginResponse';
 import type { Game } from '../bindings/Game';
 
@@ -51,29 +50,13 @@ export default class LoginCode extends BVCApp {
                 code,
             });
 
-            const [store, keyring] = await Promise.all([
-                this.getStore(),
-                Keyring.new("servers"),
-            ]);
-            await keyring.setServer(this.serverUrl);
-
-            const inserts = Object.keys(response).flatMap(key => {
-                const value = response[key as keyof LoginResponse];
-                if (value === null || value === undefined) {
-                    return [];
-                }
-                const serialized = (typeof value === "string" || value instanceof Uint8Array)
-                    ? value
-                    : JSON.stringify(value);
-                return [keyring.insert(key, serialized)];
-            });
+            const store = await this.getStore();
 
             const [rawServerList] = await Promise.all([
                 store.get("server_list") as Promise<Array<{ server: string, player: string, game?: string }> | null>,
                 store.set("current_server", this.serverUrl),
                 store.set("current_player", response.gamertag),
                 store.set("active_game", game),
-                ...inserts,
             ]);
 
             const serverList = rawServerList || [];

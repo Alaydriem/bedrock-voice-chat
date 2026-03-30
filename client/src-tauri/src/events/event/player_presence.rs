@@ -13,7 +13,11 @@ pub(crate) struct Presence {
 
 impl Presence {
     pub fn new(player: String, status: String, game: Option<String>) -> Self {
-        Self { player, status, game }
+        Self {
+            player,
+            status,
+            game,
+        }
     }
 
     #[allow(unused)]

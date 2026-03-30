@@ -8,8 +8,8 @@ use serde::{Deserialize, Deserializer, Serialize};
 pub use hytale::Dimension as HytaleDimension;
 pub use minecraft::Dimension;
 
-/// Container for game session data with heterogeneous player types
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "openapi", derive(schemars::JsonSchema))]
 pub struct GameDataCollection {
     pub game: Option<Game>,
     pub players: Vec<PlayerEnum>,

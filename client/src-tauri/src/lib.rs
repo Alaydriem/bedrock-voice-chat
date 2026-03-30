@@ -1,17 +1,17 @@
-use common::consts::variant::{Variant, get_variant};
 use crate::structs::app_state::AppState;
 use audio::AudioPacket;
-use flume::{Receiver, Sender};
-use network::NetworkPacket;
-use std::sync::Arc;
-use tauri::async_runtime::Mutex;
-use tauri::Manager;
-use tauri_plugin_store::StoreExt;
-use tauri_plugin_deep_link::DeepLinkExt;
-use log::{info, error, warn};
 use audio::AudioStreamManager;
 use audio::recording::RecordingManager;
+use common::consts::variant::{Variant, get_variant};
+use flume::{Receiver, Sender};
+use log::{error, info, warn};
+use network::NetworkPacket;
 use network::NetworkStreamManager;
+use std::sync::Arc;
+use tauri::Manager;
+use tauri::async_runtime::Mutex;
+use tauri_plugin_deep_link::DeepLinkExt;
+use tauri_plugin_store::StoreExt;
 
 use common::structs::DeepLink;
 use deep_links::DeepLinkHandler;
@@ -24,6 +24,7 @@ mod commands;
 mod deep_links;
 mod events;
 mod feature_flags;
+mod keyring;
 #[cfg(desktop)]
 pub mod keybinds;
 mod logging;
@@ -45,8 +46,9 @@ pub fn run() {
             environment: Some(
                 match get_variant() {
                     Variant::Dev => "development",
-                    Variant::Release => "production"
-                }.into()
+                    Variant::Release => "production",
+                }
+                .into(),
             ),
             ..Default::default()
         },
@@ -68,6 +70,7 @@ pub fn run() {
                 .expect("no main window")
                 .set_focus();
         }));
+        builder = builder.plugin(tauri_plugin_dialog::init());
     }
 
     let sentry_logger = Arc::new(logging::SentryLogger::new(true));
@@ -170,6 +173,19 @@ pub fn run() {
             crate::commands::keybinds::start_keybind_listener,
             // Feature Flags
             crate::commands::feature_flags::get_feature_flag,
+            // Audio Library
+            crate::commands::audio_library::upload_audio_file,
+            crate::commands::audio_library::list_audio_files,
+            crate::commands::audio_library::delete_audio_file,
+            crate::commands::audio_library::refresh_server_state,
+            crate::commands::audio_library::get_audio_stream_url,
+            // Keyring
+            crate::commands::keyring::store_credentials,
+            crate::commands::keyring::get_credentials,
+            crate::commands::keyring::get_credential,
+            crate::commands::keyring::set_credential,
+            crate::commands::keyring::delete_credentials,
+            crate::commands::keyring::is_certificate_expired,
             // Updater
             #[cfg(desktop)]
             crate::commands::updater::check_for_updates,
@@ -352,6 +368,10 @@ pub fn run() {
             {
                 handle.plugin(tauri_plugin_updater::Builder::new().build())?;
             }
+
+            let keyring_service = keyring::KeyringService::new(handle.clone());
+            keyring_service.initialize()?;
+            app.manage(Mutex::new(keyring_service));
 
             let app_state = AppState::new(store.clone(), handle.clone());
             app.manage(telemetry);

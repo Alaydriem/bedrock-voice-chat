@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 
 /// Hytale player with world and dimension-based communication rules
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "openapi", derive(schemars::JsonSchema))]
 pub struct HytalePlayer {
     pub name: String,
     pub coordinates: Coordinate,

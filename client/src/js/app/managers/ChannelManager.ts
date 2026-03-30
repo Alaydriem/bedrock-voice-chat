@@ -4,7 +4,6 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { info, error as logError, debug, warn } from '@tauri-apps/plugin-log';
 import { Store } from '@tauri-apps/plugin-store';
 import type { Channel } from '../../bindings/Channel';
-import type { ChannelPlayer } from '../../bindings/ChannelPlayer';
 import type { ChannelEvent } from '../../bindings/ChannelEvent';
 import type { ChannelEvents } from '../../bindings/ChannelEvents';
 import type { Game } from '../../bindings/Game';
@@ -252,7 +251,7 @@ export default class ChannelManager {
             // Check if user is already in the channel's player list (e.g. server added them on create)
             const existingChannels = get(this.channelsStore);
             const targetChannel = existingChannels.find(c => c.id === channelId);
-            if (targetChannel?.players.some(p => GameNameUtils.namesMatch(p.name, currentUser))) {
+            if (targetChannel?.players.some(p => GameNameUtils.namesMatch(p, currentUser))) {
                 this.currentUserChannelIdStore.set(channelId);
                 const isMobile = await this.platformDetector.checkMobile();
                 if (isMobile) {
@@ -282,17 +281,12 @@ export default class ChannelManager {
 
                 // Update local state optimistically
                 this.currentUserChannelIdStore.set(channelId);
-                const optimisticPlayer: ChannelPlayer = {
-                    name: currentUser,
-                    game: activeGame,
-                    gamerpic: this.currentUserGamepic
-                };
                 this.channelsStore.update((channels: Channel[]) =>
                     channels.map((channel: Channel) => {
-                        if (channel.id === channelId && !channel.players.some(p => GameNameUtils.namesMatch(p.name, currentUser))) {
+                        if (channel.id === channelId && !channel.players.some(p => GameNameUtils.namesMatch(p, currentUser))) {
                             return {
                                 ...channel,
-                                players: [...channel.players, optimisticPlayer]
+                                players: [...channel.players, currentUser]
                             };
                         }
                         return channel;
@@ -356,7 +350,7 @@ export default class ChannelManager {
                         if (channel.id === channelId) {
                             return {
                                 ...channel,
-                                players: channel.players.filter((p: ChannelPlayer) => !GameNameUtils.namesMatch(p.name, currentUser))
+                                players: channel.players.filter((p: string) => !GameNameUtils.namesMatch(p, currentUser))
                             };
                         }
                         return channel;
@@ -389,23 +383,14 @@ export default class ChannelManager {
         }
 
         for (const member of channel.players) {
-            if (!GameNameUtils.namesMatch(member.name, currentUser)) {
+            if (!GameNameUtils.namesMatch(member, currentUser)) {
                 try {
-                    let resolvedGamepic: string | undefined;
-                    if (member.gamerpic) {
-                        try {
-                            const options = new ImageCacheOptions(member.gamerpic, 2592000);
-                            resolvedGamepic = await this.imageCache.getImage(options);
-                        } catch {
-                            // Fall through with undefined gamerpic
-                        }
-                    }
-                    const success = await this.playerManager.addPlayerSource(member.name, 'Group', undefined, resolvedGamepic, member.game ?? undefined);
+                    const success = await this.playerManager.addPlayerSource(member, 'Group');
                     if (!success) {
-                        warn(`ChannelManager: Failed to add existing group member: ${member.name}`);
+                        warn(`ChannelManager: Failed to add existing group member: ${member}`);
                     }
                 } catch (err) {
-                    logError(`ChannelManager: Error adding group member ${member.name}: ${err}`);
+                    logError(`ChannelManager: Error adding group member ${member}: ${err}`);
                 }
             }
         }
@@ -414,15 +399,15 @@ export default class ChannelManager {
     /**
      * Remove all group members from PlayerManager (used when current user leaves channel)
      */
-    private removeAllGroupMembers(members: ChannelPlayer[], currentUser: string, reason: string): void {
+    private removeAllGroupMembers(members: string[], currentUser: string, reason: string): void {
         if (!this.playerManager) {
             warn('ChannelManager: PlayerManager not available for removing group members');
             return;
         }
 
         members.forEach(member => {
-            if (!GameNameUtils.namesMatch(member.name, currentUser)) {
-                this.playerManager.removePlayerSource(member.name, 'Group');
+            if (!GameNameUtils.namesMatch(member, currentUser)) {
+                this.playerManager.removePlayerSource(member, 'Group');
             }
         });
     }
@@ -507,25 +492,24 @@ export default class ChannelManager {
                 break;
 
             case 'join':
-                // Update the channel's player list with a ChannelPlayer object (upsert)
+                // Update the channel's player list (upsert)
                 this.channelsStore.update((channels: Channel[]) =>
                     channels.map((channel: Channel) => {
                         if (channel.id !== channel_id) return channel;
 
-                        const existingIndex = channel.players.findIndex(p => GameNameUtils.namesMatch(p.name, player_name));
+                        const existingIndex = channel.players.findIndex(p => GameNameUtils.namesMatch(p, player_name));
                         if (existingIndex >= 0) {
                             return channel;
                         }
 
-                        const newPlayer: ChannelPlayer = { name: player_name, game: null, gamerpic: null };
-                        return { ...channel, players: [...channel.players, newPlayer] };
+                        return { ...channel, players: [...channel.players, player_name] };
                     })
                 );
 
                 // Add player to group membership if current user is in this channel
                 if (currentUser && this.playerManager) {
                     const channels = get(this.channels);
-                    const userChannel = channels.find(c => c.players.some(p => GameNameUtils.namesMatch(p.name, currentUser)));
+                    const userChannel = channels.find(c => c.players.some(p => GameNameUtils.namesMatch(p, currentUser)));
                     if (userChannel && userChannel.id === channel_id && !GameNameUtils.namesMatch(player_name, currentUser)) {
                         const playerGame = this.playerManager.getPlayerGame(player_name);
                         await this.playerManager.addPlayerSource(player_name, 'Group', undefined, undefined, playerGame);
@@ -537,10 +521,10 @@ export default class ChannelManager {
             case 'leave':
                 // Check channel membership BEFORE removing from list
                 let wasCurrentUserInChannel = false;
-                let channelMembersBeforeLeave: ChannelPlayer[] = [];
+                let channelMembersBeforeLeave: string[] = [];
                 if (currentUser) {
                     const channels = get(this.channels);
-                    const userChannelBefore = channels.find(c => c.players.some(p => GameNameUtils.namesMatch(p.name, currentUser)));
+                    const userChannelBefore = channels.find(c => c.players.some(p => GameNameUtils.namesMatch(p, currentUser)));
                     wasCurrentUserInChannel = !!(userChannelBefore && userChannelBefore.id === channel_id);
 
                     // Capture channel members before any updates
@@ -554,7 +538,7 @@ export default class ChannelManager {
                 this.channelsStore.update((channels: Channel[]) =>
                     channels.map((channel: Channel) => {
                         if (channel.id === channel_id) {
-                            return { ...channel, players: channel.players.filter((p: ChannelPlayer) => !GameNameUtils.namesMatch(p.name, player_name)) };
+                            return { ...channel, players: channel.players.filter((p: string) => !GameNameUtils.namesMatch(p, player_name)) };
                         }
                         return channel;
                     })

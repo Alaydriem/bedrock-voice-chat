@@ -173,4 +173,19 @@ export default class BVCApp extends App {
             this.audioRecoveryUnlisten = null;
         }
     }
+
+    async shutdown(): Promise<void> {
+        try {
+            const recording = await invoke<boolean>("is_recording");
+            if (recording) {
+                await invoke("stop_recording");
+            }
+        } catch (err) {
+            logError(`Error stopping recording during shutdown: ${err}`);
+        }
+
+        await this.cleanup();
+        await invoke("reset_asm");
+        await invoke("reset_nsm");
+    }
 }

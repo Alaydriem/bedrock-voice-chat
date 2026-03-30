@@ -1,10 +1,10 @@
 use crate::api::Api;
 
-use log::error;
 use common::reqwest::{
-    header::{HeaderMap, HeaderValue},
     StatusCode,
+    header::{HeaderMap, HeaderValue},
 };
+use log::error;
 use serde_json::json;
 use std::error::Error;
 
@@ -22,15 +22,13 @@ impl Api {
 
         match client.post(url).headers(headers).json(&body).send().await {
             Ok(response) => match response.status() {
-                StatusCode::OK => {
-                    match response.json::<String>().await {
-                        Ok(channel_id) => Ok(channel_id),
-                        Err(e) => {
-                            error!("Failed to parse channel creation response: {}", e);
-                            Err("Failed to parse response".to_string())
-                        }
+                StatusCode::OK => match response.json::<String>().await {
+                    Ok(channel_id) => Ok(channel_id),
+                    Err(e) => {
+                        error!("Failed to parse channel creation response: {}", e);
+                        Err("Failed to parse response".to_string())
                     }
-                }
+                },
                 status => {
                     error!("Channel creation failed with status: {}", status);
                     Err(format!("Request failed with status: {}", status))
@@ -86,7 +84,9 @@ impl Api {
     }
 
     /// Lists all channels
-    pub(crate) async fn list_channels(&self) -> Result<Vec<common::structs::channels::Channel>, String> {
+    pub(crate) async fn list_channels(
+        &self,
+    ) -> Result<Vec<common::structs::channel::Channel>, String> {
         let client = self.get_client(Some(self.endpoint.as_str())).await;
 
         let mut headers = HeaderMap::new();
@@ -97,7 +97,10 @@ impl Api {
         match client.get(url).headers(headers).send().await {
             Ok(response) => match response.status() {
                 StatusCode::OK => {
-                    match response.json::<Vec<common::structs::channels::Channel>>().await {
+                    match response
+                        .json::<Vec<common::structs::channel::Channel>>()
+                        .await
+                    {
                         Ok(channels) => Ok(channels),
                         Err(e) => {
                             error!("Failed to parse channels list response: {}", e);
@@ -123,7 +126,10 @@ impl Api {
     }
 
     /// Gets a specific channel by ID
-    pub(crate) async fn get_channel(&self, channel_id: &str) -> Result<common::structs::channels::Channel, String> {
+    pub(crate) async fn get_channel(
+        &self,
+        channel_id: &str,
+    ) -> Result<common::structs::channel::Channel, String> {
         let client = self.get_client(Some(self.endpoint.as_str())).await;
 
         let mut headers = HeaderMap::new();
@@ -134,23 +140,24 @@ impl Api {
         match client.get(url).headers(headers).send().await {
             Ok(response) => match response.status() {
                 StatusCode::OK => {
-                    match response.json::<Vec<common::structs::channels::Channel>>().await {
+                    match response
+                        .json::<Vec<common::structs::channel::Channel>>()
+                        .await
+                    {
                         Ok(mut channels) => {
                             if let Some(channel) = channels.pop() {
                                 Ok(channel)
                             } else {
                                 Err("Channel not found".to_string())
                             }
-                        },
+                        }
                         Err(e) => {
                             error!("Failed to parse channel response: {}", e);
                             Err("Failed to parse response".to_string())
                         }
                     }
                 }
-                StatusCode::NOT_FOUND => {
-                    Err("Channel not found".to_string())
-                }
+                StatusCode::NOT_FOUND => Err("Channel not found".to_string()),
                 status => {
                     error!("Get channel failed with status: {}", status);
                     Err(format!("Request failed with status: {}", status))
@@ -169,7 +176,11 @@ impl Api {
     }
 
     /// Renames a channel (owner only)
-    pub(crate) async fn rename_channel(&self, channel_id: &str, name: &str) -> Result<bool, String> {
+    pub(crate) async fn rename_channel(
+        &self,
+        channel_id: &str,
+        name: &str,
+    ) -> Result<bool, String> {
         let client = self.get_client(Some(self.endpoint.as_str())).await;
 
         let mut headers = HeaderMap::new();
@@ -211,7 +222,7 @@ impl Api {
     pub(crate) async fn channel_event(
         &self,
         channel_id: String,
-        event: common::structs::channels::ChannelEvent,
+        event: common::structs::channel::ChannelEvent,
     ) -> Result<bool, String> {
         let client = self.get_client(Some(self.endpoint.as_str())).await;
 

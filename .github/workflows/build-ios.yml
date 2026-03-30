@@ -210,6 +210,17 @@ jobs:
           echo "ExportOptions.plist:"
           cat src-tauri/gen/apple/ExportOptions.plist
 
+      - name: Write client environment file
+        shell: bash
+        run: |
+          cat > client/.env.local << 'ENVEOF'
+          SENTRY_DSN=${{ secrets.SENTRY_DSN }}
+          POSTHOG_KEY=${{ secrets.POSTHOG_KEY }}
+          POSTHOG_HOST=${{ secrets.POSTHOG_HOST }}
+          FLAGSMITH_KEY=${{ secrets.FLAGSMITH_KEY }}
+          FLAGSMITH_SERVER=${{ secrets.FLAGSMITH_SERVER }}
+          ENVEOF
+
       - name: Build frontend
         working-directory: ./client
         run: yarn build

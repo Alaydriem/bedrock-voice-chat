@@ -1,7 +1,10 @@
 mod manager;
 pub mod renderer;
 
-use common::structs::recording::{RecordingPlayerData, SessionManifest, RecordingHeader, InputRecordingHeader, OutputRecordingHeader};
+use common::structs::recording::{
+    InputRecordingHeader, OutputRecordingHeader, RecordingHeader, RecordingPlayerData,
+    SessionManifest,
+};
 
 use log::{error, info};
 use serde::{Deserialize, Serialize};
@@ -9,8 +12,8 @@ use std::{
     collections::HashSet,
     path::PathBuf,
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc,
+        atomic::{AtomicBool, Ordering},
     },
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -23,7 +26,6 @@ pub use manager::RecordingManager;
 
 pub type RecordingProducer = flume::Sender<RawRecordingData>;
 pub type RecordingConsumer = flume::Receiver<RawRecordingData>;
-
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum RawRecordingData {
@@ -82,8 +84,7 @@ impl Recorder {
 
         std::fs::create_dir_all(&recording_path)?;
 
-        let start_timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)?;
+        let start_timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?;
 
         let manifest = SessionManifest {
             session_id: session_id.clone(),
@@ -92,11 +93,9 @@ impl Recorder {
             duration_ms: None,
             emitter_player: current_player.clone(),
             participants: Vec::new(),
-            created_at: format!(
-                "{}",
-                start_timestamp
-                    .as_secs()
-            ),
+            jukebox_participants: Vec::new(),
+            created_at: format!("{}", start_timestamp.as_secs()),
+            recording_version: Some(common::consts::version::RECORDING_VERSION.to_string()),
         };
 
         Ok(Self {
@@ -112,7 +111,9 @@ impl Recorder {
         })
     }
 
-    async fn start_recording_loop(&mut self) -> Result<(AbortHandle, oneshot::Receiver<()>), anyhow::Error> {
+    async fn start_recording_loop(
+        &mut self,
+    ) -> Result<(AbortHandle, oneshot::Receiver<()>), anyhow::Error> {
         const BATCH_SIZE: usize = 50;
         const FLUSH_INTERVAL: Duration = Duration::from_millis(500);
 
@@ -143,6 +144,7 @@ impl Recorder {
 
             let mut batch_buffer: Vec<(String, RawRecordingData)> = Vec::new();
             let mut participants = HashSet::new();
+            let mut jukebox_participants = HashSet::new();
             let mut manifest_dirty = false;
 
             loop {
@@ -152,16 +154,30 @@ impl Recorder {
                     while let Ok(mut raw_data) = recording_consumer.try_recv() {
                         // Process and add to batch_buffer (same as normal processing)
                         match &mut raw_data {
-                            RawRecordingData::InputData { absolute_timestamp_ms, .. } => {
+                            RawRecordingData::InputData {
+                                absolute_timestamp_ms,
+                                ..
+                            } => {
                                 if let Some(abs_ts) = absolute_timestamp_ms {
-                                    *absolute_timestamp_ms = Some(abs_ts.saturating_sub(session_start_timestamp));
+                                    *absolute_timestamp_ms =
+                                        Some(abs_ts.saturating_sub(session_start_timestamp));
                                 }
-                            },
-                            RawRecordingData::OutputData { absolute_timestamp_ms, emitter, .. } => {
+                            }
+                            RawRecordingData::OutputData {
+                                absolute_timestamp_ms,
+                                emitter,
+                                ..
+                            } => {
                                 if let Some(abs_ts) = absolute_timestamp_ms {
-                                    *absolute_timestamp_ms = Some(abs_ts.saturating_sub(session_start_timestamp));
+                                    *absolute_timestamp_ms =
+                                        Some(abs_ts.saturating_sub(session_start_timestamp));
                                 }
-                                if participants.insert(emitter.name.clone()) {
+                                let target = if emitter.name.starts_with(common::consts::audio::JUKEBOX_PLAYER_PREFIX) {
+                                    &mut jukebox_participants
+                                } else {
+                                    &mut participants
+                                };
+                                if target.insert(emitter.name.clone()) {
                                     manifest_dirty = true;
                                 }
                             }
@@ -197,7 +213,12 @@ impl Recorder {
                                         }
 
                                         // Track participants and mark manifest as dirty if new participant
-                                        if participants.insert(emitter.name.clone()) {
+                                        let target = if emitter.name.starts_with(common::consts::audio::JUKEBOX_PLAYER_PREFIX) {
+                                            &mut jukebox_participants
+                                        } else {
+                                            &mut participants
+                                        };
+                                        if target.insert(emitter.name.clone()) {
                                             manifest_dirty = true;
                                         }
                                     }
@@ -225,6 +246,7 @@ impl Recorder {
                         // Write manifest if participants changed
                         if manifest_dirty {
                             manifest.participants = participants.iter().cloned().collect();
+                            manifest.jukebox_participants = jukebox_participants.iter().cloned().collect();
                             if let Err(e) = Self::write_manifest(&recording_path, &manifest).await {
                                 error!("Failed to update manifest: {:?}", e);
                             } else {
@@ -261,6 +283,7 @@ impl Recorder {
             manifest.end_timestamp = Some(now);
             manifest.duration_ms = Some(now - manifest.start_timestamp);
             manifest.participants = participants.into_iter().collect();
+            manifest.jukebox_participants = jukebox_participants.into_iter().collect();
 
             // Write final manifest
             if let Err(e) = Self::write_manifest(&recording_path, &manifest).await {
@@ -268,7 +291,7 @@ impl Recorder {
             }
 
             info!("Recording session {} fully finalized", manifest.session_id);
-            let _ = completion_tx.send(());  // Signal completion
+            let _ = completion_tx.send(()); // Signal completion
         });
 
         Ok((handle.abort_handle(), completion_rx))
@@ -280,10 +303,7 @@ impl Recorder {
         manifest: &SessionManifest,
     ) -> Result<(), anyhow::Error> {
         let manifest_json = serde_json::to_string_pretty(manifest)?;
-        tokio::fs::write(
-            recording_path.join("session.json"),
-            manifest_json
-        ).await?;
+        tokio::fs::write(recording_path.join("session.json"), manifest_json).await?;
         Ok(())
     }
 
@@ -295,24 +315,34 @@ impl Recorder {
         for (player_key, data) in batch_buffer.drain(..) {
             // Create concrete headers with metadata and timestamps
             let header = match &data {
-                RawRecordingData::InputData { sample_rate, channels, absolute_timestamp_ms, emitter, .. } => {
-                    RecordingHeader::Input(InputRecordingHeader {
-                        sample_rate: *sample_rate,
-                        channels: *channels,
-                        relative_timestamp_ms: *absolute_timestamp_ms,
-                        emitter_metadata: emitter.to_metadata(),
-                    })
-                },
-                RawRecordingData::OutputData { sample_rate, channels, absolute_timestamp_ms, emitter, listener, is_spatial, .. } => {
-                    RecordingHeader::Output(OutputRecordingHeader {
-                        sample_rate: *sample_rate,
-                        channels: *channels,
-                        relative_timestamp_ms: absolute_timestamp_ms.unwrap_or(0),
-                        emitter_metadata: emitter.to_metadata(),
-                        listener_metadata: listener.to_metadata(),
-                        is_spatial: *is_spatial,
-                    })
-                }
+                RawRecordingData::InputData {
+                    sample_rate,
+                    channels,
+                    absolute_timestamp_ms,
+                    emitter,
+                    ..
+                } => RecordingHeader::Input(InputRecordingHeader {
+                    sample_rate: *sample_rate,
+                    channels: *channels,
+                    relative_timestamp_ms: *absolute_timestamp_ms,
+                    emitter_metadata: emitter.to_metadata(),
+                }),
+                RawRecordingData::OutputData {
+                    sample_rate,
+                    channels,
+                    absolute_timestamp_ms,
+                    emitter,
+                    listener,
+                    is_spatial,
+                    ..
+                } => RecordingHeader::Output(OutputRecordingHeader {
+                    sample_rate: *sample_rate,
+                    channels: *channels,
+                    relative_timestamp_ms: absolute_timestamp_ms.unwrap_or(0),
+                    emitter_metadata: emitter.to_metadata(),
+                    listener_metadata: listener.to_metadata(),
+                    is_spatial: *is_spatial,
+                }),
             };
 
             let header_bytes = postcard::to_allocvec(&header)?;
@@ -323,7 +353,12 @@ impl Recorder {
                 RawRecordingData::OutputData { opus_data, .. } => opus_data,
             };
 
-            wal.append_entry(&player_key, Some(header_bytes.into()), content.into(), false)?;
+            wal.append_entry(
+                &player_key,
+                Some(header_bytes.into()),
+                content.into(),
+                false,
+            )?;
         }
         wal.sync()?;
         Ok(())

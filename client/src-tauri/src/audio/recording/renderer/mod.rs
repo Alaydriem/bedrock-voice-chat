@@ -1,21 +1,21 @@
-mod stream;
 mod bwav;
 pub mod mp4;
+mod stream;
 
 use async_trait::async_trait;
-use common::structs::recording::{RecordingHeader, SessionManifest};
 use common::structs::AudioFormat;
+use common::structs::recording::{RecordingHeader, SessionManifest};
+use log::debug;
 use std::fs;
 use std::path::Path;
-use log::debug;
 
 use crate::audio::recording::renderer::{
     bwav::BwavRenderer,
     mp4::Mp4Renderer,
     stream::{
         opus::{OpusChunk, OpusPacketStream, OpusStreamInfo},
-        pcm::{PcmChunk, PcmStream}
-    }
+        pcm::{PcmChunk, PcmStream},
+    },
 };
 
 /// Extension trait for AudioFormat that provides rendering capabilities
@@ -40,8 +40,16 @@ impl AudioFormatRenderer for AudioFormat {
         output_path: &Path,
     ) -> Result<(), anyhow::Error> {
         match self {
-            AudioFormat::Bwav => BwavRenderer::new().render(session_path, player_name, output_path).await,
-            AudioFormat::Mp4Opus => Mp4Renderer::new().render(session_path, player_name, output_path).await,
+            AudioFormat::Bwav => {
+                BwavRenderer::new()
+                    .render(session_path, player_name, output_path)
+                    .await
+            }
+            AudioFormat::Mp4Opus => {
+                Mp4Renderer::new()
+                    .render(session_path, player_name, output_path)
+                    .await
+            }
         }
     }
 }
@@ -79,7 +87,8 @@ pub struct SessionInfo {
 impl SessionInfo {
     pub fn load(session_path: &Path) -> Result<Self, anyhow::Error> {
         let session_json_path = session_path.join("session.json");
-        let manifest: SessionManifest = serde_json::from_str(&std::fs::read_to_string(session_json_path)?)?;
+        let manifest: SessionManifest =
+            serde_json::from_str(&std::fs::read_to_string(session_json_path)?)?;
 
         Ok(Self {
             session_id: manifest.session_id,
@@ -169,7 +178,11 @@ impl WalAudioReader {
         if needs_new_decoder {
             self.decoder = Some(opus2::Decoder::new(
                 sample_rate,
-                if channels == 1 { opus2::Channels::Mono } else { opus2::Channels::Stereo }
+                if channels == 1 {
+                    opus2::Channels::Mono
+                } else {
+                    opus2::Channels::Stereo
+                },
             )?);
             self.decoder_config = Some((sample_rate, channels));
         }
@@ -177,13 +190,11 @@ impl WalAudioReader {
         let max_frame_size = ((sample_rate as usize * 120) / 1000) * channels as usize;
         let mut pcm_data = vec![0.0f32; max_frame_size];
 
-        let decoded_samples = self.decoder.as_mut()
+        let decoded_samples = self
+            .decoder
+            .as_mut()
             .expect("Decoder should be initialized")
-            .decode_float(
-                &entry.opus_data,
-                &mut pcm_data,
-                false
-            )?;
+            .decode_float(&entry.opus_data, &mut pcm_data, false)?;
 
         pcm_data.truncate(decoded_samples * channels as usize);
 
@@ -206,7 +217,8 @@ impl WalAudioReader {
         let prev_entry = &self.entries[self.current_index - 1];
         let next_entry = &self.entries[self.current_index];
 
-        let time_gap_ms = next_entry.relative_timestamp_ms
+        let time_gap_ms = next_entry
+            .relative_timestamp_ms
             .saturating_sub(prev_entry.relative_timestamp_ms)
             .saturating_sub(OPUS_FRAME_MS);
 
@@ -216,14 +228,19 @@ impl WalAudioReader {
         let sample_rate = next_entry.header.sample_rate() as u64;
         let channels = next_entry.header.channels() as usize;
 
-        let silence_samples = match time_gap_ms.checked_mul(sample_rate)
+        let silence_samples = match time_gap_ms
+            .checked_mul(sample_rate)
             .and_then(|v| v.checked_div(1000))
             .and_then(|v| v.checked_mul(channels as u64))
         {
             Some(samples) if samples <= usize::MAX as u64 => samples as usize,
             _ => {
-                log::error!("Overflow calculating silence: {}ms gap at {}Hz {} channels",
-                    time_gap_ms, sample_rate, channels);
+                log::error!(
+                    "Overflow calculating silence: {}ms gap at {}Hz {} channels",
+                    time_gap_ms,
+                    sample_rate,
+                    channels
+                );
                 return None;
             }
         };
@@ -240,21 +257,35 @@ impl WalAudioReader {
         self.entries.len()
     }
 
+    /// Sanitize a WAL key the same way nano_wal does internally.
+    /// Keeps only alphanumeric, underscore, and hyphen characters, truncated to 20 chars.
+    fn sanitize_wal_key(key: &str) -> String {
+        key.chars()
+            .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-')
+            .take(20)
+            .collect()
+    }
+
     /// Read WAL entries with headers by parsing segment files directly
-    fn read_entries_with_headers(wal_path: &Path, player_name: &str) -> Result<Vec<WalEntry>, anyhow::Error> {
+    fn read_entries_with_headers(
+        wal_path: &Path,
+        player_name: &str,
+    ) -> Result<Vec<WalEntry>, anyhow::Error> {
         const NANO_REC_SIGNATURE: [u8; 6] = *b"NANORC";
         const MAX_HEADER_SIZE: usize = 1024;
         const MAX_CONTENT_SIZE: usize = 50 * 1024;
         let mut entries = Vec::new();
 
-        // Find all segment files for this player (files are named: PlayerName-hash-sequence.log)
+        let sanitized_name = Self::sanitize_wal_key(player_name);
+
+        // Find all segment files for this player (files are named: SanitizedName-hash-sequence.log)
         debug!("Reading directory: {:?}", wal_path);
         let dir_entries = fs::read_dir(wal_path)?;
         let mut segment_files = Vec::new();
 
         for entry in dir_entries.flatten() {
             if let Some(filename) = entry.file_name().to_str() {
-                if filename.starts_with(player_name) && filename.ends_with(".log") {
+                if filename.starts_with(&sanitized_name) && filename.ends_with(".log") {
                     segment_files.push(entry.path());
                 }
             }
@@ -272,7 +303,8 @@ impl WalAudioReader {
             let mut pos = 0;
 
             const MAX_HEADER_SEARCH_BYTES: usize = 4096;
-            let search_limit = pos + MAX_HEADER_SEARCH_BYTES.min(file_bytes.len().saturating_sub(6));
+            let search_limit =
+                pos + MAX_HEADER_SEARCH_BYTES.min(file_bytes.len().saturating_sub(6));
 
             while pos + 6 <= search_limit {
                 if &file_bytes[pos..pos + 6] == NANO_REC_SIGNATURE {
@@ -283,7 +315,10 @@ impl WalAudioReader {
 
             // If signature not found in first 4KB, skip this file
             if pos + 6 > search_limit {
-                log::warn!("Could not find NANO_REC_SIGNATURE in {:?}, skipping file", file_path);
+                log::warn!(
+                    "Could not find NANO_REC_SIGNATURE in {:?}, skipping file",
+                    file_path
+                );
                 continue;
             }
 
@@ -298,12 +333,17 @@ impl WalAudioReader {
                 if pos + 2 > file_bytes.len() {
                     break;
                 }
-                let header_len = u16::from_le_bytes([file_bytes[pos], file_bytes[pos + 1]]) as usize;
+                let header_len =
+                    u16::from_le_bytes([file_bytes[pos], file_bytes[pos + 1]]) as usize;
                 pos += 2;
 
                 // Validate header length
                 if header_len > MAX_HEADER_SIZE {
-                    log::warn!("Invalid header_len {} in {:?}, stopping parse", header_len, file_path);
+                    log::warn!(
+                        "Invalid header_len {} in {:?}, stopping parse",
+                        header_len,
+                        file_path
+                    );
                     break;
                 }
 
@@ -317,13 +357,23 @@ impl WalAudioReader {
                     break;
                 }
                 let content_len = u64::from_le_bytes([
-                    file_bytes[pos], file_bytes[pos + 1], file_bytes[pos + 2], file_bytes[pos + 3],
-                    file_bytes[pos + 4], file_bytes[pos + 5], file_bytes[pos + 6], file_bytes[pos + 7],
+                    file_bytes[pos],
+                    file_bytes[pos + 1],
+                    file_bytes[pos + 2],
+                    file_bytes[pos + 3],
+                    file_bytes[pos + 4],
+                    file_bytes[pos + 5],
+                    file_bytes[pos + 6],
+                    file_bytes[pos + 7],
                 ]) as usize;
                 pos += 8;
 
                 if content_len > MAX_CONTENT_SIZE {
-                    log::warn!("Invalid content_len {} in {:?}, stopping parse", content_len, file_path);
+                    log::warn!(
+                        "Invalid content_len {} in {:?}, stopping parse",
+                        content_len,
+                        file_path
+                    );
                     break;
                 }
 
@@ -348,7 +398,11 @@ impl WalAudioReader {
                             });
                         }
                         Err(e) => {
-                            eprintln!("DEBUG: Failed to parse header (len={}): {:?}", header_bytes.len(), e);
+                            log::warn!(
+                                "Failed to parse header (len={}): {:?}",
+                                header_bytes.len(),
+                                e
+                            );
                         }
                     }
                 }
@@ -360,7 +414,11 @@ impl WalAudioReader {
                 log::warn!("Hit max_records limit in {:?}, stopping parse", file_path);
             }
 
-            log::info!("  Parsed {} total records from {:?}", records_parsed, file_path);
+            log::info!(
+                "  Parsed {} total records from {:?}",
+                records_parsed,
+                file_path
+            );
         }
 
         Ok(entries)

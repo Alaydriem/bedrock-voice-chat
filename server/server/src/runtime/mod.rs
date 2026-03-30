@@ -1,8 +1,9 @@
 pub mod position_updater;
-
+pub mod state;
+pub use state::RuntimeState;
 use crate::config::ApplicationConfig;
-use crate::rs::manager::RocketManager;
-use crate::services::{CertificateService, MeridianService, PlayerIdentityService, PlayerRegistrarService};
+use crate::http::manager::RocketManager;
+use crate::services::{AudioPlaybackService, CertificateService, MeridianService, PlayerIdentityService, PlayerRegistrarService};
 use crate::stream::quic::{QuicServerManager, WebhookReceiver};
 
 use anyhow::anyhow;
@@ -20,31 +21,21 @@ use std::sync::{Arc, RwLock};
 use tracing::info;
 use tracing_appender::non_blocking::WorkerGuard;
 
-/// Runtime state for the server
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RuntimeState {
-    /// Server is not started
-    Stopped,
-    /// Server is starting up
-    Starting,
-    /// Server is running
-    Running,
-    /// Server is shutting down
-    ShuttingDown,
-}
-
 /// Server runtime that manages the full BVC server stack.
 /// This is the main entry point for both CLI and FFI usage.
 pub struct ServerRuntime {
     config: ApplicationConfig,
     state: RuntimeState,
     shutdown_flag: Arc<AtomicBool>,
+    shutdown_notify: Arc<tokio::sync::Notify>,
     /// Webhook receiver for sending position updates directly (populated after start)
     webhook_receiver: Arc<RwLock<Option<WebhookReceiver>>>,
     /// Player registrar for handling player registration (populated after start)
     player_registrar: Arc<RwLock<Option<PlayerRegistrarService>>>,
     /// Player identity service for cross-platform name resolution (populated after start)
     identity_service: Arc<RwLock<Option<PlayerIdentityService>>>,
+    audio_playback_service: Arc<RwLock<Option<Arc<AudioPlaybackService>>>>,
+    db_conn: Arc<RwLock<Option<Arc<sea_orm::DatabaseConnection>>>>,
     _logger_guard: Option<WorkerGuard>,
 }
 
@@ -55,9 +46,12 @@ impl ServerRuntime {
             config,
             state: RuntimeState::Stopped,
             shutdown_flag: Arc::new(AtomicBool::new(false)),
+            shutdown_notify: Arc::new(tokio::sync::Notify::new()),
             webhook_receiver: Arc::new(RwLock::new(None)),
             player_registrar: Arc::new(RwLock::new(None)),
             identity_service: Arc::new(RwLock::new(None)),
+            audio_playback_service: Arc::new(RwLock::new(None)),
+            db_conn: Arc::new(RwLock::new(None)),
             _logger_guard: None,
         })
     }
@@ -89,6 +83,26 @@ impl ServerRuntime {
         self.shutdown_flag.clone()
     }
 
+    pub fn shutdown_notify(&self) -> Arc<tokio::sync::Notify> {
+        self.shutdown_notify.clone()
+    }
+
+    /// Start the server with CTRL+C signal handling.
+    /// Blocks until the server shuts down.
+    pub async fn start(&mut self) -> Result<(), anyhow::Error> {
+        let shutdown_flag = self.shutdown_flag();
+        let shutdown_notify = self.shutdown_notify();
+        tokio::spawn(async move {
+            if let Ok(()) = tokio::signal::ctrl_c().await {
+                tracing::info!("Received CTRL+C, shutting down...");
+                shutdown_flag.store(true, Ordering::SeqCst);
+                shutdown_notify.notify_one();
+            }
+        });
+
+        self.start_async().await
+    }
+
     /// Initialize and start the server (async)
     pub async fn start_async(&mut self) -> Result<(), anyhow::Error> {
         if self.state != RuntimeState::Stopped {
@@ -112,12 +126,13 @@ impl ServerRuntime {
 
         // Create certificate manager (caches root CA)
         let cert_manager = CertificateService::new_shared(&self.config.server.tls.certs_path)?;
+        let cert_service = Arc::new(CertificateService::new(&self.config.server.tls.certs_path)?);
 
         // Create player registrar for shared player registration logic
         let player_registrar = PlayerRegistrarService::new(db_conn.clone(), cert_manager);
 
         // Create player identity service for cross-platform name resolution
-        let identity_service = PlayerIdentityService::new(db_conn);
+        let identity_service = PlayerIdentityService::new(db_conn.clone());
 
         // Store player_registrar for FFI access
         {
@@ -145,6 +160,27 @@ impl ServerRuntime {
             *wr = Some(webhook_receiver.clone());
         }
 
+        // Create audio playback service
+        let playback_cancel_token = tokio_util::sync::CancellationToken::new();
+        let audio_playback_service = Arc::new(AudioPlaybackService::new(
+            webhook_receiver.clone(),
+            self.config.audio.file_path.clone(),
+            playback_cancel_token.clone(),
+            self.config.audio.max_concurrent_per_uuid,
+        ));
+
+        // Store audio_playback_service and db_conn for FFI access
+        {
+            let mut aps = self.audio_playback_service.write()
+                .map_err(|_| anyhow!("audio_playback_service lock poisoned"))?;
+            *aps = Some(audio_playback_service.clone());
+        }
+        {
+            let mut dc = self.db_conn.write()
+                .map_err(|_| anyhow!("db_conn lock poisoned"))?;
+            *dc = Some(db_conn.clone());
+        }
+
         // Create Rocket manager
         let rocket_manager = RocketManager::new(
             self.config.clone(),
@@ -152,6 +188,8 @@ impl ServerRuntime {
             cache_manager,
             player_registrar,
             identity_service,
+            audio_playback_service,
+            cert_service,
         );
 
         self.state = RuntimeState::Running;
@@ -179,9 +217,10 @@ impl ServerRuntime {
             }
         }
 
-        let shutdown_flag = self.shutdown_flag.clone();
+        let _shutdown_flag = self.shutdown_flag.clone();
+        let shutdown_notify = self.shutdown_notify.clone();
 
-        // Main event loop - responds to shutdown flag only
+        // Main event loop
         // Note: CTRL+C handling is done by the host process (Java/CLI), not here
         tokio::select! {
             result = quic_manager.start() => {
@@ -196,14 +235,7 @@ impl ServerRuntime {
                     Err(e) => tracing::error!("Rocket server error: {}", e),
                 }
             }
-            _ = async {
-                loop {
-                    if shutdown_flag.load(Ordering::SeqCst) {
-                        break;
-                    }
-                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-                }
-            } => {
+            _ = shutdown_notify.notified() => {
                 tracing::info!("Shutdown requested via flag, shutting down...");
             }
         }
@@ -221,6 +253,7 @@ impl ServerRuntime {
     /// Signal the server to stop gracefully
     pub fn request_shutdown(&self) {
         self.shutdown_flag.store(true, Ordering::SeqCst);
+        self.shutdown_notify.notify_one();
     }
 
     /// Get a clone of the webhook receiver Arc for external use
@@ -236,6 +269,14 @@ impl ServerRuntime {
     /// Get a clone of the identity service Arc for external use (FFI)
     pub fn get_identity_service(&self) -> Arc<RwLock<Option<PlayerIdentityService>>> {
         self.identity_service.clone()
+    }
+
+    pub fn get_audio_playback_service(&self) -> Arc<RwLock<Option<Arc<AudioPlaybackService>>>> {
+        self.audio_playback_service.clone()
+    }
+
+    pub fn get_db_conn(&self) -> Arc<RwLock<Option<Arc<sea_orm::DatabaseConnection>>>> {
+        self.db_conn.clone()
     }
 
     /// Update player positions directly (bypasses HTTP).
@@ -254,7 +295,7 @@ impl ServerRuntime {
         let webhook_receiver = wr_guard.as_ref()
             .ok_or_else(|| anyhow!("Server not started - webhook_receiver not available"))?;
 
-        position_updater::broadcast_positions(players, webhook_receiver).await;
+        position_updater::PositionUpdater::broadcast_positions(players, webhook_receiver).await;
         Ok(())
     }
 

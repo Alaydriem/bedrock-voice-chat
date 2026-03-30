@@ -3,7 +3,7 @@ use common::Game;
 use entity::player;
 use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, QueryFilter};
 
-use crate::commands::Config as StateConfig;
+use crate::commands::Cli;
 
 #[derive(Debug, Parser, Clone)]
 #[clap(author, version, about = "Banish or unbanish a player", long_about = None)]
@@ -22,7 +22,7 @@ pub struct Config {
 }
 
 impl Config {
-    pub async fn run<'a>(&'a self, cfg: &StateConfig) {
+    pub async fn run<'a>(&'a self, cfg: &Cli) {
         // Create database connection
         let db = match cfg.config.create_database_connection().await {
             Ok(conn) => conn,

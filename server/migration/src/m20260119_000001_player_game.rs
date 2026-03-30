@@ -1,5 +1,4 @@
-use sea_orm::Statement;
-use sea_orm_migration::{self, prelude::*, sea_orm::ConnectionTrait};
+use sea_orm_migration::prelude::*;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -7,38 +6,61 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let db = manager.get_connection();
+        manager
+            .alter_table(
+                Table::alter()
+                    .table(Player::Table)
+                    .add_column(
+                        ColumnDef::new(Player::Game)
+                            .string()
+                            .not_null()
+                            .default("minecraft"),
+                    )
+                    .to_owned(),
+            )
+            .await?;
 
-        // Add game column with default 'minecraft'
-        db.execute_raw(Statement::from_string(
-            manager.get_database_backend(),
-            "ALTER TABLE player ADD COLUMN game TEXT NOT NULL DEFAULT 'minecraft'".to_string(),
-        ))
-        .await?;
-
-        // Create index for gamertag + game lookups
-        db.execute_raw(Statement::from_string(
-            manager.get_database_backend(),
-            "CREATE INDEX idx_player_gamertag_game ON player(gamertag, game)".to_string(),
-        ))
-        .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("idx_player_gamertag_game")
+                    .table(Player::Table)
+                    .col(Player::Gamertag)
+                    .col(Player::Game)
+                    .to_owned(),
+            )
+            .await?;
 
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let db = manager.get_connection();
+        manager
+            .drop_index(
+                Index::drop()
+                    .name("idx_player_gamertag_game")
+                    .table(Player::Table)
+                    .to_owned(),
+            )
+            .await?;
 
-        // Drop the index first
-        db.execute_raw(Statement::from_string(
-            manager.get_database_backend(),
-            "DROP INDEX IF EXISTS idx_player_gamertag_game".to_string(),
-        ))
-        .await?;
-
-        // SQLite doesn't support DROP COLUMN directly, so we skip it for down migration
-        // In production, this would require a table rebuild for SQLite
+        manager
+            .alter_table(
+                Table::alter()
+                    .table(Player::Table)
+                    .drop_column(Player::Game)
+                    .to_owned(),
+            )
+            .await?;
 
         Ok(())
     }
+}
+
+#[derive(Iden)]
+pub enum Player {
+    Table,
+    Gamertag,
+    Game,
 }

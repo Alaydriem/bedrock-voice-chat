@@ -1,8 +1,12 @@
 package com.alaydriem.bedrockvoicechat.paper
 
+import com.alaydriem.bedrockvoicechat.audio.AudioEventSender
 import com.alaydriem.bedrockvoicechat.dto.Payload
 import com.alaydriem.bedrockvoicechat.native.PositionSender
 import com.alaydriem.bedrockvoicechat.network.HttpRequestHandler
+import com.alaydriem.bedrockvoicechat.paper.audio.JukeboxListener
+import com.alaydriem.bedrockvoicechat.paper.audio.PaperAudioPlayerManager
+import com.alaydriem.bedrockvoicechat.paper.commands.DiscCommand
 import com.alaydriem.bedrockvoicechat.server.BvcServerManager
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
@@ -23,6 +27,8 @@ class PaperPlugin : JavaPlugin(), Listener {
 
     private var embeddedServer: BvcServerManager? = null
     private var positionSender: PositionSender? = null
+    private var audioEventSender: AudioEventSender? = null
+    private var audioPlayerManager: PaperAudioPlayerManager? = null
     private var tickTask: BukkitTask? = null
     private var minimumPlayers = 2
 
@@ -58,6 +64,7 @@ class PaperPlugin : JavaPlugin(), Listener {
 
             // Embedded mode: use FFI directly, no HTTP handler needed
             positionSender = PositionSender(null, embeddedServer)
+            audioEventSender = AudioEventSender(null, embeddedServer)
 
             val embedded = config.embeddedConfig
             logger.info("Bedrock Voice Chat using embedded server (QUIC port: ${embedded?.quicPort ?: 8443})")
@@ -65,15 +72,26 @@ class PaperPlugin : JavaPlugin(), Listener {
             // External server mode: use HTTP handler
             val httpHandler = HttpRequestHandler(config.bvcServer!!, config.accessToken!!)
             positionSender = PositionSender(httpHandler, null)
+            audioEventSender = AudioEventSender(httpHandler, null)
 
             logger.info("Bedrock Voice Chat will connect to: ${config.bvcServer}")
         }
+
+        // Set up audio player manager
+        val sender = audioEventSender!!
+        audioPlayerManager = PaperAudioPlayerManager(sender, this)
 
         // Set server reference on data provider for player lookups
         playerDataProvider.server = server
 
         // Register this plugin as event listener for player events
         server.pluginManager.registerEvents(this, this)
+
+        // Register jukebox listener for BVC disc playback
+        server.pluginManager.registerEvents(JukeboxListener(audioPlayerManager!!, this), this)
+
+        // Register /bvc disc command
+        DiscCommand(this).register()
 
         // Schedule tick task every 5 ticks (250ms at 20 TPS)
         tickTask = server.scheduler.runTaskTimer(this, Runnable { tick() }, 0L, 5L)
@@ -82,6 +100,8 @@ class PaperPlugin : JavaPlugin(), Listener {
     override fun onDisable() {
         tickTask?.cancel()
         tickTask = null
+        audioPlayerManager?.shutdown()
+        audioPlayerManager = null
         embeddedServer?.stop()
         logger.info("Bedrock Voice Chat disabled")
     }

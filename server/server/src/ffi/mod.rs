@@ -18,11 +18,12 @@
 
 use crate::config::ApplicationConfig;
 use crate::runtime::{position_updater, ServerRuntime};
-use crate::services::{PlayerIdentityService, PlayerRegistrarService};
+use crate::services::{AudioPlaybackService, PlayerIdentityService, PlayerRegistrarService};
 use crate::stream::quic::WebhookReceiver;
 
 use common::traits::player_data::PlayerData;
 use common::Game;
+use sea_orm::DatabaseConnection;
 use std::ffi::{c_char, c_int, CStr, CString};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -34,12 +35,17 @@ pub struct RuntimeHandle {
     tokio_runtime: Option<tokio::runtime::Runtime>,
     /// Shutdown flag - accessible without locking runtime mutex
     shutdown_flag: Arc<AtomicBool>,
+    shutdown_notify: Arc<tokio::sync::Notify>,
     /// Webhook receiver for position updates - accessible without locking runtime mutex
     webhook_receiver: Arc<RwLock<Option<WebhookReceiver>>>,
     /// Player registrar for player registration - accessible without locking runtime mutex
     player_registrar: Arc<RwLock<Option<PlayerRegistrarService>>>,
     /// Player identity service for cross-platform name resolution - accessible without locking runtime mutex
     identity_service: Arc<RwLock<Option<PlayerIdentityService>>>,
+    /// Audio playback service - accessible without locking runtime mutex
+    audio_playback_service: Arc<RwLock<Option<Arc<AudioPlaybackService>>>>,
+    /// Database connection for FFI audio operations
+    db_conn: Arc<RwLock<Option<Arc<DatabaseConnection>>>>,
 }
 
 // Thread-local storage for last error message
@@ -53,19 +59,11 @@ fn set_last_error(msg: &str) {
     });
 }
 
-/// Initialize the crypto provider. Must be called before creating any servers.
-/// Safe to call multiple times.
-///
-/// Returns 0 on success, -1 on error.
+/// Platform initialization. Called automatically by `bvc_server_create`.
+/// Kept for backward compatibility — safe to call multiple times.
 #[unsafe(no_mangle)]
 pub extern "C" fn bvc_init() -> c_int {
-    match crate::init_crypto_provider() {
-        Ok(_) => 0,
-        Err(e) => {
-            set_last_error(e);
-            -1
-        }
-    }
+    0
 }
 
 /// Create a server instance from JSON configuration.
@@ -102,7 +100,7 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
         }
     };
 
-    let runtime = match ServerRuntime::new(config) {
+    let runtime = match crate::BvcServer::new(config) {
         Ok(r) => r,
         Err(e) => {
             set_last_error(&format!("Failed to create runtime: {}", e));
@@ -113,9 +111,12 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
     // Extract Arc clones BEFORE putting runtime in Mutex
     // This allows stop() and update_positions() to work without locking the runtime
     let shutdown_flag = runtime.shutdown_flag();
+    let shutdown_notify = runtime.shutdown_notify();
     let webhook_receiver = runtime.get_webhook_receiver();
     let player_registrar = runtime.get_player_registrar();
     let identity_service = runtime.get_identity_service();
+    let audio_playback_service = runtime.get_audio_playback_service();
+    let db_conn = runtime.get_db_conn();
 
     // Create a tokio runtime for the server
     let tokio_runtime = match tokio::runtime::Builder::new_multi_thread()
@@ -133,9 +134,12 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
         runtime: Mutex::new(Some(runtime)),
         tokio_runtime: Some(tokio_runtime),
         shutdown_flag,
+        shutdown_notify,
         webhook_receiver,
         player_registrar,
         identity_service,
+        audio_playback_service,
+        db_conn,
     });
 
     Box::into_raw(handle)
@@ -229,6 +233,7 @@ pub unsafe extern "C" fn bvc_server_stop(handle: *mut RuntimeHandle) -> c_int {
     // Use the shutdown flag directly - no mutex lock required
     // This avoids deadlock since start() holds the runtime mutex
     handle_ref.shutdown_flag.store(true, Ordering::SeqCst);
+    handle_ref.shutdown_notify.notify_one();
     0
 }
 
@@ -474,13 +479,176 @@ pub unsafe extern "C" fn bvc_update_positions(
                 registrar.process_players(&players_clone, game_type_clone).await;
             });
         } else {
-            println!("FFI: PlayerRegistrarService not available - player registration skipped");
             tracing::warn!("FFI: PlayerRegistrarService not available - player registration skipped");
         }
 
         // Broadcast positions to QUIC clients (this happens immediately)
-        position_updater::broadcast_positions(players, &webhook_receiver_clone).await;
+        position_updater::PositionUpdater::broadcast_positions(players, &webhook_receiver_clone).await;
     });
 
     0
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn bvc_audio_play(
+    handle: *mut RuntimeHandle,
+    play_json: *const c_char,
+) -> *mut c_char {
+    if handle.is_null() {
+        set_last_error("handle is null");
+        return ptr::null_mut();
+    }
+
+    if play_json.is_null() {
+        set_last_error("play_json is null");
+        return ptr::null_mut();
+    }
+
+    let json_str = match unsafe { CStr::from_ptr(play_json) }.to_str() {
+        Ok(s) => s,
+        Err(e) => {
+            set_last_error(&format!("Invalid UTF-8 in play_json: {}", e));
+            return ptr::null_mut();
+        }
+    };
+
+    let request: common::request::AudioPlayRequest =
+        match serde_json::from_str(json_str) {
+            Ok(r) => r,
+            Err(e) => {
+                set_last_error(&format!("Failed to parse play_json: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+    let handle_ref = unsafe { &*handle };
+
+    let tokio_rt = match &handle_ref.tokio_runtime {
+        Some(rt) => rt,
+        None => {
+            set_last_error("Tokio runtime not available");
+            return ptr::null_mut();
+        }
+    };
+
+    let aps_guard = match handle_ref.audio_playback_service.read() {
+        Ok(g) => g,
+        Err(e) => {
+            set_last_error(&format!("Failed to read audio_playback_service: {}", e));
+            return ptr::null_mut();
+        }
+    };
+
+    let audio_service = match aps_guard.as_ref() {
+        Some(s) => s.clone(),
+        None => {
+            set_last_error("Server not started - audio_playback_service not available");
+            return ptr::null_mut();
+        }
+    };
+    drop(aps_guard);
+
+    let db_guard = match handle_ref.db_conn.read() {
+        Ok(g) => g,
+        Err(e) => {
+            set_last_error(&format!("Failed to read db_conn: {}", e));
+            return ptr::null_mut();
+        }
+    };
+
+    let db_conn = match db_guard.as_ref() {
+        Some(c) => c.clone(),
+        None => {
+            set_last_error("Server not started - db_conn not available");
+            return ptr::null_mut();
+        }
+    };
+    drop(db_guard);
+
+    let result = tokio_rt.block_on(async {
+        audio_service.start_playback(db_conn.as_ref(), request).await
+    });
+
+    match result {
+        Ok(response) => match serde_json::to_string(&response) {
+            Ok(json) => match CString::new(json) {
+                Ok(cstr) => cstr.into_raw(),
+                Err(e) => {
+                    set_last_error(&format!("Failed to create CString: {}", e));
+                    ptr::null_mut()
+                }
+            },
+            Err(e) => {
+                set_last_error(&format!("Failed to serialize response: {}", e));
+                ptr::null_mut()
+            }
+        },
+        Err(e) => {
+            set_last_error(&format!("Audio play failed: {}", e));
+            ptr::null_mut()
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn bvc_audio_stop(
+    handle: *mut RuntimeHandle,
+    event_id: *const c_char,
+) -> c_int {
+    if handle.is_null() {
+        set_last_error("handle is null");
+        return -1;
+    }
+
+    if event_id.is_null() {
+        set_last_error("event_id is null");
+        return -1;
+    }
+
+    let event_id_str = match unsafe { CStr::from_ptr(event_id) }.to_str() {
+        Ok(s) => s,
+        Err(e) => {
+            set_last_error(&format!("Invalid UTF-8 in event_id: {}", e));
+            return -1;
+        }
+    };
+
+    let handle_ref = unsafe { &*handle };
+
+    let tokio_rt = match &handle_ref.tokio_runtime {
+        Some(rt) => rt,
+        None => {
+            set_last_error("Tokio runtime not available");
+            return -1;
+        }
+    };
+
+    let aps_guard = match handle_ref.audio_playback_service.read() {
+        Ok(g) => g,
+        Err(e) => {
+            set_last_error(&format!("Failed to read audio_playback_service: {}", e));
+            return -1;
+        }
+    };
+
+    let audio_service = match aps_guard.as_ref() {
+        Some(s) => s.clone(),
+        None => {
+            set_last_error("Server not started - audio_playback_service not available");
+            return -1;
+        }
+    };
+    drop(aps_guard);
+
+    let result = tokio_rt.block_on(async {
+        audio_service.stop_playback(event_id_str).await
+    });
+
+    match result {
+        Ok(_) => 0,
+        Err(e) => {
+            set_last_error(&format!("Audio stop failed: {}", e));
+            -1
+        }
+    }
 }

@@ -5,8 +5,8 @@ use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use super::jitter_buffer_source::{JitterBufferError, JitterBufferSource};
 use super::EncodedAudioFramePacket;
+use super::jitter_buffer_source::{JitterBufferError, JitterBufferSource};
 use crate::audio::recording::RecordingProducer;
 use common::structs::SpatialAudioConfig;
 use common::{Coordinate, Game, Orientation};
@@ -25,10 +25,7 @@ pub struct JitterBufferHandle {
 }
 
 impl JitterBufferHandle {
-    pub fn enqueue(
-        &self,
-        packet: EncodedAudioFramePacket,
-    ) -> Result<(), JitterBufferError> {
+    pub fn enqueue(&self, packet: EncodedAudioFramePacket) -> Result<(), JitterBufferError> {
         self.tx
             .send(Some(packet))
             .map_err(|_| JitterBufferError::InvalidPacket)
@@ -214,113 +211,251 @@ mod tests {
     }
 
     fn listener_at_origin() -> Coordinate {
-        Coordinate { x: 0.0, y: 0.0, z: 0.0 }
+        Coordinate {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
     }
 
     #[test]
     fn minecraft_facing_south_emitter_east_pans_left() {
         // Minecraft: yaw 0 = facing south (+Z). Emitter to the east (+X) should be on the left.
-        let emitter = Coordinate { x: 20.0, y: 0.0, z: 0.0 };
+        let emitter = Coordinate {
+            x: 20.0,
+            y: 0.0,
+            z: 0.0,
+        };
         let orientation = Orientation { x: 0.0, y: 0.0 };
         let result = JitterBuffer::calculate_spatial_audio_data(
-            &emitter, false, &listener_at_origin(), &orientation, Game::Minecraft, &default_config(),
+            &emitter,
+            false,
+            &listener_at_origin(),
+            &orientation,
+            Game::Minecraft,
+            &default_config(),
         );
-        assert!(result.pan > 0.5, "Expected positive pan (left), got {}", result.pan);
+        assert!(
+            result.pan > 0.5,
+            "Expected positive pan (left), got {}",
+            result.pan
+        );
     }
 
     #[test]
     fn minecraft_facing_south_emitter_west_pans_right() {
-        let emitter = Coordinate { x: -20.0, y: 0.0, z: 0.0 };
+        let emitter = Coordinate {
+            x: -20.0,
+            y: 0.0,
+            z: 0.0,
+        };
         let orientation = Orientation { x: 0.0, y: 0.0 };
         let result = JitterBuffer::calculate_spatial_audio_data(
-            &emitter, false, &listener_at_origin(), &orientation, Game::Minecraft, &default_config(),
+            &emitter,
+            false,
+            &listener_at_origin(),
+            &orientation,
+            Game::Minecraft,
+            &default_config(),
         );
-        assert!(result.pan < -0.5, "Expected negative pan (right), got {}", result.pan);
+        assert!(
+            result.pan < -0.5,
+            "Expected negative pan (right), got {}",
+            result.pan
+        );
     }
 
     #[test]
     fn minecraft_facing_south_emitter_ahead_centered() {
-        let emitter = Coordinate { x: 0.0, y: 0.0, z: 20.0 };
+        let emitter = Coordinate {
+            x: 0.0,
+            y: 0.0,
+            z: 20.0,
+        };
         let orientation = Orientation { x: 0.0, y: 0.0 };
         let result = JitterBuffer::calculate_spatial_audio_data(
-            &emitter, false, &listener_at_origin(), &orientation, Game::Minecraft, &default_config(),
+            &emitter,
+            false,
+            &listener_at_origin(),
+            &orientation,
+            Game::Minecraft,
+            &default_config(),
         );
-        assert!(result.pan.abs() < 0.01, "Expected centered pan, got {}", result.pan);
+        assert!(
+            result.pan.abs() < 0.01,
+            "Expected centered pan, got {}",
+            result.pan
+        );
     }
 
     #[test]
     fn minecraft_facing_south_emitter_behind_centered() {
-        let emitter = Coordinate { x: 0.0, y: 0.0, z: -20.0 };
+        let emitter = Coordinate {
+            x: 0.0,
+            y: 0.0,
+            z: -20.0,
+        };
         let orientation = Orientation { x: 0.0, y: 0.0 };
         let result = JitterBuffer::calculate_spatial_audio_data(
-            &emitter, false, &listener_at_origin(), &orientation, Game::Minecraft, &default_config(),
+            &emitter,
+            false,
+            &listener_at_origin(),
+            &orientation,
+            Game::Minecraft,
+            &default_config(),
         );
-        assert!(result.pan.abs() < 0.01, "Expected centered pan, got {}", result.pan);
+        assert!(
+            result.pan.abs() < 0.01,
+            "Expected centered pan, got {}",
+            result.pan
+        );
     }
 
     #[test]
     fn minecraft_facing_west_emitter_south_pans_left() {
         // yaw 90 = facing west (-X). Emitter to the south (+Z) is on the left.
-        let emitter = Coordinate { x: 0.0, y: 0.0, z: 20.0 };
+        let emitter = Coordinate {
+            x: 0.0,
+            y: 0.0,
+            z: 20.0,
+        };
         let orientation = Orientation { x: 0.0, y: 90.0 };
         let result = JitterBuffer::calculate_spatial_audio_data(
-            &emitter, false, &listener_at_origin(), &orientation, Game::Minecraft, &default_config(),
+            &emitter,
+            false,
+            &listener_at_origin(),
+            &orientation,
+            Game::Minecraft,
+            &default_config(),
         );
-        assert!(result.pan > 0.5, "Expected positive pan (left), got {}", result.pan);
+        assert!(
+            result.pan > 0.5,
+            "Expected positive pan (left), got {}",
+            result.pan
+        );
     }
 
     #[test]
     fn hytale_facing_north_emitter_west_pans_left() {
         // Hytale: yaw 0 = facing north (-Z). Emitter to the west (-X) should be on the left.
-        let emitter = Coordinate { x: -20.0, y: 0.0, z: 0.0 };
+        let emitter = Coordinate {
+            x: -20.0,
+            y: 0.0,
+            z: 0.0,
+        };
         let orientation = Orientation { x: 0.0, y: 0.0 };
         let result = JitterBuffer::calculate_spatial_audio_data(
-            &emitter, false, &listener_at_origin(), &orientation, Game::Hytale, &default_config(),
+            &emitter,
+            false,
+            &listener_at_origin(),
+            &orientation,
+            Game::Hytale,
+            &default_config(),
         );
-        assert!(result.pan > 0.5, "Expected positive pan (left), got {}", result.pan);
+        assert!(
+            result.pan > 0.5,
+            "Expected positive pan (left), got {}",
+            result.pan
+        );
     }
 
     #[test]
     fn hytale_facing_north_emitter_east_pans_right() {
-        let emitter = Coordinate { x: 20.0, y: 0.0, z: 0.0 };
+        let emitter = Coordinate {
+            x: 20.0,
+            y: 0.0,
+            z: 0.0,
+        };
         let orientation = Orientation { x: 0.0, y: 0.0 };
         let result = JitterBuffer::calculate_spatial_audio_data(
-            &emitter, false, &listener_at_origin(), &orientation, Game::Hytale, &default_config(),
+            &emitter,
+            false,
+            &listener_at_origin(),
+            &orientation,
+            Game::Hytale,
+            &default_config(),
         );
-        assert!(result.pan < -0.5, "Expected negative pan (right), got {}", result.pan);
+        assert!(
+            result.pan < -0.5,
+            "Expected negative pan (right), got {}",
+            result.pan
+        );
     }
 
     #[test]
     fn close_range_suppresses_panning() {
         // At 5 units, within panning_start (8.0) -> no panning
-        let emitter = Coordinate { x: 5.0, y: 0.0, z: 0.0 };
+        let emitter = Coordinate {
+            x: 5.0,
+            y: 0.0,
+            z: 0.0,
+        };
         let orientation = Orientation { x: 0.0, y: 0.0 };
         let result = JitterBuffer::calculate_spatial_audio_data(
-            &emitter, false, &listener_at_origin(), &orientation, Game::Minecraft, &default_config(),
+            &emitter,
+            false,
+            &listener_at_origin(),
+            &orientation,
+            Game::Minecraft,
+            &default_config(),
         );
-        assert!(result.pan.abs() < 0.01, "Expected suppressed pan at close range, got {}", result.pan);
-        assert!((result.volume - 1.0).abs() < 0.01, "Expected full volume at close range, got {}", result.volume);
+        assert!(
+            result.pan.abs() < 0.01,
+            "Expected suppressed pan at close range, got {}",
+            result.pan
+        );
+        assert!(
+            (result.volume - 1.0).abs() < 0.01,
+            "Expected full volume at close range, got {}",
+            result.volume
+        );
     }
 
     #[test]
     fn mid_range_ramps_panning() {
         // At 10 units, between panning_start (8.0) and close_threshold (12.0) -> partial panning
-        let emitter = Coordinate { x: 10.0, y: 0.0, z: 0.0 };
+        let emitter = Coordinate {
+            x: 10.0,
+            y: 0.0,
+            z: 0.0,
+        };
         let orientation = Orientation { x: 0.0, y: 0.0 };
         let result = JitterBuffer::calculate_spatial_audio_data(
-            &emitter, false, &listener_at_origin(), &orientation, Game::Minecraft, &default_config(),
+            &emitter,
+            false,
+            &listener_at_origin(),
+            &orientation,
+            Game::Minecraft,
+            &default_config(),
         );
-        assert!(result.pan > 0.0 && result.pan < 1.0, "Expected partial pan, got {}", result.pan);
+        assert!(
+            result.pan > 0.0 && result.pan < 1.0,
+            "Expected partial pan, got {}",
+            result.pan
+        );
     }
 
     #[test]
     fn beyond_falloff_is_silent() {
-        let emitter = Coordinate { x: 50.0, y: 0.0, z: 0.0 };
+        let emitter = Coordinate {
+            x: 50.0,
+            y: 0.0,
+            z: 0.0,
+        };
         let orientation = Orientation { x: 0.0, y: 0.0 };
         let result = JitterBuffer::calculate_spatial_audio_data(
-            &emitter, false, &listener_at_origin(), &orientation, Game::Minecraft, &default_config(),
+            &emitter,
+            false,
+            &listener_at_origin(),
+            &orientation,
+            Game::Minecraft,
+            &default_config(),
         );
-        assert!(result.volume < 0.001, "Expected silence beyond falloff, got {}", result.volume);
+        assert!(
+            result.volume < 0.001,
+            "Expected silence beyond falloff, got {}",
+            result.volume
+        );
     }
 
     #[test]
@@ -329,15 +464,36 @@ mod tests {
         let orientation = Orientation { x: 0.0, y: 0.0 };
 
         let near = JitterBuffer::calculate_spatial_audio_data(
-            &Coordinate { x: 0.0, y: 0.0, z: 15.0 }, false, &listener_at_origin(),
-            &orientation, Game::Minecraft, &config,
+            &Coordinate {
+                x: 0.0,
+                y: 0.0,
+                z: 15.0,
+            },
+            false,
+            &listener_at_origin(),
+            &orientation,
+            Game::Minecraft,
+            &config,
         );
         let far = JitterBuffer::calculate_spatial_audio_data(
-            &Coordinate { x: 0.0, y: 0.0, z: 35.0 }, false, &listener_at_origin(),
-            &orientation, Game::Minecraft, &config,
+            &Coordinate {
+                x: 0.0,
+                y: 0.0,
+                z: 35.0,
+            },
+            false,
+            &listener_at_origin(),
+            &orientation,
+            Game::Minecraft,
+            &config,
         );
 
-        assert!(near.volume > far.volume, "Near volume {} should exceed far volume {}", near.volume, far.volume);
+        assert!(
+            near.volume > far.volume,
+            "Near volume {} should exceed far volume {}",
+            near.volume,
+            far.volume
+        );
         assert!(near.volume > 0.0 && near.volume < 1.0);
         assert!(far.volume > 0.0);
     }
@@ -345,10 +501,19 @@ mod tests {
     #[test]
     fn deafen_plays_at_full_volume() {
         let config = default_config();
-        let emitter = Coordinate { x: 2.0, y: 0.0, z: 0.0 };
+        let emitter = Coordinate {
+            x: 2.0,
+            y: 0.0,
+            z: 0.0,
+        };
         let orientation = Orientation { x: 0.0, y: 0.0 };
         let result = JitterBuffer::calculate_spatial_audio_data(
-            &emitter, true, &listener_at_origin(), &orientation, Game::Minecraft, &config,
+            &emitter,
+            true,
+            &listener_at_origin(),
+            &orientation,
+            Game::Minecraft,
+            &config,
         );
         assert!((result.volume - 1.0).abs() < 0.01);
         assert!(result.pan.abs() < 0.01);

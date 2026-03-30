@@ -2,3 +2,4 @@
 *.mcaddon
 node_modules/
 *.zip
+bp/scripts/

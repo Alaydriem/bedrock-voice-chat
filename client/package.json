@@ -19,6 +19,7 @@
     "@sentry/vite-plugin": "^5.1.1",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-deep-link": "git+https://github.com/charlesportwoodii/tauri-plugin-deep-link.git#master",
+    "@tauri-apps/plugin-dialog": "^2",
     "@tauri-apps/plugin-fs": "^2",
     "@tauri-apps/plugin-http": "^2",
     "@tauri-apps/plugin-log": "^2",
@@ -32,7 +33,6 @@
     "@use-gesture/vanilla": "^10.3",
     "murmurhash3js": "^3.0",
     "tauri-plugin-audio-permissions": "git+https://github.com/charlesportwoodii/tauri-plugin-audio-permissions.git",
-    "tauri-plugin-keyring": "git+https://github.com/charlesportwoodii/tauri-plugin-keyring.git#master",
     "ts-pattern": "^5.6",
     "unique-names-generator": "^4.7",
     "webaudio-controls": "git+https://github.com/g200kg/webaudio-controls.git#master"

@@ -1,7 +1,6 @@
 <script lang="ts">
     import { untrack } from "svelte";
     import type { Channel } from "../../../../js/bindings/Channel";
-    import type { ChannelPlayer } from "../../../../js/bindings/ChannelPlayer";
     import type { GamerpicResponse } from "../../../../js/bindings/GamerpicResponse";
     import { debug } from '@tauri-apps/plugin-log';
     import { invoke } from '@tauri-apps/api/core';
@@ -22,12 +21,12 @@
 
     let isCurrentUserChannel = $derived(userCurrentChannelId === channel.id);
     let isOwner = $derived(currentUser && GameNameUtils.namesMatch(channel.creator, currentUser));
-    let isUserInChannel = $derived(currentUser && channel.players.some(p => GameNameUtils.namesMatch(p.name, currentUser)));
+    let isUserInChannel = $derived(currentUser && channel.players.some(p => GameNameUtils.namesMatch(p, currentUser)));
     let shouldShowMenu = $derived(isUserInChannel);
 
     let sortedPlayers = $derived((() => {
-        const owner = channel.players.find(p => GameNameUtils.namesMatch(p.name, channel.creator));
-        const otherMembers = channel.players.filter(p => !GameNameUtils.namesMatch(p.name, channel.creator));
+        const owner = channel.players.find(p => GameNameUtils.namesMatch(p, channel.creator));
+        const otherMembers = channel.players.filter(p => !GameNameUtils.namesMatch(p, channel.creator));
 
         if (owner) {
             return [owner, ...otherMembers];
@@ -44,9 +43,9 @@
     let resolvedGamepics: Record<string, string> = $state({});
     let pendingFetches: Set<string> = new Set();
 
-    function playerKey(player: ChannelPlayer): string {
-        const game = player.game || GameNameUtils.extractGame(player.name);
-        const gamertag = GameNameUtils.stripPrefix(player.name);
+    function playerKey(player: string): string {
+        const game = GameNameUtils.extractGame(player);
+        const gamertag = GameNameUtils.stripPrefix(player);
         return `${game}:${gamertag}`;
     }
 
@@ -63,26 +62,12 @@
         });
     });
 
-    async function resolveGamepic(player: ChannelPlayer, key: string): Promise<void> {
+    async function resolveGamepic(player: string, key: string): Promise<void> {
         pendingFetches.add(key);
-        const game = player.game || GameNameUtils.extractGame(player.name);
-        const gamertag = GameNameUtils.stripPrefix(player.name);
+        const game = GameNameUtils.extractGame(player);
+        const gamertag = GameNameUtils.stripPrefix(player);
 
         try {
-            if (player.gamerpic) {
-                if (player.gamerpic.startsWith('data:')) {
-                    resolvedGamepics = { ...resolvedGamepics, [key]: player.gamerpic };
-                    return;
-                }
-                try {
-                    const dataUrl = await imageCache.getImage(new ImageCacheOptions(player.gamerpic, 2592000));
-                    resolvedGamepics = { ...resolvedGamepics, [key]: dataUrl };
-                    return;
-                } catch {
-                    // Fall through to API
-                }
-            }
-
             const response = await invoke<GamerpicResponse>('api_get_player_gamerpic', { game, gamertag });
             if (response.gamerpic) {
                 const dataUrl = await imageCache.getImage(new ImageCacheOptions(response.gamerpic, 2592000));
@@ -95,9 +80,9 @@
         }
     }
 
-    const getAvatarClasses = (player: ChannelPlayer) => {
-        const isPlayerOwner = GameNameUtils.namesMatch(player.name, channel.creator);
-        const isPlayerInChannel = channel.players.some(p => GameNameUtils.namesMatch(p.name, player.name));
+    const getAvatarClasses = (player: string) => {
+        const isPlayerOwner = GameNameUtils.namesMatch(player, channel.creator);
+        const isPlayerInChannel = channel.players.some(p => GameNameUtils.namesMatch(p, player));
 
         if (isPlayerOwner) {
             if (isPlayerInChannel) {
@@ -211,14 +196,14 @@
                             {#if resolvedGamepics[playerKey(player)]}
                                 <img
                                     src={resolvedGamepics[playerKey(player)]}
-                                    alt={GameNameUtils.stripPrefix(player.name)}
+                                    alt={GameNameUtils.stripPrefix(player)}
                                     class="rounded-full size-7 ring-2 ring-white dark:ring-navy-700 shadow-sm object-cover"
                                 />
                             {:else}
                                 <div
                                     class="is-initial rounded-full {getAvatarClasses(player)} text-xs font-semibold uppercase text-white ring-2 ring-white dark:ring-navy-700 shadow-sm"
                                 >
-                                    {GameNameUtils.stripPrefix(player.name).slice(0, 2).toLowerCase()}
+                                    {GameNameUtils.stripPrefix(player).slice(0, 2).toLowerCase()}
                                 </div>
                             {/if}
                         </div>

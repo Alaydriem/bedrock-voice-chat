@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use log::warn;
 use open_feature::{EvaluationContext, OpenFeature};
-use tokio::sync::{watch, RwLock};
+use tokio::sync::{RwLock, watch};
 
 use super::FlagsmithProvider;
 
@@ -17,7 +17,12 @@ pub struct FeatureFlagService {
 }
 
 impl FeatureFlagService {
-    pub fn new(api_key: String, server_url: String, install_id: String, refresh_interval: Duration) -> Self {
+    pub fn new(
+        api_key: String,
+        server_url: String,
+        install_id: String,
+        refresh_interval: Duration,
+    ) -> Self {
         let (ready_tx, ready_rx) = watch::channel(false);
         Self {
             client: RwLock::new(None),

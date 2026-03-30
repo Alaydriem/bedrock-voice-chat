@@ -37,6 +37,8 @@ class EmbeddedConfig {
     @SerializedName(value = "log-level", alternate = ["logLevel"])
     var logLevel: String = "info"
 
-    /** Check if TLS certificate paths are configured */
+    @SerializedName(value = "assets-path", alternate = ["assetsPath"])
+    var assetsPath: String? = null
+
     fun hasTlsCertificates(): Boolean = tlsCertificate.isNotBlank() && tlsKey.isNotBlank()
 }

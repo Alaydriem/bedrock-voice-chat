@@ -1,33 +1,42 @@
 use crate::auth::{code_login, hytale, login};
+use crate::keyring::KeyringService;
 use crate::structs::app_state::AppState;
 use common::response::LinkJavaIdentityResponse;
+use common::response::LoginResponse;
 use common::structs::config::{
-    HytaleAuthStatus, HytaleDeviceFlowStartResponse, HytaleDeviceFlowStatusResponse, LoginResponse,
+    HytaleAuthStatus, HytaleDeviceFlowStartResponse, HytaleDeviceFlowStatusResponse,
 };
-use tauri::{async_runtime::Mutex, State};
+use tauri::{State, async_runtime::Mutex};
 use tauri_plugin_store::StoreExt;
 
 #[cfg(desktop)]
 use crate::auth::mc_oauth_window::McOauthWindow;
 
 #[tauri::command(async)]
-#[tracing::instrument(skip(app_state, code))]
+#[tracing::instrument(skip(app_state, keyring, code))]
 pub(crate) async fn server_login(
     app_state: State<'_, Mutex<AppState>>,
+    keyring: State<'_, Mutex<KeyringService>>,
     server: String,
     code: String,
     redirect: String,
 ) -> Result<LoginResponse, bool> {
     let login_result = login::server_login(server.clone(), code, redirect).await;
 
-    // If login is successful, initialize the API client
     if let Ok(ref response) = login_result {
         let mut state = app_state.lock().await;
-        state.initialize_api_client(
-            server,
-            response.certificate_ca.clone(),
-            response.certificate.clone() + &response.certificate_key.clone(),
-        ).await;
+        state
+            .initialize_api_client(
+                server.clone(),
+                response.certificate_ca.clone(),
+                response.certificate.clone() + &response.certificate_key.clone(),
+            )
+            .await;
+
+        let mut kr = keyring.lock().await;
+        if let Err(e) = kr.store_credentials(&server, response) {
+            log::error!("Failed to store credentials in keyring: {}", e);
+        }
     }
 
     login_result
@@ -36,6 +45,7 @@ pub(crate) async fn server_login(
 #[tauri::command(async)]
 pub(crate) async fn logout(
     app_state: State<'_, Mutex<AppState>>,
+    keyring: State<'_, Mutex<KeyringService>>,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
     let mut state = app_state.lock().await;
@@ -46,8 +56,17 @@ pub(crate) async fn logout(
     // Clear the API client
     state.clear_api_client();
 
+    // Clear keyring credentials for the server
+    if let Some(ref server_url) = current_server {
+        let mut kr = keyring.lock().await;
+        if let Err(e) = kr.delete_credentials(server_url) {
+            log::warn!("Failed to clear keyring credentials: {}", e);
+        }
+    }
+
     // Get store and clear current session data
-    let store = app_handle.store("store.json")
+    let store = app_handle
+        .store("store.json")
         .map_err(|e| format!("Failed to access store: {}", e))?;
 
     // Remove current_server and current_player from store
@@ -57,10 +76,14 @@ pub(crate) async fn logout(
     // Remove the current server from server_list
     if let Some(current_server_url) = current_server {
         if let Some(server_list_value) = store.get("server_list") {
-            if let Ok(mut server_list) = serde_json::from_value::<Vec<serde_json::Map<String, serde_json::Value>>>(server_list_value) {
+            if let Ok(mut server_list) = serde_json::from_value::<
+                Vec<serde_json::Map<String, serde_json::Value>>,
+            >(server_list_value)
+            {
                 // Filter out the current server
                 server_list.retain(|server_entry| {
-                    server_entry.get("server")
+                    server_entry
+                        .get("server")
                         .and_then(|v| v.as_str())
                         .map_or(true, |server_url| server_url != current_server_url)
                 });
@@ -74,7 +97,9 @@ pub(crate) async fn logout(
     }
 
     // Save the store
-    store.save().map_err(|e| format!("Failed to save store: {}", e))?;
+    store
+        .save()
+        .map_err(|e| format!("Failed to save store: {}", e))?;
 
     // Clear the current_server in AppState
     state.current_server = None;
@@ -83,9 +108,10 @@ pub(crate) async fn logout(
 }
 
 #[tauri::command(async)]
-#[tracing::instrument(skip(app_state, code))]
+#[tracing::instrument(skip(app_state, keyring, code))]
 pub(crate) async fn code_login(
     app_state: State<'_, Mutex<AppState>>,
+    keyring: State<'_, Mutex<KeyringService>>,
     server: String,
     gamertag: String,
     code: String,
@@ -97,11 +123,16 @@ pub(crate) async fn code_login(
     let mut state = app_state.lock().await;
     state
         .initialize_api_client(
-            server,
+            server.clone(),
             login_result.certificate_ca.clone(),
             login_result.certificate.clone() + &login_result.certificate_key.clone(),
         )
         .await;
+
+    let mut kr = keyring.lock().await;
+    if let Err(e) = kr.store_credentials(&server, &login_result) {
+        log::error!("Failed to store credentials in keyring: {}", e);
+    }
 
     Ok(login_result)
 }
@@ -114,26 +145,32 @@ pub(crate) async fn start_hytale_device_flow(
 }
 
 #[tauri::command(async)]
-#[tracing::instrument(skip(app_state))]
+#[tracing::instrument(skip(app_state, keyring))]
 pub(crate) async fn poll_hytale_status(
     app_state: State<'_, Mutex<AppState>>,
+    keyring: State<'_, Mutex<KeyringService>>,
     server: String,
     session_id: String,
 ) -> Result<HytaleDeviceFlowStatusResponse, bool> {
     let poll_result = hytale::poll_hytale_status(server.clone(), session_id).await;
 
-    // If login is successful, initialize the API client
     if let Ok(ref response) = poll_result {
         if response.status == HytaleAuthStatus::Success {
             if let Some(ref login_response) = response.login_response {
                 let mut state = app_state.lock().await;
                 state
                     .initialize_api_client(
-                        server,
+                        server.clone(),
                         login_response.certificate_ca.clone(),
-                        login_response.certificate.clone() + &login_response.certificate_key.clone(),
+                        login_response.certificate.clone()
+                            + &login_response.certificate_key.clone(),
                     )
                     .await;
+
+                let mut kr = keyring.lock().await;
+                if let Err(e) = kr.store_credentials(&server, login_response) {
+                    log::error!("Failed to store credentials in keyring: {}", e);
+                }
             }
         }
     }
@@ -157,7 +194,8 @@ pub(crate) async fn link_java_identity(
         McOauthWindow::redirect_uri().to_string(),
         McOauthWindow::client_id().to_string(),
         gamertag,
-    ).await
+    )
+    .await
 }
 
 #[cfg(not(desktop))]

@@ -2,15 +2,15 @@ mod activity_detector;
 pub mod jitter_buffer;
 mod stream_manager;
 
-use crate::audio::types::{AudioDevice, AudioDeviceType};
-use crate::audio::recording::RecordingManager;
 use crate::NetworkPacket;
+use crate::audio::recording::RecordingManager;
+use crate::audio::types::{AudioDevice, AudioDeviceType};
 use anyhow::Error;
 use common::structs::audio::StreamEvent;
 use log::{error, info, warn};
 use std::sync::Arc;
-use tauri::async_runtime::Mutex as TauriMutex;
 use tauri::Emitter;
+use tauri::async_runtime::Mutex as TauriMutex;
 use tokio::sync::mpsc;
 
 use super::AudioPacket;
@@ -21,7 +21,10 @@ pub(crate) use activity_detector::ActivityUpdate;
 /// Event sent when a stream encounters an error requiring recovery
 #[derive(Debug, Clone)]
 pub enum StreamRecoveryEvent {
-    DeviceError { device_type: AudioDeviceType, error: String },
+    DeviceError {
+        device_type: AudioDeviceType,
+        error: String,
+    },
 }
 
 /// Sender type for recovery events (used by streams to signal errors)
@@ -119,12 +122,15 @@ impl AudioStreamManager {
 
         // Stop the current stream if we're re-initializing a new one so we don't
         // have dangling thread pointers
-        _ = self.stop(device.clone().io);
+        _ = self.stop(device.clone().io).await;
 
         // Get recording producer and flag from manager if available
         let (recording_producer, recording_flag) = if let Some(ref rm) = self.recording_manager {
             let manager = rm.lock().await;
-            (Some(manager.get_producer()), Some(manager.get_recording_flag()))
+            (
+                Some(manager.get_producer()),
+                Some(manager.get_recording_flag()),
+            )
         } else {
             (None, None)
         };
@@ -161,13 +167,16 @@ impl AudioStreamManager {
     #[allow(unused)]
     #[tracing::instrument(skip(self), fields(device = ?device))]
     pub async fn restart(&mut self, device: AudioDeviceType) -> Result<(), Error> {
-        // Stop the audio strema
-        _ = self.stop(device.clone());
+        // Stop the audio stream
+        _ = self.stop(device.clone()).await;
 
         // Get recording producer and flag from manager if available
         let (recording_producer, recording_flag) = if let Some(ref rm) = self.recording_manager {
             let manager = rm.lock().await;
-            (Some(manager.get_producer()), Some(manager.get_recording_flag()))
+            (
+                Some(manager.get_producer()),
+                Some(manager.get_recording_flag()),
+            )
         } else {
             (None, None)
         };
@@ -208,14 +217,14 @@ impl AudioStreamManager {
                 true => self.input.start().await,
                 false => Err(anyhow::anyhow!(format!(
                     "{} audio stream is already running!",
-                    device.to_string()
+                    device.store_key()
                 ))),
             },
             AudioDeviceType::OutputDevice => match self.output.is_stopped() {
                 true => self.output.start().await,
                 false => Err(anyhow::anyhow!(format!(
                     "{} audio stream is already running!",
-                    device.to_string()
+                    device.store_key()
                 ))),
             },
         }
@@ -254,7 +263,11 @@ impl AudioStreamManager {
         }
     }
 
-    pub async fn toggle(&mut self, device: &AudioDeviceType, event: StreamEvent) -> Result<(), Error> {
+    pub async fn toggle(
+        &mut self,
+        device: &AudioDeviceType,
+        event: StreamEvent,
+    ) -> Result<(), Error> {
         match device {
             AudioDeviceType::InputDevice => self.input.toggle(event),
             AudioDeviceType::OutputDevice => self.output.toggle(event),
@@ -276,15 +289,15 @@ impl AudioStreamManager {
     /// This is used when a full reset is needed (e.g., after page refresh)
     pub async fn reset(&mut self) -> Result<(), Error> {
         // Stop both streams concurrently
-        let (_, _) = tokio::join!(
-            self.input.stop(),
-            self.output.stop()
-        );
+        let (_, _) = tokio::join!(self.input.stop(), self.output.stop());
 
         // Get recording producer and flag from manager if available
         let (recording_producer, recording_flag) = if let Some(ref rm) = self.recording_manager {
             let manager = rm.lock().await;
-            (Some(manager.get_producer()), Some(manager.get_recording_flag()))
+            (
+                Some(manager.get_producer()),
+                Some(manager.get_recording_flag()),
+            )
         } else {
             (None, None)
         };

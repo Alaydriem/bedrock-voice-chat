@@ -3,7 +3,7 @@ use common::Game;
 use entity::player;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
-use super::super::Config as StateConfig;
+use super::super::Cli;
 use bvc_server_lib::services::AuthCodeService;
 
 #[derive(Debug, Parser, Clone)]
@@ -23,7 +23,7 @@ pub struct Config {
 }
 
 impl Config {
-    pub async fn run<'a>(&'a self, cfg: &StateConfig) {
+    pub async fn run<'a>(&'a self, cfg: &Cli) {
         let db = match cfg.config.create_database_connection().await {
             Ok(conn) => conn,
             Err(e) => {

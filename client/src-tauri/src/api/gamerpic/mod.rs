@@ -1,11 +1,11 @@
 use crate::api::Api;
 
+use common::reqwest::{
+    StatusCode,
+    header::{HeaderMap, HeaderValue},
+};
 use common::response::GamerpicResponse;
 use log::error;
-use common::reqwest::{
-    header::{HeaderMap, HeaderValue},
-    StatusCode,
-};
 use std::error::Error;
 
 impl Api {
@@ -23,15 +23,13 @@ impl Api {
 
         match client.get(url).headers(headers).send().await {
             Ok(response) => match response.status() {
-                StatusCode::OK => {
-                    match response.json::<GamerpicResponse>().await {
-                        Ok(result) => Ok(result),
-                        Err(e) => {
-                            error!("Failed to parse gamerpic response: {}", e);
-                            Err("Failed to parse response".to_string())
-                        }
+                StatusCode::OK => match response.json::<GamerpicResponse>().await {
+                    Ok(result) => Ok(result),
+                    Err(e) => {
+                        error!("Failed to parse gamerpic response: {}", e);
+                        Err("Failed to parse response".to_string())
                     }
-                }
+                },
                 status => {
                     error!("Gamerpic request failed with status: {}", status);
                     Err(format!("Request failed with status: {}", status))
