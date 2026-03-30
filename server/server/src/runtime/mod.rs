@@ -182,7 +182,7 @@ impl ServerRuntime {
         }
 
         // Create Rocket manager
-        let rocket_manager = RocketManager::new(
+        let mut rocket_manager = RocketManager::new(
             self.config.clone(),
             webhook_receiver,
             cache_manager,
