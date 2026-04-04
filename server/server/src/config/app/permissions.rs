@@ -1,17 +1,14 @@
 use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
-fn default_permissions() -> HashMap<String, i32> {
-    let mut map = HashMap::new();
-    map.insert("audio_upload".to_string(), 1);
-    map.insert("audio_delete".to_string(), 1);
-    map
+fn default_permissions() -> HashMap<String, bool> {
+    HashMap::new()
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Permissions {
     #[serde(default = "default_permissions")]
-    pub defaults: HashMap<String, i32>,
+    pub defaults: HashMap<String, bool>,
 }
 
 impl Default for Permissions {

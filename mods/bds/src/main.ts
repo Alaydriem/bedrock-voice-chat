@@ -6,7 +6,7 @@ import {
   http,
 } from '@minecraft/server-net';
 import { variables } from '@minecraft/server-admin';
-import { Payload } from './dto';
+import { Payload, Player } from './dto';
 import { AudioPlayerManager } from './audio/player_manager';
 import { AudioComponentRegistry } from './audio/components';
 import { DiscCommand } from './commands/mod';
@@ -90,6 +90,34 @@ world.afterEvents.entityDie.subscribe(
 // Subscribe to player spawn events (includes respawns)
 world.afterEvents.playerSpawn.subscribe((event) => {
   deadPlayers.delete(event.player.id);
+});
+
+// Send phantom position when a player leaves to evict stale cache entry
+world.afterEvents.playerLeave.subscribe((event) => {
+  deadPlayers.delete(event.playerId);
+
+  // Defer by 5 ticks (~250ms) to let the last normal position tick complete
+  system.runTimeout(async () => {
+    try {
+      const worldUuid = getWorldUuid();
+      const phantom = Player.fromDisconnectedPlayer(event.playerName, worldUuid);
+      const payload = new Payload('minecraft', [phantom]);
+
+      const request = new HttpRequest(`${bvc_server}/api/position`);
+      request.setBody(payload.toJSONString());
+      request.setMethod((HttpRequestMethod as any).Post);
+      request.setHeaders([
+        new HttpHeader('Content-Type', 'application/json'),
+        new HttpHeader('X-MC-Access-Token', access_token),
+        new HttpHeader('Accept', 'application/json'),
+      ]);
+      request.setTimeout(REQUEST_TIMEOUT);
+
+      await http.request(request).catch(() => {});
+    } catch (error) {
+      console.error("[BVC] Error sending disconnect phantom:", error);
+    }
+  }, 5);
 });
 
 system.runInterval(async () => {

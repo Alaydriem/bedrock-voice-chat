@@ -67,4 +67,31 @@ data class PlayerData(
         spectator = spectator,
         playerUuid = playerUuid
     )
+
+    companion object {
+        private const val PHANTOM_COORD = -10000.0
+
+        /**
+         * Create a phantom PlayerData for a player who has disconnected.
+         * Uses death dimension, extreme coordinates, and spectator=true to guarantee
+         * the server's proximity checks reject all audio routing for this player.
+         */
+        fun disconnected(
+            name: String,
+            dimension: Dimension,
+            worldUuid: String?,
+            alternativeIdentity: String? = null,
+            playerUuid: String? = null
+        ): PlayerData = PlayerData(
+            name = name,
+            coordinates = Coordinates(PHANTOM_COORD, PHANTOM_COORD, PHANTOM_COORD),
+            orientation = Orientation(0f, 0f),
+            dimension = dimension.toApiString(),
+            worldUuid = worldUuid,
+            deafen = false,
+            spectator = true,
+            alternativeIdentity = alternativeIdentity,
+            playerUuid = playerUuid
+        )
+    }
 }

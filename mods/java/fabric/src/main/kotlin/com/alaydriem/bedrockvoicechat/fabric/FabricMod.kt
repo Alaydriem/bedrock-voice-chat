@@ -1,7 +1,9 @@
 package com.alaydriem.bedrockvoicechat.fabric
 
 import com.alaydriem.bedrockvoicechat.audio.AudioEventSender
+import com.alaydriem.bedrockvoicechat.dto.Dimension
 import com.alaydriem.bedrockvoicechat.dto.Payload
+import com.alaydriem.bedrockvoicechat.dto.PlayerData
 import com.alaydriem.bedrockvoicechat.fabric.audio.FabricAudioPlayerManager
 import com.alaydriem.bedrockvoicechat.fabric.audio.JukeboxListener
 import com.alaydriem.bedrockvoicechat.fabric.commands.DiscCommand
@@ -15,7 +17,10 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents
 import net.minecraft.server.network.ServerPlayerEntity
+import net.minecraft.server.world.ServerWorld
 import org.slf4j.LoggerFactory
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
 
 class FabricMod : ModInitializer {
     private val logger = LoggerFactory.getLogger("Bedrock Voice Chat")
@@ -78,7 +83,29 @@ class FabricMod : ModInitializer {
         }
 
         ServerPlayConnectionEvents.DISCONNECT.register { handler, _ ->
-            playerDataProvider.removePlayer(handler.player)
+            val player = handler.player
+            val sender = positionSender
+
+            // Capture phantom data before removePlayer() clears state
+            val phantom = if (sender != null) {
+                val worldUuid = playerDataProvider.getWorldUuid(player.entityWorld as ServerWorld)
+                PlayerData.disconnected(
+                    name = player.name.string,
+                    dimension = Dimension.Minecraft.DEATH,
+                    worldUuid = worldUuid,
+                    playerUuid = player.uuid.toString()
+                )
+            } else null
+
+            playerDataProvider.removePlayer(player)
+
+            // Deferred send after 250ms to let the last normal tick complete
+            if (phantom != null && sender != null) {
+                CompletableFuture.delayedExecutor(250, TimeUnit.MILLISECONDS).execute {
+                    val payload = Payload(playerDataProvider.getGameType(), listOf(phantom))
+                    sender.send(payload)
+                }
+            }
         }
 
         ServerLivingEntityEvents.AFTER_DEATH.register { entity, _ ->

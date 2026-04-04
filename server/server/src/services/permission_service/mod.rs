@@ -5,11 +5,11 @@ use entity::player_permission;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
 
 pub struct PermissionService {
-    defaults: HashMap<String, i32>,
+    defaults: HashMap<String, bool>,
 }
 
 impl PermissionService {
-    pub fn new(defaults: HashMap<String, i32>) -> Self {
+    pub fn new(defaults: HashMap<String, bool>) -> Self {
         Self { defaults }
     }
 
@@ -31,8 +31,8 @@ impl PermissionService {
             return record.effect & 1 == 1;
         }
 
-        if let Some(&default_effect) = self.defaults.get(&perm_str) {
-            return default_effect & 1 == 1;
+        if let Some(&default_val) = self.defaults.get(&perm_str) {
+            return default_val;
         }
 
         false
@@ -56,11 +56,11 @@ impl PermissionService {
             .into_iter()
             .filter(|perm| {
                 let key = perm.as_str().to_string();
-                let effect = overrides
-                    .get(&key)
-                    .copied()
-                    .unwrap_or_else(|| *self.defaults.get(&key).unwrap_or(&0));
-                effect & 1 == 1
+                if let Some(&effect) = overrides.get(&key) {
+                    effect & 1 == 1
+                } else {
+                    *self.defaults.get(&key).unwrap_or(&false)
+                }
             })
             .collect()
     }

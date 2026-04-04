@@ -1,7 +1,9 @@
 package com.alaydriem.bedrockvoicechat.paper
 
 import com.alaydriem.bedrockvoicechat.audio.AudioEventSender
+import com.alaydriem.bedrockvoicechat.dto.Dimension
 import com.alaydriem.bedrockvoicechat.dto.Payload
+import com.alaydriem.bedrockvoicechat.dto.PlayerData
 import com.alaydriem.bedrockvoicechat.native.PositionSender
 import com.alaydriem.bedrockvoicechat.network.HttpRequestHandler
 import com.alaydriem.bedrockvoicechat.paper.audio.JukeboxListener
@@ -125,7 +127,28 @@ class PaperPlugin : JavaPlugin(), Listener {
 
     @EventHandler
     fun onPlayerQuit(event: PlayerQuitEvent) {
-        playerDataProvider.removePlayer(event.player)
+        val player = event.player
+        val sender = positionSender
+
+        // Capture phantom data before removePlayer() clears state
+        val phantom = if (sender != null) {
+            PlayerData.disconnected(
+                name = player.name,
+                dimension = Dimension.Minecraft.DEATH,
+                worldUuid = player.location.world?.uid?.toString(),
+                playerUuid = player.uniqueId.toString()
+            )
+        } else null
+
+        playerDataProvider.removePlayer(player)
+
+        // Deferred send after 5 ticks (~250ms) to let the last normal tick complete
+        if (phantom != null && sender != null) {
+            server.scheduler.runTaskLater(this, Runnable {
+                val payload = Payload(playerDataProvider.getGameType(), listOf(phantom))
+                sender.send(payload)
+            }, 5L)
+        }
     }
 
     @EventHandler

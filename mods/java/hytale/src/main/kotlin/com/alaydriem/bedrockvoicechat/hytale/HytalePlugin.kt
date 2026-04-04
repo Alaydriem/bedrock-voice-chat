@@ -1,6 +1,8 @@
 package com.alaydriem.bedrockvoicechat.hytale
 
+import com.alaydriem.bedrockvoicechat.dto.Dimension
 import com.alaydriem.bedrockvoicechat.dto.Payload
+import com.alaydriem.bedrockvoicechat.dto.PlayerData
 import com.alaydriem.bedrockvoicechat.hytale.systems.CrouchTickingSystem
 import com.alaydriem.bedrockvoicechat.hytale.systems.DeathChangeSystem
 import com.alaydriem.bedrockvoicechat.hytale.systems.PositionTickingSystem
@@ -122,8 +124,30 @@ class HytalePlugin(init: JavaPluginInit) : JavaPlugin(init) {
             playerDataProvider.addPlayer(event.playerRef)
         }
         eventRegistry.register(PlayerDisconnectEvent::class.java) { event ->
-            playerDataProvider.removePlayer(event.playerRef)
-            crouchSystem?.removePlayer(event.playerRef.uuid)
+            val ref = event.playerRef
+            val sender = positionSender
+
+            // Capture phantom data before removePlayer() clears state
+            val phantom = if (sender != null) {
+                val worldUuid = playerDataProvider.getPositionWorldUuid(ref.uuid)
+                PlayerData.disconnected(
+                    name = ref.username,
+                    dimension = Dimension.Hytale.DEATH,
+                    worldUuid = worldUuid ?: "",
+                    playerUuid = ref.uuid.toString()
+                )
+            } else null
+
+            playerDataProvider.removePlayer(ref)
+            crouchSystem?.removePlayer(ref.uuid)
+
+            // Deferred send after 250ms to let the last normal tick complete
+            if (phantom != null && sender != null) {
+                threadPool?.schedule({
+                    val payload = Payload(playerDataProvider.getGameType(), listOf(phantom))
+                    sender.send(payload)
+                }, 250, TimeUnit.MILLISECONDS)
+            }
         }
     }
 

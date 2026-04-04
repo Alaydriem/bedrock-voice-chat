@@ -57,6 +57,10 @@ class PaperConfigProvider(private val plugin: JavaPlugin) : ConfigProvider {
                         ?: yamlConfig.getString("embedded.logLevel", "info")!!
                     assetsPath = yamlConfig.getString("embedded.assets-path")
                         ?: yamlConfig.getString("embedded.assetsPath")
+                    allowAudioUpload = yamlConfig.getBoolean("embedded.allow-audio-upload",
+                        yamlConfig.getBoolean("embedded.allowAudioUpload", false))
+                    allowAudioDelete = yamlConfig.getBoolean("embedded.allow-audio-delete",
+                        yamlConfig.getBoolean("embedded.allowAudioDelete", false))
                 }
             }
         }
@@ -79,6 +83,8 @@ class PaperConfigProvider(private val plugin: JavaPlugin) : ConfigProvider {
             yamlConfig.set("embedded.tls-ips", embedded.tlsIps)
             yamlConfig.set("embedded.log-level", embedded.logLevel)
             embedded.assetsPath?.let { yamlConfig.set("embedded.assets-path", it) }
+            yamlConfig.set("embedded.allow-audio-upload", embedded.allowAudioUpload)
+            yamlConfig.set("embedded.allow-audio-delete", embedded.allowAudioDelete)
         }
 
         plugin.saveConfig()

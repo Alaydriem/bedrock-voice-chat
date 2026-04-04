@@ -249,6 +249,12 @@ class BvcServerManager(
             ),
             "audio" to mapOf(
                 "file_path" to "$assetsPath/audio"
+            ),
+            "permissions" to mapOf(
+                "defaults" to mapOf(
+                    "audio_upload" to embedded.allowAudioUpload,
+                    "audio_delete" to embedded.allowAudioDelete
+                )
             )
         )
     }

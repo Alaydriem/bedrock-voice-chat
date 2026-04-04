@@ -64,6 +64,11 @@ class HytalePlayerDataProvider : PlayerDataProvider {
         positionCache[playerUuid] = position
     }
 
+    // Used to capture world UUID before removePlayer() clears the cache
+    fun getPositionWorldUuid(playerUuid: UUID): String? {
+        return positionCache[playerUuid]?.worldUuid
+    }
+
     override fun collectPlayers(): List<PlayerData> {
         return onlinePlayers
             .filter { it.isValid }
