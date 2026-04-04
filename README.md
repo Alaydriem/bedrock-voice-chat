@@ -9,7 +9,8 @@
 <a href="https://discord.gg/CdtchD5zxr"><img src="https://raw.githubusercontent.com/Alaydriem/bedrock-voice-chat/master/client/static/images/app-logo-transparent.png" width="140"/></a>
 
   <p>
-    <strong>A High Performance, Low Latency, Secure Voice Chat server for Minecraft Bedrock Dedicated Servers</strong>
+    <strong>A High Performance, Low Latency, Secure Voice Chat server for Minecraft Bedrock Dedicated Servers</strong><br /><br />
+    <a href="https://www.bedrockvoicechat.com">www.bedrockvoicechat.com</a>
   </p>
   <hr />
 </div>
@@ -28,6 +29,10 @@ Bedrock Voice Chat is an client app + addon for Minecraft Bedrock edition that p
 - Opus Audio Codec
 - And More
 
+## Getting Started
+
+[www.bedrockvoicechat.com](https://www.bedrockvoicechat.com) is your source for getting started, finding the most recent download, and getting information on how to run and manage Bedrock Voice Chat. Be sure to checkout the wiki at: https://github.com/Alaydriem/bedrock-voice-chat/wiki for comprehensive documentation.
+
 ## How you can Support
 
 I’ve set up a few ways for you to join the supporters who help keep Bedrock Voice Chat thriving - checkout https://github.com/Alaydriem/bedrock-voice-chat/discussions/31 for more details.
@@ -40,7 +45,7 @@ Join the community on [YouTube](https://youtube.com/@alaydriem)
 2. Back Me on Patreon
 Visit [Patreon.com/Alaydriem](https://www.patreon.com/c/Alaydriem) and become a Bedrock Voice Chat Supporter. Every pledge directly funds ongoing development, app store maintenance, and future innovations.
 
-Supporters and Sponsors like you make projects like Bedrock Voice Chat possible, and enable us to fulfill feature requests and publications to the Google Play and Apple App Stores. Supporter and Sponsors at these roles will receive these updates before they are unlocked for everyone. 
+Supporters and Sponsors like you make projects like Bedrock Voice Chat possible, and enable us to fulfill feature requests and publications to the Google Play and Apple App Stores. Supporter and Sponsors at these roles will receive these updates before they are unlocked for everyone.
 
 ## Installation
 
