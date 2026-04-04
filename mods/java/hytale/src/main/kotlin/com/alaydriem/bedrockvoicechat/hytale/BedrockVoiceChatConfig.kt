@@ -25,6 +25,8 @@ class HytaleEmbeddedConfig {
     /** Comma-separated list of TLS IP addresses (e.g., "127.0.0.1") */
     @JvmField var tlsIps: String = "127.0.0.1"
     @JvmField var logLevel: String = "info"
+    @JvmField var allowAudioUpload: Boolean = false
+    @JvmField var allowAudioDelete: Boolean = false
 
     /** Parse tlsNames as a list */
     fun getTlsNamesList(): List<String> = tlsNames.split(",").map { it.trim() }.filter { it.isNotEmpty() }
@@ -76,6 +78,16 @@ class HytaleEmbeddedConfig {
                 KeyedCodec<String>("LogLevel", Codec.STRING),
                 { cfg, value, _ -> cfg.logLevel = value },
                 { cfg, _ -> cfg.logLevel }
+            ).add()
+            .append(
+                KeyedCodec<Boolean>("AllowAudioUpload", Codec.BOOLEAN),
+                { cfg, value, _ -> cfg.allowAudioUpload = value },
+                { cfg, _ -> cfg.allowAudioUpload }
+            ).add()
+            .append(
+                KeyedCodec<Boolean>("AllowAudioDelete", Codec.BOOLEAN),
+                { cfg, value, _ -> cfg.allowAudioDelete = value },
+                { cfg, _ -> cfg.allowAudioDelete }
             ).add()
             .build()
     }

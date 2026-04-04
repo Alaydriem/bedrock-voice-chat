@@ -42,6 +42,23 @@ export class Player {
     );
   }
 
+  /**
+   * Create a phantom player DTO for a player who has disconnected.
+   * Uses death dimension, extreme coordinates, and spectator=true to guarantee
+   * the server's proximity checks reject all audio routing for this player.
+   */
+  static fromDisconnectedPlayer(name: string, worldUuid?: string): Player {
+    return new Player(
+      name,
+      Dimension.DEATH,
+      new Coordinates(-10000, -10000, -10000),
+      false,
+      new Orientation(0, 0),
+      true,
+      worldUuid
+    );
+  }
+
   toJSON() {
     return {
       name: this.name,

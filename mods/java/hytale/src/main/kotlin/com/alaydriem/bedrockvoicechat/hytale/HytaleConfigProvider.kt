@@ -46,6 +46,8 @@ class HytaleConfigProvider(private val config: Config<BedrockVoiceChatConfig>) :
                         tlsNames = hytaleEmbed.getTlsNamesList()
                         tlsIps = hytaleEmbed.getTlsIpsList()
                         logLevel = hytaleEmbed.logLevel
+                        allowAudioUpload = hytaleEmbed.allowAudioUpload
+                        allowAudioDelete = hytaleEmbed.allowAudioDelete
                     }
                 } ?: EmbeddedConfig()
             }

@@ -40,5 +40,11 @@ class EmbeddedConfig {
     @SerializedName(value = "assets-path", alternate = ["assetsPath"])
     var assetsPath: String? = null
 
+    @SerializedName(value = "allow-audio-upload", alternate = ["allowAudioUpload"])
+    var allowAudioUpload: Boolean = false
+
+    @SerializedName(value = "allow-audio-delete", alternate = ["allowAudioDelete"])
+    var allowAudioDelete: Boolean = false
+
     fun hasTlsCertificates(): Boolean = tlsCertificate.isNotBlank() && tlsKey.isNotBlank()
 }
