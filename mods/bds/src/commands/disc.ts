@@ -33,7 +33,7 @@ export class DiscCommand {
           if (!audioId) {
             return {
               status: CustomCommandStatus.Failure,
-              message: 'Usage: /bvc:disk <audio_id>',
+              message: 'Usage: /bvc:disc <audio_id>',
             };
           }
 
