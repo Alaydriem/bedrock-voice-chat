@@ -2,8 +2,8 @@ use common::reqwest::Client as ReqwestClient;
 use log::error;
 use std::net::Ipv4Addr;
 use std::time::Duration;
-use trust_dns_resolver::TokioAsyncResolver;
-use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
+use hickory_resolver::TokioAsyncResolver;
+use hickory_resolver::config::{ResolverConfig, ResolverOpts};
 use url::Url;
 
 use anyhow::anyhow;

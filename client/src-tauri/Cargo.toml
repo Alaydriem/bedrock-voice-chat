@@ -43,7 +43,7 @@ rubato = { version = "^1" }
 audioadapter-buffers = { version = "^2" }
 futures-util = { version = "^0.3" }
 tokio-tungstenite = { version = "^0.28" }
-trust-dns-resolver = { version = "^0.23", features = ["tokio-runtime", "tokio-rustls", "rustls", "serde"] }
+hickory-resolver = { version = "^0.24", features = ["tokio-runtime", "dns-over-rustls", "serde-config"] }
 ringbuf = { version = "^0.4" }
 schemars = { version = "^1.0", features = ["derive"] }
 ts-rs = { version = "^12.0" }

@@ -4,7 +4,7 @@ use log::{error, info};
 use std::net::SocketAddr;
 use tauri::State;
 use tauri::async_runtime::Mutex;
-use trust_dns_resolver::{
+use hickory_resolver::{
     Resolver, TokioAsyncResolver,
     config::{ResolverConfig, ResolverOpts},
 };
