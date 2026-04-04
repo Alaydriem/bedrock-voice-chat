@@ -108,6 +108,13 @@ jobs:
             musl-tools \
             musl-dev
 
+      - name: Install Windows dependencies
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          "$VCPKG_INSTALLATION_ROOT/vcpkg" install zlib:x64-windows-static-md
+          echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" >> $GITHUB_ENV
+
       - name: Setup cross-compilation environment
         if: false # Cross-compilation not currently used, but keeping for future
         run: |
