@@ -13,7 +13,7 @@ export class DiscCommand {
     system.beforeEvents.startup.subscribe((event) => {
       event.customCommandRegistry.registerCommand(
         {
-          name: 'bvc:disk',
+          name: 'bvc:disc',
           description: 'Give yourself a BVC audio disc',
           cheatsRequired: false,
           permissionLevel: CommandPermissionLevel.GameDirectors,
