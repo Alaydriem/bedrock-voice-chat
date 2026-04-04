@@ -60,20 +60,21 @@ export default class Server extends BVCApp {
         warn("Could not check certificate expiry for " + server + ": " + e);
       }
 
+      // Bootstrap the API client with cached credentials so we can make mTLS calls.
+      // refresh_server_state will replace these if the server issues a rotated certificate.
       await invoke("api_initialize_client", {
         endpoint: server,
         cert: credentials.certificate_ca,
         pem: credentials.certificate + credentials.certificate_key
       });
 
-      await invoke("api_ping")
-        .then(async (response: any) => {
-          window.location.href = "/dashboard";
-        })
-        .catch(async (e) => {
-          error("Ping failed for server " + server + ": " + e);
-          window.location.href = "/login?reauth=true&server=" + server;
-        });
+      try {
+        await invoke("refresh_server_state", { server });
+        window.location.href = "/dashboard";
+      } catch (e) {
+        error("Server unreachable or credentials invalid for " + server + ": " + e);
+        window.location.href = "/login?reauth=true&server=" + server;
+      }
     } else {
       // Multiple servers: mount components, they handle themselves
       const container = document.getElementById('server-avatar-container');

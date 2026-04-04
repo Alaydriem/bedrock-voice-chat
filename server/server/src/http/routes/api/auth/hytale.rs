@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::time::Instant;
 
 use common::{
@@ -16,7 +17,7 @@ use crate::http::dtos::{HytaleSession, HytaleSessionCache};
 use crate::http::guards::HytaleSessionId;
 use crate::http::openapi::NcryptfJsonResponse;
 use crate::http::pool::Db;
-use crate::services::{AuthError, AuthService, PermissionService};
+use crate::services::{AuthError, AuthService, CertificateService, PermissionService};
 
 /// Start a new Hytale device code flow
 /// Returns session_id and user code for the client to display
@@ -67,6 +68,7 @@ pub async fn start_device_flow(
 pub async fn poll_status(
     db: Db<'_>,
     config: &State<Server>,
+    cert_service: &State<Arc<CertificateService>>,
     perm_config: &State<Permissions>,
     session_cache: &State<HytaleSessionCache>,
     session_id: HytaleSessionId,
@@ -142,6 +144,7 @@ pub async fn poll_status(
             match AuthService::build_login_response(
                 conn,
                 config.inner(),
+                &cert_service,
                 Some(&perm_service),
                 auth_result.gamertag,
                 auth_result.gamerpic,

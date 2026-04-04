@@ -14,14 +14,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Get build number
-        id: build-number
-        uses: ./.github/actions/get-build-number
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check release lock
+        id: lock
+        uses: ./.github/actions/release-lock
         with:
+          operation: check
           redis_url: ${{ secrets.UPSTASH_REDIS_REST_URL }}
           redis_token: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
 
       - name: Refresh OAuth Token
+        if: steps.lock.outputs.locked != 'true'
         id: refresh
         env:
           CREDENTIALS_JSON: ${{ secrets.HYTALE_DOWNLOADER_CREDENTIALS }}
@@ -88,6 +93,7 @@ jobs:
           echo "::notice::Token refreshed successfully, expires at $(date -d @$EXPIRES_AT)"
 
       - name: Update HYTALE_DOWNLOADER_CREDENTIALS secret
+        if: steps.lock.outputs.locked != 'true'
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
           CREDENTIALS: ${{ steps.refresh.outputs.credentials }}

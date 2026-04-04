@@ -39,36 +39,41 @@ pub async fn auth_state(
     let perm_service = PermissionService::new(perm_config.defaults.clone());
     let allowed = perm_service.evaluate_all(conn, player_model.id).await;
 
-    let (certificate, certificate_key) = match player_model.is_certificate_expiring() {
-        Ok(true) => {
-            let gt = player_model
-                .gamertag
-                .clone()
-                .unwrap_or_else(|| "unknown".to_string());
+    let needs_rotation = player_model
+        .is_certificate_expiring()
+        .unwrap_or(false)
+        || player_model.has_legacy_certificate_cn(&player_model.game);
 
-            match cert_service.sign_player_cert(&gt) {
-                Ok((cert, key)) => {
-                    let cert_pem = cert.pem();
-                    let key_pem = key.serialize_pem();
+    let (certificate, certificate_key) = if needs_rotation {
+        let gt = player_model
+            .gamertag
+            .clone()
+            .unwrap_or_else(|| "unknown".to_string());
+        let game = player_model.game.clone();
 
-                    let mut active: player::ActiveModel = player_model.into();
-                    active.certificate = ActiveValue::Set(cert_pem.clone());
-                    active.certificate_key = ActiveValue::Set(key_pem.clone());
-                    if let Err(e) = active.update(conn).await {
-                        tracing::error!("Failed to update player certificate: {}", e);
-                        (None, None)
-                    } else {
-                        tracing::info!("Re-issued certificate for player {}", gt);
-                        (Some(cert_pem), Some(key_pem))
-                    }
-                }
-                Err(e) => {
-                    tracing::error!("Failed to re-issue certificate: {}", e);
+        match cert_service.sign_player_cert(&gt, &game) {
+            Ok((cert, key)) => {
+                let cert_pem = cert.pem();
+                let key_pem = key.serialize_pem();
+
+                let mut active: player::ActiveModel = player_model.into();
+                active.certificate = ActiveValue::Set(cert_pem.clone());
+                active.certificate_key = ActiveValue::Set(key_pem.clone());
+                if let Err(e) = active.update(conn).await {
+                    tracing::error!("Failed to update player certificate: {}", e);
                     (None, None)
+                } else {
+                    tracing::info!("Re-issued certificate for player {}", gt);
+                    (Some(cert_pem), Some(key_pem))
                 }
             }
+            Err(e) => {
+                tracing::error!("Failed to re-issue certificate: {}", e);
+                (None, None)
+            }
         }
-        _ => (None, None),
+    } else {
+        (None, None)
     };
 
     CustomJsonResponse::ok(AuthStateResponse {

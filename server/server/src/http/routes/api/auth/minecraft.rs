@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use common::{
     auth::{AuthError as CommonAuthError, MinecraftAuthProvider},
     request::LoginRequest,
@@ -11,7 +13,7 @@ use crate::config::{Permissions, Server};
 use crate::http::dtos::ncryptf::JsonMessage;
 use crate::http::openapi::NcryptfJsonResponse;
 use crate::http::pool::Db;
-use crate::services::{AuthError, AuthService, PermissionService, PlayerIdentityService};
+use crate::services::{AuthError, AuthService, CertificateService, PermissionService, PlayerIdentityService};
 
 /// Authenticates the Player via Xbox Live to grab their gamertag and other identifying information
 #[openapi(tag = "Authentication")]
@@ -20,6 +22,7 @@ pub async fn authenticate(
     db: Db<'_>,
     payload: Json<LoginRequest>,
     config: &State<Server>,
+    cert_service: &State<Arc<CertificateService>>,
     identity_service: &State<PlayerIdentityService>,
     perm_config: &State<Permissions>,
 ) -> NcryptfJsonResponse<LoginResponse> {
@@ -59,6 +62,7 @@ pub async fn authenticate(
     match AuthService::build_login_response(
         conn,
         config.inner(),
+        &cert_service,
         Some(&perm_service),
         gamertag.clone(),
         auth_result.gamerpic,

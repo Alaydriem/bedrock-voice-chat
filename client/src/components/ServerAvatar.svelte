@@ -57,11 +57,19 @@
         return;
       }
 
+      // Bootstrap the API client with cached credentials so we can make mTLS calls.
+      // refresh_server_state will replace these if the server issues a rotated certificate.
       await invoke("api_initialize_client", {
         endpoint: server,
         cert: credentials.certificate_ca,
         pem: credentials.certificate + credentials.certificate_key
       });
+
+      try {
+        await invoke("refresh_server_state", { server });
+      } catch (e) {
+        // Non-fatal: continue with cached credentials
+      }
 
       // Get config from THIS specific server and check version compatibility
       const configResponse = await invoke<ConfigResponse>("api_get_config", { server: server });

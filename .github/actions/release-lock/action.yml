@@ -1,0 +1,65 @@
+name: Release Lock
+description: Manage a release lock in Upstash Redis to prevent token refresh during releases
+
+inputs:
+  operation:
+    description: 'Lock operation: acquire, check, or release'
+    required: true
+  redis_url:
+    description: 'Upstash Redis REST API URL'
+    required: true
+  redis_token:
+    description: 'Upstash Redis REST API token'
+    required: true
+  ttl:
+    description: 'Lock TTL in seconds (acquire only)'
+    required: false
+    default: '7200'
+
+outputs:
+  locked:
+    description: 'Whether a release lock is currently held (check only)'
+    value: ${{ steps.lock.outputs.locked }}
+
+runs:
+  using: composite
+  steps:
+    - name: Manage release lock
+      id: lock
+      shell: bash
+      run: |
+        case "${{ inputs.operation }}" in
+          acquire)
+            RESPONSE=$(curl -s -H "Authorization: Bearer ${{ inputs.redis_token }}" \
+              "${{ inputs.redis_url }}/set/release-lock/1/ex/${{ inputs.ttl }}")
+            RESULT=$(echo "$RESPONSE" | jq -r '.result')
+            if [ "$RESULT" = "OK" ]; then
+              echo "::notice::Release lock acquired (TTL: ${{ inputs.ttl }}s)"
+            else
+              echo "::error::Failed to acquire release lock"
+              echo "Response: $RESPONSE"
+              exit 1
+            fi
+            ;;
+          check)
+            RESPONSE=$(curl -s -H "Authorization: Bearer ${{ inputs.redis_token }}" \
+              "${{ inputs.redis_url }}/get/release-lock")
+            RESULT=$(echo "$RESPONSE" | jq -r '.result')
+            if [ "$RESULT" != "null" ] && [ -n "$RESULT" ]; then
+              echo "locked=true" >> "$GITHUB_OUTPUT"
+              echo "::notice::Release lock is active — skipping"
+            else
+              echo "locked=false" >> "$GITHUB_OUTPUT"
+              echo "::notice::No release lock"
+            fi
+            ;;
+          release)
+            RESPONSE=$(curl -s -H "Authorization: Bearer ${{ inputs.redis_token }}" \
+              "${{ inputs.redis_url }}/del/release-lock")
+            echo "::notice::Release lock released"
+            ;;
+          *)
+            echo "::error::Unknown operation: ${{ inputs.operation }}"
+            exit 1
+            ;;
+        esac

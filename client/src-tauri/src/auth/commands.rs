@@ -178,6 +178,63 @@ pub(crate) async fn poll_hytale_status(
     poll_result
 }
 
+#[tauri::command(async)]
+pub(crate) async fn refresh_server_state(
+    app_state: State<'_, Mutex<AppState>>,
+    keyring: State<'_, Mutex<KeyringService>>,
+    server: Option<String>,
+    game: Option<String>,
+) -> Result<common::response::auth::AuthStateResponse, String> {
+    let state = app_state.lock().await;
+    let current_server = state.current_server.clone();
+    let api = match server {
+        Some(ref endpoint) => {
+            drop(state);
+            app_state
+                .lock()
+                .await
+                .get_api_client_for_server(endpoint)
+                .await?
+        }
+        None => {
+            let api = state.get_api_client()?.clone();
+            drop(state);
+            api
+        }
+    };
+
+    let response = api.get_server_state(game.as_deref()).await?;
+
+    let target_server = server.or(current_server);
+    if let Some(ref server_url) = target_server {
+        let mut kr = keyring.lock().await;
+        if let Ok(perms_json) = serde_json::to_string(&response.server_permissions) {
+            let _ = kr.set_credential(server_url, "server_permissions", &perms_json);
+        }
+
+        if let (Some(cert), Some(cert_key)) =
+            (&response.certificate, &response.certificate_key)
+        {
+            let _ = kr.set_credential(server_url, "certificate", cert);
+            let _ = kr.set_credential(server_url, "certificate_key", cert_key);
+
+            // Rebuild the API client with the rotated certificate
+            let ca_cert = kr
+                .get_credential(server_url, "certificate_ca")
+                .map_err(|e| format!("Failed to get CA cert: {}", e))?;
+            let pem = format!("{}{}", cert, cert_key);
+            drop(kr);
+
+            let mut state = app_state.lock().await;
+            state
+                .initialize_api_client(server_url.clone(), ca_cert, pem)
+                .await;
+        }
+    }
+
+    Ok(response)
+}
+
 #[cfg(desktop)]
 #[tauri::command(async)]
 pub(crate) async fn link_java_identity(

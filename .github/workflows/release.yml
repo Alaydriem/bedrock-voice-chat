@@ -74,6 +74,13 @@ jobs:
             console.log('Updated .releaserc.json for draft release');
           "
 
+      - name: Acquire release lock
+        uses: ./.github/actions/release-lock
+        with:
+          operation: acquire
+          redis_url: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          redis_token: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+
       - name: Get build number
         id: build-number
         uses: ./.github/actions/get-build-number
@@ -426,10 +433,29 @@ jobs:
             fi
           done
 
+  # Release the Redis lock so the Hytale token cron can resume
+  release-lock:
+    name: Release Build Lock
+    needs: [prepare-release, upload-assets, upload-mod-release-assets]
+    if: always() && needs.prepare-release.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare-release.outputs.new_tag || github.ref }}
+
+      - name: Release lock
+        uses: ./.github/actions/release-lock
+        with:
+          operation: release
+          redis_url: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          redis_token: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+
   # Gate: Approval required before publishing to external services
   approve-publish:
     name: Approve Release Publish
-    needs: [prepare-release, upload-assets, upload-mod-release-assets]
+    needs: [prepare-release, upload-assets, upload-mod-release-assets, release-lock]
     if: always() && needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false && needs.upload-assets.result == 'success'
     runs-on: ubuntu-latest
     environment: release

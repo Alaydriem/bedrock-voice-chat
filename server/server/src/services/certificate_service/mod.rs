@@ -37,16 +37,20 @@ impl CertificateService {
     /// Sign a new player certificate using the cached root CA.
     ///
     /// # Arguments
-    /// * `player_name` - The player's name (used as Common Name in the certificate)
+    /// * `player_name` - The player's gamertag
+    /// * `game` - The game type, used to prefix the CN as "game:gamertag"
     ///
     /// # Returns
     /// A tuple of (Certificate, KeyPair) for the player
     pub fn sign_player_cert(
         &self,
         player_name: &str,
+        game: &common::Game,
     ) -> Result<(Certificate, KeyPair), anyhow::Error> {
+        let cn = format!("{}:{}", game.as_str(), player_name);
+
         let mut dn = DistinguishedName::new();
-        dn.push(rcgen::DnType::CommonName, player_name);
+        dn.push(rcgen::DnType::CommonName, cn.clone());
 
         let mut params = CertificateParams::default();
 
@@ -61,7 +65,7 @@ impl CertificateService {
         params.not_after = OffsetDateTime::now_utc() + Duration::days(90);
 
         params.subject_alt_names = vec![
-            SanType::DnsName(player_name.try_into()?),
+            SanType::DnsName(player_name.to_string().try_into()?),
             SanType::DnsName(String::from("localhost").try_into()?),
             SanType::IpAddress(std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1))),
             SanType::IpAddress(std::net::IpAddr::V6(std::net::Ipv6Addr::new(

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use common::{
     request::CodeLoginRequest,
     response::LoginResponse,
@@ -9,7 +11,7 @@ use crate::config::{Features, Permissions, Server};
 use crate::http::dtos::ncryptf::JsonMessage;
 use crate::http::openapi::NcryptfJsonResponse;
 use crate::http::pool::Db;
-use crate::services::{AuthCodeError, AuthCodeService, AuthError, AuthService, PermissionService};
+use crate::services::{AuthCodeError, AuthCodeService, AuthError, AuthService, CertificateService, PermissionService};
 
 #[openapi(tag = "Authentication")]
 #[post("/auth/code", data = "<payload>")]
@@ -17,6 +19,7 @@ pub async fn code_authenticate(
     db: Db<'_>,
     payload: Json<CodeLoginRequest>,
     config: &State<Server>,
+    cert_service: &State<Arc<CertificateService>>,
     features: &State<Features>,
     perm_config: &State<Permissions>,
 ) -> NcryptfJsonResponse<LoginResponse> {
@@ -55,6 +58,7 @@ pub async fn code_authenticate(
     match AuthService::build_login_response(
         conn,
         config.inner(),
+        &cert_service,
         Some(&perm_service),
         player_record.gamertag.unwrap_or_default(),
         player_record.gamerpic.unwrap_or_default(),

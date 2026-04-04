@@ -177,7 +177,7 @@ pub fn run() {
             crate::commands::audio_library::upload_audio_file,
             crate::commands::audio_library::list_audio_files,
             crate::commands::audio_library::delete_audio_file,
-            crate::commands::audio_library::refresh_server_state,
+            crate::auth::commands::refresh_server_state,
             crate::commands::audio_library::get_audio_stream_url,
             // Keyring
             crate::commands::keyring::store_credentials,

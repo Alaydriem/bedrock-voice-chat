@@ -3,10 +3,10 @@ use sea_orm::{ActiveModelBehavior, ActiveValue};
 
 use common::ncryptflib as ncryptf;
 
-use rcgen::CertificateParams;
+use x509_parser::prelude::*;
 
 use anyhow::anyhow;
-use time::{Duration, OffsetDateTime};
+use ::time::{Duration, OffsetDateTime};
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
 #[sea_orm(table_name = "player")]
@@ -76,15 +76,33 @@ impl Model {
 
     /// Returns true if the certificate in storage is expiring within 15 days
     pub fn is_certificate_expiring(&self) -> Result<bool, anyhow::Error> {
-        let cp = self.get_certificate_params()?;
+        let (_, pem) = parse_x509_pem(self.certificate.as_bytes())
+            .map_err(|e| anyhow!("Failed to parse certificate PEM: {}", e))?;
+        let (_, cert) = X509Certificate::from_der(&pem.contents)
+            .map_err(|e| anyhow!("Failed to parse X.509 certificate: {}", e))?;
+
+        let not_after = cert.validity().not_after.to_datetime();
         let renewal_threshold = OffsetDateTime::now_utc() + Duration::days(15);
-        Ok(cp.not_after <= renewal_threshold)
+        Ok(not_after <= renewal_threshold)
     }
 
-    /// Returns the certificate params
-    pub fn get_certificate_params(&self) -> Result<CertificateParams, anyhow::Error> {
-        let cp = CertificateParams::from_ca_cert_pem(&self.certificate)?;
-
-        return Ok(cp);
+    /// Returns true if the certificate CN uses the legacy format (no game prefix)
+    pub fn has_legacy_certificate_cn(&self, game: &common::Game) -> bool {
+        let expected_prefix = format!("{}:", game.as_str());
+        let Ok((_, pem)) = parse_x509_pem(self.certificate.as_bytes()) else {
+            return true;
+        };
+        let Ok((_, cert)) = X509Certificate::from_der(&pem.contents) else {
+            return true;
+        };
+        let cn = cert
+            .subject()
+            .iter_common_name()
+            .next()
+            .and_then(|attr| attr.as_str().ok());
+        match cn {
+            Some(cn) => !cn.starts_with(&expected_prefix),
+            None => true,
+        }
     }
 }

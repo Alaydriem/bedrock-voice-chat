@@ -1731,13 +1731,13 @@ dependencies = [
  "async-once-cell",
  "async-trait",
  "common",
- "rcgen",
  "sea-orm",
  "serde",
  "serde_json",
  "time",
  "tokio",
  "tracing",
+ "x509-parser 0.16.0",
 ]
 
 [[package]]

@@ -176,7 +176,7 @@ impl PlayerRegistrarService {
         sgv.append(&mut signature.get_public_key());
         sgv.append(&mut signature.get_secret_key());
 
-        let (cert, key) = match self.cert_service.sign_player_cert(player_name) {
+        let (cert, key) = match self.cert_service.sign_player_cert(player_name, game_type) {
             Ok((cert, key)) => (cert, key),
             Err(e) => {
                 tracing::error!(

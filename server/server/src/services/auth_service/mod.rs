@@ -18,6 +18,7 @@ use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, Entit
 pub use auth_error::AuthError;
 
 use crate::config::Server;
+use crate::services::certificate_service::CertificateService;
 use crate::services::permission_service::PermissionService;
 
 /// Service for authentication operations
@@ -49,7 +50,7 @@ impl AuthService {
                 let effective_game = game_hint
                     .map(|g| g.to_lowercase())
                     .unwrap_or_else(|| "minecraft".to_string());
-                tracing::info!("player_from_certificate: legacy cert gamertag={}, effective_game={}", cn, effective_game);
+                tracing::warn!("player_from_certificate: legacy cert gamertag={}, effective_game={}", cn, effective_game);
                 (Some(effective_game), cn.to_string())
             }
         };
@@ -63,7 +64,7 @@ impl AuthService {
         match query.one(conn).await {
             Ok(Some(player)) => Ok(player),
             Ok(None) => {
-                tracing::error!(
+                tracing::warn!(
                     "player_from_certificate: no player found for gamertag={:?}, game_filter={:?}",
                     gamertag,
                     game_filter
@@ -81,6 +82,7 @@ impl AuthService {
     pub async fn build_login_response<C: ConnectionTrait>(
         conn: &C,
         config: &Server,
+        cert_service: &CertificateService,
         permission_service: Option<&PermissionService>,
         gamertag: String,
         gamerpic: String,
@@ -115,6 +117,38 @@ impl AuthService {
             tracing::info!("Player {} is banished", gamertag);
             return Err(AuthError::PlayerBanished);
         }
+
+        // Rotate certificate if expiring or using legacy CN format
+        let needs_rotation = actual
+            .is_certificate_expiring()
+            .unwrap_or(false)
+            || actual.has_legacy_certificate_cn(&game);
+
+        let (certificate, certificate_key) = if needs_rotation {
+            match cert_service.sign_player_cert(&gamertag, &game) {
+                Ok((cert, key)) => {
+                    let cert_pem = cert.pem();
+                    let key_pem = key.serialize_pem();
+
+                    let mut cert_active: player::ActiveModel = actual.clone().into();
+                    cert_active.certificate = ActiveValue::Set(cert_pem.clone());
+                    cert_active.certificate_key = ActiveValue::Set(key_pem.clone());
+                    if let Err(e) = cert_active.update(conn).await {
+                        tracing::error!("Failed to update rotated certificate: {}", e);
+                        (actual.certificate.clone(), actual.certificate_key.clone())
+                    } else {
+                        tracing::info!("Rotated certificate for player {} at login", gamertag);
+                        (cert_pem, key_pem)
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("Failed to rotate certificate for {}: {}", gamertag, e);
+                    (actual.certificate.clone(), actual.certificate_key.clone())
+                }
+            }
+        } else {
+            (actual.certificate.clone(), actual.certificate_key.clone())
+        };
 
         let kp = actual.get_keypair().map_err(|e| {
             tracing::error!("Failed to get keypair: {}", e);
@@ -154,8 +188,8 @@ impl AuthService {
                 pk: sp.get_public_key(),
                 sk: sp.get_public_key(),
             },
-            actual.certificate,
-            actual.certificate_key,
+            certificate,
+            certificate_key,
             certificate_ca,
             config.quic_port.to_string(),
             server_permissions,
