@@ -269,6 +269,19 @@
         }
       }
     },
+    "/api/ping": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "operationId": "ping_pong",
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
     "/health/liveness": {
       "get": {
         "tags": [
@@ -288,19 +301,6 @@
           "Health"
         ],
         "operationId": "readiness_readiness",
-        "responses": {
-          "default": {
-            "description": ""
-          }
-        }
-      }
-    },
-    "/api/ping": {
-      "get": {
-        "tags": [
-          "Health"
-        ],
-        "operationId": "ping_pong",
         "responses": {
           "default": {
             "description": ""
