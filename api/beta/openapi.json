@@ -64,114 +64,23 @@
         ]
       }
     },
-    "/api/channel/": {
+    "/api/gamerpic/{game}/{gamertag}": {
       "get": {
         "tags": [
-          "Channels"
+          "Gamerpic"
         ],
-        "operationId": "channel_list",
+        "operationId": "get_gamerpic",
         "parameters": [
           {
-            "name": "id",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "nullable": true
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Channel"
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "Channels"
-        ],
-        "operationId": "create_channel_create",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "string"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/channel/{id}": {
-      "put": {
-        "tags": [
-          "Channels"
-        ],
-        "operationId": "event_channel_event",
-        "parameters": [
-          {
-            "name": "id",
+            "name": "game",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ChannelEvent"
-              }
+              "$ref": "#/components/schemas/Game"
             }
           },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "boolean"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "Channels"
-        ],
-        "operationId": "delete_channel_delete",
-        "parameters": [
           {
-            "name": "id",
+            "name": "gamertag",
             "in": "path",
             "required": true,
             "schema": {
@@ -185,45 +94,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "boolean"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "tags": [
-          "Channels"
-        ],
-        "operationId": "rename_channel_rename",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "string"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "boolean"
+                  "$ref": "#/components/schemas/GamerpicResponse"
                 }
               }
             }
@@ -422,23 +293,114 @@
         }
       }
     },
-    "/api/gamerpic/{game}/{gamertag}": {
+    "/api/channel/": {
       "get": {
         "tags": [
-          "Gamerpic"
+          "Channels"
         ],
-        "operationId": "get_gamerpic",
+        "operationId": "channel_list",
         "parameters": [
           {
-            "name": "game",
+            "name": "id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Channel"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Channels"
+        ],
+        "operationId": "create_channel_create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/channel/{id}": {
+      "put": {
+        "tags": [
+          "Channels"
+        ],
+        "operationId": "event_channel_event",
+        "parameters": [
+          {
+            "name": "id",
             "in": "path",
             "required": true,
             "schema": {
-              "$ref": "#/components/schemas/Game"
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelEvent"
+              }
             }
           },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Channels"
+        ],
+        "operationId": "delete_channel_delete",
+        "parameters": [
           {
-            "name": "gamertag",
+            "name": "id",
             "in": "path",
             "required": true,
             "schema": {
@@ -452,7 +414,45 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GamerpicResponse"
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Channels"
+        ],
+        "operationId": "rename_channel_rename",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
                 }
               }
             }
@@ -887,59 +887,22 @@
           }
         }
       },
-      "ChannelEvent": {
+      "GamerpicResponse": {
         "type": "object",
         "required": [
-          "event"
+          "game",
+          "gamertag"
         ],
         "properties": {
-          "event": {
-            "$ref": "#/components/schemas/ChannelEvents"
+          "gamertag": {
+            "type": "string"
           },
           "game": {
-            "default": null,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Game"
-              }
-            ],
+            "$ref": "#/components/schemas/Game"
+          },
+          "gamerpic": {
+            "type": "string",
             "nullable": true
-          }
-        }
-      },
-      "ChannelEvents": {
-        "type": "string",
-        "enum": [
-          "Join",
-          "Leave",
-          "Create",
-          "Delete",
-          "Rename"
-        ]
-      },
-      "Channel": {
-        "type": "object",
-        "required": [
-          "creator",
-          "id",
-          "name",
-          "players"
-        ],
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "players": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "creator": {
-            "type": "string"
           }
         }
       },
@@ -1129,22 +1092,59 @@
           }
         ]
       },
-      "GamerpicResponse": {
+      "ChannelEvent": {
         "type": "object",
         "required": [
-          "game",
-          "gamertag"
+          "event"
         ],
         "properties": {
-          "gamertag": {
-            "type": "string"
+          "event": {
+            "$ref": "#/components/schemas/ChannelEvents"
           },
           "game": {
-            "$ref": "#/components/schemas/Game"
-          },
-          "gamerpic": {
-            "type": "string",
+            "default": null,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Game"
+              }
+            ],
             "nullable": true
+          }
+        }
+      },
+      "ChannelEvents": {
+        "type": "string",
+        "enum": [
+          "Join",
+          "Leave",
+          "Create",
+          "Delete",
+          "Rename"
+        ]
+      },
+      "Channel": {
+        "type": "object",
+        "required": [
+          "creator",
+          "id",
+          "name",
+          "players"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "players": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "creator": {
+            "type": "string"
           }
         }
       },
@@ -1610,8 +1610,8 @@
       "description": "Player position updates from game mods. Used by the Minecraft/Hytale server plugin to push player coordinates for spatial audio calculations."
     },
     {
-      "name": "Channels",
-      "description": "Voice channel management. Create, delete, rename, join, and leave channels. Channel membership is broadcast to connected QUIC clients."
+      "name": "Gamerpic",
+      "description": "Player avatar/gamerpic retrieval by gamertag and game type."
     },
     {
       "name": "Health",
@@ -1622,8 +1622,8 @@
       "description": "Audio file library and spatial playback events. Upload Ogg/Opus files, trigger positional audio playback in-game, and manage the audio library."
     },
     {
-      "name": "Gamerpic",
-      "description": "Player avatar/gamerpic retrieval by gamertag and game type."
+      "name": "Channels",
+      "description": "Voice channel management. Create, delete, rename, join, and leave channels. Channel membership is broadcast to connected QUIC clients."
     },
     {
       "name": "Identity",
