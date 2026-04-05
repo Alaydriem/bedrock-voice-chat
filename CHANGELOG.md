@@ -1,3 +1,17 @@
+# [1.0.0-beta.10](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.9...v1.0.0-beta.10) (2026-04-05)
+
+
+### Bug Fixes
+
+* beta.9 defects ([#158](https://github.com/Alaydriem/bedrock-voice-chat/issues/158)) ([9c8ba6a](https://github.com/Alaydriem/bedrock-voice-chat/commit/9c8ba6a88611c973e1875bb6bcfc12c464caedc4)), closes [#157](https://github.com/Alaydriem/bedrock-voice-chat/issues/157) [#156](https://github.com/Alaydriem/bedrock-voice-chat/issues/156)
+* java server not disabling position audio on player logout ([08e3860](https://github.com/Alaydriem/bedrock-voice-chat/commit/08e3860a95862529d80bc8b69972823951bed58b))
+* permissions ([#164](https://github.com/Alaydriem/bedrock-voice-chat/issues/164)) ([8d35f2b](https://github.com/Alaydriem/bedrock-voice-chat/commit/8d35f2b5e82d1b8a9b1cb4d3036c252ce604ccb3))
+
+
+### Features
+
+* dynamic audio events ([#161](https://github.com/Alaydriem/bedrock-voice-chat/issues/161)) ([f25cbfa](https://github.com/Alaydriem/bedrock-voice-chat/commit/f25cbfa7af9a5358086b26285f4beac8c6dae566)), closes [#138](https://github.com/Alaydriem/bedrock-voice-chat/issues/138) [#68](https://github.com/Alaydriem/bedrock-voice-chat/issues/68)
+
 # [1.0.0-beta.9](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.8...v1.0.0-beta.9) (2026-03-19)
 
 
