@@ -16,7 +16,7 @@ export class DiscCommand {
           name: 'bvc:disc',
           description: 'Give yourself a BVC audio disc',
           cheatsRequired: false,
-          permissionLevel: CommandPermissionLevel.GameDirectors,
+          permissionLevel: CommandPermissionLevel.Any,
           optionalParameters: [
             { name: 'audio_id', type: CustomCommandParamType.String },
           ],

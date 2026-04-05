@@ -141,12 +141,10 @@ class HytalePlugin(init: JavaPluginInit) : JavaPlugin(init) {
             playerDataProvider.removePlayer(ref)
             crouchSystem?.removePlayer(ref.uuid)
 
-            // Deferred send after 250ms to let the last normal tick complete
             if (phantom != null && sender != null) {
-                threadPool?.schedule({
-                    val payload = Payload(playerDataProvider.getGameType(), listOf(phantom))
-                    sender.send(payload)
-                }, 250, TimeUnit.MILLISECONDS)
+                val payload = Payload(playerDataProvider.getGameType(), listOf(phantom))
+                sender.send(payload)
+                logger.at(Level.INFO).log("Sent disconnect phantom for player: ${ref.username}")
             }
         }
     }

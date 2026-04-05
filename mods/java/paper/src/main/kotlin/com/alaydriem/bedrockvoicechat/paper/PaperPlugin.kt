@@ -142,12 +142,10 @@ class PaperPlugin : JavaPlugin(), Listener {
 
         playerDataProvider.removePlayer(player)
 
-        // Deferred send after 5 ticks (~250ms) to let the last normal tick complete
         if (phantom != null && sender != null) {
-            server.scheduler.runTaskLater(this, Runnable {
-                val payload = Payload(playerDataProvider.getGameType(), listOf(phantom))
-                sender.send(payload)
-            }, 5L)
+            val payload = Payload(playerDataProvider.getGameType(), listOf(phantom))
+            sender.send(payload)
+            logger.info("Sent disconnect phantom for player: ${player.name}")
         }
     }
 

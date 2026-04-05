@@ -19,8 +19,6 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents
 import net.minecraft.server.network.ServerPlayerEntity
 import net.minecraft.server.world.ServerWorld
 import org.slf4j.LoggerFactory
-import java.util.concurrent.CompletableFuture
-import java.util.concurrent.TimeUnit
 
 class FabricMod : ModInitializer {
     private val logger = LoggerFactory.getLogger("Bedrock Voice Chat")
@@ -99,12 +97,10 @@ class FabricMod : ModInitializer {
 
             playerDataProvider.removePlayer(player)
 
-            // Deferred send after 250ms to let the last normal tick complete
             if (phantom != null && sender != null) {
-                CompletableFuture.delayedExecutor(250, TimeUnit.MILLISECONDS).execute {
-                    val payload = Payload(playerDataProvider.getGameType(), listOf(phantom))
-                    sender.send(payload)
-                }
+                val payload = Payload(playerDataProvider.getGameType(), listOf(phantom))
+                sender.send(payload)
+                logger.info("Sent disconnect phantom for player: {}", player.name.string)
             }
         }
 
