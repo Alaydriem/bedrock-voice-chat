@@ -147,6 +147,14 @@ jobs:
       build_mode: ${{ needs.changes.outputs.build_mode }}
     secrets: inherit
 
+  # Run server + common unit and integration tests
+  test-server:
+    name: Test Server
+    needs: changes
+    if: needs.changes.outputs.server == 'true' || needs.changes.outputs.common == 'true'
+    uses: ./.github/workflows/test-server.yml
+    secrets: inherit
+
   # Build Docker image from server binaries
   build-docker:
     name: Build Docker Image

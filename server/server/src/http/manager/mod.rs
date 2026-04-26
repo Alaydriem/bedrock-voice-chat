@@ -5,6 +5,7 @@ use crate::{
     services::{AudioPlaybackService, AudioStreamTokenCache, CertificateService, PlayerIdentityService, PlayerRegistrarService},
     stream::quic::{CacheManager, WebhookReceiver},
 };
+use common::auth::{MinecraftAuthProvider, MinecraftAuthenticator};
 use anyhow::Error;
 use common::ncryptflib as ncryptf;
 use migration::{Migrator, MigratorTrait};
@@ -85,6 +86,11 @@ impl RocketManager {
                     )
                     .allow_credentials(true);
 
+                let mc_authenticator: std::sync::Arc<dyn MinecraftAuthenticator> =
+                    std::sync::Arc::new(MinecraftAuthProvider::new(
+                        self.config.server.minecraft.client_id.clone(),
+                    ));
+
                 let mut rocket = rocket::custom(figment)
                     .manage(cache_wrapper)
                     .manage(self.config.server.clone())
@@ -96,6 +102,7 @@ impl RocketManager {
                     .manage(self.identity_service.clone())
                     .manage(self.audio_playback_service.clone())
                     .manage(self.cert_service.clone())
+                    .manage(mc_authenticator)
                     .manage(self.config.permissions.clone())
                     .manage(self.config.audio.clone())
                     .manage(self.hytale_session_cache.clone())

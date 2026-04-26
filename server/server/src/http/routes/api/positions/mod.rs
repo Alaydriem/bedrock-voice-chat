@@ -59,6 +59,10 @@ pub async fn update_position(
     }
 
     identity_service
+        .resolve_uuid_and_remap_players(&mut all_players, &game_type)
+        .await;
+
+    identity_service
         .resolve_and_remap_players(&mut all_players, &game_type)
         .await;
 

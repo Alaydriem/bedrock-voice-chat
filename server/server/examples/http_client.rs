@@ -106,11 +106,7 @@ async fn main() -> anyhow::Result<()> {
     c = c.headers(headers);
     match opt.data.clone() {
         Some(data) => {
-            c = c.json(
-                &(ChannelEvent {
-                    event: ChannelEvents::Leave,
-                }),
-            );
+            c = c.json(&ChannelEvent::new(ChannelEvents::Leave));
         }
         None => {}
     }

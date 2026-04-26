@@ -463,6 +463,10 @@ pub unsafe extern "C" fn bvc_update_positions(
             }
 
             id_service
+                .resolve_uuid_and_remap_players(&mut players, &game_type)
+                .await;
+
+            id_service
                 .resolve_and_remap_players(&mut players, &game_type)
                 .await;
         }

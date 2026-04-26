@@ -1,5 +1,7 @@
+use std::sync::Arc;
+
 use common::{
-    auth::MinecraftAuthProvider,
+    auth::MinecraftAuthenticator,
     request::LinkJavaIdentityRequest,
     response::LinkJavaIdentityResponse,
     Game,
@@ -15,6 +17,7 @@ pub async fn link_java_identity(
     _identity: Certificate<'_>,
     payload: Json<LinkJavaIdentityRequest>,
     identity_service: &State<PlayerIdentityService>,
+    authenticator: &State<Arc<dyn MinecraftAuthenticator>>,
 ) -> Result<Json<LinkJavaIdentityResponse>, Status> {
     let request = payload.0;
 
@@ -23,10 +26,7 @@ pub async fn link_java_identity(
         .parse()
         .map_err(|_| Status::BadRequest)?;
 
-    let provider = MinecraftAuthProvider::new(request.client_id);
-
-    // Only fetch the MC Java profile — skip full Xbox profile lookup
-    let mc_username = provider
+    let mc_username = authenticator
         .authenticate_for_java_profile(request.code, redirect_uri)
         .await
         .map_err(|e| {

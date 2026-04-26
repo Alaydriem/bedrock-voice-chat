@@ -16,10 +16,16 @@ crate-type = ["rlib", "cdylib", "staticlib"]
 name = "bvc-server"
 path = "src/main.rs"
 
+[[test]]
+name = "identity_link"
+path = "tests/identity_link.rs"
+required-features = ["test-utils"]
+
 [features]
 default = []
 ffi = []
 bundled-sqlite = []
+test-utils = []
 
 [dependencies]
 common = { path = "../../common", features = ["quic", "templates", "server"] }
@@ -97,6 +103,9 @@ ringbuf = { version = "0.4" }
 hound = "^3.5"
 read-process-memory = "0.1.6"
 proc_mem = "0.1.6"
+wiremock = "0.6"
+parking_lot = "0.12"
+sea-orm = { workspace = true, features = ["mock"] }
 
 [target.'cfg(target_env = "musl")'.dependencies]
 libsqlite3-sys = { version = "^0.30", features = ["bundled"] }
