@@ -56,5 +56,3 @@ Bedrock Voice Chat has 3 components
 3. And a native client for Windows, iOS, and Android.
 
 All 3 components are mandatory. Be sure to checkout the Wiki for more information: https://github.com/Alaydriem/bedrock-voice-chat/wiki
-
-

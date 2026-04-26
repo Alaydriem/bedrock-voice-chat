@@ -4,6 +4,8 @@
 
 Copyright (c) 2025 - Charles R. Portwood II - All rights reserved
 
+> NOT AN OFFICIAL MINECRAFT SERVICE. NOT APPROVED BY OR ASSOCIATED WITH MOJANG OR MICROSOFT
+
 ---
 
 **PRE-RELEASE NOTICE**

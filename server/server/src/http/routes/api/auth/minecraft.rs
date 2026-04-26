@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use common::{
-    auth::{AuthError as CommonAuthError, MinecraftAuthProvider},
+    auth::{AuthError as CommonAuthError, MinecraftAuthenticator},
     request::LoginRequest,
     response::LoginResponse,
     Game,
@@ -13,7 +13,7 @@ use crate::config::{Permissions, Server};
 use crate::http::dtos::ncryptf::JsonMessage;
 use crate::http::openapi::NcryptfJsonResponse;
 use crate::http::pool::Db;
-use crate::services::{AuthError, AuthService, CertificateService, PermissionService, PlayerIdentityService};
+use crate::services::{AuthError, AuthService, CertificateService, PermissionService, PlayerIdentityService, PlayerRegistrarService};
 
 /// Authenticates the Player via Xbox Live to grab their gamertag and other identifying information
 #[openapi(tag = "Authentication")]
@@ -24,7 +24,9 @@ pub async fn authenticate(
     config: &State<Server>,
     cert_service: &State<Arc<CertificateService>>,
     identity_service: &State<PlayerIdentityService>,
+    player_registrar: &State<PlayerRegistrarService>,
     perm_config: &State<Permissions>,
+    authenticator: &State<Arc<dyn MinecraftAuthenticator>>,
 ) -> NcryptfJsonResponse<LoginResponse> {
     let conn = db.into_inner();
 
@@ -37,11 +39,7 @@ pub async fn authenticate(
         }
     };
 
-    // Create the Minecraft auth provider
-    let provider = MinecraftAuthProvider::new(config.minecraft.client_id.clone());
-
-    // Authenticate with Xbox Live
-    let auth_result = match provider.authenticate(code, redirect_uri).await {
+    let auth_result = match authenticator.authenticate(code, redirect_uri).await {
         Ok(result) => result,
         Err(e) => {
             tracing::error!("Xbox Live authentication failed: {}", e);
@@ -56,8 +54,28 @@ pub async fn authenticate(
 
     let gamertag = auth_result.gamertag.clone();
     let minecraft_username = auth_result.minecraft_username.clone();
+    let mc_uuid = auth_result.minecraft_uuid.clone();
 
-    // Build login response using AuthService
+    let xbl_player_id = identity_service
+        .find_player_id_by_gamertag(&gamertag, &Game::Minecraft)
+        .await;
+
+    let uuid_player_id = match mc_uuid.as_deref() {
+        Some(uuid) => {
+            identity_service
+                .find_player_id_by_alias(uuid, "platform_uuid", &Game::Minecraft)
+                .await
+        }
+        None => None,
+    };
+
+    // Phase B re-mapping: create XBL record when Java UUID alias resolves
+    if xbl_player_id.is_none() && uuid_player_id.is_some() {
+        player_registrar
+            .create_player(&gamertag, &Game::Minecraft, None)
+            .await;
+    }
+
     let perm_service = PermissionService::new(perm_config.defaults.clone());
     match AuthService::build_login_response(
         conn,
@@ -71,25 +89,38 @@ pub async fn authenticate(
     .await
     {
         Ok(mut response) => {
-            // Store the MC Java username alias if it differs from the gamertag
-            if let Some(ref mc_name) = minecraft_username {
-                if mc_name != &gamertag {
-                    if let Some(player_id) = identity_service
-                        .find_player_id_by_gamertag(&gamertag, &Game::Minecraft)
-                        .await
-                    {
+            if minecraft_username.is_some() || mc_uuid.is_some() {
+                if let Some(player_id) = identity_service
+                    .find_player_id_by_gamertag(&gamertag, &Game::Minecraft)
+                    .await
+                {
+                    if let Some(ref mc_name) = minecraft_username {
+                        if mc_name != &gamertag {
+                            if let Err(e) = identity_service
+                                .create_alias(
+                                    player_id,
+                                    mc_name,
+                                    &Game::Minecraft,
+                                    "minecraft_services",
+                                )
+                                .await
+                            {
+                                tracing::warn!(
+                                    "Failed to create minecraft_services alias for {}: {}",
+                                    mc_name,
+                                    e
+                                );
+                            }
+                        }
+                    }
+                    if let Some(ref uuid) = mc_uuid {
                         if let Err(e) = identity_service
-                            .create_alias(
-                                player_id,
-                                mc_name,
-                                &Game::Minecraft,
-                                "minecraft_services",
-                            )
+                            .create_alias(player_id, uuid, &Game::Minecraft, "platform_uuid")
                             .await
                         {
                             tracing::warn!(
-                                "Failed to create identity alias for {}: {}",
-                                mc_name,
+                                "Failed to create platform_uuid alias for {}: {}",
+                                uuid,
                                 e
                             );
                         }
@@ -97,7 +128,6 @@ pub async fn authenticate(
                 }
             }
 
-            // Include MC username in response for client display
             response.minecraft_username = minecraft_username;
 
             NcryptfJsonResponse::from_inner(JsonMessage::create(Status::Ok, Some(response), None, None))

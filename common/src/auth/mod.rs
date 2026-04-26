@@ -36,10 +36,12 @@
 //! }
 //! ```
 
+mod authenticator;
 mod hytale;
 mod minecraft;
 mod provider;
 
 pub use provider::{AuthError, AuthResult};
 pub use minecraft::MinecraftAuthProvider;
+pub use authenticator::MinecraftAuthenticator;
 pub use hytale::{DeviceFlow, HytaleAuthProvider, PollResult};

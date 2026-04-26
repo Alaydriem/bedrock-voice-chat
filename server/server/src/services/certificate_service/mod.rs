@@ -81,6 +81,29 @@ impl CertificateService {
         }
     }
 
+    /// Return the CA certificate PEM for use in tests.
+    #[cfg(feature = "test-utils")]
+    pub fn ca_cert_pem(&self) -> String {
+        self.root_certificate.pem()
+    }
+
+    /// Create a CertificateService backed by an in-memory self-signed CA for use in tests.
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn new_for_test() -> Result<Self, anyhow::Error> {
+        use rcgen::{BasicConstraints, IsCa};
+
+        let root_kp = KeyPair::generate()?;
+
+        let mut params = CertificateParams::default();
+        params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
+        let root_cert = params.self_signed(&root_kp)?;
+
+        Ok(Self {
+            root_certificate: root_cert,
+            root_keypair: root_kp,
+        })
+    }
+
     /// Load the root CA certificate and keypair from disk.
     fn load_root_ca(certificate_path: &str) -> Result<(Certificate, KeyPair), anyhow::Error> {
         let root_ca_path_str = format!("{}/{}", certificate_path, "ca.crt");

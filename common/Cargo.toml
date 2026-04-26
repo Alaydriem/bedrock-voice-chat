@@ -95,3 +95,6 @@ cpal = { version = "^0.17", optional = true, features = ["asio"] }
 
 [target."cfg(not(target_os = \"windows\"))".dependencies]
 cpal = { version = "^0.17", optional = true }
+
+[dev-dependencies]
+wiremock = "0.6"
