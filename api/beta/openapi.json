@@ -7,7 +7,7 @@
       "name": "Repository",
       "url": "https://github.com/alaydriem/bedrock-voice-chat"
     },
-    "version": "1.0.0-beta.9"
+    "version": "1.0.0-beta.10"
   },
   "paths": {
     "/api/position": {
@@ -293,173 +293,6 @@
         }
       }
     },
-    "/api/channel/": {
-      "get": {
-        "tags": [
-          "Channels"
-        ],
-        "operationId": "channel_list",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "nullable": true
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Channel"
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "Channels"
-        ],
-        "operationId": "create_channel_create",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "string"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/channel/{id}": {
-      "put": {
-        "tags": [
-          "Channels"
-        ],
-        "operationId": "event_channel_event",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ChannelEvent"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "boolean"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "Channels"
-        ],
-        "operationId": "delete_channel_delete",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "boolean"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "tags": [
-          "Channels"
-        ],
-        "operationId": "rename_channel_rename",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "string"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "boolean"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/auth/minecraft": {
       "post": {
         "tags": [
@@ -634,6 +467,173 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiConfig"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/channel/": {
+      "get": {
+        "tags": [
+          "Channels"
+        ],
+        "operationId": "channel_list",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Channel"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Channels"
+        ],
+        "operationId": "create_channel_create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/channel/{id}": {
+      "put": {
+        "tags": [
+          "Channels"
+        ],
+        "operationId": "event_channel_event",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelEvent"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Channels"
+        ],
+        "operationId": "delete_channel_delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Channels"
+        ],
+        "operationId": "rename_channel_rename",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
                 }
               }
             }
@@ -1092,62 +1092,6 @@
           }
         ]
       },
-      "ChannelEvent": {
-        "type": "object",
-        "required": [
-          "event"
-        ],
-        "properties": {
-          "event": {
-            "$ref": "#/components/schemas/ChannelEvents"
-          },
-          "game": {
-            "default": null,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Game"
-              }
-            ],
-            "nullable": true
-          }
-        }
-      },
-      "ChannelEvents": {
-        "type": "string",
-        "enum": [
-          "Join",
-          "Leave",
-          "Create",
-          "Delete",
-          "Rename"
-        ]
-      },
-      "Channel": {
-        "type": "object",
-        "required": [
-          "creator",
-          "id",
-          "name",
-          "players"
-        ],
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "players": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "creator": {
-            "type": "string"
-          }
-        }
-      },
       "JsonMessage_LoginResponse": {
         "type": "object",
         "required": [
@@ -1587,6 +1531,62 @@
             "format": "float"
           }
         }
+      },
+      "ChannelEvent": {
+        "type": "object",
+        "required": [
+          "event"
+        ],
+        "properties": {
+          "event": {
+            "$ref": "#/components/schemas/ChannelEvents"
+          },
+          "game": {
+            "default": null,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Game"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "ChannelEvents": {
+        "type": "string",
+        "enum": [
+          "Join",
+          "Leave",
+          "Create",
+          "Delete",
+          "Rename"
+        ]
+      },
+      "Channel": {
+        "type": "object",
+        "required": [
+          "creator",
+          "id",
+          "name",
+          "players"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "players": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "creator": {
+            "type": "string"
+          }
+        }
       }
     },
     "securitySchemes": {
@@ -1622,10 +1622,6 @@
       "description": "Audio file library and spatial playback events. Upload Ogg/Opus files, trigger positional audio playback in-game, and manage the audio library."
     },
     {
-      "name": "Channels",
-      "description": "Voice channel management. Create, delete, rename, join, and leave channels. Channel membership is broadcast to connected QUIC clients."
-    },
-    {
       "name": "Identity",
       "description": "Player identity management. Retrieve current session state, permissions, and certificate renewal. Link external accounts such as Minecraft Java."
     },
@@ -1636,6 +1632,10 @@
     {
       "name": "Server",
       "description": "Server configuration and metadata. Returns connection details, protocol version, and spatial audio settings."
+    },
+    {
+      "name": "Channels",
+      "description": "Voice channel management. Create, delete, rename, join, and leave channels. Channel membership is broadcast to connected QUIC clients."
     }
   ]
 }
