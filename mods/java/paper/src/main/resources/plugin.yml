@@ -5,3 +5,12 @@ api-version: "1.21"
 description: Server-side player position tracking for proximity voice chat
 authors:
   - Charles R. Portwood II (Alaydriem)
+softdepend:
+  - floodgate
+permissions:
+  bvc.disc:
+    description: Allow getting a BVC audio disc via /bvc disc
+    default: true
+  bvc.disc.give:
+    description: Allow giving BVC audio discs to other players via /bvc give
+    default: op

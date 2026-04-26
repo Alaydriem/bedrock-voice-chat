@@ -46,9 +46,7 @@ class FabricMod : ModInitializer {
         }
 
         minimumPlayers = config.minimumPlayers
-        playerDataProvider = FabricPlayerDataProvider(
-            floodgatePrefix = config.floodgatePrefix
-        )
+        playerDataProvider = FabricPlayerDataProvider()
 
         if (config.useEmbeddedServer) {
             embeddedServer = BvcServerManager(config, configProvider)
@@ -83,12 +81,13 @@ class FabricMod : ModInitializer {
         ServerPlayConnectionEvents.DISCONNECT.register { handler, _ ->
             val player = handler.player
             val sender = positionSender
+            val canonicalName = playerDataProvider.resolveCanonicalName(player)
 
             // Capture phantom data before removePlayer() clears state
             val phantom = if (sender != null) {
                 val worldUuid = playerDataProvider.getWorldUuid(player.entityWorld as ServerWorld)
                 PlayerData.disconnected(
-                    name = player.name.string,
+                    name = canonicalName,
                     dimension = Dimension.Minecraft.DEATH,
                     worldUuid = worldUuid,
                     playerUuid = player.uuid.toString()
@@ -100,7 +99,7 @@ class FabricMod : ModInitializer {
             if (phantom != null && sender != null) {
                 val payload = Payload(playerDataProvider.getGameType(), listOf(phantom))
                 sender.send(payload)
-                logger.info("Sent disconnect phantom for player: {}", player.name.string)
+                logger.info("Sent disconnect phantom for player: {}", canonicalName)
             }
         }
 
