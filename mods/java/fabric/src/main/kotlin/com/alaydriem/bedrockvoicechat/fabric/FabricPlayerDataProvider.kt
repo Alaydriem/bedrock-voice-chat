@@ -8,6 +8,7 @@ import com.alaydriem.bedrockvoicechat.integration.FloodgateIntegration
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.network.ServerPlayerEntity
 import net.minecraft.server.world.ServerWorld
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -18,9 +19,10 @@ import java.util.concurrent.ConcurrentHashMap
  * Stores UUIDs and looks up fresh player references each tick to avoid stale entity references.
  */
 class FabricPlayerDataProvider(
-    private val floodgate: FloodgateIntegration = FloodgateIntegration(),
-    private val floodgatePrefix: String? = null
+    private val floodgate: FloodgateIntegration = FloodgateIntegration()
 ) : PlayerDataProvider {
+    private val log = LoggerFactory.getLogger("BedrockVoiceChat.Identity")
+    private val loggedIdentities: MutableSet<String> = ConcurrentHashMap.newKeySet()
     var server: MinecraftServer? = null
 
     private val onlinePlayers: MutableSet<UUID> = ConcurrentHashMap.newKeySet()
@@ -52,13 +54,13 @@ class FabricPlayerDataProvider(
             .filter { !it.isDisconnected }
             .map { player ->
                 val worldUuid = getWorldUuid(player.entityWorld as ServerWorld)
-                val altIdentity = resolveAlternativeIdentity(player)
+                val identity = resolveIdentity(player)
                 val playerUuid = player.uuid.toString()
 
                 // Check if player is dead - override to death dimension at origin
                 if (deadPlayers.contains(player.uuid)) {
                     PlayerData(
-                        name = player.name.string,
+                        name = identity.name,
                         x = 0.0,
                         y = 0.0,
                         z = 0.0,
@@ -68,14 +70,14 @@ class FabricPlayerDataProvider(
                         deafen = false,
                         spectator = false,
                         worldUuid = worldUuid,
-                        alternativeIdentity = altIdentity,
+                        alternativeIdentity = identity.alternative,
                         playerUuid = playerUuid
                     )
                 } else {
                     // Normal player data
                     val dimension = getDimensionFromPlayer(player)
                     PlayerData(
-                        name = player.name.string,
+                        name = identity.name,
                         x = player.x,
                         y = player.y,
                         z = player.z,
@@ -85,37 +87,36 @@ class FabricPlayerDataProvider(
                         deafen = player.isSneaking,
                         spectator = player.isSpectator,
                         worldUuid = worldUuid,
-                        alternativeIdentity = altIdentity,
+                        alternativeIdentity = identity.alternative,
                         playerUuid = playerUuid
                     )
                 }
             }
     }
 
-    /**
-     * Resolve the alternative identity (Xbox gamertag) for a player.
-     * Tries Floodgate API first, then falls back to prefix stripping from config.
-     */
-    private fun resolveAlternativeIdentity(player: ServerPlayerEntity): String? {
-        val playerName = player.name.string
-        val result = resolveRawAlternativeIdentity(player, playerName)
-        // No mapping needed if the resolved identity matches the player name
-        if (result != null && result == playerName) return null
-        return result
-    }
+    fun resolveCanonicalName(player: ServerPlayerEntity): String = resolveIdentity(player).name
 
-    private fun resolveRawAlternativeIdentity(player: ServerPlayerEntity, playerName: String): String? {
-        // Try Floodgate API first
-        val floodgateGamertag = floodgate.getXboxGamertag(player.uuid)
-        if (floodgateGamertag != null) return floodgateGamertag
+    private data class Identity(val name: String, val alternative: String?)
 
-        // Fall back to prefix stripping if configured
-        val prefix = floodgatePrefix
-        if (prefix != null && playerName.startsWith(prefix)) {
-            return playerName.removePrefix(prefix)
+    private fun resolveIdentity(player: ServerPlayerEntity): Identity {
+        val javaName = player.name.string
+        val canonical = floodgate.getXboxGamertag(player.uuid)
+        val identity = when {
+            canonical == null -> Identity(javaName, null)
+            javaName == canonical -> Identity(javaName, null)
+            // Floodgate prefix is applied to this player — strip it so they register under their canonical Xbox gamertag
+            javaName.endsWith(canonical) -> Identity(canonical, null)
+            // Linked Bedrock player with a different Java account name — keep the Java identity, expose canonical as alias
+            else -> Identity(javaName, canonical)
         }
-
-        return null
+        val logKey = "${player.uuid}|$javaName|$canonical"
+        if (loggedIdentities.add(logKey)) {
+            log.info(
+                "Identity resolution: uuid={}, javaName='{}', canonical='{}' -> name='{}', alt='{}'",
+                player.uuid, javaName, canonical, identity.name, identity.alternative
+            )
+        }
+        return identity
     }
 
     override fun getGameType(): GameType = GameType.MINECRAFT

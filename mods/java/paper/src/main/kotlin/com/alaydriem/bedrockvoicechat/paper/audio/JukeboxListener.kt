@@ -1,10 +1,13 @@
 package com.alaydriem.bedrockvoicechat.paper.audio
 
+import io.papermc.paper.datacomponent.DataComponentTypes
 import net.kyori.adventure.text.Component
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
 import org.bukkit.World
+import org.bukkit.block.Block
 import org.bukkit.block.Jukebox
+import org.bukkit.entity.Item
 import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
@@ -17,6 +20,7 @@ import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
 import org.bukkit.plugin.java.JavaPlugin
 
+@Suppress("UnstableApiUsage")
 class JukeboxListener(
     private val audioPlayerManager: PaperAudioPlayerManager,
     private val plugin: JavaPlugin
@@ -32,65 +36,105 @@ class JukeboxListener(
         val block = event.clickedBlock ?: return
         if (block.type != Material.JUKEBOX) return
 
-        val jukebox = block.state as? Jukebox ?: return
         val item = event.item
+        val isHoldingBvcDisc = item != null && item.type == Material.MUSIC_DISC_5 && isBvcDisc(item)
 
-        if (item != null && item.type == Material.MUSIC_DISC_5 && isBvcDisc(item)) {
-            if (jukebox.hasRecord()) return
+        val key = audioPlayerManager.locationKey(
+            block.world.uid.toString(), block.x, block.y, block.z
+        )
+        val hasActiveBvcPlayback = audioPlayerManager.hasActivePlayback(key)
 
-            val key = audioPlayerManager.locationKey(
-                block.world.uid.toString(), block.x, block.y, block.z
-            )
-            if (audioPlayerManager.hasActivePlayback(key)) return
+        if (!isHoldingBvcDisc && !hasActiveBvcPlayback) return
 
-            event.isCancelled = true
+        val jukebox = block.state as? Jukebox ?: return
 
-            val disc = item.clone()
-            disc.amount = 1
-            jukebox.setRecord(disc)
-            jukebox.update()
-
-            disc.editMeta { it.setJukeboxPlayable(null) }
-            jukebox.setRecord(disc)
-            jukebox.update(true)
-
-            if (item.amount <= 1) {
-                event.player.inventory.setItemInMainHand(null)
+        if (hasActiveBvcPlayback) {
+            if (item == null || item.type == Material.AIR) {
+                event.isCancelled = true
+                ejectBvcDisc(block, jukebox)
             } else {
-                item.amount--
+                scheduleEjectCleanup(block)
             }
+            return
+        }
 
-            val audioId = getAudioId(disc) ?: return
-            val world = block.world
-            val worldUuid = world.uid.toString()
-            val dimensionId = getDimensionId(world)
+        if (isHoldingBvcDisc && !jukebox.hasRecord()) {
+            insertBvcDisc(event, block, jukebox, item)
+        }
+    }
 
-            audioPlayerManager.startPlayback(
-                audioId, dimensionId,
-                block.x.toDouble(), block.y.toDouble(), block.z.toDouble(),
-                worldUuid
-            ) { _ -> }
+    private fun insertBvcDisc(event: PlayerInteractEvent, block: Block, jukebox: Jukebox, item: ItemStack) {
+        val key = audioPlayerManager.locationKey(
+            block.world.uid.toString(), block.x, block.y, block.z
+        )
+        if (audioPlayerManager.hasActivePlayback(key)) return
 
-            event.player.sendActionBar(Component.empty())
+        event.isCancelled = true
 
-        } else if (item == null || item.type == Material.AIR) {
-            if (!jukebox.hasRecord()) return
-            val record = jukebox.record
-            if (!isBvcDisc(record)) return
+        val disc = item.clone()
+        disc.amount = 1
+        disc.unsetData(DataComponentTypes.JUKEBOX_PLAYABLE)
+        jukebox.setRecord(disc)
+        jukebox.update(true)
 
-            event.isCancelled = true
+        if (item.amount <= 1) {
+            event.player.inventory.setItemInMainHand(null)
+        } else {
+            item.amount--
+        }
 
-            val disc = jukebox.record.clone()
-            restoreJukeboxPlayable(disc)
-            jukebox.setRecord(null)
-            jukebox.update(true)
-            block.world.dropItemNaturally(block.location.add(0.5, 1.0, 0.5), disc)
+        val audioId = getAudioId(disc) ?: return
+        val world = block.world
+        val worldUuid = world.uid.toString()
+        val dimensionId = getDimensionId(world)
 
-            val key = audioPlayerManager.locationKey(
-                block.world.uid.toString(), block.x, block.y, block.z
-            )
+        audioPlayerManager.startPlayback(
+            audioId, dimensionId,
+            block.x.toDouble(), block.y.toDouble(), block.z.toDouble(),
+            worldUuid
+        ) { _ -> }
+
+        event.player.sendActionBar(Component.empty())
+    }
+
+    private fun ejectBvcDisc(block: Block, jukebox: Jukebox) {
+        val disc = jukebox.record.clone()
+        restoreJukeboxPlayable(disc)
+        jukebox.setRecord(null)
+        jukebox.update(true)
+        block.world.dropItemNaturally(block.location.add(0.5, 1.0, 0.5), disc)
+
+        val key = audioPlayerManager.locationKey(
+            block.world.uid.toString(), block.x, block.y, block.z
+        )
+        if (audioPlayerManager.hasActivePlayback(key)) {
             audioPlayerManager.stopPlayback(key)
         }
+    }
+
+    private fun scheduleEjectCleanup(block: Block) {
+        val worldUuid = block.world.uid.toString()
+        val key = audioPlayerManager.locationKey(worldUuid, block.x, block.y, block.z)
+
+        plugin.server.scheduler.runTaskLater(plugin, Runnable {
+            val state = block.state as? Jukebox
+            val stillHasBvc = state?.hasRecord() == true && isBvcDisc(state.record)
+            if (stillHasBvc) return@Runnable
+
+            if (audioPlayerManager.hasActivePlayback(key)) {
+                audioPlayerManager.stopPlayback(key)
+            }
+
+            val center = block.location.add(0.5, 0.5, 0.5)
+            for (entity in block.world.getNearbyEntities(center, 2.0, 2.0, 2.0)) {
+                if (entity !is Item) continue
+                val stack = entity.itemStack
+                if (stack.type != Material.MUSIC_DISC_5) continue
+                if (!isBvcDisc(stack)) continue
+                stack.resetData(DataComponentTypes.JUKEBOX_PLAYABLE)
+                entity.itemStack = stack
+            }
+        }, 1L)
     }
 
     @EventHandler
@@ -107,7 +151,12 @@ class JukeboxListener(
         plugin.server.scheduler.runTaskLater(plugin, Runnable {
             val state = block.state as? Jukebox ?: return@Runnable
             if (!state.hasRecord()) return@Runnable
-            if (!isBvcDisc(state.record)) return@Runnable
+            val record = state.record
+            if (!isBvcDisc(record)) return@Runnable
+
+            record.unsetData(DataComponentTypes.JUKEBOX_PLAYABLE)
+            state.setRecord(record)
+            state.update(true)
 
             val worldUuid = world.uid.toString()
             val dimensionId = getDimensionId(world)
@@ -123,16 +172,19 @@ class JukeboxListener(
     fun onBlockBreak(event: BlockBreakEvent) {
         val block = event.block
         if (block.type != Material.JUKEBOX) return
-        val jukebox = block.state as? Jukebox ?: return
-        if (!jukebox.hasRecord() || !isBvcDisc(jukebox.record)) return
 
-        restoreJukeboxPlayable(jukebox.record)
-        jukebox.update(true)
+        val jukebox = block.state as? Jukebox
+        if (jukebox != null && jukebox.hasRecord() && isBvcDisc(jukebox.record)) {
+            restoreJukeboxPlayable(jukebox.record)
+            jukebox.update(true)
+        }
 
         val key = audioPlayerManager.locationKey(
             block.world.uid.toString(), block.x, block.y, block.z
         )
-        audioPlayerManager.stopPlayback(key)
+        if (audioPlayerManager.hasActivePlayback(key)) {
+            audioPlayerManager.stopPlayback(key)
+        }
     }
 
     private fun isBvcDisc(item: ItemStack?): Boolean {
@@ -156,12 +208,10 @@ class JukeboxListener(
     }
 
     companion object {
+        @Suppress("UnstableApiUsage")
         fun restoreJukeboxPlayable(disc: ItemStack) {
             if (disc.type != Material.MUSIC_DISC_5) return
-            val reference = ItemStack(Material.MUSIC_DISC_5)
-            val refMeta = reference.itemMeta ?: return
-            if (!refMeta.hasJukeboxPlayable()) return
-            disc.editMeta { it.setJukeboxPlayable(refMeta.jukeboxPlayable) }
+            disc.resetData(DataComponentTypes.JUKEBOX_PLAYABLE)
         }
     }
 }

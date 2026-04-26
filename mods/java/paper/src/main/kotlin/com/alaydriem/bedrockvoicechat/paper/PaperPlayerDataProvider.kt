@@ -7,6 +7,7 @@ import com.alaydriem.bedrockvoicechat.dto.PlayerData
 import com.alaydriem.bedrockvoicechat.integration.FloodgateIntegration
 import org.bukkit.World
 import org.bukkit.entity.Player
+import org.slf4j.LoggerFactory
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -16,9 +17,10 @@ import java.util.concurrent.ConcurrentHashMap
  * Stores UUIDs and looks up fresh player references each tick to avoid stale entity references.
  */
 class PaperPlayerDataProvider(
-    private val floodgate: FloodgateIntegration = FloodgateIntegration(),
-    private val floodgatePrefix: String? = null
+    private val floodgate: FloodgateIntegration = FloodgateIntegration()
 ) : PlayerDataProvider {
+    private val log = LoggerFactory.getLogger("BedrockVoiceChat.Identity")
+    private val loggedIdentities: MutableSet<String> = ConcurrentHashMap.newKeySet()
     var server: org.bukkit.Server? = null
 
     private val onlinePlayers: MutableSet<UUID> = ConcurrentHashMap.newKeySet()
@@ -48,13 +50,13 @@ class PaperPlayerDataProvider(
             .mapNotNull { uuid -> srv.getPlayer(uuid) }
             .filter { it.isOnline }
             .map { player ->
-                val altIdentity = resolveAlternativeIdentity(player)
+                val identity = resolveIdentity(player)
                 val playerUuid = player.uniqueId.toString()
 
                 // Check if player is dead - override to death dimension at origin
                 if (deadPlayers.contains(player.uniqueId)) {
                     PlayerData(
-                        name = player.name,
+                        name = identity.name,
                         x = 0.0,
                         y = 0.0,
                         z = 0.0,
@@ -64,7 +66,7 @@ class PaperPlayerDataProvider(
                         deafen = false,
                         spectator = false,
                         worldUuid = player.location.world?.uid?.toString(),
-                        alternativeIdentity = altIdentity,
+                        alternativeIdentity = identity.alternative,
                         playerUuid = playerUuid
                     )
                 } else {
@@ -72,7 +74,7 @@ class PaperPlayerDataProvider(
                     val location = player.location
                     val dimension = getDimension(location.world)
                     PlayerData(
-                        name = player.name,
+                        name = identity.name,
                         x = location.x,
                         y = location.y,
                         z = location.z,
@@ -82,36 +84,36 @@ class PaperPlayerDataProvider(
                         deafen = player.isSneaking,
                         spectator = player.gameMode == org.bukkit.GameMode.SPECTATOR,
                         worldUuid = location.world?.uid?.toString(),
-                        alternativeIdentity = altIdentity,
+                        alternativeIdentity = identity.alternative,
                         playerUuid = playerUuid
                     )
                 }
             }
     }
 
-    /**
-     * Resolve the alternative identity (Xbox gamertag) for a player.
-     * Tries Floodgate API first, then falls back to prefix stripping from config.
-     */
-    private fun resolveAlternativeIdentity(player: Player): String? {
-        val result = resolveRawAlternativeIdentity(player)
-        // No mapping needed if the resolved identity matches the player name
-        if (result != null && result == player.name) return null
-        return result
-    }
+    fun resolveCanonicalName(player: Player): String = resolveIdentity(player).name
 
-    private fun resolveRawAlternativeIdentity(player: Player): String? {
-        // Try Floodgate API first
-        val floodgateGamertag = floodgate.getXboxGamertag(player.uniqueId)
-        if (floodgateGamertag != null) return floodgateGamertag
+    private data class Identity(val name: String, val alternative: String?)
 
-        // Fall back to prefix stripping if configured
-        val prefix = floodgatePrefix
-        if (prefix != null && player.name.startsWith(prefix)) {
-            return player.name.removePrefix(prefix)
+    private fun resolveIdentity(player: Player): Identity {
+        val javaName = player.name
+        val canonical = floodgate.getXboxGamertag(player.uniqueId)
+        val identity = when {
+            canonical == null -> Identity(javaName, null)
+            javaName == canonical -> Identity(javaName, null)
+            // Floodgate prefix is applied to this player — strip it so they register under their canonical Xbox gamertag
+            javaName.endsWith(canonical) -> Identity(canonical, null)
+            // Linked Bedrock player with a different Java account name — keep the Java identity, expose canonical as alias
+            else -> Identity(javaName, canonical)
         }
-
-        return null
+        val logKey = "${player.uniqueId}|$javaName|$canonical"
+        if (loggedIdentities.add(logKey)) {
+            log.info(
+                "Identity resolution: uuid={}, javaName='{}', canonical='{}' -> name='{}', alt='{}'",
+                player.uniqueId, javaName, canonical, identity.name, identity.alternative
+            )
+        }
+        return identity
     }
 
     override fun getGameType(): GameType = GameType.MINECRAFT

@@ -1,62 +1,73 @@
 package com.alaydriem.bedrockvoicechat.integration
 
+import org.slf4j.LoggerFactory
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Optional integration with the Floodgate API for detecting Bedrock players on Geyser servers.
- * Safely handles the case where Floodgate is not installed (API class not found at runtime).
+ * Lazily resolves the API on first use because mod load order (especially on Fabric) can place
+ * BVC initialization before Floodgate has registered its API singleton.
  */
 class FloodgateIntegration {
-    private val available: Boolean
-    private val apiInstance: Any?
+    private val log = LoggerFactory.getLogger("BedrockVoiceChat.Floodgate")
 
-    init {
-        var api: Any? = null
-        var isAvailable = false
+    private enum class State { UNRESOLVED, AVAILABLE, ABSENT }
+    private val state = AtomicReference(State.UNRESOLVED)
+    @Volatile private var apiInstance: Any? = null
+
+    val isAvailable: Boolean get() = resolveApi() != null
+
+    private fun resolveApi(): Any? {
+        when (state.get()) {
+            State.AVAILABLE -> return apiInstance
+            State.ABSENT -> return null
+            State.UNRESOLVED -> Unit
+        }
         try {
             val clazz = Class.forName("org.geysermc.floodgate.api.FloodgateApi")
-            val getInstance = clazz.getMethod("getInstance")
-            api = getInstance.invoke(null)
-            isAvailable = true
-        } catch (_: Exception) {
-            // Floodgate not installed
+            val api = clazz.getMethod("getInstance").invoke(null)
+            if (api != null) {
+                apiInstance = api
+                state.set(State.AVAILABLE)
+                log.info("Floodgate API loaded: impl={}", api.javaClass.name)
+                return api
+            }
+            return null
+        } catch (e: ClassNotFoundException) {
+            state.set(State.ABSENT)
+            log.info("Floodgate API not found on classpath — prefix-strip path disabled")
+            return null
+        } catch (e: Exception) {
+            log.warn("Failed to load Floodgate API: {}", e.toString())
+            return null
         }
-        this.apiInstance = api
-        this.available = isAvailable
     }
 
-    val isAvailable: Boolean get() = available
-
-    /**
-     * Get the Xbox gamertag for a Floodgate (Bedrock) player.
-     * Returns null if Floodgate is not installed or the player is not a Bedrock player.
-     */
     fun getXboxGamertag(playerUuid: UUID): String? {
-        val api = apiInstance ?: return null
+        val api = resolveApi() ?: return null
         try {
             val apiClass = api.javaClass
             val isFloodgate = apiClass.getMethod("isFloodgatePlayer", UUID::class.java)
-            if (isFloodgate.invoke(api, playerUuid) != true) return null
+            val floodgateResult = isFloodgate.invoke(api, playerUuid)
+            if (floodgateResult != true) {
+                log.info("isFloodgatePlayer({}) returned {} — not stripping prefix", playerUuid, floodgateResult)
+                return null
+            }
 
             val getPlayer = apiClass.getMethod("getPlayer", UUID::class.java)
-            val floodgatePlayer = getPlayer.invoke(api, playerUuid) ?: return null
+            val floodgatePlayer = getPlayer.invoke(api, playerUuid)
+            if (floodgatePlayer == null) {
+                log.info("getPlayer({}) returned null despite isFloodgatePlayer=true", playerUuid)
+                return null
+            }
 
             val playerClass = floodgatePlayer.javaClass
-            return try {
-                // getCorrectUsername() returns the actual Xbox/Bedrock gamertag,
-                // whereas getUsername() returns the Java-visible name (which may include prefix)
-                val getCorrectUsername = playerClass.getMethod("getCorrectUsername")
-                getCorrectUsername.invoke(floodgatePlayer) as? String
-            } catch (_: Exception) {
-                // Fall back to getUsername if getCorrectUsername is not available
-                try {
-                    val getUsername = playerClass.getMethod("getUsername")
-                    getUsername.invoke(floodgatePlayer) as? String
-                } catch (_: Exception) {
-                    null
-                }
-            }
-        } catch (_: Exception) {
+            // getUsername() returns the raw Bedrock gamertag (no prefix);
+            // getJavaUsername() / getCorrectUsername() return the Java-visible name (with prefix)
+            return playerClass.getMethod("getUsername").invoke(floodgatePlayer) as? String
+        } catch (e: Exception) {
+            log.warn("Floodgate API call failed for {}: {}", playerUuid, e.toString())
             return null
         }
     }

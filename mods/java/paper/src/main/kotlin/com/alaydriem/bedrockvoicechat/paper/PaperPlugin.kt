@@ -51,9 +51,7 @@ class PaperPlugin : JavaPlugin(), Listener {
         }
 
         minimumPlayers = config.minimumPlayers
-        playerDataProvider = PaperPlayerDataProvider(
-            floodgatePrefix = config.floodgatePrefix
-        )
+        playerDataProvider = PaperPlayerDataProvider()
 
         // Initialize embedded server if configured
         if (config.useEmbeddedServer) {
@@ -129,11 +127,12 @@ class PaperPlugin : JavaPlugin(), Listener {
     fun onPlayerQuit(event: PlayerQuitEvent) {
         val player = event.player
         val sender = positionSender
+        val canonicalName = playerDataProvider.resolveCanonicalName(player)
 
         // Capture phantom data before removePlayer() clears state
         val phantom = if (sender != null) {
             PlayerData.disconnected(
-                name = player.name,
+                name = canonicalName,
                 dimension = Dimension.Minecraft.DEATH,
                 worldUuid = player.location.world?.uid?.toString(),
                 playerUuid = player.uniqueId.toString()
@@ -145,7 +144,7 @@ class PaperPlugin : JavaPlugin(), Listener {
         if (phantom != null && sender != null) {
             val payload = Payload(playerDataProvider.getGameType(), listOf(phantom))
             sender.send(payload)
-            logger.info("Sent disconnect phantom for player: ${player.name}")
+            logger.info("Sent disconnect phantom for player: $canonicalName")
         }
     }
 
