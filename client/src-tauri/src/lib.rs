@@ -18,6 +18,8 @@ use deep_links::DeepLinkHandler;
 
 mod analytics;
 mod api;
+#[cfg(feature = "bedrock-protocol")]
+pub mod bedrock;
 pub mod audio;
 mod auth;
 mod commands;
@@ -190,7 +192,34 @@ pub fn run() {
             #[cfg(desktop)]
             crate::commands::updater::check_for_updates,
             #[cfg(desktop)]
-            crate::commands::updater::install_update
+            crate::commands::updater::install_update,
+            // Bedrock
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_start_proxy,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_stop_proxy,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_start_realms,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_stop_realms,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_xbox_login,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_list_interfaces,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_list_realms,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_get_position,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_check_entitlement,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_get_status,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_cancel_xbox_login,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_xbox_logout,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_restore_auth,
         ])
         .setup(move |app| {
             let sentry_logger = sentry_logger.clone();
@@ -378,6 +407,15 @@ pub fn run() {
             app.manage(sentry_logger);
             app.manage(Mutex::new(app_state));
 
+            #[cfg(feature = "bedrock-protocol")]
+            let bedrock_position_cache = {
+                let bedrock_state = crate::bedrock::BedrockState::new();
+                let cache = std::sync::Arc::clone(&bedrock_state.position_cache);
+                app.manage(Mutex::new(bedrock_state));
+                app.manage(crate::bedrock::iap::BedrockEntitlementCheck::new(app.handle().clone()));
+                cache
+            };
+
             // This is our audio producer and consumer
             // The producer is responsible for getting audio from the raw input device, then sending it to the consumer
             // The consumer lives in the networking thread, consumes the audio, then sends it to the server
@@ -398,12 +436,13 @@ pub fn run() {
             let recording_manager = RecordingManager::new(handle.clone());
             app.manage(Arc::new(Mutex::new(recording_manager)));
 
-            // Create AudioStreamManager with RecordingManager reference
             let audio_stream = AudioStreamManager::new(
                 handle.state::<Arc<Sender<NetworkPacket>>>().inner().clone(),
                 handle.state::<Arc<Receiver<AudioPacket>>>().inner().clone(),
                 handle.clone(),
                 Some(handle.state::<Arc<Mutex<RecordingManager>>>().inner().clone()),
+                #[cfg(feature = "bedrock-protocol")]
+                Some(bedrock_position_cache),
             );
             app.manage(Mutex::new(audio_stream));
 

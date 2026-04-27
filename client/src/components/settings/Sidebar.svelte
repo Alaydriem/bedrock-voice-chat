@@ -6,21 +6,40 @@
     import recordings from "../../components/settings/pages/recordings.svelte";
     import audioLibrary from "../../components/settings/pages/audioLibrary.svelte";
     import websocket from "../../components/settings/pages/websocket.svelte";
+    import proxy_connect from "../../components/settings/pages/proxy_connect.svelte";
+    import realms_connect from "../../components/settings/pages/realms_connect.svelte";
     import about from "../../components/settings/pages/about.svelte";
     import PlatformDetector from "../../js/app/utils/PlatformDetector.ts";
+    import { BedrockManager } from "../../js/app/managers/bedrock/BedrockManager";
 
-    export let activePage: string = "account.svelte";
+    interface Props {
+        activePage?: string;
+    }
 
-    let isMobile = false;
+    let { activePage = "account.svelte" }: Props = $props();
 
-    // Page state management
-    let currentPageTitle = "Account";
+    let isMobile = $state(false);
+    let currentPageTitle = $state("Account");
 
     const platformDetector = new PlatformDetector();
 
-    // Available settings pages
-    const settingsPages = [
+    let bedrockManager: BedrockManager | null = null;
+    const bedrockPageIds = new Set(["proxy_connect.svelte", "realms_connect.svelte"]);
+
+    function getBedrockManager(): BedrockManager {
+        if (!bedrockManager) {
+            bedrockManager = new BedrockManager();
+        }
+        return bedrockManager;
+    }
+
+    type SidebarItem =
+        | { type: "page"; id: string; title: string; icon: string; component: any }
+        | { type: "separator"; label?: string };
+
+    const settingsItems: SidebarItem[] = [
         {
+            type: "page",
             id: "account.svelte",
             title: "Account",
             icon: `<svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -29,6 +48,7 @@
             component: account
         },
         {
+            type: "page",
             id: "audio.svelte",
             title: "Audio Settings",
             icon: `<svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -37,6 +57,7 @@
             component: audio
         },
         {
+            type: "page",
             id: "recordings.svelte",
             title: "Recordings",
             icon: `<svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -47,6 +68,7 @@
             component: recordings
         },
         {
+            type: "page",
             id: "audioLibrary.svelte",
             title: "Audio Library",
             icon: `<svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -55,6 +77,7 @@
             component: audioLibrary
         },
         {
+            type: "page",
             id: "keybinds.svelte",
             title: "Keybinds",
             icon: `<svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -63,6 +86,7 @@
             component: keybinds
         },
         {
+            type: "page",
             id: "websocket.svelte",
             title: "Websocket Server",
             icon: `<svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -71,31 +95,68 @@
             component: websocket
         },
         {
+            type: "page",
             id: "about.svelte",
             title: "About",
             icon: `<svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>`,
             component: about
-        }
+        },
+        { type: "separator", label: "Bedrock" },
+        {
+            type: "page",
+            id: "proxy_connect.svelte",
+            title: "Proxy Connect",
+            icon: `<svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9"/>
+            </svg>`,
+            component: proxy_connect
+        },
+        {
+            type: "page",
+            id: "realms_connect.svelte",
+            title: "Realms Connect",
+            icon: `<svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+            </svg>`,
+            component: realms_connect
+        },
     ];
 
-    // Reactive filtered pages - hide recordings, websocket, and keybinds on mobile
-    $: visiblePages = isMobile
-        ? settingsPages.filter(p => p.id !== "recordings.svelte" && p.id !== "audioLibrary.svelte" && p.id !== "websocket.svelte" && p.id !== "keybinds.svelte")
-        : settingsPages;
+    const mobileHiddenPages = new Set(["recordings.svelte", "audioLibrary.svelte", "websocket.svelte", "keybinds.svelte"]);
+
+    let visibleItems = $derived(
+        isMobile
+            ? settingsItems.filter(item => {
+                if (item.type === "separator") return true;
+                return !mobileHiddenPages.has(item.id);
+            })
+            : settingsItems
+    );
+
+    function getPageConfig(pageId: string) {
+        return settingsItems.find(
+            (item): item is Extract<SidebarItem, { type: "page" }> =>
+                item.type === "page" && item.id === pageId
+        );
+    }
 
     function mountPage(page: string, target: Document | Element | ShadowRoot) {
-        const pageConfig = settingsPages.find(p => p.id === page);
+        const pageConfig = getPageConfig(page);
         if (pageConfig) {
-            mount(pageConfig.component, { target });
+            const props: Record<string, unknown> = {};
+            if (bedrockPageIds.has(page)) {
+                props.bedrockManager = getBedrockManager();
+            }
+            mount(pageConfig.component, { target, props });
         } else {
             console.warn(`No component found for page: ${page}`);
         }
     }
 
     function handlePageNavigation(pageId: string) {
-        const pageConfig = settingsPages.find(p => p.id === pageId);
+        const pageConfig = getPageConfig(pageId);
         if (!pageConfig) return;
 
         activePage = pageId;
@@ -107,7 +168,6 @@
             mountPage(pageId, mainElement);
         }
 
-        // CSS-driven mobile detection: check if mobile detector element is visible
         const mobileDetector = document.querySelector(".mobile-detector");
         const isMobileView = mobileDetector && window.getComputedStyle(mobileDetector).display === "block";
 
@@ -120,7 +180,6 @@
                 navigationElement.classList.add("nav-slide-out");
                 contentElement.classList.add("content-visible");
 
-                // Show mobile header when content is visible
                 if (mobileHeader) {
                     mobileHeader.classList.remove("hidden");
                     mobileHeader.classList.add("flex");
@@ -142,7 +201,6 @@
                 navigationElement.classList.remove("nav-slide-out");
                 contentElement.classList.remove("content-visible");
 
-                // Hide mobile header when returning to navigation
                 if (mobileHeader) {
                     mobileHeader.classList.remove("flex");
                     mobileHeader.classList.add("hidden");
@@ -152,14 +210,12 @@
     }
 
     onMount(async () => {
-        // Mount initial page ONCE - no duplicates
         const mainElement = document.querySelector("main.settings-main-content");
         if (mainElement) {
             mountPage(activePage, mainElement);
         }
 
-        // Set initial page title
-        const pageConfig = settingsPages.find(p => p.id === activePage);
+        const pageConfig = getPageConfig(activePage);
         if (pageConfig) {
             currentPageTitle = pageConfig.title;
         }
@@ -220,26 +276,37 @@
                 <div class="my-3 mx-4 h-px bg-slate-200 dark:bg-navy-500"></div>
 
                 <ul class="flex flex-1 flex-col px-4 font-inter">
-                    {#each visiblePages as page}
-                    <li class="nav-item">
-                        <button
-                            class="settings-nav-button flex w-full items-center space-x-3 py-3 px-4 text-left tracking-wide outline-hidden transition-all duration-300 ease-in-out rounded-lg hover:bg-slate-100 focus:bg-slate-100 dark:hover:bg-navy-600 dark:focus:bg-navy-600 min-h-[44px] md:min-h-0 relative overflow-hidden
-                                {activePage === page.id ? 'bg-primary/10 text-primary dark:bg-accent/15 dark:text-accent-light' : 'text-slate-600 hover:text-slate-800 dark:text-navy-200 dark:hover:text-navy-50'}"
-                            onclick={() => handlePageNavigation(page.id)}
-                            aria-label="Navigate to {page.title}"
-                        >
-                            <div class="flex-shrink-0 text-slate-400 transition-colors {activePage === page.id ? 'text-primary dark:text-accent-light' : ''}">
-                                {@html page.icon}
-                            </div>
-                            <span class="font-medium">{page.title}</span>
+                    {#each visibleItems as item}
+                        {#if item.type === "separator"}
+                            <li class="mx-0 mt-5 mb-2">
+                                <div class="h-px bg-slate-200 dark:bg-navy-500"></div>
+                                {#if item.label}
+                                    <span class="mt-2 block text-tiny+ font-semibold uppercase tracking-wider text-slate-400 dark:text-navy-300 px-1">
+                                        {item.label}
+                                    </span>
+                                {/if}
+                            </li>
+                        {:else}
+                            <li class="nav-item">
+                                <button
+                                    class="settings-nav-button flex w-full items-center space-x-3 py-3 px-4 text-left tracking-wide outline-hidden transition-all duration-300 ease-in-out rounded-lg hover:bg-slate-100 focus:bg-slate-100 dark:hover:bg-navy-600 dark:focus:bg-navy-600 min-h-[44px] md:min-h-0 relative overflow-hidden
+                                        {activePage === item.id ? 'bg-primary/10 text-primary dark:bg-accent/15 dark:text-accent-light' : 'text-slate-600 hover:text-slate-800 dark:text-navy-200 dark:hover:text-navy-50'}"
+                                    onclick={() => handlePageNavigation(item.id)}
+                                    aria-label="Navigate to {item.title}"
+                                >
+                                    <div class="flex-shrink-0 text-slate-400 transition-colors {activePage === item.id ? 'text-primary dark:text-accent-light' : ''}">
+                                        {@html item.icon}
+                                    </div>
+                                    <span class="font-medium">{item.title}</span>
 
-                            <div class="ml-auto md:hidden">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="size-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                                </svg>
-                            </div>
-                        </button>
-                    </li>
+                                    <div class="ml-auto md:hidden">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="size-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                                        </svg>
+                                    </div>
+                                </button>
+                            </li>
+                        {/if}
                     {/each}
                 </ul>
             </div>

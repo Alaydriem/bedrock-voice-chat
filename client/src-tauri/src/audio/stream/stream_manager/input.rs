@@ -47,8 +47,10 @@ pub(crate) struct InputStream {
     #[allow(unused)]
     app_handle: tauri::AppHandle,
     recording_producer: Option<Arc<RecordingProducer>>,
-    recording_active: Option<Arc<AtomicBool>>, // Shared from RecordingManager
+    recording_active: Option<Arc<AtomicBool>>,
     recovery_tx: RecoverySender,
+    #[cfg(feature = "bedrock-protocol")]
+    position_cache: Option<Arc<crate::bedrock::position_cache::BedrockPositionCache>>,
 }
 
 impl common::traits::StreamTrait for InputStream {
@@ -176,6 +178,8 @@ impl InputStream {
         recording_producer: Option<Arc<RecordingProducer>>,
         recording_active: Option<Arc<AtomicBool>>,
         recovery_tx: RecoverySender,
+        #[cfg(feature = "bedrock-protocol")]
+        position_cache: Option<Arc<crate::bedrock::position_cache::BedrockPositionCache>>,
     ) -> Self {
         Self {
             device,
@@ -188,6 +192,8 @@ impl InputStream {
             recording_producer,
             recording_active,
             recovery_tx,
+            #[cfg(feature = "bedrock-protocol")]
+            position_cache,
         }
     }
 
@@ -666,6 +672,8 @@ impl InputStream {
 
                         let bus = self.bus.clone();
                         let recording_producer = self.recording_producer.clone();
+                        #[cfg(feature = "bedrock-protocol")]
+                        let position_cache = self.position_cache.clone();
 
                         let handle = tokio::spawn(async move {
                             #[cfg(target_os = "windows")]
@@ -743,6 +751,17 @@ impl InputStream {
                                         first_sample_timestamp_ms = None;
                                     }
 
+                                    #[cfg(feature = "bedrock-protocol")]
+                                    let (bedrock_sender, bedrock_spatial) = {
+                                        let player = position_cache.as_ref().and_then(|pc| pc.get_local_player());
+                                        match player {
+                                            Some(p) => (Some(p), Some(true)),
+                                            None => (None, None),
+                                        }
+                                    };
+                                    #[cfg(not(feature = "bedrock-protocol"))]
+                                    let (bedrock_sender, bedrock_spatial): (Option<common::PlayerEnum>, Option<bool>) = (None, None);
+
                                     let packet = NetworkPacket {
                                         data: QuicNetworkPacket {
                                             packet_type:
@@ -752,8 +771,8 @@ impl InputStream {
                                                 AudioFramePacket::new(
                                                     encoded_data.clone(),
                                                     device_config.sample_rate,
-                                                    None,
-                                                    None,
+                                                    bedrock_sender,
+                                                    bedrock_spatial,
                                                 ),
                                             ),
                                         },

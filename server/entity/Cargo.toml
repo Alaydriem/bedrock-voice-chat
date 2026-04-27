@@ -18,5 +18,5 @@ tracing = { version = "^0.1" }
 anyhow = { version = "^1.0" }
 async-once-cell = { version = "^0.5" }
 tokio = { version = "^1" }
-x509-parser = { version = "0.16" }
+x509-parser = { workspace = true }
 time = { version = "0.3", features = ["std"] }

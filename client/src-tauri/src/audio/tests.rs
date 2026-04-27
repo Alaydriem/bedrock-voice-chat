@@ -10,7 +10,7 @@ fn get_cpal_hosts() {
             {
                 assert_eq!(2, hosts.len());
                 assert_eq!("Wasapi", hosts.get(0).unwrap().id().name());
-                assert_eq!("ASIO", hosts.get(1).unwrap().id().name());
+                assert_eq!("Asio", hosts.get(1).unwrap().id().name());
             }
 
             // On MacOS we should only have CoreAudio

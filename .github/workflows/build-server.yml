@@ -169,16 +169,16 @@ jobs:
           # Determine actual build mode used - force debug for PRs, release for tags
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "PR detected - building in debug mode"
-            cargo build --target ${{ matrix.target }}
+            cargo build --features bedrock --target ${{ matrix.target }}
           elif [ "${{ startsWith(github.ref, 'refs/tags/') }}" = "true" ]; then
             echo "Tag detected - building in release mode"
-            cargo build --release --target ${{ matrix.target }}
+            cargo build --release --features bedrock --target ${{ matrix.target }}
           elif [ "${{ inputs.build_mode || 'debug' }}" = "release" ]; then
             echo "Building in release mode"
-            cargo build --release --target ${{ matrix.target }}
+            cargo build --release --features bedrock --target ${{ matrix.target }}
           else
             echo "Building in debug mode"
-            cargo build --target ${{ matrix.target }}
+            cargo build --features bedrock --target ${{ matrix.target }}
           fi
         shell: bash
 
@@ -254,9 +254,9 @@ jobs:
         run: |
           BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || startsWith(github.ref, 'refs/tags/') && 'release' || inputs.build_mode || 'debug' }}"
           if [ "$BUILD_MODE" = "release" ]; then
-            cargo build --lib --release --target ${{ matrix.target }}
+            cargo build --lib --release --features bedrock --target ${{ matrix.target }}
           else
-            cargo build --lib --target ${{ matrix.target }}
+            cargo build --lib --features bedrock --target ${{ matrix.target }}
           fi
 
       - name: Verify native library exists

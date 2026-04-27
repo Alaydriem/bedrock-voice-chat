@@ -1,0 +1,2 @@
+pub const XBOX_CLIENT_ID: &str = "0000000048183522";
+pub const BEDROCK_LISTEN_PORT: u16 = 19137;

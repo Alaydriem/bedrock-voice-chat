@@ -25,6 +25,8 @@ pub struct RocketManager {
     cert_service: Arc<CertificateService>,
     hytale_session_cache: routes::api::HytaleSessionCache,
     audio_stream_token_cache: AudioStreamTokenCache,
+    #[cfg(feature = "bedrock")]
+    transfer_target_cache: Option<crate::services::bedrock::TransferTargetCache>,
 }
 
 impl RocketManager {
@@ -36,6 +38,8 @@ impl RocketManager {
         identity_service: PlayerIdentityService,
         audio_playback_service: Arc<AudioPlaybackService>,
         cert_service: Arc<CertificateService>,
+        #[cfg(feature = "bedrock")]
+        transfer_target_cache: Option<crate::services::bedrock::TransferTargetCache>,
     ) -> Self {
         Self {
             config,
@@ -47,6 +51,8 @@ impl RocketManager {
             cert_service,
             hytale_session_cache: routes::api::HytaleSessionCache::new(),
             audio_stream_token_cache: AudioStreamTokenCache::new(),
+            #[cfg(feature = "bedrock")]
+            transfer_target_cache,
         }
     }
 
@@ -96,7 +102,14 @@ impl RocketManager {
                     .manage(self.config.permissions.clone())
                     .manage(self.config.audio.clone())
                     .manage(self.hytale_session_cache.clone())
-                    .manage(self.audio_stream_token_cache.clone())
+                    .manage(self.audio_stream_token_cache.clone());
+
+                #[cfg(feature = "bedrock")]
+                if let Some(ref cache) = self.transfer_target_cache {
+                    rocket = rocket.manage(cache.clone());
+                }
+
+                let mut rocket = rocket
                     .attach(AppDb::init())
                     .attach(cors.to_cors().unwrap())
                     .attach(rocket::fairing::AdHoc::try_on_ignite("Migrations", migrate))

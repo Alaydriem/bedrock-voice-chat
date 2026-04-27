@@ -5,43 +5,28 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use rcgen::{
-    Certificate, CertificateParams, DistinguishedName, ExtendedKeyUsagePurpose, KeyPair, SanType,
+    Certificate, CertificateParams, DistinguishedName, ExtendedKeyUsagePurpose, Issuer, KeyPair,
+    SanType,
 };
 use time::{Duration, OffsetDateTime};
 
 /// Service for certificate operations for player authentication.
-/// Caches the root CA certificate and keypair to avoid repeated file I/O.
+/// Caches the root CA issuer (cert + keypair) to avoid repeated file I/O.
 pub struct CertificateService {
-    root_certificate: Certificate,
-    root_keypair: KeyPair,
+    issuer: Issuer<'static, KeyPair>,
 }
 
 impl CertificateService {
-    /// Create a new CertificateService by loading the root CA from the given path.
-    ///
-    /// # Arguments
-    /// * `certs_path` - Path to the certificates directory containing ca.crt and ca.key
     pub fn new(certs_path: &str) -> Result<Self, anyhow::Error> {
-        let (root_certificate, root_keypair) = Self::load_root_ca(certs_path)?;
         Ok(Self {
-            root_certificate,
-            root_keypair,
+            issuer: Self::load_root_ca(certs_path)?,
         })
     }
 
-    /// Create a new CertificateService wrapped in Arc for sharing between components.
     pub fn new_shared(certs_path: &str) -> Result<Arc<Self>, anyhow::Error> {
         Ok(Arc::new(Self::new(certs_path)?))
     }
 
-    /// Sign a new player certificate using the cached root CA.
-    ///
-    /// # Arguments
-    /// * `player_name` - The player's gamertag
-    /// * `game` - The game type, used to prefix the CN as "game:gamertag"
-    ///
-    /// # Returns
-    /// A tuple of (Certificate, KeyPair) for the player
     pub fn sign_player_cert(
         &self,
         player_name: &str,
@@ -74,24 +59,18 @@ impl CertificateService {
         ];
 
         let key_pair = KeyPair::generate()?;
-        let cert = params.signed_by(&key_pair, &self.root_certificate, &self.root_keypair);
-        match cert {
+        match params.signed_by(&key_pair, &self.issuer) {
             Ok(cert) => Ok((cert, key_pair)),
             Err(_) => Err(anyhow!("Unable to generate certificate")),
         }
     }
 
-    /// Load the root CA certificate and keypair from disk.
-    fn load_root_ca(certificate_path: &str) -> Result<(Certificate, KeyPair), anyhow::Error> {
+    fn load_root_ca(certificate_path: &str) -> Result<Issuer<'static, KeyPair>, anyhow::Error> {
         let root_ca_path_str = format!("{}/{}", certificate_path, "ca.crt");
         let root_ca_key_path_str = format!("{}/{}", certificate_path, "ca.key");
         let root_kp = KeyPair::from_pem(&fs::read_to_string(root_ca_key_path_str)?)?;
-        let root_cp =
-            CertificateParams::from_ca_cert_pem(&fs::read_to_string(root_ca_path_str).unwrap())
-                .unwrap()
-                .self_signed(&root_kp)
-                .unwrap();
-
-        Ok((root_cp, root_kp))
+        let issuer =
+            Issuer::from_ca_cert_pem(&fs::read_to_string(root_ca_path_str)?, root_kp)?;
+        Ok(issuer)
     }
 }

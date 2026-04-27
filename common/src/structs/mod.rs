@@ -1,4 +1,5 @@
 pub mod analytics;
+pub mod bedrock;
 pub mod audio;
 pub mod channel;
 pub mod config;

@@ -1,5 +1,10 @@
 //! Server services
 
+#[cfg(feature = "bedrock")]
+pub mod bedrock;
+#[cfg(feature = "bedrock")]
+pub use bedrock::{DnsService, TransferRelayService, TransferTargetCache};
+
 pub mod audio_file_service;
 pub mod audio_playback_service;
 pub mod audio_stream_token_cache;

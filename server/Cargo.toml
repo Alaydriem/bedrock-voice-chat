@@ -25,3 +25,21 @@ sea-orm = { version = "^2.0.0-rc.1", features = [
 ] }
 sea-orm-rocket = { version = "^0.6" }
 clap = { version = "^4", features = ["derive"] }
+# Shared across server crates. Mirror of the root bvc/Cargo.toml workspace.dependencies —
+# keep versions in lockstep when bumping either side.
+nanoid = { version = "^0.5" }
+# Locked at 0.8 — rocket_okapi/OpenAPI stack does not yet support schemars 1.x.
+schemars = { version = "0.8" }
+opus2 = { version = "^0.4" }
+x509-parser = { version = "^0.18" }
+rcgen = { version = "^0.14", features = ["x509-parser"] }
+hickory-proto = { version = "^0.26" }
+
+[patch.crates-io]
+# Mirrored from bedrock-protocol-rs's own [patch.crates-io] — when common is
+# compiled in this workspace with the bedrock-protocol feature on, Cargo
+# resolves bedrock-protocol's webrtc dep against this entry. Without it, the
+# server links against unpatched upstream webrtc whose SCTP buffer is too
+# small for Bedrock Nethernet payloads. See bvc/Cargo.toml for the matching
+# entry on the client side.
+webrtc = { git = "https://github.com/alaydriem/webrtc", branch = "larger-buffer-size" }

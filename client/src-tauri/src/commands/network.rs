@@ -4,10 +4,9 @@ use log::{error, info};
 use std::net::SocketAddr;
 use tauri::State;
 use tauri::async_runtime::Mutex;
-use hickory_resolver::{
-    Resolver, TokioAsyncResolver,
-    config::{ResolverConfig, ResolverOpts},
-};
+use hickory_resolver::Resolver;
+use hickory_resolver::config::{CLOUDFLARE, ResolverConfig};
+use hickory_resolver::net::runtime::TokioRuntimeProvider;
 use url::Url;
 
 #[tauri::command]
@@ -50,9 +49,20 @@ pub(crate) async fn change_network_stream(
     // Default to 443 if quic_connect_string is empty or invalid
     let port: u16 = data.quic_connect_string.parse().unwrap_or(443);
 
-    // Cloudflare DNS (async), then system resolver fallback (spawn_blocking)
-    let resolver = TokioAsyncResolver::tokio(ResolverConfig::cloudflare(), ResolverOpts::default());
-    let socket_addr = match resolver.lookup_ip(server_fqdn.clone()).await {
+    let cloudflare = match Resolver::builder_with_config(
+        ResolverConfig::udp_and_tcp(&CLOUDFLARE),
+        TokioRuntimeProvider::default(),
+    )
+    .build()
+    {
+        Ok(r) => r,
+        Err(e) => {
+            error!("Failed to build Cloudflare resolver: {}", e);
+            return Err(format!("DNS_FAIL: {}", e));
+        }
+    };
+
+    let socket_addr = match cloudflare.lookup_ip(server_fqdn.clone()).await {
         Ok(response) => match response.iter().next() {
             Some(ip) => SocketAddr::new(ip, port),
             None => {
@@ -62,26 +72,24 @@ pub(crate) async fn change_network_stream(
         },
         Err(cf_err) => {
             info!("Cloudflare DNS failed for {}: {}. Trying system resolver.", server_fqdn, cf_err);
-            let fqdn = server_fqdn.clone();
-            match tokio::task::spawn_blocking(move || {
-                let resolver = Resolver::from_system_conf().map_err(|e| e.to_string())?;
-                let response = resolver.lookup_ip(&fqdn).map_err(|e| e.to_string())?;
-                response
-                    .iter()
-                    .next()
-                    .map(|ip| SocketAddr::new(ip, port))
-                    .ok_or_else(|| "System DNS returned no IPs".to_string())
-            })
-            .await
-            {
-                Ok(Ok(addr)) => addr,
-                Ok(Err(e)) => {
-                    error!("System DNS resolution failed for {}: {}", server_fqdn, e);
+            let system = match Resolver::builder_tokio().and_then(|b| b.build()) {
+                Ok(r) => r,
+                Err(e) => {
+                    error!("System resolver build failed for {}: {}", server_fqdn, e);
                     return Err(format!("DNS_FAIL: {}", e));
                 }
+            };
+            match system.lookup_ip(server_fqdn.clone()).await {
+                Ok(response) => match response.iter().next() {
+                    Some(ip) => SocketAddr::new(ip, port),
+                    None => {
+                        error!("System DNS returned no IPs for {}", server_fqdn);
+                        return Err("DNS_FAIL: System DNS returned no results".to_string());
+                    }
+                },
                 Err(e) => {
-                    error!("System DNS task failed: {:?}", e);
-                    return Err("DNS_FAIL: Could not resolve server address".to_string());
+                    error!("System DNS resolution failed for {}: {}", server_fqdn, e);
+                    return Err(format!("DNS_FAIL: {}", e));
                 }
             }
         }

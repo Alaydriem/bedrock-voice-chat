@@ -2,8 +2,10 @@ use common::reqwest::Client as ReqwestClient;
 use log::error;
 use std::net::Ipv4Addr;
 use std::time::Duration;
-use hickory_resolver::TokioAsyncResolver;
-use hickory_resolver::config::{ResolverConfig, ResolverOpts};
+use hickory_resolver::Resolver;
+use hickory_resolver::config::{CLOUDFLARE, ResolverConfig};
+use hickory_resolver::net::runtime::TokioRuntimeProvider;
+use hickory_resolver::proto::rr::RData;
 use url::Url;
 
 use anyhow::anyhow;
@@ -96,16 +98,21 @@ impl Client {
     pub(crate) async fn resolve_ipv4(
         hostname: &str,
     ) -> Result<Ipv4Addr, Box<dyn std::error::Error>> {
-        let resolver =
-            TokioAsyncResolver::tokio(ResolverConfig::cloudflare(), ResolverOpts::default());
+        let resolver = Resolver::builder_with_config(
+            ResolverConfig::udp_and_tcp(&CLOUDFLARE),
+            TokioRuntimeProvider::default(),
+        )
+        .build()?;
         let response = resolver.ipv4_lookup(hostname).await?;
-        let address = response.iter().next().expect("no addresses returned!");
+        let address = response
+            .answers()
+            .iter()
+            .find_map(|r| match &r.data {
+                RData::A(ip) => Some(ip.0),
+                _ => None,
+            })
+            .ok_or("no addresses returned!")?;
 
-        Ok(Ipv4Addr::new(
-            address.octets()[0],
-            address.octets()[1],
-            address.octets()[2],
-            address.octets()[3],
-        ))
+        Ok(address)
     }
 }

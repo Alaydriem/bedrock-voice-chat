@@ -1,5 +1,6 @@
 pub mod admin;
 pub mod api_config;
+pub mod bedrock;
 pub mod audio;
 pub mod auth;
 pub mod gamerpic_response;

@@ -32,6 +32,14 @@ impl Api {
         self.client.get_client(fqdn).await
     }
 
+    pub(crate) fn endpoint(&self) -> &str {
+        &self.endpoint
+    }
+
+    pub(crate) async fn get_reqwest_client(&self) -> ReqwestClient {
+        self.client.get_client(Some(self.endpoint.as_str())).await
+    }
+
     pub(crate) async fn ping(&self) -> Result<(), bool> {
         let client = self.get_client(Some(self.endpoint.as_str())).await;
 

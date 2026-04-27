@@ -7,4 +7,7 @@ pub(crate) mod health;
 pub(crate) mod positions;
 pub(crate) mod server_config;
 
+#[cfg(feature = "bedrock")]
+pub(crate) mod bedrock;
+
 pub use auth::HytaleSessionCache;

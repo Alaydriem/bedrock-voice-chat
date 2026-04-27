@@ -16,3 +16,4 @@ pub use app::Logger;
 pub use app::Tls;
 #[allow(unused_imports)]
 pub use app::Minecraft;
+pub use app::BedrockDnsConfig;

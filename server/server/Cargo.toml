@@ -20,6 +20,10 @@ path = "src/main.rs"
 default = []
 ffi = []
 bundled-sqlite = []
+bedrock = [
+    "common/bedrock-server",
+    "dep:hickory-proto",
+]
 
 [dependencies]
 common = { path = "../../common", features = ["quic", "templates", "server"] }
@@ -60,7 +64,7 @@ bytes = { version = "^1.11.1" }
 async-mutex = { version = "^1.4" }
 rand = { version = "^0.10" }
 ron = { version = "^0.12" }
-rcgen = { version = "^0.13", features = ["x509-parser"] }
+rcgen = { workspace = true }
 rustls-pemfile = { version = "^2.0" }
 deadqueue = { version = "^0.2" }
 async-once-cell = { version = "^0.5" }
@@ -69,22 +73,23 @@ moka = { version = "^0.12", features = [
     "sync",
 ] }
 async-channel = { version = "^2.3" }
-nanoid = { version = "^0.4" }
+nanoid = { workspace = true }
 blake3 = { version = "^1.8" }
 hex = { version = "^0.4" }
 redcon = { version = "^0.1" }
-rocket_cors = "0.6.0"
-semver = "1.0.26"
+rocket_cors = { version = "^0.6" }
+semver = { version = "^1.0" }
 dashmap = { version = "^6" }
 cached = { version = "^0.58" }
 meridian-proxy = { git = "https://github.com/Alaydriem/meridian", default-features = false, features = ["client"] }
 tokio-util = { version = "^0.7" }
 ogg = { version = "^0.9" }
 uuid = { version = "^1", features = ["v7"] }
-schemars = "0.8"
-okapi = "0.7"
+schemars = { workspace = true }
+okapi = { version = "^0.7" }
 rocket_okapi = { version = "0.9", features = ["swagger", "mtls"] }
-inventory = "0.3"
+inventory = { version = "^0.3" }
+hickory-proto = { workspace = true, optional = true }
 
 dirs = { version = "^5" }
 toml = { version = "^0.8" }
@@ -97,16 +102,16 @@ built = { version = "^0.7", features = ["git2", "chrono", "semver"] }
 apple-native-keyring-store = { version = "0.1.0" }
 
 [dev-dependencies]
-opus2 = { version = "^0.3" }
+opus2 = { workspace = true }
+x509-parser = { workspace = true }
 rodio = { version = "^0.22" }
 async-ringbuf = { version = "^0.3" }
 ringbuf = { version = "0.4" }
-hound = "^3.5"
-read-process-memory = "0.1.6"
-proc_mem = "0.1.6"
-tempfile = "3"
-ring = "0.17"
-x509-parser = "0.16"
+hound = { version = "^3.5" }
+read-process-memory ={ version = "^0.1" }
+proc_mem = { version = "^0.1"}
+tempfile = { version = "^3" }
+ring = { version = "^0.17" }
 
 [target.'cfg(target_env = "musl")'.dependencies]
 libsqlite3-sys = { version = "^0.30", features = ["bundled"] }

@@ -35,17 +35,16 @@ rodio = { version = "0.22.2" }
 bytes = { version = "^1.11.1" }
 async-mutex = { version = "^1.4" }
 moka = { version = "^0.12", features = ["future", "sync"] }
-opus2 = { version = "^0.3" }
+opus2 = { workspace = true }
 ron = { version = "^0.12" }
 audio-gate = { version = "^0.2" }
 flume = { version = "^0.12" }
-rubato = { version = "^1" }
-audioadapter-buffers = { version = "^2" }
+rubato = { workspace = true }
+audioadapter-buffers = { workspace = true }
 futures-util = { version = "^0.3" }
-tokio-tungstenite = { version = "^0.28" }
-hickory-resolver = { version = "^0.24", features = ["tokio-runtime", "dns-over-rustls", "serde-config"] }
+tokio-tungstenite = { version = "^0.29", features = ["rustls-tls-webpki-roots"] }
+hickory-resolver = { workspace = true }
 ringbuf = { version = "^0.4" }
-schemars = { version = "^1.0", features = ["derive"] }
 ts-rs = { version = "^12.0" }
 tauri = { version = "^2", features = ["rustls-tls"] }
 tauri-plugin-opener = { version = "^2" }
@@ -65,7 +64,7 @@ tauri-plugin-log = { version = "^2" }
 tauri-plugin-os = { version = "^2" }
 once_cell = { version = "^1.21", features = ["atomic-polyfill"] }
 reqwest = { version = "0.12", features = ["rustls-tls", "json", "multipart"], default-features = false }
-nano-wal = { version ="^0.5" }
+nano-wal = { workspace = true }
 uuid = { version = "^1.18", features = ["v4", "v7"] }
 postcard = { version = "^1.0", features = ["alloc"] }
 bwavfile = { version = "2.0.1" }
@@ -73,7 +72,7 @@ chrono = { version = "^0.4" }
 fern = { version = "^0.7" }
 async-trait = { version = "^0.1" }
 url = { version = "2" }
-x509-parser = { version = "0.16" }
+x509-parser = { workspace = true }
 tar = { version = "^0.4" }
 zstd = { version = "^0.13" }
 sentry = { version = "^0.46", default-features = false, features = [
@@ -84,6 +83,8 @@ tracing-subscriber = { version = "^0.3", default-features = false, features = ["
 parking_lot = { version = "^0.12" }
 open-feature = { version = "0.3", features = ["serde_json"] }
 shiguredo_mp4 = { version = "2026.1.0" }
+bedrock-protocol = { git = "https://github.com/alaydriem/bedrock-protocol-rs", branch = "master", optional = true }
+if-addrs = { workspace = true, optional = true }
 
 # Desktop Targets
 [target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]
@@ -100,3 +101,8 @@ windows-targets = { version = "^0.53.0" }
 [dev-dependencies]
 
 [features]
+default = ["bedrock-protocol"]
+bedrock-protocol = [
+    "dep:bedrock-protocol",
+    "dep:if-addrs",
+]

@@ -38,8 +38,9 @@ pub(crate) struct AudioStreamManager {
     app_handle: tauri::AppHandle,
     recording_manager: Option<Arc<TauriMutex<RecordingManager>>>,
     recovery_tx: RecoverySender,
-    /// Receiver for recovery events - consumed when monitor is spawned
     recovery_rx: Option<mpsc::UnboundedReceiver<StreamRecoveryEvent>>,
+    #[cfg(feature = "bedrock-protocol")]
+    position_cache: Option<Arc<crate::bedrock::position_cache::BedrockPositionCache>>,
 }
 
 impl AudioStreamManager {
@@ -50,13 +51,9 @@ impl AudioStreamManager {
         consumer: Arc<flume::Receiver<AudioPacket>>,
         app_handle: tauri::AppHandle,
         recording_manager: Option<Arc<TauriMutex<RecordingManager>>>,
+        #[cfg(feature = "bedrock-protocol")]
+        position_cache: Option<Arc<crate::bedrock::position_cache::BedrockPositionCache>>,
     ) -> Self {
-        // Producer will be extracted when streams are initialized
-        // to avoid blocking the setup function
-
-        // Create recovery channel for error handling
-        // The receiver is stored and the monitor task is spawned lazily
-        // when init() is first called (from an async context)
         let (recovery_tx, recovery_rx) = mpsc::unbounded_channel::<StreamRecoveryEvent>();
 
         Self {
@@ -67,23 +64,27 @@ impl AudioStreamManager {
                 producer.clone(),
                 Arc::new(moka::future::Cache::builder().build()),
                 app_handle.clone(),
-                None, // Producer will be set when initialized
-                None, // Recording flag will be set when initialized
+                None,
+                None,
                 recovery_tx.clone(),
+                #[cfg(feature = "bedrock-protocol")]
+                position_cache.clone(),
             )),
             output: StreamTraitType::Output(stream_manager::OutputStream::new(
                 None,
                 consumer.clone(),
                 Arc::new(moka::future::Cache::builder().build()),
                 app_handle.clone(),
-                None, // Producer will be set when initialized
-                None, // Recording flag will be set when initialized
+                None,
+                None,
                 recovery_tx.clone(),
             )),
             app_handle: app_handle.clone(),
             recording_manager,
             recovery_tx,
             recovery_rx: Some(recovery_rx),
+            #[cfg(feature = "bedrock-protocol")]
+            position_cache,
         }
     }
 
@@ -145,6 +146,8 @@ impl AudioStreamManager {
                     recording_producer.clone(),
                     recording_flag.clone(),
                     self.recovery_tx.clone(),
+                    #[cfg(feature = "bedrock-protocol")]
+                    self.position_cache.clone(),
                 ));
             }
             AudioDeviceType::OutputDevice => {
@@ -191,6 +194,8 @@ impl AudioStreamManager {
                     recording_producer.clone(),
                     recording_flag.clone(),
                     self.recovery_tx.clone(),
+                    #[cfg(feature = "bedrock-protocol")]
+                    self.position_cache.clone(),
                 ));
             }
             AudioDeviceType::OutputDevice => {
@@ -302,7 +307,6 @@ impl AudioStreamManager {
             (None, None)
         };
 
-        // Recreate input stream, preserving metadata
         self.input = StreamTraitType::Input(stream_manager::InputStream::new(
             None,
             self.producer.clone(),
@@ -311,6 +315,8 @@ impl AudioStreamManager {
             recording_producer.clone(),
             recording_flag.clone(),
             self.recovery_tx.clone(),
+            #[cfg(feature = "bedrock-protocol")]
+            self.position_cache.clone(),
         ));
 
         // Recreate output stream, preserving metadata
