@@ -1,16 +1,15 @@
 use std::sync::Arc;
 
-use bedrock_protocol::{AuthManager, RealmsApi};
+use common::bedrock_protocol::{AuthManager, RealmsApi};
 use tokio::sync::watch;
 
 use crate::bedrock::keepalive::TransferKeepalive;
-use crate::bedrock::position_cache::BedrockPositionCache;
-use crate::bedrock::proxy::ProxyConnectManager;
-use crate::bedrock::realms::RealmsConnectManager;
+use crate::bedrock::manager::BedrockProxyManager;
+use crate::bedrock::player_state_cache::BedrockPlayerStateCache;
 
 pub struct BedrockState {
-    pub proxy: Option<ProxyConnectManager>,
-    pub realms: Option<RealmsConnectManager>,
+    pub proxy: Option<BedrockProxyManager>,
+    pub realms: Option<BedrockProxyManager>,
     pub keepalive: Option<TransferKeepalive>,
     pub auth_manager: Option<Arc<AuthManager>>,
     pub realms_api: Option<RealmsApi>,
@@ -19,7 +18,7 @@ pub struct BedrockState {
     pub access_token: Option<String>,
     pub refresh_token: Option<String>,
     pub xuid: Option<String>,
-    pub position_cache: Arc<BedrockPositionCache>,
+    pub player_state_cache: Arc<BedrockPlayerStateCache>,
     pub login_cancel_tx: Option<watch::Sender<bool>>,
     pub proxy_target_host: Option<String>,
     pub proxy_target_port: Option<u16>,
@@ -41,7 +40,7 @@ impl BedrockState {
             access_token: None,
             refresh_token: None,
             xuid: None,
-            position_cache: Arc::new(BedrockPositionCache::new()),
+            player_state_cache: Arc::new(BedrockPlayerStateCache::new()),
             login_cancel_tx: None,
             proxy_target_host: None,
             proxy_target_port: None,

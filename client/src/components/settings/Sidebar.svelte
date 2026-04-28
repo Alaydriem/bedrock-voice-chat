@@ -103,7 +103,7 @@
             </svg>`,
             component: about
         },
-        { type: "separator", label: "Bedrock" },
+        { type: "separator", label: "Minecraft Bedrock" },
         {
             type: "page",
             id: "proxy_connect.svelte",

@@ -1,6 +1,6 @@
-use bedrock_protocol::TransferPacket;
-use bedrock_protocol::protocol::packets::login::PlayStatus;
-use bedrock_server::{BedrockServer, ServerConfig, StartGameConfig};
+use common::bedrock_protocol::TransferPacket;
+use common::bedrock_protocol::protocol::packets::login::PlayStatus;
+use common::bedrock_server::{BedrockServer, ServerConfig, StartGameConfig};
 use common::traits::StreamTrait;
 use moka::future::Cache;
 use std::sync::atomic::{AtomicU32, Ordering};

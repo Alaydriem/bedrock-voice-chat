@@ -5,8 +5,8 @@ use tauri::State;
 use tauri::async_runtime::Mutex;
 use tauri_plugin_keyring::{CredentialType, CredentialValue, KeyringExt};
 
-use bedrock_protocol::{AuthManager, CachedToken, RealmsApi};
-use bedrock_protocol::auth::xbox::XboxLive;
+use common::bedrock_protocol::{AuthManager, CachedToken, RealmsApi};
+use common::bedrock_protocol::auth::xbox::XboxLive;
 use common::structs::bedrock::BedrockStatus;
 use common::structs::bedrock::NetworkInterface;
 use common::structs::bedrock::RealmEntry;
@@ -15,8 +15,7 @@ use common::traits::StreamTrait;
 use crate::bedrock::BedrockState;
 use crate::bedrock::iap::BedrockEntitlementCheck;
 use crate::bedrock::keepalive::TransferKeepalive;
-use crate::bedrock::proxy::ProxyConnectManager;
-use crate::bedrock::realms::RealmsConnectManager;
+use crate::bedrock::manager::BedrockProxyManager;
 use crate::structs::app_state::AppState;
 
 use common::consts::bedrock::{BEDROCK_LISTEN_PORT, XBOX_CLIENT_ID};
@@ -169,12 +168,12 @@ pub(crate) async fn bedrock_start_proxy(
         .ok_or_else(|| "Xbox Live authentication required. Please sign in first.".to_string())?;
 
     let effective_listen_port = listen_port.unwrap_or(BEDROCK_LISTEN_PORT);
-    let mut proxy = ProxyConnectManager::new(
+    let mut proxy = BedrockProxyManager::new_direct(
         target_host.clone(),
         target_port,
         effective_listen_port,
         Arc::clone(auth_manager),
-        Arc::clone(&state.position_cache),
+        Arc::clone(&state.player_state_cache),
     );
     proxy.start().await.map_err(|e| e.to_string())?;
 
@@ -243,14 +242,14 @@ pub(crate) async fn bedrock_start_realms(
         .ok_or_else(|| "Xbox Live authentication required. Please sign in first.".to_string())?
         .clone();
 
-    let mut realms = RealmsConnectManager::new(
+    let mut realms = BedrockProxyManager::new_realm(
         realm_id,
         BEDROCK_LISTEN_PORT,
         xbl_token,
         user_hash,
         access_token,
         realms_api,
-        Arc::clone(&state.position_cache),
+        Arc::clone(&state.player_state_cache),
     );
     realms.start().await.map_err(|e| e.to_string())?;
 
@@ -389,6 +388,51 @@ pub(crate) async fn bedrock_restore_auth(
 }
 
 #[tauri::command(async)]
+pub(crate) async fn bedrock_force_refresh(
+    state: State<'_, Mutex<BedrockState>>,
+    app_handle: tauri::AppHandle,
+) -> Result<(), String> {
+    let refresh_token = {
+        let s = state.lock().await;
+        s.refresh_token
+            .clone()
+            .ok_or_else(|| "No refresh token available. Sign in again.".to_string())?
+    };
+
+    let (api, xbl_token, user_hash, access_token, new_refresh_token) =
+        RealmsApi::authenticate_refresh(XBOX_CLIENT_ID, &refresh_token)
+            .await
+            .map_err(|e| e.to_string())?;
+
+    let stored_xuid = {
+        let s = state.lock().await;
+        s.xuid.clone()
+    };
+    let xuid = match stored_xuid {
+        Some(x) => x,
+        None => extract_xuid(&xbl_token).await?,
+    };
+
+    let effective_refresh = new_refresh_token.or(Some(refresh_token));
+    if let Some(ref rt) = effective_refresh {
+        store_credential(&app_handle, KEY_REFRESH_TOKEN, rt);
+    }
+    store_credential(&app_handle, KEY_XUID, &xuid);
+
+    let mut state = state.lock().await;
+    apply_auth_to_state(
+        &mut state,
+        api,
+        xbl_token,
+        user_hash,
+        access_token,
+        effective_refresh,
+        xuid,
+    );
+    Ok(())
+}
+
+#[tauri::command(async)]
 pub(crate) async fn bedrock_cancel_xbox_login(
     state: State<'_, Mutex<BedrockState>>,
 ) -> Result<(), String> {
@@ -466,7 +510,7 @@ pub(crate) async fn bedrock_get_position(
     state: State<'_, Mutex<BedrockState>>,
 ) -> Result<Option<String>, String> {
     let state = state.lock().await;
-    let player = state.position_cache.get_local_player();
+    let player = state.player_state_cache.get_local_player();
     match player {
         Some(p) => Ok(Some(format!("{:?}", p))),
         None => Ok(None),

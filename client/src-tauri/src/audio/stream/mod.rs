@@ -40,7 +40,7 @@ pub(crate) struct AudioStreamManager {
     recovery_tx: RecoverySender,
     recovery_rx: Option<mpsc::UnboundedReceiver<StreamRecoveryEvent>>,
     #[cfg(feature = "bedrock-protocol")]
-    position_cache: Option<Arc<crate::bedrock::position_cache::BedrockPositionCache>>,
+    player_state_cache: Option<Arc<crate::bedrock::player_state_cache::BedrockPlayerStateCache>>,
 }
 
 impl AudioStreamManager {
@@ -52,7 +52,7 @@ impl AudioStreamManager {
         app_handle: tauri::AppHandle,
         recording_manager: Option<Arc<TauriMutex<RecordingManager>>>,
         #[cfg(feature = "bedrock-protocol")]
-        position_cache: Option<Arc<crate::bedrock::position_cache::BedrockPositionCache>>,
+        player_state_cache: Option<Arc<crate::bedrock::player_state_cache::BedrockPlayerStateCache>>,
     ) -> Self {
         let (recovery_tx, recovery_rx) = mpsc::unbounded_channel::<StreamRecoveryEvent>();
 
@@ -68,7 +68,7 @@ impl AudioStreamManager {
                 None,
                 recovery_tx.clone(),
                 #[cfg(feature = "bedrock-protocol")]
-                position_cache.clone(),
+                player_state_cache.clone(),
             )),
             output: StreamTraitType::Output(stream_manager::OutputStream::new(
                 None,
@@ -84,7 +84,7 @@ impl AudioStreamManager {
             recovery_tx,
             recovery_rx: Some(recovery_rx),
             #[cfg(feature = "bedrock-protocol")]
-            position_cache,
+            player_state_cache,
         }
     }
 
@@ -147,7 +147,7 @@ impl AudioStreamManager {
                     recording_flag.clone(),
                     self.recovery_tx.clone(),
                     #[cfg(feature = "bedrock-protocol")]
-                    self.position_cache.clone(),
+                    self.player_state_cache.clone(),
                 ));
             }
             AudioDeviceType::OutputDevice => {
@@ -195,7 +195,7 @@ impl AudioStreamManager {
                     recording_flag.clone(),
                     self.recovery_tx.clone(),
                     #[cfg(feature = "bedrock-protocol")]
-                    self.position_cache.clone(),
+                    self.player_state_cache.clone(),
                 ));
             }
             AudioDeviceType::OutputDevice => {
@@ -316,7 +316,7 @@ impl AudioStreamManager {
             recording_flag.clone(),
             self.recovery_tx.clone(),
             #[cfg(feature = "bedrock-protocol")]
-            self.position_cache.clone(),
+            self.player_state_cache.clone(),
         ));
 
         // Recreate output stream, preserving metadata

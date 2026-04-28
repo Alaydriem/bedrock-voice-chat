@@ -4,12 +4,12 @@ use std::time::Duration;
 use common::PlayerEnum;
 use moka::sync::Cache;
 
-pub struct BedrockPositionCache {
+pub struct BedrockPlayerStateCache {
     cache: Cache<String, PlayerEnum>,
     local_gamertag: Mutex<Option<String>>,
 }
 
-impl BedrockPositionCache {
+impl BedrockPlayerStateCache {
     pub fn new() -> Self {
         Self {
             cache: Cache::builder()

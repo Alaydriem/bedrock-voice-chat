@@ -1,7 +1,10 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import type { BedrockManager } from "../../../js/app/managers/bedrock/BedrockManager";
+    import type { ProxyServerEntry } from "../../../js/app/managers/bedrock/ProxyServerEntry";
     import XboxLoginModal from "../bedrock/XboxLoginModal.svelte";
+    import ProxyServerCard from "../bedrock/ProxyServerCard.svelte";
+    import ProxyServerModal from "../bedrock/ProxyServerModal.svelte";
 
     interface Props {
         bedrockManager: BedrockManager;
@@ -17,16 +20,23 @@
     const interfaces = bedrockManager.interfaces;
     const statusMessage = bedrockManager.statusMessage;
     const showLoginModal = bedrockManager.showLoginModal;
-    const serverHost = bedrockManager.serverHost;
-    const serverPort = bedrockManager.serverPort;
     const listenPort = bedrockManager.listenPort;
     const selectedInterface = bedrockManager.selectedInterface;
-    const isProxyLoading = bedrockManager.isProxyLoading;
-    const canStartProxy = bedrockManager.canStartProxy;
+    const sortedProxyServers = bedrockManager.sortedProxyServers;
+    const proxyFavorites = bedrockManager.proxyFavorites;
+    const activeProxyId = bedrockManager.activeProxyId;
 
     let showAdvanced = $state(false);
+    type ModalState = { mode: "add" } | { mode: "edit"; entry: ProxyServerEntry } | null;
+    let modalState = $state<ModalState>(null);
 
     onMount(() => { bedrockManager.initialize(); });
+
+    function confirmDelete(entry: ProxyServerEntry) {
+        if (confirm(`Delete "${entry.name}"?`)) {
+            bedrockManager.deleteProxyServer(entry.id);
+        }
+    }
 </script>
 
 <div class="grid grid-cols-1 gap-4 sm:gap-5 lg:gap-6 pt-4 md:pt-0">
@@ -70,16 +80,19 @@
                 </button>
             </div>
         {:else}
-            <div class="card p-4 lg:p-6">
-                <div class="my-1 flex items-start justify-between">
-                    <div>
-                        <h2 class="font-medium tracking-wide text-slate-700 dark:text-navy-100 lg:text-base pb-2">
-                            Proxy Connection
-                        </h2>
-                        <p class="text-sm leading-6 text-slate-500 dark:text-navy-300 hidden md:block">
-                            Connect to a Bedrock server through BVC's proxy to enable proximity voice chat.
-                        </p>
-                    </div>
+            <div class="flex items-center justify-between">
+                <h2 class="font-medium tracking-wide text-slate-700 dark:text-navy-100 lg:text-base">
+                    Saved Proxy Servers
+                </h2>
+                <div class="flex items-center gap-2">
+                    <button
+                        class="btn bg-primary font-medium text-white hover:bg-primary-focus
+                               dark:bg-accent dark:hover:bg-accent-focus"
+                        onclick={() => { modalState = { mode: "add" }; }}
+                        disabled={$proxyRunning || $realmsRunning}
+                    >
+                        Add Server
+                    </button>
                     {#if !$proxyRunning}
                         <button
                             class="btn text-xs+ text-slate-500 hover:text-error dark:text-navy-300 dark:hover:text-error"
@@ -89,37 +102,11 @@
                         </button>
                     {/if}
                 </div>
+            </div>
 
-                <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:gap-6">
-                    <label class="block">
-                        <span class="text-xs+ font-medium text-slate-700 dark:text-navy-100">Server Host</span>
-                        <input
-                            type="text"
-                            class="form-input mt-1.5 w-full rounded-lg border border-slate-300 bg-transparent px-3 py-2
-                                   hover:border-slate-400 focus:border-primary dark:border-navy-450 dark:bg-navy-700
-                                   dark:hover:border-navy-400 dark:focus:border-accent"
-                            value={$serverHost}
-                            oninput={(e) => bedrockManager.setServerHost(e.currentTarget.value)}
-                            placeholder="play.example.com"
-                            disabled={$proxyRunning}
-                        />
-                    </label>
-                    <label class="block">
-                        <span class="text-xs+ font-medium text-slate-700 dark:text-navy-100">Server Port</span>
-                        <input
-                            type="number"
-                            class="form-input mt-1.5 w-full rounded-lg border border-slate-300 bg-transparent px-3 py-2
-                                   hover:border-slate-400 focus:border-primary dark:border-navy-450 dark:bg-navy-700
-                                   dark:hover:border-navy-400 dark:focus:border-accent"
-                            value={$serverPort}
-                            oninput={(e) => bedrockManager.setServerPort(parseInt(e.currentTarget.value) || 19132)}
-                            disabled={$proxyRunning}
-                        />
-                    </label>
-                </div>
-
+            <div class="card p-4 lg:p-6">
                 <button
-                    class="mt-4 flex items-center gap-1 text-xs+ font-medium text-primary hover:text-primary-focus dark:text-accent-light dark:hover:text-accent transition-colors"
+                    class="flex items-center gap-1 text-xs+ font-medium text-primary hover:text-primary-focus dark:text-accent-light dark:hover:text-accent transition-colors"
                     onclick={() => { showAdvanced = !showAdvanced; }}
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" class="size-4 transition-transform {showAdvanced ? 'rotate-90' : ''}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -165,29 +152,34 @@
                         </label>
                     </div>
                 {/if}
-
-                <div class="mt-6 flex items-center gap-3">
-                    {#if !$proxyRunning}
-                        <button
-                            class="btn bg-success font-medium text-white hover:bg-success-focus"
-                            onclick={() => bedrockManager.startProxy()}
-                            disabled={!$canStartProxy || $isProxyLoading}
-                        >
-                            {$isProxyLoading ? "Starting..." : "Start Proxy"}
-                        </button>
-                    {:else}
-                        <button
-                            class="btn bg-error font-medium text-white hover:bg-error-focus"
-                            onclick={() => bedrockManager.stopProxy()}
-                        >
-                            Stop Proxy
-                        </button>
-                        <span class="badge rounded-full bg-success/10 text-success dark:bg-success/15">
-                            Running
-                        </span>
-                    {/if}
-                </div>
             </div>
+
+            {#if $sortedProxyServers.length === 0}
+                <div class="card p-8 text-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="size-12 mx-auto text-slate-300 dark:text-navy-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/>
+                    </svg>
+                    <p class="mt-3 text-sm text-slate-500 dark:text-navy-300">
+                        No saved proxy servers. Click Add Server to get started.
+                    </p>
+                </div>
+            {:else}
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 lg:gap-6">
+                    {#each $sortedProxyServers as entry (entry.id)}
+                        <ProxyServerCard
+                            {entry}
+                            isFavorite={$proxyFavorites.has(entry.id)}
+                            isActive={$proxyRunning && $activeProxyId === entry.id}
+                            disabled={$proxyRunning || $realmsRunning}
+                            onConnect={() => bedrockManager.connectToProxyServer(entry)}
+                            onDisconnect={() => bedrockManager.stopProxy()}
+                            onToggleFavorite={() => bedrockManager.toggleProxyFavorite(entry.id)}
+                            onEdit={() => { modalState = { mode: "edit", entry }; }}
+                            onDelete={() => confirmDelete(entry)}
+                        />
+                    {/each}
+                </div>
+            {/if}
         {/if}
 
         {#if $statusMessage}
@@ -202,4 +194,12 @@
 
 {#if $showLoginModal}
     <XboxLoginModal {bedrockManager} />
+{/if}
+
+{#if modalState}
+    <ProxyServerModal
+        {bedrockManager}
+        initial={modalState.mode === "edit" ? modalState.entry : undefined}
+        onClose={() => { modalState = null; }}
+    />
 {/if}

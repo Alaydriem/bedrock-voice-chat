@@ -50,7 +50,7 @@ pub(crate) struct InputStream {
     recording_active: Option<Arc<AtomicBool>>,
     recovery_tx: RecoverySender,
     #[cfg(feature = "bedrock-protocol")]
-    position_cache: Option<Arc<crate::bedrock::position_cache::BedrockPositionCache>>,
+    player_state_cache: Option<Arc<crate::bedrock::player_state_cache::BedrockPlayerStateCache>>,
 }
 
 impl common::traits::StreamTrait for InputStream {
@@ -179,7 +179,7 @@ impl InputStream {
         recording_active: Option<Arc<AtomicBool>>,
         recovery_tx: RecoverySender,
         #[cfg(feature = "bedrock-protocol")]
-        position_cache: Option<Arc<crate::bedrock::position_cache::BedrockPositionCache>>,
+        player_state_cache: Option<Arc<crate::bedrock::player_state_cache::BedrockPlayerStateCache>>,
     ) -> Self {
         Self {
             device,
@@ -193,7 +193,7 @@ impl InputStream {
             recording_active,
             recovery_tx,
             #[cfg(feature = "bedrock-protocol")]
-            position_cache,
+            player_state_cache,
         }
     }
 
@@ -673,7 +673,7 @@ impl InputStream {
                         let bus = self.bus.clone();
                         let recording_producer = self.recording_producer.clone();
                         #[cfg(feature = "bedrock-protocol")]
-                        let position_cache = self.position_cache.clone();
+                        let player_state_cache = self.player_state_cache.clone();
 
                         let handle = tokio::spawn(async move {
                             #[cfg(target_os = "windows")]
@@ -753,7 +753,7 @@ impl InputStream {
 
                                     #[cfg(feature = "bedrock-protocol")]
                                     let (bedrock_sender, bedrock_spatial) = {
-                                        let player = position_cache.as_ref().and_then(|pc| pc.get_local_player());
+                                        let player = player_state_cache.as_ref().and_then(|pc| pc.get_local_player());
                                         match player {
                                             Some(p) => (Some(p), Some(true)),
                                             None => (None, None),

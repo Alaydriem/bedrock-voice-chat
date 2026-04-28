@@ -5,9 +5,43 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { info, error as logError } from '@tauri-apps/plugin-log';
 import type { BedrockStatus } from '../../../bindings/BedrockStatus';
+import type { BedrockLogEntry } from '../../../bindings/BedrockLogEntry';
 import type { RealmEntry } from '../../../bindings/RealmEntry';
 import type { NetworkInterface } from './NetworkInterface';
 import type { ProxyConfig } from './ProxyConfig';
+import type { ProxyServerEntry } from './ProxyServerEntry';
+
+const MAX_LOG_ENTRIES = 200;
+
+export type RealmsLogLevel = 'INFO' | 'WARN' | 'ERROR';
+
+const LEVEL_RANK: Record<string, number> = { TRACE: 0, DEBUG: 1, INFO: 2, WARN: 3, ERROR: 4 };
+
+interface RealmsConnectionError {
+    kind: 'nethernet' | 'raknet' | 'auth' | 'generic';
+    message: string;
+    suggestion: string;
+}
+
+const FAILURE_WORDS = /\b(failed|failure|error|timed\s*out|timeout|rejected|refused|unable|cannot|aborted|disconnect(?:ed)?|closed)\b/i;
+
+const ERROR_PATTERNS: Array<{ regex: RegExp; kind: RealmsConnectionError['kind']; suggestion: string }> = [
+    {
+        regex: /\b(nethernet|webrtc|ice\s+gathering)\b/i,
+        kind: 'nethernet',
+        suggestion: 'NetherNet transport failed. Try Refresh; if it keeps failing, quit and relaunch BVC.',
+    },
+    {
+        regex: /\braknet\b/i,
+        kind: 'raknet',
+        suggestion: 'RakNet handshake failed. Quit and relaunch BVC, then try again — your Realm may also be offline.',
+    },
+    {
+        regex: /\b(unauthorized|forbidden|xsts|xbl\s+token|access[_\s]token)\b|\b(401|403)\b/i,
+        kind: 'auth',
+        suggestion: 'Authentication rejected. Click Refresh to renew tokens; sign out and back in if it keeps failing.',
+    },
+];
 
 export class BedrockManager {
     private isEntitledStore: Writable<boolean>;
@@ -37,6 +71,15 @@ export class BedrockManager {
     private loginErrorStore: Writable<string>;
     private codeCopiedStore: Writable<boolean>;
 
+    private realmsLogsStore: Writable<BedrockLogEntry[]>;
+    private logsExpandedStore: Writable<boolean>;
+    private logsMinLevelStore: Writable<RealmsLogLevel>;
+    private connectionErrorStore: Writable<RealmsConnectionError | null>;
+
+    private proxyServersStore: Writable<ProxyServerEntry[]>;
+    private proxyFavoritesStore: Writable<Set<string>>;
+    private activeProxyIdStore: Writable<string | null>;
+
     public readonly isEntitled: Readable<boolean>;
     public readonly isAuthenticated: Readable<boolean>;
     public readonly isRestoringAuth: Readable<boolean>;
@@ -65,11 +108,23 @@ export class BedrockManager {
     public readonly loginError: Readable<string>;
     public readonly codeCopied: Readable<boolean>;
 
+    public readonly realmsLogs: Readable<BedrockLogEntry[]>;
+    public readonly visibleRealmsLogs: Readable<BedrockLogEntry[]>;
+    public readonly logsExpanded: Readable<boolean>;
+    public readonly logsMinLevel: Readable<RealmsLogLevel>;
+    public readonly connectionError: Readable<RealmsConnectionError | null>;
+
+    public readonly proxyServers: Readable<ProxyServerEntry[]>;
+    public readonly proxyFavorites: Readable<Set<string>>;
+    public readonly activeProxyId: Readable<string | null>;
+    public readonly sortedProxyServers: Readable<ProxyServerEntry[]>;
+
     public readonly canStartProxy: Readable<boolean>;
 
     private initialized = false;
     private store: Store | null = null;
     private loginFlowUnlisten: (() => void) | null = null;
+    private logUnlisten: (() => void) | null = null;
     private copiedTimeout: ReturnType<typeof setTimeout> | null = null;
 
     constructor() {
@@ -100,6 +155,15 @@ export class BedrockManager {
         this.loginErrorStore = writable('');
         this.codeCopiedStore = writable(false);
 
+        this.realmsLogsStore = writable([]);
+        this.logsExpandedStore = writable(false);
+        this.logsMinLevelStore = writable('WARN');
+        this.connectionErrorStore = writable(null);
+
+        this.proxyServersStore = writable([]);
+        this.proxyFavoritesStore = writable(new Set());
+        this.activeProxyIdStore = writable(null);
+
         this.isEntitled = { subscribe: this.isEntitledStore.subscribe };
         this.isAuthenticated = { subscribe: this.isAuthenticatedStore.subscribe };
         this.isRestoringAuth = { subscribe: this.isRestoringAuthStore.subscribe };
@@ -127,6 +191,33 @@ export class BedrockManager {
         this.loginError = { subscribe: this.loginErrorStore.subscribe };
         this.codeCopied = { subscribe: this.codeCopiedStore.subscribe };
 
+        this.realmsLogs = { subscribe: this.realmsLogsStore.subscribe };
+        this.logsExpanded = { subscribe: this.logsExpandedStore.subscribe };
+        this.logsMinLevel = { subscribe: this.logsMinLevelStore.subscribe };
+        this.connectionError = { subscribe: this.connectionErrorStore.subscribe };
+
+        this.visibleRealmsLogs = derived(
+            [this.realmsLogsStore, this.logsMinLevelStore],
+            ([$logs, $minLevel]) => {
+                const threshold = LEVEL_RANK[$minLevel] ?? LEVEL_RANK.WARN;
+                return $logs.filter((entry) => (LEVEL_RANK[entry.level] ?? 0) >= threshold);
+            }
+        );
+
+        this.proxyServers = { subscribe: this.proxyServersStore.subscribe };
+        this.proxyFavorites = { subscribe: this.proxyFavoritesStore.subscribe };
+        this.activeProxyId = { subscribe: this.activeProxyIdStore.subscribe };
+
+        this.sortedProxyServers = derived(
+            [this.proxyServersStore, this.proxyFavoritesStore],
+            ([$servers, $favorites]) =>
+                [...$servers].sort((a, b) => {
+                    const aFav = $favorites.has(a.id) ? 0 : 1;
+                    const bFav = $favorites.has(b.id) ? 0 : 1;
+                    return aFav - bFav || a.name.localeCompare(b.name);
+                })
+        );
+
         this.sortedRealms = derived(
             [this.realmsStore, this.favoritesStore],
             ([$realms, $favorites]) =>
@@ -150,11 +241,23 @@ export class BedrockManager {
         }
         this.initialized = true;
 
+        await this.subscribeToLogs();
+
         this.store = await Store.load('store.json', { autoSave: false, defaults: {} });
 
         const savedFavs = await this.store.get<number[]>('bedrock_realm_favorites');
         if (savedFavs) {
             this.favoritesStore.set(new Set(savedFavs));
+        }
+
+        const savedProxies = await this.store.get<ProxyServerEntry[]>('bedrock_proxy_servers');
+        if (savedProxies) {
+            this.proxyServersStore.set(savedProxies);
+        }
+
+        const savedProxyFavs = await this.store.get<string[]>('bedrock_proxy_favorites');
+        if (savedProxyFavs) {
+            this.proxyFavoritesStore.set(new Set(savedProxyFavs));
         }
 
         try {
@@ -187,6 +290,15 @@ export class BedrockManager {
             }
             if (status.proxy_listen_port) {
                 this.listenPortStore.set(status.proxy_listen_port);
+            }
+
+            if (status.proxy_running && status.proxy_target_host && status.proxy_target_port) {
+                const match = get(this.proxyServersStore).find(
+                    (s) => s.host === status.proxy_target_host && s.port === status.proxy_target_port
+                );
+                if (match) {
+                    this.activeProxyIdStore.set(match.id);
+                }
             }
 
             if (status.active_realm_id) {
@@ -244,6 +356,41 @@ export class BedrockManager {
             logError(`Failed to load realms: ${e}`);
         }
         this.isLoadingRealmsStore.set(false);
+    }
+
+    async refreshRealms(): Promise<void> {
+        this.isLoadingRealmsStore.set(true);
+        this.connectionErrorStore.set(null);
+        try {
+            await invoke('bedrock_force_refresh');
+            info('Bedrock token refreshed');
+        } catch (e) {
+            logError(`Token refresh failed: ${e}`);
+        }
+        try {
+            const realms = await invoke<RealmEntry[]>('bedrock_list_realms');
+            this.realmsStore.set(realms);
+        } catch (e) {
+            logError(`Failed to load realms: ${e}`);
+        }
+        this.isLoadingRealmsStore.set(false);
+    }
+
+    toggleLogs(): void {
+        this.logsExpandedStore.update((v) => !v);
+    }
+
+    setLogsMinLevel(level: RealmsLogLevel): void {
+        this.logsMinLevelStore.set(level);
+    }
+
+    clearLogs(): void {
+        this.realmsLogsStore.set([]);
+        this.connectionErrorStore.set(null);
+    }
+
+    dismissConnectionError(): void {
+        this.connectionErrorStore.set(null);
     }
 
     async openLoginModal(): Promise<void> {
@@ -334,10 +481,92 @@ export class BedrockManager {
         try {
             await invoke('bedrock_stop_proxy');
             this.proxyRunningStore.set(false);
+            this.activeProxyIdStore.set(null);
             this.statusMessageStore.set('Proxy stopped');
         } catch (e) {
             this.statusMessageStore.set(`Error stopping: ${e}`);
         }
+    }
+
+    async addProxyServer(name: string, host: string, port: number): Promise<ProxyServerEntry> {
+        const entry: ProxyServerEntry = {
+            id: crypto.randomUUID(),
+            name: name.trim(),
+            host: host.trim(),
+            port,
+        };
+        this.proxyServersStore.update((current) => [...current, entry]);
+        await this.persistProxyServers();
+        return entry;
+    }
+
+    async updateProxyServer(id: string, patch: Partial<Omit<ProxyServerEntry, 'id'>>): Promise<void> {
+        this.proxyServersStore.update((current) =>
+            current.map((s) =>
+                s.id === id
+                    ? {
+                          ...s,
+                          ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
+                          ...(patch.host !== undefined ? { host: patch.host.trim() } : {}),
+                          ...(patch.port !== undefined ? { port: patch.port } : {}),
+                      }
+                    : s
+            )
+        );
+        await this.persistProxyServers();
+    }
+
+    async deleteProxyServer(id: string): Promise<void> {
+        this.proxyServersStore.update((current) => current.filter((s) => s.id !== id));
+        this.proxyFavoritesStore.update((current) => {
+            const next = new Set(current);
+            next.delete(id);
+            return next;
+        });
+        if (get(this.activeProxyIdStore) === id) {
+            this.activeProxyIdStore.set(null);
+        }
+        await this.persistProxyServers();
+        await this.persistProxyFavorites();
+    }
+
+    async toggleProxyFavorite(id: string): Promise<void> {
+        this.proxyFavoritesStore.update((current) => {
+            const next = new Set(current);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+            return next;
+        });
+        await this.persistProxyFavorites();
+    }
+
+    async connectToProxyServer(entry: ProxyServerEntry): Promise<void> {
+        this.serverHostStore.set(entry.host);
+        this.serverPortStore.set(entry.port);
+        this.activeProxyIdStore.set(entry.id);
+        await this.startProxy();
+        if (!get(this.proxyRunningStore)) {
+            this.activeProxyIdStore.set(null);
+        }
+    }
+
+    private async persistProxyServers(): Promise<void> {
+        if (!this.store) {
+            return;
+        }
+        await this.store.set('bedrock_proxy_servers', get(this.proxyServersStore));
+        await this.store.save();
+    }
+
+    private async persistProxyFavorites(): Promise<void> {
+        if (!this.store) {
+            return;
+        }
+        await this.store.set('bedrock_proxy_favorites', [...get(this.proxyFavoritesStore)]);
+        await this.store.save();
     }
 
     async toggleFavorite(realmId: number): Promise<void> {
@@ -359,6 +588,8 @@ export class BedrockManager {
 
     async connectToRealm(realm: RealmEntry): Promise<void> {
         this.statusMessageStore.set('');
+        this.realmsLogsStore.set([]);
+        this.connectionErrorStore.set(null);
         try {
             await invoke('bedrock_start_realms', {
                 realmId: realm.id,
@@ -373,6 +604,7 @@ export class BedrockManager {
         } catch (e) {
             this.statusMessageStore.set(`Error: ${e}`);
             logError(`Realms start failed: ${e}`);
+            this.detectError(String(e));
         }
     }
 
@@ -385,6 +617,47 @@ export class BedrockManager {
             this.statusMessageStore.set('Disconnected');
         } catch (e) {
             this.statusMessageStore.set(`Error stopping: ${e}`);
+        }
+    }
+
+    private async subscribeToLogs(): Promise<void> {
+        if (this.logUnlisten) {
+            return;
+        }
+        const appWebview = getCurrentWebviewWindow();
+        this.logUnlisten = await appWebview.listen<BedrockLogEntry>(
+            'bedrock-log',
+            (event) => {
+                const entry = event.payload;
+                this.realmsLogsStore.update((current) => {
+                    const next = current.length >= MAX_LOG_ENTRIES
+                        ? [...current.slice(current.length - MAX_LOG_ENTRIES + 1), entry]
+                        : [...current, entry];
+                    return next;
+                });
+                if (entry.level === 'ERROR') {
+                    this.detectError(entry.message);
+                }
+            }
+        );
+    }
+
+    private detectError(message: string): void {
+        if (get(this.connectionErrorStore)) {
+            return;
+        }
+        if (!FAILURE_WORDS.test(message)) {
+            return;
+        }
+        for (const pattern of ERROR_PATTERNS) {
+            if (pattern.regex.test(message)) {
+                this.connectionErrorStore.set({
+                    kind: pattern.kind,
+                    message,
+                    suggestion: pattern.suggestion,
+                });
+                return;
+            }
         }
     }
 
@@ -421,6 +694,10 @@ export class BedrockManager {
 
     destroy(): void {
         this.cleanupLoginListener();
+        if (this.logUnlisten) {
+            this.logUnlisten();
+            this.logUnlisten = null;
+        }
         if (this.copiedTimeout) {
             clearTimeout(this.copiedTimeout);
         }

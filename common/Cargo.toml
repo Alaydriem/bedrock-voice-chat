@@ -23,6 +23,14 @@ templates = ["dep:rocket_dyn_templates", "server"]
 browser = ["dep:webbrowser"]
 openapi = ["dep:schemars"]
 
+# Bedrock proxy/realms protocol stack. Pulls in webrtc-rs (patched fork) and
+# tokio-raknet (patched fork). Enabled by both client (proxy/realms feature)
+# and server (transfer relay feature).
+bedrock-protocol = ["dep:bedrock-protocol"]
+# Bedrock embedded-server stack. Server-only: brings in BedrockServer/ServerConfig
+# for the in-process JNI/embedded path. Implies bedrock-protocol.
+bedrock-server = ["dep:bedrock-server", "bedrock-protocol"]
+
 # Server-only feature - enables rocket, sea-orm, and related deps
 server = [
     "dep:rocket",
@@ -89,6 +97,8 @@ sea-orm = { version = "^2.0.0-rc.30", optional = true, features = [
 sea-orm-rocket = { version = "^0.6", optional = true }
 clap = { version = "^4", features = ["derive"], optional = true }
 schemars = { workspace = true, optional = true }
+bedrock-protocol = { git = "https://github.com/alaydriem/bedrock-protocol-rs", branch = "master", optional = true }
+bedrock-server = { git = "https://github.com/alaydriem/bedrock-protocol-rs", branch = "master", optional = true }
 
 [target."cfg(any(target_os = \"windows\"))".dependencies]
 cpal = { version = "^0.17", optional = true, features = ["asio"] }

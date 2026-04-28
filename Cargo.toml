@@ -38,3 +38,4 @@ audioadapter-buffers = { version = "^3" }
 tauri-plugin-deep-link = { git = "https://github.com/charlesportwoodii/tauri-plugin-deep-link", branch = "master" }
 sentry = { git = "https://github.com/Alaydriem/sentry-rust", branch = "0.46.x" }
 sentry-rust-minidump = { git = "https://github.com/Alaydriem/sentry-rust-minidump", branch = "master" }
+webrtc = { git = "https://github.com/alaydriem/webrtc", branch = "larger-buffer-size" }

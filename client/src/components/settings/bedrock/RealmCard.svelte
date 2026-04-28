@@ -7,10 +7,11 @@
         isActive: boolean;
         disabled: boolean;
         onConnect: () => void;
+        onDisconnect: () => void;
         onToggleFavorite: () => void;
     }
 
-    let { realm, isFavorite, isActive, disabled, onConnect, onToggleFavorite }: Props = $props();
+    let { realm, isFavorite, isActive, disabled, onConnect, onDisconnect, onToggleFavorite }: Props = $props();
 
     let gradientStyle = $derived(
         `background: linear-gradient(135deg, hsl(${(realm.id * 47) % 360}, 55%, 45%), hsl(${(realm.id * 47 + 120) % 360}, 45%, 35%))`
@@ -47,22 +48,35 @@
         <!-- Card body overlaid at bottom -->
         <div class="absolute bottom-0 w-full p-4">
             <h3 class="text-lg font-medium text-white line-clamp-1">{realm.name}</h3>
-            <p class="mt-1 text-xs text-slate-200 line-clamp-1">{realm.motd || "No description"}</p>
+            <p class="mt-1 text-xs text-slate-200 line-clamp-1">ID: {realm.id}</p>
         </div>
     </div>
 
     <!-- Action area -->
-    <div class="flex items-center justify-between p-3 bg-white dark:bg-navy-700">
-        <span class="text-tiny+ text-slate-400 dark:text-navy-300 truncate max-w-[50%]">
-            {realm.owner_uuid.substring(0, 8)}...
-        </span>
-        <button
-            class="btn btn-sm font-medium text-white
-                   {isActive ? 'bg-success hover:bg-success-focus' : 'bg-primary hover:bg-primary-focus dark:bg-accent dark:hover:bg-accent-focus'}"
-            onclick={onConnect}
-            disabled={disabled}
-        >
-            {isActive ? "Connected" : "Connect"}
-        </button>
+    <div class="flex items-center justify-end p-3 bg-white dark:bg-navy-700">
+        {#if isActive}
+            <div class="flex items-center gap-2">
+                <button
+                    class="btn btn-sm font-medium text-white bg-success hover:bg-success-focus"
+                    disabled
+                >
+                    Connected
+                </button>
+                <button
+                    class="btn btn-sm font-medium text-white bg-error hover:bg-error-focus"
+                    onclick={onDisconnect}
+                >
+                    Disconnect
+                </button>
+            </div>
+        {:else}
+            <button
+                class="btn btn-sm font-medium text-white bg-primary hover:bg-primary-focus dark:bg-accent dark:hover:bg-accent-focus"
+                onclick={onConnect}
+                disabled={disabled}
+            >
+                Connect
+            </button>
+        {/if}
     </div>
 </div>

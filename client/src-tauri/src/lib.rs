@@ -77,6 +77,9 @@ pub fn run() {
 
     let sentry_logger = Arc::new(logging::SentryLogger::new(true));
 
+    #[cfg(feature = "bedrock-protocol")]
+    let bedrock_log_channel = Arc::new(crate::bedrock::log_capture::BedrockLogChannel::init());
+
     builder
         .plugin(
             tauri_plugin_log::Builder::new()
@@ -86,14 +89,23 @@ pub fn run() {
                         .and_then(|s| s.parse::<log::LevelFilter>().ok())
                         .unwrap_or(log::LevelFilter::Info),
                 )
+                .level_for("webrtc", log::LevelFilter::Warn)
+                .level_for("webrtc_ice", log::LevelFilter::Warn)
+                .level_for("webrtc_sctp", log::LevelFilter::Warn)
+                .level_for("webrtc_mdns", log::LevelFilter::Warn)
+                .level_for("webrtc_dtls", log::LevelFilter::Warn)
+                .level_for("dtls", log::LevelFilter::Warn)
                 .targets([
                     tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stderr),
                     tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
                     tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir { file_name: None }),
-                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Dispatch(
-                        fern::Dispatch::new()
-                            .chain(Box::new(sentry_logger.clone()) as Box<dyn log::Log>),
-                    )),
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Dispatch({
+                        let dispatch = fern::Dispatch::new()
+                            .chain(Box::new(sentry_logger.clone()) as Box<dyn log::Log>);
+                        #[cfg(feature = "bedrock-protocol")]
+                        let dispatch = dispatch.chain(Box::new(crate::bedrock::log_capture::BedrockLogger) as Box<dyn log::Log>);
+                        dispatch
+                    })),
                 ])
                 .build()
         )
@@ -220,6 +232,8 @@ pub fn run() {
             crate::commands::bedrock::bedrock_xbox_logout,
             #[cfg(feature = "bedrock-protocol")]
             crate::commands::bedrock::bedrock_restore_auth,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_force_refresh,
         ])
         .setup(move |app| {
             let sentry_logger = sentry_logger.clone();
@@ -266,14 +280,34 @@ pub fn run() {
 
             let telemetry_filter = telemetry.clone();
             use tracing_subscriber::prelude::*;
-            tracing_subscriber::registry()
+            let registry = tracing_subscriber::registry()
                 .with(
                     sentry::integrations::tracing::layer()
                         .with_filter(tracing_subscriber::filter::dynamic_filter_fn(move |_, _| {
                             telemetry_filter.is_enabled()
                         }))
-                )
-                .init();
+                );
+            #[cfg(feature = "bedrock-protocol")]
+            let registry = registry.with(crate::bedrock::log_capture::BedrockTracingLayer);
+            registry.init();
+
+            #[cfg(feature = "bedrock-protocol")]
+            {
+                use tauri::Emitter;
+                let mut rx = bedrock_log_channel.sender().subscribe();
+                let log_emit_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    loop {
+                        match rx.recv().await {
+                            Ok(entry) => {
+                                let _ = log_emit_handle.emit("bedrock-log", &entry);
+                            }
+                            Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                            Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                        }
+                    }
+                });
+            }
 
             let install_id = match store.get("install_id").and_then(|v| v.as_str().map(String::from)) {
                 Some(id) => id,
@@ -408,9 +442,9 @@ pub fn run() {
             app.manage(Mutex::new(app_state));
 
             #[cfg(feature = "bedrock-protocol")]
-            let bedrock_position_cache = {
+            let bedrock_player_state_cache = {
                 let bedrock_state = crate::bedrock::BedrockState::new();
-                let cache = std::sync::Arc::clone(&bedrock_state.position_cache);
+                let cache = std::sync::Arc::clone(&bedrock_state.player_state_cache);
                 app.manage(Mutex::new(bedrock_state));
                 app.manage(crate::bedrock::iap::BedrockEntitlementCheck::new(app.handle().clone()));
                 cache
@@ -442,7 +476,7 @@ pub fn run() {
                 handle.clone(),
                 Some(handle.state::<Arc<Mutex<RecordingManager>>>().inner().clone()),
                 #[cfg(feature = "bedrock-protocol")]
-                Some(bedrock_position_cache),
+                Some(bedrock_player_state_cache),
             );
             app.manage(Mutex::new(audio_stream));
 

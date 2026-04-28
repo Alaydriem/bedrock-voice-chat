@@ -33,6 +33,11 @@ pub use s2n_quic_core;
 #[cfg(feature = "audio")]
 pub use rodio::cpal;
 
+#[cfg(feature = "bedrock-protocol")]
+pub use bedrock_protocol;
+#[cfg(feature = "bedrock-server")]
+pub use bedrock_server;
+
 // Re-export game types for backward compatibility
 pub use structs::game::{Game, Coordinate, Orientation, Player, GameData};
 

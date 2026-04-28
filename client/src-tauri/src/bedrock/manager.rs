@@ -1,0 +1,388 @@
+use std::net::SocketAddr;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
+
+use common::bedrock_protocol::{
+    AuthInfo, AuthManager, Event, Proxy, ProxyConfig, RealmConfig,
+    proxy::{WarmPool, WarmTarget},
+};
+use common::traits::StreamTrait;
+use log::{error, info};
+use tokio::sync::oneshot;
+use tokio::task::{AbortHandle, JoinHandle};
+
+use crate::bedrock::backend::Backend;
+use crate::bedrock::player_state_cache::BedrockPlayerStateCache;
+use crate::bedrock::session_state::BedrockSessionState;
+
+pub struct BedrockProxyManager {
+    listen_port: u16,
+    backend: Option<Backend>,
+    player_state_cache: Arc<BedrockPlayerStateCache>,
+    jobs: Vec<AbortHandle>,
+    shutdown: Arc<AtomicBool>,
+    shutdown_tx: Option<oneshot::Sender<()>>,
+    listener_handle: Option<JoinHandle<()>>,
+}
+
+impl BedrockProxyManager {
+    pub fn new_direct(
+        target_host: String,
+        target_port: u16,
+        listen_port: u16,
+        auth_manager: Arc<AuthManager>,
+        player_state_cache: Arc<BedrockPlayerStateCache>,
+    ) -> Self {
+        Self {
+            listen_port,
+            backend: Some(Backend::Direct {
+                target_host,
+                target_port,
+                auth_manager,
+            }),
+            player_state_cache,
+            jobs: vec![],
+            shutdown: Arc::new(AtomicBool::new(false)),
+            shutdown_tx: None,
+            listener_handle: None,
+        }
+    }
+
+    pub fn new_realm(
+        realm_id: u64,
+        listen_port: u16,
+        xbl_token: String,
+        user_hash: String,
+        access_token: String,
+        realms_api: common::bedrock_protocol::RealmsApi,
+        player_state_cache: Arc<BedrockPlayerStateCache>,
+    ) -> Self {
+        let auth = AuthInfo::xbl_token_with_access(xbl_token, user_hash, access_token);
+        let realm_config = RealmConfig::new(realm_id, realms_api);
+        Self {
+            listen_port,
+            backend: Some(Backend::Realm { realm_config, auth }),
+            player_state_cache,
+            jobs: vec![],
+            shutdown: Arc::new(AtomicBool::new(false)),
+            shutdown_tx: None,
+            listener_handle: None,
+        }
+    }
+
+}
+
+impl StreamTrait for BedrockProxyManager {
+    async fn start(&mut self) -> Result<(), anyhow::Error> {
+        if !self.jobs.is_empty() {
+            return Err(anyhow::anyhow!("Bedrock manager is already running"));
+        }
+        let _ = self.shutdown.store(false, Ordering::Relaxed);
+
+        let mut jobs = vec![];
+
+        match self.listener(self.shutdown.clone()) {
+            Ok(job) => jobs.push(job),
+            Err(e) => {
+                error!("Bedrock listener encountered an error: {:?}", e);
+                return Err(e);
+            }
+        };
+
+        self.jobs = jobs.iter().map(|h| h.abort_handle()).collect();
+        if let Some(handle) = jobs.into_iter().next() {
+            self.listener_handle = Some(handle);
+        }
+        Ok(())
+    }
+
+    async fn stop(&mut self) -> Result<(), anyhow::Error> {
+        if let Some(tx) = self.shutdown_tx.take() {
+            let _ = tx.send(());
+        }
+        let _ = self.shutdown.store(true, Ordering::Relaxed);
+
+        let _ = tokio::time::sleep(Duration::from_millis(100)).await;
+
+        for job in &self.jobs {
+            job.abort();
+        }
+
+        if let Some(handle) = self.listener_handle.take() {
+            let _ = handle.await;
+        }
+
+        self.jobs = vec![];
+        self.player_state_cache.clear();
+        info!("Bedrock connect manager stopped");
+        Ok(())
+    }
+
+    fn is_stopped(&self) -> bool {
+        self.jobs.len() == 0
+    }
+
+    async fn metadata(&mut self, _key: String, _value: String) -> Result<(), anyhow::Error> {
+        Ok(())
+    }
+}
+
+impl BedrockProxyManager {
+    fn listener(&mut self, _shutdown: Arc<AtomicBool>) -> Result<JoinHandle<()>, anyhow::Error> {
+        let backend = self
+            .backend
+            .take()
+            .ok_or_else(|| anyhow::anyhow!("Backend missing — manager already started once"))?;
+
+        let (shutdown_tx, mut shutdown_rx) = oneshot::channel::<()>();
+        self.shutdown_tx = Some(shutdown_tx);
+
+        let listen_port = self.listen_port;
+        let player_state_cache = Arc::clone(&self.player_state_cache);
+
+        let handle = tokio::spawn(async move {
+            let bind_addr: SocketAddr = match format!("0.0.0.0:{}", listen_port).parse() {
+                Ok(a) => a,
+                Err(e) => {
+                    error!("Bedrock listener invalid bind: {}", e);
+                    return;
+                }
+            };
+
+            let (proxy_config_realm, motd, sub_motd) = match &backend {
+                Backend::Direct { .. } => (
+                    None,
+                    "BVC Proxy Connect".to_string(),
+                    "Bedrock Voice Chat Proxy".to_string(),
+                ),
+                Backend::Realm { realm_config, .. } => (
+                    Some(realm_config.clone()),
+                    "BVC Realms Connect".to_string(),
+                    "Bedrock Voice Chat Realms Proxy".to_string(),
+                ),
+            };
+
+            let config = ProxyConfig {
+                bind: bind_addr,
+                realm: proxy_config_realm,
+                motd,
+                sub_motd,
+                ..Default::default()
+            };
+
+            let mut proxy = match Proxy::new(config).await {
+                Ok(p) => p,
+                Err(e) => {
+                    error!("Bedrock proxy bind failed: {}", e);
+                    return;
+                }
+            };
+            info!("Bedrock proxy listening on {}", proxy.local_addr());
+
+            // Resolve the direct backend hostname once. Realm backends don't need this —
+            // the Realms API resolves the live world address inside dial_realm.
+            let direct_target_addr: Option<SocketAddr> = match &backend {
+                Backend::Direct { target_host, target_port, .. } => {
+                    match tokio::net::lookup_host(format!("{}:{}", target_host, target_port)).await {
+                        Ok(mut addrs) => match addrs.next() {
+                            Some(addr) => Some(addr),
+                            None => {
+                                error!(
+                                    "Bedrock listener could not resolve {}:{} — no addresses returned",
+                                    target_host, target_port
+                                );
+                                return;
+                            }
+                        },
+                        Err(e) => {
+                            error!(
+                                "Bedrock listener failed to resolve {}:{}: {}",
+                                target_host, target_port, e
+                            );
+                            return;
+                        }
+                    }
+                }
+                Backend::Realm { .. } => None,
+            };
+
+            // WarmPool only makes sense for Direct backends. Upstream's
+            // `dial_realm` requires a client GameVersion (extracted from the
+            // downstream Login JWT) — at preconnect time no client has connected
+            // yet, so the Realm warm dial is guaranteed to fail (warm.rs:67-73).
+            // Calling it just generates a misleading "WarmPool: dial failed"
+            // error on every Realm connect. Realm sessions take the lazy path
+            // via `conn.connect_to_realm(...)` which has the GameVersion.
+            let warm_pool: Option<Arc<WarmPool>> = match (&backend, direct_target_addr) {
+                (Backend::Direct { .. }, Some(addr)) => {
+                    info!("Bedrock WarmPool dialing direct backend at {}", addr);
+                    Some(Arc::new(WarmPool::start(WarmTarget::Direct(addr), None)))
+                }
+                (Backend::Realm { .. }, _) => None,
+                (Backend::Direct { .. }, None) => unreachable!("direct backend without resolved addr"),
+            };
+
+            let backend = Arc::new(backend);
+
+            let mut child_handles: Vec<JoinHandle<()>> = vec![];
+
+            loop {
+                tokio::select! {
+                    _ = &mut shutdown_rx => {
+                        info!("Bedrock listener received shutdown signal");
+                        break;
+                    }
+                    conn = proxy.accept() => {
+                        let Some(conn) = conn else { break; };
+                        let player_name = conn.player.name.clone();
+                        let player_uuid = if conn.player.uuid.is_empty() {
+                            None
+                        } else {
+                            Some(conn.player.uuid.clone())
+                        };
+                        info!("Bedrock: player connected: {}", player_name);
+                        player_state_cache.set_local_gamertag(player_name.clone());
+
+                        let child_cache = Arc::clone(&player_state_cache);
+                        let child_warm: Option<Arc<WarmPool>> = warm_pool.clone();
+                        let child_backend = Arc::clone(&backend);
+                        let child_player_name = player_name.clone();
+
+                        let h = tokio::spawn(async move {
+                            let auth_for_dial = match child_backend.as_ref() {
+                                Backend::Realm { auth, .. } => auth.clone(),
+                                Backend::Direct { auth_manager, .. } => {
+                                    match auth_manager
+                                        .auth_for(&conn.player, |code, url, _name| {
+                                            info!("Device code: {} URL: {}", code, url);
+                                        })
+                                        .await
+                                    {
+                                        Ok(a) => a,
+                                        Err(e) => {
+                                            error!("Auth failed for {}: {}", child_player_name, e);
+                                            return;
+                                        }
+                                    }
+                                }
+                            };
+
+                            let warm = match &child_warm {
+                                Some(pool) => pool.take().await,
+                                None => None,
+                            };
+                            let session_result = if let Some(warm) = warm {
+                                info!("Bedrock: splicing {} onto warm backend", child_player_name);
+                                conn.splice_onto_warm(warm, auth_for_dial, None::<fn(&str, &str)>).await
+                            } else {
+                                info!("Bedrock: no warm slot for {}, lazy dial", child_player_name);
+                                match child_backend.as_ref() {
+                                    Backend::Direct { .. } => {
+                                        let addr = direct_target_addr
+                                            .expect("direct backend must have resolved addr");
+                                        conn.connect_to(addr, auth_for_dial, None::<fn(&str, &str)>).await
+                                    }
+                                    Backend::Realm { .. } => {
+                                        conn.connect_to_realm(auth_for_dial, None::<fn(&str, &str)>).await
+                                    }
+                                }
+                            };
+
+                            let mut session = match session_result {
+                                Ok(s) => s,
+                                Err(e) => {
+                                    error!("Bedrock connect failed for {}: {}", child_player_name, e);
+                                    return;
+                                }
+                            };
+
+                            info!("Bedrock session started for {}", child_player_name);
+
+                            let mut state = BedrockSessionState::new(
+                                child_player_name.clone(),
+                                player_uuid,
+                            );
+
+                            while let Some(evt) = session.next().await {
+                                match evt {
+                                    Event::StartGame(_dir, packet) => state.apply_start_game(&packet),
+                                    Event::PlayerAuthInput(_dir, packet) => state.apply_position(&packet),
+                                    Event::ChangeDimension(_dir, packet) => state.apply_change_dimension(&packet),
+                                    Event::SetPlayerGameType(_dir, packet) => state.apply_game_type(packet.gamemode),
+                                    Event::UpdatePlayerGameType(_dir, packet) => state.apply_game_type(packet.gamemode),
+                                    Event::Disconnected(reason) => {
+                                        info!("Bedrock session disconnected for {}: {:?}", child_player_name, reason);
+                                        break;
+                                    }
+                                    _ => continue,
+                                }
+                                child_cache.set(&child_player_name, state.to_player_enum());
+                            }
+
+                            info!("Bedrock session ended for {}", child_player_name);
+                        });
+                        child_handles.push(h);
+                    }
+                }
+            }
+
+            drop(proxy);
+            for h in &child_handles {
+                h.abort();
+            }
+            for h in child_handles {
+                let _ = h.await;
+            }
+            info!("Bedrock accept loop drained, listener released");
+        });
+
+        Ok(handle)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use common::bedrock_protocol::AuthManager;
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn start_stop_start_does_not_leak_port() {
+        let port: u16 = 21900;
+        let cache = Arc::new(BedrockPlayerStateCache::new());
+        let auth_cache = moka::future::Cache::builder()
+            .time_to_live(std::time::Duration::from_secs(60))
+            .max_capacity(10)
+            .build();
+        let auth_mgr = Arc::new(AuthManager::new("0000000048183522", auth_cache));
+
+        let mut mgr = BedrockProxyManager::new_direct(
+            "127.0.0.1".into(),
+            65535,
+            port,
+            Arc::clone(&auth_mgr),
+            Arc::clone(&cache),
+        );
+
+        mgr.start().await.expect("first start");
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        mgr.stop().await.expect("stop");
+        assert!(mgr.is_stopped());
+
+        let probe = tokio::net::UdpSocket::bind(("0.0.0.0", port))
+            .await
+            .expect("port still bound — manager leaked the listener");
+        drop(probe);
+
+        let mut mgr2 = BedrockProxyManager::new_direct(
+            "127.0.0.1".into(),
+            65535,
+            port,
+            auth_mgr,
+            cache,
+        );
+        mgr2.start().await.expect("second start on same port");
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        mgr2.stop().await.expect("second stop");
+    }
+}

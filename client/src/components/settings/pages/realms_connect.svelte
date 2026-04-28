@@ -3,6 +3,8 @@
     import type { BedrockManager } from "../../../js/app/managers/bedrock/BedrockManager";
     import XboxLoginModal from "../bedrock/XboxLoginModal.svelte";
     import RealmCard from "../bedrock/RealmCard.svelte";
+    import RealmsLogPanel from "../bedrock/RealmsLogPanel.svelte";
+    import RealmsErrorBanner from "../bedrock/RealmsErrorBanner.svelte";
 
     interface Props {
         bedrockManager: BedrockManager;
@@ -18,9 +20,7 @@
     const favorites = bedrockManager.favorites;
     const isLoadingRealms = bedrockManager.isLoadingRealms;
     const activeRealmId = bedrockManager.activeRealmId;
-    const activeRealmName = bedrockManager.activeRealmName;
     const sortedRealms = bedrockManager.sortedRealms;
-    const statusMessage = bedrockManager.statusMessage;
     const showLoginModal = bedrockManager.showLoginModal;
 
     onMount(() => { bedrockManager.initialize(); });
@@ -67,24 +67,7 @@
                 </button>
             </div>
         {:else}
-            {#if $realmsRunning}
-                <div class="card p-4 border-l-4 border-success">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm font-medium text-slate-700 dark:text-navy-100">
-                                Connected to {$activeRealmName}
-                            </p>
-                            <p class="text-xs text-slate-500 dark:text-navy-300">Realms session active</p>
-                        </div>
-                        <button
-                            class="btn bg-error font-medium text-white hover:bg-error-focus"
-                            onclick={() => bedrockManager.stopRealms()}
-                        >
-                            Disconnect
-                        </button>
-                    </div>
-                </div>
-            {/if}
+            <RealmsErrorBanner {bedrockManager} />
 
             <div class="flex items-center justify-between">
                 <h2 class="font-medium tracking-wide text-slate-700 dark:text-navy-100 lg:text-base">
@@ -94,7 +77,7 @@
                     <button
                         class="btn bg-slate-150 font-medium text-slate-800 hover:bg-slate-200
                                dark:bg-navy-500 dark:text-navy-100 dark:hover:bg-navy-450"
-                        onclick={() => bedrockManager.loadRealms()}
+                        onclick={() => bedrockManager.refreshRealms()}
                         disabled={$isLoadingRealms || $realmsRunning}
                     >
                         {$isLoadingRealms ? "Loading..." : "Refresh"}
@@ -139,19 +122,13 @@
                             isActive={$realmsRunning && $activeRealmId === realm.id}
                             disabled={$realmsRunning || $proxyRunning}
                             onConnect={() => bedrockManager.connectToRealm(realm)}
+                            onDisconnect={() => bedrockManager.stopRealms()}
                             onToggleFavorite={() => bedrockManager.toggleFavorite(realm.id)}
                         />
                     {/each}
                 </div>
             {/if}
-        {/if}
-
-        {#if $statusMessage}
-            <div class="card p-4">
-                <p class="text-sm {$statusMessage.startsWith('Error') ? 'text-error' : 'text-success'}">
-                    {$statusMessage}
-                </p>
-            </div>
+            <RealmsLogPanel {bedrockManager} />
         {/if}
     {/if}
 </div>

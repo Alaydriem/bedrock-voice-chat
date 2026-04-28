@@ -1,9 +1,12 @@
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use common::request::bedrock::TransferTargetRequest;
 use common::traits::StreamTrait;
-use tokio::sync::watch;
-use tokio::task::AbortHandle;
+use log::{error, info};
+use tokio::sync::oneshot;
+use tokio::task::{AbortHandle, JoinHandle};
 
 pub struct TransferKeepalive {
     server_url: String,
@@ -11,8 +14,9 @@ pub struct TransferKeepalive {
     host: String,
     port: u16,
     client: reqwest::Client,
-    abort_handle: Option<AbortHandle>,
-    shutdown_tx: Option<watch::Sender<bool>>,
+    jobs: Vec<AbortHandle>,
+    shutdown: Arc<AtomicBool>,
+    shutdown_tx: Option<oneshot::Sender<()>>,
 }
 
 impl TransferKeepalive {
@@ -29,15 +33,65 @@ impl TransferKeepalive {
             host,
             port,
             client,
-            abort_handle: None,
+            jobs: vec![],
+            shutdown: Arc::new(AtomicBool::new(false)),
             shutdown_tx: None,
         }
     }
+}
 
-    async fn start_keepalive_loop(
-        &self,
-        mut shutdown_rx: watch::Receiver<bool>,
-    ) -> Result<AbortHandle, anyhow::Error> {
+impl StreamTrait for TransferKeepalive {
+    async fn start(&mut self) -> Result<(), anyhow::Error> {
+        if !self.jobs.is_empty() {
+            return Err(anyhow::anyhow!("Keepalive already running"));
+        }
+        let _ = self.shutdown.store(false, Ordering::Relaxed);
+
+        let mut jobs = vec![];
+
+        match self.listener(self.shutdown.clone()) {
+            Ok(job) => jobs.push(job),
+            Err(e) => {
+                error!("Keepalive listener encountered an error: {:?}", e);
+                return Err(e);
+            }
+        };
+
+        self.jobs = jobs.iter().map(|h| h.abort_handle()).collect();
+        Ok(())
+    }
+
+    async fn stop(&mut self) -> Result<(), anyhow::Error> {
+        if let Some(tx) = self.shutdown_tx.take() {
+            let _ = tx.send(());
+        }
+        let _ = self.shutdown.store(true, Ordering::Relaxed);
+
+        let _ = tokio::time::sleep(Duration::from_millis(100)).await;
+
+        for job in &self.jobs {
+            job.abort();
+        }
+
+        self.jobs = vec![];
+        info!("Transfer keepalive stopped");
+        Ok(())
+    }
+
+    fn is_stopped(&self) -> bool {
+        self.jobs.len() == 0
+    }
+
+    async fn metadata(&mut self, _key: String, _value: String) -> Result<(), anyhow::Error> {
+        Ok(())
+    }
+}
+
+impl TransferKeepalive {
+    fn listener(&mut self, shutdown: Arc<AtomicBool>) -> Result<JoinHandle<()>, anyhow::Error> {
+        let (shutdown_tx, mut shutdown_rx) = oneshot::channel::<()>();
+        self.shutdown_tx = Some(shutdown_tx);
+
         let server_url = self.server_url.clone();
         let xuid = self.xuid.clone();
         let host = self.host.clone();
@@ -46,6 +100,10 @@ impl TransferKeepalive {
 
         let handle = tokio::spawn(async move {
             loop {
+                if shutdown.load(Ordering::Relaxed) {
+                    break;
+                }
+
                 let request = TransferTargetRequest {
                     xuid: xuid.clone(),
                     host: host.clone(),
@@ -86,52 +144,14 @@ impl TransferKeepalive {
 
                 tokio::select! {
                     _ = tokio::time::sleep(Duration::from_secs(300)) => {}
-                    _ = shutdown_rx.wait_for(|&v| v) => {
-                        log::info!("Keepalive shutdown signal received");
+                    _ = &mut shutdown_rx => {
+                        info!("Keepalive shutdown signal received");
                         break;
                     }
                 }
             }
         });
 
-        Ok(handle.abort_handle())
-    }
-}
-
-impl StreamTrait for TransferKeepalive {
-    async fn start(&mut self) -> Result<(), anyhow::Error> {
-        if self.abort_handle.is_some() {
-            return Err(anyhow::anyhow!("Keepalive already running"));
-        }
-
-        let (shutdown_tx, shutdown_rx) = watch::channel(false);
-        self.shutdown_tx = Some(shutdown_tx);
-
-        let handle = self.start_keepalive_loop(shutdown_rx).await?;
-        self.abort_handle = Some(handle);
-
-        Ok(())
-    }
-
-    async fn stop(&mut self) -> Result<(), anyhow::Error> {
-        if let Some(tx) = self.shutdown_tx.take() {
-            let _ = tx.send(true);
-        }
-
-        if let Some(task) = &self.abort_handle {
-            task.abort();
-        }
-
-        self.abort_handle = None;
-        log::info!("Transfer keepalive stopped");
-        Ok(())
-    }
-
-    fn is_stopped(&self) -> bool {
-        self.abort_handle.is_none()
-    }
-
-    async fn metadata(&mut self, _key: String, _value: String) -> Result<(), anyhow::Error> {
-        Ok(())
+        Ok(handle)
     }
 }

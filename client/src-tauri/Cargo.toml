@@ -83,7 +83,6 @@ tracing-subscriber = { version = "^0.3", default-features = false, features = ["
 parking_lot = { version = "^0.12" }
 open-feature = { version = "0.3", features = ["serde_json"] }
 shiguredo_mp4 = { version = "2026.1.0" }
-bedrock-protocol = { git = "https://github.com/alaydriem/bedrock-protocol-rs", branch = "master", optional = true }
 if-addrs = { workspace = true, optional = true }
 
 # Desktop Targets
@@ -103,6 +102,6 @@ windows-targets = { version = "^0.53.0" }
 [features]
 default = ["bedrock-protocol"]
 bedrock-protocol = [
-    "dep:bedrock-protocol",
+    "common/bedrock-protocol",
     "dep:if-addrs",
 ]
