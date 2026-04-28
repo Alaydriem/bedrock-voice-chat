@@ -1,4 +1,5 @@
 use crate::websocket::{WebSocketConfig, WebSocketManager};
+use common::traits::StreamTrait;
 use tauri::State;
 use tauri::async_runtime::Mutex;
 
