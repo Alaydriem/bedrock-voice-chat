@@ -72,16 +72,9 @@ pub(crate) async fn change_network_stream(
         },
         Err(cf_err) => {
             info!("Cloudflare DNS failed for {}: {}. Trying system resolver.", server_fqdn, cf_err);
-            let system = match Resolver::builder(TokioRuntimeProvider::default()).and_then(|b| b.build()) {
-                Ok(r) => r,
-                Err(e) => {
-                    error!("System resolver build failed for {}: {}", server_fqdn, e);
-                    return Err(format!("DNS_FAIL: {}", e));
-                }
-            };
-            match system.lookup_ip(server_fqdn.clone()).await {
-                Ok(response) => match response.iter().next() {
-                    Some(ip) => SocketAddr::new(ip, port),
+            match tokio::net::lookup_host(format!("{}:{}", server_fqdn, port)).await {
+                Ok(mut addrs) => match addrs.next() {
+                    Some(addr) => addr,
                     None => {
                         error!("System DNS returned no IPs for {}", server_fqdn);
                         return Err("DNS_FAIL: System DNS returned no results".to_string());
