@@ -72,7 +72,7 @@ pub(crate) async fn change_network_stream(
         },
         Err(cf_err) => {
             info!("Cloudflare DNS failed for {}: {}. Trying system resolver.", server_fqdn, cf_err);
-            let system = match Resolver::builder_tokio().and_then(|b| b.build()) {
+            let system = match Resolver::builder(TokioRuntimeProvider::default()).and_then(|b| b.build()) {
                 Ok(r) => r,
                 Err(e) => {
                     error!("System resolver build failed for {}: {}", server_fqdn, e);
