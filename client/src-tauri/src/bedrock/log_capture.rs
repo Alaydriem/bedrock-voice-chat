@@ -8,37 +8,17 @@ use tracing_subscriber::Layer;
 
 const CHANNEL_CAPACITY: usize = 512;
 
-const OWN_TARGET_PREFIXES: &[&str] = &[
-    "client::bedrock",
-    "client_lib::bedrock",
-    "bedrock_voice_chat_client::bedrock",
-];
-
-const EXTERNAL_TARGET_PREFIXES: &[&str] = &[
+const TARGET_PREFIXES: &[&str] = &[
     "bedrock_protocol",
     "bedrock_server",
     "bedrock_network",
     "rust_raknet",
     "raknet",
     "rakrs",
+    "client::bedrock",
+    "client_lib::bedrock",
+    "bedrock_voice_chat_client::bedrock",
 ];
-
-#[derive(Clone, Copy)]
-enum TargetClass {
-    Own,
-    External,
-    None,
-}
-
-fn classify_target(target: &str) -> TargetClass {
-    if OWN_TARGET_PREFIXES.iter().any(|p| target.starts_with(p)) {
-        TargetClass::Own
-    } else if EXTERNAL_TARGET_PREFIXES.iter().any(|p| target.starts_with(p)) {
-        TargetClass::External
-    } else {
-        TargetClass::None
-    }
-}
 
 static SENDER: OnceLock<Arc<broadcast::Sender<BedrockLogEntry>>> = OnceLock::new();
 
@@ -63,6 +43,16 @@ fn target_matches(target: &str) -> bool {
     TARGET_PREFIXES.iter().any(|p| target.starts_with(p))
 }
 
+fn is_log_level_allowed(level: log::Level) -> bool {
+    matches!(level, log::Level::Info | log::Level::Warn | log::Level::Error)
+}
+
+fn is_tracing_level_allowed(level: &tracing::Level) -> bool {
+    *level == tracing::Level::INFO
+        || *level == tracing::Level::WARN
+        || *level == tracing::Level::ERROR
+}
+
 fn emit_entry(entry: BedrockLogEntry) {
     if let Some(tx) = SENDER.get() {
         let _ = tx.send(entry);
@@ -73,11 +63,11 @@ pub struct BedrockLogger;
 
 impl log::Log for BedrockLogger {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
-        metadata.level() <= log::Level::Info && target_matches(metadata.target())
+        is_log_level_allowed(metadata.level()) && target_matches(metadata.target())
     }
 
     fn log(&self, record: &log::Record) {
-        if record.level() > log::Level::Info {
+        if !is_log_level_allowed(record.level()) {
             return;
         }
         if !target_matches(record.target()) {
@@ -98,8 +88,8 @@ pub struct BedrockTracingLayer;
 
 impl<S: Subscriber> Layer<S> for BedrockTracingLayer {
     fn on_event(&self, event: &Event<'_>, _ctx: Context<'_, S>) {
-        let level = *event.metadata().level();
-        if level < tracing::Level::INFO {
+        let level = event.metadata().level();
+        if !is_tracing_level_allowed(level) {
             return;
         }
         let target = event.metadata().target();

@@ -13,9 +13,7 @@ import type { ProxyServerEntry } from './ProxyServerEntry';
 
 const MAX_LOG_ENTRIES = 200;
 
-export type RealmsLogLevel = 'INFO' | 'WARN' | 'ERROR';
-
-const LEVEL_RANK: Record<string, number> = { TRACE: 0, DEBUG: 1, INFO: 2, WARN: 3, ERROR: 4 };
+const ALLOWED_LOG_LEVELS = new Set(['INFO', 'WARN', 'ERROR']);
 
 interface RealmsConnectionError {
     kind: 'nethernet' | 'raknet' | 'auth' | 'generic';
@@ -73,7 +71,6 @@ export class BedrockManager {
 
     private realmsLogsStore: Writable<BedrockLogEntry[]>;
     private logsExpandedStore: Writable<boolean>;
-    private logsMinLevelStore: Writable<RealmsLogLevel>;
     private connectionErrorStore: Writable<RealmsConnectionError | null>;
 
     private proxyServersStore: Writable<ProxyServerEntry[]>;
@@ -109,9 +106,7 @@ export class BedrockManager {
     public readonly codeCopied: Readable<boolean>;
 
     public readonly realmsLogs: Readable<BedrockLogEntry[]>;
-    public readonly visibleRealmsLogs: Readable<BedrockLogEntry[]>;
     public readonly logsExpanded: Readable<boolean>;
-    public readonly logsMinLevel: Readable<RealmsLogLevel>;
     public readonly connectionError: Readable<RealmsConnectionError | null>;
 
     public readonly proxyServers: Readable<ProxyServerEntry[]>;
@@ -157,7 +152,6 @@ export class BedrockManager {
 
         this.realmsLogsStore = writable([]);
         this.logsExpandedStore = writable(false);
-        this.logsMinLevelStore = writable('WARN');
         this.connectionErrorStore = writable(null);
 
         this.proxyServersStore = writable([]);
@@ -193,16 +187,7 @@ export class BedrockManager {
 
         this.realmsLogs = { subscribe: this.realmsLogsStore.subscribe };
         this.logsExpanded = { subscribe: this.logsExpandedStore.subscribe };
-        this.logsMinLevel = { subscribe: this.logsMinLevelStore.subscribe };
         this.connectionError = { subscribe: this.connectionErrorStore.subscribe };
-
-        this.visibleRealmsLogs = derived(
-            [this.realmsLogsStore, this.logsMinLevelStore],
-            ([$logs, $minLevel]) => {
-                const threshold = LEVEL_RANK[$minLevel] ?? LEVEL_RANK.WARN;
-                return $logs.filter((entry) => (LEVEL_RANK[entry.level] ?? 0) >= threshold);
-            }
-        );
 
         this.proxyServers = { subscribe: this.proxyServersStore.subscribe };
         this.proxyFavorites = { subscribe: this.proxyFavoritesStore.subscribe };
@@ -380,10 +365,6 @@ export class BedrockManager {
         this.logsExpandedStore.update((v) => !v);
     }
 
-    setLogsMinLevel(level: RealmsLogLevel): void {
-        this.logsMinLevelStore.set(level);
-    }
-
     clearLogs(): void {
         this.realmsLogsStore.set([]);
         this.connectionErrorStore.set(null);
@@ -459,6 +440,11 @@ export class BedrockManager {
     async startProxy(): Promise<void> {
         this.isProxyLoadingStore.set(true);
         try {
+            try {
+                await invoke('bedrock_force_refresh');
+            } catch (e) {
+                logError(`Token refresh before proxy start failed: ${e}`);
+            }
             const targetHost = get(this.serverHostStore);
             const targetPort = get(this.serverPortStore);
             await invoke('bedrock_start_proxy', {
@@ -591,6 +577,11 @@ export class BedrockManager {
         this.realmsLogsStore.set([]);
         this.connectionErrorStore.set(null);
         try {
+            try {
+                await invoke('bedrock_force_refresh');
+            } catch (e) {
+                logError(`Token refresh before realm connect failed: ${e}`);
+            }
             await invoke('bedrock_start_realms', {
                 realmId: realm.id,
                 realmName: realm.name,
@@ -629,6 +620,9 @@ export class BedrockManager {
             'bedrock-log',
             (event) => {
                 const entry = event.payload;
+                if (!ALLOWED_LOG_LEVELS.has(entry.level)) {
+                    return;
+                }
                 this.realmsLogsStore.update((current) => {
                     const next = current.length >= MAX_LOG_ENTRIES
                         ? [...current.slice(current.length - MAX_LOG_ENTRIES + 1), entry]
