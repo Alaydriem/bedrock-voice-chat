@@ -235,28 +235,27 @@ pub(crate) async fn refresh_server_state(
     Ok(response)
 }
 
-#[cfg(desktop)]
 #[tauri::command(async)]
 pub(crate) async fn link_java_identity(
     app_handle: tauri::AppHandle,
     app_state: State<'_, Mutex<AppState>>,
     gamertag: String,
 ) -> Result<LinkJavaIdentityResponse, String> {
-    let code = McOauthWindow::open(app_handle).await?;
 
-    let state = app_state.lock().await;
-    let api = state.get_api_client()?;
-    api.link_java_identity(
-        code,
-        McOauthWindow::redirect_uri().to_string(),
-        McOauthWindow::client_id().to_string(),
-        gamertag,
-    )
-    .await
-}
+    #[cfg(desktop)]
+    {
+        let code = McOauthWindow::open(app_handle).await?;
 
-#[cfg(not(desktop))]
-#[tauri::command(async)]
-pub(crate) async fn link_java_identity() -> Result<LinkJavaIdentityResponse, String> {
-    Err("Java identity linking is only available on the desktop app".to_string())
+        let state = app_state.lock().await;
+        let api = state.get_api_client()?;
+        return api.link_java_identity(
+            code,
+            McOauthWindow::redirect_uri().to_string(),
+            McOauthWindow::client_id().to_string(),
+            gamertag,
+        )
+        .await
+    }
+
+    return Err("Java identity linking is only available on the desktop app".to_string())
 }

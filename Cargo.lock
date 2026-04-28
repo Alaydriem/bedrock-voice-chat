@@ -950,11 +950,7 @@ checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 [[package]]
 name = "bedrock-network"
 version = "0.0.4"
-<<<<<<< HEAD
 source = "git+https://github.com/alaydriem/bedrock-protocol-rs?branch=master#df552bbd6ddad62db5cca4375aecea0390c16f36"
-=======
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?branch=master#25a21cb9f09718127405ee383169248c786607d2"
->>>>>>> a8c65a3 (feat: semi-working proxy + realms connect)
 dependencies = [
  "bytes",
  "futures-util",
@@ -975,13 +971,8 @@ dependencies = [
 
 [[package]]
 name = "bedrock-protocol"
-<<<<<<< HEAD
 version = "0.0.5"
 source = "git+https://github.com/alaydriem/bedrock-protocol-rs?branch=master#df552bbd6ddad62db5cca4375aecea0390c16f36"
-=======
-version = "0.0.4"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?branch=master#25a21cb9f09718127405ee383169248c786607d2"
->>>>>>> a8c65a3 (feat: semi-working proxy + realms connect)
 dependencies = [
  "aes 0.9.0",
  "aes-gcm",
@@ -9806,11 +9797,7 @@ dependencies = [
  "plist",
  "raw-window-handle",
  "reqwest 0.13.3",
-<<<<<<< HEAD
  "rustls 0.23.40",
-=======
- "rustls 0.23.39",
->>>>>>> a8c65a3 (feat: semi-working proxy + realms connect)
  "serde",
  "serde_json",
  "serde_repr",
@@ -10185,11 +10172,7 @@ dependencies = [
  "osakit",
  "percent-encoding",
  "reqwest 0.13.3",
-<<<<<<< HEAD
  "rustls 0.23.40",
-=======
- "rustls 0.23.39",
->>>>>>> a8c65a3 (feat: semi-working proxy + realms connect)
  "semver",
  "serde",
  "serde_json",

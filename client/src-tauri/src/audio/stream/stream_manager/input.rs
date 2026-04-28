@@ -247,9 +247,9 @@ impl InputStream {
                                 // Clone for error handling
                                 let recovery_tx_for_error = recovery_tx.clone();
                                 let shutdown_for_error = shutdown.clone();
-                                /// Mobile audio backends (CoreAudio on iOS, AAudio on Android)
-                                /// should use the default buffer size, otherwise the
-                                /// InputStream may fail to initialize or produce no audio.
+                                // Mobile audio backends (CoreAudio on iOS, AAudio on Android)
+                                // should use the default buffer size, otherwise the
+                                // InputStream may fail to initialize or produce no audio
                                 #[cfg(any(target_os = "ios", target_os = "android"))]
                                 let buffer_size = rodio::cpal::BufferSize::Default;
 
@@ -616,8 +616,8 @@ impl InputStream {
                             }
                             _ => stored_config,
                         };
-                        /// Mobile audio backends (CoreAudio on iOS, AAudio on Android)
-                        /// should use the default buffer size.
+                        // Mobile audio backends (CoreAudio on iOS, AAudio on Android)
+                        // should use the default buffer size
                         #[cfg(any(target_os = "ios", target_os = "android"))]
                         let buffer_size = rodio::cpal::BufferSize::Default;
 

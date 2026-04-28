@@ -79,7 +79,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref || github.ref }}
 
@@ -215,7 +215,7 @@ jobs:
 
       - name: Upload artifacts
         if: matrix.build_server
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         id: upload-server
         with:
           name: bvc-server-${{ matrix.target }}-${{ github.event_name == 'pull_request' && 'debug' || startsWith(github.ref, 'refs/tags/') && 'release' || inputs.build_mode || 'debug' }}
@@ -278,7 +278,7 @@ jobs:
 
       - name: Upload native library artifact
         if: matrix.build_native_lib
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: bvc-native-lib-${{ matrix.target }}
           path: server/target/${{ matrix.target }}/${{ github.event_name == 'pull_request' && 'debug' || startsWith(github.ref, 'refs/tags/') && 'release' || inputs.build_mode || 'debug' }}/${{ steps.lib-name.outputs.lib_name }}
@@ -327,7 +327,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref || github.ref }}
 
@@ -363,7 +363,7 @@ jobs:
           head -20 ../../docs/openapi.json
 
       - name: Upload OpenAPI spec
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: openapi-json
           path: docs/openapi.json

@@ -37,7 +37,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref || github.ref }}
 
@@ -48,7 +48,7 @@ jobs:
           node .github/scripts/patch-versions.js "${{ inputs.version }}"
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '24'
           cache: 'yarn'
@@ -202,7 +202,7 @@ jobs:
           }
 
       - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         id: upload-windows
         with:
           name: bvc-windows-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
@@ -211,7 +211,7 @@ jobs:
 
       - name: Upload Windows NSIS installer
         if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: bvc-windows-nsis-setup
           path: client/bvc-windows-nsis-setup.exe
@@ -283,7 +283,7 @@ jobs:
 
       - name: Upload Windows updater artifacts
         if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: bvc-windows-updater
           path: |
@@ -320,7 +320,7 @@ jobs:
         run: yarn asyncapi-docs
 
       - name: Upload AsyncAPI YAML
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: asyncapi-yaml
           path: docs/websocket-api.yaml

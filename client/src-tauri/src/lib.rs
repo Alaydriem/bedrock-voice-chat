@@ -39,6 +39,7 @@ pub fn run() {
     _ = common::s2n_quic::provider::tls::rustls::rustls::crypto::aws_lc_rs::default_provider()
         .install_default();
 
+    #[allow(unused_variables)]
     let sentry_guard = sentry::init((
         option_env!("SENTRY_DSN").unwrap_or(""),
         sentry::ClientOptions {
@@ -61,6 +62,7 @@ pub fn run() {
         .map_err(|e| warn!("Minidump crash reporter failed to initialize: {e}"))
         .ok();
 
+    #[allow(unused_mut)]
     let mut builder = tauri::Builder::default();
 
     // For desktop applications, enforce only a single running instance at a time

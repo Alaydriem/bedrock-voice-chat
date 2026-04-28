@@ -44,12 +44,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref || github.ref }}
 
       - name: Download Windows x64 native library
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         continue-on-error: true
         with:
           name: bvc-native-lib-x86_64-pc-windows-msvc
@@ -58,7 +58,7 @@ jobs:
           run-id: ${{ inputs.artifact_run_id || github.run_id }}
 
       - name: Download Linux x64 native library
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         continue-on-error: true
         with:
           name: bvc-native-lib-x86_64-unknown-linux-gnu
@@ -67,7 +67,7 @@ jobs:
           run-id: ${{ inputs.artifact_run_id || github.run_id }}
 
       - name: Download Linux ARM64 native library
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         continue-on-error: true
         with:
           name: bvc-native-lib-aarch64-unknown-linux-gnu
@@ -76,7 +76,7 @@ jobs:
           run-id: ${{ inputs.artifact_run_id || github.run_id }}
 
       - name: Download Darwin ARM64 native library
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         continue-on-error: true
         with:
           name: bvc-native-lib-aarch64-apple-darwin
@@ -88,7 +88,7 @@ jobs:
         run: find mods/java/common/src/main/resources/native -type f -ls 2>/dev/null || echo "No native libraries found"
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -154,7 +154,7 @@ jobs:
           echo "Prepared artifact: bedrock-voice-chat-${{ steps.mod-version.outputs.version }}.jar"
 
       - name: Upload JAR artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: bedrock-voice-chat-fabric-${{ steps.mod-version.outputs.version }}
           path: bedrock-voice-chat-${{ steps.mod-version.outputs.version }}.jar

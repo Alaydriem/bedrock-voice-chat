@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref || github.ref }}
 
@@ -33,7 +33,7 @@ jobs:
           node .github/scripts/patch-mod-versions.js "${{ inputs.version }}"
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '20'
 
@@ -87,7 +87,7 @@ jobs:
           echo "Prepared artifact: bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.mcaddon"
 
       - name: Upload mcaddon artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: bedrock-voice-chat-bds-${{ steps.pack-version.outputs.version }}
           path: bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.mcaddon

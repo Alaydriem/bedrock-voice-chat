@@ -37,20 +37,20 @@ jobs:
     steps:
       - name: Generate GitHub App token
         id: generate-token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v2
         with:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
           persist-credentials: true
           token: ${{ steps.generate-token.outputs.token }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -154,7 +154,7 @@ jobs:
       new_release_notes: ${{ steps.version.outputs.notes }}
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
           show-progress: false
@@ -324,13 +324,13 @@ jobs:
     steps:
       - name: Generate GitHub App token
         id: generate-token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v2
         with:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
       - name: Download release artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: ./artifacts
           pattern: bvc-*
@@ -446,7 +446,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ needs.prepare-release.outputs.new_tag || github.ref }}
 
@@ -479,7 +479,7 @@ jobs:
       contents: read
     steps:
       - name: Download artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: bedrock-voice-chat-fabric-${{ needs.prepare-mods-release.outputs.new_release_version }}
           path: ./artifacts
@@ -519,7 +519,7 @@ jobs:
       contents: read
     steps:
       - name: Download artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: bedrock-voice-chat-paper-${{ needs.prepare-mods-release.outputs.new_release_version }}
           path: ./artifacts
@@ -556,7 +556,7 @@ jobs:
       contents: read
     steps:
       - name: Download artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: bedrock-voice-chat-hytale-${{ needs.prepare-mods-release.outputs.new_release_version }}
           path: ./artifacts
@@ -587,7 +587,7 @@ jobs:
       contents: read
     steps:
       - name: Download artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: bedrock-voice-chat-bds-${{ needs.prepare-mods-release.outputs.new_release_version }}
           path: ./artifacts
@@ -619,28 +619,28 @@ jobs:
     steps:
       - name: Download Fabric artifact
         if: needs.build-mod-fabric.result == 'success'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: bedrock-voice-chat-fabric-${{ needs.prepare-mods-release.outputs.new_release_version }}
           path: ./release-files
 
       - name: Download Paper artifact
         if: needs.build-mod-paper.result == 'success'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: bedrock-voice-chat-paper-${{ needs.prepare-mods-release.outputs.new_release_version }}
           path: ./release-files
 
       - name: Download Hytale artifact
         if: needs.build-mod-hytale.result == 'success'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: bedrock-voice-chat-hytale-${{ needs.prepare-mods-release.outputs.new_release_version }}
           path: ./release-files
 
       - name: Download BDS artifact
         if: needs.build-mod-bds.result == 'success'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: bedrock-voice-chat-bds-${{ needs.prepare-mods-release.outputs.new_release_version }}
           path: ./release-files
@@ -707,19 +707,19 @@ jobs:
       contents: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ needs.prepare-release.outputs.new_tag }}
 
       - name: Download Windows updater artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         continue-on-error: true
         with:
           name: bvc-windows-updater
           path: ./artifacts/windows
 
       - name: Download macOS updater artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         continue-on-error: true
         with:
           name: bvc-macos-updater
@@ -792,7 +792,7 @@ jobs:
       contents: write
     steps:
       - name: Download AsyncAPI YAML
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: asyncapi-yaml
           path: docs
@@ -821,7 +821,7 @@ jobs:
       contents: write
     steps:
       - name: Download OpenAPI JSON
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: openapi-json
           path: docs
@@ -863,13 +863,13 @@ jobs:
     steps:
       - name: Generate GitHub App token
         id: generate-token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v2
         with:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
       - name: Checkout gh-pages branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: gh-pages
           token: ${{ steps.generate-token.outputs.token }}
