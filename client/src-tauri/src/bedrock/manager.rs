@@ -9,8 +9,10 @@ use common::bedrock_protocol::{
 };
 use common::traits::StreamTrait;
 use log::{error, info};
-use tokio::sync::oneshot;
+use tokio::sync::{oneshot, watch};
 use tokio::task::{AbortHandle, JoinHandle};
+
+const RELAY_DRAIN_DELAY: Duration = Duration::from_millis(500);
 
 use crate::bedrock::backend::Backend;
 use crate::bedrock::player_state_cache::BedrockPlayerStateCache;
@@ -102,12 +104,6 @@ impl StreamTrait for BedrockProxyManager {
             let _ = tx.send(());
         }
         let _ = self.shutdown.store(true, Ordering::Relaxed);
-
-        let _ = tokio::time::sleep(Duration::from_millis(100)).await;
-
-        for job in &self.jobs {
-            job.abort();
-        }
 
         if let Some(handle) = self.listener_handle.take() {
             let _ = handle.await;
@@ -226,6 +222,7 @@ impl BedrockProxyManager {
             let backend = Arc::new(backend);
 
             let mut child_handles: Vec<JoinHandle<()>> = vec![];
+            let (child_cancel_tx, _) = watch::channel(false);
 
             loop {
                 tokio::select! {
@@ -248,6 +245,7 @@ impl BedrockProxyManager {
                         let child_warm: Option<Arc<WarmPool>> = warm_pool.clone();
                         let child_backend = Arc::clone(&backend);
                         let child_player_name = player_name.clone();
+                        let mut child_cancel_rx = child_cancel_tx.subscribe();
 
                         let h = tokio::spawn(async move {
                             let auth_for_dial = match child_backend.as_ref() {
@@ -304,21 +302,40 @@ impl BedrockProxyManager {
                                 player_uuid,
                             );
 
-                            while let Some(evt) = session.next().await {
-                                match evt {
-                                    Event::StartGame(_dir, packet) => state.apply_start_game(&packet),
-                                    Event::PlayerAuthInput(_dir, packet) => state.apply_position(&packet),
-                                    Event::ChangeDimension(_dir, packet) => state.apply_change_dimension(&packet),
-                                    Event::SetPlayerGameType(_dir, packet) => state.apply_game_type(packet.gamemode),
-                                    Event::UpdatePlayerGameType(_dir, packet) => state.apply_game_type(packet.gamemode),
-                                    Event::Disconnected(reason) => {
-                                        info!("Bedrock session disconnected for {}: {:?}", child_player_name, reason);
-                                        break;
+                            loop {
+                                tokio::select! {
+                                    biased;
+                                    _ = child_cancel_rx.changed() => {
+                                        if *child_cancel_rx.borrow() {
+                                            info!(
+                                                "Bedrock session for {} received cancel; dropping for graceful Disconnect",
+                                                child_player_name
+                                            );
+                                            break;
+                                        }
                                     }
-                                    _ => continue,
+                                    evt = session.next() => {
+                                        let Some(evt) = evt else { break; };
+                                        match evt {
+                                            Event::StartGame(_dir, packet) => state.apply_start_game(&packet),
+                                            Event::PlayerAuthInput(_dir, packet) => state.apply_position(&packet),
+                                            Event::ChangeDimension(_dir, packet) => state.apply_change_dimension(&packet),
+                                            Event::SetPlayerGameType(_dir, packet) => state.apply_game_type(packet.gamemode),
+                                            Event::UpdatePlayerGameType(_dir, packet) => state.apply_game_type(packet.gamemode),
+                                            Event::Disconnected(reason) => {
+                                                info!("Bedrock session disconnected for {}: {:?}", child_player_name, reason);
+                                                break;
+                                            }
+                                            _ => continue,
+                                        }
+                                        child_cache.set(&child_player_name, state.to_player_enum());
+                                    }
                                 }
-                                child_cache.set(&child_player_name, state.to_player_enum());
                             }
+
+                            // Session drops here, which cancels the lib's relay tasks; those
+                            // tasks need async time to flush their Disconnect packet to BDS.
+                            drop(session);
 
                             info!("Bedrock session ended for {}", child_player_name);
                         });
@@ -328,12 +345,21 @@ impl BedrockProxyManager {
             }
 
             drop(proxy);
-            for h in &child_handles {
-                h.abort();
-            }
+
+            // Signal children to gracefully break their loops so each Session
+            // is dropped naturally — the lib's relay tasks then send Disconnect.
+            let _ = child_cancel_tx.send(true);
+
             for h in child_handles {
                 let _ = h.await;
             }
+
+            // Hold the runtime open long enough for the lib's leaked relay
+            // tasks to actually flush Disconnect packets to BDS. Without this,
+            // a quick reconnect hits BDS while it still considers the player
+            // online and rejects with reason 44.
+            tokio::time::sleep(RELAY_DRAIN_DELAY).await;
+
             info!("Bedrock accept loop drained, listener released");
         });
 

@@ -18,7 +18,9 @@
             </svg>
             <div class="flex-1">
                 <p class="text-sm font-medium text-slate-800 dark:text-navy-100">
-                    {#if $connectionError.kind === "nethernet"}
+                    {#if $connectionError.kind === "bds_rejected"}
+                        Bedrock server rejected login
+                    {:else if $connectionError.kind === "nethernet"}
                         NetherNet error
                     {:else if $connectionError.kind === "raknet"}
                         RakNet error

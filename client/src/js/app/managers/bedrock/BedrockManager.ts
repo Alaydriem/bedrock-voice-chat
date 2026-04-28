@@ -16,30 +16,53 @@ const MAX_LOG_ENTRIES = 200;
 const ALLOWED_LOG_LEVELS = new Set(['INFO', 'WARN', 'ERROR']);
 
 interface RealmsConnectionError {
-    kind: 'nethernet' | 'raknet' | 'auth' | 'generic';
+    kind: 'bds_rejected' | 'nethernet' | 'raknet' | 'auth' | 'generic';
     message: string;
     suggestion: string;
 }
 
 const FAILURE_WORDS = /\b(failed|failure|error|timed\s*out|timeout|rejected|refused|unable|cannot|aborted|disconnect(?:ed)?|closed)\b/i;
 
-const ERROR_PATTERNS: Array<{ regex: RegExp; kind: RealmsConnectionError['kind']; suggestion: string }> = [
+interface ErrorPattern {
+    regex: RegExp;
+    kind: RealmsConnectionError['kind'];
+    suggestion: string;
+    requireFailureWord: boolean;
+    minLevel: 'WARN' | 'ERROR';
+}
+
+const ERROR_PATTERNS: ErrorPattern[] = [
+    {
+        regex: /BDS rejected login.*reason code:\s*(\d+)/i,
+        kind: 'bds_rejected',
+        suggestion: 'The Bedrock server rejected the login. This often happens right after a disconnect — wait 30 seconds and try Connect again. If it persists, click Refresh to renew tokens, or restart BVC.',
+        requireFailureWord: false,
+        minLevel: 'WARN',
+    },
     {
         regex: /\b(nethernet|webrtc|ice\s+gathering)\b/i,
         kind: 'nethernet',
         suggestion: 'NetherNet transport failed. Try Refresh; if it keeps failing, quit and relaunch BVC.',
+        requireFailureWord: true,
+        minLevel: 'ERROR',
     },
     {
         regex: /\braknet\b/i,
         kind: 'raknet',
         suggestion: 'RakNet handshake failed. Quit and relaunch BVC, then try again — your Realm may also be offline.',
+        requireFailureWord: true,
+        minLevel: 'ERROR',
     },
     {
         regex: /\b(unauthorized|forbidden|xsts|xbl\s+token|access[_\s]token)\b|\b(401|403)\b/i,
         kind: 'auth',
         suggestion: 'Authentication rejected. Click Refresh to renew tokens; sign out and back in if it keeps failing.',
+        requireFailureWord: true,
+        minLevel: 'ERROR',
     },
 ];
+
+const LEVEL_RANK: Record<string, number> = { INFO: 0, WARN: 1, ERROR: 2 };
 
 export class BedrockManager {
     private isEntitledStore: Writable<boolean>;
@@ -629,21 +652,25 @@ export class BedrockManager {
                         : [...current, entry];
                     return next;
                 });
-                if (entry.level === 'ERROR') {
-                    this.detectError(entry.message);
+                if (entry.level === 'WARN' || entry.level === 'ERROR') {
+                    this.detectError(entry.message, entry.level);
                 }
             }
         );
     }
 
-    private detectError(message: string): void {
+    private detectError(message: string, level: string = 'ERROR'): void {
         if (get(this.connectionErrorStore)) {
             return;
         }
-        if (!FAILURE_WORDS.test(message)) {
-            return;
-        }
+        const entryRank = LEVEL_RANK[level] ?? LEVEL_RANK.ERROR;
         for (const pattern of ERROR_PATTERNS) {
+            if (entryRank < (LEVEL_RANK[pattern.minLevel] ?? LEVEL_RANK.ERROR)) {
+                continue;
+            }
+            if (pattern.requireFailureWord && !FAILURE_WORDS.test(message)) {
+                continue;
+            }
             if (pattern.regex.test(message)) {
                 this.connectionErrorStore.set({
                     kind: pattern.kind,
