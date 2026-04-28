@@ -46,6 +46,6 @@ runs:
       env:
         GH_APP_TOKEN: ${{ steps.app-token.outputs.token }}
       run: |
-        git config --global url."https://x-access-token:${GH_APP_TOKEN}@github.com/".insteadOf "https://github.com/"
-        git config --global url."https://x-access-token:${GH_APP_TOKEN}@github.com/".insteadOf "git@github.com:"
+        git config --global --replace-all url."https://x-access-token:${GH_APP_TOKEN}@github.com/".insteadOf "https://github.com/"
+        git config --global --add url."https://x-access-token:${GH_APP_TOKEN}@github.com/".insteadOf "git@github.com:"
         echo "CARGO_NET_GIT_FETCH_WITH_CLI=true" >> "$GITHUB_ENV"
