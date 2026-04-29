@@ -440,11 +440,11 @@ impl ServerRuntime {
         }
 
         let env_filter = match self.config.get_tracing_log_level() {
-            tracing::Level::INFO => "info,hyper=off,rustls=off,rocket::server=off",
-            tracing::Level::DEBUG => "info",
+            tracing::Level::INFO => "info,hyper=off,rustls=off,rocket::server=off,rocket_http::tls::listener=off",
+            tracing::Level::DEBUG => "info,rocket_http::tls::listener=off",
             tracing::Level::TRACE => "debug",
-            tracing::Level::ERROR => "error,hyper=off,rustls=off,rocket::server=off",
-            tracing::Level::WARN => "warn,hyper=off,rustls=off,rocket::server=off",
+            tracing::Level::ERROR => "error,hyper=off,rustls=off,rocket::server=off,rocket_http::tls::listener=off",
+            tracing::Level::WARN => "warn,hyper=off,rustls=off,rocket::server=off,rocket_http::tls::listener=off",
         };
 
         subscriber
