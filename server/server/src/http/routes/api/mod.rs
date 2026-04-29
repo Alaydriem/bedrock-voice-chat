@@ -1,3 +1,4 @@
+pub(crate) mod admin;
 pub mod audio;
 pub mod auth;
 pub(crate) mod channel;

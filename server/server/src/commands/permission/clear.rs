@@ -1,7 +1,8 @@
 use clap::Parser;
+use common::request::admin::ClearPermissionRequest;
 use common::Game;
-use entity::{player, player_permission};
-use sea_orm::{ColumnTrait, EntityTrait, ModelTrait, QueryFilter};
+
+use crate::commands::admin_api_client::{AdminApiClient, AdminApiError};
 use crate::commands::Cli;
 
 #[derive(Debug, Parser, Clone)]
@@ -17,53 +18,33 @@ pub struct Config {
 
 impl Config {
     pub async fn run<'a>(&'a self, cfg: &Cli) {
-        let db = match cfg.config.create_database_connection().await {
-            Ok(conn) => conn,
+        let client = match AdminApiClient::from_active_identity(cfg.identity.as_deref()) {
+            Ok(c) => c,
             Err(e) => {
-                eprintln!("Failed to connect to database: {}", e);
-                return;
+                eprintln!("{}", e);
+                std::process::exit(1);
             }
         };
 
-        let player_model = match player::Entity::find()
-            .filter(player::Column::Gamertag.eq(self.player.clone()))
-            .filter(player::Column::Game.eq(self.game.clone()))
-            .one(&db)
-            .await
-        {
-            Ok(Some(p)) => p,
-            Ok(None) => {
-                eprintln!(
-                    "Player '{}' not found for game '{}'",
-                    self.player, self.game
-                );
-                return;
-            }
-            Err(e) => {
-                eprintln!("Failed to query database: {}", e);
-                return;
-            }
+        let req = ClearPermissionRequest {
+            gamertag: self.player.clone(),
+            game: self.game.clone(),
+            permission: self.permission.clone(),
         };
 
-        let existing = player_permission::Entity::find()
-            .filter(player_permission::Column::PlayerId.eq(player_model.id))
-            .filter(player_permission::Column::Permission.eq(self.permission.clone()))
-            .one(&db)
-            .await;
-
-        match existing {
-            Ok(Some(record)) => match record.delete(&db).await {
-                Ok(_) => println!(
-                    "Cleared permission override '{}' for player '{}' (will use config default)",
-                    self.permission, self.player
-                ),
-                Err(e) => eprintln!("Failed to delete permission override: {}", e),
-            },
-            Ok(None) => println!(
+        match client.clear_permission(&req).await {
+            Ok(_) => println!(
+                "Cleared permission override '{}' for player '{}' (will use config default)",
+                self.permission, self.player
+            ),
+            Err(AdminApiError::NotFound) => println!(
                 "No override found for permission '{}' on player '{}'",
                 self.permission, self.player
             ),
-            Err(e) => eprintln!("Failed to query permissions: {}", e),
+            Err(e) => {
+                eprintln!("Failed to delete permission override: {}", e);
+                std::process::exit(1);
+            }
         }
     }
 }

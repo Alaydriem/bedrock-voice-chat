@@ -5,13 +5,28 @@ use serde_json::Value;
 use std::fs;
 use std::{process::exit, sync::Arc};
 
+pub(crate) mod admin;
+pub(crate) mod admin_api_client;
+pub(crate) mod identity;
+pub(crate) mod login;
+pub(crate) mod logout;
 mod permission;
 pub(crate) mod server;
 mod user;
+pub(crate) mod whoami;
+
 #[derive(clap::Subcommand, Debug, Clone)]
 pub enum SubCommand {
     /// Start the BVC Server
     Server(server::Config),
+    /// Authenticate the CLI against a BVC server
+    Login(login::Config),
+    /// Remove a stored CLI identity
+    Logout(logout::Config),
+    /// Print the active identity
+    Whoami(whoami::Config),
+    /// Administrative bootstrapping (DB-direct, server-host only)
+    Admin(admin::Config),
     User(user::Config),
     Permission(permission::Config),
 }
@@ -19,7 +34,7 @@ pub enum SubCommand {
 #[derive(Debug, Parser, Clone)]
 #[clap(author, version, about, long_about = None)]
 pub struct Cli {
-    // Path to bvc configuration file
+    /// Path to bvc configuration file (only required for `server` and `admin bootstrap`)
     #[clap(
         global = true,
         short,
@@ -29,6 +44,14 @@ pub struct Cli {
         default_value = "config.hcl"
     )]
     pub config_file: String,
+
+    /// BVC server URL (used by `login`; admin commands read from the stored identity)
+    #[clap(global = true, long, env = "BVC_SERVER_URL", default_value = "https://127.0.0.1:3000")]
+    pub server_url: String,
+
+    /// Active identity selector, format `<gamertag>:<game>`. Falls back to BVC_IDENTITY env or sole-stored-identity
+    #[clap(global = true, long, env = "BVC_IDENTITY")]
+    pub identity: Option<String>,
 
     #[clap(skip)]
     pub config: ApplicationConfig,
@@ -44,24 +67,34 @@ impl Cli {
 
         match &cfg.cmd {
             SubCommand::Server(command) => command.run(&cfg).await,
+            SubCommand::Admin(command) => command.run(&cfg).await,
+            SubCommand::Login(command) => command.run(&cfg.server_url).await,
+            SubCommand::Logout(command) => command.run(cfg.identity.as_deref()).await,
+            SubCommand::Whoami(command) => command.run(cfg.identity.as_deref()).await,
             SubCommand::User(command) => command.run(&cfg).await,
             SubCommand::Permission(command) => command.run(&cfg).await,
         }
     }
 
-    // Parsing command for clap to correctly build the configuration.
+    /// Returns whether the current subcommand needs the HCL config file loaded.
+    fn requires_config_file(&self) -> bool {
+        matches!(self.cmd, SubCommand::Server(_) | SubCommand::Admin(_))
+    }
+
     fn get_config() -> Arc<Self> {
         let mut data = Self::parse();
 
-        match data.get_config_file() {
-            Ok(hcl) => {
-                data.config = hcl;
-            }
-            Err(error) => {
-                println!("{}", error);
-                exit(1);
-            }
-        };
+        if data.requires_config_file() {
+            match data.get_config_file() {
+                Ok(hcl) => {
+                    data.config = hcl;
+                }
+                Err(error) => {
+                    println!("{}", error);
+                    exit(1);
+                }
+            };
+        }
 
         return Arc::new(data);
     }
