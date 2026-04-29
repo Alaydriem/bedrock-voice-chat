@@ -3,7 +3,8 @@ use common::request::admin::CreateUserRequest;
 use common::Game;
 
 use super::super::Cli;
-use crate::commands::admin_api_client::{AdminApiClient, AdminApiError};
+use crate::commands::admin_api_client::AdminApiClient;
+use crate::commands::admin_api_error::AdminApiError;
 
 #[derive(Debug, Parser, Clone)]
 #[clap(author, version, about = "Add a player to the server", long_about = None)]

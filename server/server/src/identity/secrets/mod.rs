@@ -13,7 +13,3 @@ pub trait SecretBackend {
     fn load(&self, slot_key: &str) -> Result<(String, String, String), anyhow::Error>;
     fn delete(&self, slot_key: &str) -> Result<(), anyhow::Error>;
 }
-
-pub fn default_backend() -> DefaultBackend {
-    DefaultBackend::new()
-}

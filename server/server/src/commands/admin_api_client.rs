@@ -10,45 +10,15 @@ use common::response::admin::{
 use common::response::auth::IntrospectResponse;
 use common::response::LoginResponse;
 use common::Game;
-use reqwest::{Certificate, Client, Identity as ReqwestIdentity, StatusCode};
-use serde::de::DeserializeOwned;
+use reqwest::{Certificate, Client, Identity as ReqwestIdentity, Method, StatusCode};
+use serde::{de::DeserializeOwned, Serialize};
 
-use crate::commands::identity::{Identity, IdentityResolver, IdentityStore};
+use crate::commands::admin_api_error::AdminApiError;
+use crate::identity::{Identity, IdentityResolver, IdentityStore};
 
 pub struct AdminApiClient {
     base_url: String,
     http: Client,
-}
-
-#[derive(Debug)]
-pub enum AdminApiError {
-    NotFound,
-    Conflict,
-    Forbidden,
-    BadRequest(String),
-    Unexpected(StatusCode, String),
-    Transport(anyhow::Error),
-}
-
-impl std::fmt::Display for AdminApiError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            AdminApiError::NotFound => write!(f, "not found"),
-            AdminApiError::Conflict => write!(f, "conflict"),
-            AdminApiError::Forbidden => write!(f, "forbidden"),
-            AdminApiError::BadRequest(b) => write!(f, "bad request: {}", b),
-            AdminApiError::Unexpected(s, b) => write!(f, "unexpected status {}: {}", s, b),
-            AdminApiError::Transport(e) => write!(f, "transport error: {}", e),
-        }
-    }
-}
-
-impl std::error::Error for AdminApiError {}
-
-impl From<anyhow::Error> for AdminApiError {
-    fn from(e: anyhow::Error) -> Self {
-        AdminApiError::Transport(e)
-    }
 }
 
 impl AdminApiClient {
@@ -61,16 +31,13 @@ impl AdminApiClient {
         )
     }
 
-    /// Resolve the active identity (per --identity / BVC_IDENTITY / single-stored), load it
-    /// from the keychain/file backend, and build a client. Used by every admin subcommand.
     pub fn from_active_identity(explicit: Option<&str>) -> Result<Self, anyhow::Error> {
         let slot = IdentityResolver::active(explicit)?;
         let identity = IdentityStore::load(&slot)?;
         Self::new(&identity)
     }
 
-    /// Lower-level constructor used by `bvc login`, where we don't yet have a stored Identity.
-    pub fn build(
+    fn build(
         base_url: &str,
         cert_pem: &str,
         key_pem: &str,
@@ -99,88 +66,91 @@ impl AdminApiClient {
         })
     }
 
-    pub fn build_for_login(
-        base_url: &str,
-        ca_pem: Option<&str>,
-    ) -> Result<Client, anyhow::Error> {
-        let mut builder = Client::builder().use_rustls_tls().https_only(true);
-        if let Some(ca) = ca_pem {
-            let ca_cert = Certificate::from_pem(ca.as_bytes()).context("parse CA cert")?;
-            builder = builder.add_root_certificate(ca_cert);
-        }
-        let _ = base_url;
-        builder.build().context("build login reqwest client")
-    }
-
     fn url(&self, path: &str) -> String {
         format!("{}{}", self.base_url, path)
+    }
+
+    /// Single dispatch point for every admin call. Body is optional (None for GET/DELETE-without-body).
+    async fn request<Req, Res>(
+        &self,
+        method: Method,
+        path: &str,
+        body: Option<&Req>,
+    ) -> Result<Res, AdminApiError>
+    where
+        Req: Serialize + ?Sized,
+        Res: DeserializeOwned,
+    {
+        let mut req = self.http.request(method, self.url(path));
+        if let Some(b) = body {
+            req = req.json(b);
+        }
+        let resp = req
+            .send()
+            .await
+            .map_err(|e| AdminApiError::Transport(anyhow!(e)))?;
+        Self::parse_json(resp).await
+    }
+
+    /// Like `request`, but the route returns no body (204 / status-only).
+    async fn request_unit<Req>(
+        &self,
+        method: Method,
+        path: &str,
+        body: Option<&Req>,
+    ) -> Result<(), AdminApiError>
+    where
+        Req: Serialize + ?Sized,
+    {
+        let mut req = self.http.request(method, self.url(path));
+        if let Some(b) = body {
+            req = req.json(b);
+        }
+        let resp = req
+            .send()
+            .await
+            .map_err(|e| AdminApiError::Transport(anyhow!(e)))?;
+        let status = resp.status();
+        if status.is_success() {
+            return Ok(());
+        }
+        Err(Self::map_error(status, resp).await)
     }
 
     pub async fn create_user(
         &self,
         req: &CreateUserRequest,
     ) -> Result<CreatedUserResponse, AdminApiError> {
-        let resp = self
-            .http
-            .post(self.url("/api/admin/user"))
-            .json(req)
-            .send()
-            .await
-            .map_err(|e| AdminApiError::Transport(anyhow!(e)))?;
-        Self::parse(resp).await
+        self.request(Method::POST, "/api/admin/user", Some(req)).await
     }
 
     pub async fn banish_user(
         &self,
         req: &BanishUserRequest,
     ) -> Result<BanishedUserResponse, AdminApiError> {
-        let resp = self
-            .http
-            .patch(self.url("/api/admin/user/banish"))
-            .json(req)
-            .send()
+        self.request(Method::PATCH, "/api/admin/user/banish", Some(req))
             .await
-            .map_err(|e| AdminApiError::Transport(anyhow!(e)))?;
-        Self::parse(resp).await
     }
 
     pub async fn generate_code(
         &self,
         req: &GenerateCodeRequest,
     ) -> Result<GeneratedCodeResponse, AdminApiError> {
-        let resp = self
-            .http
-            .post(self.url("/api/admin/user/code"))
-            .json(req)
-            .send()
+        self.request(Method::POST, "/api/admin/user/code", Some(req))
             .await
-            .map_err(|e| AdminApiError::Transport(anyhow!(e)))?;
-        Self::parse(resp).await
     }
 
     pub async fn set_permission(&self, req: &SetPermissionRequest) -> Result<(), AdminApiError> {
-        let resp = self
-            .http
-            .put(self.url("/api/admin/permission"))
-            .json(req)
-            .send()
+        self.request_unit(Method::PUT, "/api/admin/permission", Some(req))
             .await
-            .map_err(|e| AdminApiError::Transport(anyhow!(e)))?;
-        Self::parse_unit(resp).await
     }
 
     pub async fn clear_permission(
         &self,
         req: &ClearPermissionRequest,
     ) -> Result<(), AdminApiError> {
-        let resp = self
-            .http
-            .delete(self.url("/api/admin/permission"))
-            .json(req)
-            .send()
+        self.request_unit(Method::DELETE, "/api/admin/permission", Some(req))
             .await
-            .map_err(|e| AdminApiError::Transport(anyhow!(e)))?;
-        Self::parse_unit(resp).await
     }
 
     pub async fn list_permissions(
@@ -188,68 +158,67 @@ impl AdminApiClient {
         gamertag: &str,
         game: &Game,
     ) -> Result<PermissionListResponse, AdminApiError> {
-        let url = self.url(&format!(
+        let path = format!(
             "/api/admin/permission/{}/{}",
             game.as_str(),
             Self::encode_segment(gamertag)
-        ));
-        let resp = self
-            .http
-            .get(url)
-            .send()
-            .await
-            .map_err(|e| AdminApiError::Transport(anyhow!(e)))?;
-        Self::parse(resp).await
+        );
+        self.request::<(), _>(Method::GET, &path, None).await
     }
 
     pub async fn introspect(&self) -> Result<IntrospectResponse, AdminApiError> {
-        let resp = self
-            .http
-            .get(self.url("/api/auth/introspect"))
-            .send()
+        self.request::<(), _>(Method::GET, "/api/auth/introspect", None)
             .await
-            .map_err(|e| AdminApiError::Transport(anyhow!(e)))?;
-        Self::parse(resp).await
     }
 
-    /// Used by `bvc login`. Hits the plain-JSON code-login endpoint, no client cert needed.
+    /// Used by `bvc login` before any client cert exists. Server cert verification still required.
     pub async fn login_with_code(
         base_url: &str,
         ca_pem: Option<&str>,
         req: &CodeLoginRequest,
     ) -> Result<LoginResponse, AdminApiError> {
-        let client = Self::build_for_login(base_url, ca_pem).map_err(AdminApiError::Transport)?;
-        let url = format!(
-            "{}/api/auth/code/json",
-            base_url.trim_end_matches('/')
-        );
+        let mut builder = Client::builder().use_rustls_tls().https_only(true);
+        if let Some(ca) = ca_pem {
+            let ca_cert = Certificate::from_pem(ca.as_bytes())
+                .context("parse CA cert")
+                .map_err(AdminApiError::Transport)?;
+            builder = builder.add_root_certificate(ca_cert);
+        }
+        let client = builder
+            .build()
+            .context("build login reqwest client")
+            .map_err(AdminApiError::Transport)?;
+
+        let url = format!("{}/api/auth/code/json", base_url.trim_end_matches('/'));
         let resp = client
             .post(url)
             .json(req)
             .send()
             .await
             .map_err(|e| AdminApiError::Transport(anyhow!(e)))?;
-        Self::parse(resp).await
+        Self::parse_json(resp).await
     }
 
-    async fn parse<T: DeserializeOwned>(resp: reqwest::Response) -> Result<T, AdminApiError> {
+    async fn parse_json<T: DeserializeOwned>(resp: reqwest::Response) -> Result<T, AdminApiError> {
         let status = resp.status();
         if status.is_success() {
-            let body = resp
+            return resp
                 .json::<T>()
                 .await
-                .map_err(|e| AdminApiError::Transport(anyhow!("decode response body: {}", e)))?;
-            return Ok(body);
+                .map_err(|e| AdminApiError::Transport(anyhow!("decode response body: {}", e)));
         }
         Err(Self::map_error(status, resp).await)
     }
 
-    async fn parse_unit(resp: reqwest::Response) -> Result<(), AdminApiError> {
-        let status = resp.status();
-        if status.is_success() {
-            return Ok(());
+    async fn map_error(status: StatusCode, resp: reqwest::Response) -> AdminApiError {
+        let body = resp.text().await.unwrap_or_default();
+        match status {
+            StatusCode::NOT_FOUND => AdminApiError::NotFound,
+            StatusCode::CONFLICT => AdminApiError::Conflict,
+            StatusCode::FORBIDDEN | StatusCode::UNAUTHORIZED => AdminApiError::Forbidden,
+            StatusCode::BAD_REQUEST => AdminApiError::BadRequest(body),
+            other => AdminApiError::Unexpected(other, body),
         }
-        Err(Self::map_error(status, resp).await)
     }
 
     fn encode_segment(s: &str) -> String {
@@ -263,16 +232,5 @@ impl AdminApiClient {
             }
         }
         out
-    }
-
-    async fn map_error(status: StatusCode, resp: reqwest::Response) -> AdminApiError {
-        let body = resp.text().await.unwrap_or_default();
-        match status {
-            StatusCode::NOT_FOUND => AdminApiError::NotFound,
-            StatusCode::CONFLICT => AdminApiError::Conflict,
-            StatusCode::FORBIDDEN | StatusCode::UNAUTHORIZED => AdminApiError::Forbidden,
-            StatusCode::BAD_REQUEST => AdminApiError::BadRequest(body),
-            other => AdminApiError::Unexpected(other, body),
-        }
     }
 }

@@ -3,7 +3,7 @@ use common::request::CodeLoginRequest;
 use common::Game;
 
 use crate::commands::admin_api_client::AdminApiClient;
-use crate::commands::identity::{Identity, IdentityStore};
+use crate::identity::{Identity, IdentityStore};
 
 #[derive(Debug, Parser, Clone)]
 #[clap(author, version, about = "Authenticate the CLI against a BVC server using a one-time code", long_about = None)]

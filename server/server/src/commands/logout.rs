@@ -1,7 +1,7 @@
 use clap::Parser;
 use common::Game;
 
-use crate::commands::identity::{IdentityResolver, IdentitySlot, IdentityStore};
+use crate::identity::{IdentityResolver, IdentitySlot, IdentityStore};
 
 #[derive(Debug, Parser, Clone)]
 #[clap(author, version, about = "Remove a stored CLI identity (cert, key, CA + metadata)", long_about = None)]

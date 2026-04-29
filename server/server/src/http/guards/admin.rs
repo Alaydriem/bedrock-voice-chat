@@ -11,16 +11,9 @@ use rocket_okapi::r#gen::OpenApiGenerator;
 use rocket_okapi::request::{OpenApiFromRequest, RequestHeaderInput};
 
 use crate::config::Permissions;
+use crate::http::guards::AdminGuardError;
 use crate::http::pool::Db;
 use crate::services::{AuthService, PermissionService};
-
-#[derive(Debug)]
-pub enum AdminGuardError {
-    MissingCertificate,
-    PlayerNotFound,
-    Forbidden,
-    Internal,
-}
 
 #[derive(Debug)]
 pub struct AdminGuard {
@@ -34,10 +27,9 @@ impl<'r> FromRequest<'r> for AdminGuard {
     async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
         let cert = match req.guard::<Certificate<'_>>().await {
             Outcome::Success(c) => c,
-            Outcome::Error(_) => {
+            Outcome::Error(_) | Outcome::Forward(_) => {
                 return Outcome::Error((Status::Unauthorized, AdminGuardError::MissingCertificate));
             }
-            Outcome::Forward(s) => return Outcome::Forward(s),
         };
 
         let db = match req.guard::<Db<'_>>().await {
@@ -55,6 +47,15 @@ impl<'r> FromRequest<'r> for AdminGuard {
             }
             Err(s) => return Outcome::Error((s, AdminGuardError::Internal)),
         };
+
+        if player.banished {
+            tracing::warn!(
+                "AdminGuard: rejecting banished player {} ({:?})",
+                player.gamertag.clone().unwrap_or_default(),
+                player.game,
+            );
+            return Outcome::Error((Status::Forbidden, AdminGuardError::Banished));
+        }
 
         let perm_config = match req.guard::<&State<Permissions>>().await {
             Outcome::Success(p) => p,

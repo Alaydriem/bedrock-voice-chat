@@ -1,4 +1,5 @@
 use common::request::admin::ClearPermissionRequest;
+use common::structs::permission::Permission;
 use entity::player;
 use rocket::{http::Status, serde::json::Json};
 use rocket_okapi::openapi;
@@ -11,12 +12,24 @@ use crate::services::PermissionService;
 #[openapi(tag = "Admin")]
 #[delete("/permission", data = "<payload>")]
 pub async fn clear_permission(
-    _admin: AdminGuard,
+    admin: AdminGuard,
     db: Db<'_>,
     payload: Json<ClearPermissionRequest>,
 ) -> Result<Status, Status> {
     let conn = db.into_inner();
     let req = payload.0;
+
+    let admin_gamertag = admin.player.gamertag.as_deref().unwrap_or_default();
+    let targeting_self = admin_gamertag == req.gamertag && admin.player.game == req.game;
+    let targeting_admin_perm = req.permission == Permission::Admin.as_str();
+    if targeting_self && targeting_admin_perm {
+        tracing::warn!(
+            "clear_permission: rejecting self-admin-clear by {} ({:?})",
+            admin_gamertag,
+            admin.player.game,
+        );
+        return Err(Status::Conflict);
+    }
 
     let player_record = player::Entity::find()
         .filter(player::Column::Gamertag.eq(req.gamertag.clone()))

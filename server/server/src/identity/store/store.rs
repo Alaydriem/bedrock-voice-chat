@@ -2,36 +2,11 @@ use std::fs;
 use std::path::PathBuf;
 
 use anyhow::{anyhow, Context};
-use common::Game;
-use serde::{Deserialize, Serialize};
 
-use super::secrets::{default_backend, SecretBackend};
-use super::IdentitySlot;
+use crate::identity::secrets::{DefaultBackend, SecretBackend};
+use crate::identity::IdentitySlot;
 
-#[derive(Debug, Clone)]
-pub struct Identity {
-    pub gamertag: String,
-    pub game: Game,
-    pub server_url: String,
-    pub cert_pem: String,
-    pub key_pem: String,
-    pub ca_pem: String,
-    pub cert_not_after: Option<i64>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct IdentityMetadata {
-    pub gamertag: String,
-    pub game: Game,
-    pub server_url: String,
-    pub cert_not_after: Option<i64>,
-}
-
-#[derive(Debug, Clone)]
-pub struct IdentitySummary {
-    pub slot: IdentitySlot,
-    pub metadata: IdentityMetadata,
-}
+use super::{Identity, IdentityMetadata, IdentitySummary};
 
 pub struct IdentityStore;
 
@@ -54,7 +29,7 @@ impl IdentityStore {
 
     pub fn save(identity: &Identity) -> Result<(), anyhow::Error> {
         let slot = IdentitySlot::new(identity.gamertag.clone(), identity.game.clone());
-        let backend = default_backend();
+        let backend = DefaultBackend::new();
         backend.save(&slot.key(), &identity.cert_pem, &identity.key_pem, &identity.ca_pem)?;
 
         let metadata = IdentityMetadata {
@@ -76,7 +51,7 @@ impl IdentityStore {
         let metadata: IdentityMetadata =
             toml::from_str(&toml_text).context("parse identity metadata")?;
 
-        let backend = default_backend();
+        let backend = DefaultBackend::new();
         let (cert_pem, key_pem, ca_pem) = backend.load(&slot.key())?;
 
         Ok(Identity {
@@ -91,7 +66,7 @@ impl IdentityStore {
     }
 
     pub fn delete(slot: &IdentitySlot) -> Result<(), anyhow::Error> {
-        let backend = default_backend();
+        let backend = DefaultBackend::new();
         backend.delete(&slot.key())?;
         let path = Self::metadata_path(slot)?;
         if path.exists() {

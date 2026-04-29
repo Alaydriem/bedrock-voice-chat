@@ -1,7 +1,7 @@
 use clap::Parser;
 
 use crate::commands::admin_api_client::AdminApiClient;
-use crate::commands::identity::{IdentityResolver, IdentityStore};
+use crate::identity::{IdentityResolver, IdentityStore};
 
 #[derive(Debug, Parser, Clone)]
 #[clap(author, version, about = "Print the active identity (calls /api/auth/introspect)", long_about = None)]

@@ -11,12 +11,22 @@ use crate::http::pool::Db;
 #[openapi(tag = "Admin")]
 #[patch("/user/banish", data = "<payload>")]
 pub async fn banish_user(
-    _admin: AdminGuard,
+    admin: AdminGuard,
     db: Db<'_>,
     payload: Json<BanishUserRequest>,
 ) -> Result<Json<BanishedUserResponse>, Status> {
     let conn = db.into_inner();
     let req = payload.0;
+
+    let admin_gamertag = admin.player.gamertag.as_deref().unwrap_or_default();
+    if admin_gamertag == req.gamertag && admin.player.game == req.game {
+        tracing::warn!(
+            "banish_user: rejecting self-banish attempt by {} ({:?})",
+            admin_gamertag,
+            admin.player.game,
+        );
+        return Err(Status::Conflict);
+    }
 
     let player_record = player::Entity::find()
         .filter(player::Column::Gamertag.eq(req.gamertag.clone()))
