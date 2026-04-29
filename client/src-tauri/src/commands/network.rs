@@ -1,12 +1,9 @@
 use crate::{NetworkStreamManager, structs::app_state::AppState};
 use common::response::LoginResponse;
 use log::{error, info};
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use tauri::State;
 use tauri::async_runtime::Mutex;
-use hickory_resolver::Resolver;
-use hickory_resolver::config::{CLOUDFLARE, ResolverConfig};
-use hickory_resolver::net::runtime::TokioRuntimeProvider;
 use url::Url;
 
 #[tauri::command]
@@ -49,42 +46,24 @@ pub(crate) async fn change_network_stream(
     // Default to 443 if quic_connect_string is empty or invalid
     let port: u16 = data.quic_connect_string.parse().unwrap_or(443);
 
-    let cloudflare = match Resolver::builder_with_config(
-        ResolverConfig::udp_and_tcp(&CLOUDFLARE),
-        TokioRuntimeProvider::default(),
-    )
-    .build()
-    {
-        Ok(r) => r,
-        Err(e) => {
-            error!("Failed to build Cloudflare resolver: {}", e);
-            return Err(format!("DNS_FAIL: {}", e));
-        }
-    };
-
-    let socket_addr = match cloudflare.lookup_ip(server_fqdn.clone()).await {
-        Ok(response) => match response.iter().next() {
-            Some(ip) => SocketAddr::new(ip, port),
-            None => {
-                error!("Cloudflare DNS lookup returned no IPs for {}", server_fqdn);
-                return Err("DNS_FAIL: DNS lookup returned no results".to_string());
-            }
-        },
-        Err(cf_err) => {
-            info!("Cloudflare DNS failed for {}: {}. Trying system resolver.", server_fqdn, cf_err);
-            match tokio::net::lookup_host(format!("{}:{}", server_fqdn, port)).await {
-                Ok(mut addrs) => match addrs.next() {
-                    Some(addr) => addr,
-                    None => {
-                        error!("System DNS returned no IPs for {}", server_fqdn);
-                        return Err("DNS_FAIL: System DNS returned no results".to_string());
-                    }
-                },
-                Err(e) => {
-                    error!("System DNS resolution failed for {}: {}", server_fqdn, e);
-                    return Err(format!("DNS_FAIL: {}", e));
+    let socket_addr = match tokio::net::lookup_host(format!("{}:{}", server_fqdn, port)).await {
+        Ok(addrs) => {
+            let resolved: Vec<SocketAddr> = addrs.collect();
+            match resolved
+                .iter()
+                .find(|sa| matches!(sa.ip(), IpAddr::V4(_)))
+                .or_else(|| resolved.first())
+            {
+                Some(addr) => *addr,
+                None => {
+                    error!("System DNS returned no IPs for {}", server_fqdn);
+                    return Err("DNS_FAIL: System DNS returned no results".to_string());
                 }
             }
+        }
+        Err(e) => {
+            error!("System DNS resolution failed for {}: {}", server_fqdn, e);
+            return Err(format!("DNS_FAIL: {}", e));
         }
     };
 

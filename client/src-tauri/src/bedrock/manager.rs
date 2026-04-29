@@ -3,18 +3,28 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
+use bytes::BytesMut;
 use common::bedrock_protocol::{
-    AuthInfo, AuthManager, Event, Proxy, ProxyConfig, RealmConfig,
+    AuthInfo, AuthManager, Bytes, DisconnectPacket, Event, Proxy, ProxyConfig, RealmConfig, Session,
     proxy::{WarmPool, WarmTarget},
+    protocol::batch::BatchCodec,
+    protocol::codec::PacketEncode,
+    protocol::packets::{PacketHeader, ids},
 };
 use common::traits::StreamTrait;
-use log::{error, info};
+use log::{error, info, warn};
 use tokio::sync::{oneshot, watch};
 use tokio::task::{AbortHandle, JoinHandle};
 
 const RELAY_DRAIN_DELAY: Duration = Duration::from_millis(500);
 
+const CLIENT_DISCONNECT_DRAIN: Duration = Duration::from_millis(150);
+
+const BVC_DISCONNECT_MESSAGE: &str =
+    "Connection was closed by the Bedrock Voice Chat app so your link to this server was ended on purpose. Reconnect through the Bedrock Voice Chat app reconnect to this server.";
+
 use crate::bedrock::backend::Backend;
+use crate::bedrock::connect_error_channel;
 use crate::bedrock::player_state_cache::BedrockPlayerStateCache;
 use crate::bedrock::session_state::BedrockSessionState;
 
@@ -164,6 +174,10 @@ impl BedrockProxyManager {
                 realm: proxy_config_realm,
                 motd,
                 sub_motd,
+                fail_disconnect_message: Some(
+                    "BVC could not connect to the upstream server. \
+                     Check the BVC client for details, then try again.".to_string(),
+                ),
                 ..Default::default()
             };
 
@@ -260,6 +274,11 @@ impl BedrockProxyManager {
                                         Ok(a) => a,
                                         Err(e) => {
                                             error!("Auth failed for {}: {}", child_player_name, e);
+                                            connect_error_channel::emit(
+                                                common::structs::bedrock::BedrockConnectError::Auth {
+                                                    message: e.to_string(),
+                                                },
+                                            );
                                             return;
                                         }
                                     }
@@ -291,6 +310,9 @@ impl BedrockProxyManager {
                                 Ok(s) => s,
                                 Err(e) => {
                                     error!("Bedrock connect failed for {}: {}", child_player_name, e);
+                                    connect_error_channel::emit(
+                                        connect_error_channel::classify(&e),
+                                    );
                                     return;
                                 }
                             };
@@ -308,9 +330,11 @@ impl BedrockProxyManager {
                                     _ = child_cancel_rx.changed() => {
                                         if *child_cancel_rx.borrow() {
                                             info!(
-                                                "Bedrock session for {} received cancel; dropping for graceful Disconnect",
+                                                "Bedrock session for {} received cancel; sending Disconnect to client",
                                                 child_player_name
                                             );
+                                            Self::send_client_disconnect(&session, &child_player_name);
+                                            tokio::time::sleep(CLIENT_DISCONNECT_DRAIN).await;
                                             break;
                                         }
                                     }
@@ -344,26 +368,55 @@ impl BedrockProxyManager {
                 }
             }
 
-            drop(proxy);
-
-            // Signal children to gracefully break their loops so each Session
-            // is dropped naturally — the lib's relay tasks then send Disconnect.
+            // Tell children to break first so each Session sends its
+            // Disconnect packet to the downstream client and lets the
+            // lib's relays flush a Disconnect to BDS. The Proxy (and its
+            // shared RakNet UDP socket) MUST stay alive while this
+            // happens — dropping the Proxy here would kill the listener
+            // socket every client connection rides on, leaving the
+            // injected Disconnect with nowhere to go.
             let _ = child_cancel_tx.send(true);
 
             for h in child_handles {
                 let _ = h.await;
             }
 
-            // Hold the runtime open long enough for the lib's leaked relay
-            // tasks to actually flush Disconnect packets to BDS. Without this,
-            // a quick reconnect hits BDS while it still considers the player
-            // online and rejects with reason 44.
             tokio::time::sleep(RELAY_DRAIN_DELAY).await;
+
+            drop(proxy);
 
             info!("Bedrock accept loop drained, listener released");
         });
 
         Ok(handle)
+    }
+
+    fn send_client_disconnect(session: &Session, player_name: &str) {
+        let pkt = DisconnectPacket {
+            reason: 0,
+            message_skipped: false,
+            kick_message: BVC_DISCONNECT_MESSAGE.to_string(),
+            filtered_message: String::new(),
+        };
+
+        let mut pkt_buf = BytesMut::new();
+        PacketHeader::write(&mut pkt_buf, ids::DISCONNECT);
+        pkt.encode(&mut pkt_buf);
+
+        let batch: Bytes = match BatchCodec::encode(&[pkt_buf.freeze()], true, u16::MAX) {
+            Ok(b) => b,
+            Err(e) => {
+                warn!("Bedrock: failed to encode Disconnect for {}: {}", player_name, e);
+                return;
+            }
+        };
+
+        if let Err(e) = session.writer().send_to_client(batch) {
+            warn!(
+                "Bedrock: failed to inject Disconnect for {} (client may have already left): {}",
+                player_name, e
+            );
+        }
     }
 }
 

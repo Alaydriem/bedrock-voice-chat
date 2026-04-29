@@ -1,4 +1,5 @@
 pub mod backend;
+pub mod connect_error_channel;
 pub mod iap;
 pub mod keepalive;
 pub mod log_capture;

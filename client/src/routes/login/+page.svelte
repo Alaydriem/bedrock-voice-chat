@@ -12,6 +12,8 @@
   let appVersion = $state("");
   let isCodeLogin = $state(false);
   let isAddServer = $state(false);
+  let backHref = $state("/dashboard");
+  let backLabel = $state("Back to Dashboard");
 
   onMount(async () => {
     isMobile = await platformDetector.checkMobile();
@@ -30,6 +32,21 @@
 
     const urlParams = new URLSearchParams(window.location.search);
     isAddServer = urlParams.has("addserver");
+
+    if (isAddServer) {
+      const returnTarget = urlParams.get("return") ?? "";
+      switch (returnTarget) {
+        case "/server":
+          backHref = "/server";
+          backLabel = "Back to Server List";
+          break;
+        case "/dashboard":
+        default:
+          backHref = "/dashboard";
+          backLabel = "Back to Dashboard";
+          break;
+      }
+    }
 
     document.querySelector("#login-form")
       ?.addEventListener("submit", (e) => {
@@ -68,13 +85,13 @@
           {#if isAddServer}
             <div class="mb-4">
               <a
-                href="/dashboard"
+                href={backHref}
                 class="inline-flex items-center space-x-2 text-sm text-slate-500 hover:text-primary dark:text-navy-200 dark:hover:text-accent-light transition-colors"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                 </svg>
-                <span>Back to Dashboard</span>
+                <span>{backLabel}</span>
               </a>
             </div>
           {/if}

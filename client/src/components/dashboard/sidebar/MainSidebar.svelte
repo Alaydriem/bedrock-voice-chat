@@ -34,7 +34,7 @@
             {#if multiServerEnabled}
                 <!-- Add Server -->
                 <button
-                    onclick={() => { window.location.href = '/login?addserver=true'; }}
+                    onclick={() => { window.location.href = '/login?addserver=true&return=/dashboard'; }}
                     aria-label="Add Server"
                     class="flex size-11 items-center justify-center rounded-lg text-2xl font-light text-slate-400 outline-hidden transition-colors duration-200 hover:bg-primary/20 focus:bg-primary/20 active:bg-primary/25 dark:hover:bg-navy-300/20 dark:focus:bg-navy-300/20 dark:active:bg-navy-300/25"
                 >

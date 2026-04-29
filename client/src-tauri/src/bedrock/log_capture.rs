@@ -15,8 +15,7 @@ const TARGET_PREFIXES: &[&str] = &[
     "rust_raknet",
     "raknet",
     "rakrs",
-    "client::bedrock",
-    "client_lib::bedrock",
+    "bvc_client_lib::bedrock",
     "bedrock_voice_chat_client::bedrock",
 ];
 

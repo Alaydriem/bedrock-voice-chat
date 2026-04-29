@@ -112,9 +112,11 @@
             </div>
         {:else}
             <button
-                class="btn btn-sm font-medium text-white bg-primary hover:bg-primary-focus dark:bg-accent dark:hover:bg-accent-focus"
+                class="btn btn-sm font-medium text-white bg-primary hover:bg-primary-focus dark:bg-accent dark:hover:bg-accent-focus
+                       disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary dark:disabled:hover:bg-accent"
                 onclick={onConnect}
                 disabled={disabled}
+                title={disabled ? "Disconnect the active session first" : undefined}
             >
                 Connect
             </button>

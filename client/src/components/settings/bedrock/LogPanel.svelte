@@ -59,7 +59,7 @@
             >
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
             </svg>
-            <span class="text-sm font-medium text-slate-700 dark:text-navy-100">Realms Logs</span>
+            <span class="text-sm font-medium text-slate-700 dark:text-navy-100">Bedrock Logs</span>
             <span class="text-xs text-slate-400 dark:text-navy-300">({$logs.length})</span>
         </button>
         {#if $expanded && $logs.length > 0}

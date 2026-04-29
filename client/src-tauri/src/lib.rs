@@ -82,6 +82,11 @@ pub fn run() {
     #[cfg(feature = "bedrock-protocol")]
     let bedrock_log_channel = Arc::new(crate::bedrock::log_capture::BedrockLogChannel::init());
 
+    #[cfg(feature = "bedrock-protocol")]
+    let bedrock_connect_error_channel = Arc::new(
+        crate::bedrock::connect_error_channel::BedrockConnectErrorChannel::init(),
+    );
+
     builder
         .plugin(
             tauri_plugin_log::Builder::new()
@@ -303,6 +308,20 @@ pub fn run() {
                         match rx.recv().await {
                             Ok(entry) => {
                                 let _ = log_emit_handle.emit("bedrock-log", &entry);
+                            }
+                            Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                            Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                        }
+                    }
+                });
+
+                let mut err_rx = bedrock_connect_error_channel.sender().subscribe();
+                let err_emit_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    loop {
+                        match err_rx.recv().await {
+                            Ok(entry) => {
+                                let _ = err_emit_handle.emit("bedrock-connect-error", &entry);
                             }
                             Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
                             Err(tokio::sync::broadcast::error::RecvError::Closed) => break,

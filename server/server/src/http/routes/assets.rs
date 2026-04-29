@@ -1,29 +1,27 @@
 use crate::config::Server;
 use rocket::{http::ContentType, State};
 
-static DEFAULT_AVATAR: &[u8] = include_bytes!("../../../assets/avatar.png");
-static DEFAULT_CANVAS: &[u8] = include_bytes!("../../../assets/canvas.png");
-
 pub struct AssetsHandler;
 
 impl AssetsHandler {
-    fn serve(assets_path: &str, filename: &str, default: &'static [u8]) -> (ContentType, Vec<u8>) {
+    fn serve(assets_path: &str, filename: &str) -> Option<(ContentType, Vec<u8>)> {
         let path = std::path::Path::new(assets_path).join(filename);
-        let bytes = if path.exists() {
-            std::fs::read(&path).unwrap_or_else(|_| default.to_vec())
-        } else {
-            default.to_vec()
-        };
-        (ContentType::PNG, bytes)
+        if !path.exists() {
+            return None;
+        }
+        match std::fs::read(&path) {
+            Ok(bytes) if !bytes.is_empty() => Some((ContentType::PNG, bytes)),
+            _ => None,
+        }
     }
 }
 
 #[get("/avatar.png")]
-pub async fn get_avatar(config: &State<Server>) -> (ContentType, Vec<u8>) {
-    AssetsHandler::serve(&config.assets_path, "avatar.png", DEFAULT_AVATAR)
+pub async fn get_avatar(config: &State<Server>) -> Option<(ContentType, Vec<u8>)> {
+    AssetsHandler::serve(&config.assets_path, "avatar.png")
 }
 
 #[get("/canvas.png")]
-pub async fn get_canvas(config: &State<Server>) -> (ContentType, Vec<u8>) {
-    AssetsHandler::serve(&config.assets_path, "canvas.png", DEFAULT_CANVAS)
+pub async fn get_canvas(config: &State<Server>) -> Option<(ContentType, Vec<u8>)> {
+    AssetsHandler::serve(&config.assets_path, "canvas.png")
 }

@@ -26,21 +26,24 @@ export default class ImageCache {
             await mkdir(cacheDir, { recursive: true });
         }
 
-        // Check if the file exists on disk
         if (await exists(cachedImagePath)) {
             const isExpired = await this.isCacheExpired(cachedImagePath, options.ttl);
             if (!isExpired) {
                 const fileData = await readFile(cachedImagePath);
-                const mimeType = this.getMimeType(fileData);
-                const base64Data = this.arrayBufferToBase64(fileData);
-                return `data:${mimeType};base64,${base64Data}`;
+                if (fileData.length > 0) {
+                    const mimeType = this.getMimeType(fileData);
+                    const base64Data = this.arrayBufferToBase64(fileData);
+                    return `data:${mimeType};base64,${base64Data}`;
+                }
             }
         }
 
-        // If the file doesn't exist or is expired, fetch it from the remote destination
         try {
             const response = await axios.get(options.url, { responseType: "arraybuffer" });
             const imageData = new Uint8Array(response.data);
+            if (imageData.length === 0) {
+                return "";
+            }
             const mimeType = this.getMimeType(imageData);
             await writeFile(cachedImagePath, imageData);
             const base64Data = this.arrayBufferToBase64(imageData);

@@ -6,6 +6,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { info, error as logError } from '@tauri-apps/plugin-log';
 import type { BedrockStatus } from '../../../bindings/BedrockStatus';
 import type { BedrockLogEntry } from '../../../bindings/BedrockLogEntry';
+import type { BedrockConnectError } from '../../../bindings/BedrockConnectError';
 import type { RealmEntry } from '../../../bindings/RealmEntry';
 import type { NetworkInterface } from './NetworkInterface';
 import type { ProxyConfig } from './ProxyConfig';
@@ -15,54 +16,86 @@ const MAX_LOG_ENTRIES = 200;
 
 const ALLOWED_LOG_LEVELS = new Set(['INFO', 'WARN', 'ERROR']);
 
-interface RealmsConnectionError {
-    kind: 'bds_rejected' | 'nethernet' | 'raknet' | 'auth' | 'generic';
-    message: string;
+export type RealmsConnectionErrorKind = BedrockConnectError['kind'];
+
+export interface RealmsConnectionError {
+    raw: BedrockConnectError;
+    title: string;
+    detail: string;
     suggestion: string;
+    severity: 'error' | 'warning';
 }
 
-const FAILURE_WORDS = /\b(failed|failure|error|timed\s*out|timeout|rejected|refused|unable|cannot|aborted|disconnect(?:ed)?|closed)\b/i;
-
-interface ErrorPattern {
-    regex: RegExp;
-    kind: RealmsConnectionError['kind'];
-    suggestion: string;
-    requireFailureWord: boolean;
-    minLevel: 'WARN' | 'ERROR';
+function describeConnectError(err: BedrockConnectError): RealmsConnectionError {
+    switch (err.kind) {
+        case 'nethernet_rejected_no_fallback': {
+            const codeText = err.bds_reason_code != null ? `reason ${err.bds_reason_code}` : 'no reason code';
+            const kick = err.bds_kick_message && err.bds_kick_message.length > 0
+                ? ` "${err.bds_kick_message}"`
+                : '';
+            return {
+                raw: err,
+                title: 'Bedrock server rejected the login',
+                detail: `The Realm rejected the proxy handshake (${codeText}${kick}) and there is no fallback for NetherNet/Realms.`,
+                suggestion: 'This usually clears in 30 seconds. Wait, then try Connect again. If it persists, click Refresh to renew tokens, or restart BVC.',
+                severity: 'error',
+            };
+        }
+        case 'bds_rejected_original_login': {
+            const kick = err.kick_message && err.kick_message.length > 0
+                ? ` ("${err.kick_message}")`
+                : '';
+            return {
+                raw: err,
+                title: 'Server rejected the original login',
+                detail: `Even the unmodified login chain was rejected${kick}.`,
+                suggestion: 'Click Refresh to renew tokens, then try again. If it persists, sign out and back in.',
+                severity: 'error',
+            };
+        }
+        case 'bds_rejected_original_login_undecoded':
+            return {
+                raw: err,
+                title: 'Server rejected the original login',
+                detail: 'The server sent a Disconnect packet during fallback that could not be decoded.',
+                suggestion: 'Click Refresh to renew tokens, then try again.',
+                severity: 'error',
+            };
+        case 'handshake_other':
+            return {
+                raw: err,
+                title: 'Handshake failed',
+                detail: err.message,
+                suggestion: 'Wait a moment and try Connect again. If it keeps failing, click Refresh or restart BVC.',
+                severity: 'error',
+            };
+        case 'auth':
+            return {
+                raw: err,
+                title: 'Authentication failed',
+                detail: err.message,
+                suggestion: 'Click Refresh to renew tokens. If it persists, sign out and back in.',
+                severity: 'error',
+            };
+        case 'transport':
+            return {
+                raw: err,
+                title: 'Network transport failed',
+                detail: err.message,
+                suggestion: 'Check your internet connection. If it persists, restart BVC.',
+                severity: 'error',
+            };
+        case 'other':
+        default:
+            return {
+                raw: err,
+                title: 'Connect failed',
+                detail: (err as { message?: string }).message ?? 'Unknown error',
+                suggestion: 'Wait a moment and try Connect again.',
+                severity: 'error',
+            };
+    }
 }
-
-const ERROR_PATTERNS: ErrorPattern[] = [
-    {
-        regex: /BDS rejected login.*reason code:\s*(\d+)/i,
-        kind: 'bds_rejected',
-        suggestion: 'The Bedrock server rejected the login. This often happens right after a disconnect — wait 30 seconds and try Connect again. If it persists, click Refresh to renew tokens, or restart BVC.',
-        requireFailureWord: false,
-        minLevel: 'WARN',
-    },
-    {
-        regex: /\b(nethernet|webrtc|ice\s+gathering)\b/i,
-        kind: 'nethernet',
-        suggestion: 'NetherNet transport failed. Try Refresh; if it keeps failing, quit and relaunch BVC.',
-        requireFailureWord: true,
-        minLevel: 'ERROR',
-    },
-    {
-        regex: /\braknet\b/i,
-        kind: 'raknet',
-        suggestion: 'RakNet handshake failed. Quit and relaunch BVC, then try again — your Realm may also be offline.',
-        requireFailureWord: true,
-        minLevel: 'ERROR',
-    },
-    {
-        regex: /\b(unauthorized|forbidden|xsts|xbl\s+token|access[_\s]token)\b|\b(401|403)\b/i,
-        kind: 'auth',
-        suggestion: 'Authentication rejected. Click Refresh to renew tokens; sign out and back in if it keeps failing.',
-        requireFailureWord: true,
-        minLevel: 'ERROR',
-    },
-];
-
-const LEVEL_RANK: Record<string, number> = { INFO: 0, WARN: 1, ERROR: 2 };
 
 export class BedrockManager {
     private isEntitledStore: Writable<boolean>;
@@ -143,6 +176,7 @@ export class BedrockManager {
     private store: Store | null = null;
     private loginFlowUnlisten: (() => void) | null = null;
     private logUnlisten: (() => void) | null = null;
+    private connectErrorUnlisten: (() => void) | null = null;
     private copiedTimeout: ReturnType<typeof setTimeout> | null = null;
 
     constructor() {
@@ -250,6 +284,7 @@ export class BedrockManager {
         this.initialized = true;
 
         await this.subscribeToLogs();
+        await this.subscribeToConnectErrors();
 
         this.store = await Store.load('store.json', { autoSave: false, defaults: {} });
 
@@ -477,7 +512,6 @@ export class BedrockManager {
                 networkInterface: get(this.selectedInterfaceStore),
             });
             this.proxyRunningStore.set(true);
-            this.statusMessageStore.set(`Proxy running → ${targetHost}:${targetPort}`);
             info(`Bedrock proxy started: ${targetHost}:${targetPort}`);
         } catch (e) {
             this.statusMessageStore.set(`Error: ${e}`);
@@ -618,7 +652,7 @@ export class BedrockManager {
         } catch (e) {
             this.statusMessageStore.set(`Error: ${e}`);
             logError(`Realms start failed: ${e}`);
-            this.detectError(String(e));
+            this.setConnectErrorFromInvoke(String(e));
         }
     }
 
@@ -652,33 +686,49 @@ export class BedrockManager {
                         : [...current, entry];
                     return next;
                 });
-                if (entry.level === 'WARN' || entry.level === 'ERROR') {
-                    this.detectError(entry.message, entry.level);
-                }
             }
         );
     }
 
-    private detectError(message: string, level: string = 'ERROR'): void {
+    private async subscribeToConnectErrors(): Promise<void> {
+        if (this.connectErrorUnlisten) {
+            return;
+        }
+        const appWebview = getCurrentWebviewWindow();
+        this.connectErrorUnlisten = await appWebview.listen<BedrockConnectError>(
+            'bedrock-connect-error',
+            (event) => {
+                if (get(this.connectionErrorStore)) {
+                    return;
+                }
+                this.connectionErrorStore.set(describeConnectError(event.payload));
+                void this.autoTeardownAfterError();
+            }
+        );
+    }
+
+    private setConnectErrorFromInvoke(raw: string): void {
         if (get(this.connectionErrorStore)) {
             return;
         }
-        const entryRank = LEVEL_RANK[level] ?? LEVEL_RANK.ERROR;
-        for (const pattern of ERROR_PATTERNS) {
-            if (entryRank < (LEVEL_RANK[pattern.minLevel] ?? LEVEL_RANK.ERROR)) {
-                continue;
+        this.connectionErrorStore.set(
+            describeConnectError({ kind: 'other', message: raw }),
+        );
+        void this.autoTeardownAfterError();
+    }
+
+    private async autoTeardownAfterError(): Promise<void> {
+        if (get(this.realmsRunningStore)) {
+            try {
+                await this.stopRealms();
+            } catch (e) {
+                logError(`Auto stopRealms after detected error failed: ${e}`);
             }
-            if (pattern.requireFailureWord && !FAILURE_WORDS.test(message)) {
-                continue;
-            }
-            if (pattern.regex.test(message)) {
-                this.connectionErrorStore.set({
-                    kind: pattern.kind,
-                    message,
-                    suggestion: pattern.suggestion,
-                });
-                return;
-            }
+        }
+        try {
+            await invoke('bedrock_force_refresh');
+        } catch (e) {
+            logError(`Auto token refresh after detected error failed: ${e}`);
         }
     }
 
@@ -718,6 +768,10 @@ export class BedrockManager {
         if (this.logUnlisten) {
             this.logUnlisten();
             this.logUnlisten = null;
+        }
+        if (this.connectErrorUnlisten) {
+            this.connectErrorUnlisten();
+            this.connectErrorUnlisten = null;
         }
         if (this.copiedTimeout) {
             clearTimeout(this.copiedTimeout);

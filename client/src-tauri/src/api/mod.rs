@@ -122,7 +122,21 @@ impl Api {
 
         let url = format!("{}/api/config", self.endpoint);
 
-        match client.get(url).headers(headers).send().await {
+        let response = match client
+            .get(&url)
+            .headers(headers.clone())
+            .send()
+            .await
+        {
+            Ok(r) => Ok(r),
+            Err(e) if e.is_timeout() || e.is_connect() => {
+                tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+                client.get(&url).headers(headers).send().await
+            }
+            Err(e) => Err(e),
+        };
+
+        match response {
             Ok(response) => match response.status() {
                 StatusCode::OK => {
                     let body = response
