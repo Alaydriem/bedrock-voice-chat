@@ -1,3 +1,4 @@
+pub mod ca_cert;
 pub mod position_updater;
 pub mod state;
 pub use state::RuntimeState;
@@ -8,13 +9,7 @@ use crate::stream::quic::{QuicServerManager, WebhookReceiver};
 
 use anyhow::anyhow;
 use faccess::PathExt;
-use rcgen::{
-    CertificateParams, DistinguishedName, ExtendedKeyUsagePurpose, IsCa, KeyPair, KeyUsagePurpose,
-};
-use rocket::time::{Duration, OffsetDateTime};
 use sea_orm::{ConnectOptions, Database, DatabaseConnection};
-use std::fs::File;
-use std::io::Write;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
@@ -399,74 +394,14 @@ impl ServerRuntime {
         Ok(())
     }
 
-    /// Generate the root CA certificates for QUIC mTLS
+    /// Ensure the QUIC server's CA cert and key exist and that the cert's SAN
+    /// extension matches the configured `tls.names + tls.ips`. The key is
+    /// generated exactly once per deployment; the cert is re-signed with the
+    /// same key whenever the configured SAN set drifts. Returns
+    /// `(cert_pem, key_pem)`.
     async fn generate_ca(&self) -> Result<(String, String), anyhow::Error> {
-        let certs_path = &self.config.server.tls.certs_path;
-        let root_ca_path_str = format!("{}/ca.crt", certs_path);
-        let root_ca_key_path_str = format!("{}/ca.key", certs_path);
-
-        // If the certificates already exist, just return them
-        if Path::new(&root_ca_key_path_str).exists() {
-            return Ok((
-                std::fs::read_to_string(&root_ca_path_str)?,
-                std::fs::read_to_string(&root_ca_key_path_str)?,
-            ));
-        }
-
-        let cert_root_path = Path::new(certs_path);
-        if !cert_root_path.exists() {
-            std::fs::create_dir_all(cert_root_path).map_err(|_| {
-                anyhow!(
-                    "Could not create directory {}",
-                    cert_root_path.to_string_lossy()
-                )
-            })?;
-        }
-
-        // Create the root CA certificate
-        let root_kp = KeyPair::generate().map_err(|_| {
-            anyhow!(
-                "Unable to generate root key. Check the certs_path configuration variable to ensure the path is writable"
-            )
-        })?;
-
-        let mut distinguished_name = DistinguishedName::new();
-        distinguished_name.push(rcgen::DnType::CommonName, "Bedrock Voice Chat");
-
         let mut san_names = self.config.server.tls.names.clone();
         san_names.append(&mut self.config.server.tls.ips.clone());
-
-        let root_certificate = CertificateParams::new(san_names)
-            .map_err(|_| {
-                anyhow!(
-                    "Unable to generate root certificates. Check the certs_path configuration variable"
-                )
-            })
-            .and_then(|mut ca_params| {
-                ca_params.is_ca = IsCa::NoCa;
-                ca_params.not_before = OffsetDateTime::now_utc()
-                    .checked_sub(Duration::days(3))
-                    .unwrap();
-                ca_params.distinguished_name = distinguished_name;
-                ca_params.use_authority_key_identifier_extension = true;
-                ca_params.key_usages = vec![KeyUsagePurpose::KeyCertSign];
-                ca_params.extended_key_usages = vec![
-                    ExtendedKeyUsagePurpose::ClientAuth,
-                    ExtendedKeyUsagePurpose::ServerAuth,
-                ];
-                ca_params.self_signed(&root_kp).map_err(|e| anyhow!(e))
-            })?;
-
-        let cert = root_certificate.pem();
-        let key = root_kp.serialize_pem();
-
-        let mut cert_file = File::create(&root_ca_path_str)?;
-        cert_file.write_all(cert.as_bytes())?;
-        let mut key_file = File::create(&root_ca_key_path_str)?;
-        key_file.write_all(key.as_bytes())?;
-
-        info!("Generated CA certificates at {}", certs_path);
-
-        Ok((cert, key))
+        ca_cert::CaCertManager::new(&self.config.server.tls.certs_path).ensure(&san_names)
     }
 }

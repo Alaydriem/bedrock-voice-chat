@@ -682,6 +682,7 @@ dependencies = [
  "read-process-memory",
  "redcon",
  "reqwest 0.12.28",
+ "ring",
  "ringbuf",
  "rocket",
  "rocket_cors",
@@ -695,6 +696,7 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 2.0.18",
  "time",
  "tokio",
@@ -705,6 +707,7 @@ dependencies = [
  "uuid",
  "windows 0.62.2",
  "windows-targets 0.53.5",
+ "x509-parser 0.16.0",
 ]
 
 [[package]]
