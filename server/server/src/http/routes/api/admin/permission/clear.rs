@@ -19,6 +19,8 @@ pub async fn clear_permission(
     let conn = db.into_inner();
     let req = payload.0;
 
+    crate::http::routes::api::admin::validate_gamertag(&req.gamertag)?;
+
     let admin_gamertag = admin.player.gamertag.as_deref().unwrap_or_default();
     let targeting_self = admin_gamertag == req.gamertag && admin.player.game == req.game;
     let targeting_admin_perm = req.permission == Permission::Admin.as_str();
@@ -44,9 +46,12 @@ pub async fn clear_permission(
 
     let removed = PermissionService::clear_override(conn, player_record.id, &req.permission)
         .await
-        .map_err(|e| {
-            tracing::error!("clear_permission: db error: {}", e);
-            Status::InternalServerError
+        .map_err(|e| match e {
+            crate::services::PermissionServiceError::UnknownPermission(_) => Status::BadRequest,
+            crate::services::PermissionServiceError::Database(err) => {
+                tracing::error!("clear_permission: db error: {}", err);
+                Status::InternalServerError
+            }
         })?;
 
     if removed {

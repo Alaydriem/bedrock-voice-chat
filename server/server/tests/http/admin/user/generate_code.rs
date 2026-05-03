@@ -6,10 +6,8 @@
 //! - 404 when target doesn't exist
 //! - 200 with `{ code, expires_in_seconds }` for an existing player
 
-mod harness;
-
-use harness::http_client::MtlsClient;
-use harness::{assert_status, TestServer};
+use crate::harness::http_client::MtlsClient;
+use crate::harness::{assert_status, TestServer};
 
 use common::request::admin::GenerateCodeRequest;
 use common::Game;

@@ -7,10 +7,8 @@
 //! - 204 on successful set
 //! - 409 when admin tries to deny their own admin permission
 
-mod harness;
-
-use harness::server::{ADMIN_GAME, ADMIN_GAMERTAG};
-use harness::{assert_status, TestServer};
+use crate::harness::server::{ADMIN_GAME, ADMIN_GAMERTAG};
+use crate::harness::{assert_status, TestServer};
 
 use common::request::admin::SetPermissionRequest;
 use common::structs::permission::PermissionEffect;

@@ -121,6 +121,12 @@ impl PermissionService {
         player_id: i32,
         permission: &str,
     ) -> Result<bool, PermissionServiceError> {
+        if Permission::from_str(permission).is_none() {
+            return Err(PermissionServiceError::UnknownPermission(
+                permission.to_string(),
+            ));
+        }
+
         let existing = player_permission::Entity::find()
             .filter(player_permission::Column::PlayerId.eq(player_id))
             .filter(player_permission::Column::Permission.eq(permission.to_string()))

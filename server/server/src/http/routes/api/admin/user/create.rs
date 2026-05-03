@@ -22,6 +22,8 @@ pub async fn create_user(
     let conn = db.into_inner();
     let req = payload.0;
 
+    crate::http::routes::api::admin::validate_gamertag(&req.gamertag)?;
+
     let existing = player::Entity::find()
         .filter(player::Column::Gamertag.eq(req.gamertag.clone()))
         .filter(player::Column::Game.eq(req.game.clone()))

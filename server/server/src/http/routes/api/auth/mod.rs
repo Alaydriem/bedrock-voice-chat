@@ -1,5 +1,4 @@
 pub mod code;
-pub mod code_json;
 pub mod hytale;
 pub mod introspect;
 pub mod link_java;
@@ -39,7 +38,6 @@ inventory::submit! {
                 hytale::start_device_flow,
                 hytale::poll_status,
                 code::code_authenticate,
-                code_json::code_authenticate_json,
                 introspect::introspect,
                 link_java::link_java_identity,
                 state::auth_state

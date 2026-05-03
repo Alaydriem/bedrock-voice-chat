@@ -19,6 +19,12 @@ pub async fn generate_code(
     let conn = db.into_inner();
     let req = payload.0;
 
+    if req.duration == 0 || req.duration > 86400 {
+        return Err(Status::BadRequest);
+    }
+
+    crate::http::routes::api::admin::validate_gamertag(&req.gamertag)?;
+
     let player_record = player::Entity::find()
         .filter(player::Column::Gamertag.eq(req.gamertag.clone()))
         .filter(player::Column::Game.eq(req.game.clone()))

@@ -19,6 +19,8 @@ pub async fn set_permission(
     let conn = db.into_inner();
     let req = payload.0;
 
+    crate::http::routes::api::admin::validate_gamertag(&req.gamertag)?;
+
     let admin_gamertag = admin.player.gamertag.as_deref().unwrap_or_default();
     let targeting_self = admin_gamertag == req.gamertag && admin.player.game == req.game;
     let targeting_admin_perm = req.permission == Permission::Admin.as_str();

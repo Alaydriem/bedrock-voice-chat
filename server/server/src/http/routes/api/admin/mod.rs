@@ -1,7 +1,18 @@
 pub mod permission;
 pub mod user;
 
+use rocket::http::Status;
+
 use crate::http::openapi::{RouteSpec, TagDefinition};
+
+/// Validates a gamertag string for basic constraints.
+pub fn validate_gamertag(gamertag: &str) -> Result<(), Status> {
+    let trimmed = gamertag.trim();
+    if trimmed.is_empty() || trimmed.len() > 64 {
+        return Err(Status::BadRequest);
+    }
+    Ok(())
+}
 
 inventory::submit! {
     TagDefinition {

@@ -7,11 +7,9 @@
 //! - 201 on a fresh gamertag/game pair
 //! - 409 on duplicate (gamertag, game)
 
-mod harness;
-
-use harness::http_client::MtlsClient;
-use harness::server::{ADMIN_GAME, ADMIN_GAMERTAG};
-use harness::{assert_status, TestServer};
+use crate::harness::http_client::MtlsClient;
+use crate::harness::server::{ADMIN_GAME, ADMIN_GAMERTAG};
+use crate::harness::{assert_status, TestServer};
 
 use common::request::admin::CreateUserRequest;
 use common::Game;
@@ -96,6 +94,34 @@ async fn returns_201_on_fresh_gamertag() {
     let body: serde_json::Value = resp.json().await.unwrap();
     assert_eq!(body["gamertag"].as_str().unwrap(), "Diana");
     assert_eq!(body["game"].as_str().unwrap(), "minecraft");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn returns_201_on_cross_game_duplicate() {
+    let env = TestServer::start().await.unwrap();
+    let client = env.admin_client().unwrap();
+
+    let first = client
+        .post(format!("{}{}", env.base_url, ENDPOINT))
+        .json(&CreateUserRequest {
+            gamertag: "Eve".into(),
+            game: Game::Minecraft,
+        })
+        .send()
+        .await
+        .unwrap();
+    assert_status(first.status().as_u16(), 201);
+
+    let second = client
+        .post(format!("{}{}", env.base_url, ENDPOINT))
+        .json(&CreateUserRequest {
+            gamertag: "Eve".into(),
+            game: Game::Hytale,
+        })
+        .send()
+        .await
+        .unwrap();
+    assert_status(second.status().as_u16(), 201);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

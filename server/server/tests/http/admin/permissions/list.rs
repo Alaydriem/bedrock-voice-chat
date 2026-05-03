@@ -6,9 +6,7 @@
 //! - 200 with empty entries when no overrides
 //! - 200 with entries reflecting set overrides
 
-mod harness;
-
-use harness::{assert_status, TestServer};
+use crate::harness::{assert_status, TestServer};
 
 use common::request::admin::SetPermissionRequest;
 use common::structs::permission::PermissionEffect;

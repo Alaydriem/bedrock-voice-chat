@@ -7,10 +7,8 @@
 //! - 204 on successful clear
 //! - 409 when admin tries to clear their own admin permission
 
-mod harness;
-
-use harness::server::{ADMIN_GAME, ADMIN_GAMERTAG};
-use harness::{assert_status, TestServer};
+use crate::harness::server::{ADMIN_GAME, ADMIN_GAMERTAG};
+use crate::harness::{assert_status, TestServer};
 
 use common::request::admin::{ClearPermissionRequest, SetPermissionRequest};
 use common::structs::permission::PermissionEffect;
@@ -105,6 +103,25 @@ async fn admin_can_clear_existing_override() {
         .await
         .unwrap();
     assert_status(clear.status().as_u16(), 204);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn returns_400_for_unknown_permission() {
+    let env = TestServer::start().await.unwrap();
+    let _ = env.issue_player("Bob", &Game::Minecraft).await.unwrap();
+    let resp = env
+        .admin_client()
+        .unwrap()
+        .delete(format!("{}{}", env.base_url, ENDPOINT))
+        .json(&ClearPermissionRequest {
+            gamertag: "Bob".into(),
+            game: Game::Minecraft,
+            permission: "not_a_real_permission".into(),
+        })
+        .send()
+        .await
+        .unwrap();
+    assert_status(resp.status().as_u16(), 400);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

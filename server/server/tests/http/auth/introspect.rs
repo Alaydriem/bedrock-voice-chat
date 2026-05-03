@@ -10,11 +10,9 @@
 //! at AdminGuard. Banished players can still introspect themselves; this is intentional
 //! so a banished user can see WHY they're locked out.
 
-mod harness;
-
-use harness::http_client::MtlsClient;
-use harness::server::ADMIN_GAMERTAG;
-use harness::{assert_status, TestServer};
+use crate::harness::http_client::MtlsClient;
+use crate::harness::server::ADMIN_GAMERTAG;
+use crate::harness::{assert_status, TestServer};
 
 use common::Game;
 

@@ -6,11 +6,9 @@
 //! - 404 when the target gamertag/game pair doesn't exist
 //! - 409 when admin tries to banish themselves
 
-mod harness;
-
-use harness::http_client::MtlsClient;
-use harness::server::{ADMIN_GAME, ADMIN_GAMERTAG};
-use harness::{assert_status, TestServer};
+use crate::harness::http_client::MtlsClient;
+use crate::harness::server::{ADMIN_GAME, ADMIN_GAMERTAG};
+use crate::harness::{assert_status, TestServer};
 
 use common::request::admin::BanishUserRequest;
 use common::Game;
@@ -90,6 +88,64 @@ async fn admin_can_banish_other_player() {
     assert_status(resp.status().as_u16(), 200);
     let body: serde_json::Value = resp.json().await.unwrap();
     assert_eq!(body["banished"].as_bool().unwrap(), true);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn returns_403_for_banished_admin() {
+    let env = TestServer::start().await.unwrap();
+    env.mark_banished(ADMIN_GAMERTAG, &ADMIN_GAME, true)
+        .await
+        .unwrap();
+
+    let _ = env.issue_player("Bob", &Game::Minecraft).await.unwrap();
+    let resp = env
+        .admin_client()
+        .unwrap()
+        .patch(format!("{}{}", env.base_url, ENDPOINT))
+        .json(&BanishUserRequest {
+            gamertag: "Bob".into(),
+            game: Game::Minecraft,
+            banish: true,
+        })
+        .send()
+        .await
+        .unwrap();
+    assert_status(resp.status().as_u16(), 403);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn admin_can_unbanish_player() {
+    let env = TestServer::start().await.unwrap();
+    let _ = env.issue_player("Bob", &Game::Minecraft).await.unwrap();
+    let client = env.admin_client().unwrap();
+
+    // Banish first
+    let banish = client
+        .patch(format!("{}{}", env.base_url, ENDPOINT))
+        .json(&BanishUserRequest {
+            gamertag: "Bob".into(),
+            game: Game::Minecraft,
+            banish: true,
+        })
+        .send()
+        .await
+        .unwrap();
+    assert_status(banish.status().as_u16(), 200);
+
+    // Then unbanish
+    let unbanish = client
+        .patch(format!("{}{}", env.base_url, ENDPOINT))
+        .json(&BanishUserRequest {
+            gamertag: "Bob".into(),
+            game: Game::Minecraft,
+            banish: false,
+        })
+        .send()
+        .await
+        .unwrap();
+    assert_status(unbanish.status().as_u16(), 200);
+    let body: serde_json::Value = unbanish.json().await.unwrap();
+    assert_eq!(body["banished"].as_bool().unwrap(), false);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

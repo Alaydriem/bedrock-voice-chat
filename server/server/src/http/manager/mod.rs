@@ -14,9 +14,6 @@ use rocket_cors::{AllowedOrigins, CorsOptions};
 use sea_orm_rocket::Database;
 use std::sync::{Arc, Mutex};
 
-// Generate the ncryptf encryption key route at module level
-ncryptf::ek_route!();
-
 /// Manager for the Rocket HTTP server
 pub struct RocketManager {
     config: ApplicationConfig,
@@ -111,7 +108,7 @@ impl RocketManager {
                     .mount(
                         "/ncryptf",
                         routes![
-                            ncryptf_ek_route
+                            routes::ncryptf::ncryptf_ek_route
                         ],
                     );
 
