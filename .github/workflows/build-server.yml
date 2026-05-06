@@ -92,6 +92,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: "./server"
+          prefix-key: "v1-rust"
 
       - name: Install cross (for cross-compilation)
         if: false # Cross-compilation not currently used, but keeping for future
@@ -111,9 +112,28 @@ jobs:
       - name: Install Windows dependencies
         if: runner.os == 'Windows'
         shell: bash
+        working-directory: ./server
         run: |
-          "$VCPKG_INSTALLATION_ROOT/vcpkg" install zlib:x64-windows-static-md
+          # Manifest mode: server/vcpkg.json pins the port baseline so PRs
+          # don't pick up vcpkg drift on the runner. --x-install-root keeps
+          # the classic install layout that libz-sys's vcpkg-rs expects.
+          "$VCPKG_INSTALLATION_ROOT/vcpkg" install \
+            --triplet x64-windows-static-md \
+            --x-install-root="$VCPKG_INSTALLATION_ROOT/installed"
           echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" >> $GITHUB_ENV
+
+      - name: Force libz-sys/libgit2-sys rebuild on Windows
+        if: runner.os == 'Windows'
+        shell: bash
+        working-directory: ./server
+        run: |
+          # The rust-cache restore can be a partial match (different Cargo.lock
+          # hash) and reuse cached build-script output for libz-sys / libgit2-sys
+          # whose emitted lib paths predate this run's vcpkg install. Wipe just
+          # those two crates' build dirs so cargo reruns their build scripts
+          # against the freshly-installed zlib.
+          rm -rf target/*/build/libz-sys-* target/*/build/libgit2-sys-* 2>/dev/null || true
+          rm -rf target/*/.fingerprint/libz-sys-* target/*/.fingerprint/libgit2-sys-* 2>/dev/null || true
 
       - name: Setup cross-compilation environment
         if: false # Cross-compilation not currently used, but keeping for future
