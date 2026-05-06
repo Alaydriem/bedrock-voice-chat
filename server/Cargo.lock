@@ -696,6 +696,7 @@ dependencies = [
  "read-process-memory",
  "redcon",
  "reqwest 0.12.28",
+ "ring",
  "ringbuf",
  "rocket",
  "rocket_cors",
@@ -722,6 +723,7 @@ dependencies = [
  "windows 0.62.2",
  "windows-native-keyring-store",
  "windows-targets 0.53.5",
+ "x509-parser 0.16.0",
 ]
 
 [[package]]
