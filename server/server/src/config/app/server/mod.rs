@@ -15,11 +15,11 @@ fn default_listen() -> String {
 }
 
 fn default_http_port() -> u32 {
-    8444
+    443
 }
 
 fn default_quic_port() -> u32 {
-    8443
+    443
 }
 
 fn default_assets_path() -> String {

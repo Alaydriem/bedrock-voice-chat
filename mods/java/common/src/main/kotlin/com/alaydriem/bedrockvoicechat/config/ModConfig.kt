@@ -14,7 +14,7 @@ class ModConfig {
     var accessToken: String? = null
 
     @SerializedName(value = "minimum-players", alternate = ["minimumPlayers"])
-    var minimumPlayers: Int = 2
+    var minimumPlayers: Int = 1
 
     // Embedded server mode settings
     @SerializedName(value = "use-embedded-server", alternate = ["useEmbeddedServer"])

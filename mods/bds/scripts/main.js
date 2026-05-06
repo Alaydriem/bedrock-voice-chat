@@ -138,9 +138,9 @@ var Payload = class _Payload {
 // src/main.ts
 var bvc_server = variables.get("bvc_server");
 var access_token = variables.get("bvc_access_token");
-var debug = variables.get("bvc_debug");
+var minimum_players_raw = variables.get("bvc_minimum_players");
+var minimum_players = typeof minimum_players_raw === "number" && minimum_players_raw >= 1 ? Math.floor(minimum_players_raw) : 1;
 var POLL_INTERVAL = 5;
-var MIN_PLAYERS = 2;
 var REQUEST_TIMEOUT = 1;
 var FAILURE_THRESHOLD = 3;
 var INITIAL_BACKOFF_MS = 1e4;
@@ -193,10 +193,8 @@ world.afterEvents.playerSpawn.subscribe((event) => {
 });
 system.runInterval(async () => {
   const players = world.getAllPlayers();
-  if (!debug) {
-    if (players.length < MIN_PLAYERS) {
-      return;
-    }
+  if (players.length < minimum_players) {
+    return;
   }
   const now = Date.now();
   if (consecutiveFailures >= FAILURE_THRESHOLD && now < circuitOpenUntil) {

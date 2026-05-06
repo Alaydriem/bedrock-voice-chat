@@ -9,9 +9,13 @@
     ```
     {
         "bvc_access_token": "<YOUR_TOKEN_DEFINED_FROM_HCL_HERE>",
-        "bvc_server": "https://YOUR_BVC_SERVER_FQDN"
+        "bvc_server": "https://YOUR_BVC_SERVER_FQDN",
+        "bvc_minimum_players": 1
     }
     ```
+
+    `bvc_minimum_players` is optional and defaults to `1`. Position updates are
+    only sent once at least this many players are online.
 
 4. Update your `config/default/permissions.json` to have the following:
 

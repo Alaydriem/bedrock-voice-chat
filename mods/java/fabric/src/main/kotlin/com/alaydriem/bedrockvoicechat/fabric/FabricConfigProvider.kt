@@ -67,7 +67,7 @@ class FabricConfigProvider : ConfigProvider {
         val defaultConfig = ModConfig().apply {
             bvcServer = ""
             accessToken = ""
-            minimumPlayers = 2
+            minimumPlayers = 1
             useEmbeddedServer = false
             embeddedConfig = null
         }

@@ -13,10 +13,12 @@ import { DiscCommand } from './commands/mod';
 
 const bvc_server: string = variables.get('bvc_server');
 const access_token: string = variables.get('bvc_access_token');
-const debug: boolean = variables.get("bvc_debug");
+const minimum_players_raw = variables.get("bvc_minimum_players");
+const minimum_players: number = typeof minimum_players_raw === 'number' && minimum_players_raw >= 1
+  ? Math.floor(minimum_players_raw)
+  : 1;
 
 const POLL_INTERVAL = 5;
-const MIN_PLAYERS = 2;
 const REQUEST_TIMEOUT = 1;
 
 const FAILURE_THRESHOLD = 3;
@@ -123,10 +125,8 @@ world.afterEvents.playerLeave.subscribe((event) => {
 system.runInterval(async () => {
   const players = world.getAllPlayers();
 
-  if (!debug) {
-    if (players.length < MIN_PLAYERS) {
-      return;
-    }
+  if (players.length < minimum_players) {
+    return;
   }
 
   // Circuit breaker: skip requests while circuit is open
