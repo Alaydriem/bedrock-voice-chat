@@ -13,7 +13,7 @@
     "pack": "yarn rebuild && yarn bundle"
   },
   "devDependencies": {
-    "@minecraft/server": "^2.2.0",
+    "@minecraft/server": "^2.7.0",
     "@minecraft/server-admin": "^1.0.0-beta",
     "@minecraft/server-net": "^1.0.0-beta",
     "@minecraft/server-ui": "^2.0.0",

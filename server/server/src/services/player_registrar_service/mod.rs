@@ -149,7 +149,7 @@ impl PlayerRegistrarService {
                 // Create new player records
                 for player_name in new_players {
                     let uuid = uuid_map.get(&player_name).map(|s| s.as_str());
-                    self.create_player(&player_name, &game_type, uuid).await;
+                    let _ = self.create_player(&player_name, &game_type, uuid).await;
                 }
             }
             Err(e) => {
@@ -165,7 +165,7 @@ impl PlayerRegistrarService {
         player_name: &str,
         game_type: &Game,
         player_uuid: Option<&str>,
-    ) {
+    ) -> Result<player::Model, anyhow::Error> {
         let kp = ncryptf::Keypair::new();
         let signature = ncryptf::Signature::new();
 
@@ -176,17 +176,17 @@ impl PlayerRegistrarService {
         sgv.append(&mut signature.get_public_key());
         sgv.append(&mut signature.get_secret_key());
 
-        let (cert, key) = match self.cert_service.sign_player_cert(player_name, game_type) {
-            Ok((cert, key)) => (cert, key),
-            Err(e) => {
+        let (cert, key) = self
+            .cert_service
+            .sign_player_cert(player_name, game_type)
+            .map_err(|e| {
                 tracing::error!(
                     "Failed to sign certificate for {}: {}",
                     player_name,
                     e.to_string()
                 );
-                return;
-            }
-        };
+                anyhow::anyhow!("failed to sign certificate: {}", e)
+            })?;
 
         // Generate gamerpic for Hytale players if we have their UUID
         let gamerpic = match (game_type, player_uuid) {
@@ -208,25 +208,24 @@ impl PlayerRegistrarService {
             game: ActiveValue::Set(game_type.clone()),
         };
 
-        match p.insert(self.db.as_ref()).await {
-            Ok(inserted) => {
-                tracing::info!("Created player record for: {}", player_name);
-                self.cache.insert(player_name.to_string());
+        let inserted = p.insert(self.db.as_ref()).await.map_err(|e| {
+            tracing::error!(
+                "Unable to insert player {} into database: {}",
+                player_name,
+                e.to_string()
+            );
+            anyhow::anyhow!("failed to insert player: {}", e)
+        })?;
 
-                // Store platform UUID identity if provided
-                if let Some(uuid) = player_uuid {
-                    self.store_platform_uuid(inserted.id, uuid, game_type)
-                        .await;
-                }
-            }
-            Err(e) => {
-                tracing::error!(
-                    "Unable to insert player {} into database: {}",
-                    player_name,
-                    e.to_string()
-                );
-            }
+        tracing::info!("Created player record for: {}", player_name);
+        self.cache.insert(player_name.to_string());
+
+        // Store platform UUID identity if provided
+        if let Some(uuid) = player_uuid {
+            self.store_platform_uuid(inserted.id, uuid, game_type).await;
         }
+
+        Ok(inserted)
     }
 
     /// INSERT OR IGNORE a platform UUID into the player_identity table.

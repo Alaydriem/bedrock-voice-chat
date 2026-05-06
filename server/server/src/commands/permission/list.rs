@@ -1,7 +1,9 @@
 use clap::Parser;
+use common::structs::permission::PermissionEffect;
 use common::Game;
-use entity::{player, player_permission};
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+
+use crate::commands::admin_api_client::AdminApiClient;
+use crate::commands::admin_api_error::AdminApiError;
 use crate::commands::Cli;
 
 #[derive(Debug, Parser, Clone)]
@@ -15,59 +17,40 @@ pub struct Config {
 
 impl Config {
     pub async fn run<'a>(&'a self, cfg: &Cli) {
-        let db = match cfg.config.create_database_connection().await {
-            Ok(conn) => conn,
+        let client = match AdminApiClient::from_active_identity(cfg.identity.as_deref()) {
+            Ok(c) => c,
             Err(e) => {
-                eprintln!("Failed to connect to database: {}", e);
-                return;
+                eprintln!("{}", e);
+                std::process::exit(1);
             }
         };
 
-        let player_model = match player::Entity::find()
-            .filter(player::Column::Gamertag.eq(self.player.clone()))
-            .filter(player::Column::Game.eq(self.game.clone()))
-            .one(&db)
-            .await
-        {
-            Ok(Some(p)) => p,
-            Ok(None) => {
-                eprintln!(
-                    "Player '{}' not found for game '{}'",
-                    self.player, self.game
-                );
-                return;
-            }
-            Err(e) => {
-                eprintln!("Failed to query database: {}", e);
-                return;
-            }
-        };
-
-        let permissions = player_permission::Entity::find()
-            .filter(player_permission::Column::PlayerId.eq(player_model.id))
-            .all(&db)
-            .await;
-
-        match permissions {
-            Ok(records) => {
-                if records.is_empty() {
+        match client.list_permissions(&self.player, &self.game).await {
+            Ok(resp) => {
+                if resp.entries.is_empty() {
                     println!(
                         "No permission overrides for player '{}' (using config defaults)",
                         self.player
                     );
                 } else {
                     println!("Permission overrides for player '{}':", self.player);
-                    for record in records {
-                        let effect_str = if record.effect & 1 == 1 {
-                            "allow"
-                        } else {
-                            "deny"
+                    for entry in resp.entries {
+                        let effect_str = match entry.effect {
+                            PermissionEffect::Allow => "allow",
+                            PermissionEffect::Deny => "deny",
                         };
-                        println!("  {} = {}", record.permission, effect_str);
+                        println!("  {} = {}", entry.permission, effect_str);
                     }
                 }
             }
-            Err(e) => eprintln!("Failed to query permissions: {}", e),
+            Err(AdminApiError::NotFound) => eprintln!(
+                "Player '{}' not found for game '{}'",
+                self.player, self.game
+            ),
+            Err(e) => {
+                eprintln!("Failed to query permissions: {}", e);
+                std::process::exit(1);
+            }
         }
     }
 }

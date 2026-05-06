@@ -23,9 +23,9 @@ class PaperConfigProvider(private val plugin: JavaPlugin) : ConfigProvider {
             accessToken = yamlConfig.getString("access-token")
                 ?: yamlConfig.getString("accessToken", "")
             minimumPlayers = if (yamlConfig.contains("minimum-players"))
-                yamlConfig.getInt("minimum-players", 2)
+                yamlConfig.getInt("minimum-players", 1)
             else
-                yamlConfig.getInt("minimumPlayers", 2)
+                yamlConfig.getInt("minimumPlayers", 1)
 
             // Embedded server settings
             useEmbeddedServer = yamlConfig.getBoolean("use-embedded-server", false)

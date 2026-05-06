@@ -1,3 +1,7 @@
+pub mod introspect;
+
+pub use introspect::IntrospectResponse;
+
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 

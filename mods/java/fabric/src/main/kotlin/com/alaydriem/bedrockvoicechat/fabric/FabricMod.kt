@@ -30,7 +30,7 @@ class FabricMod : ModInitializer {
     private var positionSender: PositionSender? = null
     private var audioPlayerManager: FabricAudioPlayerManager? = null
     private var tickCounter = 0
-    private var minimumPlayers = 2
+    private var minimumPlayers = 1
 
     override fun onInitialize() {
         logger.info("Initializing Bedrock Voice Chat")

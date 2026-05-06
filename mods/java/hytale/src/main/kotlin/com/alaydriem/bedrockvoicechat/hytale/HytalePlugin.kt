@@ -33,7 +33,7 @@ class HytalePlugin(init: JavaPluginInit) : JavaPlugin(init) {
     private var threadPool: ScheduledExecutorService? = null
     private var tickTask: ScheduledFuture<*>? = null
     private var crouchSystem: CrouchTickingSystem? = null
-    private var minimumPlayers = 2
+    private var minimumPlayers = 1
 
     override fun setup() {
         logger.at(Level.INFO).log("Initializing Bedrock Voice Chat for Hytale")

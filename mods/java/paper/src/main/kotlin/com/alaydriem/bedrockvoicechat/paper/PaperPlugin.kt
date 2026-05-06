@@ -32,7 +32,7 @@ class PaperPlugin : JavaPlugin(), Listener {
     private var audioEventSender: AudioEventSender? = null
     private var audioPlayerManager: PaperAudioPlayerManager? = null
     private var tickTask: BukkitTask? = null
-    private var minimumPlayers = 2
+    private var minimumPlayers = 1
 
     override fun onEnable() {
         logger.info("Initializing Bedrock Voice Chat")

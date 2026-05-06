@@ -1,10 +1,13 @@
 //! Authentication service for building login responses
 
 mod auth_error;
+mod code_login_error;
 
 use std::path::Path;
+use std::sync::Arc;
 
 use common::{
+    request::CodeLoginRequest,
     response::LoginResponse,
     structs::{
         config::Keypair,
@@ -16,8 +19,10 @@ use entity::player;
 use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
 
 pub use auth_error::AuthError;
+pub use code_login_error::CodeLoginError;
 
-use crate::config::Server;
+use crate::config::{Features, Server};
+use crate::services::auth_code_service::AuthCodeService;
 use crate::services::certificate_service::CertificateService;
 use crate::services::permission_service::PermissionService;
 
@@ -194,5 +199,38 @@ impl AuthService {
             config.quic_port.to_string(),
             server_permissions,
         ))
+    }
+
+    /// Validate a login code, then build a LoginResponse for the resolved player.
+    /// Shared by `/api/auth/code` (ncryptf-wrapped) and `/api/auth/code/json` (plain JSON).
+    pub async fn login_with_code<C: ConnectionTrait>(
+        conn: &C,
+        payload: &CodeLoginRequest,
+        config: &Server,
+        cert_service: &Arc<CertificateService>,
+        features: &Features,
+        perm_config_defaults: std::collections::HashMap<String, bool>,
+    ) -> Result<LoginResponse, CodeLoginError> {
+        if !features.code_login {
+            return Err(CodeLoginError::FeatureDisabled);
+        }
+
+        let player_record =
+            AuthCodeService::validate_and_consume_code(conn, &payload.code, &payload.gamertag)
+                .await?;
+
+        let perm_service = PermissionService::new(perm_config_defaults);
+        let response = Self::build_login_response(
+            conn,
+            config,
+            cert_service.as_ref(),
+            Some(&perm_service),
+            player_record.gamertag.unwrap_or_default(),
+            player_record.gamerpic.unwrap_or_default(),
+            player_record.game,
+        )
+        .await?;
+
+        Ok(response)
     }
 }

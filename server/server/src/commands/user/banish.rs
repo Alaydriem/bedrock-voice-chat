@@ -1,8 +1,9 @@
 use clap::Parser;
+use common::request::admin::BanishUserRequest;
 use common::Game;
-use entity::player;
-use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, QueryFilter};
 
+use crate::commands::admin_api_client::AdminApiClient;
+use crate::commands::admin_api_error::AdminApiError;
 use crate::commands::Cli;
 
 #[derive(Debug, Parser, Clone)]
@@ -17,48 +18,27 @@ pub struct Config {
     pub game: Game,
 
     /// Set to true to banish, false to unbanish
-    #[clap(short, long, default_value = "true")]
+    #[clap(short, long, action = clap::ArgAction::Set, default_value_t = true)]
     pub banish: bool,
 }
 
 impl Config {
     pub async fn run<'a>(&'a self, cfg: &Cli) {
-        // Create database connection
-        let db = match cfg.config.create_database_connection().await {
-            Ok(conn) => conn,
+        let client = match AdminApiClient::from_active_identity(cfg.identity.as_deref()) {
+            Ok(c) => c,
             Err(e) => {
-                eprintln!("Failed to connect to database: {}", e);
-                return;
+                eprintln!("{}", e);
+                std::process::exit(1);
             }
         };
 
-        // Find the player
-        let player_result = player::Entity::find()
-            .filter(player::Column::Gamertag.eq(self.player.clone()))
-            .filter(player::Column::Game.eq(self.game.clone()))
-            .one(&db)
-            .await;
-
-        let player_model = match player_result {
-            Ok(Some(p)) => p,
-            Ok(None) => {
-                eprintln!(
-                    "Player '{}' not found for game '{}'",
-                    self.player, self.game
-                );
-                return;
-            }
-            Err(e) => {
-                eprintln!("Failed to query database: {}", e);
-                return;
-            }
+        let req = BanishUserRequest {
+            gamertag: self.player.clone(),
+            game: self.game.clone(),
+            banish: self.banish,
         };
 
-        // Update the banished status
-        let mut active_model: player::ActiveModel = player_model.into();
-        active_model.banished = ActiveValue::Set(self.banish);
-
-        match active_model.update(&db).await {
+        match client.banish_user(&req).await {
             Ok(_) => {
                 let action = if self.banish { "banished" } else { "unbanished" };
                 println!(
@@ -66,8 +46,13 @@ impl Config {
                     action, self.player, self.game
                 );
             }
+            Err(AdminApiError::NotFound) => eprintln!(
+                "Player '{}' not found for game '{}'",
+                self.player, self.game
+            ),
             Err(e) => {
                 eprintln!("Failed to update player: {}", e);
+                std::process::exit(1);
             }
         }
     }

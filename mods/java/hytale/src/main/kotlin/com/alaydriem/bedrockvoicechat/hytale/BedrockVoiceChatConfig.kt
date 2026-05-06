@@ -99,7 +99,7 @@ class HytaleEmbeddedConfig {
 class BedrockVoiceChatConfig {
     @JvmField var bvcServer: String = ""
     @JvmField var accessToken: String = ""
-    @JvmField var minimumPlayers: Int = 2
+    @JvmField var minimumPlayers: Int = 1
     @JvmField var useEmbeddedServer: Boolean = false
     @JvmField var embeddedConfig: HytaleEmbeddedConfig? = null
 

@@ -145,9 +145,9 @@
     wrap-ansi-cjs "npm:wrap-ansi@^7.0.0"
 
 "@minecraft/common@^1.0.0":
-  version "1.2.0"
-  resolved "https://registry.yarnpkg.com/@minecraft/common/-/common-1.2.0.tgz#a00d4130dcd5084dfd30e85e108c6d58eae8358b"
-  integrity sha512-JdmEq4P3Z/FtoBzhLijFgMSVFnFRrUoLwY8DHHrgtFo0mfLTOLTB1RErYjLMsA6b7BGVNxkX/pfFRiH7QZ0XwQ==
+  version "1.3.0"
+  resolved "https://registry.yarnpkg.com/@minecraft/common/-/common-1.3.0.tgz#ddda1609b83278f35e6b5b9d6565044a27d7f803"
+  integrity sha512-GLT8USFhvEyeTTFHZAgszbrnoT007hmXmK+aO4l+2A1up9/zwZ+4e8R8F0KcKrCWDjLEqkOJtPow0hQCcNJ++Q==
 
 "@minecraft/server-admin@1.0.0-beta.11940b24", "@minecraft/server-admin@^1.0.0-beta":
   version "1.0.0-beta.11940b24"
@@ -169,10 +169,10 @@
     "@minecraft/common" "^1.0.0"
     "@minecraft/server" "^2.0.0"
 
-"@minecraft/server@^2.0.0", "@minecraft/server@^2.2.0":
-  version "2.4.0"
-  resolved "https://registry.yarnpkg.com/@minecraft/server/-/server-2.4.0.tgz#7c0237a33f26c804af73e4d275ef83d5b617ac3a"
-  integrity sha512-xd9dOWQ4RhPQBCt2aui9tp/GCnjvXpi6ZHVxaUr0SPDHfh/GkMRWnyf2Ud6D3pEThp/0giOEtHY1sx2HN9Qd+A==
+"@minecraft/server@^2.0.0", "@minecraft/server@^2.7.0":
+  version "2.7.0"
+  resolved "https://registry.yarnpkg.com/@minecraft/server/-/server-2.7.0.tgz#f3b92eb373b63e83a5018d40c76596cdb3abde70"
+  integrity sha512-2gI80wxSBQ/U6JvGVYVDlbbSOywU8WPy6b5lvfetkWCKU+c//7UdY6dDAU2DkKmR/DzxmPqyy7YAKXwGJduRWQ==
 
 "@pkgjs/parseargs@^0.11.0":
   version "0.11.0"

@@ -8,5 +8,5 @@ bvc-server: ""
 access-token: ""
 
 # Minimum number of players required to start sending position data
-# Default: 2
-minimum-players: 2
+# Default: 1
+minimum-players: 1

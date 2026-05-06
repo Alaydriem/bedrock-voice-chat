@@ -1,3 +1,4 @@
+pub mod admin;
 pub mod api_config;
 pub mod audio;
 pub mod auth;

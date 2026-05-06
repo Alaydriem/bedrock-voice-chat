@@ -1,10 +1,10 @@
 use clap::Parser;
+use common::request::admin::GenerateCodeRequest;
 use common::Game;
-use entity::player;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
 use super::super::Cli;
-use bvc_server_lib::services::AuthCodeService;
+use crate::commands::admin_api_client::AdminApiClient;
+use crate::commands::admin_api_error::AdminApiError;
 
 #[derive(Debug, Parser, Clone)]
 #[clap(author, version, about = "Generate a login code for a player", long_about = None)]
@@ -24,44 +24,33 @@ pub struct Config {
 
 impl Config {
     pub async fn run<'a>(&'a self, cfg: &Cli) {
-        let db = match cfg.config.create_database_connection().await {
-            Ok(conn) => conn,
+        let client = match AdminApiClient::from_active_identity(cfg.identity.as_deref()) {
+            Ok(c) => c,
             Err(e) => {
-                eprintln!("Failed to connect to database: {}", e);
-                return;
+                eprintln!("{}", e);
+                std::process::exit(1);
             }
         };
 
-        // Verify the player exists
-        let existing = player::Entity::find()
-            .filter(player::Column::Gamertag.eq(self.player.clone()))
-            .filter(player::Column::Game.eq(self.game.clone()))
-            .one(&db)
-            .await;
-
-        let player_record = match existing {
-            Ok(Some(p)) => p,
-            Ok(None) => {
-                eprintln!(
-                    "Player '{}' not found for game '{}'. Add the player first with `bvc user add`.",
-                    self.player, self.game
-                );
-                return;
-            }
-            Err(e) => {
-                eprintln!("Failed to query database: {}", e);
-                return;
-            }
+        let req = GenerateCodeRequest {
+            gamertag: self.player.clone(),
+            game: self.game.clone(),
+            duration: self.duration,
         };
 
-        match AuthCodeService::generate_code(&db, player_record.id, self.duration).await {
-            Ok(code) => {
-                println!("Code: {}", code);
+        match client.generate_code(&req).await {
+            Ok(resp) => {
+                println!("Code: {}", resp.code);
                 println!("Player: {} ({})", self.player, self.game);
-                println!("Expires in: {}s", self.duration);
+                println!("Expires in: {}s", resp.expires_in_seconds);
             }
+            Err(AdminApiError::NotFound) => eprintln!(
+                "Player '{}' not found for game '{}'. Add the player first with `bvc user add`.",
+                self.player, self.game
+            ),
             Err(e) => {
                 eprintln!("Failed to generate code: {}", e);
+                std::process::exit(1);
             }
         }
     }

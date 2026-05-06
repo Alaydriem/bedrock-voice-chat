@@ -1,12 +1,10 @@
-use std::sync::Arc;
-
 use clap::Parser;
+use common::request::admin::CreateUserRequest;
 use common::Game;
-use entity::player;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
 use super::super::Cli;
-use bvc_server_lib::services::{CertificateService, PlayerRegistrarService};
+use crate::commands::admin_api_client::AdminApiClient;
+use crate::commands::admin_api_error::AdminApiError;
 
 #[derive(Debug, Parser, Clone)]
 #[clap(author, version, about = "Add a player to the server", long_about = None)]
@@ -22,56 +20,32 @@ pub struct Config {
 
 impl Config {
     pub async fn run<'a>(&'a self, cfg: &Cli) {
-        // Create database connection
-        let db = match cfg.config.create_database_connection().await {
-            Ok(conn) => conn,
+        let client = match AdminApiClient::from_active_identity(cfg.identity.as_deref()) {
+            Ok(c) => c,
             Err(e) => {
-                eprintln!("Failed to connect to database: {}", e);
-                return;
+                eprintln!("{}", e);
+                std::process::exit(1);
             }
         };
 
-        // Check if player already exists
-        let existing = player::Entity::find()
-            .filter(player::Column::Gamertag.eq(self.player.clone()))
-            .filter(player::Column::Game.eq(self.game.clone()))
-            .one(&db)
-            .await;
+        let req = CreateUserRequest {
+            gamertag: self.player.clone(),
+            game: self.game.clone(),
+        };
 
-        match existing {
-            Ok(Some(_)) => {
-                println!(
-                    "Player '{}' already exists for game '{}'",
-                    self.player, self.game
-                );
-                return;
-            }
-            Ok(None) => {
-                // Player doesn't exist, proceed with creation
-            }
+        match client.create_user(&req).await {
+            Ok(_) => println!(
+                "Successfully added player '{}' for game '{}'",
+                self.player, self.game
+            ),
+            Err(AdminApiError::Conflict) => println!(
+                "Player '{}' already exists for game '{}'",
+                self.player, self.game
+            ),
             Err(e) => {
-                eprintln!("Failed to query database: {}", e);
-                return;
+                eprintln!("Failed to add player: {}", e);
+                std::process::exit(1);
             }
         }
-
-        // Create certificate service
-        let cert_service = match CertificateService::new_shared(&cfg.config.server.tls.certs_path) {
-            Ok(cs) => cs,
-            Err(e) => {
-                eprintln!("Failed to initialize certificate service: {}", e);
-                return;
-            }
-        };
-
-        // Create player registrar service and add the player
-        let db_arc = Arc::new(db);
-        let registrar = PlayerRegistrarService::new(db_arc, cert_service);
-
-        registrar.create_player(&self.player, &self.game, None).await;
-        println!(
-            "Successfully added player '{}' for game '{}'",
-            self.player, self.game
-        );
     }
 }

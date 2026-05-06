@@ -1,5 +1,6 @@
 pub mod code;
 pub mod hytale;
+pub mod introspect;
 pub mod link_java;
 pub mod minecraft;
 pub mod state;
@@ -37,6 +38,7 @@ inventory::submit! {
                 hytale::start_device_flow,
                 hytale::poll_status,
                 code::code_authenticate,
+                introspect::introspect,
                 link_java::link_java_identity,
                 state::auth_state
             ]

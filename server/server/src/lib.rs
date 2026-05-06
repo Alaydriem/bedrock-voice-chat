@@ -5,10 +5,10 @@ extern crate common;
 #[macro_use]
 extern crate rocket;
 
-pub(crate) mod config;
+pub mod config;
 pub mod http;
 pub mod services;
-pub(crate) mod stream;
+pub mod stream;
 
 pub mod ffi;
 pub mod runtime;
