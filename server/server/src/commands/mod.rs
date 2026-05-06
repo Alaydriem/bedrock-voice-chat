@@ -46,7 +46,7 @@ pub struct Cli {
     pub config_file: String,
 
     /// BVC server URL (used by `login`; admin commands read from the stored identity)
-    #[clap(global = true, long, env = "BVC_SERVER_URL", default_value = "https://127.0.0.1:3000")]
+    #[clap(global = true, long, env = "BVC_SERVER", default_value = "https://127.0.0.1:3000")]
     pub server_url: String,
 
     /// Active identity selector, format `<gamertag>:<game>`. Falls back to BVC_IDENTITY env or sole-stored-identity
@@ -87,7 +87,7 @@ impl Cli {
         if data.requires_config_file() {
             match data.get_config_file() {
                 Ok(hcl) => {
-                    data.config = hcl;
+                    data.config = Self::apply_env_overrides(hcl);
                 }
                 Err(error) => {
                     println!("{}", error);
@@ -97,6 +97,24 @@ impl Cli {
         }
 
         return Arc::new(data);
+    }
+
+    /// Applies environment variable overrides to an already parsed config.
+    /// BVC_SERVER is host:port (e.g. 0.0.0.0:8444) and overrides listen + port.
+    /// If BVC_SERVER looks like a URL (http:// or https://), it is ignored here
+    /// and handled by clap as the target server_url for client commands.
+    fn apply_env_overrides(mut config: ApplicationConfig) -> ApplicationConfig {
+        if let Ok(addr) = std::env::var("BVC_SERVER") {
+            if !addr.starts_with("http://") && !addr.starts_with("https://") {
+                if let Some((host, port_str)) = addr.rsplit_once(':') {
+                    if let Ok(port) = port_str.parse::<u32>() {
+                        config.server.listen = host.to_string();
+                        config.server.port = port;
+                    }
+                }
+            }
+        }
+        config
     }
 
     /// Reads in the HCL configuration file

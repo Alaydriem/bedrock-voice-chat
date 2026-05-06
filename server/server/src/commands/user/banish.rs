@@ -18,7 +18,7 @@ pub struct Config {
     pub game: Game,
 
     /// Set to true to banish, false to unbanish
-    #[clap(short, long, default_value = "true")]
+    #[clap(short, long, action = clap::ArgAction::Set, default_value_t = true)]
     pub banish: bool,
 }
 

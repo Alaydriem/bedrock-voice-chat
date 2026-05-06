@@ -5,15 +5,12 @@ use common::request::admin::{
     BanishUserRequest, ClearPermissionRequest, CreateUserRequest, GenerateCodeRequest,
     SetPermissionRequest,
 };
-use common::request::LoginRequest;
+use common::request::CodeLoginRequest;
 use common::response::admin::{
     BanishedUserResponse, CreatedUserResponse, GeneratedCodeResponse, PermissionListResponse,
 };
 use common::response::auth::IntrospectResponse;
 use common::response::LoginResponse;
-use common::structs::config::{
-    HytaleDeviceFlowStartResponse, HytaleDeviceFlowStatusResponse,
-};
 use common::Game;
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Certificate, Client, Identity as ReqwestIdentity, Method, StatusCode};
@@ -200,82 +197,18 @@ impl AdminApiClient {
         Self::parse_json(resp).await
     }
 
-    /// Unauthenticated ncryptf POST to /api/auth/minecraft.
-    pub async fn login_minecraft(
+    /// Unauthenticated ncryptf POST to /api/auth/code.
+    pub async fn login_with_code(
         base_url: &str,
         ca_pem: Option<&str>,
-        code: &str,
-        redirect_uri: &str,
+        request: &CodeLoginRequest,
     ) -> Result<LoginResponse, AdminApiError> {
         let client = Self::build_unauth_client(ca_pem).await?;
         let ek = Self::get_encryption_key(base_url, ca_pem).await?;
         let kp = Keypair::new();
 
-        let payload = LoginRequest {
-            code: code.into(),
-            redirect_uri: redirect_uri.into(),
-        };
-
-        let url = format!("{}/api/auth/minecraft", base_url.trim_end_matches('/'));
-        let resp = Self::ncryptf_post(&client, &url, &ek, &kp, &payload).await?;
-        Self::parse_ncryptf_json(resp, &kp).await
-    }
-
-    /// Unauthenticated ncryptf POST to /api/auth/hytale/start-device-flow.
-    pub async fn start_hytale_device_flow(
-        base_url: &str,
-        ca_pem: Option<&str>,
-    ) -> Result<HytaleDeviceFlowStartResponse, AdminApiError> {
-        let client = Self::build_unauth_client(ca_pem).await?;
-        let ek = Self::get_encryption_key(base_url, ca_pem).await?;
-        let kp = Keypair::new();
-
-        let url = format!(
-            "{}/api/auth/hytale/start-device-flow",
-            base_url.trim_end_matches('/')
-        );
-        let resp = Self::ncryptf_post(&client, &url, &ek, &kp, &serde_json::json!({})).await?;
-        Self::parse_ncryptf_json(resp, &kp).await
-    }
-
-    /// Unauthenticated ncryptf GET to /api/auth/hytale/status.
-    pub async fn poll_hytale_status(
-        base_url: &str,
-        ca_pem: Option<&str>,
-        session_id: &str,
-    ) -> Result<HytaleDeviceFlowStatusResponse, AdminApiError> {
-        let client = Self::build_unauth_client(ca_pem).await?;
-        let ek = Self::get_encryption_key(base_url, ca_pem).await?;
-        let kp = Keypair::new();
-
-        let url = format!(
-            "{}/api/auth/hytale/status?session_id={}",
-            base_url.trim_end_matches('/'),
-            session_id
-        );
-
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            "Accept",
-            HeaderValue::from_static("application/vnd.ncryptf+json"),
-        );
-        headers.insert(
-            "X-HashId",
-            HeaderValue::from_str(&ek.hash_id)
-                .map_err(|e| AdminApiError::Transport(anyhow!(e)))?,
-        );
-        headers.insert(
-            "X-PubKey",
-            HeaderValue::from_str(&general_purpose::STANDARD.encode(kp.get_public_key()))
-                .map_err(|e| AdminApiError::Transport(anyhow!(e)))?,
-        );
-
-        let resp = client
-            .get(url)
-            .headers(headers)
-            .send()
-            .await
-            .map_err(|e| AdminApiError::Transport(anyhow!(e)))?;
+        let url = format!("{}/api/auth/code", base_url.trim_end_matches('/'));
+        let resp = Self::ncryptf_post(&client, &url, &ek, &kp, request).await?;
         Self::parse_ncryptf_json(resp, &kp).await
     }
 
