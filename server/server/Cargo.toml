@@ -90,6 +90,7 @@ okapi = { version = "^0.7" }
 rocket_okapi = { version = "0.9", features = ["swagger", "mtls"] }
 inventory = { version = "^0.3" }
 hickory-proto = { workspace = true, optional = true }
+x509-parser = { workspace = true }
 
 dirs = { version = "^5" }
 toml = { version = "^0.8" }
@@ -103,7 +104,6 @@ apple-native-keyring-store = { version = "0.1.0" }
 
 [dev-dependencies]
 opus2 = { workspace = true }
-x509-parser = { workspace = true }
 rodio = { version = "^0.22" }
 async-ringbuf = { version = "^0.3" }
 ringbuf = { version = "0.4" }
