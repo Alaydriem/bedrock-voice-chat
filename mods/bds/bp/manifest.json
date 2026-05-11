@@ -7,7 +7,7 @@
     "version": [
       1,
       0,
-      510
+      511
     ],
     "min_engine_version": [
       1,
@@ -22,7 +22,7 @@
       "version": [
         1,
         0,
-        510
+        511
       ]
     },
     {
@@ -31,7 +31,7 @@
       "version": [
         1,
         0,
-        510
+        511
       ],
       "entry": "scripts/main.js",
       "language": "javascript"
@@ -42,7 +42,7 @@
       "version": [
         1,
         0,
-        510
+        511
       ],
       "uuid": "20a36865-747e-4c38-8077-ea9228c2bd5d"
     },

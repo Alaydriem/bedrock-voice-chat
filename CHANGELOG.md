@@ -1,3 +1,16 @@
+# [1.0.0-beta.11](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.10...v1.0.0-beta.11) (2026-05-11)
+
+
+### Bug Fixes
+
+* [#169](https://github.com/Alaydriem/bedrock-voice-chat/issues/169) ca-resigning ([#170](https://github.com/Alaydriem/bedrock-voice-chat/issues/170)) ([98fd9bd](https://github.com/Alaydriem/bedrock-voice-chat/commit/98fd9bd526ff13b314827987b4c7d83da79c93b7))
+* minor floodgate-geyser / fabric / papermc issues ([#167](https://github.com/Alaydriem/bedrock-voice-chat/issues/167)) ([1318a1b](https://github.com/Alaydriem/bedrock-voice-chat/commit/1318a1baf09120bad82433bc2bc3b942d72fa4cc))
+
+
+### Features
+
+* http admin api + mTLS backed CLI ([#172](https://github.com/Alaydriem/bedrock-voice-chat/issues/172)) ([0e0de89](https://github.com/Alaydriem/bedrock-voice-chat/commit/0e0de8929b0e7d0cb0c248b20608c920685efafd))
+
 # [1.0.0-beta.10](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.9...v1.0.0-beta.10) (2026-04-05)
 
 
