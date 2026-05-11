@@ -3,6 +3,13 @@ use tauri_plugin_updater::UpdaterExt;
 pub(crate) struct UpdaterHelper;
 
 impl UpdaterHelper {
+    fn is_msix_packaged() -> bool {
+        std::env::current_exe()
+            .ok()
+            .and_then(|p| p.to_str().map(|s| s.to_lowercase().contains(r"\windowsapps\")))
+            .unwrap_or(false)
+    }
+
     fn endpoint() -> &'static str {
         let version = env!("CARGO_PKG_VERSION");
         let is_prerelease =
@@ -48,6 +55,11 @@ impl UpdaterHelper {
 
 #[tauri::command]
 pub(crate) async fn check_for_updates(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    if UpdaterHelper::is_msix_packaged() {
+        log::info!("Updater disabled: MSIX-packaged build, updates delivered via Microsoft Store");
+        return Ok(None);
+    }
+
     let update = UpdaterHelper::check(&app).await?;
 
     match update {
@@ -64,6 +76,12 @@ pub(crate) async fn check_for_updates(app: tauri::AppHandle) -> Result<Option<St
 
 #[tauri::command]
 pub(crate) async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
+    if UpdaterHelper::is_msix_packaged() {
+        return Err(
+            "This build is distributed via the Microsoft Store. Updates are delivered automatically by the Store.".to_string(),
+        );
+    }
+
     let update = UpdaterHelper::check(&app).await?;
 
     match update {

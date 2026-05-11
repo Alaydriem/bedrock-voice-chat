@@ -397,6 +397,11 @@ jobs:
             cp "./artifacts/bvc-windows-nsis-setup/bvc-windows-nsis-setup.exe" ./release-files/bvc-client-windows-x64-setup.exe
           fi
 
+          # Windows MSIX (for Microsoft Store submission)
+          if [ -f "./artifacts/bvc-windows-msix/bvc-client-windows-x64.msix" ]; then
+            cp "./artifacts/bvc-windows-msix/bvc-client-windows-x64.msix" ./release-files/bvc-client-windows-x64.msix
+          fi
+
           # Windows updater exe + signature (for auto-updater)
           if [ -f "./artifacts/bvc-windows-updater/bvc-windows-updater.exe" ]; then
             cp "./artifacts/bvc-windows-updater/bvc-windows-updater.exe" ./release-files/bvc-client-windows-x64-updater.exe
