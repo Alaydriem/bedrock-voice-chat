@@ -1,3 +1,5 @@
+# [1.0.0-beta.12](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.11...v1.0.0-beta.12) (2026-05-12)
+
 # [1.0.0-beta.11](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.10...v1.0.0-beta.11) (2026-05-11)
 
 
