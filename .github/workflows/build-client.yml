@@ -212,6 +212,69 @@ jobs:
           retention-days: 90
           if-no-files-found: error
 
+      - name: Build MSIX package (release only)
+        if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
+        working-directory: ./client
+        shell: powershell
+        run: |
+          $version = (Get-Content src-tauri/tauri.conf.json | ConvertFrom-Json).version
+          if ($version -match '^\d+\.\d+\.\d+$') {
+            $msixVersion = "$version.0"
+          } else {
+            # semver with pre-release suffix (e.g. 1.0.510-beta.11) — MSIX requires 4-part numeric.
+            # Strip the suffix; Store cares about the numeric ordering, not the channel label.
+            $numeric = ($version -split '-')[0]
+            $msixVersion = "$numeric.0"
+          }
+          Write-Host "Packaging MSIX at version $msixVersion (from $version)"
+
+          $stage = "msix-stage"
+          if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
+          New-Item -ItemType Directory -Path $stage | Out-Null
+          New-Item -ItemType Directory -Path "$stage/Assets" | Out-Null
+
+          $exeSource = "..\target\release\bedrock-voice-chat-client.exe"
+          if (-not (Test-Path $exeSource)) {
+            Write-Host "ERROR: Tauri release binary not found at $exeSource" -ForegroundColor Red
+            exit 1
+          }
+          Copy-Item $exeSource "$stage/bedrock-voice-chat-client.exe"
+
+          Copy-Item "src-tauri/icons/Square44x44Logo.png"  "$stage/Assets/Square44x44Logo.png"
+          Copy-Item "src-tauri/icons/Square150x150Logo.png" "$stage/Assets/Square150x150Logo.png"
+          Copy-Item "src-tauri/icons/StoreLogo.png"        "$stage/Assets/StoreLogo.png"
+
+          $manifest = Get-Content "src-tauri/msix/AppxManifest.xml" -Raw
+          $manifest = $manifest.Replace("__VERSION_4PART__", $msixVersion)
+          Set-Content -Path "$stage/AppxManifest.xml" -Value $manifest -Encoding UTF8
+
+          $makeAppx = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\makeappx.exe" -ErrorAction SilentlyContinue |
+                       Sort-Object FullName | Select-Object -Last 1).FullName
+          if (-not $makeAppx) {
+            Write-Host "ERROR: makeappx.exe not found in Windows 10 SDK" -ForegroundColor Red
+            exit 1
+          }
+          Write-Host "Using $makeAppx"
+
+          & $makeAppx pack /d $stage /p "bvc-client-windows-x64.msix" /o
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "ERROR: MakeAppx failed with exit code $LASTEXITCODE" -ForegroundColor Red
+            exit 1
+          }
+
+          if (Test-Path "bvc-client-windows-x64.msix") {
+            Get-Item "bvc-client-windows-x64.msix" | Format-List Name, Length, LastWriteTime
+          }
+
+      - name: Upload Windows MSIX
+        if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bvc-windows-msix
+          path: client/bvc-client-windows-x64.msix
+          retention-days: 90
+          if-no-files-found: error
+
       - name: Upload Windows updater artifacts
         if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
         uses: actions/upload-artifact@v4
