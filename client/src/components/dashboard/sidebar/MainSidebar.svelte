@@ -2,12 +2,7 @@
     import { onMount } from "svelte";
     import { invoke } from "@tauri-apps/api/core";
 
-    let multiServerEnabled = $state(false);
-
-    onMount(async () => {
-        multiServerEnabled = await invoke<boolean>("get_feature_flag", { flag: "client.multi-server-enabled" })
-            .catch(() => false);
-    });
+    let multiServerEnabled = $state(true);
 </script>
 
 <div class="main-sidebar">
