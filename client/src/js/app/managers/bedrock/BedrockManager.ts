@@ -7,6 +7,7 @@ import { info, error as logError } from '@tauri-apps/plugin-log';
 import type { BedrockStatus } from '../../../bindings/BedrockStatus';
 import type { BedrockLogEntry } from '../../../bindings/BedrockLogEntry';
 import type { BedrockConnectError } from '../../../bindings/BedrockConnectError';
+import type { BedrockConnectionInfo } from '../../../bindings/BedrockConnectionInfo';
 import type { RealmEntry } from '../../../bindings/RealmEntry';
 import type { NetworkInterface } from './NetworkInterface';
 import type { ProxyConfig } from './ProxyConfig';
@@ -128,6 +129,7 @@ export class BedrockManager {
     private realmsLogsStore: Writable<BedrockLogEntry[]>;
     private logsExpandedStore: Writable<boolean>;
     private connectionErrorStore: Writable<RealmsConnectionError | null>;
+    private connectionInfoStore: Writable<BedrockConnectionInfo | null>;
 
     private proxyServersStore: Writable<ProxyServerEntry[]>;
     private proxyFavoritesStore: Writable<Set<string>>;
@@ -164,6 +166,7 @@ export class BedrockManager {
     public readonly realmsLogs: Readable<BedrockLogEntry[]>;
     public readonly logsExpanded: Readable<boolean>;
     public readonly connectionError: Readable<RealmsConnectionError | null>;
+    public readonly connectionInfo: Readable<BedrockConnectionInfo | null>;
 
     public readonly proxyServers: Readable<ProxyServerEntry[]>;
     public readonly proxyFavorites: Readable<Set<string>>;
@@ -177,6 +180,7 @@ export class BedrockManager {
     private loginFlowUnlisten: (() => void) | null = null;
     private logUnlisten: (() => void) | null = null;
     private connectErrorUnlisten: (() => void) | null = null;
+    private connectionInfoUnlisten: (() => void) | null = null;
     private copiedTimeout: ReturnType<typeof setTimeout> | null = null;
 
     constructor() {
@@ -210,6 +214,7 @@ export class BedrockManager {
         this.realmsLogsStore = writable([]);
         this.logsExpandedStore = writable(false);
         this.connectionErrorStore = writable(null);
+        this.connectionInfoStore = writable(null);
 
         this.proxyServersStore = writable([]);
         this.proxyFavoritesStore = writable(new Set());
@@ -245,6 +250,7 @@ export class BedrockManager {
         this.realmsLogs = { subscribe: this.realmsLogsStore.subscribe };
         this.logsExpanded = { subscribe: this.logsExpandedStore.subscribe };
         this.connectionError = { subscribe: this.connectionErrorStore.subscribe };
+        this.connectionInfo = { subscribe: this.connectionInfoStore.subscribe };
 
         this.proxyServers = { subscribe: this.proxyServersStore.subscribe };
         this.proxyFavorites = { subscribe: this.proxyFavoritesStore.subscribe };
@@ -285,6 +291,7 @@ export class BedrockManager {
 
         await this.subscribeToLogs();
         await this.subscribeToConnectErrors();
+        await this.subscribeToConnectionInfo();
 
         this.store = await Store.load('store.json', { autoSave: false, defaults: {} });
 
@@ -707,6 +714,23 @@ export class BedrockManager {
         );
     }
 
+    private async subscribeToConnectionInfo(): Promise<void> {
+        if (this.connectionInfoUnlisten) {
+            return;
+        }
+        const appWebview = getCurrentWebviewWindow();
+        this.connectionInfoUnlisten = await appWebview.listen<BedrockConnectionInfo>(
+            'bedrock_connection_info',
+            (event) => {
+                this.connectionInfoStore.set(event.payload);
+            }
+        );
+    }
+
+    dismissConnectionInfo(): void {
+        this.connectionInfoStore.set(null);
+    }
+
     private setConnectErrorFromInvoke(raw: string): void {
         if (get(this.connectionErrorStore)) {
             return;
@@ -772,6 +796,10 @@ export class BedrockManager {
         if (this.connectErrorUnlisten) {
             this.connectErrorUnlisten();
             this.connectErrorUnlisten = null;
+        }
+        if (this.connectionInfoUnlisten) {
+            this.connectionInfoUnlisten();
+            this.connectionInfoUnlisten = null;
         }
         if (this.copiedTimeout) {
             clearTimeout(this.copiedTimeout);

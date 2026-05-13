@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -5,20 +6,31 @@ use std::time::Duration;
 
 use bytes::BytesMut;
 use common::bedrock_protocol::{
-    AuthInfo, AuthManager, Bytes, DisconnectPacket, Event, Proxy, ProxyConfig, RealmConfig, Session,
+    AuthInfo, AuthManager, Bytes, Direction, DisconnectPacket, Event, Proxy, ProxyConfig,
+    RealmConfig, Session,
     proxy::{WarmPool, WarmTarget},
     protocol::batch::BatchCodec,
     protocol::codec::PacketEncode,
     protocol::packets::{PacketHeader, ids},
+    protocol::types::transaction::TransactionData,
+    protocol::types::use_item_action_type::UseItemActionType,
 };
+use common::structs::game::Coordinate;
+use common::structs::packet::BedrockEvent;
+use common::structs::{AnalyticsEvent, AnalyticsEventData};
 use common::traits::StreamTrait;
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use tokio::sync::{oneshot, watch};
 use tokio::task::{AbortHandle, JoinHandle};
+
+use crate::bedrock::bvc_disc_nbt::BvcDiscNbt;
+use crate::bedrock::event_emitter::BedrockEventEmitter;
 
 const RELAY_DRAIN_DELAY: Duration = Duration::from_millis(500);
 
 const CLIENT_DISCONNECT_DRAIN: Duration = Duration::from_millis(150);
+
+const POSITION_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(30);
 
 const BVC_DISCONNECT_MESSAGE: &str =
     "Connection was closed by the Bedrock Voice Chat app so your link to this server was ended on purpose. Reconnect through the Bedrock Voice Chat app reconnect to this server.";
@@ -26,12 +38,15 @@ const BVC_DISCONNECT_MESSAGE: &str =
 use crate::bedrock::backend::Backend;
 use crate::bedrock::connect_error_channel;
 use crate::bedrock::player_state_cache::BedrockPlayerStateCache;
+use crate::bedrock::services::ProtocolGatingService;
 use crate::bedrock::session_state::BedrockSessionState;
 
 pub struct BedrockProxyManager {
     listen_port: u16,
     backend: Option<Backend>,
     player_state_cache: Arc<BedrockPlayerStateCache>,
+    event_emitter: Option<Arc<BedrockEventEmitter>>,
+    gating: Arc<ProtocolGatingService>,
     jobs: Vec<AbortHandle>,
     shutdown: Arc<AtomicBool>,
     shutdown_tx: Option<oneshot::Sender<()>>,
@@ -45,6 +60,7 @@ impl BedrockProxyManager {
         listen_port: u16,
         auth_manager: Arc<AuthManager>,
         player_state_cache: Arc<BedrockPlayerStateCache>,
+        gating: Arc<ProtocolGatingService>,
     ) -> Self {
         Self {
             listen_port,
@@ -54,6 +70,8 @@ impl BedrockProxyManager {
                 auth_manager,
             }),
             player_state_cache,
+            event_emitter: None,
+            gating,
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),
             shutdown_tx: None,
@@ -69,6 +87,7 @@ impl BedrockProxyManager {
         access_token: String,
         realms_api: common::bedrock_protocol::RealmsApi,
         player_state_cache: Arc<BedrockPlayerStateCache>,
+        gating: Arc<ProtocolGatingService>,
     ) -> Self {
         let auth = AuthInfo::xbl_token_with_access(xbl_token, user_hash, access_token);
         let realm_config = RealmConfig::new(realm_id, realms_api);
@@ -76,6 +95,8 @@ impl BedrockProxyManager {
             listen_port,
             backend: Some(Backend::Realm { realm_config, auth }),
             player_state_cache,
+            event_emitter: None,
+            gating,
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),
             shutdown_tx: None,
@@ -83,6 +104,9 @@ impl BedrockProxyManager {
         }
     }
 
+    pub fn set_event_emitter(&mut self, emitter: Arc<BedrockEventEmitter>) {
+        self.event_emitter = Some(emitter);
+    }
 }
 
 impl StreamTrait for BedrockProxyManager {
@@ -146,6 +170,8 @@ impl BedrockProxyManager {
 
         let listen_port = self.listen_port;
         let player_state_cache = Arc::clone(&self.player_state_cache);
+        let event_emitter = self.event_emitter.clone();
+        let gating = Arc::clone(&self.gating);
 
         let handle = tokio::spawn(async move {
             let bind_addr: SocketAddr = match format!("0.0.0.0:{}", listen_port).parse() {
@@ -189,6 +215,35 @@ impl BedrockProxyManager {
                 }
             };
             info!("Bedrock proxy listening on {}", proxy.local_addr());
+
+            // Fire backend-specific lifecycle event after the listener has
+            // actually bound. The Direct vs Realm split mirrors the
+            // user-facing distinction in the BVC UI.
+            let listening_addr = proxy.local_addr().to_string();
+            match &backend {
+                Backend::Direct {
+                    target_host,
+                    target_port,
+                    ..
+                } => {
+                    let data = AnalyticsEventData::new()
+                        .insert("listen_addr", listening_addr.clone())
+                        .insert("target_host", target_host.clone())
+                        .insert("target_port", *target_port as i64);
+                    gating.analytics().track(
+                        AnalyticsEvent::BedrockProxyStarted,
+                        Some(data),
+                    );
+                }
+                Backend::Realm { .. } => {
+                    let data = AnalyticsEventData::new()
+                        .insert("listen_addr", listening_addr.clone());
+                    gating.analytics().track(
+                        AnalyticsEvent::BedrockRealmStarted,
+                        Some(data),
+                    );
+                }
+            }
 
             // Resolve the direct backend hostname once. Realm backends don't need this —
             // the Realms API resolves the live world address inside dial_realm.
@@ -238,6 +293,34 @@ impl BedrockProxyManager {
             let mut child_handles: Vec<JoinHandle<()>> = vec![];
             let (child_cancel_tx, _) = watch::channel(false);
 
+            if let Some(emitter) = event_emitter.clone() {
+                let heartbeat_cache = Arc::clone(&player_state_cache);
+                let mut heartbeat_cancel_rx = child_cancel_tx.subscribe();
+                let heartbeat_handle = tokio::spawn(async move {
+                    let mut interval = tokio::time::interval(POSITION_HEARTBEAT_INTERVAL);
+                    interval.set_missed_tick_behavior(
+                        tokio::time::MissedTickBehavior::Skip,
+                    );
+                    loop {
+                        tokio::select! {
+                            biased;
+                            _ = heartbeat_cancel_rx.changed() => {
+                                if *heartbeat_cancel_rx.borrow() {
+                                    info!("Bedrock position heartbeat received cancel");
+                                    break;
+                                }
+                            }
+                            _ = interval.tick() => {
+                                if let Some(player) = heartbeat_cache.get_local_player() {
+                                    emitter.try_send_player_data(player);
+                                }
+                            }
+                        }
+                    }
+                });
+                child_handles.push(heartbeat_handle);
+            }
+
             loop {
                 tokio::select! {
                     _ = &mut shutdown_rx => {
@@ -245,20 +328,49 @@ impl BedrockProxyManager {
                         break;
                     }
                     conn = proxy.accept() => {
-                        let Some(conn) = conn else { break; };
+                        let Some(mut conn) = conn else { break; };
                         let player_name = conn.player.name.clone();
                         let player_uuid = if conn.player.uuid.is_empty() {
                             None
                         } else {
                             Some(conn.player.uuid.clone())
                         };
-                        info!("Bedrock: player connected: {}", player_name);
+                        let peer_protocol = conn.protocol_version();
+
+                        if !gating.is_allowed(peer_protocol).await {
+                            let kick = gating.kick_message(peer_protocol);
+                            warn!(
+                                "Bedrock: rejecting {} on unsupported protocol {} \
+                                 (not in SUPPORTED_PROTOCOLS, not flag-overridden)",
+                                player_name, peer_protocol
+                            );
+                            conn.disconnect(&kick).await;
+                            continue;
+                        }
+
+                        info!(
+                            "Bedrock: player connected: {} (protocol {})",
+                            player_name, peer_protocol
+                        );
                         player_state_cache.set_local_gamertag(player_name.clone());
+
+                        let backend_label = match &*backend {
+                            Backend::Direct { .. } => "direct",
+                            Backend::Realm { .. } => "realm",
+                        };
+                        let connect_data = AnalyticsEventData::new()
+                            .insert("protocol", peer_protocol.0 as i64)
+                            .insert("backend", backend_label);
+                        gating
+                            .analytics()
+                            .track(AnalyticsEvent::BedrockConnected, Some(connect_data));
 
                         let child_cache = Arc::clone(&player_state_cache);
                         let child_warm: Option<Arc<WarmPool>> = warm_pool.clone();
                         let child_backend = Arc::clone(&backend);
                         let child_player_name = player_name.clone();
+                        let child_emitter = event_emitter.clone();
+                        let child_gating = Arc::clone(&gating);
                         let mut child_cancel_rx = child_cancel_tx.subscribe();
 
                         let h = tokio::spawn(async move {
@@ -324,6 +436,15 @@ impl BedrockProxyManager {
                                 player_uuid,
                             );
 
+                            let mut jukebox_state: HashMap<(i32, i32, i32), String> = HashMap::new();
+                            let mut last_known_health: Option<i32> = None;
+
+                            // Captures the reason this session ended. Read after the
+                            // loop to emit the BedrockDisconnected analytics event with
+                            // a meaningful breakdown property.
+                            let disconnect_reason: &'static str;
+                            let mut disconnect_detail: Option<String> = None;
+
                             loop {
                                 tokio::select! {
                                     biased;
@@ -335,19 +456,58 @@ impl BedrockProxyManager {
                                             );
                                             Self::send_client_disconnect(&session, &child_player_name);
                                             tokio::time::sleep(CLIENT_DISCONNECT_DRAIN).await;
+                                            disconnect_reason = "session_cancelled";
                                             break;
                                         }
                                     }
                                     evt = session.next() => {
-                                        let Some(evt) = evt else { break; };
+                                        let Some(evt) = evt else {
+                                            disconnect_reason = "upstream_closed";
+                                            break;
+                                        };
                                         match evt {
                                             Event::StartGame(_dir, packet) => state.apply_start_game(&packet),
-                                            Event::PlayerAuthInput(_dir, packet) => state.apply_position(&packet),
+                                            Event::PlayerAuthInput(dir, packet) => {
+                                                state.apply_position(&packet);
+                                                if matches!(dir, Direction::Serverbound) {
+                                                    if let Some(tx) = &packet.transaction {
+                                                        Self::on_inventory_transaction(
+                                                            &tx.data,
+                                                            &state,
+                                                            &child_emitter,
+                                                            &mut jukebox_state,
+                                                        );
+                                                    }
+                                                }
+                                            }
                                             Event::ChangeDimension(_dir, packet) => state.apply_change_dimension(&packet),
                                             Event::SetPlayerGameType(_dir, packet) => state.apply_game_type(packet.gamemode),
                                             Event::UpdatePlayerGameType(_dir, packet) => state.apply_game_type(packet.gamemode),
+                                            Event::InventoryTransaction(dir, packet) => {
+                                                if matches!(dir, Direction::Serverbound) {
+                                                    Self::on_inventory_transaction(
+                                                        &packet.transaction.data,
+                                                        &state,
+                                                        &child_emitter,
+                                                        &mut jukebox_state,
+                                                    );
+                                                }
+                                                continue;
+                                            }
+                                            Event::SetHealth(_dir, packet) => {
+                                                Self::on_set_health(
+                                                    packet.health,
+                                                    &mut last_known_health,
+                                                    &state,
+                                                    &child_emitter,
+                                                );
+                                                continue;
+                                            }
                                             Event::Disconnected(reason) => {
                                                 info!("Bedrock session disconnected for {}: {:?}", child_player_name, reason);
+                                                Self::on_player_leave(&state, &child_emitter);
+                                                disconnect_reason = "peer_disconnect";
+                                                disconnect_detail = Some(format!("{:?}", reason));
                                                 break;
                                             }
                                             _ => continue,
@@ -356,6 +516,17 @@ impl BedrockProxyManager {
                                     }
                                 }
                             }
+
+                            let mut disconnect_data = AnalyticsEventData::new()
+                                .insert("reason", disconnect_reason)
+                                .insert("protocol", peer_protocol.0 as i64)
+                                .insert("backend", backend_label);
+                            if let Some(detail) = disconnect_detail {
+                                disconnect_data = disconnect_data.insert("detail", detail);
+                            }
+                            child_gating
+                                .analytics()
+                                .track(AnalyticsEvent::BedrockDisconnected, Some(disconnect_data));
 
                             // Session drops here, which cancels the lib's relay tasks; those
                             // tasks need async time to flush their Disconnect packet to BDS.
@@ -418,12 +589,155 @@ impl BedrockProxyManager {
             );
         }
     }
+
+    fn on_inventory_transaction(
+        data: &TransactionData,
+        state: &BedrockSessionState,
+        emitter: &Option<Arc<BedrockEventEmitter>>,
+        jukebox_state: &mut HashMap<(i32, i32, i32), String>,
+    ) {
+        let emitter = match emitter.as_ref() {
+            Some(e) => e,
+            None => return,
+        };
+
+        let use_item = match data {
+            TransactionData::ItemUse(use_item) => use_item,
+            _ => return,
+        };
+
+        if !matches!(use_item.action_type, UseItemActionType::ClickBlock) {
+            return;
+        }
+
+        let audio_id = match BvcDiscNbt::extract_audio_id(&use_item.held_item.extra) {
+            Some(id) => id,
+            None => {
+                debug!(
+                    "Bedrock: ItemUse ClickBlock at ({},{},{}) net_id={} extra_len={} — no BVC audio id in held item",
+                    use_item.block_position.x,
+                    use_item.block_position.y,
+                    use_item.block_position.z,
+                    use_item.held_item.network_id,
+                    use_item.held_item.extra.len(),
+                );
+                return;
+            }
+        };
+
+        let world_uuid = match state.world_uuid() {
+            Some(w) => w.to_string(),
+            None => {
+                debug!("Skipping jukebox event: no world_uuid in session state");
+                return;
+            }
+        };
+
+        let block_key = (
+            use_item.block_position.x,
+            use_item.block_position.y,
+            use_item.block_position.z,
+        );
+        let block_pos = Coordinate {
+            x: use_item.block_position.x as f32,
+            y: use_item.block_position.y as f32,
+            z: use_item.block_position.z as f32,
+        };
+        let player_xuid = state.player_uuid().unwrap_or("").to_string();
+
+        let event = if jukebox_state.remove(&block_key).is_some() {
+            BedrockEvent::JukeboxEject {
+                audio_id: audio_id.clone(),
+                block_pos,
+                player_xuid,
+            }
+        } else {
+            jukebox_state.insert(block_key, audio_id.clone());
+            BedrockEvent::JukeboxInsert {
+                audio_id: audio_id.clone(),
+                block_pos,
+                dimension: state.dimension(),
+                player_xuid,
+            }
+        };
+
+        info!(
+            "Bedrock proxy: emitting jukebox event for audio_id={} at ({},{},{})",
+            audio_id, block_key.0, block_key.1, block_key.2
+        );
+        emitter.try_send(event, world_uuid);
+    }
+
+    fn on_set_health(
+        new_health: i32,
+        last_known_health: &mut Option<i32>,
+        state: &BedrockSessionState,
+        emitter: &Option<Arc<BedrockEventEmitter>>,
+    ) {
+        let previously_alive = matches!(last_known_health, Some(h) if *h > 0);
+        *last_known_health = Some(new_health);
+
+        if new_health > 0 || !previously_alive {
+            return;
+        }
+
+        let emitter = match emitter.as_ref() {
+            Some(e) => e,
+            None => return,
+        };
+        let world_uuid = match state.world_uuid() {
+            Some(w) => w.to_string(),
+            None => return,
+        };
+
+        let event = BedrockEvent::PlayerDeath {
+            player_xuid: state.player_uuid().unwrap_or("").to_string(),
+            dimension: state.dimension(),
+            last_pos: state.coordinates(),
+        };
+        info!("Bedrock proxy: emitting player death for {}", state.name());
+        emitter.try_send(event, world_uuid);
+    }
+
+    fn on_player_leave(
+        state: &BedrockSessionState,
+        emitter: &Option<Arc<BedrockEventEmitter>>,
+    ) {
+        let emitter = match emitter.as_ref() {
+            Some(e) => e,
+            None => return,
+        };
+        let world_uuid = match state.world_uuid() {
+            Some(w) => w.to_string(),
+            None => return,
+        };
+
+        let event = BedrockEvent::PlayerLeave {
+            player_xuid: state.player_uuid().unwrap_or("").to_string(),
+        };
+        info!("Bedrock proxy: emitting player leave for {}", state.name());
+        emitter.try_send(event, world_uuid);
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::analytics::AnalyticsService;
+    use crate::feature_flags::FeatureFlagService;
     use common::bedrock_protocol::AuthManager;
+
+    fn build_gating() -> Arc<ProtocolGatingService> {
+        let flag_service = Arc::new(FeatureFlagService::new(
+            String::new(),
+            String::new(),
+            String::new(),
+            std::time::Duration::from_secs(3600),
+        ));
+        let telemetry = Arc::new(crate::logging::Telemetry::new(false));
+        let analytics = Arc::new(AnalyticsService::new(telemetry, String::new()));
+        ProtocolGatingService::new_shared(flag_service, analytics)
+    }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn start_stop_start_does_not_leak_port() {
@@ -441,6 +755,7 @@ mod tests {
             port,
             Arc::clone(&auth_mgr),
             Arc::clone(&cache),
+            build_gating(),
         );
 
         mgr.start().await.expect("first start");
@@ -459,6 +774,7 @@ mod tests {
             port,
             auth_mgr,
             cache,
+            build_gating(),
         );
         mgr2.start().await.expect("second start on same port");
         tokio::time::sleep(Duration::from_secs(2)).await;

@@ -1,3 +1,4 @@
+use crate::analytics::AnalyticsService;
 use crate::auth::{code_login, hytale, login};
 use crate::keyring::KeyringService;
 use crate::structs::app_state::AppState;
@@ -6,6 +7,7 @@ use common::response::LoginResponse;
 use common::structs::config::{
     HytaleAuthStatus, HytaleDeviceFlowStartResponse, HytaleDeviceFlowStatusResponse,
 };
+use std::sync::Arc;
 use tauri::{State, async_runtime::Mutex};
 use tauri_plugin_store::StoreExt;
 
@@ -46,8 +48,11 @@ pub(crate) async fn server_login(
 pub(crate) async fn logout(
     app_state: State<'_, Mutex<AppState>>,
     keyring: State<'_, Mutex<KeyringService>>,
+    analytics: State<'_, Arc<AnalyticsService>>,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
+    analytics.clear_connected_server();
+    analytics.clear_player();
     let mut state = app_state.lock().await;
 
     // Get the current server before clearing it

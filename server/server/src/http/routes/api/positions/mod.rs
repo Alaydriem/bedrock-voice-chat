@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use common::traits::player_data::PlayerData;
 use common::Game;
 use rocket::{http::Status, serde::json::Json, State};
@@ -6,7 +8,7 @@ use rocket_okapi::openapi;
 use crate::http::openapi::{RouteSpec, TagDefinition};
 use crate::{
     http::guards::MCAccessToken,
-    services::{PlayerIdentityService, PlayerRegistrarService},
+    services::{BedrockEventService, PlayerIdentityService, PlayerRegistrarService},
     stream::quic::{CacheManager, WebhookReceiver},
 };
 use crate::runtime::position_updater;
@@ -37,10 +39,22 @@ pub async fn update_position(
     webhook_receiver: &State<WebhookReceiver>,
     player_registrar: &State<PlayerRegistrarService>,
     identity_service: &State<PlayerIdentityService>,
+    bedrock_event_service: &State<Arc<BedrockEventService>>,
 ) -> Status {
     let game_type = positions.0.game.clone().unwrap_or(Game::Minecraft);
 
     let mut all_players: Vec<_> = positions.0.players.clone();
+
+    let mut seen_worlds: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for player in &all_players {
+        if let common::PlayerEnum::Minecraft(mc) = player {
+            if let Some(world_uuid) = &mc.world_uuid {
+                if !world_uuid.is_empty() && seen_worlds.insert(world_uuid.clone()) {
+                    bedrock_event_service.notify_addon_http(world_uuid).await;
+                }
+            }
+        }
+    }
 
     for player in &all_players {
         let alt = player.get_alternative_identity();

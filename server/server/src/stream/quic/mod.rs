@@ -178,6 +178,13 @@ impl QuicServerManager {
         self.cache_manager.clone()
     }
 
+    pub fn set_bedrock_event_service(
+        &mut self,
+        service: Arc<crate::services::BedrockEventService>,
+    ) {
+        self.cache_manager.set_bedrock_event_service(service);
+    }
+
     pub fn get_webhook_receiver(&self) -> &WebhookReceiver {
         &self.webhook_receiver
     }

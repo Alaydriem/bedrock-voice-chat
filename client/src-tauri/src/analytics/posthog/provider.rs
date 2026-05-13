@@ -38,6 +38,9 @@ impl Provider {
             os: self.os.clone(),
             app_version: self.app_version.clone(),
             is_debug: self.is_debug,
+            connected_server: event.connected_server.clone(),
+            player_display: event.player_display.clone(),
+            player_hash: event.player_hash.clone(),
             custom,
         }
     }

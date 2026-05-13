@@ -4,7 +4,7 @@ pub mod state;
 pub use state::RuntimeState;
 use crate::config::ApplicationConfig;
 use crate::http::manager::RocketManager;
-use crate::services::{AudioPlaybackService, CertificateService, MeridianService, PlayerIdentityService, PlayerRegistrarService};
+use crate::services::{AudioPlaybackService, BedrockEventService, CertificateService, MeridianService, PlayerIdentityService, PlayerRegistrarService};
 use crate::stream::quic::{QuicServerManager, WebhookReceiver};
 
 use anyhow::anyhow;
@@ -176,6 +176,16 @@ impl ServerRuntime {
             *dc = Some(db_conn.clone());
         }
 
+        // Bedrock proxy event ingress: sniffs in-game events from Proxy/Realms Connect
+        // clients and dispatches them through the same services BDS HTTP routes call into.
+        let bedrock_event_service = BedrockEventService::new_shared(
+            audio_playback_service.clone(),
+            webhook_receiver.clone(),
+            db_conn.clone(),
+            self.config.server.bedrock.proxy_event_freshness_threshold_secs,
+        );
+        quic_manager.set_bedrock_event_service(bedrock_event_service.clone());
+
         #[cfg(feature = "bedrock")]
         let transfer_target_cache = if self.config.server.bedrock.enabled {
             Some(crate::services::bedrock::TransferTargetCache::new(
@@ -193,6 +203,7 @@ impl ServerRuntime {
             player_registrar,
             identity_service,
             audio_playback_service,
+            bedrock_event_service,
             cert_service,
             #[cfg(feature = "bedrock")]
             transfer_target_cache.clone(),

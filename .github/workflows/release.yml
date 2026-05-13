@@ -638,11 +638,18 @@ jobs:
           name: bedrock-voice-chat-hytale-${{ needs.prepare-mods-release.outputs.new_release_version }}
           path: ./release-files
 
-      - name: Download BDS artifact
+      - name: Download BDS artifact (default)
         if: needs.build-mod-bds.result == 'success'
         uses: actions/download-artifact@v5
         with:
           name: bedrock-voice-chat-bds-${{ needs.prepare-mods-release.outputs.new_release_version }}
+          path: ./release-files
+
+      - name: Download BDS artifact (no-net)
+        if: needs.build-mod-bds.result == 'success'
+        uses: actions/download-artifact@v5
+        with:
+          name: bedrock-voice-chat-bds-no-net-${{ needs.prepare-mods-release.outputs.new_release_version }}
           path: ./release-files
 
       - name: Rename artifacts
@@ -665,6 +672,10 @@ jobs:
 
           if [ -f "bedrock-voice-chat-${VERSION}.mcaddon" ]; then
             mv "bedrock-voice-chat-${VERSION}.mcaddon" "bvc-bds-pack-${VERSION}.mcaddon"
+          fi
+
+          if [ -f "bedrock-voice-chat-no-net-${VERSION}.mcaddon" ]; then
+            mv "bedrock-voice-chat-no-net-${VERSION}.mcaddon" "bvc-bds-pack-no-net-${VERSION}.mcaddon"
           fi
 
           echo "=== Release files ==="

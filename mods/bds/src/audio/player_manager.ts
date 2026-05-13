@@ -1,15 +1,10 @@
 import { world, system, ItemStack } from '@minecraft/server';
 import type { Dimension } from '@minecraft/server';
-import {
-  http,
-  HttpRequest,
-  HttpRequestMethod,
-  HttpHeader,
-} from '@minecraft/server-net';
 import { Coordinates, AudioPlayRequest } from '../dto';
 import type { AudioEventResponse } from '../dto';
 import type { AudioPlayerState } from './player_state';
 import type { StoredDisc } from './stored_disc';
+import { httpClient } from '../net';
 
 const STORAGE_KEY = 'bvc:active_discs';
 
@@ -160,21 +155,23 @@ export class AudioPlayerManager {
 
     const body = JSON.stringify(request.toJSON());
 
-    const httpRequest = new HttpRequest(
-      `${this.serverUrl}/api/audio/event`
-    );
-    httpRequest.setBody(body);
-    httpRequest.setMethod((HttpRequestMethod as any).Post);
-    httpRequest.setHeaders([
-      new HttpHeader('Content-Type', 'application/json'),
-      new HttpHeader('X-MC-Access-Token', this.accessToken),
-      new HttpHeader('Accept', 'application/json'),
-    ]);
-    httpRequest.setTimeout(5);
-
-    http
-      .request(httpRequest)
+    httpClient
+      .request(
+        `${this.serverUrl}/api/audio/event`,
+        'Post',
+        body,
+        [
+          ['Content-Type', 'application/json'],
+          ['X-MC-Access-Token', this.accessToken],
+          ['Accept', 'application/json'],
+        ],
+        5
+      )
       .then((response) => {
+        if (!response) {
+          state.isPlaying = false;
+          return;
+        }
         if (response.status >= 200 && response.status < 300) {
           const data: AudioEventResponse = JSON.parse(response.body);
           state.isPlaying = true;
@@ -202,23 +199,23 @@ export class AudioPlayerManager {
     state.isPlaying = false;
     state.eventId = null;
 
-    const httpRequest = new HttpRequest(
-      `${this.serverUrl}/api/audio/event/${eventId}`
-    );
-    httpRequest.setMethod((HttpRequestMethod as any).Delete);
-    httpRequest.setHeaders([
-      new HttpHeader('X-MC-Access-Token', this.accessToken),
-      new HttpHeader('Accept', 'application/json'),
-    ]);
-    httpRequest.setTimeout(5);
-
-    http
-      .request(httpRequest)
+    httpClient
+      .request(
+        `${this.serverUrl}/api/audio/event/${eventId}`,
+        'Delete',
+        undefined,
+        [
+          ['X-MC-Access-Token', this.accessToken],
+          ['Accept', 'application/json'],
+        ],
+        5
+      )
       .then((response) => {
+        if (!response) return;
         if (response.status >= 200 && response.status < 300) {
-        } else {
-          console.warn(`[BVC] Stop request failed: ${response.status}`);
+          return;
         }
+        console.warn(`[BVC] Stop request failed: ${response.status}`);
       })
       .catch((e) => {
         console.error('[BVC] Failed to stop playback:', e);

@@ -10,12 +10,14 @@
     import StatusMessageCard from "./StatusMessageCard.svelte";
     import ErrorBanner from "./ErrorBanner.svelte";
     import XboxLoginModal from "./XboxLoginModal.svelte";
+    import BedrockConnectionInfoModal from "./BedrockConnectionInfoModal.svelte";
 
     interface Props {
         bedrockManager: BedrockManager;
         title: string;
         signedOutDescription: string;
         showListenPort?: boolean;
+        requiresEntitlement?: boolean;
         extraActions?: Snippet;
         body: Snippet;
     }
@@ -25,6 +27,7 @@
         title,
         signedOutDescription,
         showListenPort = true,
+        requiresEntitlement = true,
         extraActions,
         body,
     }: Props = $props();
@@ -40,7 +43,7 @@
 <div class="grid grid-cols-1 gap-4 sm:gap-5 lg:gap-6 pt-4 md:pt-0">
     {#if $isRestoringAuth}
         <RestoringAuthBanner />
-    {:else if !$isEntitled}
+    {:else if requiresEntitlement && !$isEntitled}
         <EntitlementBanner />
     {:else if !$isAuthenticated}
         <SignInCard {bedrockManager} description={signedOutDescription} />
@@ -49,11 +52,13 @@
         <TopBar {bedrockManager} {title} {extraActions} />
         <NetworkingCard {bedrockManager} {showListenPort} />
         {@render body()}
-        <LogPanel {bedrockManager} />
         <StatusMessageCard {bedrockManager} />
+        <LogPanel {bedrockManager} />
     {/if}
 </div>
 
 {#if $showLoginModal}
     <XboxLoginModal {bedrockManager} />
 {/if}
+
+<BedrockConnectionInfoModal {bedrockManager} />

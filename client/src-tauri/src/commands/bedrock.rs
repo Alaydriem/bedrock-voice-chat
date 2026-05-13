@@ -7,15 +7,21 @@ use tauri_plugin_keyring::{CredentialType, CredentialValue, KeyringExt};
 
 use common::bedrock_protocol::{AuthManager, CachedToken, RealmsApi};
 use common::bedrock_protocol::auth::xbox::XboxLive;
-use common::structs::bedrock::BedrockStatus;
-use common::structs::bedrock::NetworkInterface;
-use common::structs::bedrock::RealmEntry;
+use common::structs::bedrock::{
+    BedrockBackendKind, BedrockConnectionInfo, BedrockStatus, HIVE_DNS_HOSTNAME, NetworkInterface,
+    RealmEntry,
+};
 use common::traits::StreamTrait;
 
+use crate::NetworkPacket;
+use crate::analytics::AnalyticsService;
 use crate::bedrock::BedrockState;
+use crate::bedrock::ProtocolGatingService;
+use crate::bedrock::event_emitter::BedrockEventEmitter;
 use crate::bedrock::iap::BedrockEntitlementCheck;
 use crate::bedrock::keepalive::TransferKeepalive;
 use crate::bedrock::manager::BedrockProxyManager;
+use crate::feature_flags::FeatureFlagService;
 use crate::structs::app_state::AppState;
 
 use common::consts::bedrock::{BEDROCK_LISTEN_PORT, XBOX_CLIENT_ID};
@@ -144,6 +150,7 @@ async fn stop_keepalive(bedrock_state: &mut BedrockState) {
 
 #[tauri::command(async)]
 pub(crate) async fn bedrock_start_proxy(
+    app_handle: tauri::AppHandle,
     target_host: String,
     target_port: u16,
     listen_port: Option<u16>,
@@ -151,6 +158,9 @@ pub(crate) async fn bedrock_start_proxy(
     state: State<'_, Mutex<BedrockState>>,
     app_state: State<'_, Mutex<AppState>>,
     entitlement: State<'_, BedrockEntitlementCheck>,
+    quic_producer: State<'_, Arc<flume::Sender<NetworkPacket>>>,
+    flag_service: State<'_, Arc<FeatureFlagService>>,
+    analytics: State<'_, Arc<AnalyticsService>>,
 ) -> Result<(), String> {
     entitlement.require_entitlement()?;
 
@@ -167,6 +177,11 @@ pub(crate) async fn bedrock_start_proxy(
     let auth_manager = state.auth_manager.as_ref()
         .ok_or_else(|| "Xbox Live authentication required. Please sign in first.".to_string())?;
 
+    let gating = ProtocolGatingService::new_shared(
+        Arc::clone(flag_service.inner()),
+        Arc::clone(analytics.inner()),
+    );
+
     let effective_listen_port = listen_port.unwrap_or(BEDROCK_LISTEN_PORT);
     let mut proxy = BedrockProxyManager::new_direct(
         target_host.clone(),
@@ -174,7 +189,11 @@ pub(crate) async fn bedrock_start_proxy(
         effective_listen_port,
         Arc::clone(auth_manager),
         Arc::clone(&state.player_state_cache),
+        gating,
     );
+    proxy.set_event_emitter(Arc::new(BedrockEventEmitter::new(
+        quic_producer.inner().clone(),
+    )));
     proxy.start().await.map_err(|e| e.to_string())?;
 
     let app = app_state.lock().await;
@@ -183,9 +202,22 @@ pub(crate) async fn bedrock_start_proxy(
     }
 
     state.proxy = Some(proxy);
-    state.proxy_target_host = Some(target_host);
+    state.proxy_target_host = Some(target_host.clone());
     state.proxy_target_port = Some(target_port);
     state.proxy_listen_port = Some(effective_listen_port);
+
+    let info = BedrockConnectionInfo {
+        local_address: "127.0.0.1".to_string(),
+        lan_address: network_interface.clone(),
+        port: effective_listen_port,
+        backend: BedrockBackendKind::Direct,
+        remote_label: format!("{}:{}", target_host, target_port),
+        hive_dns_hostname: HIVE_DNS_HOSTNAME.to_string(),
+    };
+    if let Err(e) = app_handle.emit("bedrock_connection_info", &info) {
+        log::warn!("Failed to emit bedrock_connection_info: {}", e);
+    }
+
     Ok(())
 }
 
@@ -207,12 +239,16 @@ pub(crate) async fn bedrock_stop_proxy(
 
 #[tauri::command(async)]
 pub(crate) async fn bedrock_start_realms(
+    app_handle: tauri::AppHandle,
     realm_id: u64,
     realm_name: String,
     network_interface: String,
     state: State<'_, Mutex<BedrockState>>,
     app_state: State<'_, Mutex<AppState>>,
     entitlement: State<'_, BedrockEntitlementCheck>,
+    quic_producer: State<'_, Arc<flume::Sender<NetworkPacket>>>,
+    flag_service: State<'_, Arc<FeatureFlagService>>,
+    analytics: State<'_, Arc<AnalyticsService>>,
 ) -> Result<(), String> {
     entitlement.require_entitlement()?;
 
@@ -242,6 +278,11 @@ pub(crate) async fn bedrock_start_realms(
         .ok_or_else(|| "Xbox Live authentication required. Please sign in first.".to_string())?
         .clone();
 
+    let gating = ProtocolGatingService::new_shared(
+        Arc::clone(flag_service.inner()),
+        Arc::clone(analytics.inner()),
+    );
+
     let mut realms = BedrockProxyManager::new_realm(
         realm_id,
         BEDROCK_LISTEN_PORT,
@@ -250,7 +291,11 @@ pub(crate) async fn bedrock_start_realms(
         access_token,
         realms_api,
         Arc::clone(&state.player_state_cache),
+        gating,
     );
+    realms.set_event_emitter(Arc::new(BedrockEventEmitter::new(
+        quic_producer.inner().clone(),
+    )));
     realms.start().await.map_err(|e| e.to_string())?;
 
     let app = app_state.lock().await;
@@ -260,7 +305,20 @@ pub(crate) async fn bedrock_start_realms(
 
     state.realms = Some(realms);
     state.active_realm_id = Some(realm_id);
-    state.active_realm_name = Some(realm_name);
+    state.active_realm_name = Some(realm_name.clone());
+
+    let info = BedrockConnectionInfo {
+        local_address: "127.0.0.1".to_string(),
+        lan_address: network_interface.clone(),
+        port: BEDROCK_LISTEN_PORT,
+        backend: BedrockBackendKind::Realm,
+        remote_label: realm_name,
+        hive_dns_hostname: HIVE_DNS_HOSTNAME.to_string(),
+    };
+    if let Err(e) = app_handle.emit("bedrock_connection_info", &info) {
+        log::warn!("Failed to emit bedrock_connection_info: {}", e);
+    }
+
     Ok(())
 }
 

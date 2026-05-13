@@ -74,23 +74,38 @@ jobs:
         shell: bash
         run: |
           cd mods/bds
-          MCADDON_FILE=$(find . -maxdepth 1 -name "*.mcaddon" -type f | head -n 1)
-          if [ -z "$MCADDON_FILE" ]; then
-            echo "No .mcaddon file found!"
+          VERSION="${{ steps.pack-version.outputs.version }}"
+
+          FULL_SRC="bedrock-voice-chat.mcaddon"
+          NO_NET_SRC="bedrock-voice-chat-no-net.mcaddon"
+
+          if [ ! -f "$FULL_SRC" ]; then
+            echo "Default mcaddon ($FULL_SRC) not produced!"
+            exit 1
+          fi
+          if [ ! -f "$NO_NET_SRC" ]; then
+            echo "No-net mcaddon ($NO_NET_SRC) not produced!"
             exit 1
           fi
 
-          echo "Found mcaddon: $MCADDON_FILE"
-          ls -lh "$MCADDON_FILE"
+          cp "$FULL_SRC" "../../bedrock-voice-chat-${VERSION}.mcaddon"
+          cp "$NO_NET_SRC" "../../bedrock-voice-chat-no-net-${VERSION}.mcaddon"
 
-          cp "$MCADDON_FILE" ../../bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.mcaddon
-          echo "Prepared artifact: bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.mcaddon"
+          echo "Prepared artifacts:"
+          ls -lh "../../bedrock-voice-chat-${VERSION}.mcaddon" "../../bedrock-voice-chat-no-net-${VERSION}.mcaddon"
 
-      - name: Upload mcaddon artifact
+      - name: Upload default mcaddon artifact
         uses: actions/upload-artifact@v5
         with:
           name: bedrock-voice-chat-bds-${{ steps.pack-version.outputs.version }}
           path: bedrock-voice-chat-${{ steps.pack-version.outputs.version }}.mcaddon
+          retention-days: 30
+
+      - name: Upload no-net mcaddon artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: bedrock-voice-chat-bds-no-net-${{ steps.pack-version.outputs.version }}
+          path: bedrock-voice-chat-no-net-${{ steps.pack-version.outputs.version }}.mcaddon
           retention-days: 30
 
       - name: Output artifact information
@@ -103,7 +118,8 @@ jobs:
             echo "| ---- | ----- |"
             echo "| Version | ${{ steps.pack-version.outputs.version }} |"
             echo "| Trigger | ${{ github.event_name }} |"
-            echo "| Artifact | bedrock-voice-chat-bds-${{ steps.pack-version.outputs.version }}.mcaddon |"
+            echo "| Default artifact | bedrock-voice-chat-bds-${{ steps.pack-version.outputs.version }}.mcaddon |"
+            echo "| No-net artifact  | bedrock-voice-chat-bds-no-net-${{ steps.pack-version.outputs.version }}.mcaddon |"
             echo "| Artifact URL | [View Run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) |"
             echo "| Retention | 30 days |"
           } >> $GITHUB_STEP_SUMMARY

@@ -10,4 +10,5 @@ pub enum PacketType {
     PlayerPresence,
     ServerError,
     HealthCheck,
+    BedrockEvent,
 }

@@ -1,15 +1,10 @@
 import { world, system } from '@minecraft/server';
-import {
-  HttpHeader,
-  HttpRequest,
-  HttpRequestMethod,
-  http,
-} from '@minecraft/server-net';
 import { variables } from '@minecraft/server-admin';
 import { Payload, Player } from './dto';
 import { AudioPlayerManager } from './audio/player_manager';
 import { AudioComponentRegistry } from './audio/components';
 import { DiscCommand } from './commands/mod';
+import { httpClient } from './net';
 
 const bvc_server: string = variables.get('bvc_server');
 const access_token: string = variables.get('bvc_access_token');
@@ -27,10 +22,8 @@ const MAX_BACKOFF_MS = 30_000;
 let consecutiveFailures = 0;
 let circuitOpenUntil = 0;
 
-// Track dead players by their ID
 const deadPlayers = new Set<string>();
 
-// Persistent world UUID for multi-world isolation
 let cachedWorldUuid: string | undefined;
 
 function getWorldUuid(): string {
@@ -45,7 +38,6 @@ function getWorldUuid(): string {
     return existing;
   }
 
-  // Generate a UUID v4
   const uuid = [
     randomHex(8),
     randomHex(4),
@@ -68,96 +60,94 @@ function randomHex(length: number): string {
   return result;
 }
 
-console.info("[BVC] Connecting to: " + bvc_server);
-
-// Initialize audio system
 const audioManager = new AudioPlayerManager(bvc_server, access_token);
 const componentRegistry = new AudioComponentRegistry(audioManager, getWorldUuid);
 componentRegistry.register();
 
-// Register custom commands (cheats not required)
 DiscCommand.register();
 
-// Subscribe to player death events
-world.afterEvents.entityDie.subscribe(
-  (event) => {
-    const deadEntity = event.deadEntity;
-    if (deadEntity.typeId === 'minecraft:player') {
-      deadPlayers.add(deadEntity.id);
+httpClient.ensureLoaded().then((available) => {
+  if (!available) {
+    console.warn("[BVC] HTTP unavailable; position polling and disc events will not be sent");
+    return;
+  }
+
+  console.info("[BVC] Connecting to: " + bvc_server);
+
+  world.afterEvents.entityDie.subscribe(
+    (event) => {
+      const deadEntity = event.deadEntity;
+      if (deadEntity.typeId === 'minecraft:player') {
+        deadPlayers.add(deadEntity.id);
+      }
+    },
+    { entityTypes: ['minecraft:player'] }
+  );
+
+  world.afterEvents.playerSpawn.subscribe((event) => {
+    deadPlayers.delete(event.player.id);
+  });
+
+  world.afterEvents.playerLeave.subscribe((event) => {
+    deadPlayers.delete(event.playerId);
+
+    system.runTimeout(async () => {
+      try {
+        const worldUuid = getWorldUuid();
+        const phantom = Player.fromDisconnectedPlayer(event.playerName, worldUuid);
+        const payload = new Payload('minecraft', [phantom]);
+
+        await httpClient.request(
+          `${bvc_server}/api/position`,
+          'Post',
+          payload.toJSONString(),
+          [
+            ['Content-Type', 'application/json'],
+            ['X-MC-Access-Token', access_token],
+            ['Accept', 'application/json'],
+          ],
+          REQUEST_TIMEOUT
+        );
+      } catch (error) {
+        console.error("[BVC] Error sending disconnect phantom:", error);
+      }
+    }, 5);
+  });
+
+  system.runInterval(async () => {
+    const players = world.getAllPlayers();
+
+    if (players.length < minimum_players) {
+      return;
     }
-  },
-  { entityTypes: ['minecraft:player'] }
-);
 
-// Subscribe to player spawn events (includes respawns)
-world.afterEvents.playerSpawn.subscribe((event) => {
-  deadPlayers.delete(event.player.id);
-});
+    const now = Date.now();
+    if (consecutiveFailures >= FAILURE_THRESHOLD && now < circuitOpenUntil) {
+      return;
+    }
 
-// Send phantom position when a player leaves to evict stale cache entry
-world.afterEvents.playerLeave.subscribe((event) => {
-  deadPlayers.delete(event.playerId);
-
-  // Defer by 5 ticks (~250ms) to let the last normal position tick complete
-  system.runTimeout(async () => {
     try {
       const worldUuid = getWorldUuid();
-      const phantom = Player.fromDisconnectedPlayer(event.playerName, worldUuid);
-      const payload = new Payload('minecraft', [phantom]);
+      const payload = Payload.fromPlayers(players, deadPlayers, worldUuid);
 
-      const request = new HttpRequest(`${bvc_server}/api/position`);
-      request.setBody(payload.toJSONString());
-      request.setMethod((HttpRequestMethod as any).Post);
-      request.setHeaders([
-        new HttpHeader('Content-Type', 'application/json'),
-        new HttpHeader('X-MC-Access-Token', access_token),
-        new HttpHeader('Accept', 'application/json'),
-      ]);
-      request.setTimeout(REQUEST_TIMEOUT);
+      const response = await httpClient.request(
+        `${bvc_server}/api/position`,
+        'Post',
+        payload.toJSONString(),
+        [
+          ['Content-Type', 'application/json'],
+          ['X-MC-Access-Token', access_token],
+          ['Accept', 'application/json'],
+        ],
+        REQUEST_TIMEOUT
+      );
 
-      await http.request(request).catch(() => {});
-    } catch (error) {
-      console.error("[BVC] Error sending disconnect phantom:", error);
-    }
-  }, 5);
-});
-
-system.runInterval(async () => {
-  const players = world.getAllPlayers();
-
-  if (players.length < minimum_players) {
-    return;
-  }
-
-  // Circuit breaker: skip requests while circuit is open
-  const now = Date.now();
-  if (consecutiveFailures >= FAILURE_THRESHOLD && now < circuitOpenUntil) {
-    return;
-  }
-
-  try {
-    const worldUuid = getWorldUuid();
-    const payload = Payload.fromPlayers(players, deadPlayers, worldUuid);
-
-    const request = new HttpRequest(`${bvc_server}/api/position`);
-    request.setBody(payload.toJSONString());
-    request.setMethod((HttpRequestMethod as any).Post);
-    request.setHeaders([
-      new HttpHeader('Content-Type', 'application/json'),
-      new HttpHeader('X-MC-Access-Token', access_token),
-      new HttpHeader('Accept', 'application/json'),
-    ]);
-    request.setTimeout(REQUEST_TIMEOUT);
-
-    await http
-      .request(request)
-      .then(() => {
+      if (response && response.status >= 200 && response.status < 300) {
         if (consecutiveFailures >= FAILURE_THRESHOLD) {
           console.info("[BVC] Connection restored");
         }
         consecutiveFailures = 0;
-      })
-      .catch((error) => {
+      } else {
         consecutiveFailures++;
         if (consecutiveFailures === FAILURE_THRESHOLD) {
           console.warn("[BVC] Backend unreachable, pausing requests");
@@ -168,11 +158,10 @@ system.runInterval(async () => {
             MAX_BACKOFF_MS,
           );
           circuitOpenUntil = Date.now() + backoff;
-        } else {
-          console.warn("[BVC] Failed to send player data:", error);
         }
-      });
-  } catch (error) {
-    console.error("[BVC] Error creating player payload:", error);
-  }
-}, POLL_INTERVAL);
+      }
+    } catch (error) {
+      console.error("[BVC] Error creating player payload:", error);
+    }
+  }, POLL_INTERVAL);
+});

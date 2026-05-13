@@ -710,7 +710,7 @@ checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 [[package]]
 name = "bedrock-network"
 version = "0.0.4"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?branch=master#df552bbd6ddad62db5cca4375aecea0390c16f36"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=0.0.6#56b5b1b99bf7ab64a0189d165dfdbbc12c30f791"
 dependencies = [
  "bytes",
  "futures-util",
@@ -731,8 +731,8 @@ dependencies = [
 
 [[package]]
 name = "bedrock-protocol"
-version = "0.0.5"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?branch=master#df552bbd6ddad62db5cca4375aecea0390c16f36"
+version = "0.0.6"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=0.0.6#56b5b1b99bf7ab64a0189d165dfdbbc12c30f791"
 dependencies = [
  "aes 0.9.0",
  "aes-gcm",
@@ -770,8 +770,8 @@ dependencies = [
 
 [[package]]
 name = "bedrock-server"
-version = "0.0.4"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?branch=master#df552bbd6ddad62db5cca4375aecea0390c16f36"
+version = "0.0.6"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=0.0.6#56b5b1b99bf7ab64a0189d165dfdbbc12c30f791"
 dependencies = [
  "base64 0.22.1",
  "bedrock-protocol",
@@ -5765,9 +5765,9 @@ checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
 name = "s2n-codec"
-version = "0.78.0"
+version = "0.79.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22bacdd8e47b929c10802a93070890d26b8c0e510857113b8f098fca002aecf4"
+checksum = "fec15855fa1212e842b3a5415ea7448fdbf920f5c3a2a2a2a832e5d4e1b62bb1"
 dependencies = [
  "byteorder",
  "bytes",
@@ -5776,9 +5776,9 @@ dependencies = [
 
 [[package]]
 name = "s2n-quic"
-version = "1.78.0"
+version = "1.79.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82c23e80ef5205e7f197f6fb0922f3f66eb6599fd826cbf5eb0dc0edba17aee5"
+checksum = "e32b755eee0eeef7a85a83019e5339d8ca85aa973cb2f7489ab5d9cb468ab2c8"
 dependencies = [
  "bytes",
  "cfg-if",
@@ -5800,9 +5800,9 @@ dependencies = [
 
 [[package]]
 name = "s2n-quic-core"
-version = "0.78.0"
+version = "0.79.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b0d2cd0e789568ac5c374ea7fbf599e1a9d63362bd37baf2d45d386f5f3d25f"
+checksum = "e76b9772de9cdc60e37d26e234de84f07ea4405aa6220f63fca4dca19cef7649"
 dependencies = [
  "atomic-waker",
  "byteorder",
@@ -5822,9 +5822,9 @@ dependencies = [
 
 [[package]]
 name = "s2n-quic-crypto"
-version = "0.78.0"
+version = "0.79.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0b6fdfaca6213006dc5163ad8788010f6b5861e6e41352b0a3b00e0fc0930d4"
+checksum = "a0de286c741430def5afc85ccbaefdf6465c749a5b6cc177e771f77319a8e365"
 dependencies = [
  "aws-lc-rs",
  "cfg-if",
@@ -5836,9 +5836,9 @@ dependencies = [
 
 [[package]]
 name = "s2n-quic-platform"
-version = "0.78.0"
+version = "0.79.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7c4742176bbbc522d78e415dfdd3fba84b09ce4744bce20b2f7a6e8ff0c62a3a"
+checksum = "73fc85df3e0a309de4fed58dfa10f0893ad191eebd851033cff00b771cd83bc0"
 dependencies = [
  "cfg-if",
  "futures",
@@ -5851,9 +5851,9 @@ dependencies = [
 
 [[package]]
 name = "s2n-quic-rustls"
-version = "0.78.0"
+version = "0.79.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "201a367dbdadc85c9e1fda1be03205740bf2cc848f9436189f88d9b7f3807554"
+checksum = "41121efa6c3d10b476e97af553c3cf672bcde6149bac0092d0a914655495d9ca"
 dependencies = [
  "bytes",
  "rustls 0.23.40",
@@ -5865,9 +5865,9 @@ dependencies = [
 
 [[package]]
 name = "s2n-quic-transport"
-version = "0.78.0"
+version = "0.79.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08db5b4830452c1fff9c9fa93a3fa030c1d7d38a9fc96815e0df98e407fae612"
+checksum = "52b22b4787f4f357f0a3d2cfe5ffc57d516818bdddfb8c15287e1424e063580f"
 dependencies = [
  "bytes",
  "futures-channel",

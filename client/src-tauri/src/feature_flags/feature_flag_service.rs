@@ -5,6 +5,7 @@ use open_feature::{EvaluationContext, OpenFeature};
 use tokio::sync::{RwLock, watch};
 
 use super::FlagsmithProvider;
+use super::feature_flag::FeatureFlag;
 
 pub struct FeatureFlagService {
     client: RwLock<Option<open_feature::Client>>,
@@ -81,6 +82,53 @@ impl FeatureFlagService {
             None => false,
         };
         log::info!("Feature flag '{}' = {}", flag, result);
+        result
+    }
+
+    // Typed flag read. The `flag` value carries its own key + default; the
+    // value type comes from `F::Value`. Boolean flags dispatch through
+    // `is_enabled`; integer flags through `get_int_value`. Adding a new
+    // value type means adding one `impl FlagsmithValue for …`, nothing
+    // else changes at the service level.
+    //
+    // This is the entry point downstream code should prefer — it ties
+    // flag definition (struct + trait impl) to call site through the type
+    // system, preventing key typos and bool-vs-int mix-ups at compile time.
+    pub async fn get<F: FeatureFlag>(&self, flag: F) -> F::Value {
+        use super::flagsmith_value::FlagsmithValue;
+        let key = flag.key();
+        let default = flag.default();
+        F::Value::fetch(self, key.as_ref(), default).await
+    }
+
+    // Returns the integer-valued flag from Flagsmith, or `None` if the flag
+    // is unset / Flagsmith is unreachable / the client is not yet
+    // initialized. Used by integer dials like
+    // `feature.minecraft.max_trusted_protocol`.
+    pub async fn get_int_value(&self, flag: &str) -> Option<i64> {
+        let mut rx = self.ready_rx.clone();
+        while !*rx.borrow_and_update() {
+            if rx.changed().await.is_err() {
+                break;
+            }
+        }
+
+        let guard = self.client.read().await;
+        let result = match guard.as_ref() {
+            Some(client) => {
+                let mut context = EvaluationContext::default();
+                context.targeting_key = Some(self.install_id.clone());
+                client
+                    .get_int_value(flag, Some(&context), None)
+                    .await
+                    .ok()
+            }
+            None => None,
+        };
+        match result {
+            Some(v) => log::info!("Feature flag '{}' = {}", flag, v),
+            None => log::info!("Feature flag '{}' = <unset>", flag),
+        }
         result
     }
 }

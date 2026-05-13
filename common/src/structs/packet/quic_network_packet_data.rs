@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::audio_frame_packet::AudioFramePacket;
+use super::bedrock_event_packet::BedrockEventPacket;
 use super::channel_event_packet::ChannelEventPacket;
 use super::collection_packet::CollectionPacket;
 use super::debug_packet::DebugPacket;
@@ -19,4 +20,5 @@ pub enum QuicNetworkPacketData {
     PlayerPresence(PlayerPresenceEvent),
     ServerError(ServerErrorPacket),
     HealthCheck(HealthCheckPacket),
+    BedrockEvent(BedrockEventPacket),
 }

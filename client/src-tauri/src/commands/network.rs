@@ -1,7 +1,9 @@
+use crate::analytics::AnalyticsService;
 use crate::{NetworkStreamManager, structs::app_state::AppState};
 use common::response::LoginResponse;
 use log::{error, info};
 use std::net::{IpAddr, SocketAddr};
+use std::sync::Arc;
 use tauri::State;
 use tauri::async_runtime::Mutex;
 use url::Url;
@@ -9,19 +11,23 @@ use url::Url;
 #[tauri::command]
 pub(crate) async fn stop_network_stream(
     network_stream: State<'_, Mutex<NetworkStreamManager>>,
+    analytics: State<'_, Arc<AnalyticsService>>,
 ) -> Result<(), ()> {
     let mut network_stream = network_stream.lock().await;
     _ = network_stream.stop().await;
+    analytics.clear_connected_server();
+    analytics.clear_player();
     Ok(())
 }
 
 #[tauri::command]
-#[tracing::instrument(skip(state, network_stream, data), fields(server = %server))]
+#[tracing::instrument(skip(state, network_stream, data, analytics), fields(server = %server))]
 pub(crate) async fn change_network_stream(
     server: String,
     data: LoginResponse,
     state: State<'_, Mutex<AppState>>,
     network_stream: State<'_, Mutex<NetworkStreamManager>>,
+    analytics: State<'_, Arc<AnalyticsService>>,
 ) -> Result<(), String> {
     // Short state lock — release before network I/O
     {
@@ -69,6 +75,9 @@ pub(crate) async fn change_network_stream(
 
     let mut network_stream = network_stream.lock().await;
     _ = network_stream.stop().await;
+    analytics.clear_connected_server();
+    analytics.clear_player();
+    let gamertag = data.gamertag.clone();
     match network_stream
         .restart(
             server_fqdn.clone(),
@@ -83,6 +92,8 @@ pub(crate) async fn change_network_stream(
     {
         Ok(()) => {
             info!("Now streaming {}", server);
+            analytics.set_connected_server(Some(server.clone()));
+            analytics.set_player(&gamertag);
         }
         Err(e) => {
             error!("QUIC connection failed to {}: {:?}", server, e);

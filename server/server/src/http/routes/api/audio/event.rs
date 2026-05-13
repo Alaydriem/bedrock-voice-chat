@@ -3,12 +3,12 @@ use std::sync::Arc;
 use rocket::{http::Status, serde::json::Json, State};
 use crate::http::openapi::CustomJsonResponse;
 use rocket_okapi::openapi;
-use common::request::AudioPlayRequest;
+use common::request::{AudioPlayRequest, GameAudioContext};
 use common::response::AudioEventResponse;
 
 use crate::http::guards::MCAccessToken;
 use crate::http::pool::Db;
-use crate::services::AudioPlaybackService;
+use crate::services::{AudioPlaybackService, BedrockEventService};
 
 #[openapi(tag = "Audio")]
 #[post("/event", data = "<request>")]
@@ -16,12 +16,20 @@ pub async fn audio_event_play(
     db: Db<'_>,
     _token: MCAccessToken,
     playback_service: &State<Arc<AudioPlaybackService>>,
+    bedrock_event_service: &State<Arc<BedrockEventService>>,
     request: Json<AudioPlayRequest>,
 ) -> CustomJsonResponse<AudioEventResponse> {
     let conn = db.into_inner();
+    let request = request.into_inner();
+
+    if let GameAudioContext::Minecraft(ctx) = &request.game {
+        if !ctx.world_uuid.is_empty() {
+            bedrock_event_service.notify_addon_http(&ctx.world_uuid).await;
+        }
+    }
 
     match playback_service
-        .start_playback(conn, request.into_inner())
+        .start_playback(conn, request)
         .await
     {
         Ok(response) => CustomJsonResponse::ok(response),
