@@ -37,7 +37,6 @@ const BVC_DISCONNECT_MESSAGE: &str =
 
 use crate::bedrock::backend::Backend;
 use crate::bedrock::connect_error_channel::{self, BedrockConnectErrorChannel};
-use crate::bedrock::jukebox_beacon_cache::JukeboxBeaconCache;
 use crate::bedrock::player_state_cache::BedrockPlayerStateCache;
 use crate::bedrock::services::ProtocolGatingService;
 use crate::bedrock::session_state::BedrockSessionState;
