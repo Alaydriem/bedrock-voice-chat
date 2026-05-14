@@ -881,9 +881,9 @@ checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
 name = "aws-lc-rs"
-version = "1.16.3"
+version = "1.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ec6fb3fe69024a75fa7e1bfb48aa6cf59706a101658ea01bfd33b2b248a038f"
+checksum = "5ec2f1fc3ec205783a5da9a7e6c1509cc69dedf09a1949e412c1e18469326d00"
 dependencies = [
  "aws-lc-sys",
  "untrusted 0.7.1",
@@ -892,9 +892,9 @@ dependencies = [
 
 [[package]]
 name = "aws-lc-sys"
-version = "0.40.0"
+version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f50037ee5e1e41e7b8f9d161680a725bd1626cb6f8c7e901f91f942850852fe7"
+checksum = "1a2f9779ce85b93ab6170dd940ad0169b5766ff848247aff13bb788b832fe3f4"
 dependencies = [
  "cc",
  "cmake",
@@ -950,29 +950,7 @@ checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 [[package]]
 name = "bedrock-network"
 version = "0.0.4"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=0.0.6#56b5b1b99bf7ab64a0189d165dfdbbc12c30f791"
-dependencies = [
- "bytes",
- "futures-util",
- "rand 0.10.1",
- "reqwest 0.12.28",
- "rustls 0.23.40",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tokio",
- "tokio-raknet",
- "tokio-stream",
- "tokio-tungstenite",
- "tracing",
- "uuid 1.23.1",
- "webrtc",
-]
-
-[[package]]
-name = "bedrock-network"
-version = "0.0.4"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=0.0.7#75f7328c87724df2b9f7717e7819d2e3fc36ae02"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=0.0.8#0872b2116788b69f263c64d33f4f2f59e25f9580"
 dependencies = [
  "bytes",
  "futures-util",
@@ -993,52 +971,13 @@ dependencies = [
 
 [[package]]
 name = "bedrock-protocol"
-version = "0.0.6"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=0.0.6#56b5b1b99bf7ab64a0189d165dfdbbc12c30f791"
+version = "0.0.8"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=0.0.8#0872b2116788b69f263c64d33f4f2f59e25f9580"
 dependencies = [
  "aes 0.9.0",
  "aes-gcm",
  "base64 0.22.1",
- "bedrock-network 0.0.4 (git+https://github.com/alaydriem/bedrock-protocol-rs?tag=0.0.6)",
- "bytes",
- "cfb8",
- "ctr 0.10.0",
- "elliptic-curve",
- "flate2",
- "futures-util",
- "if-addrs",
- "jsonwebtoken",
- "moka",
- "p256",
- "p384",
- "rand 0.10.1",
- "reqwest 0.12.28",
- "rustls 0.23.40",
- "serde",
- "serde_json",
- "sha2 0.11.0",
- "socket2 0.5.10",
- "thiserror 2.0.18",
- "tokio",
- "tokio-raknet",
- "tokio-stream",
- "tokio-tungstenite",
- "tokio-util",
- "tracing",
- "url",
- "uuid 1.23.1",
- "zuri_nbt",
-]
-
-[[package]]
-name = "bedrock-protocol"
-version = "0.0.7"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=0.0.7#75f7328c87724df2b9f7717e7819d2e3fc36ae02"
-dependencies = [
- "aes 0.9.0",
- "aes-gcm",
- "base64 0.22.1",
- "bedrock-network 0.0.4 (git+https://github.com/alaydriem/bedrock-protocol-rs?tag=0.0.7)",
+ "bedrock-network",
  "bytes",
  "cfb8",
  "ctr 0.10.0",
@@ -1071,11 +1010,11 @@ dependencies = [
 
 [[package]]
 name = "bedrock-server"
-version = "0.0.6"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=0.0.6#56b5b1b99bf7ab64a0189d165dfdbbc12c30f791"
+version = "0.0.8"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=0.0.8#0872b2116788b69f263c64d33f4f2f59e25f9580"
 dependencies = [
  "base64 0.22.1",
- "bedrock-protocol 0.0.6",
+ "bedrock-protocol",
  "bytes",
  "rand 0.10.1",
  "serde_json",
@@ -1871,7 +1810,7 @@ dependencies = [
  "async-mutex",
  "async-trait",
  "base64 0.22.1",
- "bedrock-protocol 0.0.7",
+ "bedrock-protocol",
  "bedrock-server",
  "blake3",
  "chrono",
@@ -2627,7 +2566,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3039,7 +2978,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4510,7 +4449,7 @@ checksum = "3640c1c38b8e4e43584d8df18be5fc6b0aa314ce6ebf51b53313d4306cca8e46"
 dependencies = [
  "hermit-abi 0.5.2",
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5535,7 +5474,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6879,7 +6818,7 @@ dependencies = [
  "once_cell",
  "socket2 0.6.3",
  "tracing",
- "windows-sys 0.59.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -7696,7 +7635,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -7785,7 +7724,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -10218,7 +10157,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -11739,7 +11678,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

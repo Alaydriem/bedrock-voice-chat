@@ -78,6 +78,19 @@ jobs:
         with:
           targets: aarch64-apple-darwin
 
+      - name: Ensure rustup shims win over Homebrew rustup-init
+        shell: bash
+        run: |
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.cargo/bin:$PATH"
+          rustup default stable
+          rustup target add aarch64-apple-darwin
+          echo "--- which cargo / rustc ---"
+          which -a cargo rustc rustup || true
+          echo "--- versions ---"
+          cargo --version
+          rustc --version
+
       - name: Setup private cargo deps auth
         uses: ./.github/actions/setup-private-cargo-deps
         with:
