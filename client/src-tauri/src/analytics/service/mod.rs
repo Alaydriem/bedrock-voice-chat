@@ -1,3 +1,4 @@
+use crate::analytics::AnalyticsLevel;
 use crate::analytics::AnalyticsProviderType;
 use crate::analytics::PlayerIdentity;
 use crate::analytics::dtos::QueuedEvent;
@@ -42,10 +43,12 @@ impl AnalyticsService {
             let mut ctx = self.context.write();
             ctx.connected_server = server.clone();
         }
-        sentry::configure_scope(|scope| match &server {
-            Some(s) => scope.set_tag("connected_server", s),
-            None => scope.remove_tag("connected_server"),
-        });
+        for provider in &self.providers {
+            match &server {
+                Some(s) => provider.set_tag("connected_server", s),
+                None => provider.clear_tag("connected_server"),
+            }
+        }
     }
 
     pub fn clear_connected_server(&self) {
@@ -60,10 +63,10 @@ impl AnalyticsService {
             let mut ctx = self.context.write();
             ctx.player = Some(identity);
         }
-        sentry::configure_scope(|scope| {
-            scope.set_tag("player_display", &display);
-            scope.set_tag("player_hash", &hash);
-        });
+        for provider in &self.providers {
+            provider.set_tag("player_display", &display);
+            provider.set_tag("player_hash", &hash);
+        }
     }
 
     pub fn clear_player(&self) {
@@ -71,10 +74,39 @@ impl AnalyticsService {
             let mut ctx = self.context.write();
             ctx.player = None;
         }
-        sentry::configure_scope(|scope| {
-            scope.remove_tag("player_display");
-            scope.remove_tag("player_hash");
-        });
+        for provider in &self.providers {
+            provider.clear_tag("player_display");
+            provider.clear_tag("player_hash");
+        }
+    }
+
+    pub fn set_user(&self, user_id: &str) {
+        for provider in &self.providers {
+            provider.set_user(user_id);
+        }
+    }
+
+    pub fn breadcrumb(&self, category: &str, message: &str, level: AnalyticsLevel) {
+        if !self.telemetry.is_enabled() {
+            return;
+        }
+        for provider in &self.providers {
+            provider.breadcrumb(category, message, level);
+        }
+    }
+
+    pub fn capture_message(
+        &self,
+        message: &str,
+        level: AnalyticsLevel,
+        tags: &[(String, String)],
+    ) {
+        if !self.telemetry.is_enabled() {
+            return;
+        }
+        for provider in &self.providers {
+            provider.capture_message(message, level, tags);
+        }
     }
 
     pub fn track(&self, event: AnalyticsEvent, data: Option<AnalyticsEventData>) {
@@ -113,8 +145,18 @@ impl AnalyticsService {
             return Ok(());
         }
 
+        let batch_providers: Vec<&AnalyticsProviderType> = self
+            .providers
+            .iter()
+            .filter(|p| p.handles_batches())
+            .collect();
+
+        if batch_providers.is_empty() {
+            return Ok(());
+        }
+
         let mut any_success = false;
-        for provider in &self.providers {
+        for provider in &batch_providers {
             match provider
                 .send_batch(&events, &self.install_id, &self.session_id)
                 .await
@@ -124,7 +166,7 @@ impl AnalyticsService {
             }
         }
 
-        if !any_success && !self.providers.is_empty() {
+        if !any_success {
             let requeue_count = events.len();
             let mut queue = self.queue.lock();
             for event in events {

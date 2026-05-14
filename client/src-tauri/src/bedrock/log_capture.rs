@@ -1,10 +1,10 @@
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 
 use common::structs::bedrock::BedrockLogEntry;
 use tokio::sync::broadcast;
 use tracing::{Event, Subscriber};
-use tracing_subscriber::layer::Context;
 use tracing_subscriber::Layer;
+use tracing_subscriber::layer::Context;
 
 const CHANNEL_CAPACITY: usize = 512;
 
@@ -19,22 +19,26 @@ const TARGET_PREFIXES: &[&str] = &[
     "bedrock_voice_chat_client::bedrock",
 ];
 
-static SENDER: OnceLock<Arc<broadcast::Sender<BedrockLogEntry>>> = OnceLock::new();
-
 pub struct BedrockLogChannel {
     sender: Arc<broadcast::Sender<BedrockLogEntry>>,
 }
 
 impl BedrockLogChannel {
-    pub fn init() -> Self {
+    pub fn new() -> Self {
         let (tx, _rx) = broadcast::channel(CHANNEL_CAPACITY);
-        let arc = Arc::new(tx);
-        let _ = SENDER.set(arc.clone());
-        Self { sender: arc }
+        Self {
+            sender: Arc::new(tx),
+        }
     }
 
     pub fn sender(&self) -> Arc<broadcast::Sender<BedrockLogEntry>> {
         Arc::clone(&self.sender)
+    }
+}
+
+impl Default for BedrockLogChannel {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -52,13 +56,19 @@ fn is_tracing_level_allowed(level: &tracing::Level) -> bool {
         || *level == tracing::Level::ERROR
 }
 
-fn emit_entry(entry: BedrockLogEntry) {
-    if let Some(tx) = SENDER.get() {
-        let _ = tx.send(entry);
-    }
+pub struct BedrockLogger {
+    sender: Arc<broadcast::Sender<BedrockLogEntry>>,
 }
 
-pub struct BedrockLogger;
+impl BedrockLogger {
+    pub fn new(sender: Arc<broadcast::Sender<BedrockLogEntry>>) -> Self {
+        Self { sender }
+    }
+
+    fn emit(&self, entry: BedrockLogEntry) {
+        let _ = self.sender.send(entry);
+    }
+}
 
 impl log::Log for BedrockLogger {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
@@ -72,7 +82,7 @@ impl log::Log for BedrockLogger {
         if !target_matches(record.target()) {
             return;
         }
-        emit_entry(BedrockLogEntry {
+        self.emit(BedrockLogEntry {
             timestamp_ms: chrono::Utc::now().timestamp_millis(),
             level: record.level().to_string(),
             target: record.target().to_string(),
@@ -83,7 +93,19 @@ impl log::Log for BedrockLogger {
     fn flush(&self) {}
 }
 
-pub struct BedrockTracingLayer;
+pub struct BedrockTracingLayer {
+    sender: Arc<broadcast::Sender<BedrockLogEntry>>,
+}
+
+impl BedrockTracingLayer {
+    pub fn new(sender: Arc<broadcast::Sender<BedrockLogEntry>>) -> Self {
+        Self { sender }
+    }
+
+    fn emit(&self, entry: BedrockLogEntry) {
+        let _ = self.sender.send(entry);
+    }
+}
 
 impl<S: Subscriber> Layer<S> for BedrockTracingLayer {
     fn on_event(&self, event: &Event<'_>, _ctx: Context<'_, S>) {
@@ -100,7 +122,7 @@ impl<S: Subscriber> Layer<S> for BedrockTracingLayer {
         if visitor.message.is_empty() {
             return;
         }
-        emit_entry(BedrockLogEntry {
+        self.emit(BedrockLogEntry {
             timestamp_ms: chrono::Utc::now().timestamp_millis(),
             level: level.to_string(),
             target: target.to_string(),

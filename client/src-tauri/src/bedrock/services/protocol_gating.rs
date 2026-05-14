@@ -3,7 +3,7 @@ use std::sync::Arc;
 use common::bedrock_protocol::ProtocolVersion;
 use common::structs::{AnalyticsEvent, AnalyticsEventData};
 
-use crate::analytics::AnalyticsService;
+use crate::analytics::{AnalyticsLevel, AnalyticsService};
 use crate::feature_flags::FeatureFlagService;
 use crate::feature_flags::flags::minecraft::{
     MaxTrustedMinecraftProtocol, MinecraftProtocolSupport,
@@ -119,12 +119,11 @@ impl ProtocolGatingService {
         self.analytics
             .track(AnalyticsEvent::MinecraftProtocolAllowed, Some(data));
 
-        sentry::add_breadcrumb(sentry::Breadcrumb {
-            category: Some("minecraft.protocol".into()),
-            message: Some(format!("protocol {protocol} allowed via {reason}")),
-            level: sentry::Level::Info,
-            ..Default::default()
-        });
+        self.analytics.breadcrumb(
+            "minecraft.protocol",
+            &format!("protocol {protocol} allowed via {reason}"),
+            AnalyticsLevel::Info,
+        );
     }
 
     fn record_rejected(&self, protocol: i32) {
@@ -132,19 +131,13 @@ impl ProtocolGatingService {
         self.analytics
             .track(AnalyticsEvent::MinecraftProtocolRejected, Some(data));
 
-        // Sentry: warning-level capture tagged by protocol number so all
-        // rejections of the same version roll into one Sentry issue with a
-        // count. A spike in that count = Mojang shipped a new wire version.
-        sentry::with_scope(
-            |scope| {
-                scope.set_tag("minecraft.protocol", protocol.to_string());
-            },
-            || {
-                sentry::capture_message(
-                    &format!("Minecraft protocol {protocol} rejected"),
-                    sentry::Level::Warning,
-                );
-            },
+        // Warning-level capture tagged by protocol number so all rejections
+        // of the same version roll into one Sentry issue with a count. A
+        // spike in that count = Mojang shipped a new wire version.
+        self.analytics.capture_message(
+            &format!("Minecraft protocol {protocol} rejected"),
+            AnalyticsLevel::Warning,
+            &[("minecraft.protocol".to_string(), protocol.to_string())],
         );
     }
 }

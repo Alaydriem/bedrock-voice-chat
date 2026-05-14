@@ -22,6 +22,7 @@ use common::{
         },
     },
 };
+#[cfg(feature = "bedrock-protocol")]
 use crate::bedrock::JukeboxBeaconCache;
 use log::{error, info, warn};
 use moka::future::Cache;
@@ -59,6 +60,8 @@ pub(crate) struct OutputStream {
     // Recording state - shared from RecordingManager for post-jitter-buffer recording
     recording_active: Option<Arc<AtomicBool>>,
     recovery_tx: RecoverySender,
+    #[cfg(feature = "bedrock-protocol")]
+    beacon_cache: Option<Arc<JukeboxBeaconCache>>,
 }
 
 impl common::traits::StreamTrait for OutputStream {
@@ -199,6 +202,7 @@ impl OutputStream {
         recording_producer: Option<Arc<RecordingProducer>>,
         recording_active: Option<Arc<AtomicBool>>,
         recovery_tx: RecoverySender,
+        #[cfg(feature = "bedrock-protocol")] beacon_cache: Option<Arc<JukeboxBeaconCache>>,
     ) -> Self {
         let players = moka::sync::Cache::builder()
             .time_to_idle(Duration::from_secs(15 * 60))
@@ -237,6 +241,8 @@ impl OutputStream {
             player_gain_cache: Arc::new(player_gain_cache),
             recording_active,
             recovery_tx,
+            #[cfg(feature = "bedrock-protocol")]
+            beacon_cache,
         }
     }
 
@@ -260,6 +266,8 @@ impl OutputStream {
                     let app_handle = self.app_handle.clone();
 
                     let player_gain_cache = self.player_gain_cache.clone();
+                    #[cfg(feature = "bedrock-protocol")]
+                    let beacon_cache = self.beacon_cache.clone();
 
                     let handle = tokio::spawn(async move {
                         #[allow(irrefutable_let_patterns)]
@@ -281,6 +289,8 @@ impl OutputStream {
                                             player_presence_debounce.clone(),
                                             client_id_to_player.clone(),
                                             Some(&app_handle.clone()),
+                                            #[cfg(feature = "bedrock-protocol")]
+                                            beacon_cache.clone(),
                                         )
                                         .await
                                     }
@@ -617,6 +627,7 @@ impl OutputStream {
         player_presence_debounce: Arc<moka::sync::Cache<String, ()>>,
         client_id_to_player: Arc<moka::sync::Cache<String, String>>,
         app_handle: Option<&tauri::AppHandle>,
+        #[cfg(feature = "bedrock-protocol")] beacon_cache: Option<Arc<JukeboxBeaconCache>>,
     ) {
         let current_player_name = match metadata.get("current_player").await {
             Some(name) => name,
@@ -676,11 +687,13 @@ impl OutputStream {
 
         match data {
             Ok(data) => {
-                let beacon_cache = JukeboxBeaconCache::global();
-                for meta in &data.metadata {
-                    match meta {
-                        AudioFrameMetadata::Jukebox(jb) => {
-                            beacon_cache.observe(&jb.position, &jb.event_id);
+                #[cfg(feature = "bedrock-protocol")]
+                if let Some(beacon_cache) = beacon_cache.as_ref() {
+                    for meta in &data.metadata {
+                        match meta {
+                            AudioFrameMetadata::Jukebox(jb) => {
+                                beacon_cache.observe(&jb.position, &jb.event_id);
+                            }
                         }
                     }
                 }

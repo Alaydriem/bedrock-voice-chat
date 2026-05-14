@@ -80,11 +80,13 @@ pub fn run() {
     let sentry_logger = Arc::new(logging::SentryLogger::new(true));
 
     #[cfg(feature = "bedrock-protocol")]
-    let bedrock_log_channel = Arc::new(crate::bedrock::log_capture::BedrockLogChannel::init());
+    let bedrock_log_channel = Arc::new(crate::bedrock::log_capture::BedrockLogChannel::new());
+    #[cfg(feature = "bedrock-protocol")]
+    let bedrock_log_sender = bedrock_log_channel.sender();
 
     #[cfg(feature = "bedrock-protocol")]
     let bedrock_connect_error_channel = Arc::new(
-        crate::bedrock::connect_error_channel::BedrockConnectErrorChannel::init(),
+        crate::bedrock::connect_error_channel::BedrockConnectErrorChannel::new(),
     );
 
     builder
@@ -110,7 +112,9 @@ pub fn run() {
                         let dispatch = fern::Dispatch::new()
                             .chain(Box::new(sentry_logger.clone()) as Box<dyn log::Log>);
                         #[cfg(feature = "bedrock-protocol")]
-                        let dispatch = dispatch.chain(Box::new(crate::bedrock::log_capture::BedrockLogger) as Box<dyn log::Log>);
+                        let dispatch = dispatch.chain(Box::new(
+                            crate::bedrock::log_capture::BedrockLogger::new(bedrock_log_sender.clone()),
+                        ) as Box<dyn log::Log>);
                         dispatch
                     })),
                 ])
@@ -295,7 +299,9 @@ pub fn run() {
                         }))
                 );
             #[cfg(feature = "bedrock-protocol")]
-            let registry = registry.with(crate::bedrock::log_capture::BedrockTracingLayer);
+            let registry = registry.with(crate::bedrock::log_capture::BedrockTracingLayer::new(
+                bedrock_log_channel.sender(),
+            ));
             registry.init();
 
             #[cfg(feature = "bedrock-protocol")]
@@ -341,15 +347,6 @@ pub fn run() {
             };
             log::info!("Platform ID: {}", install_id);
 
-            if sentry_enabled {
-                sentry::configure_scope(|scope| {
-                    scope.set_user(Some(sentry::User {
-                        id: Some(install_id.clone()),
-                        ..Default::default()
-                    }));
-                });
-            }
-
             let feature_flag_service = Arc::new(
                 feature_flags::FeatureFlagService::new(
                     option_env!("FLAGSMITH_KEY").unwrap_or("").to_string(),
@@ -370,7 +367,7 @@ pub fn run() {
             // Analytics service with provider pattern
             let mut analytics_service = analytics::AnalyticsService::new(
                 telemetry.clone(),
-                install_id,
+                install_id.clone(),
             );
 
             if let (Some(key), Some(host)) = (option_env!("POSTHOG_KEY"), option_env!("POSTHOG_HOST")) {
@@ -384,7 +381,17 @@ pub fn run() {
                 }
             }
 
+            if sentry_enabled {
+                analytics_service.add_provider(
+                    analytics::AnalyticsProviderType::Sentry(
+                        analytics::sentry::Provider::new(),
+                    ),
+                );
+                info!("Sentry analytics provider configured");
+            }
+
             let analytics_service = Arc::new(analytics_service);
+            analytics_service.set_user(&install_id);
             analytics_service.track(common::structs::AnalyticsEvent::AppStarted, None);
 
             let flush_analytics = analytics_service.clone();
@@ -471,6 +478,15 @@ pub fn run() {
                 cache
             };
 
+            #[cfg(feature = "bedrock-protocol")]
+            let bedrock_beacon_cache = Arc::new(crate::bedrock::JukeboxBeaconCache::new());
+            #[cfg(feature = "bedrock-protocol")]
+            app.manage(Arc::clone(&bedrock_beacon_cache));
+            #[cfg(feature = "bedrock-protocol")]
+            app.manage(Arc::clone(&bedrock_connect_error_channel));
+            #[cfg(feature = "bedrock-protocol")]
+            app.manage(Arc::clone(&bedrock_log_channel));
+
             // This is our audio producer and consumer
             // The producer is responsible for getting audio from the raw input device, then sending it to the consumer
             // The consumer lives in the networking thread, consumes the audio, then sends it to the server
@@ -498,6 +514,8 @@ pub fn run() {
                 Some(handle.state::<Arc<Mutex<RecordingManager>>>().inner().clone()),
                 #[cfg(feature = "bedrock-protocol")]
                 Some(bedrock_player_state_cache),
+                #[cfg(feature = "bedrock-protocol")]
+                Some(Arc::clone(&bedrock_beacon_cache)),
             );
             app.manage(Mutex::new(audio_stream));
 

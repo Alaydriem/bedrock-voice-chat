@@ -4,6 +4,8 @@ use super::AudioFrame;
 use crate::audio::recording::{RawRecordingData, RecordingProducer};
 use crate::audio::stream::{RecoverySender, StreamRecoveryEvent};
 use crate::audio::types::{AudioDevice, AudioDeviceCpal, AudioDeviceType, BUFFER_SIZE};
+#[cfg(feature = "bedrock-protocol")]
+use crate::bedrock::player_state_cache::BedrockPlayerStateCache;
 use crate::{NetworkPacket, audio::stream::stream_manager::AudioFrameData};
 use anyhow::anyhow;
 use audio_gate::NoiseGate;
@@ -50,7 +52,7 @@ pub(crate) struct InputStream {
     recording_active: Option<Arc<AtomicBool>>,
     recovery_tx: RecoverySender,
     #[cfg(feature = "bedrock-protocol")]
-    player_state_cache: Option<Arc<crate::bedrock::player_state_cache::BedrockPlayerStateCache>>,
+    player_state_cache: Option<Arc<BedrockPlayerStateCache>>,
 }
 
 impl common::traits::StreamTrait for InputStream {
@@ -179,7 +181,7 @@ impl InputStream {
         recording_active: Option<Arc<AtomicBool>>,
         recovery_tx: RecoverySender,
         #[cfg(feature = "bedrock-protocol")]
-        player_state_cache: Option<Arc<crate::bedrock::player_state_cache::BedrockPlayerStateCache>>,
+        player_state_cache: Option<Arc<BedrockPlayerStateCache>>,
     ) -> Self {
         Self {
             device,

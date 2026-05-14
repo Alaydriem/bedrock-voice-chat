@@ -5,6 +5,10 @@ mod stream_manager;
 use crate::NetworkPacket;
 use crate::audio::recording::RecordingManager;
 use crate::audio::types::{AudioDevice, AudioDeviceType};
+#[cfg(feature = "bedrock-protocol")]
+use crate::bedrock::JukeboxBeaconCache;
+#[cfg(feature = "bedrock-protocol")]
+use crate::bedrock::player_state_cache::BedrockPlayerStateCache;
 use anyhow::Error;
 use common::structs::audio::StreamEvent;
 use log::info;
@@ -40,7 +44,9 @@ pub(crate) struct AudioStreamManager {
     recovery_tx: RecoverySender,
     recovery_rx: Option<mpsc::UnboundedReceiver<StreamRecoveryEvent>>,
     #[cfg(feature = "bedrock-protocol")]
-    player_state_cache: Option<Arc<crate::bedrock::player_state_cache::BedrockPlayerStateCache>>,
+    player_state_cache: Option<Arc<BedrockPlayerStateCache>>,
+    #[cfg(feature = "bedrock-protocol")]
+    beacon_cache: Option<Arc<JukeboxBeaconCache>>,
 }
 
 impl AudioStreamManager {
@@ -51,8 +57,8 @@ impl AudioStreamManager {
         consumer: Arc<flume::Receiver<AudioPacket>>,
         app_handle: tauri::AppHandle,
         recording_manager: Option<Arc<TauriMutex<RecordingManager>>>,
-        #[cfg(feature = "bedrock-protocol")]
-        player_state_cache: Option<Arc<crate::bedrock::player_state_cache::BedrockPlayerStateCache>>,
+        #[cfg(feature = "bedrock-protocol")] player_state_cache: Option<Arc<BedrockPlayerStateCache>>,
+        #[cfg(feature = "bedrock-protocol")] beacon_cache: Option<Arc<JukeboxBeaconCache>>,
     ) -> Self {
         let (recovery_tx, recovery_rx) = mpsc::unbounded_channel::<StreamRecoveryEvent>();
 
@@ -78,6 +84,8 @@ impl AudioStreamManager {
                 None,
                 None,
                 recovery_tx.clone(),
+                #[cfg(feature = "bedrock-protocol")]
+                beacon_cache.clone(),
             )),
             app_handle: app_handle.clone(),
             recording_manager,
@@ -85,6 +93,8 @@ impl AudioStreamManager {
             recovery_rx: Some(recovery_rx),
             #[cfg(feature = "bedrock-protocol")]
             player_state_cache,
+            #[cfg(feature = "bedrock-protocol")]
+            beacon_cache,
         }
     }
 
@@ -159,6 +169,8 @@ impl AudioStreamManager {
                     recording_producer,
                     recording_flag,
                     self.recovery_tx.clone(),
+                    #[cfg(feature = "bedrock-protocol")]
+                    self.beacon_cache.clone(),
                 ));
             }
         }
@@ -207,6 +219,8 @@ impl AudioStreamManager {
                     recording_producer,
                     recording_flag,
                     self.recovery_tx.clone(),
+                    #[cfg(feature = "bedrock-protocol")]
+                    self.beacon_cache.clone(),
                 ));
             }
         };
@@ -328,6 +342,8 @@ impl AudioStreamManager {
             recording_producer,
             recording_flag,
             self.recovery_tx.clone(),
+            #[cfg(feature = "bedrock-protocol")]
+            self.beacon_cache.clone(),
         ));
 
         Ok(())

@@ -1,12 +1,12 @@
-use std::sync::Mutex;
 use std::time::Duration;
 
 use common::PlayerEnum;
 use moka::sync::Cache;
+use parking_lot::RwLock;
 
 pub struct BedrockPlayerStateCache {
     cache: Cache<String, PlayerEnum>,
-    local_gamertag: Mutex<Option<String>>,
+    local_gamertag: RwLock<Option<String>>,
 }
 
 impl BedrockPlayerStateCache {
@@ -16,7 +16,7 @@ impl BedrockPlayerStateCache {
                 .time_to_live(Duration::from_secs(15))
                 .max_capacity(64)
                 .build(),
-            local_gamertag: Mutex::new(None),
+            local_gamertag: RwLock::new(None),
         }
     }
 
@@ -29,22 +29,16 @@ impl BedrockPlayerStateCache {
     }
 
     pub fn get_local_player(&self) -> Option<PlayerEnum> {
-        self.local_gamertag
-            .lock()
-            .ok()
-            .and_then(|tag| tag.as_ref().and_then(|t| self.get(t)))
+        let tag = self.local_gamertag.read();
+        tag.as_ref().and_then(|t| self.get(t))
     }
 
     pub fn set_local_gamertag(&self, gamertag: String) {
-        if let Ok(mut tag) = self.local_gamertag.lock() {
-            *tag = Some(gamertag);
-        }
+        *self.local_gamertag.write() = Some(gamertag);
     }
 
     pub fn clear(&self) {
         self.cache.invalidate_all();
-        if let Ok(mut tag) = self.local_gamertag.lock() {
-            *tag = None;
-        }
+        *self.local_gamertag.write() = None;
     }
 }

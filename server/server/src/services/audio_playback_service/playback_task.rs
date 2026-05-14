@@ -72,13 +72,13 @@ impl PlaybackTask {
                         self.position.clone(),
                         self.event_id.clone(),
                     ))];
-                    let audio_frame = AudioFramePacket::new_with_metadata(
+                    let audio_frame = AudioFramePacket::new(
                         frame.clone(),
                         48000,
                         Some(self.synthetic_player.clone()),
                         Some(true),
-                        metadata,
-                    );
+                    )
+                    .with_metadata(metadata);
 
                     let packet = QuicNetworkPacket {
                         packet_type: PacketType::AudioFrame,

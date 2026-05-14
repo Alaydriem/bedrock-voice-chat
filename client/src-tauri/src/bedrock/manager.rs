@@ -36,7 +36,8 @@ const BVC_DISCONNECT_MESSAGE: &str =
     "Connection was closed by the Bedrock Voice Chat app so your link to this server was ended on purpose. Reconnect through the Bedrock Voice Chat app reconnect to this server.";
 
 use crate::bedrock::backend::Backend;
-use crate::bedrock::connect_error_channel;
+use crate::bedrock::connect_error_channel::{self, BedrockConnectErrorChannel};
+use crate::bedrock::jukebox_beacon_cache::JukeboxBeaconCache;
 use crate::bedrock::player_state_cache::BedrockPlayerStateCache;
 use crate::bedrock::services::ProtocolGatingService;
 use crate::bedrock::session_state::BedrockSessionState;
@@ -47,6 +48,8 @@ pub struct BedrockProxyManager {
     player_state_cache: Arc<BedrockPlayerStateCache>,
     event_emitter: Option<Arc<BedrockEventEmitter>>,
     gating: Arc<ProtocolGatingService>,
+    beacon_cache: Arc<JukeboxBeaconCache>,
+    error_channel: Arc<BedrockConnectErrorChannel>,
     jobs: Vec<AbortHandle>,
     shutdown: Arc<AtomicBool>,
     shutdown_tx: Option<oneshot::Sender<()>>,
@@ -61,6 +64,8 @@ impl BedrockProxyManager {
         auth_manager: Arc<AuthManager>,
         player_state_cache: Arc<BedrockPlayerStateCache>,
         gating: Arc<ProtocolGatingService>,
+        beacon_cache: Arc<JukeboxBeaconCache>,
+        error_channel: Arc<BedrockConnectErrorChannel>,
     ) -> Self {
         Self {
             listen_port,
@@ -72,6 +77,8 @@ impl BedrockProxyManager {
             player_state_cache,
             event_emitter: None,
             gating,
+            beacon_cache,
+            error_channel,
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),
             shutdown_tx: None,
@@ -88,6 +95,8 @@ impl BedrockProxyManager {
         realms_api: common::bedrock_protocol::RealmsApi,
         player_state_cache: Arc<BedrockPlayerStateCache>,
         gating: Arc<ProtocolGatingService>,
+        beacon_cache: Arc<JukeboxBeaconCache>,
+        error_channel: Arc<BedrockConnectErrorChannel>,
     ) -> Self {
         let auth = AuthInfo::xbl_token_with_access(xbl_token, user_hash, access_token);
         let realm_config = RealmConfig::new(realm_id, realms_api);
@@ -97,6 +106,8 @@ impl BedrockProxyManager {
             player_state_cache,
             event_emitter: None,
             gating,
+            beacon_cache,
+            error_channel,
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),
             shutdown_tx: None,
@@ -172,6 +183,8 @@ impl BedrockProxyManager {
         let player_state_cache = Arc::clone(&self.player_state_cache);
         let event_emitter = self.event_emitter.clone();
         let gating = Arc::clone(&self.gating);
+        let beacon_cache = Arc::clone(&self.beacon_cache);
+        let error_channel = Arc::clone(&self.error_channel);
 
         let handle = tokio::spawn(async move {
             let bind_addr: SocketAddr = match format!("0.0.0.0:{}", listen_port).parse() {
@@ -371,6 +384,8 @@ impl BedrockProxyManager {
                         let child_player_name = player_name.clone();
                         let child_emitter = event_emitter.clone();
                         let child_gating = Arc::clone(&gating);
+                        let child_beacon_cache = Arc::clone(&beacon_cache);
+                        let child_error_channel = Arc::clone(&error_channel);
                         let mut child_cancel_rx = child_cancel_tx.subscribe();
 
                         let h = tokio::spawn(async move {
@@ -386,7 +401,7 @@ impl BedrockProxyManager {
                                         Ok(a) => a,
                                         Err(e) => {
                                             error!("Auth failed for {}: {}", child_player_name, e);
-                                            connect_error_channel::emit(
+                                            child_error_channel.emit(
                                                 common::structs::bedrock::BedrockConnectError::Auth {
                                                     message: e.to_string(),
                                                 },
@@ -422,7 +437,7 @@ impl BedrockProxyManager {
                                 Ok(s) => s,
                                 Err(e) => {
                                     error!("Bedrock connect failed for {}: {}", child_player_name, e);
-                                    connect_error_channel::emit(
+                                    child_error_channel.emit(
                                         connect_error_channel::classify(&e),
                                     );
                                     return;
@@ -436,7 +451,7 @@ impl BedrockProxyManager {
                                 player_uuid,
                             );
 
-                            let beacon_cache = JukeboxBeaconCache::global();
+                            let beacon_cache = child_beacon_cache;
                             let mut last_known_health: Option<i32> = None;
                             let mut player_auth_input_seen = false;
 
@@ -789,6 +804,8 @@ mod tests {
     async fn start_stop_start_does_not_leak_port() {
         let port: u16 = 21900;
         let cache = Arc::new(BedrockPlayerStateCache::new());
+        let beacon = Arc::new(JukeboxBeaconCache::new());
+        let error_channel = Arc::new(BedrockConnectErrorChannel::new());
         let auth_cache = moka::future::Cache::builder()
             .time_to_live(std::time::Duration::from_secs(60))
             .max_capacity(10)
@@ -802,6 +819,8 @@ mod tests {
             Arc::clone(&auth_mgr),
             Arc::clone(&cache),
             build_gating(),
+            Arc::clone(&beacon),
+            Arc::clone(&error_channel),
         );
 
         mgr.start().await.expect("first start");
@@ -821,6 +840,8 @@ mod tests {
             auth_mgr,
             cache,
             build_gating(),
+            beacon,
+            error_channel,
         );
         mgr2.start().await.expect("second start on same port");
         tokio::time::sleep(Duration::from_secs(2)).await;

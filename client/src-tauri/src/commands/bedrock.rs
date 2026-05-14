@@ -16,7 +16,9 @@ use common::traits::StreamTrait;
 use crate::NetworkPacket;
 use crate::analytics::AnalyticsService;
 use crate::bedrock::BedrockState;
+use crate::bedrock::JukeboxBeaconCache;
 use crate::bedrock::ProtocolGatingService;
+use crate::bedrock::connect_error_channel::BedrockConnectErrorChannel;
 use crate::bedrock::event_emitter::BedrockEventEmitter;
 use crate::bedrock::iap::BedrockEntitlementCheck;
 use crate::bedrock::keepalive::TransferKeepalive;
@@ -161,6 +163,8 @@ pub(crate) async fn bedrock_start_proxy(
     quic_producer: State<'_, Arc<flume::Sender<NetworkPacket>>>,
     flag_service: State<'_, Arc<FeatureFlagService>>,
     analytics: State<'_, Arc<AnalyticsService>>,
+    beacon_cache: State<'_, Arc<JukeboxBeaconCache>>,
+    error_channel: State<'_, Arc<BedrockConnectErrorChannel>>,
 ) -> Result<(), String> {
     entitlement.require_entitlement()?;
 
@@ -190,6 +194,8 @@ pub(crate) async fn bedrock_start_proxy(
         Arc::clone(auth_manager),
         Arc::clone(&state.player_state_cache),
         gating,
+        Arc::clone(beacon_cache.inner()),
+        Arc::clone(error_channel.inner()),
     );
     proxy.set_event_emitter(Arc::new(BedrockEventEmitter::new(
         quic_producer.inner().clone(),
@@ -249,6 +255,8 @@ pub(crate) async fn bedrock_start_realms(
     quic_producer: State<'_, Arc<flume::Sender<NetworkPacket>>>,
     flag_service: State<'_, Arc<FeatureFlagService>>,
     analytics: State<'_, Arc<AnalyticsService>>,
+    beacon_cache: State<'_, Arc<JukeboxBeaconCache>>,
+    error_channel: State<'_, Arc<BedrockConnectErrorChannel>>,
 ) -> Result<(), String> {
     entitlement.require_entitlement()?;
 
@@ -292,6 +300,8 @@ pub(crate) async fn bedrock_start_realms(
         realms_api,
         Arc::clone(&state.player_state_cache),
         gating,
+        Arc::clone(beacon_cache.inner()),
+        Arc::clone(error_channel.inner()),
     );
     realms.set_event_emitter(Arc::new(BedrockEventEmitter::new(
         quic_producer.inner().clone(),

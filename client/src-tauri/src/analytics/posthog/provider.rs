@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::analytics::AnalyticsLevel;
 use crate::analytics::dtos::QueuedEvent;
 use crate::analytics::posthog::{BatchRequest, CaptureEvent, CaptureEventProperties};
 
@@ -43,6 +44,22 @@ impl Provider {
             player_hash: event.player_hash.clone(),
             custom,
         }
+    }
+
+    pub fn set_tag(&self, _key: &str, _value: &str) {}
+
+    pub fn clear_tag(&self, _key: &str) {}
+
+    pub fn set_user(&self, _user_id: &str) {}
+
+    pub fn breadcrumb(&self, _category: &str, _message: &str, _level: AnalyticsLevel) {}
+
+    pub fn capture_message(
+        &self,
+        _message: &str,
+        _level: AnalyticsLevel,
+        _tags: &[(String, String)],
+    ) {
     }
 
     pub async fn send_batch(

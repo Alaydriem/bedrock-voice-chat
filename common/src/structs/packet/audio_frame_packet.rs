@@ -41,16 +41,6 @@ impl AudioFramePacket {
         sender: Option<crate::PlayerEnum>,
         spatial: Option<bool>,
     ) -> Self {
-        Self::new_with_metadata(data, sample_rate, sender, spatial, Vec::new())
-    }
-
-    pub fn new_with_metadata(
-        data: Vec<u8>,
-        sample_rate: u32,
-        sender: Option<crate::PlayerEnum>,
-        spatial: Option<bool>,
-        metadata: Vec<AudioFrameMetadata>,
-    ) -> Self {
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -65,8 +55,13 @@ impl AudioFramePacket {
             data,
             sender,
             spatial,
-            metadata,
+            metadata: Vec::new(),
         }
+    }
+
+    pub fn with_metadata(mut self, metadata: Vec<AudioFrameMetadata>) -> Self {
+        self.metadata = metadata;
+        self
     }
 
     pub fn length(&self) -> i32 {

@@ -730,6 +730,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "bedrock-network"
+version = "0.0.4"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=0.0.7#75f7328c87724df2b9f7717e7819d2e3fc36ae02"
+dependencies = [
+ "bytes",
+ "futures-util",
+ "rand 0.10.1",
+ "reqwest 0.12.28",
+ "rustls 0.23.40",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-raknet",
+ "tokio-stream",
+ "tokio-tungstenite",
+ "tracing",
+ "uuid",
+ "webrtc",
+]
+
+[[package]]
 name = "bedrock-protocol"
 version = "0.0.6"
 source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=0.0.6#56b5b1b99bf7ab64a0189d165dfdbbc12c30f791"
@@ -737,7 +759,46 @@ dependencies = [
  "aes 0.9.0",
  "aes-gcm",
  "base64 0.22.1",
- "bedrock-network",
+ "bedrock-network 0.0.4 (git+https://github.com/alaydriem/bedrock-protocol-rs?tag=0.0.6)",
+ "bytes",
+ "cfb8",
+ "ctr 0.10.0",
+ "elliptic-curve",
+ "flate2",
+ "futures-util",
+ "if-addrs",
+ "jsonwebtoken",
+ "moka",
+ "p256",
+ "p384",
+ "rand 0.10.1",
+ "reqwest 0.12.28",
+ "rustls 0.23.40",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "socket2 0.5.10",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-raknet",
+ "tokio-stream",
+ "tokio-tungstenite",
+ "tokio-util",
+ "tracing",
+ "url",
+ "uuid",
+ "zuri_nbt",
+]
+
+[[package]]
+name = "bedrock-protocol"
+version = "0.0.7"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=0.0.7#75f7328c87724df2b9f7717e7819d2e3fc36ae02"
+dependencies = [
+ "aes 0.9.0",
+ "aes-gcm",
+ "base64 0.22.1",
+ "bedrock-network 0.0.4 (git+https://github.com/alaydriem/bedrock-protocol-rs?tag=0.0.7)",
  "bytes",
  "cfb8",
  "ctr 0.10.0",
@@ -774,7 +835,7 @@ version = "0.0.6"
 source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=0.0.6#56b5b1b99bf7ab64a0189d165dfdbbc12c30f791"
 dependencies = [
  "base64 0.22.1",
- "bedrock-protocol",
+ "bedrock-protocol 0.0.6",
  "bytes",
  "rand 0.10.1",
  "serde_json",
@@ -1338,7 +1399,7 @@ dependencies = [
  "async-mutex",
  "async-trait",
  "base64 0.22.1",
- "bedrock-protocol",
+ "bedrock-protocol 0.0.7",
  "bedrock-server",
  "blake3",
  "chrono",

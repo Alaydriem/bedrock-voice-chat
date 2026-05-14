@@ -1,4 +1,4 @@
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 
 use common::bedrock_protocol::{Error, HandshakeFailureKind};
 use common::structs::bedrock::BedrockConnectError;
@@ -6,28 +6,30 @@ use tokio::sync::broadcast;
 
 const CHANNEL_CAPACITY: usize = 32;
 
-static SENDER: OnceLock<Arc<broadcast::Sender<BedrockConnectError>>> = OnceLock::new();
-
 pub struct BedrockConnectErrorChannel {
     sender: Arc<broadcast::Sender<BedrockConnectError>>,
 }
 
 impl BedrockConnectErrorChannel {
-    pub fn init() -> Self {
+    pub fn new() -> Self {
         let (tx, _rx) = broadcast::channel(CHANNEL_CAPACITY);
-        let arc = Arc::new(tx);
-        let _ = SENDER.set(arc.clone());
-        Self { sender: arc }
+        Self {
+            sender: Arc::new(tx),
+        }
     }
 
     pub fn sender(&self) -> Arc<broadcast::Sender<BedrockConnectError>> {
         Arc::clone(&self.sender)
     }
+
+    pub fn emit(&self, error: BedrockConnectError) {
+        let _ = self.sender.send(error);
+    }
 }
 
-pub fn emit(error: BedrockConnectError) {
-    if let Some(tx) = SENDER.get() {
-        let _ = tx.send(error);
+impl Default for BedrockConnectErrorChannel {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

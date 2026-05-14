@@ -1,15 +1,11 @@
-use std::sync::Arc;
 use std::time::Duration;
 
 use common::structs::game::Coordinate;
 use moka::sync::Cache;
-use once_cell::sync::Lazy;
 
 const TTL: Duration = Duration::from_secs(3);
 const MAX_CAPACITY: u64 = 64;
 const PENDING_INSERT_TTL: Duration = Duration::from_secs(5);
-
-static GLOBAL: Lazy<Arc<JukeboxBeaconCache>> = Lazy::new(|| Arc::new(JukeboxBeaconCache::new()));
 
 pub struct JukeboxBeaconCache {
     inner: Cache<(i32, i32, i32), String>,
@@ -28,10 +24,6 @@ impl JukeboxBeaconCache {
                 .max_capacity(MAX_CAPACITY)
                 .build(),
         }
-    }
-
-    pub fn global() -> Arc<JukeboxBeaconCache> {
-        Arc::clone(&GLOBAL)
     }
 
     pub fn observe(&self, position: &Coordinate, event_id: &str) {
