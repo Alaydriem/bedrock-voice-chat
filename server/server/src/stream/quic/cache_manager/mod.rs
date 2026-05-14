@@ -3,7 +3,7 @@ use crate::stream::quic::connection_registry::ConnectionRegistry;
 use anyhow::Error;
 use common::structs::channel::{ChannelCollection, ChannelEvents};
 use common::structs::packet::{
-    AudioFramePacket, BedrockEventPacket, ChannelEventPacket, PacketType, PlayerDataPacket,
+    BedrockEventPacket, ChannelEventPacket, PacketType, PlayerDataPacket, PlayerPositionPacket,
     QuicNetworkPacket,
 };
 use common::PlayerEnum;
@@ -38,7 +38,7 @@ impl CacheManager {
         }
     }
 
-    pub fn set_connection_registry(&mut self, registry: Arc<ConnectionRegistry>) {
+    pub(crate) fn set_connection_registry(&mut self, registry: Arc<ConnectionRegistry>) {
         self.connection_registry = Some(registry);
     }
 
@@ -56,15 +56,13 @@ impl CacheManager {
 
     pub async fn process_packet(&self, packet: QuicNetworkPacket) -> Result<(), Error> {
         match packet.packet_type {
-            PacketType::AudioFrame => {
+            PacketType::PlayerPosition => {
                 if let Some(data) = packet.get_data() {
-                    let data: Result<AudioFramePacket, ()> = data.to_owned().try_into();
-                    if let Ok(audio_frame) = data {
-                        if let Some(sender) = audio_frame.sender {
-                            let author = packet.get_author();
-                            if !author.is_empty() {
-                                self.player_cache.insert(author, sender).await;
-                            }
+                    let data: Result<PlayerPositionPacket, ()> = data.to_owned().try_into();
+                    if let Ok(pos) = data {
+                        let author = packet.get_author();
+                        if !author.is_empty() {
+                            self.player_cache.insert(author, pos.player).await;
                         }
                     }
                 }

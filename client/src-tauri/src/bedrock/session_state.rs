@@ -7,7 +7,7 @@ use common::players::PlayerEnum;
 use common::structs::bedrock::BedrockWorldId;
 use common::structs::game::coordinate::Coordinate;
 use common::structs::game::orientation::Orientation;
-use log::debug;
+use log::info;
 
 pub struct BedrockSessionState {
     name: String,
@@ -40,14 +40,11 @@ impl BedrockSessionState {
         }
     }
 
+
     pub fn apply_start_game(&mut self, p: &StartGamePacket) {
         self.dimension = Self::dimension_from_i32(p.dimension);
         self.spectator = Self::is_spectator_gamemode(p.player_gamemode);
         self.world_uuid = Some(BedrockWorldId::derive(p.seed, &p.level_id, &p.world_name));
-        debug!(
-            "Bedrock state: StartGame gamemode={} spectator={} dimension={:?}",
-            p.player_gamemode, self.spectator, self.dimension
-        );
     }
 
     pub fn apply_position(&mut self, p: &PlayerAuthInputPacket) {
@@ -57,40 +54,43 @@ impl BedrockSessionState {
             z: p.position.z,
         };
         self.orientation = Orientation {
-            x: p.yaw,
-            y: p.pitch,
+            x: p.pitch,
+            y: p.yaw,
         };
         let flags = p.input_data.0;
-        let was_sneaking = self.sneaking;
-        let was_crawling = self.crawling;
-        self.sneaking = flags & Self::SNEAKING_BIT != 0;
-        if flags & Self::START_CRAWLING_BIT != 0 {
+        let crawl_start = flags & Self::START_CRAWLING_BIT != 0;
+        let crawl_stop = flags & Self::STOP_CRAWLING_BIT != 0;
+        if crawl_start {
             self.crawling = true;
         }
-        if flags & Self::STOP_CRAWLING_BIT != 0 {
+        if crawl_stop {
             self.crawling = false;
         }
-        if was_sneaking != self.sneaking || was_crawling != self.crawling {
-            debug!(
-                "Bedrock state: input flags=0x{:x} sneaking={} crawling={} deafen={}",
+        let prev = self.sneaking;
+        self.sneaking = self.crawling || flags & Self::SNEAKING_BIT != 0;
+        if crawl_start || crawl_stop || prev != self.sneaking {
+            info!(
+                "Bedrock state: sneak/crawl input_data=0x{:x} start_crawl={} stop_crawl={} sneak_bit={} crawling={} sneaking={}",
                 flags,
-                self.sneaking,
+                crawl_start,
+                crawl_stop,
+                flags & Self::SNEAKING_BIT != 0,
                 self.crawling,
-                self.sneaking || self.crawling
+                self.sneaking,
             );
         }
     }
 
     pub fn apply_change_dimension(&mut self, p: &ChangeDimensionPacket) {
         self.dimension = Self::dimension_from_i32(p.dimension);
-        debug!("Bedrock state: ChangeDimension -> {:?}", self.dimension);
+        info!("Bedrock state: ChangeDimension -> {:?}", self.dimension);
     }
 
     pub fn apply_game_type(&mut self, gamemode: i32) {
         let was_spectator = self.spectator;
         self.spectator = Self::is_spectator_gamemode(gamemode);
         if was_spectator != self.spectator {
-            debug!(
+            info!(
                 "Bedrock state: gamemode={} spectator={}",
                 gamemode, self.spectator
             );
@@ -103,9 +103,9 @@ impl BedrockSessionState {
             coordinates: self.coordinates.clone(),
             orientation: self.orientation.clone(),
             dimension: self.dimension.clone(),
-            deafen: self.sneaking || self.crawling,
+            deafen: self.sneaking,
             spectator: self.spectator,
-            world_uuid: self.world_uuid.clone(),
+            world_uuid: None,
             alternative_identity: None,
             player_uuid: self.player_uuid.clone(),
         })

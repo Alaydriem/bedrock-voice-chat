@@ -751,17 +751,6 @@ impl InputStream {
                                         first_sample_timestamp_ms = None;
                                     }
 
-                                    #[cfg(feature = "bedrock-protocol")]
-                                    let (bedrock_sender, bedrock_spatial) = {
-                                        let player = player_state_cache.as_ref().and_then(|pc| pc.get_local_player());
-                                        match player {
-                                            Some(p) => (Some(p), Some(true)),
-                                            None => (None, None),
-                                        }
-                                    };
-                                    #[cfg(not(feature = "bedrock-protocol"))]
-                                    let (bedrock_sender, bedrock_spatial): (Option<common::PlayerEnum>, Option<bool>) = (None, None);
-
                                     let packet = NetworkPacket {
                                         data: QuicNetworkPacket {
                                             packet_type:
@@ -771,8 +760,8 @@ impl InputStream {
                                                 AudioFramePacket::new(
                                                     encoded_data.clone(),
                                                     device_config.sample_rate,
-                                                    bedrock_sender,
-                                                    bedrock_spatial,
+                                                    None,
+                                                    None,
                                                 ),
                                             ),
                                         },

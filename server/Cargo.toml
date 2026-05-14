@@ -43,3 +43,7 @@ hickory-proto = { version = "^0.26" }
 # small for Bedrock Nethernet payloads. See bvc/Cargo.toml for the matching
 # entry on the client side.
 webrtc = { git = "https://github.com/alaydriem/webrtc", branch = "larger-buffer-size" }
+
+[patch."https://github.com/alaydriem/bedrock-protocol-rs"]
+bedrock-protocol = { path = "../../bedrock-protocol-rs/bedrock-protocol" }
+bedrock-server = { path = "../../bedrock-protocol-rs/bedrock-protocol/server" }

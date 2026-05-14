@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use common::PlayerEnum;
 use common::structs::packet::{
-    BedrockEvent, BedrockEventPacket, PacketType, PlayerDataPacket, QuicNetworkPacket,
+    BedrockEvent, BedrockEventPacket, PacketType, PlayerPositionPacket, QuicNetworkPacket,
     QuicNetworkPacketData,
 };
 use log::{debug, warn};
@@ -39,24 +39,22 @@ impl BedrockEventEmitter {
         }
     }
 
-    pub fn try_send_player_data(&self, player: PlayerEnum) {
+    pub fn try_send_position(&self, player: PlayerEnum) {
         let packet = NetworkPacket {
             data: QuicNetworkPacket {
-                packet_type: PacketType::PlayerData,
+                packet_type: PacketType::PlayerPosition,
                 owner: None,
-                data: QuicNetworkPacketData::PlayerData(PlayerDataPacket {
-                    players: vec![player],
-                }),
+                data: QuicNetworkPacketData::PlayerPosition(PlayerPositionPacket { player }),
             },
         };
 
         match self.tx.try_send(packet) {
-            Ok(()) => debug!("Bedrock position heartbeat queued for QUIC transport"),
+            Ok(()) => debug!("Bedrock position queued for QUIC transport"),
             Err(flume::TrySendError::Full(_)) => {
-                warn!("Network packet queue full; dropping bedrock position heartbeat");
+                warn!("Network packet queue full; dropping bedrock position");
             }
             Err(flume::TrySendError::Disconnected(_)) => {
-                warn!("Network packet channel disconnected; dropping bedrock position heartbeat");
+                warn!("Network packet channel disconnected; dropping bedrock position");
             }
         }
     }

@@ -12,8 +12,7 @@ pub enum BedrockEvent {
         player_xuid: String,
     },
     JukeboxEject {
-        audio_id: String,
-        block_pos: Coordinate,
+        event_id: String,
         player_xuid: String,
     },
     PlayerDeath {

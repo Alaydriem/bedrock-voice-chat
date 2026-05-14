@@ -1,4 +1,5 @@
 use rocket::fs::NamedFile;
+use rocket::http::Status;
 use rocket::State;
 use rocket_okapi::openapi;
 
@@ -11,8 +12,11 @@ pub async fn audio_file_stream(
     token: &str,
     token_cache: &State<AudioStreamTokenCache>,
     config: &State<Audio>,
-) -> Option<NamedFile> {
-    let file_id = token_cache.validate_token(token).await?;
+) -> Result<NamedFile, Status> {
+    let file_id = token_cache
+        .validate_token(token)
+        .await
+        .ok_or(Status::NotFound)?;
     let path = format!("{}/{}.opus", config.file_path, file_id);
-    NamedFile::open(path).await.ok()
+    NamedFile::open(path).await.map_err(|_| Status::NotFound)
 }

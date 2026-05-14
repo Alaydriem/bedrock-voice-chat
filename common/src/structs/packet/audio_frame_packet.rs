@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use super::audio_frame_metadata::AudioFrameMetadata;
 use super::quic_network_packet_data::QuicNetworkPacketData;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -17,6 +18,9 @@ pub struct AudioFramePacket {
 
     pub sender: Option<crate::PlayerEnum>,
     pub spatial: Option<bool>,
+
+    #[serde(default)]
+    pub metadata: Vec<AudioFrameMetadata>,
 }
 
 impl TryFrom<QuicNetworkPacketData> for AudioFramePacket {
@@ -37,6 +41,16 @@ impl AudioFramePacket {
         sender: Option<crate::PlayerEnum>,
         spatial: Option<bool>,
     ) -> Self {
+        Self::new_with_metadata(data, sample_rate, sender, spatial, Vec::new())
+    }
+
+    pub fn new_with_metadata(
+        data: Vec<u8>,
+        sample_rate: u32,
+        sender: Option<crate::PlayerEnum>,
+        spatial: Option<bool>,
+        metadata: Vec<AudioFrameMetadata>,
+    ) -> Self {
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -51,6 +65,7 @@ impl AudioFramePacket {
             data,
             sender,
             spatial,
+            metadata,
         }
     }
 

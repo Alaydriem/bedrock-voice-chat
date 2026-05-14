@@ -22,7 +22,6 @@ const PHANTOM_LEAVE_COORD: f32 = -10000.0;
 
 pub struct BedrockEventService {
     last_addon_http: Cache<String, Instant>,
-    block_to_event: Cache<String, String>,
     threshold: Duration,
     playback_service: Arc<AudioPlaybackService>,
     webhook_receiver: WebhookReceiver,
@@ -41,14 +40,8 @@ impl BedrockEventService {
             .time_to_live(Duration::from_secs(60))
             .build();
 
-        let block_to_event = Cache::builder()
-            .max_capacity(4096)
-            .time_to_live(Duration::from_secs(3600))
-            .build();
-
         Self {
             last_addon_http,
-            block_to_event,
             threshold: Duration::from_secs(threshold_secs as u64),
             playback_service,
             webhook_receiver,
@@ -110,8 +103,8 @@ impl BedrockEventService {
                 self.on_jukebox_insert(audio_id, block_pos, dimension, packet.world_uuid)
                     .await
             }
-            BedrockEvent::JukeboxEject { block_pos, .. } => {
-                self.on_jukebox_eject(block_pos, packet.world_uuid).await
+            BedrockEvent::JukeboxEject { event_id, .. } => {
+                self.on_jukebox_eject(event_id).await
             }
             BedrockEvent::PlayerDeath {
                 dimension,
@@ -138,40 +131,28 @@ impl BedrockEventService {
         let request = AudioPlayRequest {
             audio_file_id: audio_id,
             game: GameAudioContext::Minecraft(MinecraftAudioContext {
-                coordinates: block_pos.clone(),
+                coordinates: block_pos,
                 dimension,
-                world_uuid: world_uuid.clone(),
+                world_uuid,
             }),
         };
 
-        let response = self
-            .playback_service
+        self.playback_service
             .start_playback(&*self.db_conn, request)
             .await
             .map_err(BedrockEventRejection::Internal)?;
 
-        let key = Self::block_key(&world_uuid, &block_pos);
-        self.block_to_event.insert(key, response.event_id).await;
         Ok(())
     }
 
     async fn on_jukebox_eject(
         &self,
-        block_pos: Coordinate,
-        world_uuid: String,
+        event_id: String,
     ) -> Result<(), BedrockEventRejection> {
-        let key = Self::block_key(&world_uuid, &block_pos);
-        let event_id = self
-            .block_to_event
-            .get(&key)
-            .await
-            .ok_or(BedrockEventRejection::NotFound)?;
-
         self.playback_service
             .stop_playback(&event_id)
             .await
             .map_err(BedrockEventRejection::Internal)?;
-        self.block_to_event.invalidate(&key).await;
         Ok(())
     }
 
@@ -238,12 +219,6 @@ impl BedrockEventService {
         Ok(())
     }
 
-    fn block_key(world_uuid: &str, pos: &Coordinate) -> String {
-        format!(
-            "{}:{}:{}:{}",
-            world_uuid, pos.x as i64, pos.y as i64, pos.z as i64
-        )
-    }
 }
 
 #[cfg(test)]
@@ -284,14 +259,4 @@ mod tests {
         assert!(healthy);
     }
 
-    #[test]
-    fn test_block_key_format() {
-        let pos = Coordinate {
-            x: 1.5,
-            y: 64.0,
-            z: -10.7,
-        };
-        let key = BedrockEventService::block_key("abc-123", &pos);
-        assert_eq!(key, "abc-123:1:64:-10");
-    }
 }

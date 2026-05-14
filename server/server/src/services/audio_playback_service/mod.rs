@@ -103,28 +103,40 @@ impl AudioPlaybackService {
         let stripped = event_id.replace('-', "");
         let jukebox_hash = &stripped[stripped.len() - 8..];
         let jukebox_name = format!("{}{}", common::consts::audio::JUKEBOX_PLAYER_PREFIX, jukebox_hash);
-        let synthetic_player = match request.game {
-            GameAudioContext::Minecraft(ctx) => PlayerEnum::Minecraft(MinecraftPlayer {
-                name: jukebox_name.clone(),
-                coordinates: ctx.coordinates,
-                orientation: Orientation { x: 0.0, y: 0.0 },
-                dimension: ctx.dimension,
-                deafen: false,
-                spectator: false,
-                world_uuid: Some(ctx.world_uuid),
-                alternative_identity: None,
-                player_uuid: None,
-            }),
-            GameAudioContext::Hytale(_ctx) => PlayerEnum::Hytale(HytalePlayer {
-                name: jukebox_name.clone(),
-                coordinates: common::Coordinate { x: 0.0, y: 0.0, z: 0.0 },
-                orientation: Orientation { x: 0.0, y: 0.0 },
-                world_uuid: None,
-                dimension: Default::default(),
-                deafen: false,
-                spectator: false,
-                player_uuid: None,
-            }),
+        let (synthetic_player, position) = match request.game {
+            GameAudioContext::Minecraft(ctx) => {
+                let coordinates = ctx.coordinates.clone();
+                (
+                    PlayerEnum::Minecraft(MinecraftPlayer {
+                        name: jukebox_name.clone(),
+                        coordinates: ctx.coordinates,
+                        orientation: Orientation { x: 0.0, y: 0.0 },
+                        dimension: ctx.dimension,
+                        deafen: false,
+                        spectator: false,
+                        world_uuid: Some(ctx.world_uuid),
+                        alternative_identity: None,
+                        player_uuid: None,
+                    }),
+                    coordinates,
+                )
+            }
+            GameAudioContext::Hytale(_ctx) => {
+                let coordinates = common::Coordinate { x: 0.0, y: 0.0, z: 0.0 };
+                (
+                    PlayerEnum::Hytale(HytalePlayer {
+                        name: jukebox_name.clone(),
+                        coordinates: coordinates.clone(),
+                        orientation: Orientation { x: 0.0, y: 0.0 },
+                        world_uuid: None,
+                        dimension: Default::default(),
+                        deafen: false,
+                        spectator: false,
+                        player_uuid: None,
+                    }),
+                    coordinates,
+                )
+            }
         };
 
         let cancel_token = self.parent_token.child_token();
@@ -133,6 +145,7 @@ impl AudioPlaybackService {
         let task = PlaybackTask::new(
             event_id.clone(),
             jukebox_name,
+            position,
             frames,
             self.webhook_receiver.clone(),
             synthetic_player,

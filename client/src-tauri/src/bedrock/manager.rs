@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -25,12 +24,13 @@ use tokio::task::{AbortHandle, JoinHandle};
 
 use crate::bedrock::bvc_disc_nbt::BvcDiscNbt;
 use crate::bedrock::event_emitter::BedrockEventEmitter;
+use crate::bedrock::jukebox_beacon_cache::JukeboxBeaconCache;
 
 const RELAY_DRAIN_DELAY: Duration = Duration::from_millis(500);
 
 const CLIENT_DISCONNECT_DRAIN: Duration = Duration::from_millis(150);
 
-const POSITION_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(30);
+const POSITION_HEARTBEAT_INTERVAL: Duration = Duration::from_millis(250);
 
 const BVC_DISCONNECT_MESSAGE: &str =
     "Connection was closed by the Bedrock Voice Chat app so your link to this server was ended on purpose. Reconnect through the Bedrock Voice Chat app reconnect to this server.";
@@ -312,7 +312,7 @@ impl BedrockProxyManager {
                             }
                             _ = interval.tick() => {
                                 if let Some(player) = heartbeat_cache.get_local_player() {
-                                    emitter.try_send_player_data(player);
+                                    emitter.try_send_position(player);
                                 }
                             }
                         }
@@ -436,8 +436,9 @@ impl BedrockProxyManager {
                                 player_uuid,
                             );
 
-                            let mut jukebox_state: HashMap<(i32, i32, i32), String> = HashMap::new();
+                            let beacon_cache = JukeboxBeaconCache::global();
                             let mut last_known_health: Option<i32> = None;
+                            let mut player_auth_input_seen = false;
 
                             // Captures the reason this session ended. Read after the
                             // loop to emit the BedrockDisconnected analytics event with
@@ -468,6 +469,13 @@ impl BedrockProxyManager {
                                         match evt {
                                             Event::StartGame(_dir, packet) => state.apply_start_game(&packet),
                                             Event::PlayerAuthInput(dir, packet) => {
+                                                if !player_auth_input_seen {
+                                                    debug!(
+                                                        "Bedrock: first PlayerAuthInput received dir={:?}",
+                                                        dir
+                                                    );
+                                                    player_auth_input_seen = true;
+                                                }
                                                 state.apply_position(&packet);
                                                 if matches!(dir, Direction::Serverbound) {
                                                     if let Some(tx) = &packet.transaction {
@@ -475,11 +483,13 @@ impl BedrockProxyManager {
                                                             &tx.data,
                                                             &state,
                                                             &child_emitter,
-                                                            &mut jukebox_state,
+                                                            &beacon_cache,
                                                         );
                                                     }
                                                 }
                                             }
+                                            Event::Interact(_dir, _packet) => continue,
+                                            Event::PlayerAction(_dir, _packet) => continue,
                                             Event::ChangeDimension(_dir, packet) => state.apply_change_dimension(&packet),
                                             Event::SetPlayerGameType(_dir, packet) => state.apply_game_type(packet.gamemode),
                                             Event::UpdatePlayerGameType(_dir, packet) => state.apply_game_type(packet.gamemode),
@@ -489,7 +499,20 @@ impl BedrockProxyManager {
                                                         &packet.transaction.data,
                                                         &state,
                                                         &child_emitter,
-                                                        &mut jukebox_state,
+                                                        &beacon_cache,
+                                                    );
+                                                }
+                                                continue;
+                                            }
+                                            Event::UpdateBlock(dir, packet) => {
+                                                if matches!(dir, Direction::Clientbound) {
+                                                    Self::on_update_block(
+                                                        packet.position.x,
+                                                        packet.position.y,
+                                                        packet.position.z,
+                                                        &state,
+                                                        &child_emitter,
+                                                        &beacon_cache,
                                                     );
                                                 }
                                                 continue;
@@ -590,11 +613,51 @@ impl BedrockProxyManager {
         }
     }
 
+    fn on_update_block(
+        x: i32,
+        y: i32,
+        z: i32,
+        state: &BedrockSessionState,
+        emitter: &Option<Arc<BedrockEventEmitter>>,
+        beacon_cache: &Arc<JukeboxBeaconCache>,
+    ) {
+        let emitter = match emitter.as_ref() {
+            Some(e) => e,
+            None => return,
+        };
+
+        let block_key = (x, y, z);
+        let event_id = match beacon_cache.process_update_block(block_key) {
+            Some(id) => id,
+            None => return,
+        };
+
+        let world_uuid = match state.world_uuid() {
+            Some(w) => w.to_string(),
+            None => {
+                debug!("Skipping JukeboxEject: UpdateBlock at cached jukebox but no world_uuid");
+                return;
+            }
+        };
+
+        debug!(
+            "Bedrock proxy: emitting JukeboxEject event_id={} at ({},{},{})",
+            event_id, x, y, z
+        );
+        emitter.try_send(
+            BedrockEvent::JukeboxEject {
+                event_id,
+                player_xuid: state.player_uuid().unwrap_or("").to_string(),
+            },
+            world_uuid,
+        );
+    }
+
     fn on_inventory_transaction(
         data: &TransactionData,
         state: &BedrockSessionState,
         emitter: &Option<Arc<BedrockEventEmitter>>,
-        jukebox_state: &mut HashMap<(i32, i32, i32), String>,
+        beacon_cache: &Arc<JukeboxBeaconCache>,
     ) {
         let emitter = match emitter.as_ref() {
             Some(e) => e,
@@ -609,21 +672,6 @@ impl BedrockProxyManager {
         if !matches!(use_item.action_type, UseItemActionType::ClickBlock) {
             return;
         }
-
-        let audio_id = match BvcDiscNbt::extract_audio_id(&use_item.held_item.extra) {
-            Some(id) => id,
-            None => {
-                debug!(
-                    "Bedrock: ItemUse ClickBlock at ({},{},{}) net_id={} extra_len={} — no BVC audio id in held item",
-                    use_item.block_position.x,
-                    use_item.block_position.y,
-                    use_item.block_position.z,
-                    use_item.held_item.network_id,
-                    use_item.held_item.extra.len(),
-                );
-                return;
-            }
-        };
 
         let world_uuid = match state.world_uuid() {
             Some(w) => w.to_string(),
@@ -645,27 +693,25 @@ impl BedrockProxyManager {
         };
         let player_xuid = state.player_uuid().unwrap_or("").to_string();
 
-        let event = if jukebox_state.remove(&block_key).is_some() {
-            BedrockEvent::JukeboxEject {
-                audio_id: audio_id.clone(),
-                block_pos,
-                player_xuid,
-            }
-        } else {
-            jukebox_state.insert(block_key, audio_id.clone());
+        let audio_id = match BvcDiscNbt::extract_audio_id(&use_item.held_item.extra) {
+            Some(id) => id,
+            None => return,
+        };
+
+        debug!(
+            "Bedrock proxy: emitting JukeboxInsert audio_id={} at ({},{},{})",
+            audio_id, block_key.0, block_key.1, block_key.2
+        );
+        beacon_cache.note_insert_pending(&block_pos);
+        emitter.try_send(
             BedrockEvent::JukeboxInsert {
-                audio_id: audio_id.clone(),
+                audio_id,
                 block_pos,
                 dimension: state.dimension(),
                 player_xuid,
-            }
-        };
-
-        info!(
-            "Bedrock proxy: emitting jukebox event for audio_id={} at ({},{},{})",
-            audio_id, block_key.0, block_key.1, block_key.2
+            },
+            world_uuid,
         );
-        emitter.try_send(event, world_uuid);
     }
 
     fn on_set_health(

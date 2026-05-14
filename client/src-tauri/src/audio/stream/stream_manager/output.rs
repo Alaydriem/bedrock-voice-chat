@@ -16,12 +16,13 @@ use common::{
         audio::{PlayerGainSettings, PlayerGainStore, StreamEvent},
         network::ConnectionHealth,
         packet::{
-            AudioFramePacket, ChannelEventPacket, ConnectionEventType, PacketType,
-            PlayerDataPacket, PlayerPresenceEvent, QuicNetworkPacket, ServerErrorPacket,
-            ServerErrorType,
+            AudioFrameMetadata, AudioFramePacket, ChannelEventPacket, ConnectionEventType,
+            PacketType, PlayerDataPacket, PlayerPresenceEvent, QuicNetworkPacket,
+            ServerErrorPacket, ServerErrorType,
         },
     },
 };
+use crate::bedrock::JukeboxBeaconCache;
 use log::{error, info, warn};
 use moka::future::Cache;
 use once_cell::sync::Lazy;
@@ -675,6 +676,14 @@ impl OutputStream {
 
         match data {
             Ok(data) => {
+                let beacon_cache = JukeboxBeaconCache::global();
+                for meta in &data.metadata {
+                    match meta {
+                        AudioFrameMetadata::Jukebox(jb) => {
+                            beacon_cache.observe(&jb.position, &jb.event_id);
+                        }
+                    }
+                }
                 // Create emitter RecordingPlayerData from packet owner and audio data
                 let emitter = owner
                     .as_ref()

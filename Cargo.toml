@@ -39,3 +39,7 @@ tauri-plugin-deep-link = { git = "https://github.com/charlesportwoodii/tauri-plu
 sentry = { git = "https://github.com/Alaydriem/sentry-rust", branch = "0.46.x" }
 sentry-rust-minidump = { git = "https://github.com/Alaydriem/sentry-rust-minidump", branch = "master" }
 webrtc = { git = "https://github.com/alaydriem/webrtc", branch = "larger-buffer-size" }
+
+[patch."https://github.com/alaydriem/bedrock-protocol-rs"]
+bedrock-protocol = { path = "../bedrock-protocol-rs/bedrock-protocol" }
+bedrock-server = { path = "../bedrock-protocol-rs/bedrock-protocol/server" }
