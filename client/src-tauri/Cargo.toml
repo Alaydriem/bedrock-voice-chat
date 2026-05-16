@@ -70,6 +70,7 @@ bwavfile = { version = "2.0.1" }
 chrono = { version = "^0.4" }
 fern = { version = "^0.7" }
 async-trait = { version = "^0.1" }
+enum_dispatch = { version = "^0.3" }
 url = { version = "2" }
 x509-parser = { workspace = true }
 tar = { version = "^0.4" }

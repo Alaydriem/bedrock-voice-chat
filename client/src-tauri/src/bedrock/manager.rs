@@ -5,26 +5,22 @@ use std::time::Duration;
 
 use bytes::BytesMut;
 use common::bedrock_protocol::{
-    AuthInfo, AuthManager, Bytes, Direction, DisconnectPacket, Event, Proxy, ProxyConfig,
+    AuthInfo, AuthManager, Bytes, DisconnectPacket, Proxy, ProxyConfig,
     RealmConfig, Session,
     proxy::{WarmPool, WarmTarget},
     protocol::batch::BatchCodec,
     protocol::codec::PacketEncode,
     protocol::packets::{PacketHeader, ids},
-    protocol::types::transaction::TransactionData,
-    protocol::types::use_item_action_type::UseItemActionType,
 };
-use common::structs::game::Coordinate;
-use common::structs::packet::BedrockEvent;
 use common::structs::{AnalyticsEvent, AnalyticsEventData};
 use common::traits::StreamTrait;
-use log::{debug, error, info, warn};
+use log::{error, info, warn};
 use tokio::sync::{oneshot, watch};
 use tokio::task::{AbortHandle, JoinHandle};
 
-use crate::bedrock::bvc_disc_nbt::BvcDiscNbt;
 use crate::bedrock::event_emitter::BedrockEventEmitter;
 use crate::bedrock::jukebox_beacon_cache::JukeboxBeaconCache;
+use crate::bedrock::session_event::{BedrockSessionEventDispatcher, DispatchOutcome};
 
 const RELAY_DRAIN_DELAY: Duration = Duration::from_millis(500);
 
@@ -450,13 +446,13 @@ impl BedrockProxyManager {
                                 player_uuid,
                             );
 
-                            let beacon_cache = child_beacon_cache;
-                            let mut last_known_health: Option<i32> = None;
-                            let mut player_auth_input_seen = false;
+                            let mut dispatcher = BedrockSessionEventDispatcher::new(
+                                child_player_name.clone(),
+                                Arc::clone(&child_beacon_cache),
+                                Arc::clone(&child_cache),
+                                child_emitter.clone(),
+                            );
 
-                            // Captures the reason this session ended. Read after the
-                            // loop to emit the BedrockDisconnected analytics event with
-                            // a meaningful breakdown property.
                             let disconnect_reason: &'static str;
                             let mut disconnect_detail: Option<String> = None;
 
@@ -480,76 +476,14 @@ impl BedrockProxyManager {
                                             disconnect_reason = "upstream_closed";
                                             break;
                                         };
-                                        match evt {
-                                            Event::StartGame(_dir, packet) => state.apply_start_game(&packet),
-                                            Event::PlayerAuthInput(dir, packet) => {
-                                                if !player_auth_input_seen {
-                                                    debug!(
-                                                        "Bedrock: first PlayerAuthInput received dir={:?}",
-                                                        dir
-                                                    );
-                                                    player_auth_input_seen = true;
-                                                }
-                                                state.apply_position(&packet);
-                                                if matches!(dir, Direction::Serverbound) {
-                                                    if let Some(tx) = &packet.transaction {
-                                                        Self::on_inventory_transaction(
-                                                            &tx.data,
-                                                            &state,
-                                                            &child_emitter,
-                                                            &beacon_cache,
-                                                        );
-                                                    }
-                                                }
-                                            }
-                                            Event::Interact(_dir, _packet) => continue,
-                                            Event::PlayerAction(_dir, _packet) => continue,
-                                            Event::ChangeDimension(_dir, packet) => state.apply_change_dimension(&packet),
-                                            Event::SetPlayerGameType(_dir, packet) => state.apply_game_type(packet.gamemode),
-                                            Event::UpdatePlayerGameType(_dir, packet) => state.apply_game_type(packet.gamemode),
-                                            Event::InventoryTransaction(dir, packet) => {
-                                                if matches!(dir, Direction::Serverbound) {
-                                                    Self::on_inventory_transaction(
-                                                        &packet.transaction.data,
-                                                        &state,
-                                                        &child_emitter,
-                                                        &beacon_cache,
-                                                    );
-                                                }
-                                                continue;
-                                            }
-                                            Event::UpdateBlock(dir, packet) => {
-                                                if matches!(dir, Direction::Clientbound) {
-                                                    Self::on_update_block(
-                                                        packet.position.x,
-                                                        packet.position.y,
-                                                        packet.position.z,
-                                                        &state,
-                                                        &child_emitter,
-                                                        &beacon_cache,
-                                                    );
-                                                }
-                                                continue;
-                                            }
-                                            Event::SetHealth(_dir, packet) => {
-                                                Self::on_set_health(
-                                                    packet.health,
-                                                    &mut last_known_health,
-                                                    &state,
-                                                    &child_emitter,
-                                                );
-                                                continue;
-                                            }
-                                            Event::Disconnected(reason) => {
-                                                info!("Bedrock session disconnected for {}: {:?}", child_player_name, reason);
-                                                Self::on_player_leave(&state, &child_emitter);
-                                                disconnect_reason = "peer_disconnect";
-                                                disconnect_detail = Some(format!("{:?}", reason));
+                                        match dispatcher.dispatch(&evt, &mut state) {
+                                            DispatchOutcome::Continue => {}
+                                            DispatchOutcome::SessionEnded { reason, detail } => {
+                                                disconnect_reason = reason;
+                                                disconnect_detail = detail;
                                                 break;
                                             }
-                                            _ => continue,
                                         }
-                                        child_cache.set(&child_player_name, state.to_player_enum());
                                     }
                                 }
                             }
@@ -625,158 +559,6 @@ impl BedrockProxyManager {
                 player_name, e
             );
         }
-    }
-
-    fn on_update_block(
-        x: i32,
-        y: i32,
-        z: i32,
-        state: &BedrockSessionState,
-        emitter: &Option<Arc<BedrockEventEmitter>>,
-        beacon_cache: &Arc<JukeboxBeaconCache>,
-    ) {
-        let emitter = match emitter.as_ref() {
-            Some(e) => e,
-            None => return,
-        };
-
-        let block_key = (x, y, z);
-        let event_id = match beacon_cache.process_update_block(block_key) {
-            Some(id) => id,
-            None => return,
-        };
-
-        let world_uuid = match state.world_uuid() {
-            Some(w) => w.to_string(),
-            None => {
-                debug!("Skipping JukeboxEject: UpdateBlock at cached jukebox but no world_uuid");
-                return;
-            }
-        };
-
-        debug!(
-            "Bedrock proxy: emitting JukeboxEject event_id={} at ({},{},{})",
-            event_id, x, y, z
-        );
-        emitter.try_send(
-            BedrockEvent::JukeboxEject {
-                event_id,
-                player_xuid: state.player_uuid().unwrap_or("").to_string(),
-            },
-            world_uuid,
-        );
-    }
-
-    fn on_inventory_transaction(
-        data: &TransactionData,
-        state: &BedrockSessionState,
-        emitter: &Option<Arc<BedrockEventEmitter>>,
-        beacon_cache: &Arc<JukeboxBeaconCache>,
-    ) {
-        let emitter = match emitter.as_ref() {
-            Some(e) => e,
-            None => return,
-        };
-
-        let use_item = match data {
-            TransactionData::ItemUse(use_item) => use_item,
-            _ => return,
-        };
-
-        if !matches!(use_item.action_type, UseItemActionType::ClickBlock) {
-            return;
-        }
-
-        let world_uuid = match state.world_uuid() {
-            Some(w) => w.to_string(),
-            None => {
-                debug!("Skipping jukebox event: no world_uuid in session state");
-                return;
-            }
-        };
-
-        let block_key = (
-            use_item.block_position.x,
-            use_item.block_position.y,
-            use_item.block_position.z,
-        );
-        let block_pos = Coordinate {
-            x: use_item.block_position.x as f32,
-            y: use_item.block_position.y as f32,
-            z: use_item.block_position.z as f32,
-        };
-        let player_xuid = state.player_uuid().unwrap_or("").to_string();
-
-        let audio_id = match BvcDiscNbt::extract_audio_id(&use_item.held_item.extra) {
-            Some(id) => id,
-            None => return,
-        };
-
-        debug!(
-            "Bedrock proxy: emitting JukeboxInsert audio_id={} at ({},{},{})",
-            audio_id, block_key.0, block_key.1, block_key.2
-        );
-        beacon_cache.note_insert_pending(&block_pos);
-        emitter.try_send(
-            BedrockEvent::JukeboxInsert {
-                audio_id,
-                block_pos,
-                dimension: state.dimension(),
-                player_xuid,
-            },
-            world_uuid,
-        );
-    }
-
-    fn on_set_health(
-        new_health: i32,
-        last_known_health: &mut Option<i32>,
-        state: &BedrockSessionState,
-        emitter: &Option<Arc<BedrockEventEmitter>>,
-    ) {
-        let previously_alive = matches!(last_known_health, Some(h) if *h > 0);
-        *last_known_health = Some(new_health);
-
-        if new_health > 0 || !previously_alive {
-            return;
-        }
-
-        let emitter = match emitter.as_ref() {
-            Some(e) => e,
-            None => return,
-        };
-        let world_uuid = match state.world_uuid() {
-            Some(w) => w.to_string(),
-            None => return,
-        };
-
-        let event = BedrockEvent::PlayerDeath {
-            player_xuid: state.player_uuid().unwrap_or("").to_string(),
-            dimension: state.dimension(),
-            last_pos: state.coordinates(),
-        };
-        info!("Bedrock proxy: emitting player death for {}", state.name());
-        emitter.try_send(event, world_uuid);
-    }
-
-    fn on_player_leave(
-        state: &BedrockSessionState,
-        emitter: &Option<Arc<BedrockEventEmitter>>,
-    ) {
-        let emitter = match emitter.as_ref() {
-            Some(e) => e,
-            None => return,
-        };
-        let world_uuid = match state.world_uuid() {
-            Some(w) => w.to_string(),
-            None => return,
-        };
-
-        let event = BedrockEvent::PlayerLeave {
-            player_xuid: state.player_uuid().unwrap_or("").to_string(),
-        };
-        info!("Bedrock proxy: emitting player leave for {}", state.name());
-        emitter.try_send(event, world_uuid);
     }
 }
 

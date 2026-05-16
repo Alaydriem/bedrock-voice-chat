@@ -9,6 +9,7 @@ pub mod log_capture;
 pub mod manager;
 pub mod player_state_cache;
 pub mod services;
+pub mod session_event;
 pub mod session_state;
 pub mod state;
 

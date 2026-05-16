@@ -1,5 +1,8 @@
+use async_trait::async_trait;
+
 use crate::analytics::AnalyticsLevel;
 use crate::analytics::dtos::QueuedEvent;
+use crate::analytics::provider::AnalyticsProvider;
 
 pub struct Provider;
 
@@ -7,20 +10,27 @@ impl Provider {
     pub fn new() -> Self {
         Self
     }
+}
 
-    pub fn set_tag(&self, key: &str, value: &str) {
+#[async_trait]
+impl AnalyticsProvider for Provider {
+    fn handles_batches(&self) -> bool {
+        false
+    }
+
+    fn set_tag(&self, key: &str, value: &str) {
         sentry::configure_scope(|scope| {
             scope.set_tag(key, value);
         });
     }
 
-    pub fn clear_tag(&self, key: &str) {
+    fn clear_tag(&self, key: &str) {
         sentry::configure_scope(|scope| {
             scope.remove_tag(key);
         });
     }
 
-    pub fn set_user(&self, user_id: &str) {
+    fn set_user(&self, user_id: &str) {
         sentry::configure_scope(|scope| {
             scope.set_user(Some(sentry::User {
                 id: Some(user_id.to_string()),
@@ -29,7 +39,7 @@ impl Provider {
         });
     }
 
-    pub fn breadcrumb(&self, category: &str, message: &str, level: AnalyticsLevel) {
+    fn breadcrumb(&self, category: &str, message: &str, level: AnalyticsLevel) {
         sentry::add_breadcrumb(sentry::Breadcrumb {
             category: Some(category.to_string()),
             message: Some(message.to_string()),
@@ -38,12 +48,7 @@ impl Provider {
         });
     }
 
-    pub fn capture_message(
-        &self,
-        message: &str,
-        level: AnalyticsLevel,
-        tags: &[(String, String)],
-    ) {
+    fn capture_message(&self, message: &str, level: AnalyticsLevel, tags: &[(String, String)]) {
         sentry::with_scope(
             |scope| {
                 for (k, v) in tags {
@@ -56,7 +61,7 @@ impl Provider {
         );
     }
 
-    pub async fn send_batch(
+    async fn send_batch(
         &self,
         _events: &[QueuedEvent],
         _install_id: &str,

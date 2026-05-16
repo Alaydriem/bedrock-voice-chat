@@ -8,5 +8,5 @@ pub mod service;
 
 pub use level::AnalyticsLevel;
 pub use player_identity::PlayerIdentity;
-pub use provider::AnalyticsProviderType;
+pub use provider::{AnalyticsProvider, AnalyticsProviderType};
 pub use service::AnalyticsService;

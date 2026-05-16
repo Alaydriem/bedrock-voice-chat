@@ -1,8 +1,11 @@
 use std::collections::HashMap;
 
+use async_trait::async_trait;
+
 use crate::analytics::AnalyticsLevel;
 use crate::analytics::dtos::QueuedEvent;
 use crate::analytics::posthog::{BatchRequest, CaptureEvent, CaptureEventProperties};
+use crate::analytics::provider::AnalyticsProvider;
 
 pub struct Provider {
     client: reqwest::Client,
@@ -45,16 +48,19 @@ impl Provider {
             custom,
         }
     }
+}
 
-    pub fn set_tag(&self, _key: &str, _value: &str) {}
+#[async_trait]
+impl AnalyticsProvider for Provider {
+    fn set_tag(&self, _key: &str, _value: &str) {}
 
-    pub fn clear_tag(&self, _key: &str) {}
+    fn clear_tag(&self, _key: &str) {}
 
-    pub fn set_user(&self, _user_id: &str) {}
+    fn set_user(&self, _user_id: &str) {}
 
-    pub fn breadcrumb(&self, _category: &str, _message: &str, _level: AnalyticsLevel) {}
+    fn breadcrumb(&self, _category: &str, _message: &str, _level: AnalyticsLevel) {}
 
-    pub fn capture_message(
+    fn capture_message(
         &self,
         _message: &str,
         _level: AnalyticsLevel,
@@ -62,7 +68,7 @@ impl Provider {
     ) {
     }
 
-    pub async fn send_batch(
+    async fn send_batch(
         &self,
         events: &[QueuedEvent],
         install_id: &str,

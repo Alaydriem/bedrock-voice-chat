@@ -1,10 +1,12 @@
 use crate::analytics::AnalyticsLevel;
+use crate::analytics::AnalyticsProvider;
 use crate::analytics::AnalyticsProviderType;
 use crate::analytics::PlayerIdentity;
 use crate::analytics::dtos::QueuedEvent;
 use crate::logging::Telemetry;
 use chrono::Utc;
 use common::structs::{AnalyticsEvent, AnalyticsEventData};
+use futures_util::future::join_all;
 use std::sync::Arc;
 
 #[derive(Default, Clone)]
@@ -155,23 +157,22 @@ impl AnalyticsService {
             return Ok(());
         }
 
-        let mut any_success = false;
-        for provider in &batch_providers {
-            match provider
-                .send_batch(&events, &self.install_id, &self.session_id)
-                .await
-            {
-                Ok(()) => any_success = true,
-                Err(e) => log::warn!("Analytics provider flush failed: {}", e),
-            }
+        let results = join_all(
+            batch_providers
+                .iter()
+                .map(|p| p.send_batch(&events, &self.install_id, &self.session_id)),
+        )
+        .await;
+
+        let any_success = results.iter().any(|r| r.is_ok());
+        for err in results.iter().filter_map(|r| r.as_ref().err()) {
+            log::warn!("Analytics provider flush failed: {}", err);
         }
 
         if !any_success {
             let requeue_count = events.len();
             let mut queue = self.queue.lock();
-            for event in events {
-                queue.push(event);
-            }
+            queue.extend(events);
             log::warn!(
                 "All analytics providers failed. {} events re-queued.",
                 requeue_count
