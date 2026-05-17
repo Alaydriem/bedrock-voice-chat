@@ -1,7 +1,7 @@
 use bytes::Bytes;
 use clap::Parser;
 use common::response::auth::AuthStateResponse;
-use common::response::ApiConfig;
+use common::response::ApiConfigResponse;
 use common::rustls::MtlsHttpClient;
 use common::structs::channel::{Channel, ChannelEvent, ChannelEvents};
 use common::structs::packet::AudioFramePacket;
@@ -124,7 +124,7 @@ async fn run(args: Args) -> Result<(), Box<dyn Error>> {
     let base_url = format!("https://{}:{}", hostname, api_port);
     println!("Querying API config at {}/api/config", base_url);
 
-    let config: ApiConfig = http_client
+    let config: ApiConfigResponse = http_client
         .client()
         .get(format!("{}/api/config", base_url))
         .send()

@@ -4,6 +4,7 @@ import { info, error as logError } from '@tauri-apps/plugin-log';
 import { platform } from '@tauri-apps/plugin-os';
 import Analytics from '../analytics';
 import { type LoginResponse } from "../../bindings/LoginResponse";
+import { type ServerListEntry } from "../../bindings/ServerListEntry";
 
 export class AuthCallbackHandler {
     private readonly AUTH_PREFIXES = [
@@ -65,7 +66,7 @@ export class AuthCallbackHandler {
                 await this.store.set("active_game", "minecraft");
 
                 if (await this.store.has("server_list")) {
-                    let serverList = await this.store.get("server_list") as Array<{ server: string, player: string, game?: string }>;
+                    let serverList = await this.store.get("server_list") as ServerListEntry[];
                     let hasServer = false;
                     serverList.forEach(server => {
                         if (server.server == authStateEndpoint) {

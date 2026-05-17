@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { mount, onMount } from "svelte";
+    import { mount, onMount, onDestroy } from "svelte";
     import account from "../../components/settings/pages/account.svelte";
     import audio from "../../components/settings/pages/audio.svelte";
     import keybinds from "../../components/settings/pages/keybinds.svelte";
@@ -225,6 +225,10 @@
         } catch (error) {
             isMobile = false;
         }
+    });
+
+    onDestroy(() => {
+        bedrockManager?.destroy();
     });
 </script>
 

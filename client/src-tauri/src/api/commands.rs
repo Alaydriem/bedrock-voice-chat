@@ -1,6 +1,6 @@
 use crate::structs::app_state::AppState;
 use common::consts::version::PROTOCOL_VERSION;
-use common::response::ApiConfig;
+use common::response::ApiConfigCheckResponse;
 use common::response::GamerpicResponse;
 use common::structs::channel::{Channel, ChannelEvent};
 use tauri::{State, async_runtime::Mutex};
@@ -26,18 +26,14 @@ pub(crate) async fn api_ping(
 
     let api = match server {
         Some(endpoint) => {
-            // Use pool for specific server
-            drop(state); // Release lock before async operation
+            drop(state);
             app_state
                 .lock()
                 .await
                 .get_api_client_for_server(&endpoint)
                 .await?
         }
-        None => {
-            // Use default client (backwards compatible)
-            state.get_api_client()?.clone()
-        }
+        None => state.get_api_client()?.clone(),
     };
 
     match api.ping().await {
@@ -46,20 +42,11 @@ pub(crate) async fn api_ping(
     }
 }
 
-/// Response for api_get_config that includes version compatibility info
-#[derive(serde::Serialize)]
-pub struct ConfigResponse {
-    pub config: ApiConfig,
-    pub client_version: String,
-    pub compatible: bool,
-    pub client_too_old: bool,
-}
-
 #[tauri::command(async)]
 pub(crate) async fn api_get_config(
     app_state: State<'_, Mutex<AppState>>,
     server: Option<String>,
-) -> Result<ConfigResponse, String> {
+) -> Result<ApiConfigCheckResponse, String> {
     let state = app_state.lock().await;
 
     let api = match server {
@@ -75,34 +62,7 @@ pub(crate) async fn api_get_config(
     };
 
     let config = api.get_config().await?;
-    let client_version = PROTOCOL_VERSION.to_string();
-    let server_version = &config.protocol_version;
-
-    // Parse versions for comparison (major.minor.patch)
-    let server_parts: Vec<u32> = server_version
-        .split('.')
-        .filter_map(|s| s.parse().ok())
-        .collect();
-    let client_parts: Vec<u32> = client_version
-        .split('.')
-        .filter_map(|s| s.parse().ok())
-        .collect();
-
-    // Compare major and minor versions - both must match (patch can differ)
-    let server_major = server_parts.first().copied().unwrap_or(0);
-    let server_minor = server_parts.get(1).copied().unwrap_or(0);
-    let client_major = client_parts.first().copied().unwrap_or(0);
-    let client_minor = client_parts.get(1).copied().unwrap_or(0);
-
-    let compatible = server_major == client_major && server_minor == client_minor;
-    let client_too_old = (client_major, client_minor) < (server_major, server_minor);
-
-    Ok(ConfigResponse {
-        config,
-        client_version,
-        compatible,
-        client_too_old,
-    })
+    Ok(ApiConfigCheckResponse::from_config(config, PROTOCOL_VERSION))
 }
 
 #[tauri::command(async)]

@@ -1,285 +1,138 @@
-import { writable, derived, get, type Writable, type Readable } from 'svelte/store';
+import { writable, derived, type Writable, type Readable } from 'svelte/store';
 import { invoke } from '@tauri-apps/api/core';
 import { Store } from '@tauri-apps/plugin-store';
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { openUrl } from '@tauri-apps/plugin-opener';
-import { info, error as logError } from '@tauri-apps/plugin-log';
+import { error as logError } from '@tauri-apps/plugin-log';
 import type { BedrockStatus } from '../../../bindings/BedrockStatus';
 import type { BedrockLogEntry } from '../../../bindings/BedrockLogEntry';
-import type { BedrockConnectError } from '../../../bindings/BedrockConnectError';
 import type { BedrockConnectionInfo } from '../../../bindings/BedrockConnectionInfo';
 import type { RealmEntry } from '../../../bindings/RealmEntry';
 import type { NetworkInterface } from './NetworkInterface';
-import type { ProxyConfig } from './ProxyConfig';
 import type { ProxyServerEntry } from './ProxyServerEntry';
+import { BedrockAuthManager } from './auth/BedrockAuthManager';
+import { BedrockProxyManager } from './proxy/BedrockProxyManager';
+import { BedrockRealmsManager } from './realms/BedrockRealmsManager';
+import { BedrockLogsManager } from './logs/BedrockLogsManager';
+import { BedrockConnectionManager } from './connection/BedrockConnectionManager';
+import type { RealmsConnectionError, RealmsConnectionErrorKind } from './connection/RealmsConnectionError';
 
-const MAX_LOG_ENTRIES = 200;
-
-const ALLOWED_LOG_LEVELS = new Set(['INFO', 'WARN', 'ERROR']);
-
-export type RealmsConnectionErrorKind = BedrockConnectError['kind'];
-
-export interface RealmsConnectionError {
-    raw: BedrockConnectError;
-    title: string;
-    detail: string;
-    suggestion: string;
-    severity: 'error' | 'warning';
-}
-
-function describeConnectError(err: BedrockConnectError): RealmsConnectionError {
-    switch (err.kind) {
-        case 'nethernet_rejected_no_fallback': {
-            const codeText = err.bds_reason_code != null ? `reason ${err.bds_reason_code}` : 'no reason code';
-            const kick = err.bds_kick_message && err.bds_kick_message.length > 0
-                ? ` "${err.bds_kick_message}"`
-                : '';
-            return {
-                raw: err,
-                title: 'Bedrock server rejected the login',
-                detail: `The Realm rejected the proxy handshake (${codeText}${kick}) and there is no fallback for NetherNet/Realms.`,
-                suggestion: 'This usually clears in 30 seconds. Wait, then try Connect again. If it persists, click Refresh to renew tokens, or restart BVC.',
-                severity: 'error',
-            };
-        }
-        case 'bds_rejected_original_login': {
-            const kick = err.kick_message && err.kick_message.length > 0
-                ? ` ("${err.kick_message}")`
-                : '';
-            return {
-                raw: err,
-                title: 'Server rejected the original login',
-                detail: `Even the unmodified login chain was rejected${kick}.`,
-                suggestion: 'Click Refresh to renew tokens, then try again. If it persists, sign out and back in.',
-                severity: 'error',
-            };
-        }
-        case 'bds_rejected_original_login_undecoded':
-            return {
-                raw: err,
-                title: 'Server rejected the original login',
-                detail: 'The server sent a Disconnect packet during fallback that could not be decoded.',
-                suggestion: 'Click Refresh to renew tokens, then try again.',
-                severity: 'error',
-            };
-        case 'handshake_other':
-            return {
-                raw: err,
-                title: 'Handshake failed',
-                detail: err.message,
-                suggestion: 'Wait a moment and try Connect again. If it keeps failing, click Refresh or restart BVC.',
-                severity: 'error',
-            };
-        case 'auth':
-            return {
-                raw: err,
-                title: 'Authentication failed',
-                detail: err.message,
-                suggestion: 'Click Refresh to renew tokens. If it persists, sign out and back in.',
-                severity: 'error',
-            };
-        case 'transport':
-            return {
-                raw: err,
-                title: 'Network transport failed',
-                detail: err.message,
-                suggestion: 'Check your internet connection. If it persists, restart BVC.',
-                severity: 'error',
-            };
-        case 'other':
-        default:
-            return {
-                raw: err,
-                title: 'Connect failed',
-                detail: (err as { message?: string }).message ?? 'Unknown error',
-                suggestion: 'Wait a moment and try Connect again.',
-                severity: 'error',
-            };
-    }
-}
+export type { RealmsConnectionError, RealmsConnectionErrorKind };
 
 export class BedrockManager {
-    private isEntitledStore: Writable<boolean>;
-    private isAuthenticatedStore: Writable<boolean>;
-    private isRestoringAuthStore: Writable<boolean>;
-    private proxyRunningStore: Writable<boolean>;
-    private realmsRunningStore: Writable<boolean>;
-    private interfacesStore: Writable<NetworkInterface[]>;
-    private proxyConfigStore: Writable<ProxyConfig | null>;
+    private readonly authManager: BedrockAuthManager;
+    private readonly proxyManager: BedrockProxyManager;
+    private readonly realmsManager: BedrockRealmsManager;
+    private readonly logsManager: BedrockLogsManager;
+    private readonly connectionManager: BedrockConnectionManager;
+
     private statusMessageStore: Writable<string>;
-    private showLoginModalStore: Writable<boolean>;
-    private selectedInterfaceStore: Writable<string>;
-    private isProxyLoadingStore: Writable<boolean>;
-
-    private serverHostStore: Writable<string>;
-    private serverPortStore: Writable<number>;
-    private listenPortStore: Writable<number>;
-
-    private realmsStore: Writable<RealmEntry[]>;
-    private favoritesStore: Writable<Set<number>>;
-    private isLoadingRealmsStore: Writable<boolean>;
-    private activeRealmIdStore: Writable<number | null>;
-    private activeRealmNameStore: Writable<string>;
-
-    private deviceCodeStore: Writable<string>;
-    private deviceUrlStore: Writable<string>;
-    private loginErrorStore: Writable<string>;
-    private codeCopiedStore: Writable<boolean>;
-
-    private realmsLogsStore: Writable<BedrockLogEntry[]>;
-    private logsExpandedStore: Writable<boolean>;
-    private connectionErrorStore: Writable<RealmsConnectionError | null>;
-    private connectionInfoStore: Writable<BedrockConnectionInfo | null>;
-
-    private proxyServersStore: Writable<ProxyServerEntry[]>;
-    private proxyFavoritesStore: Writable<Set<string>>;
-    private activeProxyIdStore: Writable<string | null>;
+    public readonly statusMessage: Readable<string>;
 
     public readonly isEntitled: Readable<boolean>;
     public readonly isAuthenticated: Readable<boolean>;
     public readonly isRestoringAuth: Readable<boolean>;
-    public readonly proxyRunning: Readable<boolean>;
-    public readonly realmsRunning: Readable<boolean>;
-    public readonly interfaces: Readable<NetworkInterface[]>;
-    public readonly proxyConfig: Readable<ProxyConfig | null>;
-    public readonly statusMessage: Readable<string>;
     public readonly showLoginModal: Readable<boolean>;
-    public readonly selectedInterface: Readable<string>;
-    public readonly isProxyLoading: Readable<boolean>;
-
-    public readonly serverHost: Readable<string>;
-    public readonly serverPort: Readable<number>;
-    public readonly listenPort: Readable<number>;
-
-    public readonly realms: Readable<RealmEntry[]>;
-    public readonly favorites: Readable<Set<number>>;
-    public readonly isLoadingRealms: Readable<boolean>;
-    public readonly activeRealmId: Readable<number | null>;
-    public readonly activeRealmName: Readable<string>;
-    public readonly sortedRealms: Readable<RealmEntry[]>;
-
     public readonly deviceCode: Readable<string>;
     public readonly deviceUrl: Readable<string>;
     public readonly loginError: Readable<string>;
     public readonly codeCopied: Readable<boolean>;
 
-    public readonly realmsLogs: Readable<BedrockLogEntry[]>;
-    public readonly logsExpanded: Readable<boolean>;
-    public readonly connectionError: Readable<RealmsConnectionError | null>;
-    public readonly connectionInfo: Readable<BedrockConnectionInfo | null>;
-
+    public readonly proxyRunning: Readable<boolean>;
+    public readonly interfaces: Readable<NetworkInterface[]>;
+    public readonly selectedInterface: Readable<string>;
+    public readonly isProxyLoading: Readable<boolean>;
+    public readonly serverHost: Readable<string>;
+    public readonly serverPort: Readable<number>;
+    public readonly listenPort: Readable<number>;
     public readonly proxyServers: Readable<ProxyServerEntry[]>;
     public readonly proxyFavorites: Readable<Set<string>>;
     public readonly activeProxyId: Readable<string | null>;
     public readonly sortedProxyServers: Readable<ProxyServerEntry[]>;
 
+    public readonly realmsRunning: Readable<boolean>;
+    public readonly realms: Readable<RealmEntry[]>;
+    public readonly favorites: Readable<Set<bigint>>;
+    public readonly isLoadingRealms: Readable<boolean>;
+    public readonly activeRealmId: Readable<bigint | null>;
+    public readonly activeRealmName: Readable<string>;
+    public readonly sortedRealms: Readable<RealmEntry[]>;
+
+    public readonly realmsLogs: Readable<BedrockLogEntry[]>;
+    public readonly logsExpanded: Readable<boolean>;
+
+    public readonly connectionError: Readable<RealmsConnectionError | null>;
+    public readonly connectionInfo: Readable<BedrockConnectionInfo | null>;
+
     public readonly canStartProxy: Readable<boolean>;
 
     private initialized = false;
     private store: Store | null = null;
-    private loginFlowUnlisten: (() => void) | null = null;
-    private logUnlisten: (() => void) | null = null;
-    private connectErrorUnlisten: (() => void) | null = null;
-    private connectionInfoUnlisten: (() => void) | null = null;
-    private copiedTimeout: ReturnType<typeof setTimeout> | null = null;
 
     constructor() {
-        this.isEntitledStore = writable(false);
-        this.isAuthenticatedStore = writable(false);
-        this.isRestoringAuthStore = writable(true);
-        this.proxyRunningStore = writable(false);
-        this.realmsRunningStore = writable(false);
-        this.interfacesStore = writable([]);
-        this.proxyConfigStore = writable(null);
         this.statusMessageStore = writable('');
-        this.showLoginModalStore = writable(false);
-        this.selectedInterfaceStore = writable('');
-        this.isProxyLoadingStore = writable(false);
-
-        this.serverHostStore = writable('');
-        this.serverPortStore = writable(19132);
-        this.listenPortStore = writable(19137);
-
-        this.realmsStore = writable([]);
-        this.favoritesStore = writable(new Set());
-        this.isLoadingRealmsStore = writable(false);
-        this.activeRealmIdStore = writable(null);
-        this.activeRealmNameStore = writable('');
-
-        this.deviceCodeStore = writable('');
-        this.deviceUrlStore = writable('');
-        this.loginErrorStore = writable('');
-        this.codeCopiedStore = writable(false);
-
-        this.realmsLogsStore = writable([]);
-        this.logsExpandedStore = writable(false);
-        this.connectionErrorStore = writable(null);
-        this.connectionInfoStore = writable(null);
-
-        this.proxyServersStore = writable([]);
-        this.proxyFavoritesStore = writable(new Set());
-        this.activeProxyIdStore = writable(null);
-
-        this.isEntitled = { subscribe: this.isEntitledStore.subscribe };
-        this.isAuthenticated = { subscribe: this.isAuthenticatedStore.subscribe };
-        this.isRestoringAuth = { subscribe: this.isRestoringAuthStore.subscribe };
-        this.proxyRunning = { subscribe: this.proxyRunningStore.subscribe };
-        this.realmsRunning = { subscribe: this.realmsRunningStore.subscribe };
-        this.interfaces = { subscribe: this.interfacesStore.subscribe };
-        this.proxyConfig = { subscribe: this.proxyConfigStore.subscribe };
         this.statusMessage = { subscribe: this.statusMessageStore.subscribe };
-        this.showLoginModal = { subscribe: this.showLoginModalStore.subscribe };
-        this.selectedInterface = { subscribe: this.selectedInterfaceStore.subscribe };
-        this.isProxyLoading = { subscribe: this.isProxyLoadingStore.subscribe };
 
-        this.serverHost = { subscribe: this.serverHostStore.subscribe };
-        this.serverPort = { subscribe: this.serverPortStore.subscribe };
-        this.listenPort = { subscribe: this.listenPortStore.subscribe };
+        const setStatus = (msg: string) => this.statusMessageStore.set(msg);
 
-        this.realms = { subscribe: this.realmsStore.subscribe };
-        this.favorites = { subscribe: this.favoritesStore.subscribe };
-        this.isLoadingRealms = { subscribe: this.isLoadingRealmsStore.subscribe };
-        this.activeRealmId = { subscribe: this.activeRealmIdStore.subscribe };
-        this.activeRealmName = { subscribe: this.activeRealmNameStore.subscribe };
-
-        this.deviceCode = { subscribe: this.deviceCodeStore.subscribe };
-        this.deviceUrl = { subscribe: this.deviceUrlStore.subscribe };
-        this.loginError = { subscribe: this.loginErrorStore.subscribe };
-        this.codeCopied = { subscribe: this.codeCopiedStore.subscribe };
-
-        this.realmsLogs = { subscribe: this.realmsLogsStore.subscribe };
-        this.logsExpanded = { subscribe: this.logsExpandedStore.subscribe };
-        this.connectionError = { subscribe: this.connectionErrorStore.subscribe };
-        this.connectionInfo = { subscribe: this.connectionInfoStore.subscribe };
-
-        this.proxyServers = { subscribe: this.proxyServersStore.subscribe };
-        this.proxyFavorites = { subscribe: this.proxyFavoritesStore.subscribe };
-        this.activeProxyId = { subscribe: this.activeProxyIdStore.subscribe };
-
-        this.sortedProxyServers = derived(
-            [this.proxyServersStore, this.proxyFavoritesStore],
-            ([$servers, $favorites]) =>
-                [...$servers].sort((a, b) => {
-                    const aFav = $favorites.has(a.id) ? 0 : 1;
-                    const bFav = $favorites.has(b.id) ? 0 : 1;
-                    return aFav - bFav || a.name.localeCompare(b.name);
-                })
+        this.logsManager = new BedrockLogsManager();
+        this.connectionManager = new BedrockConnectionManager(() => this.realmsManager);
+        this.proxyManager = new BedrockProxyManager({ setStatus });
+        this.realmsManager = new BedrockRealmsManager(
+            () => this.proxyManager.getSelectedInterface(),
+            {
+                setStatus,
+                reportError: (raw) => this.connectionManager.setConnectErrorFromInvoke(raw),
+                clearLogs: () => this.logsManager.clearLogs(),
+                clearConnectionError: () => this.connectionManager.clearError(),
+            },
         );
 
-        this.sortedRealms = derived(
-            [this.realmsStore, this.favoritesStore],
-            ([$realms, $favorites]) =>
-                [...$realms].sort((a, b) => {
-                    const aFav = $favorites.has(a.id) ? 0 : 1;
-                    const bFav = $favorites.has(b.id) ? 0 : 1;
-                    return aFav - bFav || a.name.localeCompare(b.name);
-                })
-        );
+        this.authManager = new BedrockAuthManager({
+            setStatus,
+            onLoginSuccess: async () => {
+                await this.proxyManager.loadInterfaces();
+                await this.realmsManager.loadRealms();
+            },
+        });
+
+        this.isEntitled = this.authManager.isEntitled;
+        this.isAuthenticated = this.authManager.isAuthenticated;
+        this.isRestoringAuth = this.authManager.isRestoringAuth;
+        this.showLoginModal = this.authManager.showLoginModal;
+        this.deviceCode = this.authManager.deviceCode;
+        this.deviceUrl = this.authManager.deviceUrl;
+        this.loginError = this.authManager.loginError;
+        this.codeCopied = this.authManager.codeCopied;
+
+        this.proxyRunning = this.proxyManager.proxyRunning;
+        this.interfaces = this.proxyManager.interfaces;
+        this.selectedInterface = this.proxyManager.selectedInterface;
+        this.isProxyLoading = this.proxyManager.isProxyLoading;
+        this.serverHost = this.proxyManager.serverHost;
+        this.serverPort = this.proxyManager.serverPort;
+        this.listenPort = this.proxyManager.listenPort;
+        this.proxyServers = this.proxyManager.proxyServers;
+        this.proxyFavorites = this.proxyManager.proxyFavorites;
+        this.activeProxyId = this.proxyManager.activeProxyId;
+        this.sortedProxyServers = this.proxyManager.sortedProxyServers;
+
+        this.realmsRunning = this.realmsManager.realmsRunning;
+        this.realms = this.realmsManager.realms;
+        this.favorites = this.realmsManager.favorites;
+        this.isLoadingRealms = this.realmsManager.isLoadingRealms;
+        this.activeRealmId = this.realmsManager.activeRealmId;
+        this.activeRealmName = this.realmsManager.activeRealmName;
+        this.sortedRealms = this.realmsManager.sortedRealms;
+
+        this.realmsLogs = this.logsManager.realmsLogs;
+        this.logsExpanded = this.logsManager.logsExpanded;
+
+        this.connectionError = this.connectionManager.connectionError;
+        this.connectionInfo = this.connectionManager.connectionInfo;
 
         this.canStartProxy = derived(
-            [this.isAuthenticatedStore, this.proxyRunningStore, this.realmsRunningStore, this.serverHostStore],
+            [this.authManager.isAuthenticated, this.proxyManager.proxyRunning, this.realmsManager.realmsRunning, this.proxyManager.serverHost],
             ([$auth, $proxy, $realms, $host]) =>
-                $auth && !$proxy && !$realms && $host.length > 0
+                $auth && !$proxy && !$realms && $host.length > 0,
         );
     }
 
@@ -289,520 +142,157 @@ export class BedrockManager {
         }
         this.initialized = true;
 
-        await this.subscribeToLogs();
-        await this.subscribeToConnectErrors();
-        await this.subscribeToConnectionInfo();
+        await this.logsManager.initialize();
+        await this.connectionManager.initialize();
 
         this.store = await Store.load('store.json', { autoSave: false, defaults: {} });
+        await this.realmsManager.initialize(this.store);
+        await this.proxyManager.initialize(this.store);
 
-        const savedFavs = await this.store.get<number[]>('bedrock_realm_favorites');
-        if (savedFavs) {
-            this.favoritesStore.set(new Set(savedFavs));
-        }
-
-        const savedProxies = await this.store.get<ProxyServerEntry[]>('bedrock_proxy_servers');
-        if (savedProxies) {
-            this.proxyServersStore.set(savedProxies);
-        }
-
-        const savedProxyFavs = await this.store.get<string[]>('bedrock_proxy_favorites');
-        if (savedProxyFavs) {
-            this.proxyFavoritesStore.set(new Set(savedProxyFavs));
-        }
-
-        try {
-            const entitled = await invoke<boolean>('bedrock_check_entitlement');
-            this.isEntitledStore.set(entitled);
-        } catch (e) {
-            logError(`Entitlement check failed: ${e}`);
-        }
-
-        try {
-            const restored = await invoke<boolean>('bedrock_restore_auth');
-            if (restored) {
-                this.isAuthenticatedStore.set(true);
-            }
-        } catch (e) {
-            logError(`Auth restore failed: ${e}`);
-        }
+        await this.authManager.checkEntitlement();
+        await this.authManager.restoreAuth();
 
         try {
             const status = await invoke<BedrockStatus>('bedrock_get_status');
-            this.proxyRunningStore.set(status.proxy_running);
-            this.realmsRunningStore.set(status.realms_running);
-            this.isAuthenticatedStore.set(status.xbox_authenticated);
-
-            if (status.proxy_target_host) {
-                this.serverHostStore.set(status.proxy_target_host);
-            }
-            if (status.proxy_target_port) {
-                this.serverPortStore.set(status.proxy_target_port);
-            }
-            if (status.proxy_listen_port) {
-                this.listenPortStore.set(status.proxy_listen_port);
-            }
-
-            if (status.proxy_running && status.proxy_target_host && status.proxy_target_port) {
-                const match = get(this.proxyServersStore).find(
-                    (s) => s.host === status.proxy_target_host && s.port === status.proxy_target_port
-                );
-                if (match) {
-                    this.activeProxyIdStore.set(match.id);
-                }
-            }
-
-            if (status.active_realm_id) {
-                this.activeRealmIdStore.set(status.active_realm_id);
-            }
-            if (status.active_realm_name) {
-                this.activeRealmNameStore.set(status.active_realm_name);
-            }
+            this.proxyManager.applyStatus({
+                host: status.proxy_target_host ?? null,
+                port: status.proxy_target_port ?? null,
+                listenPort: status.proxy_listen_port ?? null,
+                running: status.proxy_running,
+            });
+            this.realmsManager.applyStatus(
+                status.active_realm_id ?? null,
+                status.active_realm_name ?? null,
+                status.realms_running,
+            );
+            this.authManager.setAuthenticated(status.xbox_authenticated);
         } catch (e) {
             logError(`Status check failed: ${e}`);
         }
 
-        this.isRestoringAuthStore.set(false);
+        this.authManager.finishRestoring();
 
-        if (get(this.isAuthenticatedStore)) {
-            await this.loadInterfaces();
-            await this.loadRealms();
+        if (this.authManager.isAuthenticatedNow()) {
+            await this.proxyManager.loadInterfaces();
+            await this.realmsManager.loadRealms();
         }
     }
 
     setServerHost(value: string): void {
-        this.serverHostStore.set(value);
+        this.proxyManager.setServerHost(value);
     }
 
     setServerPort(value: number): void {
-        this.serverPortStore.set(value);
+        this.proxyManager.setServerPort(value);
     }
 
     setListenPort(value: number): void {
-        this.listenPortStore.set(value);
+        this.proxyManager.setListenPort(value);
     }
 
     setSelectedInterface(value: string): void {
-        this.selectedInterfaceStore.set(value);
+        this.proxyManager.setSelectedInterface(value);
     }
 
     async loadInterfaces(): Promise<void> {
-        try {
-            const ifaces = await invoke<NetworkInterface[]>('bedrock_list_interfaces');
-            this.interfacesStore.set(ifaces);
-            if (ifaces.length > 0 && !get(this.selectedInterfaceStore)) {
-                this.selectedInterfaceStore.set(ifaces[0].ip);
-            }
-        } catch (e) {
-            logError(`Failed to load interfaces: ${e}`);
-        }
+        return this.proxyManager.loadInterfaces();
     }
 
     async loadRealms(): Promise<void> {
-        this.isLoadingRealmsStore.set(true);
-        try {
-            const realms = await invoke<RealmEntry[]>('bedrock_list_realms');
-            this.realmsStore.set(realms);
-        } catch (e) {
-            logError(`Failed to load realms: ${e}`);
-        }
-        this.isLoadingRealmsStore.set(false);
+        return this.realmsManager.loadRealms();
     }
 
     async refreshRealms(): Promise<void> {
-        this.isLoadingRealmsStore.set(true);
-        this.connectionErrorStore.set(null);
-        try {
-            await invoke('bedrock_force_refresh');
-            info('Bedrock token refreshed');
-        } catch (e) {
-            logError(`Token refresh failed: ${e}`);
-        }
-        try {
-            const realms = await invoke<RealmEntry[]>('bedrock_list_realms');
-            this.realmsStore.set(realms);
-        } catch (e) {
-            logError(`Failed to load realms: ${e}`);
-        }
-        this.isLoadingRealmsStore.set(false);
+        return this.realmsManager.refreshRealms();
     }
 
     toggleLogs(): void {
-        this.logsExpandedStore.update((v) => !v);
+        this.logsManager.toggleLogs();
     }
 
     clearLogs(): void {
-        this.realmsLogsStore.set([]);
-        this.connectionErrorStore.set(null);
+        this.logsManager.clearLogs();
+        this.connectionManager.clearError();
     }
 
     dismissConnectionError(): void {
-        this.connectionErrorStore.set(null);
-    }
-
-    async openLoginModal(): Promise<void> {
-        this.deviceCodeStore.set('');
-        this.deviceUrlStore.set('');
-        this.loginErrorStore.set('');
-        this.showLoginModalStore.set(true);
-
-        const appWebview = getCurrentWebviewWindow();
-        this.loginFlowUnlisten = await appWebview.listen(
-            'bedrock-device-code',
-            (event: { payload?: { code?: string; url?: string } }) => {
-                const payload = event.payload;
-                if (payload?.code) {
-                    this.deviceCodeStore.set(payload.code);
-                }
-                if (payload?.url) {
-                    this.deviceUrlStore.set(payload.url);
-                }
-                info(`Device code received: ${payload?.code}`);
-            }
-        );
-
-        try {
-            await invoke('bedrock_xbox_login');
-            info('Xbox login succeeded');
-            this.isAuthenticatedStore.set(true);
-            this.statusMessageStore.set('Signed in to Xbox Live');
-            this.showLoginModalStore.set(false);
-            this.cleanupLoginListener();
-            await this.loadInterfaces();
-            await this.loadRealms();
-        } catch (e) {
-            const msg = String(e);
-            if (msg === 'Login cancelled') {
-                this.showLoginModalStore.set(false);
-            } else {
-                this.loginErrorStore.set(msg);
-                logError(`Xbox login failed: ${msg}`);
-            }
-            this.cleanupLoginListener();
-        }
-    }
-
-    async closeLoginModal(): Promise<void> {
-        try {
-            await invoke('bedrock_cancel_xbox_login');
-        } catch (e) {
-            logError(`Cancel failed: ${e}`);
-        }
-        this.cleanupLoginListener();
-        this.showLoginModalStore.set(false);
-    }
-
-    async signOut(): Promise<void> {
-        try {
-            await invoke('bedrock_xbox_logout');
-            this.isAuthenticatedStore.set(false);
-            this.realmsStore.set([]);
-            this.statusMessageStore.set('');
-        } catch (e) {
-            this.statusMessageStore.set(`Error: ${e}`);
-        }
-    }
-
-    async startProxy(): Promise<void> {
-        this.isProxyLoadingStore.set(true);
-        try {
-            try {
-                await invoke('bedrock_force_refresh');
-            } catch (e) {
-                logError(`Token refresh before proxy start failed: ${e}`);
-            }
-            const targetHost = get(this.serverHostStore);
-            const targetPort = get(this.serverPortStore);
-            await invoke('bedrock_start_proxy', {
-                targetHost,
-                targetPort,
-                listenPort: get(this.listenPortStore),
-                networkInterface: get(this.selectedInterfaceStore),
-            });
-            this.proxyRunningStore.set(true);
-            info(`Bedrock proxy started: ${targetHost}:${targetPort}`);
-        } catch (e) {
-            this.statusMessageStore.set(`Error: ${e}`);
-            logError(`Proxy start failed: ${e}`);
-        }
-        this.isProxyLoadingStore.set(false);
-    }
-
-    async stopProxy(): Promise<void> {
-        try {
-            await invoke('bedrock_stop_proxy');
-            this.proxyRunningStore.set(false);
-            this.activeProxyIdStore.set(null);
-            this.statusMessageStore.set('Proxy stopped');
-        } catch (e) {
-            this.statusMessageStore.set(`Error stopping: ${e}`);
-        }
-    }
-
-    async addProxyServer(name: string, host: string, port: number): Promise<ProxyServerEntry> {
-        const entry: ProxyServerEntry = {
-            id: crypto.randomUUID(),
-            name: name.trim(),
-            host: host.trim(),
-            port,
-        };
-        this.proxyServersStore.update((current) => [...current, entry]);
-        await this.persistProxyServers();
-        return entry;
-    }
-
-    async updateProxyServer(id: string, patch: Partial<Omit<ProxyServerEntry, 'id'>>): Promise<void> {
-        this.proxyServersStore.update((current) =>
-            current.map((s) =>
-                s.id === id
-                    ? {
-                          ...s,
-                          ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
-                          ...(patch.host !== undefined ? { host: patch.host.trim() } : {}),
-                          ...(patch.port !== undefined ? { port: patch.port } : {}),
-                      }
-                    : s
-            )
-        );
-        await this.persistProxyServers();
-    }
-
-    async deleteProxyServer(id: string): Promise<void> {
-        this.proxyServersStore.update((current) => current.filter((s) => s.id !== id));
-        this.proxyFavoritesStore.update((current) => {
-            const next = new Set(current);
-            next.delete(id);
-            return next;
-        });
-        if (get(this.activeProxyIdStore) === id) {
-            this.activeProxyIdStore.set(null);
-        }
-        await this.persistProxyServers();
-        await this.persistProxyFavorites();
-    }
-
-    async toggleProxyFavorite(id: string): Promise<void> {
-        this.proxyFavoritesStore.update((current) => {
-            const next = new Set(current);
-            if (next.has(id)) {
-                next.delete(id);
-            } else {
-                next.add(id);
-            }
-            return next;
-        });
-        await this.persistProxyFavorites();
-    }
-
-    async connectToProxyServer(entry: ProxyServerEntry): Promise<void> {
-        this.serverHostStore.set(entry.host);
-        this.serverPortStore.set(entry.port);
-        this.activeProxyIdStore.set(entry.id);
-        await this.startProxy();
-        if (!get(this.proxyRunningStore)) {
-            this.activeProxyIdStore.set(null);
-        }
-    }
-
-    private async persistProxyServers(): Promise<void> {
-        if (!this.store) {
-            return;
-        }
-        await this.store.set('bedrock_proxy_servers', get(this.proxyServersStore));
-        await this.store.save();
-    }
-
-    private async persistProxyFavorites(): Promise<void> {
-        if (!this.store) {
-            return;
-        }
-        await this.store.set('bedrock_proxy_favorites', [...get(this.proxyFavoritesStore)]);
-        await this.store.save();
-    }
-
-    async toggleFavorite(realmId: number): Promise<void> {
-        this.favoritesStore.update((current) => {
-            const next = new Set(current);
-            if (next.has(realmId)) {
-                next.delete(realmId);
-            } else {
-                next.add(realmId);
-            }
-            return next;
-        });
-
-        if (this.store) {
-            await this.store.set('bedrock_realm_favorites', [...get(this.favoritesStore)]);
-            await this.store.save();
-        }
-    }
-
-    async connectToRealm(realm: RealmEntry): Promise<void> {
-        this.statusMessageStore.set('');
-        this.realmsLogsStore.set([]);
-        this.connectionErrorStore.set(null);
-        try {
-            try {
-                await invoke('bedrock_force_refresh');
-            } catch (e) {
-                logError(`Token refresh before realm connect failed: ${e}`);
-            }
-            await invoke('bedrock_start_realms', {
-                realmId: realm.id,
-                realmName: realm.name,
-                networkInterface: get(this.selectedInterfaceStore),
-            });
-            this.realmsRunningStore.set(true);
-            this.activeRealmIdStore.set(realm.id);
-            this.activeRealmNameStore.set(realm.name);
-            this.statusMessageStore.set(`Connected to ${realm.name}`);
-            info(`Bedrock realms started: ${realm.name} (${realm.id})`);
-        } catch (e) {
-            this.statusMessageStore.set(`Error: ${e}`);
-            logError(`Realms start failed: ${e}`);
-            this.setConnectErrorFromInvoke(String(e));
-        }
-    }
-
-    async stopRealms(): Promise<void> {
-        try {
-            await invoke('bedrock_stop_realms');
-            this.realmsRunningStore.set(false);
-            this.activeRealmIdStore.set(null);
-            this.activeRealmNameStore.set('');
-            this.statusMessageStore.set('Disconnected');
-        } catch (e) {
-            this.statusMessageStore.set(`Error stopping: ${e}`);
-        }
-    }
-
-    private async subscribeToLogs(): Promise<void> {
-        if (this.logUnlisten) {
-            return;
-        }
-        const appWebview = getCurrentWebviewWindow();
-        this.logUnlisten = await appWebview.listen<BedrockLogEntry>(
-            'bedrock-log',
-            (event) => {
-                const entry = event.payload;
-                if (!ALLOWED_LOG_LEVELS.has(entry.level)) {
-                    return;
-                }
-                this.realmsLogsStore.update((current) => {
-                    const next = current.length >= MAX_LOG_ENTRIES
-                        ? [...current.slice(current.length - MAX_LOG_ENTRIES + 1), entry]
-                        : [...current, entry];
-                    return next;
-                });
-            }
-        );
-    }
-
-    private async subscribeToConnectErrors(): Promise<void> {
-        if (this.connectErrorUnlisten) {
-            return;
-        }
-        const appWebview = getCurrentWebviewWindow();
-        this.connectErrorUnlisten = await appWebview.listen<BedrockConnectError>(
-            'bedrock-connect-error',
-            (event) => {
-                if (get(this.connectionErrorStore)) {
-                    return;
-                }
-                this.connectionErrorStore.set(describeConnectError(event.payload));
-                void this.autoTeardownAfterError();
-            }
-        );
-    }
-
-    private async subscribeToConnectionInfo(): Promise<void> {
-        if (this.connectionInfoUnlisten) {
-            return;
-        }
-        const appWebview = getCurrentWebviewWindow();
-        this.connectionInfoUnlisten = await appWebview.listen<BedrockConnectionInfo>(
-            'bedrock_connection_info',
-            (event) => {
-                this.connectionInfoStore.set(event.payload);
-            }
-        );
+        this.connectionManager.dismissConnectionError();
     }
 
     dismissConnectionInfo(): void {
-        this.connectionInfoStore.set(null);
+        this.connectionManager.dismissConnectionInfo();
     }
 
-    private setConnectErrorFromInvoke(raw: string): void {
-        if (get(this.connectionErrorStore)) {
-            return;
-        }
-        this.connectionErrorStore.set(
-            describeConnectError({ kind: 'other', message: raw }),
-        );
-        void this.autoTeardownAfterError();
+    async openLoginModal(): Promise<void> {
+        return this.authManager.openLoginModal();
     }
 
-    private async autoTeardownAfterError(): Promise<void> {
-        if (get(this.realmsRunningStore)) {
-            try {
-                await this.stopRealms();
-            } catch (e) {
-                logError(`Auto stopRealms after detected error failed: ${e}`);
-            }
+    async closeLoginModal(): Promise<void> {
+        return this.authManager.closeLoginModal();
+    }
+
+    async signOut(): Promise<void> {
+        if (this.realmsManager.isRunning()) {
+            await this.realmsManager.stopRealms();
         }
-        try {
-            await invoke('bedrock_force_refresh');
-        } catch (e) {
-            logError(`Auto token refresh after detected error failed: ${e}`);
+        if (this.proxyManager.isRunning()) {
+            await this.proxyManager.stopProxy();
         }
+        await this.authManager.signOut();
+        this.realmsManager.reset();
+    }
+
+    async startProxy(): Promise<void> {
+        return this.proxyManager.startProxy();
+    }
+
+    async stopProxy(): Promise<void> {
+        return this.proxyManager.stopProxy();
+    }
+
+    async addProxyServer(name: string, host: string, port: number): Promise<ProxyServerEntry> {
+        return this.proxyManager.addProxyServer(name, host, port);
+    }
+
+    async updateProxyServer(id: string, patch: Partial<Omit<ProxyServerEntry, 'id'>>): Promise<void> {
+        return this.proxyManager.updateProxyServer(id, patch);
+    }
+
+    async deleteProxyServer(id: string): Promise<void> {
+        return this.proxyManager.deleteProxyServer(id);
+    }
+
+    async toggleProxyFavorite(id: string): Promise<void> {
+        return this.proxyManager.toggleProxyFavorite(id);
+    }
+
+    async connectToProxyServer(entry: ProxyServerEntry): Promise<void> {
+        return this.proxyManager.connectToProxyServer(entry);
+    }
+
+    async toggleFavorite(realmId: bigint): Promise<void> {
+        return this.realmsManager.toggleFavorite(realmId);
+    }
+
+    async connectToRealm(realm: RealmEntry): Promise<void> {
+        return this.realmsManager.connectToRealm(realm);
+    }
+
+    async stopRealms(): Promise<void> {
+        return this.realmsManager.stopRealms();
     }
 
     async copyDeviceCode(): Promise<void> {
-        try {
-            await navigator.clipboard.writeText(get(this.deviceCodeStore));
-            this.codeCopiedStore.set(true);
-            if (this.copiedTimeout) {
-                clearTimeout(this.copiedTimeout);
-            }
-            this.copiedTimeout = setTimeout(() => {
-                this.codeCopiedStore.set(false);
-                this.copiedTimeout = null;
-            }, 2000);
-        } catch (e) {
-            logError(`Clipboard write failed: ${e}`);
-        }
+        return this.authManager.copyDeviceCode();
     }
 
     async openLoginUrl(): Promise<void> {
-        try {
-            await openUrl(get(this.deviceUrlStore));
-        } catch (e) {
-            logError(`Failed to open URL: ${e}`);
-        }
-    }
-
-    private cleanupLoginListener(): void {
-        if (this.loginFlowUnlisten) {
-            this.loginFlowUnlisten();
-            this.loginFlowUnlisten = null;
-        }
+        return this.authManager.openLoginUrl();
     }
 
     destroy(): void {
-        this.cleanupLoginListener();
-        if (this.logUnlisten) {
-            this.logUnlisten();
-            this.logUnlisten = null;
-        }
-        if (this.connectErrorUnlisten) {
-            this.connectErrorUnlisten();
-            this.connectErrorUnlisten = null;
-        }
-        if (this.connectionInfoUnlisten) {
-            this.connectionInfoUnlisten();
-            this.connectionInfoUnlisten = null;
-        }
-        if (this.copiedTimeout) {
-            clearTimeout(this.copiedTimeout);
-        }
+        this.authManager.destroy();
+        this.logsManager.destroy();
+        this.connectionManager.destroy();
     }
 }

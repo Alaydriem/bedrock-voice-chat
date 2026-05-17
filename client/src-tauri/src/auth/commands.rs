@@ -4,6 +4,7 @@ use crate::keyring::KeyringService;
 use crate::structs::app_state::AppState;
 use common::response::LinkJavaIdentityResponse;
 use common::response::LoginResponse;
+use common::structs::ServerListEntry;
 use common::structs::config::{
     HytaleAuthStatus, HytaleDeviceFlowStartResponse, HytaleDeviceFlowStatusResponse,
 };
@@ -78,22 +79,13 @@ pub(crate) async fn logout(
     store.delete("current_server");
     store.delete("current_player");
 
-    // Remove the current server from server_list
     if let Some(current_server_url) = current_server {
         if let Some(server_list_value) = store.get("server_list") {
-            if let Ok(mut server_list) = serde_json::from_value::<
-                Vec<serde_json::Map<String, serde_json::Value>>,
-            >(server_list_value)
+            if let Ok(mut server_list) =
+                serde_json::from_value::<Vec<ServerListEntry>>(server_list_value)
             {
-                // Filter out the current server
-                server_list.retain(|server_entry| {
-                    server_entry
-                        .get("server")
-                        .and_then(|v| v.as_str())
-                        .map_or(true, |server_url| server_url != current_server_url)
-                });
+                server_list.retain(|entry| entry.server != current_server_url);
 
-                // Save the updated server list
                 let updated_list = serde_json::to_value(server_list)
                     .map_err(|e| format!("Failed to serialize server list: {}", e))?;
                 store.set("server_list", updated_list);

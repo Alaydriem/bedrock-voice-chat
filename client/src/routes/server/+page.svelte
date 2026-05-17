@@ -2,33 +2,48 @@
   import "../../css/app.css";
   import Server from "../../js/app/server.ts";
   import ServerSelectTopBar from "../../components/ServerSelectTopBar.svelte";
-  import { onMount } from 'svelte';
+  import ServerCard from "../../components/ServerCard.svelte";
+  import { onMount, onDestroy } from 'svelte';
+  // @ts-ignore
+  import murmurHash3 from "murmurhash3js";
+  import type { ServerListEntry } from "../../js/bindings/ServerListEntry";
 
+  let appInstance: Server | null = $state(null);
   let isRefreshing = $state(false);
-  let appInstance: Server | null = null;
+  let servers: ServerListEntry[] = $state([]);
+
+  let unsubRefreshing: (() => void) | null = null;
+  let unsubServers: (() => void) | null = null;
 
   onMount(() => {
-    appInstance = new Server();
-    window.App = appInstance;
+    const instance = new Server();
+    appInstance = instance;
+    window.App = instance;
     window.dispatchEvent(new CustomEvent("app:mounted"));
 
-    appInstance.initialize();
-    appInstance.preloader();
+    unsubRefreshing = instance.isRefreshing.subscribe((value) => {
+      isRefreshing = value;
+    });
+    unsubServers = instance.servers.subscribe((value) => {
+      servers = value;
+    });
+
+    instance.initialize();
+    instance.showPreloader();
     document.querySelector("body")?.classList.remove("has-min-sidebar");
   });
 
-  async function handleRefreshAll() {
-    if (!appInstance || isRefreshing) return;
-    isRefreshing = true;
-    try {
-      await appInstance.renderServerList();
-    } finally {
-      isRefreshing = false;
-    }
-  }
+  onDestroy(() => {
+    unsubRefreshing?.();
+    unsubServers?.();
+  });
 
-  function handleAddServer() {
-    window.location.href = "/login?addserver=true&return=/server";
+  function hashServerId(server: string): string {
+    const bytes = new TextEncoder().encode(server);
+    const byteString = Array.from(bytes)
+      .map((byte) => String.fromCharCode(byte))
+      .join('');
+    return murmurHash3.x86.hash128(byteString);
   }
 </script>
 
@@ -37,12 +52,18 @@
     <div class="mb-8">
       <ServerSelectTopBar
         isRefreshing={isRefreshing}
-        onRefreshAll={handleRefreshAll}
-        onAddServer={handleAddServer}
+        onRefreshAll={() => appInstance?.refreshAll()}
+        onAddServer={() => appInstance?.addServer()}
       />
     </div>
-    <div id="server-avatar-container" class="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 xl:grid-cols-3">
-
+    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 xl:grid-cols-3">
+      {#each servers as entry (entry.server)}
+        <ServerCard
+          id={hashServerId(entry.server)}
+          server={entry.server}
+          onRemoved={() => appInstance?.refreshAll()}
+        />
+      {/each}
     </div>
   </main>
 </div>

@@ -6,7 +6,7 @@ use crate::structs::spatial_audio_config::SpatialAudioConfig;
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[cfg_attr(feature = "openapi", derive(schemars::JsonSchema))]
 #[ts(export, export_to = "./../../client/src/js/bindings/")]
-pub struct ApiConfig {
+pub struct ApiConfigResponse {
     pub status: String,
     pub client_id: String,
     pub protocol_version: String,
