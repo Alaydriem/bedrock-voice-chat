@@ -9,19 +9,10 @@ use crate::feature_flags::flags::minecraft::{
     MaxTrustedMinecraftProtocol, MinecraftProtocolSupport,
 };
 
-// Minecraft protocol versions BVC has been built and tested against. Update
-// this list when adding code-level support for a new Minecraft release.
-const SUPPORTED_PROTOCOLS: &[i32] = &[
-    // Minecraft 1.26.10–1.26.13
-    944,
-    // Minecraft 1.26.20 (current LATEST)
-    975,
-];
-
 // Gates inbound Minecraft client connections by negotiated protocol version.
 //
 // Three-layer acceptance check:
-//   1. Compiled SUPPORTED_PROTOCOLS list (zero Flagsmith calls).
+//   1. `is_supported` against `ProtocolVersion::GENERATED_ALL` (zero Flagsmith calls).
 //   2. Per-version override flag `MinecraftProtocolSupport` — used to grant
 //      ad-hoc access to a brand-new Minecraft release after manual
 //      validation, before engineering compiles in support.
@@ -58,6 +49,13 @@ impl ProtocolGatingService {
         &self.analytics
     }
 
+    // Whether the bundled `bedrock-protocol` codegen has emitted codecs for
+    // this wire version. Anything in the upstream `GENERATED_ALL` array is
+    // something the lib can decode/encode — so BVC can speak it.
+    pub fn is_supported(v: ProtocolVersion) -> bool {
+        ProtocolVersion::GENERATED_ALL.contains(&v)
+    }
+
     // Decide whether to accept a connection on `protocol_version`. Emits a
     // PostHog event + Sentry breadcrumb on allow; a PostHog event + Sentry
     // warning on reject so on-call sees the spike when Mojang ships a new
@@ -65,7 +63,7 @@ impl ProtocolGatingService {
     pub async fn is_allowed(&self, protocol_version: ProtocolVersion) -> bool {
         let raw = protocol_version.0 as i32;
 
-        if SUPPORTED_PROTOCOLS.contains(&raw) {
+        if Self::is_supported(protocol_version) {
             return true;
         }
 
@@ -170,7 +168,8 @@ mod tests {
     #[tokio::test]
     async fn supported_protocol_is_allowed_without_calling_flagsmith() {
         let svc = build_service();
-        assert!(svc.is_allowed(ProtocolVersion(944)).await);
-        assert!(svc.is_allowed(ProtocolVersion(975)).await);
+        for v in ProtocolVersion::GENERATED_ALL {
+            assert!(svc.is_allowed(v).await, "expected {v} to be allowed");
+        }
     }
 }

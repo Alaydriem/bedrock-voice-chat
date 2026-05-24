@@ -1,6 +1,6 @@
-use common::bedrock_protocol::{
-    ChangeDimensionPacket, PlayerAuthInputPacket, StartGamePacket,
-};
+use common::bedrock_protocol::PlayerAuthInputPacket;
+use common::bedrock_protocol::StartGamePacket;
+use common::bedrock_protocol::protocol::packets::generated::misc::change_dimension::ChangeDimensionPacket;
 use common::game_data::Dimension;
 use common::players::minecraft::MinecraftPlayer;
 use common::players::PlayerEnum;
@@ -82,7 +82,7 @@ impl BedrockSessionState {
     }
 
     pub fn apply_change_dimension(&mut self, p: &ChangeDimensionPacket) {
-        self.dimension = Self::dimension_from_i32(p.dimension);
+        self.dimension = Self::dimension_from_i32(p.dimension_id.value);
         info!("Bedrock state: ChangeDimension -> {:?}", self.dimension);
     }
 

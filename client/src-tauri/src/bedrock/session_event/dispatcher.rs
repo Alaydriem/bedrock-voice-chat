@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use common::bedrock_protocol::protocol::event::EventPacket;
 use common::bedrock_protocol::{Direction, Event};
 
 use crate::bedrock::event_emitter::BedrockEventEmitter;
@@ -44,54 +45,57 @@ impl BedrockSessionEventDispatcher {
         state: &mut BedrockSessionState,
     ) -> DispatchOutcome {
         let emitter = self.emitter.as_ref();
-        let state_changed = match evt {
-            Event::StartGame(_, p) => {
+        let direction = evt.direction();
+        let state_changed = match evt.packet() {
+            EventPacket::StartGame(p) => {
                 StartGameHandler.handle(p, state, emitter);
                 true
             }
-            Event::PlayerAuthInput(dir, p) => {
+            EventPacket::PlayerAuthInput(p) => {
                 PlayerAuthInputHandler {
                     beacon_cache: &self.beacon_cache,
-                    direction: dir,
+                    direction: &direction,
                     player_auth_input_seen: &mut self.player_auth_input_seen,
                 }
                 .handle(p, state, emitter);
                 true
             }
-            Event::ChangeDimension(_, p) => {
+            EventPacket::ChangeDimension(p) => {
                 ChangeDimensionHandler.handle(p, state, emitter);
                 true
             }
-            Event::SetPlayerGameType(_, p) => {
-                GameTypeHandler.handle(&p.gamemode, state, emitter);
+            EventPacket::SetPlayerGameType(p) => {
+                let gamemode = i64::from(p.player_game_type) as i32;
+                GameTypeHandler.handle(&gamemode, state, emitter);
                 true
             }
-            Event::UpdatePlayerGameType(_, p) => {
-                GameTypeHandler.handle(&p.gamemode, state, emitter);
+            EventPacket::UpdatePlayerGameType(p) => {
+                let gamemode = i64::from(p.player_game_type) as i32;
+                GameTypeHandler.handle(&gamemode, state, emitter);
                 true
             }
-            Event::InventoryTransaction(Direction::Serverbound, p) => {
+            EventPacket::InventoryTransaction(p) if matches!(direction, Direction::Serverbound) => {
                 InventoryTransactionHandler {
                     beacon_cache: &self.beacon_cache,
                 }
-                .handle(&p.transaction.data, state, emitter);
+                .handle(&p.transaction, state, emitter);
                 false
             }
-            Event::UpdateBlock(Direction::Clientbound, p) => {
+            EventPacket::UpdateBlock(p) if matches!(direction, Direction::Clientbound) => {
                 UpdateBlockHandler {
                     beacon_cache: &self.beacon_cache,
                 }
                 .handle(p, state, emitter);
                 false
             }
-            Event::SetHealth(_, p) => {
+            EventPacket::SetHealth(p) => {
                 SetHealthHandler {
                     last_known_health: &mut self.last_known_health,
                 }
                 .handle(p, state, emitter);
                 false
             }
-            Event::Disconnected(reason) => {
+            EventPacket::Disconnected(reason) => {
                 DisconnectedHandler {
                     player_name: &self.player_name,
                 }

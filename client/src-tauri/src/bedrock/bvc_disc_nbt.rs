@@ -12,7 +12,10 @@ pub struct BvcDiscNbt;
 
 impl BvcDiscNbt {
     pub fn extract_audio_id(extra: &Bytes) -> Option<String> {
-        let bytes = extra.as_ref();
+        Self::extract_audio_id_bytes(extra.as_ref())
+    }
+
+    pub fn extract_audio_id_bytes(bytes: &[u8]) -> Option<String> {
         if bytes.len() < BVC_DISC_NAME_PREFIX.len() + UUID_LEN {
             return None;
         }

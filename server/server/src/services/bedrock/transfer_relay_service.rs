@@ -1,5 +1,4 @@
 use common::bedrock_protocol::TransferPacket;
-use common::bedrock_protocol::protocol::packets::login::PlayStatus;
 use common::bedrock_server::{BedrockServer, ServerConfig, StartGameConfig};
 use common::traits::StreamTrait;
 use moka::future::Cache;
@@ -78,20 +77,17 @@ impl TransferRelayService {
 
                             match target {
                                 Some(target) => {
-                                    let start_game = StartGameConfig::default().into_packet();
+                                    let start_game =
+                                        StartGameConfig::for_version(conn.protocol_version())
+                                            .into_packet();
                                     if let Err(e) = conn.send_packet(&start_game).await {
                                         tracing::error!("Failed to send StartGame to {}: {}", player_name, e);
                                         return;
                                     }
 
-                                    if let Err(e) = conn.send_packet(&PlayStatus::PlayerSpawn).await {
-                                        tracing::error!("Failed to send PlayerSpawn to {}: {}", player_name, e);
-                                        return;
-                                    }
-
                                     let transfer = TransferPacket {
                                         server_address: target.host.clone(),
-                                        port: target.port,
+                                        server_port: target.port,
                                         reload_world: false,
                                     };
                                     if let Err(e) = conn.send_packet(&transfer).await {

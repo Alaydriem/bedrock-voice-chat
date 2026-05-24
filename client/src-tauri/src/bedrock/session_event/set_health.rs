@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use common::bedrock_protocol::SetHealthPacket;
+use common::bedrock_protocol::protocol::packets::generated::misc::set_health::SetHealthPacket;
 use common::structs::packet::BedrockEvent;
 use log::info;
 

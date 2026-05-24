@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use common::bedrock_protocol::ChangeDimensionPacket;
+use common::bedrock_protocol::protocol::packets::generated::misc::change_dimension::ChangeDimensionPacket;
 
 use crate::bedrock::event_emitter::BedrockEventEmitter;
 use crate::bedrock::session_event::BedrockPacketHandler;

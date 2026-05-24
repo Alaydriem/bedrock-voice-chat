@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use common::bedrock_protocol::UpdateBlockPacket;
+use common::bedrock_protocol::protocol::packets::generated::misc::update_block::UpdateBlockPacketAny;
 use common::structs::packet::BedrockEvent;
 use log::debug;
 
@@ -14,11 +14,11 @@ pub struct UpdateBlockHandler<'a> {
 }
 
 impl<'a> BedrockPacketHandler for UpdateBlockHandler<'a> {
-    type Packet = UpdateBlockPacket;
+    type Packet = UpdateBlockPacketAny;
 
     fn handle(
         self,
-        packet: &UpdateBlockPacket,
+        packet: &UpdateBlockPacketAny,
         state: &mut BedrockSessionState,
         emitter: Option<&Arc<BedrockEventEmitter>>,
     ) {
@@ -27,9 +27,14 @@ impl<'a> BedrockPacketHandler for UpdateBlockHandler<'a> {
             None => return,
         };
 
-        let x = packet.position.x;
-        let y = packet.position.y;
-        let z = packet.position.z;
+        let (x, y, z) = match packet {
+            UpdateBlockPacketAny::V897(p) => {
+                (p.block_position.x, p.block_position.y, p.block_position.z)
+            }
+            UpdateBlockPacketAny::V944(p) => {
+                (p.block_position.x, p.block_position.y, p.block_position.z)
+            }
+        };
 
         let event_id = match self.beacon_cache.process_update_block((x, y, z)) {
             Some(id) => id,

@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use common::bedrock_protocol::protocol::types::transaction::TransactionData;
+use common::bedrock_protocol::protocol::types::use_item_action_type::UseItemActionType;
 use common::bedrock_protocol::{Direction, PlayerAuthInputPacket};
 use log::debug;
 
@@ -33,10 +35,21 @@ impl<'a> BedrockPacketHandler for PlayerAuthInputHandler<'a> {
         state.apply_position(packet);
         if matches!(self.direction, Direction::Serverbound) {
             if let Some(tx) = &packet.transaction {
-                InventoryTransactionHandler {
-                    beacon_cache: self.beacon_cache,
+                if let TransactionData::ItemUse(use_item) = &tx.data {
+                    if matches!(use_item.action_type, UseItemActionType::ClickBlock) {
+                        InventoryTransactionHandler::emit_jukebox_insert(
+                            self.beacon_cache,
+                            state,
+                            emitter,
+                            (
+                                use_item.block_position.x,
+                                use_item.block_position.y,
+                                use_item.block_position.z,
+                            ),
+                            use_item.held_item.extra.as_ref(),
+                        );
+                    }
                 }
-                .handle(&tx.data, state, emitter);
             }
         }
     }
