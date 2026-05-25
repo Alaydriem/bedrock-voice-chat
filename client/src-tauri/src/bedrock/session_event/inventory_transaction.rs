@@ -3,7 +3,7 @@ use std::sync::Arc;
 use common::bedrock_protocol::protocol::types::generated::{
     InventoryTransactionPacketTransaction, ItemUseActionType,
 };
-use common::structs::game::Coordinate;
+use common::structs::game::BlockCoordinate;
 use common::structs::packet::BedrockEvent;
 use log::debug;
 
@@ -39,7 +39,7 @@ impl<'a> BedrockPacketHandler for InventoryTransactionHandler<'a> {
             self.beacon_cache,
             state,
             emitter,
-            (
+            BlockCoordinate::new(
                 use_item.position.x,
                 use_item.position.y,
                 use_item.position.z,
@@ -54,7 +54,7 @@ impl<'a> InventoryTransactionHandler<'a> {
         beacon_cache: &JukeboxBeaconCache,
         state: &mut BedrockSessionState,
         emitter: Option<&Arc<BedrockEventEmitter>>,
-        block_key: (i32, i32, i32),
+        block_pos: BlockCoordinate,
         nbt_bytes: &[u8],
     ) {
         let emitter = match emitter {
@@ -70,11 +70,6 @@ impl<'a> InventoryTransactionHandler<'a> {
             }
         };
 
-        let block_pos = Coordinate {
-            x: block_key.0 as f32,
-            y: block_key.1 as f32,
-            z: block_key.2 as f32,
-        };
         let player_xuid = state.player_uuid().unwrap_or("").to_string();
 
         let audio_id = match BvcDiscNbt::extract_audio_id_bytes(nbt_bytes) {
@@ -84,13 +79,13 @@ impl<'a> InventoryTransactionHandler<'a> {
 
         debug!(
             "Bedrock proxy: emitting JukeboxInsert audio_id={} at ({},{},{})",
-            audio_id, block_key.0, block_key.1, block_key.2
+            audio_id, block_pos.x, block_pos.y, block_pos.z
         );
-        beacon_cache.note_insert_pending(&block_pos);
+        beacon_cache.note_insert_pending(block_pos);
         emitter.try_send(
             BedrockEvent::JukeboxInsert {
                 audio_id,
-                block_pos,
+                block_pos: block_pos.into(),
                 dimension: state.dimension(),
                 player_xuid,
             },

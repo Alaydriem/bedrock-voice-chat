@@ -710,7 +710,7 @@ checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 [[package]]
 name = "bedrock-network"
 version = "0.0.9"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.30.3#c95f3e4aad8d7615a6672c300b226b3c232e7010"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.30.4#ec40f5100b6fc1672082063f283780485ef50c6f"
 dependencies = [
  "bytes",
  "futures-util",
@@ -731,8 +731,8 @@ dependencies = [
 
 [[package]]
 name = "bedrock-protocol"
-version = "26.30.3"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.30.3#c95f3e4aad8d7615a6672c300b226b3c232e7010"
+version = "26.30.4"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.30.4#ec40f5100b6fc1672082063f283780485ef50c6f"
 dependencies = [
  "aes 0.9.0",
  "aes-gcm",
@@ -771,7 +771,7 @@ dependencies = [
 [[package]]
 name = "bedrock-server"
 version = "0.0.10"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.30.3#c95f3e4aad8d7615a6672c300b226b3c232e7010"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.30.4#ec40f5100b6fc1672082063f283780485ef50c6f"
 dependencies = [
  "base64 0.22.1",
  "bedrock-protocol",

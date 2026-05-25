@@ -692,7 +692,7 @@ impl OutputStream {
                     for meta in &data.metadata {
                         match meta {
                             AudioFrameMetadata::Jukebox(jb) => {
-                                beacon_cache.observe(&jb.position, &jb.event_id);
+                                beacon_cache.observe((&jb.position).into(), &jb.event_id);
                             }
                         }
                     }

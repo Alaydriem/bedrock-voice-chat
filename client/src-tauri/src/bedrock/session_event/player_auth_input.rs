@@ -3,6 +3,7 @@ use std::sync::Arc;
 use common::bedrock_protocol::protocol::types::transaction::TransactionData;
 use common::bedrock_protocol::protocol::types::use_item_action_type::UseItemActionType;
 use common::bedrock_protocol::{Direction, PlayerAuthInputPacket};
+use common::structs::game::BlockCoordinate;
 use log::debug;
 
 use crate::bedrock::event_emitter::BedrockEventEmitter;
@@ -41,7 +42,7 @@ impl<'a> BedrockPacketHandler for PlayerAuthInputHandler<'a> {
                             self.beacon_cache,
                             state,
                             emitter,
-                            (
+                            BlockCoordinate::new(
                                 use_item.block_position.x,
                                 use_item.block_position.y,
                                 use_item.block_position.z,
