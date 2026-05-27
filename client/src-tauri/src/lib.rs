@@ -483,6 +483,10 @@ pub fn run() {
             #[cfg(feature = "bedrock-protocol")]
             app.manage(Arc::clone(&bedrock_beacon_cache));
             #[cfg(feature = "bedrock-protocol")]
+            let bedrock_eject_injector = crate::bedrock::JukeboxEjectInjector::new_shared();
+            #[cfg(feature = "bedrock-protocol")]
+            app.manage(Arc::clone(&bedrock_eject_injector));
+            #[cfg(feature = "bedrock-protocol")]
             app.manage(Arc::clone(&bedrock_connect_error_channel));
             #[cfg(feature = "bedrock-protocol")]
             app.manage(Arc::clone(&bedrock_log_channel));
@@ -516,6 +520,8 @@ pub fn run() {
                 Some(bedrock_player_state_cache),
                 #[cfg(feature = "bedrock-protocol")]
                 Some(Arc::clone(&bedrock_beacon_cache)),
+                #[cfg(feature = "bedrock-protocol")]
+                Some(Arc::clone(&bedrock_eject_injector)),
             );
             app.manage(Mutex::new(audio_stream));
 

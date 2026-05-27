@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use common::PlayerEnum;
 use common::structs::packet::{
-    BedrockEvent, BedrockEventPacket, PacketType, PlayerPositionPacket, QuicNetworkPacket,
-    QuicNetworkPacketData,
+    BedrockEvent, BedrockEventDirection, BedrockEventPacket, PacketType, PlayerPositionPacket,
+    QuicNetworkPacket, QuicNetworkPacketData,
 };
 use log::{debug, warn};
 
@@ -19,7 +19,11 @@ impl BedrockEventEmitter {
     }
 
     pub fn try_send(&self, event: BedrockEvent, world_uuid: String) {
-        let bedrock_packet = BedrockEventPacket::new(event, world_uuid);
+        let bedrock_packet = BedrockEventPacket::with_direction(
+            event,
+            world_uuid,
+            BedrockEventDirection::ServerBound,
+        );
         let packet = NetworkPacket {
             data: QuicNetworkPacket {
                 packet_type: PacketType::BedrockEvent,

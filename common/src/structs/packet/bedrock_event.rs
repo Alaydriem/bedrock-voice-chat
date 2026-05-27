@@ -23,4 +23,8 @@ pub enum BedrockEvent {
     PlayerLeave {
         player_xuid: String,
     },
+    JukeboxEjectAnnouncement {
+        event_id: String,
+        block_pos: Coordinate,
+    },
 }

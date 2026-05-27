@@ -11,7 +11,12 @@ use common::bedrock_protocol::{
     protocol::batch::BatchCodec,
     protocol::codec::PacketEncode,
     protocol::packets::{PacketHeader, ids},
+    protocol::packets::generated::misc::text::TextPacket,
+    protocol::types::generated::{
+        AuthorAndMessage, TextPacketBody, TextPacketType,
+    },
 };
+use rand::RngExt;
 use common::structs::{AnalyticsEvent, AnalyticsEventData};
 use common::traits::StreamTrait;
 use log::{error, info, warn};
@@ -20,6 +25,8 @@ use tokio::task::{AbortHandle, JoinHandle};
 
 use crate::bedrock::event_emitter::BedrockEventEmitter;
 use crate::bedrock::jukebox_beacon_cache::JukeboxBeaconCache;
+use crate::bedrock::jukebox_eject_injector::JukeboxEjectInjector;
+use crate::bedrock::pending_eject::PendingEject;
 use crate::bedrock::session_event::{BedrockSessionEventDispatcher, DispatchOutcome};
 
 const RELAY_DRAIN_DELAY: Duration = Duration::from_millis(500);
@@ -44,6 +51,7 @@ pub struct BedrockProxyManager {
     event_emitter: Option<Arc<BedrockEventEmitter>>,
     gating: Arc<ProtocolGatingService>,
     beacon_cache: Arc<JukeboxBeaconCache>,
+    eject_injector: Option<Arc<JukeboxEjectInjector>>,
     error_channel: Arc<BedrockConnectErrorChannel>,
     jobs: Vec<AbortHandle>,
     shutdown: Arc<AtomicBool>,
@@ -73,6 +81,7 @@ impl BedrockProxyManager {
             event_emitter: None,
             gating,
             beacon_cache,
+            eject_injector: None,
             error_channel,
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),
@@ -102,6 +111,7 @@ impl BedrockProxyManager {
             event_emitter: None,
             gating,
             beacon_cache,
+            eject_injector: None,
             error_channel,
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),
@@ -112,6 +122,10 @@ impl BedrockProxyManager {
 
     pub fn set_event_emitter(&mut self, emitter: Arc<BedrockEventEmitter>) {
         self.event_emitter = Some(emitter);
+    }
+
+    pub fn set_eject_injector(&mut self, injector: Arc<JukeboxEjectInjector>) {
+        self.eject_injector = Some(injector);
     }
 }
 
@@ -179,6 +193,7 @@ impl BedrockProxyManager {
         let event_emitter = self.event_emitter.clone();
         let gating = Arc::clone(&self.gating);
         let beacon_cache = Arc::clone(&self.beacon_cache);
+        let eject_injector = self.eject_injector.clone();
         let error_channel = Arc::clone(&self.error_channel);
 
         let handle = tokio::spawn(async move {
@@ -380,6 +395,7 @@ impl BedrockProxyManager {
                         let child_emitter = event_emitter.clone();
                         let child_gating = Arc::clone(&gating);
                         let child_beacon_cache = Arc::clone(&beacon_cache);
+                        let child_eject_rx = eject_injector.as_ref().map(|i| i.receiver());
                         let child_error_channel = Arc::clone(&error_channel);
                         let mut child_cancel_rx = child_cancel_tx.subscribe();
 
@@ -485,6 +501,21 @@ impl BedrockProxyManager {
                                             }
                                         }
                                     }
+                                    eject = async {
+                                        match child_eject_rx.as_ref() {
+                                            Some(rx) => rx.recv_async().await.ok(),
+                                            None => std::future::pending::<Option<PendingEject>>().await,
+                                        }
+                                    } => {
+                                        if let Some(eject) = eject {
+                                            Self::dispatch_jukebox_eject(
+                                                &session,
+                                                &state,
+                                                &child_player_name,
+                                                eject,
+                                            );
+                                        }
+                                    }
                                 }
                             }
 
@@ -531,6 +562,54 @@ impl BedrockProxyManager {
         });
 
         Ok(handle)
+    }
+
+    fn dispatch_jukebox_eject(
+        session: &Session,
+        state: &BedrockSessionState,
+        player_name: &str,
+        eject: PendingEject,
+    ) {
+        let local_world = state.world_uuid().unwrap_or("");
+        if local_world != eject.world_uuid {
+            return;
+        }
+
+        let writer = session.writer().clone();
+        let version = session.protocol_version();
+        let player_xuid = state.player_uuid().unwrap_or("").to_string();
+        let player_name_owned = player_name.to_string();
+
+        tokio::spawn(async move {
+            let stagger_ms = rand::rng().random_range(0u64..500u64);
+            tokio::time::sleep(Duration::from_millis(stagger_ms)).await;
+
+            let message = format!(
+                "!bvce {} {} {}",
+                eject.block_pos.x.floor() as i32,
+                eject.block_pos.y.floor() as i32,
+                eject.block_pos.z.floor() as i32,
+            );
+
+            let text = TextPacket {
+                localize: false,
+                body: TextPacketBody::AuthorAndMessage(AuthorAndMessage {
+                    message_type: TextPacketType::Chat,
+                    player_name: player_name_owned.clone(),
+                    message,
+                }),
+                sender_s_xuid: player_xuid,
+                platform_id: String::new(),
+                filtered_message: None,
+            };
+
+            if let Err(e) = writer.send_packet_to_server_for(version, &text) {
+                warn!(
+                    "Bedrock: failed to inject silent chat for jukebox eject (player {}): {:?}",
+                    player_name_owned, e
+                );
+            }
+        });
     }
 
     fn send_client_disconnect(session: &Session, player_name: &str) {

@@ -1,6 +1,7 @@
 pub mod audio_frame_metadata;
 pub mod audio_frame_packet;
 pub mod bedrock_event;
+pub mod bedrock_event_direction;
 pub mod bedrock_event_packet;
 pub mod channel_event_packet;
 pub mod collection_packet;
@@ -21,6 +22,7 @@ pub mod server_error_type;
 pub use audio_frame_metadata::AudioFrameMetadata;
 pub use audio_frame_packet::AudioFramePacket;
 pub use bedrock_event::BedrockEvent;
+pub use bedrock_event_direction::BedrockEventDirection;
 pub use bedrock_event_packet::BedrockEventPacket;
 pub use channel_event_packet::ChannelEventPacket;
 pub use collection_packet::CollectionPacket;

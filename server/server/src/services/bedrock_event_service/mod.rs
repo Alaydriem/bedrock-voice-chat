@@ -9,7 +9,7 @@ use common::game_data::Dimension;
 use common::players::MinecraftPlayer;
 use common::request::audio::play::MinecraftAudioContext;
 use common::request::{AudioPlayRequest, GameAudioContext};
-use common::structs::packet::{BedrockEvent, BedrockEventPacket};
+use common::structs::packet::{BedrockEvent, BedrockEventDirection, BedrockEventPacket};
 use common::{Coordinate, Orientation, PlayerEnum};
 use moka::future::Cache;
 use sea_orm::DatabaseConnection;
@@ -84,6 +84,11 @@ impl BedrockEventService {
         packet: BedrockEventPacket,
         authenticated_player: String,
     ) -> Result<(), BedrockEventRejection> {
+        match packet.direction {
+            BedrockEventDirection::ServerBound => {}
+            _ => return Ok(()),
+        }
+
         if self.is_bds_healthy(&packet.world_uuid).await {
             tracing::debug!(
                 world_uuid = %packet.world_uuid,
@@ -118,6 +123,7 @@ impl BedrockEventService {
                 self.on_player_leave(authenticated_player, packet.world_uuid)
                     .await
             }
+            BedrockEvent::JukeboxEjectAnnouncement { .. } => Ok(()),
         }
     }
 

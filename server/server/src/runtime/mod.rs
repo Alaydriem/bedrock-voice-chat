@@ -4,7 +4,7 @@ pub mod state;
 pub use state::RuntimeState;
 use crate::config::ApplicationConfig;
 use crate::http::manager::RocketManager;
-use crate::services::{AudioPlaybackService, BedrockEventService, CertificateService, MeridianService, PlayerIdentityService, PlayerRegistrarService};
+use crate::services::{AudioPlaybackService, BedrockEventService, CertificateService, EjectScheduler, MeridianService, PlayerIdentityService, PlayerRegistrarService};
 use crate::stream::quic::{QuicServerManager, WebhookReceiver};
 
 use anyhow::anyhow;
@@ -185,6 +185,12 @@ impl ServerRuntime {
             self.config.server.bedrock.proxy_event_freshness_threshold_secs,
         );
         quic_manager.set_bedrock_event_service(bedrock_event_service.clone());
+
+        let eject_scheduler = EjectScheduler::new_shared(
+            bedrock_event_service.clone(),
+            webhook_receiver.clone(),
+        );
+        audio_playback_service.set_eject_scheduler(eject_scheduler);
 
         #[cfg(feature = "bedrock")]
         let transfer_target_cache = if self.config.server.bedrock.enabled {

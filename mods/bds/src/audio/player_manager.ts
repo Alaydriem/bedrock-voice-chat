@@ -222,6 +222,12 @@ export class AudioPlayerManager {
       });
   }
 
+  forceEject(locationKey: string): boolean {
+    if (!this.players.has(locationKey)) return false;
+    this.autoEject(locationKey);
+    return true;
+  }
+
   private autoEject(locationKey: string): void {
     const state = this.players.get(locationKey);
     if (!state) return;

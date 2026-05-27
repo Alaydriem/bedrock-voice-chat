@@ -4,6 +4,8 @@ pub mod connect_error_channel;
 pub mod event_emitter;
 pub mod iap;
 pub mod jukebox_beacon_cache;
+pub mod jukebox_eject_injector;
+pub mod pending_eject;
 pub mod keepalive;
 pub mod log_capture;
 pub mod manager;
@@ -15,5 +17,7 @@ pub mod state;
 
 pub use event_emitter::BedrockEventEmitter;
 pub use jukebox_beacon_cache::JukeboxBeaconCache;
-pub use services::ProtocolGatingService;
+pub use jukebox_eject_injector::JukeboxEjectInjector;
+pub use pending_eject::PendingEject;
+pub use services::{BedrockAuthService, BedrockKeyringService, ProtocolGatingService};
 pub use state::BedrockState;

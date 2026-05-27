@@ -1,8 +1,12 @@
+mod eject_scheduler;
 mod playback_entry;
 mod playback_expiry;
 mod playback_task;
 pub(crate) mod ogg_opus_parser;
 
+pub use eject_scheduler::EjectScheduler;
+
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use common::players::{HytalePlayer, MinecraftPlayer};
@@ -27,6 +31,7 @@ pub struct AudioPlaybackService {
     webhook_receiver: WebhookReceiver,
     audio_storage_path: String,
     parent_token: CancellationToken,
+    eject_scheduler: OnceLock<Arc<EjectScheduler>>,
 }
 
 impl AudioPlaybackService {
@@ -48,7 +53,12 @@ impl AudioPlaybackService {
             webhook_receiver,
             audio_storage_path,
             parent_token,
+            eject_scheduler: OnceLock::new(),
         }
+    }
+
+    pub fn set_eject_scheduler(&self, scheduler: Arc<EjectScheduler>) {
+        let _ = self.eject_scheduler.set(scheduler);
     }
 
     pub async fn start_playback<C: ConnectionTrait>(
@@ -103,6 +113,12 @@ impl AudioPlaybackService {
         let stripped = event_id.replace('-', "");
         let jukebox_hash = &stripped[stripped.len() - 8..];
         let jukebox_name = format!("{}{}", common::consts::audio::JUKEBOX_PLAYER_PREFIX, jukebox_hash);
+        let minecraft_eject_target: Option<(String, common::Coordinate)> = match &request.game {
+            GameAudioContext::Minecraft(ctx) => {
+                Some((ctx.world_uuid.clone(), ctx.coordinates.clone()))
+            }
+            GameAudioContext::Hytale(_) => None,
+        };
         let (synthetic_player, position) = match request.game {
             GameAudioContext::Minecraft(ctx) => {
                 let coordinates = ctx.coordinates.clone();
@@ -173,6 +189,19 @@ impl AudioPlaybackService {
             tracing::info!(event_id = %cleanup_event_id, "Playback session cleaned up");
         });
 
+        if let (Some(scheduler), Some((world_uuid, block_pos))) =
+            (self.eject_scheduler.get(), minecraft_eject_target)
+        {
+            scheduler
+                .schedule(
+                    event_id.clone(),
+                    world_uuid,
+                    block_pos,
+                    Duration::from_millis(duration_ms),
+                )
+                .await;
+        }
+
         Ok(AudioEventResponse {
             event_id,
             duration_ms: duration_ms as u32,
@@ -180,6 +209,9 @@ impl AudioPlaybackService {
     }
 
     pub async fn stop_playback(&self, event_id: &str) -> Result<(), String> {
+        if let Some(scheduler) = self.eject_scheduler.get() {
+            scheduler.cancel(event_id).await;
+        }
         if let Some(entry) = self.active_playbacks.get(event_id).await {
             entry.cancel_token.cancel();
             self.active_playbacks.invalidate(event_id).await;

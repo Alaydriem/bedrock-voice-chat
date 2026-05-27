@@ -24,6 +24,10 @@ use common::{
 };
 #[cfg(feature = "bedrock-protocol")]
 use crate::bedrock::JukeboxBeaconCache;
+#[cfg(feature = "bedrock-protocol")]
+use crate::bedrock::JukeboxEjectInjector;
+#[cfg(feature = "bedrock-protocol")]
+use common::structs::packet::BedrockEventPacket;
 use log::{error, info, warn};
 use moka::future::Cache;
 use once_cell::sync::Lazy;
@@ -62,6 +66,8 @@ pub(crate) struct OutputStream {
     recovery_tx: RecoverySender,
     #[cfg(feature = "bedrock-protocol")]
     beacon_cache: Option<Arc<JukeboxBeaconCache>>,
+    #[cfg(feature = "bedrock-protocol")]
+    eject_injector: Option<Arc<JukeboxEjectInjector>>,
 }
 
 impl common::traits::StreamTrait for OutputStream {
@@ -203,6 +209,7 @@ impl OutputStream {
         recording_active: Option<Arc<AtomicBool>>,
         recovery_tx: RecoverySender,
         #[cfg(feature = "bedrock-protocol")] beacon_cache: Option<Arc<JukeboxBeaconCache>>,
+        #[cfg(feature = "bedrock-protocol")] eject_injector: Option<Arc<JukeboxEjectInjector>>,
     ) -> Self {
         let players = moka::sync::Cache::builder()
             .time_to_idle(Duration::from_secs(15 * 60))
@@ -243,6 +250,8 @@ impl OutputStream {
             recovery_tx,
             #[cfg(feature = "bedrock-protocol")]
             beacon_cache,
+            #[cfg(feature = "bedrock-protocol")]
+            eject_injector,
         }
     }
 
@@ -268,6 +277,8 @@ impl OutputStream {
                     let player_gain_cache = self.player_gain_cache.clone();
                     #[cfg(feature = "bedrock-protocol")]
                     let beacon_cache = self.beacon_cache.clone();
+                    #[cfg(feature = "bedrock-protocol")]
+                    let eject_injector = self.eject_injector.clone();
 
                     let handle = tokio::spawn(async move {
                         #[allow(irrefutable_let_patterns)]
@@ -325,6 +336,18 @@ impl OutputStream {
                                             Some(&app_handle.clone()),
                                         )
                                         .await
+                                    }
+                                    #[cfg(feature = "bedrock-protocol")]
+                                    PacketType::BedrockEvent => {
+                                        if let Some(injector) = eject_injector.as_ref() {
+                                            if let Some(data) = packet.data.get_data() {
+                                                let decoded: Result<BedrockEventPacket, ()> =
+                                                    data.to_owned().try_into();
+                                                if let Ok(event_packet) = decoded {
+                                                    injector.handle_packet(&event_packet);
+                                                }
+                                            }
+                                        }
                                     }
                                     _ => {}
                                 },

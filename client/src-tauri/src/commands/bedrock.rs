@@ -1,12 +1,14 @@
 use std::sync::Arc;
 
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use tauri::Emitter;
 use tauri::State;
 use tauri::async_runtime::Mutex;
-use tauri_plugin_keyring::{CredentialType, CredentialValue, KeyringExt};
 
-use common::bedrock_protocol::{AuthManager, CachedToken, RealmsApi};
-use common::bedrock_protocol::auth::xbox::XboxLive;
+use common::bedrock_protocol::RealmsApi;
+use common::consts::bedrock::{
+    BEDROCK_KEYRING_KEY_REFRESH_TOKEN, BEDROCK_KEYRING_KEY_XUID, BEDROCK_LISTEN_PORT,
+    XBOX_CLIENT_ID,
+};
 use common::structs::bedrock::{
     BedrockBackendKind, BedrockConnectionInfo, BedrockStatus, HIVE_DNS_HOSTNAME, NetworkInterface,
     RealmEntry,
@@ -15,140 +17,16 @@ use common::traits::StreamTrait;
 
 use crate::NetworkPacket;
 use crate::analytics::AnalyticsService;
-use crate::bedrock::BedrockState;
-use crate::bedrock::JukeboxBeaconCache;
-use crate::bedrock::ProtocolGatingService;
 use crate::bedrock::connect_error_channel::BedrockConnectErrorChannel;
 use crate::bedrock::event_emitter::BedrockEventEmitter;
 use crate::bedrock::iap::BedrockEntitlementCheck;
-use crate::bedrock::keepalive::TransferKeepalive;
 use crate::bedrock::manager::BedrockProxyManager;
+use crate::bedrock::{
+    BedrockAuthService, BedrockKeyringService, BedrockState, JukeboxBeaconCache,
+    JukeboxEjectInjector, ProtocolGatingService,
+};
 use crate::feature_flags::FeatureFlagService;
 use crate::structs::app_state::AppState;
-
-use common::consts::bedrock::{BEDROCK_LISTEN_PORT, XBOX_CLIENT_ID};
-use tauri::Emitter;
-
-const BEDROCK_KEYRING_NS: &str = "bedrock-xbox";
-const KEY_REFRESH_TOKEN: &str = "refresh_token";
-const KEY_XUID: &str = "xuid";
-
-fn keyring_key(key: &str) -> String {
-    BASE64.encode(format!("{}/{}", BEDROCK_KEYRING_NS, key))
-}
-
-fn store_credential(app: &tauri::AppHandle, key: &str, value: &str) {
-    let encoded = keyring_key(key);
-    let _ = app.keyring().set(
-        &encoded,
-        CredentialType::Password,
-        CredentialValue::Password(value.to_string()),
-    );
-}
-
-fn load_credential(app: &tauri::AppHandle, key: &str) -> Option<String> {
-    let encoded = keyring_key(key);
-    match app.keyring().get(&encoded, CredentialType::Password) {
-        Ok(CredentialValue::Password(v)) => Some(v),
-        _ => None,
-    }
-}
-
-fn clear_credentials(app: &tauri::AppHandle) {
-    for key in [KEY_REFRESH_TOKEN, KEY_XUID] {
-        let encoded = keyring_key(key);
-        let _ = app.keyring().delete(&encoded, CredentialType::Password);
-    }
-}
-
-fn build_auth_manager(refresh_token: Option<&str>, xuid: &str) -> Arc<AuthManager> {
-    let cache = moka::future::Cache::builder()
-        .time_to_live(std::time::Duration::from_secs(86400))
-        .max_capacity(100)
-        .build();
-
-    let mgr = Arc::new(AuthManager::new(XBOX_CLIENT_ID, cache));
-
-    if let Some(rt) = refresh_token {
-        let cache = mgr.cache().clone();
-        let rt = rt.to_string();
-        let xuid = xuid.to_string();
-        tauri::async_runtime::spawn(async move {
-            cache.insert(xuid, CachedToken { refresh_token: rt }).await;
-        });
-    }
-
-    mgr
-}
-
-async fn extract_xuid(xbl_token: &str) -> Result<String, String> {
-    let xsts = XboxLive::authenticate_xsts(xbl_token, "http://xboxlive.com")
-        .await
-        .map_err(|e| format!("XSTS authentication failed: {}", e))?;
-    xsts.display_claims
-        .xui
-        .first()
-        .and_then(|c| c.xid.clone())
-        .ok_or_else(|| "XUID not present in XSTS response".to_string())
-}
-
-fn apply_auth_to_state(
-    state: &mut BedrockState,
-    api: RealmsApi,
-    xbl_token: String,
-    user_hash: String,
-    access_token: String,
-    refresh_token: Option<String>,
-    xuid: String,
-) {
-    let auth_manager = build_auth_manager(
-        refresh_token.as_deref(),
-        &xuid,
-    );
-
-    state.auth_manager = Some(auth_manager);
-    state.realms_api = Some(api);
-    state.xbl_token = Some(xbl_token);
-    state.user_hash = Some(user_hash);
-    state.access_token = Some(access_token);
-    state.refresh_token = refresh_token;
-    state.xuid = Some(xuid);
-}
-
-async fn start_keepalive(
-    bedrock_state: &mut BedrockState,
-    app_state: &AppState,
-    listen_port: u16,
-    network_interface: &str,
-) -> Result<(), String> {
-    let xuid = bedrock_state.xuid.as_ref()
-        .ok_or_else(|| "XUID required for transfer keepalive".to_string())?
-        .clone();
-
-    let api = app_state.get_api_client()
-        .map_err(|e| format!("BVC server connection required: {}", e))?;
-
-    let server_url = api.endpoint().to_string();
-    let client = api.get_reqwest_client().await;
-
-    let mut keepalive = TransferKeepalive::new(
-        server_url,
-        xuid,
-        network_interface.to_string(),
-        listen_port,
-        client,
-    );
-    keepalive.start().await.map_err(|e| e.to_string())?;
-    bedrock_state.keepalive = Some(keepalive);
-    Ok(())
-}
-
-async fn stop_keepalive(bedrock_state: &mut BedrockState) {
-    if let Some(ref mut keepalive) = bedrock_state.keepalive {
-        let _ = keepalive.stop().await;
-    }
-    bedrock_state.keepalive = None;
-}
 
 #[tauri::command(async)]
 pub(crate) async fn bedrock_start_proxy(
@@ -164,6 +42,7 @@ pub(crate) async fn bedrock_start_proxy(
     flag_service: State<'_, Arc<FeatureFlagService>>,
     analytics: State<'_, Arc<AnalyticsService>>,
     beacon_cache: State<'_, Arc<JukeboxBeaconCache>>,
+    eject_injector: State<'_, Arc<JukeboxEjectInjector>>,
     error_channel: State<'_, Arc<BedrockConnectErrorChannel>>,
 ) -> Result<(), String> {
     entitlement.require_entitlement()?;
@@ -178,7 +57,9 @@ pub(crate) async fn bedrock_start_proxy(
         return Err("Proxy is already running.".to_string());
     }
 
-    let auth_manager = state.auth_manager.as_ref()
+    let auth_manager = state
+        .auth_manager
+        .as_ref()
         .ok_or_else(|| "Xbox Live authentication required. Please sign in first.".to_string())?;
 
     let gating = ProtocolGatingService::new_shared(
@@ -200,10 +81,14 @@ pub(crate) async fn bedrock_start_proxy(
     proxy.set_event_emitter(Arc::new(BedrockEventEmitter::new(
         quic_producer.inner().clone(),
     )));
+    proxy.set_eject_injector(Arc::clone(eject_injector.inner()));
     proxy.start().await.map_err(|e| e.to_string())?;
 
     let app = app_state.lock().await;
-    if let Err(e) = start_keepalive(&mut state, &app, effective_listen_port, &network_interface).await {
+    if let Err(e) = state
+        .start_keepalive(&app, effective_listen_port, &network_interface)
+        .await
+    {
         log::warn!("Transfer keepalive failed to start: {}", e);
     }
 
@@ -232,7 +117,7 @@ pub(crate) async fn bedrock_stop_proxy(
     state: State<'_, Mutex<BedrockState>>,
 ) -> Result<(), String> {
     let mut state = state.lock().await;
-    stop_keepalive(&mut state).await;
+    state.stop_keepalive().await;
     if let Some(ref mut proxy) = state.proxy {
         proxy.stop().await.map_err(|e| e.to_string())?;
     }
@@ -270,19 +155,27 @@ pub(crate) async fn bedrock_start_realms(
         return Err("Realms is already running.".to_string());
     }
 
-    let realms_api = state.realms_api.as_ref()
+    let realms_api = state
+        .realms_api
+        .as_ref()
         .ok_or_else(|| "Xbox Live authentication required. Please sign in first.".to_string())?
         .clone();
 
-    let xbl_token = state.xbl_token.as_ref()
+    let xbl_token = state
+        .xbl_token
+        .as_ref()
         .ok_or_else(|| "Xbox Live authentication required. Please sign in first.".to_string())?
         .clone();
 
-    let user_hash = state.user_hash.as_ref()
+    let user_hash = state
+        .user_hash
+        .as_ref()
         .ok_or_else(|| "Xbox Live authentication required. Please sign in first.".to_string())?
         .clone();
 
-    let access_token = state.access_token.as_ref()
+    let access_token = state
+        .access_token
+        .as_ref()
         .ok_or_else(|| "Xbox Live authentication required. Please sign in first.".to_string())?
         .clone();
 
@@ -309,7 +202,10 @@ pub(crate) async fn bedrock_start_realms(
     realms.start().await.map_err(|e| e.to_string())?;
 
     let app = app_state.lock().await;
-    if let Err(e) = start_keepalive(&mut state, &app, BEDROCK_LISTEN_PORT, &network_interface).await {
+    if let Err(e) = state
+        .start_keepalive(&app, BEDROCK_LISTEN_PORT, &network_interface)
+        .await
+    {
         log::warn!("Transfer keepalive failed to start: {}", e);
     }
 
@@ -337,7 +233,7 @@ pub(crate) async fn bedrock_stop_realms(
     state: State<'_, Mutex<BedrockState>>,
 ) -> Result<(), String> {
     let mut state = state.lock().await;
-    stop_keepalive(&mut state).await;
+    state.stop_keepalive().await;
     if let Some(ref mut realms) = state.realms {
         realms.stop().await.map_err(|e| e.to_string())?;
     }
@@ -361,10 +257,13 @@ pub(crate) async fn bedrock_xbox_login(
     let app = app_handle.clone();
     let auth_future = RealmsApi::authenticate(XBOX_CLIENT_ID, move |code, url| {
         log::info!("Xbox device code: {} at {}", code, url);
-        let _ = app.emit("bedrock-device-code", serde_json::json!({
-            "code": code,
-            "url": url,
-        }));
+        let _ = app.emit(
+            "bedrock-device-code",
+            serde_json::json!({
+                "code": code,
+                "url": url,
+            }),
+        );
     });
 
     let result = tokio::select! {
@@ -377,24 +276,18 @@ pub(crate) async fn bedrock_xbox_login(
     };
 
     let (api, xbl_token, user_hash, access_token, refresh_token) = result;
-    let xuid = extract_xuid(&xbl_token).await?;
+    let auth = BedrockAuthService::new();
+    let xuid = auth.extract_xuid(&xbl_token).await?;
 
+    let keyring = BedrockKeyringService::new(&app_handle);
     if let Some(ref rt) = refresh_token {
-        store_credential(&app_handle, KEY_REFRESH_TOKEN, rt);
+        keyring.store(BEDROCK_KEYRING_KEY_REFRESH_TOKEN, rt);
     }
-    store_credential(&app_handle, KEY_XUID, &xuid);
+    keyring.store(BEDROCK_KEYRING_KEY_XUID, &xuid);
 
     let mut state = state.lock().await;
     state.login_cancel_tx = None;
-    apply_auth_to_state(
-        &mut state,
-        api,
-        xbl_token,
-        user_hash,
-        access_token,
-        refresh_token,
-        xuid,
-    );
+    state.apply_auth(api, xbl_token, user_hash, access_token, refresh_token, xuid);
 
     Ok(())
 }
@@ -411,39 +304,39 @@ pub(crate) async fn bedrock_restore_auth(
         }
     }
 
-    let refresh_token = match load_credential(&app_handle, KEY_REFRESH_TOKEN) {
+    let keyring = BedrockKeyringService::new(&app_handle);
+
+    let refresh_token = match keyring.load(BEDROCK_KEYRING_KEY_REFRESH_TOKEN) {
         Some(rt) => rt,
         None => return Ok(false),
     };
-    let stored_xuid = load_credential(&app_handle, KEY_XUID);
+    let stored_xuid = keyring.load(BEDROCK_KEYRING_KEY_XUID);
 
     let result = RealmsApi::authenticate_refresh(XBOX_CLIENT_ID, &refresh_token)
         .await
         .map_err(|e| {
-            clear_credentials(&app_handle);
+            keyring.clear();
             e.to_string()
         })?;
 
     let (api, xbl_token, user_hash, access_token, new_refresh_token) = result;
+    let auth = BedrockAuthService::new();
     let xuid = match stored_xuid {
         Some(x) => x,
-        None => {
-            extract_xuid(&xbl_token).await.map_err(|e| {
-                clear_credentials(&app_handle);
-                format!("Failed to extract XUID during auth restore: {}", e)
-            })?
-        }
+        None => auth.extract_xuid(&xbl_token).await.map_err(|e| {
+            keyring.clear();
+            format!("Failed to extract XUID during auth restore: {}", e)
+        })?,
     };
-    store_credential(&app_handle, KEY_XUID, &xuid);
+    keyring.store(BEDROCK_KEYRING_KEY_XUID, &xuid);
 
     let effective_refresh = new_refresh_token.or(Some(refresh_token));
     if let Some(ref rt) = effective_refresh {
-        store_credential(&app_handle, KEY_REFRESH_TOKEN, rt);
+        keyring.store(BEDROCK_KEYRING_KEY_REFRESH_TOKEN, rt);
     }
 
     let mut state = state.lock().await;
-    apply_auth_to_state(
-        &mut state,
+    state.apply_auth(
         api,
         xbl_token,
         user_hash,
@@ -476,20 +369,21 @@ pub(crate) async fn bedrock_force_refresh(
         let s = state.lock().await;
         s.xuid.clone()
     };
+    let auth = BedrockAuthService::new();
     let xuid = match stored_xuid {
         Some(x) => x,
-        None => extract_xuid(&xbl_token).await?,
+        None => auth.extract_xuid(&xbl_token).await?,
     };
 
+    let keyring = BedrockKeyringService::new(&app_handle);
     let effective_refresh = new_refresh_token.or(Some(refresh_token));
     if let Some(ref rt) = effective_refresh {
-        store_credential(&app_handle, KEY_REFRESH_TOKEN, rt);
+        keyring.store(BEDROCK_KEYRING_KEY_REFRESH_TOKEN, rt);
     }
-    store_credential(&app_handle, KEY_XUID, &xuid);
+    keyring.store(BEDROCK_KEYRING_KEY_XUID, &xuid);
 
     let mut state = state.lock().await;
-    apply_auth_to_state(
-        &mut state,
+    state.apply_auth(
         api,
         xbl_token,
         user_hash,
@@ -533,7 +427,7 @@ pub(crate) async fn bedrock_xbox_logout(
     state.refresh_token = None;
     state.xuid = None;
 
-    clear_credentials(&app_handle);
+    BedrockKeyringService::new(&app_handle).clear();
     Ok(())
 }
 
@@ -557,19 +451,24 @@ pub(crate) async fn bedrock_list_realms(
 ) -> Result<Vec<RealmEntry>, String> {
     let api = {
         let state = state.lock().await;
-        state.realms_api.as_ref()
+        state
+            .realms_api
+            .as_ref()
             .ok_or_else(|| "Xbox Live authentication required. Please sign in first.".to_string())?
             .clone()
     };
 
     let worlds = api.list_worlds().await.map_err(|e| e.to_string())?;
-    let entries = worlds.into_iter().map(|r| RealmEntry {
-        id: r.id,
-        name: r.name,
-        motd: r.motd,
-        state: r.state,
-        owner_uuid: r.owner_uuid,
-    }).collect();
+    let entries = worlds
+        .into_iter()
+        .map(|r| RealmEntry {
+            id: r.id,
+            name: r.name,
+            motd: r.motd,
+            state: r.state,
+            owner_uuid: r.owner_uuid,
+        })
+        .collect();
     Ok(entries)
 }
 

@@ -3,6 +3,7 @@ import { variables } from '@minecraft/server-admin';
 import { Payload, Player } from './dto';
 import { AudioPlayerManager } from './audio/player_manager';
 import { AudioComponentRegistry } from './audio/components';
+import { ChatEjectListener } from './audio/chat_eject_listener';
 import { DiscCommand } from './commands/mod';
 import { httpClient } from './net';
 
@@ -63,6 +64,9 @@ function randomHex(length: number): string {
 const audioManager = new AudioPlayerManager(bvc_server, access_token);
 const componentRegistry = new AudioComponentRegistry(audioManager, getWorldUuid);
 componentRegistry.register();
+
+const chatEjectListener = new ChatEjectListener(audioManager, getWorldUuid);
+chatEjectListener.register();
 
 DiscCommand.register();
 

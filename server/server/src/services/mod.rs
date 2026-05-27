@@ -20,7 +20,7 @@ pub mod player_registrar_service;
 
 pub use audio_file_service::{AudioFileError, AudioFileService};
 pub use audio_stream_token_cache::AudioStreamTokenCache;
-pub use audio_playback_service::AudioPlaybackService;
+pub use audio_playback_service::{AudioPlaybackService, EjectScheduler};
 pub use auth_code_service::{AuthCodeError, AuthCodeService};
 pub use auth_service::{AuthError, AuthService, CodeLoginError};
 pub use bedrock_event_service::{BedrockEventRejection, BedrockEventService};
