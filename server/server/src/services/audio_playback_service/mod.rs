@@ -189,17 +189,29 @@ impl AudioPlaybackService {
             tracing::info!(event_id = %cleanup_event_id, "Playback session cleaned up");
         });
 
-        if let (Some(scheduler), Some((world_uuid, block_pos))) =
-            (self.eject_scheduler.get(), minecraft_eject_target)
-        {
-            scheduler
-                .schedule(
-                    event_id.clone(),
-                    world_uuid,
-                    block_pos,
-                    Duration::from_millis(duration_ms),
-                )
-                .await;
+        match (self.eject_scheduler.get(), minecraft_eject_target) {
+            (Some(scheduler), Some((world_uuid, block_pos))) => {
+                scheduler
+                    .schedule(
+                        event_id.clone(),
+                        world_uuid,
+                        block_pos,
+                        Duration::from_millis(duration_ms),
+                    )
+                    .await;
+            }
+            (None, _) => {
+                tracing::warn!(
+                    event_id = %event_id,
+                    "start_playback: eject_scheduler not wired; no auto-eject scheduled"
+                );
+            }
+            (Some(_), None) => {
+                tracing::debug!(
+                    event_id = %event_id,
+                    "start_playback: non-minecraft context; no auto-eject scheduled"
+                );
+            }
         }
 
         Ok(AudioEventResponse {

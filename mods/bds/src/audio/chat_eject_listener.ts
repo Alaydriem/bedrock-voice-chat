@@ -1,17 +1,8 @@
-import { world } from '@minecraft/server';
+import { system, world } from '@minecraft/server';
 import { Coordinates } from '../dto';
 import type { AudioPlayerManager } from './player_manager';
 
 const MAGIC = '!bvce ';
-
-interface ChatSendBeforeEventLike {
-  message: string;
-  cancel: boolean;
-}
-
-interface ChatSendBeforeEventSignalLike {
-  subscribe(callback: (ev: ChatSendBeforeEventLike) => void): unknown;
-}
 
 export class ChatEjectListener {
   constructor(
@@ -20,19 +11,7 @@ export class ChatEjectListener {
   ) {}
 
   register(): void {
-    const chatSend = (world.beforeEvents as unknown as {
-      chatSend?: ChatSendBeforeEventSignalLike;
-    }).chatSend;
-
-    if (!chatSend) {
-      console.warn(
-        '[BVC] world.beforeEvents.chatSend not available; no-net auto-eject disabled. ' +
-          'Confirm Beta APIs are enabled for this world.',
-      );
-      return;
-    }
-
-    chatSend.subscribe((ev) => {
+    world.beforeEvents.chatSend.subscribe((ev) => {
       if (!ev.message.startsWith(MAGIC)) return;
       ev.cancel = true;
       const parts = ev.message.slice(MAGIC.length).split(' ');
@@ -46,7 +25,9 @@ export class ChatEjectListener {
         this.getWorldUuid(),
         new Coordinates(x, y, z),
       );
-      this.audioManager.forceEject(key);
+      system.run(() => {
+        this.audioManager.forceEject(key);
+      });
     });
   }
 }

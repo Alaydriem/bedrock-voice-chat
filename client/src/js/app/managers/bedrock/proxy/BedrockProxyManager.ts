@@ -136,7 +136,8 @@ export class BedrockProxyManager {
             const ifaces = await invoke<NetworkInterface[]>('bedrock_list_interfaces');
             this.interfacesStore.set(ifaces);
             if (ifaces.length > 0 && !get(this.selectedInterfaceStore)) {
-                this.selectedInterfaceStore.set(ifaces[0].ip);
+                const defaultIface = ifaces.find((i) => i.is_ipv4) ?? ifaces[0];
+                this.selectedInterfaceStore.set(defaultIface.ip);
             }
         } catch (e) {
             logError(`Failed to load interfaces: ${e}`);

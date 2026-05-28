@@ -37,7 +37,7 @@ jobs:
         include:
           # Windows builds
           - target: x86_64-pc-windows-msvc
-            os: windows-latest
+            os: windows-2022
             artifact_name: bvc-server.exe
             build_server: true
             build_native_lib: true

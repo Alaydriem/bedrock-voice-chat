@@ -33,7 +33,7 @@ on:
 jobs:
   build-windows:
     name: Build Windows Client (${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }})
-    runs-on: windows-latest
+    runs-on: windows-2022
 
     steps:
       - name: Checkout code

@@ -433,15 +433,23 @@ pub(crate) async fn bedrock_xbox_logout(
 
 #[tauri::command(async)]
 pub(crate) async fn bedrock_list_interfaces() -> Result<Vec<NetworkInterface>, String> {
-    let interfaces = if_addrs::get_if_addrs()
+    let mut interfaces: Vec<NetworkInterface> = if_addrs::get_if_addrs()
         .map_err(|e| e.to_string())?
         .into_iter()
         .filter(|iface| !iface.is_loopback())
-        .map(|iface| NetworkInterface {
-            name: iface.name.clone(),
-            ip: iface.ip().to_string(),
+        .map(|iface| {
+            let ip = iface.ip();
+            NetworkInterface {
+                name: iface.name.clone(),
+                ip: ip.to_string(),
+                is_ipv4: ip.is_ipv4(),
+            }
         })
         .collect();
+    // Bedrock clients (especially on mobile) reach BVC over IPv4 in practice,
+    // so surface IPv4 entries first — both for the default selection and for
+    // dropdown ordering.
+    interfaces.sort_by_key(|iface| !iface.is_ipv4);
     Ok(interfaces)
 }
 

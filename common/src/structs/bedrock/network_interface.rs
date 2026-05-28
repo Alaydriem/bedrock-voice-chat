@@ -6,4 +6,5 @@ use ts_rs::TS;
 pub struct NetworkInterface {
     pub name: String,
     pub ip: String,
+    pub is_ipv4: bool,
 }

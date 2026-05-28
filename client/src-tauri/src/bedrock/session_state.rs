@@ -7,7 +7,7 @@ use common::players::PlayerEnum;
 use common::structs::bedrock::BedrockWorldId;
 use common::structs::game::coordinate::Coordinate;
 use common::structs::game::orientation::Orientation;
-use log::info;
+use log::{info, debug};
 
 pub struct BedrockSessionState {
     name: String,
@@ -69,7 +69,7 @@ impl BedrockSessionState {
         let prev = self.sneaking;
         self.sneaking = self.crawling || flags & Self::SNEAKING_BIT != 0;
         if crawl_start || crawl_stop || prev != self.sneaking {
-            info!(
+            debug!(
                 "Bedrock state: sneak/crawl input_data=0x{:x} start_crawl={} stop_crawl={} sneak_bit={} crawling={} sneaking={}",
                 flags,
                 crawl_start,
@@ -83,14 +83,14 @@ impl BedrockSessionState {
 
     pub fn apply_change_dimension(&mut self, p: &ChangeDimensionPacket) {
         self.dimension = Self::dimension_from_i32(p.dimension_id.value);
-        info!("Bedrock state: ChangeDimension -> {:?}", self.dimension);
+        debug!("Bedrock state: ChangeDimension -> {:?}", self.dimension);
     }
 
     pub fn apply_game_type(&mut self, gamemode: i32) {
         let was_spectator = self.spectator;
         self.spectator = Self::is_spectator_gamemode(gamemode);
         if was_spectator != self.spectator {
-            info!(
+            debug!(
                 "Bedrock state: gamemode={} spectator={}",
                 gamemode, self.spectator
             );

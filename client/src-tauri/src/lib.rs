@@ -34,6 +34,43 @@ mod network;
 mod structs;
 pub mod websocket;
 
+/// JNI export called from MainActivity.onCreate to populate the global
+/// `ndk_context` static. tao 0.35 (Tauri 2.11) dropped this initialization as
+/// part of its multi-activity refactor (tauri-apps/tao#1154), which breaks
+/// every downstream crate that consults `ndk_context::android_context()` —
+/// cpal, tauri-plugin-keyring's android-native-keyring-store, webbrowser, etc.
+///
+/// See: https://github.com/open-source-cooperative/android-native-keyring-store/issues/21
+#[cfg(target_os = "android")]
+#[allow(non_snake_case)]
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_alaydriem_bvc_client_MainActivity_initNdkContext(
+    env: jni::JNIEnv,
+    _class: jni::objects::JObject,
+    context: jni::objects::JObject,
+) {
+    use jni::objects::GlobalRef;
+    use std::ffi::c_void;
+    use std::sync::OnceLock;
+
+    static REF: OnceLock<Option<GlobalRef>> = OnceLock::new();
+
+    REF.get_or_init(|| match env.new_global_ref(&context) {
+        Ok(ref_) => {
+            let vm = env.get_java_vm().unwrap();
+            let vm = vm.get_java_vm_pointer() as *mut c_void;
+            unsafe {
+                ndk_context::initialize_android_context(vm, ref_.as_obj().as_raw() as _);
+            }
+            Some(ref_)
+        }
+        Err(e) => {
+            log::error!("failed to create global ref for android context: {e}");
+            None
+        }
+    });
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     _ = common::s2n_quic::provider::tls::rustls::rustls::crypto::aws_lc_rs::default_provider()

@@ -45,6 +45,12 @@ impl EjectScheduler {
         block_pos: Coordinate,
         duration: Duration,
     ) {
+        tracing::info!(
+            event_id = %event_id,
+            world_uuid = %world_uuid,
+            duration_ms = duration.as_millis() as u64,
+            "EjectScheduler: scheduling auto-eject"
+        );
         let scheduler = Arc::clone(self);
         let event_id_for_task = event_id.clone();
 
@@ -67,16 +73,17 @@ impl EjectScheduler {
     }
 
     async fn fire(&self, event_id: String, world_uuid: String, block_pos: Coordinate) {
+        tracing::info!(event_id = %event_id, "EjectScheduler: timer fired");
         {
             let mut pending = self.pending.lock().await;
             pending.remove(&event_id);
         }
 
         if self.bedrock_event_service.is_bds_healthy(&world_uuid).await {
-            tracing::debug!(
+            tracing::info!(
                 event_id = %event_id,
                 world_uuid = %world_uuid,
-                "Skipping JukeboxEjectAnnouncement broadcast: BDS addon is healthy"
+                "EjectScheduler: skipping broadcast (BDS addon is healthy)"
             );
             return;
         }
@@ -101,13 +108,13 @@ impl EjectScheduler {
                 event_id = %event_id,
                 world_uuid = %world_uuid,
                 error = %e,
-                "Failed to broadcast JukeboxEjectAnnouncement"
+                "EjectScheduler: failed to broadcast JukeboxEjectAnnouncement"
             );
         } else {
-            tracing::debug!(
+            tracing::info!(
                 event_id = %event_id,
                 world_uuid = %world_uuid,
-                "Broadcast JukeboxEjectAnnouncement to clients"
+                "EjectScheduler: broadcast ClientBound JukeboxEjectAnnouncement"
             );
         }
     }

@@ -12,9 +12,7 @@ use common::bedrock_protocol::{
     protocol::codec::PacketEncode,
     protocol::packets::{PacketHeader, ids},
     protocol::packets::generated::misc::text::TextPacket,
-    protocol::types::generated::{
-        AuthorAndMessage, TextPacketBody, TextPacketType,
-    },
+    protocol::types::generated::{AuthorAndMessage, TextPacketBody, TextPacketType},
 };
 use rand::RngExt;
 use common::structs::{AnalyticsEvent, AnalyticsEventData};
@@ -572,13 +570,27 @@ impl BedrockProxyManager {
     ) {
         let local_world = state.world_uuid().unwrap_or("");
         if local_world != eject.world_uuid {
+            info!(
+                "Bedrock: dropping jukebox eject (world mismatch local={} ann={}) event_id={}",
+                local_world, eject.world_uuid, eject.event_id
+            );
             return;
         }
 
         let writer = session.writer().clone();
         let version = session.protocol_version();
-        let player_xuid = state.player_uuid().unwrap_or("").to_string();
+        let player_xuid = session.player.xuid.clone();
+        let chat_sender_name = session.player.name.clone();
         let player_name_owned = player_name.to_string();
+        let event_id = eject.event_id.clone();
+        info!(
+            "Bedrock: dispatching jukebox eject event_id={} pos=({},{},{}) world={}",
+            event_id,
+            eject.block_pos.x.floor() as i32,
+            eject.block_pos.y.floor() as i32,
+            eject.block_pos.z.floor() as i32,
+            eject.world_uuid
+        );
 
         tokio::spawn(async move {
             let stagger_ms = rand::rng().random_range(0u64..500u64);
@@ -595,19 +607,40 @@ impl BedrockProxyManager {
                 localize: false,
                 body: TextPacketBody::AuthorAndMessage(AuthorAndMessage {
                     message_type: TextPacketType::Chat,
-                    player_name: player_name_owned.clone(),
-                    message,
+                    player_name: chat_sender_name,
+                    message: message.clone(),
                 }),
                 sender_s_xuid: player_xuid,
                 platform_id: String::new(),
                 filtered_message: None,
             };
 
-            if let Err(e) = writer.send_packet_to_server_for(version, &text) {
-                warn!(
-                    "Bedrock: failed to inject silent chat for jukebox eject (player {}): {:?}",
-                    player_name_owned, e
-                );
+            let mut pkt_buf = BytesMut::new();
+            PacketHeader::write(&mut pkt_buf, ids::TEXT);
+            text.encode_for(version, &mut pkt_buf);
+
+            let batch: Bytes = match BatchCodec::encode(&[pkt_buf.freeze()], true, 1) {
+                Ok(b) => b,
+                Err(e) => {
+                    warn!(
+                        "Bedrock: failed to batch-encode chat for jukebox eject event_id={}: {:?}",
+                        event_id, e
+                    );
+                    return;
+                }
+            };
+
+            let batch_len = batch.len();
+            let batch_preview: Vec<u8> = batch.iter().take(32).copied().collect();
+            match writer.send_to_server(batch) {
+                Ok(()) => debug!(
+                    "Bedrock: injected silent chat '{}' event_id={} (stagger {}ms, batch_len={}, head={:02X?})",
+                    message, event_id, stagger_ms, batch_len, batch_preview
+                ),
+                Err(e) => warn!(
+                    "Bedrock: failed to inject silent chat for jukebox eject (player {}) event_id={}: {:?}",
+                    player_name_owned, event_id, e
+                ),
             }
         });
     }
