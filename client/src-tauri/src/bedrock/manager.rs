@@ -17,7 +17,7 @@ use common::bedrock_protocol::{
 use rand::RngExt;
 use common::structs::{AnalyticsEvent, AnalyticsEventData};
 use common::traits::StreamTrait;
-use log::{error, info, warn};
+use log::{error, info, warn, debug};
 use tokio::sync::{oneshot, watch};
 use tokio::task::{AbortHandle, JoinHandle};
 
