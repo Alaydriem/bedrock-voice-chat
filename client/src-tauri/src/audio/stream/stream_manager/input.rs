@@ -5,7 +5,7 @@ use crate::audio::recording::{RawRecordingData, RecordingProducer};
 use crate::audio::stream::{RecoverySender, StreamRecoveryEvent};
 use crate::audio::types::{AudioDevice, AudioDeviceCpal, AudioDeviceType, BUFFER_SIZE};
 #[cfg(feature = "bedrock-protocol")]
-use crate::bedrock::player_state_cache::BedrockPlayerStateCache;
+use crate::bedrock::BedrockPlayerStateCache;
 use crate::{NetworkPacket, audio::stream::stream_manager::AudioFrameData};
 use anyhow::anyhow;
 use audio_gate::NoiseGate;

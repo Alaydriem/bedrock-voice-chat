@@ -17,13 +17,13 @@ use common::traits::StreamTrait;
 
 use crate::NetworkPacket;
 use crate::analytics::AnalyticsService;
-use crate::bedrock::connect_error_channel::BedrockConnectErrorChannel;
-use crate::bedrock::event_emitter::BedrockEventEmitter;
-use crate::bedrock::iap::BedrockEntitlementCheck;
-use crate::bedrock::manager::BedrockProxyManager;
+use crate::bedrock::BedrockConnectErrorChannel;
+use crate::bedrock::BedrockEventEmitter;
+use crate::iap::EntitlementService;
+use crate::bedrock::BedrockProxyManager;
 use crate::bedrock::{
     BedrockAuthService, BedrockKeyringService, BedrockState, JukeboxBeaconCache,
-    JukeboxEjectInjector, ProtocolGatingService,
+    JukeboxEjectInjector, ProtocolGatingService, ProxyDeps,
 };
 use crate::feature_flags::FeatureFlagService;
 use crate::structs::app_state::AppState;
@@ -37,7 +37,7 @@ pub(crate) async fn bedrock_start_proxy(
     network_interface: String,
     state: State<'_, Mutex<BedrockState>>,
     app_state: State<'_, Mutex<AppState>>,
-    entitlement: State<'_, BedrockEntitlementCheck>,
+    entitlement: State<'_, EntitlementService>,
     quic_producer: State<'_, Arc<flume::Sender<NetworkPacket>>>,
     flag_service: State<'_, Arc<FeatureFlagService>>,
     analytics: State<'_, Arc<AnalyticsService>>,
@@ -68,20 +68,21 @@ pub(crate) async fn bedrock_start_proxy(
     );
 
     let effective_listen_port = listen_port.unwrap_or(BEDROCK_LISTEN_PORT);
+    let deps = ProxyDeps::new(
+        Arc::clone(&state.player_state_cache),
+        gating,
+        Arc::clone(beacon_cache.inner()),
+        Arc::clone(error_channel.inner()),
+        Arc::new(BedrockEventEmitter::new(quic_producer.inner().clone())),
+        Arc::clone(eject_injector.inner()),
+    );
     let mut proxy = BedrockProxyManager::new_direct(
         target_host.clone(),
         target_port,
         effective_listen_port,
         Arc::clone(auth_manager),
-        Arc::clone(&state.player_state_cache),
-        gating,
-        Arc::clone(beacon_cache.inner()),
-        Arc::clone(error_channel.inner()),
+        deps,
     );
-    proxy.set_event_emitter(Arc::new(BedrockEventEmitter::new(
-        quic_producer.inner().clone(),
-    )));
-    proxy.set_eject_injector(Arc::clone(eject_injector.inner()));
     proxy.start().await.map_err(|e| e.to_string())?;
 
     let app = app_state.lock().await;
@@ -136,12 +137,13 @@ pub(crate) async fn bedrock_start_realms(
     network_interface: String,
     state: State<'_, Mutex<BedrockState>>,
     app_state: State<'_, Mutex<AppState>>,
-    entitlement: State<'_, BedrockEntitlementCheck>,
+    entitlement: State<'_, EntitlementService>,
     quic_producer: State<'_, Arc<flume::Sender<NetworkPacket>>>,
     flag_service: State<'_, Arc<FeatureFlagService>>,
     analytics: State<'_, Arc<AnalyticsService>>,
     beacon_cache: State<'_, Arc<JukeboxBeaconCache>>,
     error_channel: State<'_, Arc<BedrockConnectErrorChannel>>,
+    eject_injector: State<'_, Arc<JukeboxEjectInjector>>,
 ) -> Result<(), String> {
     entitlement.require_entitlement()?;
 
@@ -184,6 +186,14 @@ pub(crate) async fn bedrock_start_realms(
         Arc::clone(analytics.inner()),
     );
 
+    let deps = ProxyDeps::new(
+        Arc::clone(&state.player_state_cache),
+        gating,
+        Arc::clone(beacon_cache.inner()),
+        Arc::clone(error_channel.inner()),
+        Arc::new(BedrockEventEmitter::new(quic_producer.inner().clone())),
+        Arc::clone(eject_injector.inner()),
+    );
     let mut realms = BedrockProxyManager::new_realm(
         realm_id,
         BEDROCK_LISTEN_PORT,
@@ -191,14 +201,8 @@ pub(crate) async fn bedrock_start_realms(
         user_hash,
         access_token,
         realms_api,
-        Arc::clone(&state.player_state_cache),
-        gating,
-        Arc::clone(beacon_cache.inner()),
-        Arc::clone(error_channel.inner()),
+        deps,
     );
-    realms.set_event_emitter(Arc::new(BedrockEventEmitter::new(
-        quic_producer.inner().clone(),
-    )));
     realms.start().await.map_err(|e| e.to_string())?;
 
     let app = app_state.lock().await;
@@ -511,7 +515,7 @@ pub(crate) async fn bedrock_get_status(
 
 #[tauri::command(async)]
 pub(crate) async fn bedrock_check_entitlement(
-    entitlement: State<'_, BedrockEntitlementCheck>,
+    entitlement: State<'_, EntitlementService>,
 ) -> Result<bool, String> {
     Ok(entitlement.is_entitled())
 }

@@ -586,16 +586,23 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Download artifact
+      - name: Download BDS artifact (full)
         uses: actions/download-artifact@v5
         with:
           name: bedrock-voice-chat-bds-${{ needs.prepare-mods-release.outputs.new_release_version }}
           path: ./artifacts
 
+      - name: Download BDS artifact (no-net)
+        uses: actions/download-artifact@v5
+        with:
+          name: bedrock-voice-chat-bds-no-net-${{ needs.prepare-mods-release.outputs.new_release_version }}
+          path: ./artifacts
+
       - name: List artifacts
         run: ls -la ./artifacts
 
-      - name: Publish to CurseForge
+      - name: Publish full pack to CurseForge
+        id: upload-full
         uses: itsmeow/curseforge-upload@v3
         with:
           token: ${{ secrets.CURSEFORGE_API_TOKEN }}
@@ -606,6 +613,19 @@ jobs:
           changelog_type: markdown
           display_name: Bedrock Voice Chat ${{ needs.prepare-mods-release.outputs.new_release_version }}
           game_versions: Bedrock
+          release_type: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}
+
+      - name: Publish no-net pack as additional file
+        uses: itsmeow/curseforge-upload@v3
+        with:
+          token: ${{ secrets.CURSEFORGE_API_TOKEN }}
+          project_id: 1445992
+          game_endpoint: minecraft
+          file_path: ./artifacts/bedrock-voice-chat-no-net-${{ needs.prepare-mods-release.outputs.new_release_version }}.mcaddon
+          changelog: ${{ needs.prepare-mods-release.outputs.new_release_notes }}
+          changelog_type: markdown
+          display_name: Bedrock Voice Chat ${{ needs.prepare-mods-release.outputs.new_release_version }} (Realms + No-Net Servers)
+          parent_file_id: ${{ steps.upload-full.outputs.id }}
           release_type: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}
 
   # Job 17: Upload mod artifacts to mods GitHub Release

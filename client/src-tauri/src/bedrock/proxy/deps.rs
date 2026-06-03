@@ -1,0 +1,39 @@
+use std::sync::Arc;
+
+use crate::bedrock::ProtocolGatingService;
+use super::connect_error_channel::BedrockConnectErrorChannel;
+use super::event_emitter::BedrockEventEmitter;
+use super::jukebox::{JukeboxBeaconCache, JukeboxEjectInjector};
+use super::player_state_cache::BedrockPlayerStateCache;
+
+// Shared service dependencies every BedrockProxyManager needs regardless of
+// backend. Required at construction so the Direct and Realm connect paths
+// cannot diverge on wiring.
+pub(crate) struct ProxyDeps {
+    pub(crate) player_state_cache: Arc<BedrockPlayerStateCache>,
+    pub(crate) gating: Arc<ProtocolGatingService>,
+    pub(crate) beacon_cache: Arc<JukeboxBeaconCache>,
+    pub(crate) error_channel: Arc<BedrockConnectErrorChannel>,
+    pub(crate) event_emitter: Arc<BedrockEventEmitter>,
+    pub(crate) eject_injector: Arc<JukeboxEjectInjector>,
+}
+
+impl ProxyDeps {
+    pub(crate) fn new(
+        player_state_cache: Arc<BedrockPlayerStateCache>,
+        gating: Arc<ProtocolGatingService>,
+        beacon_cache: Arc<JukeboxBeaconCache>,
+        error_channel: Arc<BedrockConnectErrorChannel>,
+        event_emitter: Arc<BedrockEventEmitter>,
+        eject_injector: Arc<JukeboxEjectInjector>,
+    ) -> Self {
+        Self {
+            player_state_cache,
+            gating,
+            beacon_cache,
+            error_channel,
+            event_emitter,
+            eject_injector,
+        }
+    }
+}

@@ -26,6 +26,8 @@ mod commands;
 mod deep_links;
 mod events;
 mod feature_flags;
+#[cfg(feature = "bedrock-protocol")]
+mod iap;
 mod keyring;
 #[cfg(desktop)]
 pub mod keybinds;
@@ -117,13 +119,13 @@ pub fn run() {
     let sentry_logger = Arc::new(logging::SentryLogger::new(true));
 
     #[cfg(feature = "bedrock-protocol")]
-    let bedrock_log_channel = Arc::new(crate::bedrock::log_capture::BedrockLogChannel::new());
+    let bedrock_log_channel = Arc::new(crate::bedrock::proxy::log::BedrockLogChannel::new());
     #[cfg(feature = "bedrock-protocol")]
     let bedrock_log_sender = bedrock_log_channel.sender();
 
     #[cfg(feature = "bedrock-protocol")]
     let bedrock_connect_error_channel = Arc::new(
-        crate::bedrock::connect_error_channel::BedrockConnectErrorChannel::new(),
+        crate::bedrock::BedrockConnectErrorChannel::new(),
     );
 
     builder
@@ -150,7 +152,7 @@ pub fn run() {
                             .chain(Box::new(sentry_logger.clone()) as Box<dyn log::Log>);
                         #[cfg(feature = "bedrock-protocol")]
                         let dispatch = dispatch.chain(Box::new(
-                            crate::bedrock::log_capture::BedrockLogger::new(bedrock_log_sender.clone()),
+                            crate::bedrock::proxy::log::BedrockLogger::new(bedrock_log_sender.clone()),
                         ) as Box<dyn log::Log>);
                         dispatch
                     })),
@@ -336,7 +338,7 @@ pub fn run() {
                         }))
                 );
             #[cfg(feature = "bedrock-protocol")]
-            let registry = registry.with(crate::bedrock::log_capture::BedrockTracingLayer::new(
+            let registry = registry.with(crate::bedrock::proxy::log::BedrockTracingLayer::new(
                 bedrock_log_channel.sender(),
             ));
             registry.init();
@@ -511,7 +513,11 @@ pub fn run() {
                 let bedrock_state = crate::bedrock::BedrockState::new();
                 let cache = std::sync::Arc::clone(&bedrock_state.player_state_cache);
                 app.manage(Mutex::new(bedrock_state));
-                app.manage(crate::bedrock::iap::BedrockEntitlementCheck::new(app.handle().clone()));
+                app.manage(crate::iap::EntitlementService::new(
+                    crate::iap::EntitlementProviderType::Bedrock(
+                        crate::iap::bedrock::Provider::new(app.handle().clone()),
+                    ),
+                ));
                 cache
             };
 

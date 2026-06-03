@@ -5,16 +5,14 @@ import type { AudioEventResponse } from '../dto';
 import type { AudioPlayerState } from './player_state';
 import type { StoredDisc } from './stored_disc';
 import { httpClient } from '../net';
+import type { ServerAdminConfig } from '../config';
 
 const STORAGE_KEY = 'bvc:active_discs';
 
 export class AudioPlayerManager {
   private readonly players = new Map<string, AudioPlayerState>();
 
-  constructor(
-    private readonly serverUrl: string,
-    private readonly accessToken: string
-  ) {}
+  constructor(private readonly config: ServerAdminConfig) {}
 
   locationKey(worldUuid: string, coordinates: Coordinates): string {
     return `${worldUuid}:${coordinates.x}:${coordinates.y}:${coordinates.z}`;
@@ -157,12 +155,12 @@ export class AudioPlayerManager {
 
     httpClient
       .request(
-        `${this.serverUrl}/api/audio/event`,
+        `${this.config.bvcServer}/api/audio/event`,
         'Post',
         body,
         [
           ['Content-Type', 'application/json'],
-          ['X-MC-Access-Token', this.accessToken],
+          ['X-MC-Access-Token', this.config.accessToken],
           ['Accept', 'application/json'],
         ],
         5
@@ -201,11 +199,11 @@ export class AudioPlayerManager {
 
     httpClient
       .request(
-        `${this.serverUrl}/api/audio/event/${eventId}`,
+        `${this.config.bvcServer}/api/audio/event/${eventId}`,
         'Delete',
         undefined,
         [
-          ['X-MC-Access-Token', this.accessToken],
+          ['X-MC-Access-Token', this.config.accessToken],
           ['Accept', 'application/json'],
         ],
         5

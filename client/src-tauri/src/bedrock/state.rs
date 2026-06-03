@@ -4,16 +4,16 @@ use common::bedrock_protocol::{AuthManager, RealmsApi};
 use common::traits::StreamTrait;
 use tokio::sync::watch;
 
-use crate::bedrock::keepalive::TransferKeepalive;
-use crate::bedrock::manager::BedrockProxyManager;
-use crate::bedrock::player_state_cache::BedrockPlayerStateCache;
-use crate::bedrock::services::BedrockAuthService;
+use crate::bedrock::TransferKeepAlive;
+use crate::bedrock::BedrockProxyManager;
+use crate::bedrock::BedrockPlayerStateCache;
+use crate::bedrock::BedrockAuthService;
 use crate::structs::app_state::AppState;
 
 pub struct BedrockState {
     pub proxy: Option<BedrockProxyManager>,
     pub realms: Option<BedrockProxyManager>,
-    pub keepalive: Option<TransferKeepalive>,
+    pub keepalive: Option<TransferKeepAlive>,
     pub auth_manager: Option<Arc<AuthManager>>,
     pub realms_api: Option<RealmsApi>,
     pub xbl_token: Option<String>,
@@ -93,7 +93,7 @@ impl BedrockState {
         let server_url = api.endpoint().to_string();
         let client = api.get_reqwest_client().await;
 
-        let mut keepalive = TransferKeepalive::new(
+        let mut keepalive = TransferKeepAlive::new(
             server_url,
             xuid,
             network_interface.to_string(),

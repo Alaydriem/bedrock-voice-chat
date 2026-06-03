@@ -10,7 +10,7 @@ use crate::bedrock::JukeboxBeaconCache;
 #[cfg(feature = "bedrock-protocol")]
 use crate::bedrock::JukeboxEjectInjector;
 #[cfg(feature = "bedrock-protocol")]
-use crate::bedrock::player_state_cache::BedrockPlayerStateCache;
+use crate::bedrock::BedrockPlayerStateCache;
 use anyhow::Error;
 use common::structs::audio::StreamEvent;
 use log::info;
