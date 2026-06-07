@@ -6,14 +6,15 @@ import type { BedrockStatus } from '../../../bindings/BedrockStatus';
 import type { BedrockLogEntry } from '../../../bindings/BedrockLogEntry';
 import type { BedrockConnectionInfo } from '../../../bindings/BedrockConnectionInfo';
 import type { RealmEntry } from '../../../bindings/RealmEntry';
-import type { NetworkInterface } from './NetworkInterface';
+import type { NetworkInterface } from '../../../bindings/NetworkInterface';
 import type { ProxyServerEntry } from './ProxyServerEntry';
 import { BedrockAuthManager } from './auth/BedrockAuthManager';
 import { BedrockProxyManager } from './proxy/BedrockProxyManager';
 import { BedrockRealmsManager } from './realms/BedrockRealmsManager';
 import { BedrockLogsManager } from './logs/BedrockLogsManager';
 import { BedrockConnectionManager } from './connection/BedrockConnectionManager';
-import type { RealmsConnectionError, RealmsConnectionErrorKind } from './connection/RealmsConnectionError';
+import type { RealmsConnectionError } from './connection/RealmsConnectionError';
+import type { RealmsConnectionErrorKind } from './connection/RealmsConnectionErrorKind';
 
 export type { RealmsConnectionError, RealmsConnectionErrorKind };
 
@@ -50,7 +51,7 @@ export class BedrockManager {
 
     public readonly realmsRunning: Readable<boolean>;
     public readonly realms: Readable<RealmEntry[]>;
-    public readonly favorites: Readable<Set<bigint>>;
+    public readonly favorites: Readable<Set<string>>;
     public readonly isLoadingRealms: Readable<boolean>;
     public readonly activeRealmId: Readable<bigint | null>;
     public readonly activeRealmName: Readable<string>;

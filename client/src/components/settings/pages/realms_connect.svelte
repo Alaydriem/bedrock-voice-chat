@@ -49,7 +49,7 @@
                 {#each $sortedRealms as realm (realm.id)}
                     <RealmCard
                         {realm}
-                        isFavorite={$favorites.has(realm.id)}
+                        isFavorite={$favorites.has(String(realm.id))}
                         isActive={$realmsRunning && $activeRealmId === realm.id}
                         disabled={$realmsRunning || $proxyRunning}
                         onConnect={() => bedrockManager.connectToRealm(realm)}

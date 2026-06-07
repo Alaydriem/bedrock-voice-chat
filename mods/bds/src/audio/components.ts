@@ -61,6 +61,7 @@ export class AudioComponentRegistry {
   }
 
   private onPlayerInteract(e: BlockComponentPlayerInteractEvent): void {
+    console.debug("[BVC] Player interacted with audio player block at", e.block.x, e.block.y, e.block.z);
     const block = e.block;
     const player = e.player;
     if (!player) return;
@@ -70,8 +71,7 @@ export class AudioComponentRegistry {
     const locationKey = this.audioManager.locationKey(worldUuid, coordinates);
 
     if (this.audioManager.hasDisc(locationKey)) {
-      const audioId = this.audioManager.ejectDisc(locationKey);
-      this.audioManager.killMarkers(block.dimension, coordinates);
+      const audioId = this.audioManager.ejectDisc(locationKey, player);
       this.setBlockPlaying(block, false);
 
       if (audioId) {
@@ -109,7 +109,8 @@ export class AudioComponentRegistry {
         audioId,
         block.dimension.id,
         coordinates,
-        worldUuid
+        worldUuid,
+        player
       );
       this.setBlockPlaying(block, true);
 
@@ -125,7 +126,6 @@ export class AudioComponentRegistry {
 
     if (this.audioManager.hasDisc(locationKey)) {
       this.audioManager.onBlockDestroyed(locationKey);
-      this.audioManager.killMarkers(block.dimension, coordinates);
     }
   }
 
@@ -152,7 +152,7 @@ export class AudioComponentRegistry {
     const audioId = this.pullDiscFromAdjacentHopper(block);
     if (!audioId) return;
 
-    console.info(
+    console.debug(
       `[BVC] onTick: detected disc audioId=${audioId} at (${block.x},${block.y},${block.z})`
     );
 
@@ -161,7 +161,8 @@ export class AudioComponentRegistry {
       audioId,
       block.dimension.id,
       coordinates,
-      worldUuid
+      worldUuid,
+      null
     );
     this.setBlockPlaying(block, true);
   }

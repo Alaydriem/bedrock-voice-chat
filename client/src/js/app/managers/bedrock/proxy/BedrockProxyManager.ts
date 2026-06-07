@@ -2,7 +2,7 @@ import { writable, derived, get, type Writable, type Readable } from 'svelte/sto
 import { invoke } from '@tauri-apps/api/core';
 import { Store } from '@tauri-apps/plugin-store';
 import { info, error as logError } from '@tauri-apps/plugin-log';
-import type { NetworkInterface } from '../NetworkInterface';
+import type { NetworkInterface } from '../../../../bindings/NetworkInterface';
 import type { ProxyServerEntry } from '../ProxyServerEntry';
 import type { BedrockProxyManagerCallbacks } from './BedrockProxyManagerCallbacks';
 import type { ProxyStatusSnapshot } from './ProxyStatusSnapshot';

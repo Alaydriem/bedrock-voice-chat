@@ -27,10 +27,12 @@ impl BedrockPacketHandler for PlayerLeaveHandler {
             None => return,
         };
 
+        info!("Bedrock proxy: emitting player leave for {}", state.name());
+        emitter.try_send_position(state.to_departed_player_enum());
+
         let event = BedrockEvent::PlayerLeave {
             player_xuid: state.player_uuid().unwrap_or("").to_string(),
         };
-        info!("Bedrock proxy: emitting player leave for {}", state.name());
         emitter.try_send(event, world_uuid);
     }
 }

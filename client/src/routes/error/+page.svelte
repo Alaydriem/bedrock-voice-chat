@@ -272,7 +272,7 @@
     // Only show "Choose Different Server" actions when multiple servers exist
     // Skip for UPD01 — "Stay on This Version" should always be available
     if (errorCode !== 'UPD01') {
-      const store = await Store.load("store.json", { autoSave: false });
+      const store = await Store.load("store.json", { autoSave: false, defaults: {} });
       const serverList = await store.get("server_list") as Array<{ server: string; player: string }> | null;
       const hasMultipleServers = serverList != null && serverList.length > 1;
 

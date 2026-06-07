@@ -183,7 +183,7 @@
     }
 
     onMount(async () => {
-        store = await Store.load("store.json", { autoSave: false });
+        store = await Store.load("store.json", { autoSave: false, defaults: {} });
         const saved = await store.get<KeybindConfig>("keybinds");
         if (saved) {
             config = { ...DEFAULT_CONFIG, ...saved };

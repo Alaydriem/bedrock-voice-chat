@@ -4,6 +4,7 @@
     import Onboarding from '../../../js/app/onboarding';
     import { PermissionType } from 'tauri-plugin-audio-permissions';
     import { checkPermissionStatus, requestPermissionWithTimeout } from '../../../js/app/utils/permissionHelpers';
+    import { error, info, warn } from "@tauri-apps/plugin-log";
 
     let onboarding: Onboarding;
     let permissionGranted = false;
@@ -38,8 +39,8 @@
         try {
             const response = await checkPermissionStatus(PermissionType.Audio);
             permissionGranted = response.granted;
-        } catch (error) {
-            console.error('Error checking microphone permission:', error);
+        } catch (err: unknown) {
+            error(`Error checking microphone permission: ${String(err)}`);
             permissionGranted = false;
         }
     }
@@ -64,8 +65,8 @@
             } else {
                 permissionDenied = true;
             }
-        } catch (error) {
-            console.error('Error requesting microphone permission:', error);
+        } catch (err: unknown) {
+            error(`Error requesting microphone permission: ${String(err)}`);
 
             // On timeout or error, re-check permission status in case it was actually granted
             try {
@@ -79,12 +80,12 @@
                     }, 500);
                     return;
                 }
-            } catch (recheckError) {
-                console.error('Error rechecking permission status:', recheckError);
+            } catch (recheckError: unknown) {
+                error(`Error rechecking permission status: ${String(recheckError)}`);
             }
 
             // If we get here, permission was not granted
-            if (error instanceof Error && error.message.includes('timeout')) {
+            if (err instanceof Error && err.message.includes('timeout')) {
                 permissionError = true;
             } else {
                 permissionDenied = true;

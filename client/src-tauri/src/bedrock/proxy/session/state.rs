@@ -111,6 +111,20 @@ impl BedrockSessionState {
         })
     }
 
+    pub fn to_departed_player_enum(&self) -> PlayerEnum {
+        PlayerEnum::Minecraft(MinecraftPlayer {
+            name: self.name.clone(),
+            coordinates: self.coordinates.clone(),
+            orientation: self.orientation.clone(),
+            dimension: Dimension::Death,
+            deafen: self.sneaking,
+            spectator: true,
+            world_uuid: None,
+            alternative_identity: None,
+            player_uuid: self.player_uuid.clone(),
+        })
+    }
+
     pub fn world_uuid(&self) -> Option<&str> {
         self.world_uuid.as_deref()
     }

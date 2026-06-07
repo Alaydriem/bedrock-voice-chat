@@ -72,13 +72,13 @@ leb128 = { version = "^0.2" }
 serde_bytes = { version = "^0.11" }
 thiserror = { version = "^2" }
 rustls-pemfile = { version = "^2.0", optional = true }
-s2n-quic = { version = "=1.79.0", default-features = false, features = [
+s2n-quic = { version = "=1.81.0", default-features = false, features = [
     "provider-address-token-default",
     "provider-tls-rustls",
     "provider-event-tracing",
     "unstable-provider-datagram",
 ], optional = true }
-s2n-quic-core = { version = "=0.79.0", default-features = false, optional = true }
+s2n-quic-core = { version = "=0.81.0", default-features = false, optional = true }
 rodio = { version = "^0.22.2", optional = true}
 rocket = { version = "^0.5", optional = true, default-features = false, features = [
     "http2",
@@ -97,8 +97,8 @@ sea-orm = { version = "^2.0.0-rc.30", optional = true, features = [
 sea-orm-rocket = { version = "^0.6", optional = true }
 clap = { version = "^4", features = ["derive"], optional = true }
 schemars = { workspace = true, optional = true }
-bedrock-protocol = { git = "https://github.com/alaydriem/bedrock-protocol-rs", tag = "26.30.4", optional = true }
-bedrock-server = { git = "https://github.com/alaydriem/bedrock-protocol-rs", tag = "26.30.4", optional = true }
+bedrock-protocol = { git = "https://github.com/alaydriem/bedrock-protocol-rs", tag = "26.30.6", optional = true }
+bedrock-server = { git = "https://github.com/alaydriem/bedrock-protocol-rs", tag = "26.30.6", optional = true }
 
 [target."cfg(any(target_os = \"windows\"))".dependencies]
 cpal = { version = "^0.17", optional = true, features = ["asio"] }

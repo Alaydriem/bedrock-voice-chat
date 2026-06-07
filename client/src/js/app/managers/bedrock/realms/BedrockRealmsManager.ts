@@ -9,14 +9,14 @@ import type { BedrockRealmsManagerCallbacks } from './BedrockRealmsManagerCallba
 export class BedrockRealmsManager implements RealmsLifecycle {
     private realmsRunningStore: Writable<boolean>;
     private realmsStore: Writable<RealmEntry[]>;
-    private favoritesStore: Writable<Set<bigint>>;
+    private favoritesStore: Writable<Set<string>>;
     private isLoadingRealmsStore: Writable<boolean>;
     private activeRealmIdStore: Writable<bigint | null>;
     private activeRealmNameStore: Writable<string>;
 
     public readonly realmsRunning: Readable<boolean>;
     public readonly realms: Readable<RealmEntry[]>;
-    public readonly favorites: Readable<Set<bigint>>;
+    public readonly favorites: Readable<Set<string>>;
     public readonly isLoadingRealms: Readable<boolean>;
     public readonly activeRealmId: Readable<bigint | null>;
     public readonly activeRealmName: Readable<string>;
@@ -48,8 +48,8 @@ export class BedrockRealmsManager implements RealmsLifecycle {
             [this.realmsStore, this.favoritesStore],
             ([$realms, $favorites]) =>
                 [...$realms].sort((a, b) => {
-                    const aFav = $favorites.has(a.id) ? 0 : 1;
-                    const bFav = $favorites.has(b.id) ? 0 : 1;
+                    const aFav = $favorites.has(String(a.id)) ? 0 : 1;
+                    const bFav = $favorites.has(String(b.id)) ? 0 : 1;
                     return aFav - bFav || a.name.localeCompare(b.name);
                 }),
         );
@@ -59,7 +59,7 @@ export class BedrockRealmsManager implements RealmsLifecycle {
         this.store = store;
         const savedFavs = await store.get<string[]>('bedrock_realm_favorites');
         if (savedFavs) {
-            this.favoritesStore.set(new Set(savedFavs.map((s) => BigInt(s))));
+            this.favoritesStore.set(new Set(savedFavs));
         }
     }
 
@@ -107,12 +107,13 @@ export class BedrockRealmsManager implements RealmsLifecycle {
     }
 
     async toggleFavorite(realmId: bigint): Promise<void> {
+        const key = String(realmId);
         this.favoritesStore.update((current) => {
             const next = new Set(current);
-            if (next.has(realmId)) {
-                next.delete(realmId);
+            if (next.has(key)) {
+                next.delete(key);
             } else {
-                next.add(realmId);
+                next.add(key);
             }
             return next;
         });
@@ -120,7 +121,7 @@ export class BedrockRealmsManager implements RealmsLifecycle {
         if (this.store) {
             await this.store.set(
                 'bedrock_realm_favorites',
-                [...get(this.favoritesStore)].map((id) => id.toString()),
+                [...get(this.favoritesStore)],
             );
             await this.store.save();
         }
@@ -137,7 +138,7 @@ export class BedrockRealmsManager implements RealmsLifecycle {
                 logError(`Token refresh before realm connect failed: ${e}`);
             }
             await invoke('bedrock_start_realms', {
-                realmId: realm.id,
+                realmId: Number(realm.id),
                 realmName: realm.name,
                 networkInterface: this.selectedInterface(),
             });

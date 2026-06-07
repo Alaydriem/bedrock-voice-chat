@@ -14,7 +14,7 @@
     let { realm, isFavorite, isActive, disabled, onConnect, onDisconnect, onToggleFavorite }: Props = $props();
 
     let gradientStyle = $derived(
-        `background: linear-gradient(135deg, hsl(${(realm.id * 47) % 360}, 55%, 45%), hsl(${(realm.id * 47 + 120) % 360}, 45%, 35%))`
+        `background: linear-gradient(135deg, hsl(${(Number(realm.id) * 47) % 360}, 55%, 45%), hsl(${(Number(realm.id) * 47 + 120) % 360}, 45%, 35%))`
     );
 </script>
 

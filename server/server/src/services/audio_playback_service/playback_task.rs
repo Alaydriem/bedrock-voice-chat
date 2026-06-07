@@ -4,6 +4,7 @@ use common::structs::packet::{
     AudioFrameMetadata, AudioFramePacket, JukeboxMetadata, PacketOwner, PacketType,
     QuicNetworkPacket, QuicNetworkPacketData,
 };
+use common::game_data::Dimension;
 use common::{Coordinate, PlayerEnum};
 use tokio_util::sync::CancellationToken;
 
@@ -13,6 +14,7 @@ pub struct PlaybackTask {
     event_id: String,
     jukebox_name: String,
     position: Coordinate,
+    dimension: Dimension,
     frames: Vec<Vec<u8>>,
     webhook_receiver: WebhookReceiver,
     synthetic_player: PlayerEnum,
@@ -24,6 +26,7 @@ impl PlaybackTask {
         event_id: String,
         jukebox_name: String,
         position: Coordinate,
+        dimension: Dimension,
         frames: Vec<Vec<u8>>,
         webhook_receiver: WebhookReceiver,
         synthetic_player: PlayerEnum,
@@ -33,6 +36,7 @@ impl PlaybackTask {
             event_id,
             jukebox_name,
             position,
+            dimension,
             frames,
             webhook_receiver,
             synthetic_player,
@@ -71,6 +75,7 @@ impl PlaybackTask {
                     let metadata = vec![AudioFrameMetadata::Jukebox(JukeboxMetadata::new(
                         self.position.clone(),
                         self.event_id.clone(),
+                        self.dimension.clone(),
                     ))];
                     let audio_frame = AudioFramePacket::new(
                         frame.clone(),

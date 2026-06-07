@@ -22,7 +22,7 @@
             const os = platform();
             isDesktop = os === "windows" || os === "macos" || os === "linux";
 
-            const store = await Store.load("store.json", { autoSave: false });
+            const store = await Store.load("store.json", { autoSave: false, defaults: {} });
             const currentServer = await store.get<string>("current_server");
 
             if (!currentServer) return;
@@ -50,7 +50,7 @@
         linkError = "";
 
         try {
-            const store = await Store.load("store.json", { autoSave: false });
+            const store = await Store.load("store.json", { autoSave: false, defaults: {} });
             const currentServer = await store.get<string>("current_server");
 
             if (!currentServer) {

@@ -205,7 +205,7 @@ impl BedrockEventService {
                 z: PHANTOM_LEAVE_COORD,
             },
             orientation: Orientation { x: 0.0, y: 0.0 },
-            dimension: Dimension::Overworld,
+            dimension: Dimension::Death,
             deafen: false,
             spectator: true,
             world_uuid: if world_uuid.is_empty() {

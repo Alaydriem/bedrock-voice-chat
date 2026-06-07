@@ -159,7 +159,7 @@ export default class App {
 
     private registerCleanupEvents(): void {
         const cleanup = () => this.safeCleanup();
-        
+
         window.addEventListener('beforeunload', cleanup);
         window.addEventListener('pagehide', cleanup);
         window.addEventListener('popstate', cleanup);
@@ -179,7 +179,7 @@ export default class App {
         }
     }
 
-    protected preloader(): void {
+    public preloader(): void {
         const preloader = document.querySelector(".app-preloader");
         if (preloader) {
             setTimeout(() => {

@@ -8,8 +8,7 @@ use crate::bedrock::JukeboxBeaconCache;
 use crate::bedrock::BedrockPlayerStateCache;
 use crate::bedrock::proxy::session::{
     BedrockPacketHandler, ChangeDimensionHandler, DisconnectedHandler, DispatchOutcome,
-    GameTypeHandler, InventoryTransactionHandler, PlayerAuthInputHandler, SetHealthHandler,
-    StartGameHandler, UpdateBlockHandler,
+    GameTypeHandler, PlaySoundHandler, PlayerAuthInputHandler, SetHealthHandler, StartGameHandler,
 };
 use crate::bedrock::proxy::session::BedrockSessionState;
 
@@ -53,8 +52,6 @@ impl BedrockSessionEventDispatcher {
             }
             EventPacket::PlayerAuthInput(p) => {
                 PlayerAuthInputHandler {
-                    beacon_cache: &self.beacon_cache,
-                    direction: &direction,
                     player_auth_input_seen: &mut self.player_auth_input_seen,
                 }
                 .handle(p, state, emitter);
@@ -74,15 +71,8 @@ impl BedrockSessionEventDispatcher {
                 GameTypeHandler.handle(&gamemode, state, emitter);
                 true
             }
-            EventPacket::InventoryTransaction(p) if matches!(direction, Direction::Serverbound) => {
-                InventoryTransactionHandler {
-                    beacon_cache: &self.beacon_cache,
-                }
-                .handle(&p.transaction, state, emitter);
-                false
-            }
-            EventPacket::UpdateBlock(p) if matches!(direction, Direction::Clientbound) => {
-                UpdateBlockHandler {
+            EventPacket::PlaySound(p) if matches!(direction, Direction::Clientbound) => {
+                PlaySoundHandler {
                     beacon_cache: &self.beacon_cache,
                 }
                 .handle(p, state, emitter);

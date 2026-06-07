@@ -4,6 +4,7 @@ import { AudioPlayerManager } from './audio/player_manager';
 import { AudioComponentRegistry } from './audio/components';
 import { ChatEjectListener } from './audio/chat_eject_listener';
 import { DiscCommand } from './commands/mod';
+import { NetAudioSender, NoNetAudioSender } from './audio/sender';
 import { httpClient } from './net';
 import { serverAdminConfig } from './config';
 
@@ -54,7 +55,7 @@ function randomHex(length: number): string {
   return result;
 }
 
-const audioManager = new AudioPlayerManager(serverAdminConfig);
+const audioManager = new AudioPlayerManager();
 const componentRegistry = new AudioComponentRegistry(audioManager, getWorldUuid);
 componentRegistry.register();
 
@@ -68,9 +69,18 @@ serverAdminConfig
   .then(() => httpClient.ensureLoaded())
   .then((available) => {
     if (!available) {
-      console.warn("[BVC] HTTP unavailable; position polling and disc events will not be sent");
+      audioManager.setSender(new NoNetAudioSender());
+      console.warn("[BVC] HTTP unavailable; using no-net jukebox bus (position polling and HTTP disc events disabled)");
       return;
     }
+
+    audioManager.setSender(
+      new NetAudioSender(
+        serverAdminConfig,
+        (key) => audioManager.forceEject(key),
+        (state) => audioManager.locationKey(getWorldUuid(), state.coordinates),
+      ),
+    );
 
     const bvcServer = serverAdminConfig.bvcServer;
     const accessToken = serverAdminConfig.accessToken;

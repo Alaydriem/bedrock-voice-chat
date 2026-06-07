@@ -1,18 +1,19 @@
 import { world, system, ItemStack } from '@minecraft/server';
-import type { Dimension } from '@minecraft/server';
-import { Coordinates, AudioPlayRequest } from '../dto';
-import type { AudioEventResponse } from '../dto';
+import type { Player } from '@minecraft/server';
+import { Coordinates } from '../dto';
 import type { AudioPlayerState } from './player_state';
 import type { StoredDisc } from './stored_disc';
-import { httpClient } from '../net';
-import type { ServerAdminConfig } from '../config';
+import type { AudioSender } from './sender';
 
 const STORAGE_KEY = 'bvc:active_discs';
 
 export class AudioPlayerManager {
   private readonly players = new Map<string, AudioPlayerState>();
+  private sender: AudioSender | null = null;
 
-  constructor(private readonly config: ServerAdminConfig) {}
+  setSender(sender: AudioSender): void {
+    this.sender = sender;
+  }
 
   locationKey(worldUuid: string, coordinates: Coordinates): string {
     return `${worldUuid}:${coordinates.x}:${coordinates.y}:${coordinates.z}`;
@@ -23,7 +24,8 @@ export class AudioPlayerManager {
     audioId: string,
     dimensionId: string,
     coordinates: Coordinates,
-    worldUuid: string
+    worldUuid: string,
+    actor: Player | null
   ): void {
     const state: AudioPlayerState = {
       audioId,
@@ -37,10 +39,10 @@ export class AudioPlayerManager {
     this.players.set(locationKey, state);
     this.persistState();
 
-    this.startPlayback(locationKey, state);
+    void this.sender?.start(state, actor);
   }
 
-  ejectDisc(locationKey: string): string | undefined {
+  ejectDisc(locationKey: string, actor: Player | null): string | undefined {
     const state = this.players.get(locationKey);
     if (!state) return undefined;
 
@@ -51,9 +53,7 @@ export class AudioPlayerManager {
       state.autoEjectRunId = null;
     }
 
-    if (state.isPlaying && state.eventId) {
-      this.stopPlayback(state);
-    }
+    void this.sender?.stop(state, actor);
 
     this.players.delete(locationKey);
     this.persistState();
@@ -113,111 +113,12 @@ export class AudioPlayerManager {
       system.clearRun(state.autoEjectRunId);
     }
 
-    if (state.isPlaying && state.eventId) {
-      this.stopPlayback(state);
-    }
+    void this.sender?.stop(state, null);
 
     this.dropDisc(state);
 
     this.players.delete(locationKey);
     this.persistState();
-  }
-
-  killMarkers(dimension: Dimension, coordinates: Coordinates): void {
-    try {
-      const entities = dimension.getEntitiesAtBlockLocation({
-        x: coordinates.x,
-        y: coordinates.y,
-        z: coordinates.z,
-      });
-      for (const entity of entities) {
-        if (
-          entity.typeId === 'minecraft:marker' &&
-          entity.getDynamicProperty('bvc:audio_id')
-        ) {
-          entity.kill();
-        }
-      }
-    } catch (e) {
-      console.error('[BVC] Failed to kill marker entities:', e);
-    }
-  }
-
-  private startPlayback(locationKey: string, state: AudioPlayerState): void {
-    const request = new AudioPlayRequest(
-      state.audioId,
-      state.coordinates,
-      state.dimensionId.replace('minecraft:', ''),
-      state.worldUuid
-    );
-
-    const body = JSON.stringify(request.toJSON());
-
-    httpClient
-      .request(
-        `${this.config.bvcServer}/api/audio/event`,
-        'Post',
-        body,
-        [
-          ['Content-Type', 'application/json'],
-          ['X-MC-Access-Token', this.config.accessToken],
-          ['Accept', 'application/json'],
-        ],
-        5
-      )
-      .then((response) => {
-        if (!response) {
-          state.isPlaying = false;
-          return;
-        }
-        if (response.status >= 200 && response.status < 300) {
-          const data: AudioEventResponse = JSON.parse(response.body);
-          state.isPlaying = true;
-          state.eventId = data.event_id;
-
-          const ticks = Math.ceil(data.duration_ms / 50);
-          state.autoEjectRunId = system.runTimeout(() => {
-            this.autoEject(locationKey);
-          }, ticks);
-        } else {
-          state.isPlaying = false;
-          console.warn(`[BVC] Play request failed: ${response.status}`);
-        }
-      })
-      .catch((e) => {
-        state.isPlaying = false;
-        console.error('[BVC] Failed to start playback:', e);
-      });
-  }
-
-  private stopPlayback(state: AudioPlayerState): void {
-    const eventId = state.eventId;
-    if (!eventId) return;
-
-    state.isPlaying = false;
-    state.eventId = null;
-
-    httpClient
-      .request(
-        `${this.config.bvcServer}/api/audio/event/${eventId}`,
-        'Delete',
-        undefined,
-        [
-          ['X-MC-Access-Token', this.config.accessToken],
-          ['Accept', 'application/json'],
-        ],
-        5
-      )
-      .then((response) => {
-        if (!response) return;
-        if (response.status >= 200 && response.status < 300) {
-          return;
-        }
-        console.warn(`[BVC] Stop request failed: ${response.status}`);
-      })
-      .catch((e) => {
-        console.error('[BVC] Failed to stop playback:', e);
-      });
   }
 
   forceEject(locationKey: string): boolean {

@@ -119,9 +119,10 @@ impl AudioPlaybackService {
             }
             GameAudioContext::Hytale(_) => None,
         };
-        let (synthetic_player, position) = match request.game {
+        let (synthetic_player, position, dimension) = match request.game {
             GameAudioContext::Minecraft(ctx) => {
                 let coordinates = ctx.coordinates.clone();
+                let dimension = ctx.dimension.clone();
                 (
                     PlayerEnum::Minecraft(MinecraftPlayer {
                         name: jukebox_name.clone(),
@@ -135,6 +136,7 @@ impl AudioPlaybackService {
                         player_uuid: None,
                     }),
                     coordinates,
+                    dimension,
                 )
             }
             GameAudioContext::Hytale(_ctx) => {
@@ -151,6 +153,7 @@ impl AudioPlaybackService {
                         player_uuid: None,
                     }),
                     coordinates,
+                    Default::default(),
                 )
             }
         };
@@ -162,6 +165,7 @@ impl AudioPlaybackService {
             event_id.clone(),
             jukebox_name,
             position,
+            dimension,
             frames,
             self.webhook_receiver.clone(),
             synthetic_player,

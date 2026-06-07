@@ -7,9 +7,8 @@ pub mod state;
 pub use dispatch_outcome::DispatchOutcome;
 pub use event_dispatcher::BedrockSessionEventDispatcher;
 pub use handlers::{
-    ChangeDimensionHandler, DisconnectedHandler, GameTypeHandler, InventoryTransactionHandler,
+    ChangeDimensionHandler, DisconnectedHandler, GameTypeHandler, PlaySoundHandler,
     PlayerAuthInputHandler, PlayerLeaveHandler, SetHealthHandler, StartGameHandler,
-    UpdateBlockHandler,
 };
 pub use packet_handler::BedrockPacketHandler;
 pub use state::BedrockSessionState;
