@@ -6,7 +6,10 @@ import {
   CustomCommandParamType,
   CustomCommandStatus,
 } from '@minecraft/server';
-import type { CustomCommandOrigin, CustomCommandResult } from '@minecraft/server';
+import type {
+  CustomCommandOrigin,
+  CustomCommandResult,
+} from '@minecraft/server';
 
 export class DiscCommand {
   static register(): void {
@@ -21,7 +24,10 @@ export class DiscCommand {
             { name: 'audio_id', type: CustomCommandParamType.String },
           ],
         },
-        (origin: CustomCommandOrigin, audioId?: string): CustomCommandResult | undefined => {
+        (
+          origin: CustomCommandOrigin,
+          audioId?: string,
+        ): CustomCommandResult | undefined => {
           const player = origin.sourceEntity;
           if (!player || player.typeId !== 'minecraft:player') {
             return {
@@ -42,7 +48,7 @@ export class DiscCommand {
           });
 
           return { status: CustomCommandStatus.Success };
-        }
+        },
       );
     });
   }

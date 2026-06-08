@@ -8,7 +8,7 @@ export class AudioPlayRequest {
     public readonly audio_file_id: string,
     public readonly coordinates: Coordinates,
     public readonly dimension: string,
-    public readonly world_uuid: string
+    public readonly world_uuid: string,
   ) {}
 
   toJSON(): object {

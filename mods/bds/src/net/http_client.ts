@@ -26,7 +26,8 @@ export class HttpClient {
           this.module = null;
           if (!this.warned) {
             console.warn(
-              '[BVC] @minecraft/server-net not available; HTTP features disabled: ' + e
+              '[BVC] @minecraft/server-net not available; HTTP features disabled: ' +
+                e,
             );
             this.warned = true;
           }
@@ -44,16 +45,22 @@ export class HttpClient {
     method: HttpMethod,
     body: string | undefined,
     headers: Array<[string, string]>,
-    timeoutSec: number
+    timeoutSec: number,
   ): Promise<HttpResponse | null> {
     const ok = await this.ensureLoaded();
-    if (!ok || !this.module) return null;
+    if (!ok || !this.module) {
+      return null;
+    }
 
     try {
       const { HttpRequest, HttpHeader, HttpRequestMethod, http } = this.module;
       const req = new HttpRequest(url);
-      if (body !== undefined) req.setBody(body);
-      const methodEnum = (HttpRequestMethod as unknown as Record<string, unknown>)[method];
+      if (body !== undefined) {
+        req.setBody(body);
+      }
+      const methodEnum = (
+        HttpRequestMethod as unknown as Record<string, unknown>
+      )[method];
       req.setMethod(methodEnum as never);
       req.setHeaders(headers.map(([n, v]) => new HttpHeader(n, v)));
       req.setTimeout(timeoutSec);

@@ -10,17 +10,23 @@
     "clean": "rimraf bp/scripts",
     "rebuild": "yarn clean && yarn package",
     "bundle": "node bundle.js",
-    "pack": "yarn rebuild && yarn bundle"
+    "pack": "yarn rebuild && yarn bundle",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "devDependencies": {
     "@minecraft/server": "2.8.0-beta.1.26.21-stable",
     "@minecraft/server-admin": "^1.0.0-beta",
     "@minecraft/server-net": "^1.0.0-beta",
     "@minecraft/server-ui": "^2.0.0",
+    "@stylistic/eslint-plugin": "^2",
     "@types/archiver": "^6.0.2",
     "@types/node": "^20.11.0",
+    "@typescript-eslint/parser": "^8",
     "archiver": "^7.0.1",
     "esbuild": "^0.27.2",
+    "eslint": "^9",
+    "prettier": "^3",
     "rimraf": "^5.0.5",
     "typescript": "^5.3.3"
   },

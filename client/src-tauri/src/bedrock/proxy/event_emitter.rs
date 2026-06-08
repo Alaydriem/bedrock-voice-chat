@@ -5,7 +5,7 @@ use common::structs::packet::{
     BedrockEvent, BedrockEventDirection, BedrockEventPacket, PacketType, PlayerPositionPacket,
     QuicNetworkPacket, QuicNetworkPacketData,
 };
-use log::{debug, warn};
+use log::{debug, warn, trace};
 
 use crate::NetworkPacket;
 
@@ -33,7 +33,7 @@ impl BedrockEventEmitter {
         };
 
         match self.tx.try_send(packet) {
-            Ok(()) => debug!("Bedrock event queued for QUIC transport"),
+            Ok(()) => trace!("Bedrock event queued for QUIC transport"),
             Err(flume::TrySendError::Full(_)) => {
                 warn!("Network packet queue full; dropping bedrock event");
             }
@@ -53,7 +53,7 @@ impl BedrockEventEmitter {
         };
 
         match self.tx.try_send(packet) {
-            Ok(()) => debug!("Bedrock position queued for QUIC transport"),
+            Ok(()) => trace!("Bedrock position queued for QUIC transport"),
             Err(flume::TrySendError::Full(_)) => {
                 warn!("Network packet queue full; dropping bedrock position");
             }

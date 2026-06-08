@@ -64,7 +64,9 @@ export class NetAudioSender implements AudioSender {
 
   async stop(state: AudioPlayerState, _actor: Player | null): Promise<void> {
     const eventId = state.eventId;
-    if (!eventId) return;
+    if (!eventId) {
+      return;
+    }
 
     state.isPlaying = false;
     state.eventId = null;
@@ -81,8 +83,13 @@ export class NetAudioSender implements AudioSender {
         5,
       );
 
-      if (!response) return;
-      if (response.status >= 200 && response.status < 300) return;
+      if (!response) {
+        return;
+      }
+
+      if (response.status >= 200 && response.status < 300) {
+        return;
+      }
 
       console.warn(`[BVC] Stop request failed: ${response.status}`);
     } catch (e) {

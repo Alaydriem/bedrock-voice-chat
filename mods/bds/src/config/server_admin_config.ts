@@ -37,10 +37,14 @@ export class ServerAdminConfig {
           const variables = m.variables;
 
           const server = variables.get('bvc_server');
-          if (typeof server === 'string') this.serverUrl = server;
+          if (typeof server === 'string') {
+            this.serverUrl = server;
+          }
 
           const accessToken = variables.get('bvc_access_token');
-          if (typeof accessToken === 'string') this.token = accessToken;
+          if (typeof accessToken === 'string') {
+            this.token = accessToken;
+          }
 
           const minimum = variables.get('bvc_minimum_players');
           if (typeof minimum === 'number' && minimum >= 1) {
@@ -51,7 +55,8 @@ export class ServerAdminConfig {
           this.module = null;
           if (!this.warned) {
             console.warn(
-              '[BVC] @minecraft/server-admin not available; server variables disabled: ' + e
+              '[BVC] @minecraft/server-admin not available; server variables disabled: ' +
+                e,
             );
             this.warned = true;
           }

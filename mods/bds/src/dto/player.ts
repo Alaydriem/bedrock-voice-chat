@@ -11,10 +11,13 @@ export class Player {
     public readonly deafen: boolean,
     public readonly orientation: Orientation,
     public readonly spectator: boolean = false,
-    public readonly world_uuid: string | undefined = undefined
+    public readonly world_uuid: string | undefined = undefined,
   ) {}
 
-  static fromMinecraftPlayer(player: MinecraftPlayer, worldUuid?: string): Player {
+  static fromMinecraftPlayer(
+    player: MinecraftPlayer,
+    worldUuid?: string,
+  ): Player {
     return new Player(
       player.name,
       player.dimension.id.replace('minecraft:', ''),
@@ -22,7 +25,7 @@ export class Player {
       player.isSneaking,
       Orientation.fromMinecraftRotation(player.getRotation()),
       player.getGameMode() === GameMode.Spectator,
-      worldUuid
+      worldUuid,
     );
   }
 
@@ -30,7 +33,10 @@ export class Player {
    * Create a player DTO with death dimension override.
    * Dead players are placed at origin (0,0,0) in the "death" dimension.
    */
-  static fromMinecraftPlayerDead(player: MinecraftPlayer, worldUuid?: string): Player {
+  static fromMinecraftPlayerDead(
+    player: MinecraftPlayer,
+    worldUuid?: string,
+  ): Player {
     return new Player(
       player.name,
       Dimension.DEATH,
@@ -38,7 +44,7 @@ export class Player {
       player.isSneaking,
       Orientation.fromMinecraftRotation(player.getRotation()),
       false,
-      worldUuid
+      worldUuid,
     );
   }
 
@@ -55,7 +61,7 @@ export class Player {
       false,
       new Orientation(0, 0),
       true,
-      worldUuid
+      worldUuid,
     );
   }
 

@@ -29,7 +29,7 @@ function getWorldUuid(): string {
   const existing = world.getDynamicProperty('bvc:world_uuid');
   if (typeof existing === 'string') {
     cachedWorldUuid = existing;
-    console.info("[BVC] Loaded world UUID: " + existing);
+    console.info('[BVC] Loaded world UUID: ' + existing);
     return existing;
   }
 
@@ -37,13 +37,13 @@ function getWorldUuid(): string {
     randomHex(8),
     randomHex(4),
     '4' + randomHex(3),
-    ((Math.floor(Math.random() * 4) + 8).toString(16)) + randomHex(3),
+    (Math.floor(Math.random() * 4) + 8).toString(16) + randomHex(3),
     randomHex(12),
   ].join('-');
 
   world.setDynamicProperty('bvc:world_uuid', uuid);
   cachedWorldUuid = uuid;
-  console.info("[BVC] Generated world UUID: " + uuid);
+  console.info('[BVC] Generated world UUID: ' + uuid);
   return uuid;
 }
 
@@ -56,7 +56,10 @@ function randomHex(length: number): string {
 }
 
 const audioManager = new AudioPlayerManager();
-const componentRegistry = new AudioComponentRegistry(audioManager, getWorldUuid);
+const componentRegistry = new AudioComponentRegistry(
+  audioManager,
+  getWorldUuid,
+);
 componentRegistry.register();
 
 const chatEjectListener = new ChatEjectListener(audioManager, getWorldUuid);
@@ -70,7 +73,9 @@ serverAdminConfig
   .then((available) => {
     if (!available) {
       audioManager.setSender(new NoNetAudioSender());
-      console.warn("[BVC] HTTP unavailable; using no-net jukebox bus (position polling and HTTP disc events disabled)");
+      console.warn(
+        '[BVC] HTTP unavailable; using no-net jukebox bus (position polling and HTTP disc events disabled)',
+      );
       return;
     }
 
@@ -86,7 +91,7 @@ serverAdminConfig
     const accessToken = serverAdminConfig.accessToken;
     const minimumPlayers = serverAdminConfig.minimumPlayers;
 
-    console.info("[BVC] Connecting to: " + bvcServer);
+    console.info('[BVC] Connecting to: ' + bvcServer);
 
     world.afterEvents.entityDie.subscribe(
       (event) => {
@@ -95,7 +100,7 @@ serverAdminConfig
           deadPlayers.add(deadEntity.id);
         }
       },
-      { entityTypes: ['minecraft:player'] }
+      { entityTypes: ['minecraft:player'] },
     );
 
     world.afterEvents.playerSpawn.subscribe((event) => {
@@ -108,7 +113,10 @@ serverAdminConfig
       system.runTimeout(async () => {
         try {
           const worldUuid = getWorldUuid();
-          const phantom = Player.fromDisconnectedPlayer(event.playerName, worldUuid);
+          const phantom = Player.fromDisconnectedPlayer(
+            event.playerName,
+            worldUuid,
+          );
           const payload = new Payload('minecraft', [phantom]);
 
           await httpClient.request(
@@ -120,10 +128,10 @@ serverAdminConfig
               ['X-MC-Access-Token', accessToken],
               ['Accept', 'application/json'],
             ],
-            REQUEST_TIMEOUT
+            REQUEST_TIMEOUT,
           );
         } catch (error) {
-          console.error("[BVC] Error sending disconnect phantom:", error);
+          console.error('[BVC] Error sending disconnect phantom:', error);
         }
       }, 5);
     });
@@ -153,29 +161,30 @@ serverAdminConfig
             ['X-MC-Access-Token', accessToken],
             ['Accept', 'application/json'],
           ],
-          REQUEST_TIMEOUT
+          REQUEST_TIMEOUT,
         );
 
         if (response && response.status >= 200 && response.status < 300) {
           if (consecutiveFailures >= FAILURE_THRESHOLD) {
-            console.info("[BVC] Connection restored");
+            console.info('[BVC] Connection restored');
           }
           consecutiveFailures = 0;
         } else {
           consecutiveFailures++;
           if (consecutiveFailures === FAILURE_THRESHOLD) {
-            console.warn("[BVC] Backend unreachable, pausing requests");
+            console.warn('[BVC] Backend unreachable, pausing requests');
           }
           if (consecutiveFailures >= FAILURE_THRESHOLD) {
             const backoff = Math.min(
-              INITIAL_BACKOFF_MS * Math.pow(2, consecutiveFailures - FAILURE_THRESHOLD),
+              INITIAL_BACKOFF_MS *
+                Math.pow(2, consecutiveFailures - FAILURE_THRESHOLD),
               MAX_BACKOFF_MS,
             );
             circuitOpenUntil = Date.now() + backoff;
           }
         }
       } catch (error) {
-        console.error("[BVC] Error creating player payload:", error);
+        console.error('[BVC] Error creating player payload:', error);
       }
     }, POLL_INTERVAL);
   });

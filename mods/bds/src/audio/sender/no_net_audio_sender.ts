@@ -28,16 +28,15 @@ export class NoNetAudioSender implements AudioSender {
     await this.nextTick();
 
     const fulfiller = this.resolveFulfiller(state, actor);
-    if (!fulfiller) return;
+    if (!fulfiller) {
+      return;
+    }
 
     const c = state.coordinates;
-    fulfiller.playSound(
-      `${JukeboxBusProtocol.EJECT}${state.dimensionId}`,
-      {
-        location: { x: c.x, y: c.y, z: c.z },
-        volume: 0,
-      },
-    );
+    fulfiller.playSound(`${JukeboxBusProtocol.EJECT}${state.dimensionId}`, {
+      location: { x: c.x, y: c.y, z: c.z },
+      volume: 0,
+    });
   }
 
   // Yields to a fresh tick so the chat send runs outside the block-component
@@ -50,7 +49,9 @@ export class NoNetAudioSender implements AudioSender {
     state: AudioPlayerState,
     actor: Player | null,
   ): Player | null {
-    if (actor) return actor;
+    if (actor) {
+      return actor;
+    }
 
     return this.closestPlayer(state);
   }
@@ -63,7 +64,9 @@ export class NoNetAudioSender implements AudioSender {
     let bestId = '';
 
     for (const p of world.getAllPlayers()) {
-      if (p.dimension.id !== state.dimensionId) continue;
+      if (p.dimension.id !== state.dimensionId) {
+        continue;
+      }
 
       const dx = p.location.x - (c.x + 0.5);
       const dy = p.location.y - (c.y + 0.5);

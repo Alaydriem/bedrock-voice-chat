@@ -435,10 +435,6 @@ impl InputStream {
                                             Ok(()) => { }
                                             Err(_e) => {}
                                         }
-                                    } else if callback_count % 100 == 0 {
-                                        // Tail exhausted, dropping frames (periodic log)
-                                        debug!("[INPUT] Skipping send - silent, muted={}",
-                                              MUTE_INPUT_STREAM.load(Ordering::Relaxed));
                                     }
                                 };
 
