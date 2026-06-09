@@ -80,7 +80,7 @@ impl EjectScheduler {
         }
 
         if self.bedrock_event_service.is_bds_healthy(&world_uuid).await {
-            tracing::info!(
+            tracing::debug!(
                 event_id = %event_id,
                 world_uuid = %world_uuid,
                 "EjectScheduler: skipping broadcast (BDS addon is healthy)"
@@ -111,7 +111,7 @@ impl EjectScheduler {
                 "EjectScheduler: failed to broadcast JukeboxEjectAnnouncement"
             );
         } else {
-            tracing::info!(
+            tracing::debug!(
                 event_id = %event_id,
                 world_uuid = %world_uuid,
                 "EjectScheduler: broadcast ClientBound JukeboxEjectAnnouncement"
