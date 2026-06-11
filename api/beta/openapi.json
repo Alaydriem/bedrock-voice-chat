@@ -7,25 +7,15 @@
       "name": "Repository",
       "url": "https://github.com/alaydriem/bedrock-voice-chat"
     },
-    "version": "1.0.0-beta.11"
+    "version": "1.0.0-beta.12"
   },
   "paths": {
-    "/api/channel/": {
+    "/api/position": {
       "get": {
         "tags": [
-          "Channels"
+          "Positions"
         ],
-        "operationId": "channel_list",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "nullable": true
-            }
-          }
-        ],
+        "operationId": "position",
         "responses": {
           "200": {
             "description": "",
@@ -34,90 +24,63 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/Channel"
+                    "$ref": "#/components/schemas/PlayerEnum"
                   }
                 }
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "MCAccessToken": []
+          }
+        ]
       },
       "post": {
         "tags": [
-          "Channels"
+          "Positions"
         ],
-        "operationId": "create_channel_create",
+        "operationId": "update_position",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "type": "string"
+                "$ref": "#/components/schemas/GameDataCollection"
               }
             }
           },
           "required": true
         },
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
+          "default": {
+            "description": ""
           }
-        }
+        },
+        "security": [
+          {
+            "MCAccessToken": []
+          }
+        ]
       }
     },
-    "/api/channel/{id}": {
-      "put": {
+    "/api/gamerpic/{game}/{gamertag}": {
+      "get": {
         "tags": [
-          "Channels"
+          "Gamerpic"
         ],
-        "operationId": "event_channel_event",
+        "operationId": "get_gamerpic",
         "parameters": [
           {
-            "name": "id",
+            "name": "game",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ChannelEvent"
-              }
+              "$ref": "#/components/schemas/Game"
             }
           },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "boolean"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "Channels"
-        ],
-        "operationId": "delete_channel_delete",
-        "parameters": [
           {
-            "name": "id",
+            "name": "gamertag",
             "in": "path",
             "required": true,
             "schema": {
@@ -131,45 +94,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "boolean"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "tags": [
-          "Channels"
-        ],
-        "operationId": "rename_channel_rename",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "string"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "boolean"
+                  "$ref": "#/components/schemas/GamerpicResponse"
                 }
               }
             }
@@ -209,6 +134,158 @@
           "Health"
         ],
         "operationId": "ping_pong",
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/audio/event": {
+      "post": {
+        "tags": [
+          "Audio"
+        ],
+        "operationId": "event_audio_event_play",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AudioPlayRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudioEventResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "MCAccessToken": []
+          }
+        ]
+      }
+    },
+    "/api/audio/event/{event_id}": {
+      "delete": {
+        "tags": [
+          "Audio"
+        ],
+        "operationId": "event_audio_event_stop",
+        "parameters": [
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "MCAccessToken": []
+          }
+        ]
+      }
+    },
+    "/api/audio/file": {
+      "get": {
+        "tags": [
+          "Audio"
+        ],
+        "operationId": "file_audio_file_list",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0,
+              "nullable": true
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0,
+              "nullable": true
+            }
+          },
+          {
+            "name": "sort_by",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "sort_order",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_for_AudioFileResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/audio/file/{file_id}": {
+      "delete": {
+        "tags": [
+          "Audio"
+        ],
+        "operationId": "file_audio_file_delete",
+        "parameters": [
+          {
+            "name": "file_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "default": {
             "description": ""
@@ -611,250 +688,6 @@
         }
       }
     },
-    "/api/position": {
-      "get": {
-        "tags": [
-          "Positions"
-        ],
-        "operationId": "position",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/PlayerEnum"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "MCAccessToken": []
-          }
-        ]
-      },
-      "post": {
-        "tags": [
-          "Positions"
-        ],
-        "operationId": "update_position",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GameDataCollection"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "default": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "MCAccessToken": []
-          }
-        ]
-      }
-    },
-    "/api/gamerpic/{game}/{gamertag}": {
-      "get": {
-        "tags": [
-          "Gamerpic"
-        ],
-        "operationId": "get_gamerpic",
-        "parameters": [
-          {
-            "name": "game",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/Game"
-            }
-          },
-          {
-            "name": "gamertag",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GamerpicResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/audio/event": {
-      "post": {
-        "tags": [
-          "Audio"
-        ],
-        "operationId": "event_audio_event_play",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AudioPlayRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AudioEventResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "MCAccessToken": []
-          }
-        ]
-      }
-    },
-    "/api/audio/event/{event_id}": {
-      "delete": {
-        "tags": [
-          "Audio"
-        ],
-        "operationId": "event_audio_event_stop",
-        "parameters": [
-          {
-            "name": "event_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "default": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "MCAccessToken": []
-          }
-        ]
-      }
-    },
-    "/api/audio/file": {
-      "get": {
-        "tags": [
-          "Audio"
-        ],
-        "operationId": "file_audio_file_list",
-        "parameters": [
-          {
-            "name": "page",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "format": "uint32",
-              "minimum": 0.0,
-              "nullable": true
-            }
-          },
-          {
-            "name": "page_size",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "format": "uint32",
-              "minimum": 0.0,
-              "nullable": true
-            }
-          },
-          {
-            "name": "sort_by",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "nullable": true
-            }
-          },
-          {
-            "name": "sort_order",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "nullable": true
-            }
-          },
-          {
-            "name": "search",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "nullable": true
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PaginatedResponse_for_AudioFileResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/audio/file/{file_id}": {
-      "delete": {
-        "tags": [
-          "Audio"
-        ],
-        "operationId": "file_audio_file_delete",
-        "parameters": [
-          {
-            "name": "file_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "default": {
-            "description": ""
-          }
-        }
-      }
-    },
     "/api/config": {
       "get": {
         "tags": [
@@ -867,7 +700,174 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiConfig"
+                  "$ref": "#/components/schemas/ApiConfigResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/channel/": {
+      "get": {
+        "tags": [
+          "Channels"
+        ],
+        "operationId": "channel_list",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Channel"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Channels"
+        ],
+        "operationId": "create_channel_create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/channel/{id}": {
+      "put": {
+        "tags": [
+          "Channels"
+        ],
+        "operationId": "event_channel_event",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelEvent"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Channels"
+        ],
+        "operationId": "delete_channel_delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Channels"
+        ],
+        "operationId": "rename_channel_rename",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
                 }
               }
             }
@@ -878,35 +878,27 @@
   },
   "components": {
     "schemas": {
-      "ChannelEvent": {
+      "GameDataCollection": {
         "type": "object",
         "required": [
-          "event"
+          "players"
         ],
         "properties": {
-          "event": {
-            "$ref": "#/components/schemas/ChannelEvents"
-          },
           "game": {
-            "default": null,
             "allOf": [
               {
                 "$ref": "#/components/schemas/Game"
               }
             ],
             "nullable": true
+          },
+          "players": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerEnum"
+            }
           }
         }
-      },
-      "ChannelEvents": {
-        "type": "string",
-        "enum": [
-          "Join",
-          "Leave",
-          "Create",
-          "Delete",
-          "Rename"
-        ]
       },
       "Game": {
         "type": "string",
@@ -915,31 +907,424 @@
           "hytale"
         ]
       },
-      "Channel": {
+      "PlayerEnum": {
+        "description": "Type-safe enum for storing heterogeneous player types Dispatches to game-specific implementations\n\nUses externally tagged serialization (works with postcard). For JSON compatibility with legacy clients, use GameDataCollection's custom deserialization which handles the game field at the collection level.",
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "Minecraft"
+            ],
+            "properties": {
+              "Minecraft": {
+                "$ref": "#/components/schemas/MinecraftPlayer"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "Hytale"
+            ],
+            "properties": {
+              "Hytale": {
+                "$ref": "#/components/schemas/HytalePlayer"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "Generic"
+            ],
+            "properties": {
+              "Generic": {
+                "$ref": "#/components/schemas/GenericPlayer"
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
+      "MinecraftPlayer": {
         "type": "object",
         "required": [
-          "creator",
-          "id",
+          "coordinates",
+          "deafen",
+          "dimension",
           "name",
-          "players"
+          "orientation"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "coordinates": {
+            "$ref": "#/components/schemas/Coordinate"
+          },
+          "orientation": {
+            "$ref": "#/components/schemas/Orientation"
+          },
+          "dimension": {
+            "$ref": "#/components/schemas/Dimension"
+          },
+          "deafen": {
+            "type": "boolean"
+          },
+          "spectator": {
+            "default": false,
+            "type": "boolean"
+          },
+          "world_uuid": {
+            "default": null,
+            "type": "string",
+            "nullable": true
+          },
+          "alternative_identity": {
+            "default": null,
+            "type": "string",
+            "nullable": true
+          },
+          "player_uuid": {
+            "default": null,
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "Coordinate": {
+        "type": "object",
+        "required": [
+          "x",
+          "y",
+          "z"
+        ],
+        "properties": {
+          "x": {
+            "type": "number",
+            "format": "float"
+          },
+          "y": {
+            "type": "number",
+            "format": "float"
+          },
+          "z": {
+            "type": "number",
+            "format": "float"
+          }
+        }
+      },
+      "Orientation": {
+        "type": "object",
+        "required": [
+          "x",
+          "y"
+        ],
+        "properties": {
+          "x": {
+            "type": "number",
+            "format": "float"
+          },
+          "y": {
+            "type": "number",
+            "format": "float"
+          }
+        }
+      },
+      "Dimension": {
+        "description": "Minecraft-specific structs Minecraft world dimensions",
+        "type": "string",
+        "enum": [
+          "overworld",
+          "the_end",
+          "nether",
+          "death"
+        ]
+      },
+      "HytalePlayer": {
+        "description": "Hytale player with world and dimension-based communication rules",
+        "type": "object",
+        "required": [
+          "coordinates",
+          "name",
+          "orientation"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "coordinates": {
+            "$ref": "#/components/schemas/Coordinate"
+          },
+          "orientation": {
+            "$ref": "#/components/schemas/Orientation"
+          },
+          "world_uuid": {
+            "default": null,
+            "type": "string",
+            "nullable": true
+          },
+          "dimension": {
+            "default": "orbis",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Dimension2"
+              }
+            ]
+          },
+          "deafen": {
+            "default": false,
+            "type": "boolean"
+          },
+          "spectator": {
+            "default": false,
+            "type": "boolean"
+          },
+          "player_uuid": {
+            "default": null,
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "Dimension2": {
+        "description": "Hytale-specific structs Hytale world dimensions",
+        "type": "string",
+        "enum": [
+          "orbis",
+          "death"
+        ]
+      },
+      "GenericPlayer": {
+        "description": "Generic player implementation for games that don't need special spatial logic Uses simple coordinate-based distance calculation without game-specific concepts like dimensions, realms, zones, etc.",
+        "type": "object",
+        "required": [
+          "coordinates",
+          "game",
+          "name",
+          "orientation"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "coordinates": {
+            "$ref": "#/components/schemas/Coordinate"
+          },
+          "orientation": {
+            "$ref": "#/components/schemas/Orientation"
+          },
+          "game": {
+            "$ref": "#/components/schemas/Game"
+          }
+        }
+      },
+      "GamerpicResponse": {
+        "type": "object",
+        "required": [
+          "game",
+          "gamertag"
+        ],
+        "properties": {
+          "gamertag": {
+            "type": "string"
+          },
+          "game": {
+            "$ref": "#/components/schemas/Game"
+          },
+          "gamerpic": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "AudioEventResponse": {
+        "type": "object",
+        "required": [
+          "duration_ms",
+          "event_id"
+        ],
+        "properties": {
+          "event_id": {
+            "type": "string"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          }
+        }
+      },
+      "AudioPlayRequest": {
+        "type": "object",
+        "required": [
+          "audio_file_id",
+          "game"
+        ],
+        "properties": {
+          "audio_file_id": {
+            "type": "string"
+          },
+          "game": {
+            "$ref": "#/components/schemas/GameAudioContext"
+          }
+        }
+      },
+      "GameAudioContext": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "coordinates",
+              "dimension",
+              "game",
+              "world_uuid"
+            ],
+            "properties": {
+              "game": {
+                "type": "string",
+                "enum": [
+                  "minecraft"
+                ]
+              },
+              "coordinates": {
+                "$ref": "#/components/schemas/Coordinate"
+              },
+              "dimension": {
+                "$ref": "#/components/schemas/Dimension"
+              },
+              "world_uuid": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "game"
+            ],
+            "properties": {
+              "game": {
+                "type": "string",
+                "enum": [
+                  "hytale"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "PaginatedResponse_for_AudioFileResponse": {
+        "type": "object",
+        "required": [
+          "items",
+          "page",
+          "page_size",
+          "total"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AudioFileResponse"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "page": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "page_size": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          }
+        }
+      },
+      "AudioFileResponse": {
+        "type": "object",
+        "required": [
+          "created_at",
+          "duration_ms",
+          "file_size_bytes",
+          "game",
+          "id",
+          "original_filename",
+          "uploader"
         ],
         "properties": {
           "id": {
             "type": "string"
           },
-          "name": {
+          "uploader": {
+            "$ref": "#/components/schemas/UploaderIdentity"
+          },
+          "original_filename": {
             "type": "string"
           },
-          "players": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
+          "duration_ms": {
+            "type": "integer",
+            "format": "int32"
           },
-          "creator": {
+          "file_size_bytes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "game": {
             "type": "string"
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int32"
           }
         }
+      },
+      "UploaderIdentity": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "game",
+              "gamertag"
+            ],
+            "properties": {
+              "game": {
+                "type": "string",
+                "enum": [
+                  "minecraft"
+                ]
+              },
+              "gamertag": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "game",
+              "gamertag"
+            ],
+            "properties": {
+              "game": {
+                "type": "string",
+                "enum": [
+                  "hytale"
+                ]
+              },
+              "gamertag": {
+                "type": "string"
+              }
+            }
+          }
+        ]
       },
       "CreatedUserResponse": {
         "type": "object",
@@ -1520,448 +1905,7 @@
           }
         }
       },
-      "GameDataCollection": {
-        "type": "object",
-        "required": [
-          "players"
-        ],
-        "properties": {
-          "game": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Game"
-              }
-            ],
-            "nullable": true
-          },
-          "players": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PlayerEnum"
-            }
-          }
-        }
-      },
-      "PlayerEnum": {
-        "description": "Type-safe enum for storing heterogeneous player types Dispatches to game-specific implementations\n\nUses externally tagged serialization (works with postcard). For JSON compatibility with legacy clients, use GameDataCollection's custom deserialization which handles the game field at the collection level.",
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "Minecraft"
-            ],
-            "properties": {
-              "Minecraft": {
-                "$ref": "#/components/schemas/MinecraftPlayer"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Hytale"
-            ],
-            "properties": {
-              "Hytale": {
-                "$ref": "#/components/schemas/HytalePlayer"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Generic"
-            ],
-            "properties": {
-              "Generic": {
-                "$ref": "#/components/schemas/GenericPlayer"
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
-      },
-      "MinecraftPlayer": {
-        "type": "object",
-        "required": [
-          "coordinates",
-          "deafen",
-          "dimension",
-          "name",
-          "orientation"
-        ],
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "coordinates": {
-            "$ref": "#/components/schemas/Coordinate"
-          },
-          "orientation": {
-            "$ref": "#/components/schemas/Orientation"
-          },
-          "dimension": {
-            "$ref": "#/components/schemas/Dimension"
-          },
-          "deafen": {
-            "type": "boolean"
-          },
-          "spectator": {
-            "default": false,
-            "type": "boolean"
-          },
-          "world_uuid": {
-            "default": null,
-            "type": "string",
-            "nullable": true
-          },
-          "alternative_identity": {
-            "default": null,
-            "type": "string",
-            "nullable": true
-          },
-          "player_uuid": {
-            "default": null,
-            "type": "string",
-            "nullable": true
-          }
-        }
-      },
-      "Coordinate": {
-        "type": "object",
-        "required": [
-          "x",
-          "y",
-          "z"
-        ],
-        "properties": {
-          "x": {
-            "type": "number",
-            "format": "float"
-          },
-          "y": {
-            "type": "number",
-            "format": "float"
-          },
-          "z": {
-            "type": "number",
-            "format": "float"
-          }
-        }
-      },
-      "Orientation": {
-        "type": "object",
-        "required": [
-          "x",
-          "y"
-        ],
-        "properties": {
-          "x": {
-            "type": "number",
-            "format": "float"
-          },
-          "y": {
-            "type": "number",
-            "format": "float"
-          }
-        }
-      },
-      "Dimension": {
-        "description": "Minecraft-specific structs Minecraft world dimensions",
-        "type": "string",
-        "enum": [
-          "overworld",
-          "the_end",
-          "nether",
-          "death"
-        ]
-      },
-      "HytalePlayer": {
-        "description": "Hytale player with world and dimension-based communication rules",
-        "type": "object",
-        "required": [
-          "coordinates",
-          "name",
-          "orientation"
-        ],
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "coordinates": {
-            "$ref": "#/components/schemas/Coordinate"
-          },
-          "orientation": {
-            "$ref": "#/components/schemas/Orientation"
-          },
-          "world_uuid": {
-            "default": null,
-            "type": "string",
-            "nullable": true
-          },
-          "dimension": {
-            "default": "orbis",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Dimension2"
-              }
-            ]
-          },
-          "deafen": {
-            "default": false,
-            "type": "boolean"
-          },
-          "spectator": {
-            "default": false,
-            "type": "boolean"
-          },
-          "player_uuid": {
-            "default": null,
-            "type": "string",
-            "nullable": true
-          }
-        }
-      },
-      "Dimension2": {
-        "description": "Hytale-specific structs Hytale world dimensions",
-        "type": "string",
-        "enum": [
-          "orbis",
-          "death"
-        ]
-      },
-      "GenericPlayer": {
-        "description": "Generic player implementation for games that don't need special spatial logic Uses simple coordinate-based distance calculation without game-specific concepts like dimensions, realms, zones, etc.",
-        "type": "object",
-        "required": [
-          "coordinates",
-          "game",
-          "name",
-          "orientation"
-        ],
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "coordinates": {
-            "$ref": "#/components/schemas/Coordinate"
-          },
-          "orientation": {
-            "$ref": "#/components/schemas/Orientation"
-          },
-          "game": {
-            "$ref": "#/components/schemas/Game"
-          }
-        }
-      },
-      "GamerpicResponse": {
-        "type": "object",
-        "required": [
-          "game",
-          "gamertag"
-        ],
-        "properties": {
-          "gamertag": {
-            "type": "string"
-          },
-          "game": {
-            "$ref": "#/components/schemas/Game"
-          },
-          "gamerpic": {
-            "type": "string",
-            "nullable": true
-          }
-        }
-      },
-      "AudioEventResponse": {
-        "type": "object",
-        "required": [
-          "duration_ms",
-          "event_id"
-        ],
-        "properties": {
-          "event_id": {
-            "type": "string"
-          },
-          "duration_ms": {
-            "type": "integer",
-            "format": "uint32",
-            "minimum": 0.0
-          }
-        }
-      },
-      "AudioPlayRequest": {
-        "type": "object",
-        "required": [
-          "audio_file_id",
-          "game"
-        ],
-        "properties": {
-          "audio_file_id": {
-            "type": "string"
-          },
-          "game": {
-            "$ref": "#/components/schemas/GameAudioContext"
-          }
-        }
-      },
-      "GameAudioContext": {
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "coordinates",
-              "dimension",
-              "game",
-              "world_uuid"
-            ],
-            "properties": {
-              "game": {
-                "type": "string",
-                "enum": [
-                  "minecraft"
-                ]
-              },
-              "coordinates": {
-                "$ref": "#/components/schemas/Coordinate"
-              },
-              "dimension": {
-                "$ref": "#/components/schemas/Dimension"
-              },
-              "world_uuid": {
-                "type": "string"
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "game"
-            ],
-            "properties": {
-              "game": {
-                "type": "string",
-                "enum": [
-                  "hytale"
-                ]
-              }
-            }
-          }
-        ]
-      },
-      "PaginatedResponse_for_AudioFileResponse": {
-        "type": "object",
-        "required": [
-          "items",
-          "page",
-          "page_size",
-          "total"
-        ],
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AudioFileResponse"
-            }
-          },
-          "total": {
-            "type": "integer",
-            "format": "uint32",
-            "minimum": 0.0
-          },
-          "page": {
-            "type": "integer",
-            "format": "uint32",
-            "minimum": 0.0
-          },
-          "page_size": {
-            "type": "integer",
-            "format": "uint32",
-            "minimum": 0.0
-          }
-        }
-      },
-      "AudioFileResponse": {
-        "type": "object",
-        "required": [
-          "created_at",
-          "duration_ms",
-          "file_size_bytes",
-          "game",
-          "id",
-          "original_filename",
-          "uploader"
-        ],
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "uploader": {
-            "$ref": "#/components/schemas/UploaderIdentity"
-          },
-          "original_filename": {
-            "type": "string"
-          },
-          "duration_ms": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "file_size_bytes": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "game": {
-            "type": "string"
-          },
-          "created_at": {
-            "type": "integer",
-            "format": "int32"
-          }
-        }
-      },
-      "UploaderIdentity": {
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "game",
-              "gamertag"
-            ],
-            "properties": {
-              "game": {
-                "type": "string",
-                "enum": [
-                  "minecraft"
-                ]
-              },
-              "gamertag": {
-                "type": "string"
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "game",
-              "gamertag"
-            ],
-            "properties": {
-              "game": {
-                "type": "string",
-                "enum": [
-                  "hytale"
-                ]
-              },
-              "gamertag": {
-                "type": "string"
-              }
-            }
-          }
-        ]
-      },
-      "ApiConfig": {
+      "ApiConfigResponse": {
         "type": "object",
         "required": [
           "client_id",
@@ -2041,9 +1985,71 @@
             "format": "float"
           }
         }
+      },
+      "ChannelEvent": {
+        "type": "object",
+        "required": [
+          "event"
+        ],
+        "properties": {
+          "event": {
+            "$ref": "#/components/schemas/ChannelEvents"
+          },
+          "game": {
+            "default": null,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Game"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "ChannelEvents": {
+        "type": "string",
+        "enum": [
+          "Join",
+          "Leave",
+          "Create",
+          "Delete",
+          "Rename"
+        ]
+      },
+      "Channel": {
+        "type": "object",
+        "required": [
+          "creator",
+          "id",
+          "name",
+          "players"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "players": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "creator": {
+            "type": "string"
+          }
+        }
       }
     },
     "securitySchemes": {
+      "MCAccessToken": {
+        "description": "Minecraft mod access token",
+        "type": "apiKey",
+        "name": "X-MC-Access-Token",
+        "in": "header"
+      },
       "AdminGuard": {
         "description": "Operator mTLS client certificate. Caller must additionally hold the `admin` permission.",
         "type": "http",
@@ -2054,23 +2060,25 @@
         "type": "apiKey",
         "name": "X-Session-Id",
         "in": "header"
-      },
-      "MCAccessToken": {
-        "description": "Minecraft mod access token",
-        "type": "apiKey",
-        "name": "X-MC-Access-Token",
-        "in": "header"
       }
     }
   },
   "tags": [
     {
-      "name": "Channels",
-      "description": "Voice channel management. Create, delete, rename, join, and leave channels. Channel membership is broadcast to connected QUIC clients."
+      "name": "Positions",
+      "description": "Player position updates from game mods. Used by the Minecraft/Hytale server plugin to push player coordinates for spatial audio calculations."
+    },
+    {
+      "name": "Gamerpic",
+      "description": "Player avatar/gamerpic retrieval by gamertag and game type."
     },
     {
       "name": "Health",
       "description": "Health and readiness probes. Liveness and readiness are unauthenticated for use with Kubernetes."
+    },
+    {
+      "name": "Audio",
+      "description": "Audio file library and spatial playback events. Upload Ogg/Opus files, trigger positional audio playback in-game, and manage the audio library."
     },
     {
       "name": "Admin",
@@ -2085,20 +2093,12 @@
       "description": "Player identity management. Retrieve current session state, permissions, and certificate renewal. Link external accounts such as Minecraft Java."
     },
     {
-      "name": "Positions",
-      "description": "Player position updates from game mods. Used by the Minecraft/Hytale server plugin to push player coordinates for spatial audio calculations."
-    },
-    {
-      "name": "Gamerpic",
-      "description": "Player avatar/gamerpic retrieval by gamertag and game type."
-    },
-    {
-      "name": "Audio",
-      "description": "Audio file library and spatial playback events. Upload Ogg/Opus files, trigger positional audio playback in-game, and manage the audio library."
-    },
-    {
       "name": "Server",
       "description": "Server configuration and metadata. Returns connection details, protocol version, and spatial audio settings."
+    },
+    {
+      "name": "Channels",
+      "description": "Voice channel management. Create, delete, rename, join, and leave channels. Channel membership is broadcast to connected QUIC clients."
     }
   ]
 }
