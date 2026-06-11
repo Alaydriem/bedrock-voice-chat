@@ -1,25 +1,19 @@
 import { world, system, ItemStack } from '@minecraft/server';
-import type { Dimension } from '@minecraft/server';
-import {
-  http,
-  HttpRequest,
-  HttpRequestMethod,
-  HttpHeader,
-} from '@minecraft/server-net';
-import { Coordinates, AudioPlayRequest } from '../dto';
-import type { AudioEventResponse } from '../dto';
+import type { Player } from '@minecraft/server';
+import { Coordinates } from '../dto';
 import type { AudioPlayerState } from './player_state';
 import type { StoredDisc } from './stored_disc';
+import type { AudioSender } from './sender';
 
 const STORAGE_KEY = 'bvc:active_discs';
 
 export class AudioPlayerManager {
   private readonly players = new Map<string, AudioPlayerState>();
+  private sender: AudioSender | null = null;
 
-  constructor(
-    private readonly serverUrl: string,
-    private readonly accessToken: string
-  ) {}
+  setSender(sender: AudioSender): void {
+    this.sender = sender;
+  }
 
   locationKey(worldUuid: string, coordinates: Coordinates): string {
     return `${worldUuid}:${coordinates.x}:${coordinates.y}:${coordinates.z}`;
@@ -30,26 +24,30 @@ export class AudioPlayerManager {
     audioId: string,
     dimensionId: string,
     coordinates: Coordinates,
-    worldUuid: string
+    worldUuid: string,
+    actor: Player | null,
   ): void {
     const state: AudioPlayerState = {
       audioId,
       eventId: null,
-      isPlaying: false,
+      isPlaying: true,
       dimensionId,
       coordinates,
       worldUuid,
       autoEjectRunId: null,
     };
+
     this.players.set(locationKey, state);
     this.persistState();
 
-    this.startPlayback(locationKey, state);
+    void this.sender?.start(state, actor);
   }
 
-  ejectDisc(locationKey: string): string | undefined {
+  ejectDisc(locationKey: string, actor: Player | null): string | undefined {
     const state = this.players.get(locationKey);
-    if (!state) return undefined;
+    if (!state) {
+      return undefined;
+    }
 
     const audioId = state.audioId;
 
@@ -58,9 +56,7 @@ export class AudioPlayerManager {
       state.autoEjectRunId = null;
     }
 
-    if (state.isPlaying && state.eventId) {
-      this.stopPlayback(state);
-    }
+    void this.sender?.stop(state, actor);
 
     this.players.delete(locationKey);
     this.persistState();
@@ -75,6 +71,10 @@ export class AudioPlayerManager {
     return this.players.get(locationKey)?.audioId;
   }
 
+  isPlaying(locationKey: string): boolean {
+    return this.players.get(locationKey)?.isPlaying ?? false;
+  }
+
   restore(): void {
     try {
       const raw = world.getDynamicProperty(STORAGE_KEY);
@@ -87,7 +87,9 @@ export class AudioPlayerManager {
       let restored = 0;
 
       for (const [key, disc] of Object.entries(entries)) {
-        if (this.players.has(key)) continue;
+        if (this.players.has(key)) {
+          continue;
+        }
 
         this.players.set(key, {
           audioId: disc.audioId,
@@ -97,11 +99,12 @@ export class AudioPlayerManager {
           coordinates: new Coordinates(
             disc.coordinates.x,
             disc.coordinates.y,
-            disc.coordinates.z
+            disc.coordinates.z,
           ),
           worldUuid: disc.worldUuid,
           autoEjectRunId: null,
         });
+
         restored++;
         console.info(`[BVC] Restored disc: ${key} audioId=${disc.audioId}`);
       }
@@ -114,15 +117,15 @@ export class AudioPlayerManager {
 
   onBlockDestroyed(locationKey: string): void {
     const state = this.players.get(locationKey);
-    if (!state) return;
+    if (!state) {
+      return;
+    }
 
     if (state.autoEjectRunId !== null) {
       system.clearRun(state.autoEjectRunId);
     }
 
-    if (state.isPlaying && state.eventId) {
-      this.stopPlayback(state);
-    }
+    void this.sender?.stop(state, null);
 
     this.dropDisc(state);
 
@@ -130,120 +133,56 @@ export class AudioPlayerManager {
     this.persistState();
   }
 
-  killMarkers(dimension: Dimension, coordinates: Coordinates): void {
-    try {
-      const entities = dimension.getEntitiesAtBlockLocation({
-        x: coordinates.x,
-        y: coordinates.y,
-        z: coordinates.z,
-      });
-      for (const entity of entities) {
-        if (
-          entity.typeId === 'minecraft:marker' &&
-          entity.getDynamicProperty('bvc:audio_id')
-        ) {
-          entity.kill();
-        }
-      }
-    } catch (e) {
-      console.error('[BVC] Failed to kill marker entities:', e);
+  forceEject(locationKey: string): boolean {
+    if (!this.players.has(locationKey)) {
+      return false;
     }
-  }
 
-  private startPlayback(locationKey: string, state: AudioPlayerState): void {
-    const request = new AudioPlayRequest(
-      state.audioId,
-      state.coordinates,
-      state.dimensionId.replace('minecraft:', ''),
-      state.worldUuid
-    );
-
-    const body = JSON.stringify(request.toJSON());
-
-    const httpRequest = new HttpRequest(
-      `${this.serverUrl}/api/audio/event`
-    );
-    httpRequest.setBody(body);
-    httpRequest.setMethod((HttpRequestMethod as any).Post);
-    httpRequest.setHeaders([
-      new HttpHeader('Content-Type', 'application/json'),
-      new HttpHeader('X-MC-Access-Token', this.accessToken),
-      new HttpHeader('Accept', 'application/json'),
-    ]);
-    httpRequest.setTimeout(5);
-
-    http
-      .request(httpRequest)
-      .then((response) => {
-        if (response.status >= 200 && response.status < 300) {
-          const data: AudioEventResponse = JSON.parse(response.body);
-          state.isPlaying = true;
-          state.eventId = data.event_id;
-
-          const ticks = Math.ceil(data.duration_ms / 50);
-          state.autoEjectRunId = system.runTimeout(() => {
-            this.autoEject(locationKey);
-          }, ticks);
-        } else {
-          state.isPlaying = false;
-          console.warn(`[BVC] Play request failed: ${response.status}`);
-        }
-      })
-      .catch((e) => {
-        state.isPlaying = false;
-        console.error('[BVC] Failed to start playback:', e);
-      });
-  }
-
-  private stopPlayback(state: AudioPlayerState): void {
-    const eventId = state.eventId;
-    if (!eventId) return;
-
-    state.isPlaying = false;
-    state.eventId = null;
-
-    const httpRequest = new HttpRequest(
-      `${this.serverUrl}/api/audio/event/${eventId}`
-    );
-    httpRequest.setMethod((HttpRequestMethod as any).Delete);
-    httpRequest.setHeaders([
-      new HttpHeader('X-MC-Access-Token', this.accessToken),
-      new HttpHeader('Accept', 'application/json'),
-    ]);
-    httpRequest.setTimeout(5);
-
-    http
-      .request(httpRequest)
-      .then((response) => {
-        if (response.status >= 200 && response.status < 300) {
-        } else {
-          console.warn(`[BVC] Stop request failed: ${response.status}`);
-        }
-      })
-      .catch((e) => {
-        console.error('[BVC] Failed to stop playback:', e);
-      });
+    this.autoEject(locationKey);
+    return true;
   }
 
   private autoEject(locationKey: string): void {
     const state = this.players.get(locationKey);
-    if (!state) return;
+    if (!state) {
+      return;
+    }
+
+    state.autoEjectRunId = null;
+
+    const dimension = world.getDimension(state.dimensionId);
+    const block = dimension.getBlock({
+      x: state.coordinates.x,
+      y: state.coordinates.y,
+      z: state.coordinates.z,
+    });
+
+    // Chunk not loaded: keep the disc in the jukebox so it is not lost. Mark it
+    // finished and let onTick run the deferred eject once the chunk is ticking.
+    if (!block) {
+      state.isPlaying = false;
+      this.persistState();
+      return;
+    }
 
     state.isPlaying = false;
     state.eventId = null;
-    state.autoEjectRunId = null;
 
     this.setBlockPlaying(state, false);
 
-    if (!this.pushDiscToContainer(state)) {
-      this.dropDisc(state);
+    // The chunk is loaded but may not be ticking, in which case spawnItem throws
+    // and dropDisc reports failure. Keep the disc rather than deleting it.
+    const handed = this.pushDiscToContainer(state) || this.dropDisc(state);
+    if (!handed) {
+      this.persistState();
+      return;
     }
 
     this.players.delete(locationKey);
     this.persistState();
   }
 
-  private dropDisc(state: AudioPlayerState): void {
+  private dropDisc(state: AudioPlayerState): boolean {
     try {
       const dimension = world.getDimension(state.dimensionId);
       const disc = new ItemStack('minecraft:music_disc_5', 1);
@@ -256,8 +195,11 @@ export class AudioPlayerManager {
         y: state.coordinates.y + 1.0,
         z: state.coordinates.z + 0.5,
       });
+
+      return true;
     } catch (e) {
-      console.error('[BVC] Failed to drop disc:', e);
+      console.warn('[BVC] Failed to drop disc:', e);
+      return false;
     }
   }
 
@@ -269,10 +211,13 @@ export class AudioPlayerManager {
         y: state.coordinates.y,
         z: state.coordinates.z,
       });
-      if (!block) return;
+
+      if (!block) {
+        return;
+      }
 
       block.setPermutation(
-        block.permutation.withState('bvc:playing' as any, playing)
+        block.permutation.withState('bvc:playing' as any, playing),
       );
     } catch (e) {
       console.error('[BVC] Failed to set block playing state:', e);
@@ -292,6 +237,7 @@ export class AudioPlayerManager {
         y: state.coordinates.y,
         z: state.coordinates.z,
       });
+
       if (block) {
         const inv = block.getComponent('minecraft:inventory') as any;
         if (inv?.container) {
@@ -305,6 +251,7 @@ export class AudioPlayerManager {
         y: state.coordinates.y - 1,
         z: state.coordinates.z,
       });
+
       if (below && below.typeId.includes('hopper')) {
         const hopperInv = below.getComponent('minecraft:inventory') as any;
         if (hopperInv?.container) {
@@ -326,6 +273,7 @@ export class AudioPlayerManager {
         dimensionId: state.dimensionId,
         coordinates: state.coordinates.toJSON(),
         worldUuid: state.worldUuid,
+        isPlaying: state.isPlaying,
       };
     }
     world.setDynamicProperty(STORAGE_KEY, JSON.stringify(entries));

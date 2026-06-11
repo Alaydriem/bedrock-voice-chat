@@ -59,11 +59,9 @@ impl AppState {
     pub async fn initialize_api_client(&mut self, endpoint: String, ca_cert: String, pem: String) {
         let api = Api::new(endpoint.clone(), ca_cert, pem);
 
-        // 1. Set as default (legacy - for single server / dashboard)
         self.api_client = Some(api.clone());
         self.current_server = Some(endpoint.clone());
 
-        // 2. Add to pool (new - for multi-server selection)
         let mut pool = self.server_pool.write().await;
         pool.insert(endpoint, api);
     }

@@ -1,22 +1,12 @@
 import { world, system } from '@minecraft/server';
-import {
-  HttpHeader,
-  HttpRequest,
-  HttpRequestMethod,
-  http,
-} from '@minecraft/server-net';
-import { variables } from '@minecraft/server-admin';
 import { Payload, Player } from './dto';
 import { AudioPlayerManager } from './audio/player_manager';
 import { AudioComponentRegistry } from './audio/components';
+import { ChatEjectListener } from './audio/chat_eject_listener';
 import { DiscCommand } from './commands/mod';
-
-const bvc_server: string = variables.get('bvc_server');
-const access_token: string = variables.get('bvc_access_token');
-const minimum_players_raw = variables.get("bvc_minimum_players");
-const minimum_players: number = typeof minimum_players_raw === 'number' && minimum_players_raw >= 1
-  ? Math.floor(minimum_players_raw)
-  : 1;
+import { NetAudioSender, NoNetAudioSender } from './audio/sender';
+import { httpClient } from './net';
+import { serverAdminConfig } from './config';
 
 const POLL_INTERVAL = 5;
 const REQUEST_TIMEOUT = 1;
@@ -27,10 +17,8 @@ const MAX_BACKOFF_MS = 30_000;
 let consecutiveFailures = 0;
 let circuitOpenUntil = 0;
 
-// Track dead players by their ID
 const deadPlayers = new Set<string>();
 
-// Persistent world UUID for multi-world isolation
 let cachedWorldUuid: string | undefined;
 
 function getWorldUuid(): string {
@@ -41,22 +29,21 @@ function getWorldUuid(): string {
   const existing = world.getDynamicProperty('bvc:world_uuid');
   if (typeof existing === 'string') {
     cachedWorldUuid = existing;
-    console.info("[BVC] Loaded world UUID: " + existing);
+    console.info('[BVC] Loaded world UUID: ' + existing);
     return existing;
   }
 
-  // Generate a UUID v4
   const uuid = [
     randomHex(8),
     randomHex(4),
     '4' + randomHex(3),
-    ((Math.floor(Math.random() * 4) + 8).toString(16)) + randomHex(3),
+    (Math.floor(Math.random() * 4) + 8).toString(16) + randomHex(3),
     randomHex(12),
   ].join('-');
 
   world.setDynamicProperty('bvc:world_uuid', uuid);
   cachedWorldUuid = uuid;
-  console.info("[BVC] Generated world UUID: " + uuid);
+  console.info('[BVC] Generated world UUID: ' + uuid);
   return uuid;
 }
 
@@ -68,111 +55,136 @@ function randomHex(length: number): string {
   return result;
 }
 
-console.info("[BVC] Connecting to: " + bvc_server);
-
-// Initialize audio system
-const audioManager = new AudioPlayerManager(bvc_server, access_token);
-const componentRegistry = new AudioComponentRegistry(audioManager, getWorldUuid);
+const audioManager = new AudioPlayerManager();
+const componentRegistry = new AudioComponentRegistry(
+  audioManager,
+  getWorldUuid,
+);
 componentRegistry.register();
 
-// Register custom commands (cheats not required)
+const chatEjectListener = new ChatEjectListener(audioManager, getWorldUuid);
+chatEjectListener.register();
+
 DiscCommand.register();
 
-// Subscribe to player death events
-world.afterEvents.entityDie.subscribe(
-  (event) => {
-    const deadEntity = event.deadEntity;
-    if (deadEntity.typeId === 'minecraft:player') {
-      deadPlayers.add(deadEntity.id);
+serverAdminConfig
+  .ensureLoaded()
+  .then(() => httpClient.ensureLoaded())
+  .then((available) => {
+    if (!available) {
+      audioManager.setSender(new NoNetAudioSender());
+      console.warn(
+        '[BVC] HTTP unavailable; using no-net jukebox bus (position polling and HTTP disc events disabled)',
+      );
+      return;
     }
-  },
-  { entityTypes: ['minecraft:player'] }
-);
 
-// Subscribe to player spawn events (includes respawns)
-world.afterEvents.playerSpawn.subscribe((event) => {
-  deadPlayers.delete(event.player.id);
-});
+    audioManager.setSender(
+      new NetAudioSender(
+        serverAdminConfig,
+        (key) => audioManager.forceEject(key),
+        (state) => audioManager.locationKey(getWorldUuid(), state.coordinates),
+      ),
+    );
 
-// Send phantom position when a player leaves to evict stale cache entry
-world.afterEvents.playerLeave.subscribe((event) => {
-  deadPlayers.delete(event.playerId);
+    const bvcServer = serverAdminConfig.bvcServer;
+    const accessToken = serverAdminConfig.accessToken;
+    const minimumPlayers = serverAdminConfig.minimumPlayers;
 
-  // Defer by 5 ticks (~250ms) to let the last normal position tick complete
-  system.runTimeout(async () => {
-    try {
-      const worldUuid = getWorldUuid();
-      const phantom = Player.fromDisconnectedPlayer(event.playerName, worldUuid);
-      const payload = new Payload('minecraft', [phantom]);
+    console.info('[BVC] Connecting to: ' + bvcServer);
 
-      const request = new HttpRequest(`${bvc_server}/api/position`);
-      request.setBody(payload.toJSONString());
-      request.setMethod((HttpRequestMethod as any).Post);
-      request.setHeaders([
-        new HttpHeader('Content-Type', 'application/json'),
-        new HttpHeader('X-MC-Access-Token', access_token),
-        new HttpHeader('Accept', 'application/json'),
-      ]);
-      request.setTimeout(REQUEST_TIMEOUT);
-
-      await http.request(request).catch(() => {});
-    } catch (error) {
-      console.error("[BVC] Error sending disconnect phantom:", error);
-    }
-  }, 5);
-});
-
-system.runInterval(async () => {
-  const players = world.getAllPlayers();
-
-  if (players.length < minimum_players) {
-    return;
-  }
-
-  // Circuit breaker: skip requests while circuit is open
-  const now = Date.now();
-  if (consecutiveFailures >= FAILURE_THRESHOLD && now < circuitOpenUntil) {
-    return;
-  }
-
-  try {
-    const worldUuid = getWorldUuid();
-    const payload = Payload.fromPlayers(players, deadPlayers, worldUuid);
-
-    const request = new HttpRequest(`${bvc_server}/api/position`);
-    request.setBody(payload.toJSONString());
-    request.setMethod((HttpRequestMethod as any).Post);
-    request.setHeaders([
-      new HttpHeader('Content-Type', 'application/json'),
-      new HttpHeader('X-MC-Access-Token', access_token),
-      new HttpHeader('Accept', 'application/json'),
-    ]);
-    request.setTimeout(REQUEST_TIMEOUT);
-
-    await http
-      .request(request)
-      .then(() => {
-        if (consecutiveFailures >= FAILURE_THRESHOLD) {
-          console.info("[BVC] Connection restored");
+    world.afterEvents.entityDie.subscribe(
+      (event) => {
+        const deadEntity = event.deadEntity;
+        if (deadEntity.typeId === 'minecraft:player') {
+          deadPlayers.add(deadEntity.id);
         }
-        consecutiveFailures = 0;
-      })
-      .catch((error) => {
-        consecutiveFailures++;
-        if (consecutiveFailures === FAILURE_THRESHOLD) {
-          console.warn("[BVC] Backend unreachable, pausing requests");
-        }
-        if (consecutiveFailures >= FAILURE_THRESHOLD) {
-          const backoff = Math.min(
-            INITIAL_BACKOFF_MS * Math.pow(2, consecutiveFailures - FAILURE_THRESHOLD),
-            MAX_BACKOFF_MS,
+      },
+      { entityTypes: ['minecraft:player'] },
+    );
+
+    world.afterEvents.playerSpawn.subscribe((event) => {
+      deadPlayers.delete(event.player.id);
+    });
+
+    world.afterEvents.playerLeave.subscribe((event) => {
+      deadPlayers.delete(event.playerId);
+
+      system.runTimeout(async () => {
+        try {
+          const worldUuid = getWorldUuid();
+          const phantom = Player.fromDisconnectedPlayer(
+            event.playerName,
+            worldUuid,
           );
-          circuitOpenUntil = Date.now() + backoff;
-        } else {
-          console.warn("[BVC] Failed to send player data:", error);
+          const payload = new Payload('minecraft', [phantom]);
+
+          await httpClient.request(
+            `${bvcServer}/api/position`,
+            'Post',
+            payload.toJSONString(),
+            [
+              ['Content-Type', 'application/json'],
+              ['X-MC-Access-Token', accessToken],
+              ['Accept', 'application/json'],
+            ],
+            REQUEST_TIMEOUT,
+          );
+        } catch (error) {
+          console.error('[BVC] Error sending disconnect phantom:', error);
         }
-      });
-  } catch (error) {
-    console.error("[BVC] Error creating player payload:", error);
-  }
-}, POLL_INTERVAL);
+      }, 5);
+    });
+
+    system.runInterval(async () => {
+      const players = world.getAllPlayers();
+
+      if (players.length < minimumPlayers) {
+        return;
+      }
+
+      const now = Date.now();
+      if (consecutiveFailures >= FAILURE_THRESHOLD && now < circuitOpenUntil) {
+        return;
+      }
+
+      try {
+        const worldUuid = getWorldUuid();
+        const payload = Payload.fromPlayers(players, deadPlayers, worldUuid);
+
+        const response = await httpClient.request(
+          `${bvcServer}/api/position`,
+          'Post',
+          payload.toJSONString(),
+          [
+            ['Content-Type', 'application/json'],
+            ['X-MC-Access-Token', accessToken],
+            ['Accept', 'application/json'],
+          ],
+          REQUEST_TIMEOUT,
+        );
+
+        if (response && response.status >= 200 && response.status < 300) {
+          if (consecutiveFailures >= FAILURE_THRESHOLD) {
+            console.info('[BVC] Connection restored');
+          }
+          consecutiveFailures = 0;
+        } else {
+          consecutiveFailures++;
+          if (consecutiveFailures === FAILURE_THRESHOLD) {
+            console.warn('[BVC] Backend unreachable, pausing requests');
+          }
+          if (consecutiveFailures >= FAILURE_THRESHOLD) {
+            const backoff = Math.min(
+              INITIAL_BACKOFF_MS *
+                Math.pow(2, consecutiveFailures - FAILURE_THRESHOLD),
+              MAX_BACKOFF_MS,
+            );
+            circuitOpenUntil = Date.now() + backoff;
+          }
+        }
+      } catch (error) {
+        console.error('[BVC] Error creating player payload:', error);
+      }
+    }, POLL_INTERVAL);
+  });

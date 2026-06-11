@@ -1,8 +1,12 @@
+mod eject_scheduler;
 mod playback_entry;
 mod playback_expiry;
 mod playback_task;
 pub(crate) mod ogg_opus_parser;
 
+pub use eject_scheduler::EjectScheduler;
+
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use common::players::{HytalePlayer, MinecraftPlayer};
@@ -27,6 +31,7 @@ pub struct AudioPlaybackService {
     webhook_receiver: WebhookReceiver,
     audio_storage_path: String,
     parent_token: CancellationToken,
+    eject_scheduler: OnceLock<Arc<EjectScheduler>>,
 }
 
 impl AudioPlaybackService {
@@ -48,7 +53,12 @@ impl AudioPlaybackService {
             webhook_receiver,
             audio_storage_path,
             parent_token,
+            eject_scheduler: OnceLock::new(),
         }
+    }
+
+    pub fn set_eject_scheduler(&self, scheduler: Arc<EjectScheduler>) {
+        let _ = self.eject_scheduler.set(scheduler);
     }
 
     pub async fn start_playback<C: ConnectionTrait>(
@@ -103,28 +113,49 @@ impl AudioPlaybackService {
         let stripped = event_id.replace('-', "");
         let jukebox_hash = &stripped[stripped.len() - 8..];
         let jukebox_name = format!("{}{}", common::consts::audio::JUKEBOX_PLAYER_PREFIX, jukebox_hash);
-        let synthetic_player = match request.game {
-            GameAudioContext::Minecraft(ctx) => PlayerEnum::Minecraft(MinecraftPlayer {
-                name: jukebox_name.clone(),
-                coordinates: ctx.coordinates,
-                orientation: Orientation { x: 0.0, y: 0.0 },
-                dimension: ctx.dimension,
-                deafen: false,
-                spectator: false,
-                world_uuid: Some(ctx.world_uuid),
-                alternative_identity: None,
-                player_uuid: None,
-            }),
-            GameAudioContext::Hytale(_ctx) => PlayerEnum::Hytale(HytalePlayer {
-                name: jukebox_name.clone(),
-                coordinates: common::Coordinate { x: 0.0, y: 0.0, z: 0.0 },
-                orientation: Orientation { x: 0.0, y: 0.0 },
-                world_uuid: None,
-                dimension: Default::default(),
-                deafen: false,
-                spectator: false,
-                player_uuid: None,
-            }),
+        let minecraft_eject_target: Option<(String, common::Coordinate)> = match &request.game {
+            GameAudioContext::Minecraft(ctx) => {
+                Some((ctx.world_uuid.clone(), ctx.coordinates.clone()))
+            }
+            GameAudioContext::Hytale(_) => None,
+        };
+        let (synthetic_player, position, dimension) = match request.game {
+            GameAudioContext::Minecraft(ctx) => {
+                let coordinates = ctx.coordinates.clone();
+                let dimension = ctx.dimension.clone();
+                (
+                    PlayerEnum::Minecraft(MinecraftPlayer {
+                        name: jukebox_name.clone(),
+                        coordinates: ctx.coordinates,
+                        orientation: Orientation { x: 0.0, y: 0.0 },
+                        dimension: ctx.dimension,
+                        deafen: false,
+                        spectator: false,
+                        world_uuid: Some(ctx.world_uuid),
+                        alternative_identity: None,
+                        player_uuid: None,
+                    }),
+                    coordinates,
+                    dimension,
+                )
+            }
+            GameAudioContext::Hytale(_ctx) => {
+                let coordinates = common::Coordinate { x: 0.0, y: 0.0, z: 0.0 };
+                (
+                    PlayerEnum::Hytale(HytalePlayer {
+                        name: jukebox_name.clone(),
+                        coordinates: coordinates.clone(),
+                        orientation: Orientation { x: 0.0, y: 0.0 },
+                        world_uuid: None,
+                        dimension: Default::default(),
+                        deafen: false,
+                        spectator: false,
+                        player_uuid: None,
+                    }),
+                    coordinates,
+                    Default::default(),
+                )
+            }
         };
 
         let cancel_token = self.parent_token.child_token();
@@ -133,6 +164,8 @@ impl AudioPlaybackService {
         let task = PlaybackTask::new(
             event_id.clone(),
             jukebox_name,
+            position,
+            dimension,
             frames,
             self.webhook_receiver.clone(),
             synthetic_player,
@@ -160,6 +193,31 @@ impl AudioPlaybackService {
             tracing::info!(event_id = %cleanup_event_id, "Playback session cleaned up");
         });
 
+        match (self.eject_scheduler.get(), minecraft_eject_target) {
+            (Some(scheduler), Some((world_uuid, block_pos))) => {
+                scheduler
+                    .schedule(
+                        event_id.clone(),
+                        world_uuid,
+                        block_pos,
+                        Duration::from_millis(duration_ms),
+                    )
+                    .await;
+            }
+            (None, _) => {
+                tracing::warn!(
+                    event_id = %event_id,
+                    "start_playback: eject_scheduler not wired; no auto-eject scheduled"
+                );
+            }
+            (Some(_), None) => {
+                tracing::debug!(
+                    event_id = %event_id,
+                    "start_playback: non-minecraft context; no auto-eject scheduled"
+                );
+            }
+        }
+
         Ok(AudioEventResponse {
             event_id,
             duration_ms: duration_ms as u32,
@@ -167,6 +225,9 @@ impl AudioPlaybackService {
     }
 
     pub async fn stop_playback(&self, event_id: &str) -> Result<(), String> {
+        if let Some(scheduler) = self.eject_scheduler.get() {
+            scheduler.cancel(event_id).await;
+        }
         if let Some(entry) = self.active_playbacks.get(event_id).await {
             entry.cancel_token.cancel();
             self.active_playbacks.invalidate(event_id).await;

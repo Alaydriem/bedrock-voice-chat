@@ -1,9 +1,7 @@
 use common::reqwest::Client as ReqwestClient;
 use log::error;
-use std::net::Ipv4Addr;
+use std::net::{IpAddr, Ipv4Addr};
 use std::time::Duration;
-use hickory_resolver::TokioAsyncResolver;
-use hickory_resolver::config::{ResolverConfig, ResolverOpts};
 use url::Url;
 
 use anyhow::anyhow;
@@ -41,7 +39,10 @@ impl Client {
     pub(crate) async fn get_client(&self, fqdn: Option<&str>) -> ReqwestClient {
         let mut builder = ReqwestClient::builder()
             .use_rustls_tls()
-            .timeout(Duration::new(3, 0))
+            .timeout(Duration::from_secs(10))
+            .connect_timeout(Duration::from_secs(5))
+            .tcp_keepalive(Duration::from_secs(30))
+            .pool_idle_timeout(Duration::from_secs(90))
             .add_root_certificate(self.get_ca_cert().unwrap())
             .identity(self.get_client_cert().unwrap());
 
@@ -50,21 +51,18 @@ impl Client {
             builder = builder.danger_accept_invalid_certs(true);
         }
 
-        // If fqdn is provided, resolve IPv4 manually
         if let Some(host) = fqdn {
-            // Parse URL to extract hostname and port
             let (hostname, port) = Client::parse_host_and_port(host);
 
-            match Client::resolve_ipv4(&hostname).await {
+            match Client::resolve_ipv4(&hostname, port).await {
                 Ok(ipv4_addr) => {
                     builder = builder.resolve(
                         &hostname,
-                        std::net::SocketAddr::new(std::net::IpAddr::V4(ipv4_addr), port),
+                        std::net::SocketAddr::new(IpAddr::V4(ipv4_addr), port),
                     );
                 }
                 Err(e) => {
                     error!("Failed to resolve A record for {}: {}", hostname, e);
-                    // You can choose whether to continue without resolver or propagate the error.
                 }
             }
         }
@@ -93,19 +91,15 @@ impl Client {
     }
 
     // IPv6 Jank on Windows. Only use V4 addresses for now.
-    pub(crate) async fn resolve_ipv4(
-        hostname: &str,
-    ) -> Result<Ipv4Addr, Box<dyn std::error::Error>> {
-        let resolver =
-            TokioAsyncResolver::tokio(ResolverConfig::cloudflare(), ResolverOpts::default());
-        let response = resolver.ipv4_lookup(hostname).await?;
-        let address = response.iter().next().expect("no addresses returned!");
-
-        Ok(Ipv4Addr::new(
-            address.octets()[0],
-            address.octets()[1],
-            address.octets()[2],
-            address.octets()[3],
-        ))
+    pub(crate) async fn resolve_ipv4(hostname: &str, port: u16) -> Result<Ipv4Addr, anyhow::Error> {
+        let target = format!("{}:{}", hostname, port);
+        let addr = tokio::net::lookup_host(&target)
+            .await?
+            .find_map(|sa| match sa.ip() {
+                IpAddr::V4(v4) => Some(v4),
+                _ => None,
+            })
+            .ok_or_else(|| anyhow!("no IPv4 address resolved for {}", hostname))?;
+        Ok(addr)
     }
 }

@@ -1,31 +1,33 @@
+use crate::analytics::AnalyticsService;
 use crate::{NetworkStreamManager, structs::app_state::AppState};
 use common::response::LoginResponse;
 use log::{error, info};
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
+use std::sync::Arc;
 use tauri::State;
 use tauri::async_runtime::Mutex;
-use hickory_resolver::{
-    Resolver, TokioAsyncResolver,
-    config::{ResolverConfig, ResolverOpts},
-};
 use url::Url;
 
 #[tauri::command]
 pub(crate) async fn stop_network_stream(
     network_stream: State<'_, Mutex<NetworkStreamManager>>,
+    analytics: State<'_, Arc<AnalyticsService>>,
 ) -> Result<(), ()> {
     let mut network_stream = network_stream.lock().await;
     _ = network_stream.stop().await;
+    analytics.clear_connected_server();
+    analytics.clear_player();
     Ok(())
 }
 
 #[tauri::command]
-#[tracing::instrument(skip(state, network_stream, data), fields(server = %server))]
+#[tracing::instrument(skip(state, network_stream, data, analytics), fields(server = %server))]
 pub(crate) async fn change_network_stream(
     server: String,
     data: LoginResponse,
     state: State<'_, Mutex<AppState>>,
     network_stream: State<'_, Mutex<NetworkStreamManager>>,
+    analytics: State<'_, Arc<AnalyticsService>>,
 ) -> Result<(), String> {
     // Short state lock — release before network I/O
     {
@@ -50,45 +52,32 @@ pub(crate) async fn change_network_stream(
     // Default to 443 if quic_connect_string is empty or invalid
     let port: u16 = data.quic_connect_string.parse().unwrap_or(443);
 
-    // Cloudflare DNS (async), then system resolver fallback (spawn_blocking)
-    let resolver = TokioAsyncResolver::tokio(ResolverConfig::cloudflare(), ResolverOpts::default());
-    let socket_addr = match resolver.lookup_ip(server_fqdn.clone()).await {
-        Ok(response) => match response.iter().next() {
-            Some(ip) => SocketAddr::new(ip, port),
-            None => {
-                error!("Cloudflare DNS lookup returned no IPs for {}", server_fqdn);
-                return Err("DNS_FAIL: DNS lookup returned no results".to_string());
-            }
-        },
-        Err(cf_err) => {
-            info!("Cloudflare DNS failed for {}: {}. Trying system resolver.", server_fqdn, cf_err);
-            let fqdn = server_fqdn.clone();
-            match tokio::task::spawn_blocking(move || {
-                let resolver = Resolver::from_system_conf().map_err(|e| e.to_string())?;
-                let response = resolver.lookup_ip(&fqdn).map_err(|e| e.to_string())?;
-                response
-                    .iter()
-                    .next()
-                    .map(|ip| SocketAddr::new(ip, port))
-                    .ok_or_else(|| "System DNS returned no IPs".to_string())
-            })
-            .await
+    let socket_addr = match tokio::net::lookup_host(format!("{}:{}", server_fqdn, port)).await {
+        Ok(addrs) => {
+            let resolved: Vec<SocketAddr> = addrs.collect();
+            match resolved
+                .iter()
+                .find(|sa| matches!(sa.ip(), IpAddr::V4(_)))
+                .or_else(|| resolved.first())
             {
-                Ok(Ok(addr)) => addr,
-                Ok(Err(e)) => {
-                    error!("System DNS resolution failed for {}: {}", server_fqdn, e);
-                    return Err(format!("DNS_FAIL: {}", e));
-                }
-                Err(e) => {
-                    error!("System DNS task failed: {:?}", e);
-                    return Err("DNS_FAIL: Could not resolve server address".to_string());
+                Some(addr) => *addr,
+                None => {
+                    error!("System DNS returned no IPs for {}", server_fqdn);
+                    return Err("DNS_FAIL: System DNS returned no results".to_string());
                 }
             }
+        }
+        Err(e) => {
+            error!("System DNS resolution failed for {}: {}", server_fqdn, e);
+            return Err(format!("DNS_FAIL: {}", e));
         }
     };
 
     let mut network_stream = network_stream.lock().await;
     _ = network_stream.stop().await;
+    analytics.clear_connected_server();
+    analytics.clear_player();
+    let gamertag = data.gamertag.clone();
     match network_stream
         .restart(
             server_fqdn.clone(),
@@ -103,6 +92,8 @@ pub(crate) async fn change_network_stream(
     {
         Ok(()) => {
             info!("Now streaming {}", server);
+            analytics.set_connected_server(Some(server.clone()));
+            analytics.set_player(&gamertag);
         }
         Err(e) => {
             error!("QUIC connection failed to {}: {:?}", server, e);

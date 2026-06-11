@@ -37,7 +37,7 @@ jobs:
         include:
           # Windows builds
           - target: x86_64-pc-windows-msvc
-            os: windows-latest
+            os: windows-2022
             artifact_name: bvc-server.exe
             build_server: true
             build_native_lib: true
@@ -79,7 +79,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref || github.ref }}
 
@@ -87,6 +87,12 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+
+      - name: Setup private cargo deps auth
+        uses: ./.github/actions/setup-private-cargo-deps
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -169,16 +175,16 @@ jobs:
           # Determine actual build mode used - force debug for PRs, release for tags
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "PR detected - building in debug mode"
-            cargo build --target ${{ matrix.target }}
+            cargo build --features bedrock --target ${{ matrix.target }}
           elif [ "${{ startsWith(github.ref, 'refs/tags/') }}" = "true" ]; then
             echo "Tag detected - building in release mode"
-            cargo build --release --target ${{ matrix.target }}
+            cargo build --release --features bedrock --target ${{ matrix.target }}
           elif [ "${{ inputs.build_mode || 'debug' }}" = "release" ]; then
             echo "Building in release mode"
-            cargo build --release --target ${{ matrix.target }}
+            cargo build --release --features bedrock --target ${{ matrix.target }}
           else
             echo "Building in debug mode"
-            cargo build --target ${{ matrix.target }}
+            cargo build --features bedrock --target ${{ matrix.target }}
           fi
         shell: bash
 
@@ -209,7 +215,7 @@ jobs:
 
       - name: Upload artifacts
         if: matrix.build_server
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         id: upload-server
         with:
           name: bvc-server-${{ matrix.target }}-${{ github.event_name == 'pull_request' && 'debug' || startsWith(github.ref, 'refs/tags/') && 'release' || inputs.build_mode || 'debug' }}
@@ -254,9 +260,9 @@ jobs:
         run: |
           BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || startsWith(github.ref, 'refs/tags/') && 'release' || inputs.build_mode || 'debug' }}"
           if [ "$BUILD_MODE" = "release" ]; then
-            cargo build --lib --release --target ${{ matrix.target }}
+            cargo build --lib --release --features bedrock --target ${{ matrix.target }}
           else
-            cargo build --lib --target ${{ matrix.target }}
+            cargo build --lib --features bedrock --target ${{ matrix.target }}
           fi
 
       - name: Verify native library exists
@@ -272,7 +278,7 @@ jobs:
 
       - name: Upload native library artifact
         if: matrix.build_native_lib
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: bvc-native-lib-${{ matrix.target }}
           path: server/target/${{ matrix.target }}/${{ github.event_name == 'pull_request' && 'debug' || startsWith(github.ref, 'refs/tags/') && 'release' || inputs.build_mode || 'debug' }}/${{ steps.lib-name.outputs.lib_name }}
@@ -284,12 +290,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref || github.ref }}
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup private cargo deps auth
+        uses: ./.github/actions/setup-private-cargo-deps
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -321,12 +333,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref || github.ref }}
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup private cargo deps auth
+        uses: ./.github/actions/setup-private-cargo-deps
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -351,7 +369,7 @@ jobs:
           head -20 ../../docs/openapi.json
 
       - name: Upload OpenAPI spec
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: openapi-json
           path: docs/openapi.json

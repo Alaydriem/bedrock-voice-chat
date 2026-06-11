@@ -16,12 +16,18 @@ use common::{
         audio::{PlayerGainSettings, PlayerGainStore, StreamEvent},
         network::ConnectionHealth,
         packet::{
-            AudioFramePacket, ChannelEventPacket, ConnectionEventType, PacketType,
-            PlayerDataPacket, PlayerPresenceEvent, QuicNetworkPacket, ServerErrorPacket,
-            ServerErrorType,
+            AudioFrameMetadata, AudioFramePacket, ChannelEventPacket, ConnectionEventType,
+            PacketType, PlayerDataPacket, PlayerPresenceEvent, QuicNetworkPacket,
+            ServerErrorPacket, ServerErrorType,
         },
     },
 };
+#[cfg(feature = "bedrock-protocol")]
+use crate::bedrock::JukeboxBeaconCache;
+#[cfg(feature = "bedrock-protocol")]
+use crate::bedrock::JukeboxEjectInjector;
+#[cfg(feature = "bedrock-protocol")]
+use common::structs::packet::BedrockEventPacket;
 use log::{error, info, warn};
 use moka::future::Cache;
 use once_cell::sync::Lazy;
@@ -58,6 +64,10 @@ pub(crate) struct OutputStream {
     // Recording state - shared from RecordingManager for post-jitter-buffer recording
     recording_active: Option<Arc<AtomicBool>>,
     recovery_tx: RecoverySender,
+    #[cfg(feature = "bedrock-protocol")]
+    beacon_cache: Option<Arc<JukeboxBeaconCache>>,
+    #[cfg(feature = "bedrock-protocol")]
+    eject_injector: Option<Arc<JukeboxEjectInjector>>,
 }
 
 impl common::traits::StreamTrait for OutputStream {
@@ -198,6 +208,8 @@ impl OutputStream {
         recording_producer: Option<Arc<RecordingProducer>>,
         recording_active: Option<Arc<AtomicBool>>,
         recovery_tx: RecoverySender,
+        #[cfg(feature = "bedrock-protocol")] beacon_cache: Option<Arc<JukeboxBeaconCache>>,
+        #[cfg(feature = "bedrock-protocol")] eject_injector: Option<Arc<JukeboxEjectInjector>>,
     ) -> Self {
         let players = moka::sync::Cache::builder()
             .time_to_idle(Duration::from_secs(15 * 60))
@@ -236,6 +248,10 @@ impl OutputStream {
             player_gain_cache: Arc::new(player_gain_cache),
             recording_active,
             recovery_tx,
+            #[cfg(feature = "bedrock-protocol")]
+            beacon_cache,
+            #[cfg(feature = "bedrock-protocol")]
+            eject_injector,
         }
     }
 
@@ -259,6 +275,10 @@ impl OutputStream {
                     let app_handle = self.app_handle.clone();
 
                     let player_gain_cache = self.player_gain_cache.clone();
+                    #[cfg(feature = "bedrock-protocol")]
+                    let beacon_cache = self.beacon_cache.clone();
+                    #[cfg(feature = "bedrock-protocol")]
+                    let eject_injector = self.eject_injector.clone();
 
                     let handle = tokio::spawn(async move {
                         #[allow(irrefutable_let_patterns)]
@@ -280,6 +300,8 @@ impl OutputStream {
                                             player_presence_debounce.clone(),
                                             client_id_to_player.clone(),
                                             Some(&app_handle.clone()),
+                                            #[cfg(feature = "bedrock-protocol")]
+                                            beacon_cache.clone(),
                                         )
                                         .await
                                     }
@@ -314,6 +336,18 @@ impl OutputStream {
                                             Some(&app_handle.clone()),
                                         )
                                         .await
+                                    }
+                                    #[cfg(feature = "bedrock-protocol")]
+                                    PacketType::BedrockEvent => {
+                                        if let Some(injector) = eject_injector.as_ref() {
+                                            if let Some(data) = packet.data.get_data() {
+                                                let decoded: Result<BedrockEventPacket, ()> =
+                                                    data.to_owned().try_into();
+                                                if let Ok(event_packet) = decoded {
+                                                    injector.handle_packet(&event_packet);
+                                                }
+                                            }
+                                        }
                                     }
                                     _ => {}
                                 },
@@ -616,6 +650,7 @@ impl OutputStream {
         player_presence_debounce: Arc<moka::sync::Cache<String, ()>>,
         client_id_to_player: Arc<moka::sync::Cache<String, String>>,
         app_handle: Option<&tauri::AppHandle>,
+        #[cfg(feature = "bedrock-protocol")] beacon_cache: Option<Arc<JukeboxBeaconCache>>,
     ) {
         let current_player_name = match metadata.get("current_player").await {
             Some(name) => name,
@@ -675,6 +710,20 @@ impl OutputStream {
 
         match data {
             Ok(data) => {
+                #[cfg(feature = "bedrock-protocol")]
+                if let Some(beacon_cache) = beacon_cache.as_ref() {
+                    for meta in &data.metadata {
+                        match meta {
+                            AudioFrameMetadata::Jukebox(jb) => {
+                                beacon_cache.observe(
+                                    (&jb.position).into(),
+                                    jb.dimension.clone(),
+                                    &jb.event_id,
+                                );
+                            }
+                        }
+                    }
+                }
                 // Create emitter RecordingPlayerData from packet owner and audio data
                 let emitter = owner
                     .as_ref()

@@ -1,9 +1,11 @@
+pub mod block_coordinate;
 pub mod coordinate;
 pub mod data;
 pub mod identity;
 pub mod orientation;
 pub mod player;
 
+pub use block_coordinate::BlockCoordinate;
 pub use coordinate::Coordinate;
 pub use data::GameData;
 pub use identity::UploaderIdentity;

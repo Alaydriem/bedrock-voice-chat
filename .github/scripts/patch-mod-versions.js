@@ -9,6 +9,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { VersionEncoder } = require('./lib/encode-version');
 
 const version = process.argv[2];
 if (!version) {
@@ -16,41 +17,11 @@ if (!version) {
   process.exit(1);
 }
 
-/**
- * Encode semantic version to monotonic 3-component version
- * @param {string} version - Semantic version like "1.2.3" or "1.2.3-beta.1"
- * @returns {{ major: number, minor: number, encodedPatch: number, display: string }}
- */
-function encodeVersion(version) {
-  const [core, prerelease] = version.split('-');
-  const [major = 0, minor = 0, patch = 0] = core.split('.').map(Number);
-
-  let channel = 9; // stable
-  let prereleaseNum = 0;
-
-  if (prerelease) {
-    const match = prerelease.match(/^(alpha|beta|rc)\.?(\d+)?$/);
-    if (match) {
-      const channelName = match[1];
-      prereleaseNum = parseInt(match[2]) || 1;
-
-      if (channelName === 'alpha') channel = 1;
-      else if (channelName === 'beta') channel = 5;
-      else if (channelName === 'rc') channel = 8;
-    }
-  }
-
-  const encodedPatch = patch * 1000 + channel * 100 + prereleaseNum;
-  const display = `${major}.${minor}.${encodedPatch}`;
-
-  return { major, minor, encodedPatch, display };
-}
-
 // Resolve paths - script can be called from anywhere
 const rootDir = path.resolve(__dirname, '../..');
 const modsDir = path.join(rootDir, 'mods');
 
-const encoded = encodeVersion(version);
+const encoded = VersionEncoder.encode(version);
 
 console.log(`Patching mod files...`);
 console.log(`  Semantic version: ${version}`);
@@ -85,36 +56,9 @@ if (fs.existsSync(bdsPackage)) {
   console.log(`Patched: bds/package.json -> version="${version}"`);
 }
 
-// 3. Patch BDS manifest files (uses encoded array)
-const encodedVersion = [encoded.major, encoded.minor, encoded.encodedPatch];
-
-// 3a. Patch bp/manifest.json (behavior pack — bundled into .mcaddon)
-const bdsBpManifest = path.join(modsDir, 'bds/bp/manifest.json');
-if (fs.existsSync(bdsBpManifest)) {
-  const content = JSON.parse(fs.readFileSync(bdsBpManifest, 'utf8'));
-  content.header.version = encodedVersion;
-  fs.writeFileSync(bdsBpManifest, JSON.stringify(content, null, 2) + '\n');
-  console.log(`Patched: bds/bp/manifest.json -> version=[${encodedVersion}]`);
-}
-
-// 3b. Patch rp/manifest.json (resource pack — bundled into .mcaddon)
-const bdsRpManifest = path.join(modsDir, 'bds/rp/manifest.json');
-if (fs.existsSync(bdsRpManifest)) {
-  const content = JSON.parse(fs.readFileSync(bdsRpManifest, 'utf8'));
-  content.header.version = encodedVersion;
-  // Keep module version in sync
-  for (const mod of content.modules || []) {
-    mod.version = encodedVersion;
-  }
-  // Keep BP dependency version in sync
-  for (const dep of content.dependencies || []) {
-    if (dep.uuid && !dep.module_name) {
-      dep.version = encodedVersion;
-    }
-  }
-  fs.writeFileSync(bdsRpManifest, JSON.stringify(content, null, 2) + '\n');
-  console.log(`Patched: bds/rp/manifest.json -> version=[${encodedVersion}]`);
-}
+// 3. BDS manifests are generated as build artifacts by mods/bds/bundle.js,
+// which derives the encoded version from bds/package.json at pack time.
+// Nothing to patch here.
 
 // 4. Patch Hytale manifest.json
 const hytaleManifest = path.join(modsDir, 'java/hytale/src/main/resources/manifest.json');

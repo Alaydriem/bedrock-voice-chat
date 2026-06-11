@@ -1,0 +1,51 @@
+name: Setup Private Cargo Deps
+description: >-
+  Mints a GitHub App installation token and configures git + cargo so that
+  cargo can fetch private GitHub git dependencies (e.g.
+  alaydriem/bedrock-protocol-rs) during the build.
+
+inputs:
+  app-id:
+    description: GitHub App ID
+    required: true
+  private-key:
+    description: GitHub App private key (PEM)
+    required: true
+  owner:
+    description: Owner/org the App is installed on, used to scope the token
+    required: false
+    default: alaydriem
+  repositories:
+    description: >-
+      Newline-separated list of repository names (no owner prefix) the token
+      should grant access to. Must match the repos the App is installed on.
+    required: false
+    default: |
+      bedrock-voice-chat
+      bedrock-protocol-rs
+
+outputs:
+  token:
+    description: The minted GitHub App installation token
+    value: ${{ steps.app-token.outputs.token }}
+
+runs:
+  using: composite
+  steps:
+    - name: Generate GitHub App token
+      id: app-token
+      uses: actions/create-github-app-token@v1
+      with:
+        app-id: ${{ inputs.app-id }}
+        private-key: ${{ inputs.private-key }}
+        owner: ${{ inputs.owner }}
+        repositories: ${{ inputs.repositories }}
+
+    - name: Configure git + cargo for private GitHub deps
+      shell: bash
+      env:
+        GH_APP_TOKEN: ${{ steps.app-token.outputs.token }}
+      run: |
+        git config --global --replace-all url."https://x-access-token:${GH_APP_TOKEN}@github.com/".insteadOf "https://github.com/"
+        git config --global --add url."https://x-access-token:${GH_APP_TOKEN}@github.com/".insteadOf "git@github.com:"
+        echo "CARGO_NET_GIT_FETCH_WITH_CLI=true" >> "$GITHUB_ENV"

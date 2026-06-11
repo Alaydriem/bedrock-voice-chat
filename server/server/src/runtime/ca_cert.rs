@@ -97,12 +97,51 @@ impl CaCertManager {
         Ok(params.subject_alt_names.iter().map(Self::san_key).collect())
     }
 
-    /// Read the SAN set out of an existing CA cert PEM. Uses `rcgen`'s built-in
-    /// x509 parser (the `x509-parser` feature is enabled in Cargo.toml).
+    /// Read the SAN set out of an existing CA cert PEM. Uses `x509-parser` directly
+    /// because rcgen 0.14 dropped `CertificateParams::from_ca_cert_pem`; `Issuer`'s
+    /// replacement does not surface SANs.
     fn parse_existing_san_keys(pem: &str) -> Result<HashSet<String>> {
-        let params = CertificateParams::from_ca_cert_pem(pem)
-            .map_err(|e| anyhow!("failed to parse existing ca.crt: {e}"))?;
-        Ok(params.subject_alt_names.iter().map(Self::san_key).collect())
+        use x509_parser::extensions::{GeneralName, ParsedExtension};
+        use x509_parser::prelude::*;
+
+        let (_, parsed_pem) = x509_parser::pem::parse_x509_pem(pem.as_bytes())
+            .map_err(|e| anyhow!("failed to parse existing ca.crt PEM: {e}"))?;
+        let (_, cert) = X509Certificate::from_der(&parsed_pem.contents)
+            .map_err(|e| anyhow!("failed to parse existing ca.crt DER: {e}"))?;
+
+        let mut keys = HashSet::new();
+        for ext in cert.extensions() {
+            if let ParsedExtension::SubjectAlternativeName(san) = ext.parsed_extension() {
+                for gn in &san.general_names {
+                    match gn {
+                        GeneralName::DNSName(name) => {
+                            keys.insert(format!("DNS:{}", name.to_ascii_lowercase()));
+                        }
+                        GeneralName::IPAddress(bytes) => {
+                            if bytes.len() == 4 {
+                                let arr: [u8; 4] = (*bytes).try_into().unwrap();
+                                keys.insert(format!("IP:{}", std::net::Ipv4Addr::from(arr)));
+                            } else if bytes.len() == 16 {
+                                let arr: [u8; 16] = (*bytes).try_into().unwrap();
+                                keys.insert(format!("IP:{}", std::net::Ipv6Addr::from(arr)));
+                            } else {
+                                keys.insert(format!("IP:invalid({} bytes)", bytes.len()));
+                            }
+                        }
+                        GeneralName::RFC822Name(name) => {
+                            keys.insert(format!("EMAIL:{}", name.to_ascii_lowercase()));
+                        }
+                        GeneralName::URI(uri) => {
+                            keys.insert(format!("URI:{}", uri));
+                        }
+                        other => {
+                            keys.insert(format!("OTHER:{:?}", other));
+                        }
+                    }
+                }
+            }
+        }
+        Ok(keys)
     }
 
     /// Load `ca.key` from disk if it exists, otherwise generate a new keypair and
@@ -308,35 +347,64 @@ mod tests {
 
     #[test]
     fn sign_ca_cert_uses_fixed_subject_cn() {
+        use x509_parser::prelude::*;
         let kp = KeyPair::generate().unwrap();
         let pem = CaCertManager::sign_ca_cert(&kp, &[s("localhost")]).unwrap();
-        let parsed = CertificateParams::from_ca_cert_pem(&pem).unwrap();
-        let (_, cn_value) = parsed.distinguished_name
-            .iter()
-            .find(|(ty, _)| **ty == rcgen::DnType::CommonName)
+        let (_, parsed_pem) = x509_parser::pem::parse_x509_pem(pem.as_bytes()).unwrap();
+        let (_, cert) = X509Certificate::from_der(&parsed_pem.contents).unwrap();
+        let cn_attr = cert
+            .tbs_certificate
+            .subject
+            .iter_common_name()
+            .next()
             .expect("CN must be set");
-        match cn_value {
-            rcgen::DnValue::Utf8String(v) => assert_eq!(v, CA_SUBJECT_CN),
-            rcgen::DnValue::PrintableString(v) => assert_eq!(v.as_str(), CA_SUBJECT_CN),
-            other => panic!("unexpected CN value type: {other:?}"),
-        }
+        let cn = cn_attr.as_str().expect("CN must be a string");
+        assert_eq!(cn, CA_SUBJECT_CN);
     }
 
     #[test]
     fn sign_ca_cert_includes_eku_client_and_server_auth() {
+        use x509_parser::extensions::ParsedExtension;
+        use x509_parser::prelude::*;
         let kp = KeyPair::generate().unwrap();
         let pem = CaCertManager::sign_ca_cert(&kp, &[s("localhost")]).unwrap();
-        let parsed = CertificateParams::from_ca_cert_pem(&pem).unwrap();
-        assert!(parsed.extended_key_usages.contains(&ExtendedKeyUsagePurpose::ClientAuth));
-        assert!(parsed.extended_key_usages.contains(&ExtendedKeyUsagePurpose::ServerAuth));
+        let (_, parsed_pem) = x509_parser::pem::parse_x509_pem(pem.as_bytes()).unwrap();
+        let (_, cert) = X509Certificate::from_der(&parsed_pem.contents).unwrap();
+        let eku = cert
+            .extensions()
+            .iter()
+            .find_map(|ext| {
+                if let ParsedExtension::ExtendedKeyUsage(eku) = ext.parsed_extension() {
+                    Some(eku)
+                } else {
+                    None
+                }
+            })
+            .expect("EKU extension must be present");
+        assert!(eku.client_auth);
+        assert!(eku.server_auth);
     }
 
     #[test]
     fn sign_ca_cert_includes_keycertsign_key_usage() {
+        use x509_parser::extensions::ParsedExtension;
+        use x509_parser::prelude::*;
         let kp = KeyPair::generate().unwrap();
         let pem = CaCertManager::sign_ca_cert(&kp, &[s("localhost")]).unwrap();
-        let parsed = CertificateParams::from_ca_cert_pem(&pem).unwrap();
-        assert!(parsed.key_usages.contains(&KeyUsagePurpose::KeyCertSign));
+        let (_, parsed_pem) = x509_parser::pem::parse_x509_pem(pem.as_bytes()).unwrap();
+        let (_, cert) = X509Certificate::from_der(&parsed_pem.contents).unwrap();
+        let ku = cert
+            .extensions()
+            .iter()
+            .find_map(|ext| {
+                if let ParsedExtension::KeyUsage(ku) = ext.parsed_extension() {
+                    Some(ku)
+                } else {
+                    None
+                }
+            })
+            .expect("KeyUsage extension must be present");
+        assert!(ku.key_cert_sign());
     }
 
     #[test]
@@ -472,8 +540,8 @@ mod tests {
         let (cert, key) = mgr.ensure(&[s("localhost")]).unwrap();
         assert!(dir.path().join("ca.crt").exists());
         assert_eq!(key, kp.serialize_pem());
-        let parsed = CertificateParams::from_ca_cert_pem(&cert).unwrap();
-        assert!(parsed.subject_alt_names.iter().any(|s| CaCertManager::san_key(s) == "DNS:localhost"));
+        let sans = CaCertManager::parse_existing_san_keys(&cert).unwrap();
+        assert!(sans.contains("DNS:localhost"));
     }
 
     #[test]
@@ -568,9 +636,10 @@ mod tests {
     /// Mints a player-style leaf cert signed by the given root. Mirrors what
     /// `CertificateService::sign_player_cert` does in the real codebase.
     fn mint_leaf_signed_by_root(root_pem: &str, root_key_pem: &str, leaf_cn: &str) -> String {
+        use rcgen::Issuer;
+
         let root_kp = KeyPair::from_pem(root_key_pem).unwrap();
-        let root_params = CertificateParams::from_ca_cert_pem(root_pem).unwrap();
-        let root_cert = root_params.self_signed(&root_kp).unwrap();
+        let issuer = Issuer::from_ca_cert_pem(root_pem, root_kp).unwrap();
 
         let mut leaf_params = CertificateParams::default();
         leaf_params.distinguished_name = {
@@ -590,9 +659,7 @@ mod tests {
             .unwrap();
 
         let leaf_kp = KeyPair::generate().unwrap();
-        let leaf_cert = leaf_params
-            .signed_by(&leaf_kp, &root_cert, &root_kp)
-            .unwrap();
+        let leaf_cert = leaf_params.signed_by(&leaf_kp, &issuer).unwrap();
         leaf_cert.pem()
     }
 

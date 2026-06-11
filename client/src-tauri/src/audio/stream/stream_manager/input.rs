@@ -4,6 +4,8 @@ use super::AudioFrame;
 use crate::audio::recording::{RawRecordingData, RecordingProducer};
 use crate::audio::stream::{RecoverySender, StreamRecoveryEvent};
 use crate::audio::types::{AudioDevice, AudioDeviceCpal, AudioDeviceType, BUFFER_SIZE};
+#[cfg(feature = "bedrock-protocol")]
+use crate::bedrock::BedrockPlayerStateCache;
 use crate::{NetworkPacket, audio::stream::stream_manager::AudioFrameData};
 use anyhow::anyhow;
 use audio_gate::NoiseGate;
@@ -47,8 +49,10 @@ pub(crate) struct InputStream {
     #[allow(unused)]
     app_handle: tauri::AppHandle,
     recording_producer: Option<Arc<RecordingProducer>>,
-    recording_active: Option<Arc<AtomicBool>>, // Shared from RecordingManager
+    recording_active: Option<Arc<AtomicBool>>,
     recovery_tx: RecoverySender,
+    #[cfg(feature = "bedrock-protocol")]
+    player_state_cache: Option<Arc<BedrockPlayerStateCache>>,
 }
 
 impl common::traits::StreamTrait for InputStream {
@@ -176,6 +180,8 @@ impl InputStream {
         recording_producer: Option<Arc<RecordingProducer>>,
         recording_active: Option<Arc<AtomicBool>>,
         recovery_tx: RecoverySender,
+        #[cfg(feature = "bedrock-protocol")]
+        player_state_cache: Option<Arc<BedrockPlayerStateCache>>,
     ) -> Self {
         Self {
             device,
@@ -188,6 +194,8 @@ impl InputStream {
             recording_producer,
             recording_active,
             recovery_tx,
+            #[cfg(feature = "bedrock-protocol")]
+            player_state_cache,
         }
     }
 
@@ -241,9 +249,9 @@ impl InputStream {
                                 // Clone for error handling
                                 let recovery_tx_for_error = recovery_tx.clone();
                                 let shutdown_for_error = shutdown.clone();
-                                /// Mobile audio backends (CoreAudio on iOS, AAudio on Android)
-                                /// should use the default buffer size, otherwise the
-                                /// InputStream may fail to initialize or produce no audio.
+                                // Mobile audio backends (CoreAudio on iOS, AAudio on Android)
+                                // should use the default buffer size, otherwise the
+                                // InputStream may fail to initialize or produce no audio
                                 #[cfg(any(target_os = "ios", target_os = "android"))]
                                 let buffer_size = rodio::cpal::BufferSize::Default;
 
@@ -427,10 +435,6 @@ impl InputStream {
                                             Ok(()) => { }
                                             Err(_e) => {}
                                         }
-                                    } else if callback_count % 100 == 0 {
-                                        // Tail exhausted, dropping frames (periodic log)
-                                        debug!("[INPUT] Skipping send - silent, muted={}",
-                                              MUTE_INPUT_STREAM.load(Ordering::Relaxed));
                                     }
                                 };
 
@@ -610,8 +614,8 @@ impl InputStream {
                             }
                             _ => stored_config,
                         };
-                        /// Mobile audio backends (CoreAudio on iOS, AAudio on Android)
-                        /// should use the default buffer size.
+                        // Mobile audio backends (CoreAudio on iOS, AAudio on Android)
+                        // should use the default buffer size
                         #[cfg(any(target_os = "ios", target_os = "android"))]
                         let buffer_size = rodio::cpal::BufferSize::Default;
 
@@ -666,6 +670,8 @@ impl InputStream {
 
                         let bus = self.bus.clone();
                         let recording_producer = self.recording_producer.clone();
+                        #[cfg(feature = "bedrock-protocol")]
+                        let player_state_cache = self.player_state_cache.clone();
 
                         let handle = tokio::spawn(async move {
                             #[cfg(target_os = "windows")]

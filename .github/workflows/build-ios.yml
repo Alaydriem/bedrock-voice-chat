@@ -52,7 +52,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref || github.ref }}
 
@@ -67,7 +67,7 @@ jobs:
           node .github/scripts/set-build-number.js "${{ inputs.build_number }}"
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '24'
           cache: 'yarn'
@@ -77,6 +77,12 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-ios
+
+      - name: Setup private cargo deps auth
+        uses: ./.github/actions/setup-private-cargo-deps
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -283,7 +289,7 @@ jobs:
           github.event_name != 'pull_request' &&
           inputs.testflight_upload == true &&
           inputs.build_mode == 'release'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: bvc-ios-release-signed-ipa
           path: client/bvc-ios-release.ipa

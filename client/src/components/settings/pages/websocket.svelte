@@ -3,6 +3,7 @@
     import { invoke } from "@tauri-apps/api/core";
     import { Store } from '@tauri-apps/plugin-store';
     import Analytics from "../../../js/app/analytics";
+    import { error, info, warn } from "@tauri-apps/plugin-log";
 
     interface WebSocketConfig {
         enabled: boolean;
@@ -21,7 +22,10 @@
     let isRunning = $state(false);
 
     onMount(async () => {
-        store = await Store.load("store.json", { autoSave: false });
+        store = await Store.load("store.json", {
+            autoSave: false,
+            defaults: {}
+        });
 
         // Load saved config from single key
         const config = await store.get<WebSocketConfig>("websocket_server");
@@ -35,7 +39,7 @@
         try {
             isRunning = await invoke('is_websocket_running');
         } catch (e) {
-            console.error(e);
+            error(`Failed to check WebSocket server status: ${e}`);
         }
 
         isReady = true;
@@ -61,7 +65,7 @@
             await invoke('stop_websocket_server');
             await invoke('start_websocket_server');
         } catch (e) {
-            console.error('Failed to restart WebSocket server:', e);
+            error(`Failed to restart WebSocket server: ${e}`);
             isRunning = false;
         }
     }
@@ -90,7 +94,7 @@
             await saveConfig(isRunning);
             await restartServerIfRunning();
         } catch (e) {
-            console.error(e);
+            error(`Failed to generate encryption key: ${e}`);
         }
     }
 
@@ -109,7 +113,7 @@
             isRunning = true;
             Analytics.track("WebsocketServerToggled", { enabled: 1 });
         } catch (e) {
-            console.error(e);
+            error(`Failed to start WebSocket server: ${e}`);
         }
     }
 
@@ -120,7 +124,7 @@
             await saveConfig(false);
             Analytics.track("WebsocketServerToggled", { enabled: 0 });
         } catch (e) {
-            console.error(e);
+            error(`Failed to stop WebSocket server: ${e}`);
         }
     }
 </script>

@@ -4,7 +4,7 @@ pub mod state;
 pub use state::RuntimeState;
 use crate::config::ApplicationConfig;
 use crate::http::manager::RocketManager;
-use crate::services::{AudioPlaybackService, CertificateService, MeridianService, PlayerIdentityService, PlayerRegistrarService};
+use crate::services::{AudioPlaybackService, BedrockEventService, CertificateService, EjectScheduler, MeridianService, PlayerIdentityService, PlayerRegistrarService};
 use crate::stream::quic::{QuicServerManager, WebhookReceiver};
 
 use anyhow::anyhow;
@@ -176,6 +176,31 @@ impl ServerRuntime {
             *dc = Some(db_conn.clone());
         }
 
+        // Bedrock proxy event ingress: sniffs in-game events from Proxy/Realms Connect
+        // clients and dispatches them through the same services BDS HTTP routes call into.
+        let bedrock_event_service = BedrockEventService::new_shared(
+            audio_playback_service.clone(),
+            webhook_receiver.clone(),
+            db_conn.clone(),
+            self.config.server.bedrock.proxy_event_freshness_threshold_secs,
+        );
+        quic_manager.set_bedrock_event_service(bedrock_event_service.clone());
+
+        let eject_scheduler = EjectScheduler::new_shared(
+            bedrock_event_service.clone(),
+            webhook_receiver.clone(),
+        );
+        audio_playback_service.set_eject_scheduler(eject_scheduler);
+
+        #[cfg(feature = "bedrock")]
+        let transfer_target_cache = if self.config.server.bedrock.enabled {
+            Some(crate::services::bedrock::TransferTargetCache::new(
+                self.config.server.bedrock.transfer_cache_ttl_secs,
+            ))
+        } else {
+            None
+        };
+
         // Create Rocket manager
         let mut rocket_manager = RocketManager::new(
             self.config.clone(),
@@ -184,10 +209,54 @@ impl ServerRuntime {
             player_registrar,
             identity_service,
             audio_playback_service,
+            bedrock_event_service,
             cert_service,
+            #[cfg(feature = "bedrock")]
+            transfer_target_cache.clone(),
         );
 
         self.state = RuntimeState::Running;
+
+        #[cfg(feature = "bedrock")]
+        let mut dns_service = None;
+        #[cfg(feature = "bedrock")]
+        let mut transfer_relay = None;
+
+        #[cfg(feature = "bedrock")]
+        if self.config.server.bedrock.enabled {
+            use common::traits::StreamTrait;
+
+            let listen_ip: std::net::IpAddr = self.config.server.listen.parse()
+                .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED));
+
+            let lan_ip = if listen_ip.is_unspecified() {
+                self.config.server.tls.ips.first()
+                    .and_then(|ip| ip.parse().ok())
+                    .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+            } else {
+                listen_ip
+            };
+
+            let mut dns = crate::services::bedrock::DnsService::new(
+                self.config.server.bedrock.dns.clone(),
+                lan_ip,
+            );
+            if let Err(e) = dns.start().await {
+                tracing::error!("Failed to start bedrock DNS service: {}", e);
+            }
+            dns_service = Some(dns);
+
+            if let Some(ref cache) = transfer_target_cache {
+                let mut relay = crate::services::bedrock::TransferRelayService::new(
+                    self.config.server.bedrock.transfer_port,
+                    cache.clone(),
+                );
+                if let Err(e) = relay.start().await {
+                    tracing::error!("Failed to start bedrock transfer relay: {}", e);
+                }
+                transfer_relay = Some(relay);
+            }
+        }
 
         // Register with Meridian if configured
         if let Some(meridian_config) = &self.config.server.meridian {
@@ -237,6 +306,22 @@ impl ServerRuntime {
 
         // Always stop QUIC regardless of which branch exited
         self.state = RuntimeState::ShuttingDown;
+
+        #[cfg(feature = "bedrock")]
+        {
+            use common::traits::StreamTrait;
+            if let Some(ref mut dns) = dns_service {
+                if let Err(e) = dns.stop().await {
+                    tracing::error!("Failed to stop bedrock DNS service: {}", e);
+                }
+            }
+            if let Some(ref mut relay) = transfer_relay {
+                if let Err(e) = relay.stop().await {
+                    tracing::error!("Failed to stop bedrock transfer relay: {}", e);
+                }
+            }
+        }
+
         if let Err(e) = quic_manager.stop().await {
             tracing::error!("Error stopping QUIC server: {}", e);
         }
@@ -372,11 +457,11 @@ impl ServerRuntime {
         }
 
         let env_filter = match self.config.get_tracing_log_level() {
-            tracing::Level::INFO => "info,hyper=off,rustls=off,rocket::server=off",
-            tracing::Level::DEBUG => "info",
+            tracing::Level::INFO => "info,hyper=off,rustls=off,rocket::server=off,rocket_http::tls::listener=off",
+            tracing::Level::DEBUG => "info,rocket_http::tls::listener=off",
             tracing::Level::TRACE => "debug",
-            tracing::Level::ERROR => "error,hyper=off,rustls=off,rocket::server=off",
-            tracing::Level::WARN => "warn,hyper=off,rustls=off,rocket::server=off",
+            tracing::Level::ERROR => "error,hyper=off,rustls=off,rocket::server=off,rocket_http::tls::listener=off",
+            tracing::Level::WARN => "warn,hyper=off,rustls=off,rocket::server=off,rocket_http::tls::listener=off",
         };
 
         subscriber

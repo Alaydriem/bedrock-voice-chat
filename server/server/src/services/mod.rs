@@ -1,10 +1,16 @@
 //! Server services
 
+#[cfg(feature = "bedrock")]
+pub mod bedrock;
+#[cfg(feature = "bedrock")]
+pub use bedrock::{DnsService, TransferRelayService, TransferTargetCache};
+
 pub mod audio_file_service;
 pub mod audio_playback_service;
 pub mod audio_stream_token_cache;
 pub mod auth_code_service;
 pub mod auth_service;
+pub mod bedrock_event_service;
 pub mod certificate_service;
 pub mod gamerpic_decoder;
 pub mod meridian_service;
@@ -14,9 +20,10 @@ pub mod player_registrar_service;
 
 pub use audio_file_service::{AudioFileError, AudioFileService};
 pub use audio_stream_token_cache::AudioStreamTokenCache;
-pub use audio_playback_service::AudioPlaybackService;
+pub use audio_playback_service::{AudioPlaybackService, EjectScheduler};
 pub use auth_code_service::{AuthCodeError, AuthCodeService};
 pub use auth_service::{AuthError, AuthService, CodeLoginError};
+pub use bedrock_event_service::{BedrockEventRejection, BedrockEventService};
 pub use certificate_service::CertificateService;
 pub use gamerpic_decoder::GamerpicDecoder;
 pub use meridian_service::MeridianService;

@@ -1,8 +1,10 @@
+use crate::services::BedrockEventService;
 use crate::stream::quic::connection_registry::ConnectionRegistry;
 use anyhow::Error;
 use common::structs::channel::{ChannelCollection, ChannelEvents};
 use common::structs::packet::{
-    ChannelEventPacket, PacketType, PlayerDataPacket, QuicNetworkPacket,
+    BedrockEventPacket, ChannelEventPacket, PacketType, PlayerDataPacket, PlayerPositionPacket,
+    QuicNetworkPacket,
 };
 use common::PlayerEnum;
 use moka::future::Cache;
@@ -14,6 +16,7 @@ pub struct CacheManager {
     player_cache: Arc<Cache<String, PlayerEnum>>,
     channel_collection: Arc<ChannelCollection>,
     connection_registry: Option<Arc<ConnectionRegistry>>,
+    bedrock_event_service: Option<Arc<BedrockEventService>>,
 }
 
 impl CacheManager {
@@ -31,11 +34,16 @@ impl CacheManager {
             player_cache,
             channel_collection,
             connection_registry: None,
+            bedrock_event_service: None,
         }
     }
 
-    pub fn set_connection_registry(&mut self, registry: Arc<ConnectionRegistry>) {
+    pub(crate) fn set_connection_registry(&mut self, registry: Arc<ConnectionRegistry>) {
         self.connection_registry = Some(registry);
+    }
+
+    pub fn set_bedrock_event_service(&mut self, service: Arc<BedrockEventService>) {
+        self.bedrock_event_service = Some(service);
     }
 
     pub fn get_player_cache(&self) -> Arc<Cache<String, PlayerEnum>> {
@@ -48,6 +56,17 @@ impl CacheManager {
 
     pub async fn process_packet(&self, packet: QuicNetworkPacket) -> Result<(), Error> {
         match packet.packet_type {
+            PacketType::PlayerPosition => {
+                if let Some(data) = packet.get_data() {
+                    let data: Result<PlayerPositionPacket, ()> = data.to_owned().try_into();
+                    if let Ok(pos) = data {
+                        let author = packet.get_author();
+                        if !author.is_empty() {
+                            self.player_cache.insert(author, pos.player).await;
+                        }
+                    }
+                }
+            }
             PacketType::PlayerData => {
                 if let Some(data) = packet.get_data() {
                     let data: Result<PlayerDataPacket, ()> = data.to_owned().try_into();
@@ -133,6 +152,34 @@ impl CacheManager {
                                 tracing::info!("Channel {} deleted", channel_data.channel);
                             }
                             ChannelEvents::Rename => {}
+                        }
+                    }
+                }
+            }
+            PacketType::BedrockEvent => {
+                let service = match &self.bedrock_event_service {
+                    Some(s) => s.clone(),
+                    None => {
+                        tracing::warn!(
+                            "Received BedrockEvent packet but no BedrockEventService is wired up"
+                        );
+                        return Ok(());
+                    }
+                };
+
+                let authenticated_player = packet.get_author();
+                if let Some(data) = packet.get_data() {
+                    let event: Result<BedrockEventPacket, ()> = data.to_owned().try_into();
+                    if let Ok(event) = event {
+                        if let Err(rejection) = service
+                            .handle_event(event, authenticated_player.clone())
+                            .await
+                        {
+                            tracing::warn!(
+                                player = %authenticated_player,
+                                rejection = %rejection,
+                                "BedrockEvent rejected"
+                            );
                         }
                     }
                 }

@@ -4,7 +4,7 @@ import { Player } from './player';
 export class Payload {
   constructor(
     public readonly game: string = 'minecraft',
-    public readonly players: Player[]
+    public readonly players: Player[],
   ) {}
 
   /**
@@ -13,11 +13,15 @@ export class Payload {
    * @param deadPlayers Set of player IDs who are currently dead
    * @param worldUuid Optional world UUID for multi-world isolation
    */
-  static fromPlayers(players: MinecraftPlayer[], deadPlayers: Set<string> = new Set(), worldUuid?: string): Payload {
-    const playerDtos = players.map(p =>
+  static fromPlayers(
+    players: MinecraftPlayer[],
+    deadPlayers: Set<string> = new Set(),
+    worldUuid?: string,
+  ): Payload {
+    const playerDtos = players.map((p) =>
       deadPlayers.has(p.id)
         ? Player.fromMinecraftPlayerDead(p, worldUuid)
-        : Player.fromMinecraftPlayer(p, worldUuid)
+        : Player.fromMinecraftPlayer(p, worldUuid),
     );
     return new Payload('minecraft', playerDtos);
   }
@@ -25,7 +29,7 @@ export class Payload {
   toJSON() {
     return {
       game: this.game,
-      players: this.players.map(p => p.toJSON())
+      players: this.players.map((p) => p.toJSON()),
     };
   }
 

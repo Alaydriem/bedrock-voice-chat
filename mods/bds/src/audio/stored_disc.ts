@@ -3,4 +3,5 @@ export interface StoredDisc {
   dimensionId: string;
   coordinates: { x: number; y: number; z: number };
   worldUuid: string;
+  isPlaying: boolean;
 }

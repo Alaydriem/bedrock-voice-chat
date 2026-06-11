@@ -22,6 +22,12 @@ pub enum AnalyticsEvent {
     ChannelLeft,
     RecordingStarted,
     RecordingStopped,
+    MinecraftProtocolAllowed,
+    MinecraftProtocolRejected,
+    BedrockProxyStarted,
+    BedrockRealmStarted,
+    BedrockConnected,
+    BedrockDisconnected,
 }
 
 impl AnalyticsEvent {
@@ -45,6 +51,12 @@ impl AnalyticsEvent {
             Self::ChannelLeft => "ChannelLeft",
             Self::RecordingStarted => "RecordingStarted",
             Self::RecordingStopped => "RecordingStopped",
+            Self::MinecraftProtocolAllowed => "MinecraftProtocolAllowed",
+            Self::MinecraftProtocolRejected => "MinecraftProtocolRejected",
+            Self::BedrockProxyStarted => "BedrockProxyStarted",
+            Self::BedrockRealmStarted => "BedrockRealmStarted",
+            Self::BedrockConnected => "BedrockConnected",
+            Self::BedrockDisconnected => "BedrockDisconnected",
         }
     }
 }

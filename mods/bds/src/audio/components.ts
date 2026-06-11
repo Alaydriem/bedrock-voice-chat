@@ -33,21 +33,21 @@ export class AudioComponentRegistry {
       event.blockComponentRegistry.registerCustomComponent('bvc:audio_player', {
         onPlayerInteract: (
           e: BlockComponentPlayerInteractEvent,
-          _params: CustomComponentParameters
+          _params: CustomComponentParameters,
         ) => {
           this.onPlayerInteract(e);
         },
 
         onPlayerBreak: (
           e: BlockComponentPlayerBreakEvent,
-          _params: CustomComponentParameters
+          _params: CustomComponentParameters,
         ) => {
           this.onPlayerBreak(e);
         },
 
         onTick: (
           e: BlockComponentTickEvent,
-          _params: CustomComponentParameters
+          _params: CustomComponentParameters,
         ) => {
           this.onTick(e);
         },
@@ -63,15 +63,16 @@ export class AudioComponentRegistry {
   private onPlayerInteract(e: BlockComponentPlayerInteractEvent): void {
     const block = e.block;
     const player = e.player;
-    if (!player) return;
+    if (!player) {
+      return;
+    }
 
     const worldUuid = this.getWorldUuid();
     const coordinates = new Coordinates(block.x, block.y, block.z);
     const locationKey = this.audioManager.locationKey(worldUuid, coordinates);
 
     if (this.audioManager.hasDisc(locationKey)) {
-      const audioId = this.audioManager.ejectDisc(locationKey);
-      this.audioManager.killMarkers(block.dimension, coordinates);
+      const audioId = this.audioManager.ejectDisc(locationKey, player);
       this.setBlockPlaying(block, false);
 
       if (audioId) {
@@ -91,25 +92,34 @@ export class AudioComponentRegistry {
       }
     } else {
       const equippable = player.getComponent('minecraft:equippable');
-      if (!equippable) return;
+      if (!equippable) {
+        return;
+      }
 
       const mainHand = equippable.getEquipment(EquipmentSlot.Mainhand);
-      if (!mainHand) return;
+      if (!mainHand) {
+        return;
+      }
 
       const isBvcDisc = mainHand.getDynamicProperty('bvc:is_bvc_disc');
-      if (!isBvcDisc) return;
+      if (!isBvcDisc) {
+        return;
+      }
 
       const audioId = mainHand.getDynamicProperty('bvc:audio_id') as
         | string
         | undefined;
-      if (!audioId) return;
+      if (!audioId) {
+        return;
+      }
 
       this.audioManager.insertDisc(
         locationKey,
         audioId,
         block.dimension.id,
         coordinates,
-        worldUuid
+        worldUuid,
+        player,
       );
       this.setBlockPlaying(block, true);
 
@@ -125,7 +135,6 @@ export class AudioComponentRegistry {
 
     if (this.audioManager.hasDisc(locationKey)) {
       this.audioManager.onBlockDestroyed(locationKey);
-      this.audioManager.killMarkers(block.dimension, coordinates);
     }
   }
 
@@ -138,22 +147,30 @@ export class AudioComponentRegistry {
     const hasDisc = this.audioManager.hasDisc(locationKey);
     const playingState = block.permutation.getState('bvc:playing' as any);
 
-    if (!hasDisc) {
-      if (playingState) {
-        console.warn(
-          `[BVC] onTick: stale bvc:playing=true at (${block.x},${block.y},${block.z}), forcing false`
-        );
-        this.setBlockPlaying(block, false);
+    if (hasDisc) {
+      // Disc finished while its chunk was unloaded (or was left powered across a
+      // restart): the jukebox is still powered but nothing is playing. Now that
+      // the chunk is ticking again, run the deferred eject.
+      if (!this.audioManager.isPlaying(locationKey) && playingState) {
+        this.audioManager.forceEject(locationKey);
       }
-    } else {
       return;
     }
 
+    if (playingState) {
+      console.warn(
+        `[BVC] onTick: stale bvc:playing=true at (${block.x},${block.y},${block.z}), forcing false`,
+      );
+      this.setBlockPlaying(block, false);
+    }
+
     const audioId = this.pullDiscFromAdjacentHopper(block);
-    if (!audioId) return;
+    if (!audioId) {
+      return;
+    }
 
     console.info(
-      `[BVC] onTick: detected disc audioId=${audioId} at (${block.x},${block.y},${block.z})`
+      `[BVC] onTick: detected disc audioId=${audioId} at (${block.x},${block.y},${block.z})`,
     );
 
     this.audioManager.insertDisc(
@@ -161,15 +178,17 @@ export class AudioComponentRegistry {
       audioId,
       block.dimension.id,
       coordinates,
-      worldUuid
+      worldUuid,
+      null,
     );
+
     this.setBlockPlaying(block, true);
   }
 
   private setBlockPlaying(block: Block, playing: boolean): void {
     try {
       block.setPermutation(
-        block.permutation.withState('bvc:playing' as any, playing)
+        block.permutation.withState('bvc:playing' as any, playing),
       );
     } catch (e) {
       console.error('[BVC] Failed to set bvc:playing state:', e);
@@ -184,23 +203,38 @@ export class AudioComponentRegistry {
           y: block.y + n.y,
           z: block.z + n.z,
         });
-        if (!neighbor || !neighbor.typeId.includes('hopper')) continue;
+
+        if (!neighbor || !neighbor.typeId.includes('hopper')) {
+          continue;
+        }
 
         const facing = neighbor.permutation.getState('facing_direction' as any);
-        if (facing !== n.facing) continue;
+        if (facing !== n.facing) {
+          continue;
+        }
 
         const inv = neighbor.getComponent('minecraft:inventory') as any;
-        if (!inv?.container) continue;
+        if (!inv?.container) {
+          continue;
+        }
 
         for (let slot = 0; slot < inv.container.size; slot++) {
           const item = inv.container.getItem(slot);
-          if (!item) continue;
+          if (!item) {
+            continue;
+          }
 
           const isBvc = item.getDynamicProperty('bvc:is_bvc_disc');
-          if (!isBvc) continue;
+          if (!isBvc) {
+            continue;
+          }
 
-          const audioId = item.getDynamicProperty('bvc:audio_id') as string | undefined;
-          if (!audioId) continue;
+          const audioId = item.getDynamicProperty('bvc:audio_id') as
+            | string
+            | undefined;
+          if (!audioId) {
+            continue;
+          }
 
           inv.container.setItem(slot, undefined);
           return audioId;

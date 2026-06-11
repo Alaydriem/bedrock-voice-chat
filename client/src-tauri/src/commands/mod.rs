@@ -12,3 +12,5 @@ pub(crate) mod recordings;
 #[cfg(desktop)]
 pub(crate) mod updater;
 pub(crate) mod websocket;
+#[cfg(feature = "bedrock-protocol")]
+pub(crate) mod bedrock;

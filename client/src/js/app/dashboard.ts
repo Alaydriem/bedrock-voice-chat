@@ -20,7 +20,8 @@ import Analytics from './analytics';
 import type { KeybindConfig } from '../bindings/KeybindConfig.ts';
 import type { NoiseGateSettings } from '../bindings/NoiseGateSettings.ts';
 import type { PlayerGainStore } from '../bindings/PlayerGainStore.ts';
-import type { ApiConfig } from '../bindings/ApiConfig.ts';
+import type { ApiConfigCheckResponse } from '../bindings/ApiConfigCheckResponse.ts';
+import type { ServerListEntry } from '../bindings/ServerListEntry.ts';
 
 import {
   checkPermission,
@@ -371,7 +372,7 @@ export default class Dashboard extends BVCApp {
     }
 
     async renderSidebar(store: Store, currentServer: string): Promise<void> {
-        const serverList = await store.get("server_list") as Array<{ server: string, player: string }>;
+        const serverList = await store.get("server_list") as ServerListEntry[];
 
         if (serverList) {
             const sidebar = new Sidebar(serverList, currentServer);
@@ -451,7 +452,7 @@ export default class Dashboard extends BVCApp {
 
                 // Fetch server config to get fresh QUIC port and spatial audio settings
                 try {
-                    const configResponse = await invoke<{ config: ApiConfig }>("api_get_config", { server: currentServer });
+                    const configResponse = await invoke<ApiConfigCheckResponse>("api_get_config", { server: currentServer });
 
                     // Update QUIC port from server config
                     if (configResponse?.config?.quic_port && credentials) {

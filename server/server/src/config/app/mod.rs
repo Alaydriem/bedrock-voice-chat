@@ -14,6 +14,7 @@ pub use server::Meridian;
 pub use server::Minecraft;
 pub use server::Server;
 pub use server::Tls;
+pub use server::BedrockDnsConfig;
 pub use voice::Voice;
 
 use common::ncryptflib::randombytes_buf;

@@ -1,5 +1,5 @@
 use common::consts::version::PROTOCOL_VERSION;
-use common::response::ApiConfig;
+use common::response::ApiConfigResponse;
 use rocket::{serde::json::Json, State};
 use rocket_okapi::openapi;
 
@@ -29,8 +29,8 @@ inventory::submit! {
 pub async fn get_config(
     config: &State<Server>,
     voice: &State<Voice>,
-) -> Json<ApiConfig> {
-    Json(ApiConfig {
+) -> Json<ApiConfigResponse> {
+    Json(ApiConfigResponse {
         status: String::from("Ok"),
         client_id: config.minecraft.client_id.clone(),
         protocol_version: PROTOCOL_VERSION.to_string(),

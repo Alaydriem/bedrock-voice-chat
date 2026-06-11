@@ -1,7 +1,7 @@
 pub(crate) mod audio_library;
 pub(crate) mod commands;
 use common::request::LinkJavaIdentityRequest;
-use common::response::ApiConfig;
+use common::response::ApiConfigResponse;
 use common::response::LinkJavaIdentityResponse;
 use log::error;
 mod channel;
@@ -30,6 +30,14 @@ impl Api {
 
     async fn get_client(&self, fqdn: Option<&str>) -> ReqwestClient {
         self.client.get_client(fqdn).await
+    }
+
+    pub(crate) fn endpoint(&self) -> &str {
+        &self.endpoint
+    }
+
+    pub(crate) async fn get_reqwest_client(&self) -> ReqwestClient {
+        self.client.get_client(Some(self.endpoint.as_str())).await
     }
 
     pub(crate) async fn ping(&self) -> Result<(), bool> {
@@ -105,7 +113,7 @@ impl Api {
         }
     }
 
-    pub(crate) async fn get_config(&self) -> Result<ApiConfig, String> {
+    pub(crate) async fn get_config(&self) -> Result<ApiConfigResponse, String> {
         let client = self.get_client(Some(self.endpoint.as_str())).await;
 
         let mut headers = HeaderMap::new();
@@ -122,12 +130,10 @@ impl Api {
                         .await
                         .map_err(|e| format!("Failed to read response: {}", e))?;
 
-                    // Try to parse as new ApiConfig with protocol_version
-                    if let Ok(config) = serde_json::from_str::<ApiConfig>(&body) {
+                    if let Ok(config) = serde_json::from_str::<ApiConfigResponse>(&body) {
                         return Ok(config);
                     }
 
-                    // Try to parse as legacy ApiConfig (without protocol_version)
                     #[derive(serde::Deserialize)]
                     struct LegacyApiConfig {
                         status: String,
@@ -135,7 +141,7 @@ impl Api {
                     }
 
                     if let Ok(legacy) = serde_json::from_str::<LegacyApiConfig>(&body) {
-                        return Ok(ApiConfig {
+                        return Ok(ApiConfigResponse {
                             status: legacy.status,
                             client_id: legacy.client_id,
                             protocol_version: String::new(),

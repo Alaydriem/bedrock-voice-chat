@@ -1,4 +1,5 @@
 pub mod analytics;
+pub mod bedrock;
 pub mod audio;
 pub mod channel;
 pub mod config;
@@ -11,6 +12,7 @@ pub mod packet;
 pub mod permission;
 pub mod players;
 pub mod recording;
+pub mod server_list_entry;
 pub mod spatial_audio_config;
 
 pub use analytics::{AnalyticsEvent, AnalyticsEventData};
@@ -19,4 +21,5 @@ pub use events::DeepLink;
 pub use game::{Game, Coordinate, GameData, Orientation, Player, UploaderIdentity};
 pub use network::ConnectionHealth;
 pub use players::PlayerSource;
+pub use server_list_entry::ServerListEntry;
 pub use spatial_audio_config::SpatialAudioConfig;

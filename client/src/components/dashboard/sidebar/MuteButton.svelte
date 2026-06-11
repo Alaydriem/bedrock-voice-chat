@@ -73,7 +73,10 @@
         await loadMuteStatus();
 
         // Load PTT mode from store
-        const store = await Store.load("store.json");
+        const store = await Store.load("store.json", {
+            autoSave: false,
+            defaults: {}
+        });
         const keybinds = await store.get<KeybindConfig>("keybinds");
         if (keybinds) {
             isPttMode = keybinds.voiceMode === "pushToTalk";

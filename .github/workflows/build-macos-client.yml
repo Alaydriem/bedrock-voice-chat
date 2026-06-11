@@ -52,7 +52,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref || github.ref }}
 
@@ -67,7 +67,7 @@ jobs:
           node .github/scripts/set-build-number.js "${{ inputs.build_number }}"
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '24'
           cache: 'yarn'
@@ -77,6 +77,25 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin
+
+      - name: Ensure rustup shims win over Homebrew rustup-init
+        shell: bash
+        run: |
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.cargo/bin:$PATH"
+          rustup default stable
+          rustup target add aarch64-apple-darwin
+          echo "--- which cargo / rustc ---"
+          which -a cargo rustc rustup || true
+          echo "--- versions ---"
+          cargo --version
+          rustc --version
+
+      - name: Setup private cargo deps auth
+        uses: ./.github/actions/setup-private-cargo-deps
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -297,7 +316,7 @@ jobs:
 
       - name: Upload signed macOS pkg artifact
         if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: bvc-macos-release-signed-pkg
           path: client/bvc-macos-release.pkg
@@ -305,7 +324,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload macOS app.zip artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: bvc-macos-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
           path: client/bvc-macos-${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}.app.zip
@@ -313,7 +332,7 @@ jobs:
 
       - name: Upload macOS updater artifacts
         if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: bvc-macos-updater
           path: |

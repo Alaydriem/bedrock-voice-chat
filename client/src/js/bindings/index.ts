@@ -1,5 +1,6 @@
 // This file re-exports all binding types for convenience
-export type { ApiConfig } from './ApiConfig';
+export type { ApiConfigCheckResponse } from './ApiConfigCheckResponse';
+export type { ApiConfigResponse } from './ApiConfigResponse';
 export type { AudioDevice } from './AudioDevice';
 export type { AudioDeviceHost } from './AudioDeviceHost';
 export type { AudioDeviceType } from './AudioDeviceType';
@@ -23,6 +24,7 @@ export type { PlayerGainStore } from './PlayerGainStore';
 export type { PlayerSource } from './PlayerSource';
 export type { RecordingSession } from './RecordingSession';
 export type { SessionData } from './SessionData';
+export type { ServerListEntry } from './ServerListEntry';
 export type { SessionManifest } from './SessionManifest';
 export type { SpatialAudioConfig } from './SpatialAudioConfig';
 export type { StreamConfig } from './StreamConfig';

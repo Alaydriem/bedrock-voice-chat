@@ -41,7 +41,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Extract version from Cargo.toml
         id: version
@@ -258,7 +258,7 @@ jobs:
       contents: write
     steps:
       - name: Download AsyncAPI YAML
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: asyncapi-yaml
           path: docs
@@ -284,7 +284,7 @@ jobs:
       contents: write
     steps:
       - name: Download OpenAPI JSON
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: openapi-json
           path: docs
@@ -414,7 +414,7 @@ jobs:
           cat build-summary.md
 
       - name: Upload build summary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: build-summary
           path: build-summary.md

@@ -5,6 +5,7 @@ const path = require('path');
 const args = process.argv.slice(2);
 const buildAll = args.includes('--all');
 const release = args.includes('--release');
+const bdsNoNet = args.includes('--no-net');
 
 function getArg(name) {
   const arg = args.find(a => a.startsWith(`--${name}=`));
@@ -41,14 +42,17 @@ if (buildAll) {
   console.log('\n=== BDS Pack ===\n');
   execSync('yarn run pack', { cwd: bdsDir, stdio: 'inherit' });
 
-  const bpMcpack = path.join(bdsDir, 'bedrock-voice-chat-bp.mcpack');
+  const bpMcpack = path.join(
+    bdsDir,
+    bdsNoNet ? 'bedrock-voice-chat-bp-no-net.mcpack' : 'bedrock-voice-chat-bp.mcpack'
+  );
   const rpMcpack = path.join(bdsDir, 'bedrock-voice-chat-rp.mcpack');
 
   if (bdsBpDest && existsSync(bpMcpack)) {
     mkdirSync(bdsBpDest, { recursive: true });
     const destFile = path.join(bdsBpDest, 'bedrock-voice-chat-bp.zip');
     copyFileSync(bpMcpack, destFile);
-    console.log(`BDS BP -> ${destFile}`);
+    console.log(`BDS BP (${bdsNoNet ? 'no-net' : 'default'}) -> ${destFile}`);
   }
 
   if (bdsRpDest && existsSync(rpMcpack)) {

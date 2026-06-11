@@ -1,6 +1,6 @@
 use bytes::Bytes;
 use common::consts::version::PROTOCOL_VERSION;
-use common::response::ApiConfig;
+use common::response::{ApiConfigCheckResponse, ApiConfigResponse};
 use common::s2n_quic::Connection;
 use common::structs::network::ConnectionHealth;
 use common::structs::packet::{
@@ -326,7 +326,6 @@ impl ConnectionHealthManager {
                     return ProbeResult::Unavailable;
                 }
 
-                // Try to parse as the new ApiConfig format with protocol_version
                 let body = match resp.text().await {
                     Ok(text) => text,
                     Err(e) => {
@@ -335,51 +334,26 @@ impl ConnectionHealthManager {
                     }
                 };
 
-                // Try to parse with protocol_version first
-                match serde_json::from_str::<ApiConfig>(&body) {
+                match serde_json::from_str::<ApiConfigResponse>(&body) {
                     Ok(config) => {
-                        let server_version = &config.protocol_version;
-                        let client_version = PROTOCOL_VERSION;
-
-                        // Parse versions for comparison (major.minor.patch)
-                        let server_parts: Vec<u32> = server_version
-                            .split('.')
-                            .filter_map(|s| s.parse().ok())
-                            .collect();
-                        let client_parts: Vec<u32> = client_version
-                            .split('.')
-                            .filter_map(|s| s.parse().ok())
-                            .collect();
-
-                        // Compare major and minor versions - both must match (patch can differ)
-                        let server_major = server_parts.first().copied().unwrap_or(0);
-                        let server_minor = server_parts.get(1).copied().unwrap_or(0);
-                        let client_major = client_parts.first().copied().unwrap_or(0);
-                        let client_minor = client_parts.get(1).copied().unwrap_or(0);
-
-                        let compatible =
-                            server_major == client_major && server_minor == client_minor;
-                        if !compatible {
-                            let client_too_old =
-                                (client_major, client_minor) < (server_major, server_minor);
+                        let server_version = config.protocol_version.clone();
+                        let check = ApiConfigCheckResponse::from_config(config, PROTOCOL_VERSION);
+                        if !check.compatible {
                             log::warn!(
                                 "Protocol version mismatch: client={}, server={}, client_too_old={}",
-                                client_version,
+                                check.client_version,
                                 server_version,
-                                client_too_old
+                                check.client_too_old,
                             );
                             return ProbeResult::VersionMismatch {
-                                client_version: client_version.to_string(),
-                                server_version: server_version.clone(),
-                                client_too_old,
+                                client_version: check.client_version,
+                                server_version,
+                                client_too_old: check.client_too_old,
                             };
                         }
-
                         ProbeResult::Available
                     }
                     Err(_) => {
-                        // Check if we can parse as legacy ApiConfig (without protocol_version)
-                        // If we can, server is available but outdated - treat as version mismatch
                         #[derive(serde::Deserialize)]
                         struct LegacyApiConfig {
                             status: String,
@@ -395,11 +369,11 @@ impl ConnectionHealthManager {
                                 ProbeResult::VersionMismatch {
                                     client_version: PROTOCOL_VERSION.to_string(),
                                     server_version: "unknown (outdated)".to_string(),
-                                    client_too_old: false, // Server is too old
+                                    client_too_old: false,
                                 }
                             }
                             _ => {
-                                log::warn!("Failed to parse ApiConfig response");
+                                log::warn!("Failed to parse ApiConfigResponse response");
                                 ProbeResult::Unavailable
                             }
                         }

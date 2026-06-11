@@ -77,7 +77,7 @@
             await invoke<boolean>("export_logs");
         } catch (e) {
             exportError = String(e);
-            console.error("Failed to export logs:", e);
+            error(`Failed to export logs ${e}`);
         } finally {
             isExporting = false;
         }
@@ -99,7 +99,7 @@
             appInfo = await invoke<AppInfo>("get_app_info");
             telemetry = await invoke<boolean>("get_telemetry");
         } catch (e) {
-            console.error("Failed to get app info:", e);
+            error(`Failed to get app info: ${e}`);
         }
         isReady = true;
     });

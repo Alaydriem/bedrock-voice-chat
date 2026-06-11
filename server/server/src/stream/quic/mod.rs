@@ -21,7 +21,9 @@ mod webhook_receiver;
 use crate::config::ApplicationConfig;
 use anyhow;
 use client_id_hasher::ClientIdHasher;
-use common::structs::packet::{PacketType, QuicNetworkPacket};
+use common::structs::packet::{
+    PacketType, PlayerDataPacket, PlayerPositionPacket, QuicNetworkPacket, QuicNetworkPacketData,
+};
 use common::traits::StreamTrait;
 use common::s2n_quic::Server;
 use connection_registry::ConnectionRegistry;
@@ -176,6 +178,13 @@ impl QuicServerManager {
 
     pub fn get_cache_manager(&self) -> CacheManager {
         self.cache_manager.clone()
+    }
+
+    pub fn set_bedrock_event_service(
+        &mut self,
+        service: Arc<crate::services::BedrockEventService>,
+    ) {
+        self.cache_manager.set_bedrock_event_service(service);
     }
 
     pub fn get_webhook_receiver(&self) -> &WebhookReceiver {
@@ -392,6 +401,21 @@ impl QuicServerManager {
                             connection_registry
                                 .route_audio_frame(&updated_packet, &player_cache, broadcast_range, deafen_distance)
                                 .await;
+                        }
+                        PacketType::PlayerPosition => {
+                            if let QuicNetworkPacketData::PlayerPosition(PlayerPositionPacket {
+                                player,
+                            }) = updated_packet.data.clone()
+                            {
+                                let rebroadcast = QuicNetworkPacket {
+                                    packet_type: PacketType::PlayerData,
+                                    owner: updated_packet.owner.clone(),
+                                    data: QuicNetworkPacketData::PlayerData(PlayerDataPacket {
+                                        players: vec![player],
+                                    }),
+                                };
+                                connection_registry.broadcast_to_all(rebroadcast);
+                            }
                         }
                         _ => {
                             connection_registry.broadcast_to_all(updated_packet);

@@ -35,17 +35,15 @@ rodio = { version = "0.22.2" }
 bytes = { version = "^1.11.1" }
 async-mutex = { version = "^1.4" }
 moka = { version = "^0.12", features = ["future", "sync"] }
-opus2 = { version = "^0.3" }
+opus2 = { workspace = true }
 ron = { version = "^0.12" }
 audio-gate = { version = "^0.2" }
 flume = { version = "^0.12" }
-rubato = { version = "^1" }
-audioadapter-buffers = { version = "^2" }
+rubato = { workspace = true }
+audioadapter-buffers = { workspace = true }
 futures-util = { version = "^0.3" }
-tokio-tungstenite = { version = "^0.28" }
-hickory-resolver = { version = "^0.24", features = ["tokio-runtime", "dns-over-rustls", "serde-config"] }
+tokio-tungstenite = { version = "^0.29", features = ["rustls-tls-webpki-roots"] }
 ringbuf = { version = "^0.4" }
-schemars = { version = "^1.0", features = ["derive"] }
 ts-rs = { version = "^12.0" }
 tauri = { version = "^2", features = ["rustls-tls"] }
 tauri-plugin-opener = { version = "^2" }
@@ -65,15 +63,16 @@ tauri-plugin-log = { version = "^2" }
 tauri-plugin-os = { version = "^2" }
 once_cell = { version = "^1.21", features = ["atomic-polyfill"] }
 reqwest = { version = "0.12", features = ["rustls-tls", "json", "multipart"], default-features = false }
-nano-wal = { version ="^0.5" }
+nano-wal = { workspace = true }
 uuid = { version = "^1.18", features = ["v4", "v7"] }
 postcard = { version = "^1.0", features = ["alloc"] }
 bwavfile = { version = "2.0.1" }
 chrono = { version = "^0.4" }
 fern = { version = "^0.7" }
 async-trait = { version = "^0.1" }
+enum_dispatch = { version = "^0.3" }
 url = { version = "2" }
-x509-parser = { version = "0.16" }
+x509-parser = { workspace = true }
 tar = { version = "^0.4" }
 zstd = { version = "^0.13" }
 sentry = { version = "^0.46", default-features = false, features = [
@@ -82,8 +81,10 @@ sentry = { version = "^0.46", default-features = false, features = [
 tracing = { version = "^0.1" }
 tracing-subscriber = { version = "^0.3", default-features = false, features = ["registry"] }
 parking_lot = { version = "^0.12" }
+rustc-hash = { version = "^2" }
 open-feature = { version = "0.3", features = ["serde_json"] }
 shiguredo_mp4 = { version = "2026.1.0" }
+if-addrs = { workspace = true, optional = true }
 
 # Desktop Targets
 [target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]
@@ -97,6 +98,20 @@ tauri-plugin-dialog = "^2"
 [target."cfg(any(target_os = \"windows\"))".dependencies]
 windows-targets = { version = "^0.53.0" }
 
+# Android targets — needed for the ndk_context init shim in src/lib.rs.
+# tao 0.35 (Tauri 2.11) stopped initializing ndk-context (tauri-apps/tao#1154);
+# we now bridge MainActivity.onCreate -> ndk_context::initialize_android_context
+# ourselves so cpal / tauri-plugin-keyring / webbrowser don't panic.
+# `jni` is pinned to 0.21 to match tao 0.35's JNI bindings.
+[target."cfg(target_os = \"android\")".dependencies]
+jni = "0.21"
+ndk-context = "0.1"
+
 [dev-dependencies]
 
 [features]
+default = ["bedrock-protocol"]
+bedrock-protocol = [
+    "common/bedrock-protocol",
+    "dep:if-addrs",
+]

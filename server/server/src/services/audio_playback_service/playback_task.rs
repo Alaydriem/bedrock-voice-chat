@@ -1,9 +1,11 @@
 use std::time::Duration;
 
 use common::structs::packet::{
-    AudioFramePacket, PacketOwner, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
+    AudioFrameMetadata, AudioFramePacket, JukeboxMetadata, PacketOwner, PacketType,
+    QuicNetworkPacket, QuicNetworkPacketData,
 };
-use common::PlayerEnum;
+use common::game_data::Dimension;
+use common::{Coordinate, PlayerEnum};
 use tokio_util::sync::CancellationToken;
 
 use crate::stream::quic::WebhookReceiver;
@@ -11,6 +13,8 @@ use crate::stream::quic::WebhookReceiver;
 pub struct PlaybackTask {
     event_id: String,
     jukebox_name: String,
+    position: Coordinate,
+    dimension: Dimension,
     frames: Vec<Vec<u8>>,
     webhook_receiver: WebhookReceiver,
     synthetic_player: PlayerEnum,
@@ -21,6 +25,8 @@ impl PlaybackTask {
     pub fn new(
         event_id: String,
         jukebox_name: String,
+        position: Coordinate,
+        dimension: Dimension,
         frames: Vec<Vec<u8>>,
         webhook_receiver: WebhookReceiver,
         synthetic_player: PlayerEnum,
@@ -29,6 +35,8 @@ impl PlaybackTask {
         Self {
             event_id,
             jukebox_name,
+            position,
+            dimension,
             frames,
             webhook_receiver,
             synthetic_player,
@@ -64,12 +72,18 @@ impl PlaybackTask {
                     return;
                 }
                 _ = tokio::time::sleep_until(next_tick) => {
+                    let metadata = vec![AudioFrameMetadata::Jukebox(JukeboxMetadata::new(
+                        self.position.clone(),
+                        self.event_id.clone(),
+                        self.dimension.clone(),
+                    ))];
                     let audio_frame = AudioFramePacket::new(
                         frame.clone(),
                         48000,
                         Some(self.synthetic_player.clone()),
                         Some(true),
-                    );
+                    )
+                    .with_metadata(metadata);
 
                     let packet = QuicNetworkPacket {
                         packet_type: PacketType::AudioFrame,

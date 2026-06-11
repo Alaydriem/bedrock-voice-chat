@@ -1,11 +1,14 @@
+use crate::analytics::AnalyticsService;
 use crate::auth::{code_login, hytale, login};
 use crate::keyring::KeyringService;
 use crate::structs::app_state::AppState;
 use common::response::LinkJavaIdentityResponse;
 use common::response::LoginResponse;
+use common::structs::ServerListEntry;
 use common::structs::config::{
     HytaleAuthStatus, HytaleDeviceFlowStartResponse, HytaleDeviceFlowStatusResponse,
 };
+use std::sync::Arc;
 use tauri::{State, async_runtime::Mutex};
 use tauri_plugin_store::StoreExt;
 
@@ -46,8 +49,11 @@ pub(crate) async fn server_login(
 pub(crate) async fn logout(
     app_state: State<'_, Mutex<AppState>>,
     keyring: State<'_, Mutex<KeyringService>>,
+    analytics: State<'_, Arc<AnalyticsService>>,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
+    analytics.clear_connected_server();
+    analytics.clear_player();
     let mut state = app_state.lock().await;
 
     // Get the current server before clearing it
@@ -73,22 +79,13 @@ pub(crate) async fn logout(
     store.delete("current_server");
     store.delete("current_player");
 
-    // Remove the current server from server_list
     if let Some(current_server_url) = current_server {
         if let Some(server_list_value) = store.get("server_list") {
-            if let Ok(mut server_list) = serde_json::from_value::<
-                Vec<serde_json::Map<String, serde_json::Value>>,
-            >(server_list_value)
+            if let Ok(mut server_list) =
+                serde_json::from_value::<Vec<ServerListEntry>>(server_list_value)
             {
-                // Filter out the current server
-                server_list.retain(|server_entry| {
-                    server_entry
-                        .get("server")
-                        .and_then(|v| v.as_str())
-                        .map_or(true, |server_url| server_url != current_server_url)
-                });
+                server_list.retain(|entry| entry.server != current_server_url);
 
-                // Save the updated server list
                 let updated_list = serde_json::to_value(server_list)
                     .map_err(|e| format!("Failed to serialize server list: {}", e))?;
                 store.set("server_list", updated_list);
@@ -235,28 +232,27 @@ pub(crate) async fn refresh_server_state(
     Ok(response)
 }
 
-#[cfg(desktop)]
 #[tauri::command(async)]
 pub(crate) async fn link_java_identity(
     app_handle: tauri::AppHandle,
     app_state: State<'_, Mutex<AppState>>,
     gamertag: String,
 ) -> Result<LinkJavaIdentityResponse, String> {
-    let code = McOauthWindow::open(app_handle).await?;
 
-    let state = app_state.lock().await;
-    let api = state.get_api_client()?;
-    api.link_java_identity(
-        code,
-        McOauthWindow::redirect_uri().to_string(),
-        McOauthWindow::client_id().to_string(),
-        gamertag,
-    )
-    .await
-}
+    #[cfg(desktop)]
+    {
+        let code = McOauthWindow::open(app_handle).await?;
 
-#[cfg(not(desktop))]
-#[tauri::command(async)]
-pub(crate) async fn link_java_identity() -> Result<LinkJavaIdentityResponse, String> {
-    Err("Java identity linking is only available on the desktop app".to_string())
+        let state = app_state.lock().await;
+        let api = state.get_api_client()?;
+        return api.link_java_identity(
+            code,
+            McOauthWindow::redirect_uri().to_string(),
+            McOauthWindow::client_id().to_string(),
+            gamertag,
+        )
+        .await
+    }
+
+    return Err("Java identity linking is only available on the desktop app".to_string())
 }

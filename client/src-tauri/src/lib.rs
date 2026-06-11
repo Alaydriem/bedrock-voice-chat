@@ -18,12 +18,16 @@ use deep_links::DeepLinkHandler;
 
 mod analytics;
 mod api;
+#[cfg(feature = "bedrock-protocol")]
+pub mod bedrock;
 pub mod audio;
 mod auth;
 mod commands;
 mod deep_links;
 mod events;
 mod feature_flags;
+#[cfg(feature = "bedrock-protocol")]
+mod iap;
 mod keyring;
 #[cfg(desktop)]
 pub mod keybinds;
@@ -32,11 +36,49 @@ mod network;
 mod structs;
 pub mod websocket;
 
+/// JNI export called from MainActivity.onCreate to populate the global
+/// `ndk_context` static. tao 0.35 (Tauri 2.11) dropped this initialization as
+/// part of its multi-activity refactor (tauri-apps/tao#1154), which breaks
+/// every downstream crate that consults `ndk_context::android_context()` —
+/// cpal, tauri-plugin-keyring's android-native-keyring-store, webbrowser, etc.
+///
+/// See: https://github.com/open-source-cooperative/android-native-keyring-store/issues/21
+#[cfg(target_os = "android")]
+#[allow(non_snake_case)]
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_alaydriem_bvc_client_MainActivity_initNdkContext(
+    env: jni::JNIEnv,
+    _class: jni::objects::JObject,
+    context: jni::objects::JObject,
+) {
+    use jni::objects::GlobalRef;
+    use std::ffi::c_void;
+    use std::sync::OnceLock;
+
+    static REF: OnceLock<Option<GlobalRef>> = OnceLock::new();
+
+    REF.get_or_init(|| match env.new_global_ref(&context) {
+        Ok(ref_) => {
+            let vm = env.get_java_vm().unwrap();
+            let vm = vm.get_java_vm_pointer() as *mut c_void;
+            unsafe {
+                ndk_context::initialize_android_context(vm, ref_.as_obj().as_raw() as _);
+            }
+            Some(ref_)
+        }
+        Err(e) => {
+            log::error!("failed to create global ref for android context: {e}");
+            None
+        }
+    });
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     _ = common::s2n_quic::provider::tls::rustls::rustls::crypto::aws_lc_rs::default_provider()
         .install_default();
 
+    #[allow(unused_variables)]
     let sentry_guard = sentry::init((
         option_env!("SENTRY_DSN").unwrap_or(""),
         sentry::ClientOptions {
@@ -59,6 +101,7 @@ pub fn run() {
         .map_err(|e| warn!("Minidump crash reporter failed to initialize: {e}"))
         .ok();
 
+    #[allow(unused_mut)]
     let mut builder = tauri::Builder::default();
 
     // For desktop applications, enforce only a single running instance at a time
@@ -75,6 +118,16 @@ pub fn run() {
 
     let sentry_logger = Arc::new(logging::SentryLogger::new(true));
 
+    #[cfg(feature = "bedrock-protocol")]
+    let bedrock_log_channel = Arc::new(crate::bedrock::proxy::log::BedrockLogChannel::new());
+    #[cfg(feature = "bedrock-protocol")]
+    let bedrock_log_sender = bedrock_log_channel.sender();
+
+    #[cfg(feature = "bedrock-protocol")]
+    let bedrock_connect_error_channel = Arc::new(
+        crate::bedrock::BedrockConnectErrorChannel::new(),
+    );
+
     builder
         .plugin(
             tauri_plugin_log::Builder::new()
@@ -84,14 +137,25 @@ pub fn run() {
                         .and_then(|s| s.parse::<log::LevelFilter>().ok())
                         .unwrap_or(log::LevelFilter::Info),
                 )
+                .level_for("webrtc", log::LevelFilter::Warn)
+                .level_for("webrtc_ice", log::LevelFilter::Warn)
+                .level_for("webrtc_sctp", log::LevelFilter::Warn)
+                .level_for("webrtc_mdns", log::LevelFilter::Warn)
+                .level_for("webrtc_dtls", log::LevelFilter::Warn)
+                .level_for("dtls", log::LevelFilter::Warn)
                 .targets([
                     tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stderr),
                     tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
                     tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir { file_name: None }),
-                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Dispatch(
-                        fern::Dispatch::new()
-                            .chain(Box::new(sentry_logger.clone()) as Box<dyn log::Log>),
-                    )),
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Dispatch({
+                        let dispatch = fern::Dispatch::new()
+                            .chain(Box::new(sentry_logger.clone()) as Box<dyn log::Log>);
+                        #[cfg(feature = "bedrock-protocol")]
+                        let dispatch = dispatch.chain(Box::new(
+                            crate::bedrock::proxy::log::BedrockLogger::new(bedrock_log_sender.clone()),
+                        ) as Box<dyn log::Log>);
+                        dispatch
+                    })),
                 ])
                 .build()
         )
@@ -190,7 +254,36 @@ pub fn run() {
             #[cfg(desktop)]
             crate::commands::updater::check_for_updates,
             #[cfg(desktop)]
-            crate::commands::updater::install_update
+            crate::commands::updater::install_update,
+            // Bedrock
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_start_proxy,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_stop_proxy,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_start_realms,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_stop_realms,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_xbox_login,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_list_interfaces,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_list_realms,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_get_position,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_check_entitlement,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_get_status,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_cancel_xbox_login,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_xbox_logout,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_restore_auth,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_force_refresh,
         ])
         .setup(move |app| {
             let sentry_logger = sentry_logger.clone();
@@ -237,14 +330,50 @@ pub fn run() {
 
             let telemetry_filter = telemetry.clone();
             use tracing_subscriber::prelude::*;
-            tracing_subscriber::registry()
+            let registry = tracing_subscriber::registry()
                 .with(
                     sentry::integrations::tracing::layer()
                         .with_filter(tracing_subscriber::filter::dynamic_filter_fn(move |_, _| {
                             telemetry_filter.is_enabled()
                         }))
-                )
-                .init();
+                );
+            #[cfg(feature = "bedrock-protocol")]
+            let registry = registry.with(crate::bedrock::proxy::log::BedrockTracingLayer::new(
+                bedrock_log_channel.sender(),
+            ));
+            registry.init();
+
+            #[cfg(feature = "bedrock-protocol")]
+            {
+                use tauri::Emitter;
+                let mut rx = bedrock_log_channel.sender().subscribe();
+                let log_emit_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    loop {
+                        match rx.recv().await {
+                            Ok(entry) => {
+                                let _ = log_emit_handle.emit("bedrock-log", &entry);
+                            }
+                            Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                            Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                        }
+                    }
+                });
+
+                let mut err_rx = bedrock_connect_error_channel.sender().subscribe();
+                let err_emit_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    loop {
+                        match err_rx.recv().await {
+                            Ok(entry) => {
+                                let _ = err_emit_handle.emit("bedrock-connect-error", &entry);
+                            }
+                            Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                            Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                        }
+                    }
+                });
+            }
 
             let install_id = match store.get("install_id").and_then(|v| v.as_str().map(String::from)) {
                 Some(id) => id,
@@ -256,15 +385,6 @@ pub fn run() {
                 }
             };
             log::info!("Platform ID: {}", install_id);
-
-            if sentry_enabled {
-                sentry::configure_scope(|scope| {
-                    scope.set_user(Some(sentry::User {
-                        id: Some(install_id.clone()),
-                        ..Default::default()
-                    }));
-                });
-            }
 
             let feature_flag_service = Arc::new(
                 feature_flags::FeatureFlagService::new(
@@ -286,7 +406,7 @@ pub fn run() {
             // Analytics service with provider pattern
             let mut analytics_service = analytics::AnalyticsService::new(
                 telemetry.clone(),
-                install_id,
+                install_id.clone(),
             );
 
             if let (Some(key), Some(host)) = (option_env!("POSTHOG_KEY"), option_env!("POSTHOG_HOST")) {
@@ -300,7 +420,17 @@ pub fn run() {
                 }
             }
 
+            if sentry_enabled {
+                analytics_service.add_provider(
+                    analytics::AnalyticsProviderType::Sentry(
+                        analytics::sentry::Provider::new(),
+                    ),
+                );
+                info!("Sentry analytics provider configured");
+            }
+
             let analytics_service = Arc::new(analytics_service);
+            analytics_service.set_user(&install_id);
             analytics_service.track(common::structs::AnalyticsEvent::AppStarted, None);
 
             let flush_analytics = analytics_service.clone();
@@ -378,6 +508,32 @@ pub fn run() {
             app.manage(sentry_logger);
             app.manage(Mutex::new(app_state));
 
+            #[cfg(feature = "bedrock-protocol")]
+            let bedrock_player_state_cache = {
+                let bedrock_state = crate::bedrock::BedrockState::new();
+                let cache = std::sync::Arc::clone(&bedrock_state.player_state_cache);
+                app.manage(Mutex::new(bedrock_state));
+                app.manage(crate::iap::EntitlementService::new(
+                    crate::iap::EntitlementProviderType::Bedrock(
+                        crate::iap::bedrock::Provider::new(app.handle().clone()),
+                    ),
+                ));
+                cache
+            };
+
+            #[cfg(feature = "bedrock-protocol")]
+            let bedrock_beacon_cache = Arc::new(crate::bedrock::JukeboxBeaconCache::new());
+            #[cfg(feature = "bedrock-protocol")]
+            app.manage(Arc::clone(&bedrock_beacon_cache));
+            #[cfg(feature = "bedrock-protocol")]
+            let bedrock_eject_injector = crate::bedrock::JukeboxEjectInjector::new_shared();
+            #[cfg(feature = "bedrock-protocol")]
+            app.manage(Arc::clone(&bedrock_eject_injector));
+            #[cfg(feature = "bedrock-protocol")]
+            app.manage(Arc::clone(&bedrock_connect_error_channel));
+            #[cfg(feature = "bedrock-protocol")]
+            app.manage(Arc::clone(&bedrock_log_channel));
+
             // This is our audio producer and consumer
             // The producer is responsible for getting audio from the raw input device, then sending it to the consumer
             // The consumer lives in the networking thread, consumes the audio, then sends it to the server
@@ -398,12 +554,17 @@ pub fn run() {
             let recording_manager = RecordingManager::new(handle.clone());
             app.manage(Arc::new(Mutex::new(recording_manager)));
 
-            // Create AudioStreamManager with RecordingManager reference
             let audio_stream = AudioStreamManager::new(
                 handle.state::<Arc<Sender<NetworkPacket>>>().inner().clone(),
                 handle.state::<Arc<Receiver<AudioPacket>>>().inner().clone(),
                 handle.clone(),
                 Some(handle.state::<Arc<Mutex<RecordingManager>>>().inner().clone()),
+                #[cfg(feature = "bedrock-protocol")]
+                Some(bedrock_player_state_cache),
+                #[cfg(feature = "bedrock-protocol")]
+                Some(Arc::clone(&bedrock_beacon_cache)),
+                #[cfg(feature = "bedrock-protocol")]
+                Some(Arc::clone(&bedrock_eject_injector)),
             );
             app.manage(Mutex::new(audio_stream));
 

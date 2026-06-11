@@ -1,8 +1,11 @@
+pub mod bedrock;
 pub mod features;
 pub mod meridian;
 pub mod minecraft;
 pub mod tls;
 
+pub use bedrock::BedrockConfig;
+pub use bedrock::BedrockDnsConfig;
 pub use features::Features;
 pub use meridian::Meridian;
 pub use minecraft::Minecraft;
@@ -43,6 +46,8 @@ pub struct Server {
     pub features: Features,
     #[serde(default)]
     pub meridian: Option<Meridian>,
+    #[serde(default)]
+    pub bedrock: BedrockConfig,
 }
 
 impl Default for Server {
@@ -56,6 +61,7 @@ impl Default for Server {
             minecraft: Minecraft::default(),
             features: Features::default(),
             meridian: None,
+            bedrock: BedrockConfig::default(),
         }
     }
 }

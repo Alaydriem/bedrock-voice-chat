@@ -5,6 +5,7 @@ use tauri::async_runtime::Mutex;
 
 #[tauri::command]
 pub async fn stop_websocket_server(
+    #[allow(unused_variables)]
     ws_manager: State<'_, Mutex<WebSocketManager>>,
 ) -> Result<(), String> {
     #[cfg(desktop)]
@@ -17,6 +18,7 @@ pub async fn stop_websocket_server(
 
 #[tauri::command]
 pub async fn is_websocket_running(
+    #[allow(unused_variables)]
     ws_manager: State<'_, Mutex<WebSocketManager>>,
 ) -> Result<bool, String> {
     #[cfg(desktop)]
@@ -33,15 +35,20 @@ pub async fn is_websocket_running(
 #[tauri::command]
 pub async fn update_websocket_config(
     config: WebSocketConfig,
+    #[allow(unused_variables)]
     ws_manager: State<'_, Mutex<WebSocketManager>>,
 ) -> Result<(), String> {
-    let mut manager = ws_manager.lock().await;
-    manager.update_config(config);
+    #[cfg(desktop)]
+    {
+        let mut manager = ws_manager.lock().await;
+        manager.update_config(config);
+    }
     Ok(())
 }
 
 #[tauri::command]
 pub async fn start_websocket_server(
+    #[allow(unused_variables)]
     ws_manager: State<'_, Mutex<WebSocketManager>>,
 ) -> Result<(), String> {
     #[cfg(desktop)]

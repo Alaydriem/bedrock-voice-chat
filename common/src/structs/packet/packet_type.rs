@@ -4,10 +4,12 @@ use serde::{Deserialize, Serialize};
 pub enum PacketType {
     AudioFrame,
     PlayerData,
+    PlayerPosition,
     ChannelEvent,
     Collection,
     Debug,
     PlayerPresence,
     ServerError,
     HealthCheck,
+    BedrockEvent,
 }

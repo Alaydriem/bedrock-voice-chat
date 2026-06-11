@@ -1,62 +1,85 @@
 <script lang="ts">
   import "../../css/app.css";
   import Login from "../../js/app/login.ts";
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { openUrl } from '@tauri-apps/plugin-opener';
-  import { getVersion } from '@tauri-apps/api/app';
-  import { invoke } from '@tauri-apps/api/core';
-  import PlatformDetector from "../../js/app/utils/PlatformDetector.ts";
 
-  const platformDetector = new PlatformDetector();
   let isMobile = $state(false);
   let appVersion = $state("");
+  let formError = $state("");
+  let serverInputInvalid = $state(false);
   let isCodeLogin = $state(false);
   let isAddServer = $state(false);
+  let backHref = $state("/dashboard");
+  let backLabel = $state("Back to Dashboard");
+  let serverInputValue = $state("");
 
-  onMount(async () => {
-    isMobile = await platformDetector.checkMobile();
-    appVersion = await getVersion();
-    window.App = new Login();
+  let appInstance: Login | null = $state(null);
+  const unsubs: Array<() => void> = [];
+
+  onMount(() => {
+    const instance = new Login();
+    appInstance = instance;
+    window.App = instance;
     window.dispatchEvent(new CustomEvent("app:mounted"));
 
-    // Stop any running audio/network streams
-    await invoke("reset_asm").catch(() => {});
-    await invoke("reset_nsm").catch(() => {});
+    unsubs.push(instance.isMobileReadable.subscribe((v) => { isMobile = v; }));
+    unsubs.push(instance.appVersionReadable.subscribe((v) => { appVersion = v; }));
+    unsubs.push(instance.formError.subscribe((v) => { formError = v; }));
+    unsubs.push(instance.serverInputInvalid.subscribe((v) => { serverInputInvalid = v; }));
 
-    // Initialize and check for pending deep link callbacks
-    await window.App.initialize();
-
-    window.App.preloader();
-
-    const urlParams = new URLSearchParams(window.location.search);
-    isAddServer = urlParams.has("addserver");
-
-    document.querySelector("#login-form")
-      ?.addEventListener("submit", (e) => {
-        window.App.login(e);
-    });
-
-    // Auto-format the server URL when the input loses focus
-    const serverInput = document.querySelector("#bvc-server-input") as HTMLInputElement;
-    serverInput?.addEventListener("blur", () => {
-      if (serverInput.value.trim()) {
-        serverInput.value = window.App.sanitizeServerUrl(serverInput.value);
+    (async () => {
+      const pageState = await instance.initializePage();
+      isAddServer = pageState.isAddServer;
+      backHref = pageState.backHref;
+      backLabel = pageState.backLabel;
+      if (pageState.prefilledServer) {
+        serverInputValue = pageState.prefilledServer;
+        isCodeLogin = Login.isCodeLoginInput(serverInputValue);
       }
-    });
-
-    if (urlParams.has("server")) {
-      const server = urlParams.get("server") ?? "";
-      document.querySelector("#bvc-server-input")?.setAttribute("value", server);
-
-      if (urlParams.has("reauth")) {
-        const reauth = urlParams.get("reauth");
-        if (reauth === "true") {
-          document.querySelector("#login-form")
-            ?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-        }
+      if (pageState.autoReauth) {
+        await handleSubmit();
       }
-    }
+    })();
   });
+
+  onDestroy(() => {
+    for (const unsub of unsubs) unsub();
+  });
+
+  async function handleSubmit(event?: Event) {
+    event?.preventDefault();
+    if (!appInstance) return;
+    const result = await appInstance.login(serverInputValue);
+    if (result.sanitized) {
+      serverInputValue = result.sanitized;
+    }
+  }
+
+  async function handleHytaleLogin(event: Event) {
+    event.preventDefault();
+    if (!appInstance) return;
+    const result = await appInstance.loginWithHytale(serverInputValue);
+    if (result.sanitized) {
+      serverInputValue = result.sanitized;
+    }
+  }
+
+  function handleServerInputChange(value: string) {
+    serverInputValue = value;
+    isCodeLogin = Login.isCodeLoginInput(value);
+  }
+
+  function handleServerInputBlur() {
+    if (serverInputValue.trim() && appInstance) {
+      serverInputValue = appInstance.sanitizeServerUrl(serverInputValue);
+    }
+  }
+
+  function handleCodeLoginClick() {
+    if (!appInstance) return;
+    window.location.href = appInstance.handleCodeLoginNavigate(serverInputValue);
+  }
 </script>
 
 <div
@@ -68,13 +91,13 @@
           {#if isAddServer}
             <div class="mb-4">
               <a
-                href="/dashboard"
+                href={backHref}
                 class="inline-flex items-center space-x-2 text-sm text-slate-500 hover:text-primary dark:text-navy-200 dark:hover:text-accent-light transition-colors"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                 </svg>
-                <span>Back to Dashboard</span>
+                <span>{backLabel}</span>
               </a>
             </div>
           {/if}
@@ -85,59 +108,49 @@
               alt="Bedrock Voice Chat Logo"
             />
             <div class="mt-4">
-              <h2
-                class="text-2xl font-semibold text-slate-600 dark:text-navy-100"
-              >
+              <h2 class="text-2xl font-semibold text-slate-600 dark:text-navy-100">
                 Bedrock Voice Chat
               </h2>
             </div>
           </div>
-          <form id="login-form">
+          <form onsubmit={handleSubmit}>
             <div class="card mt-5 rounded-lg p-5 lg:p-7">
               <div>
                 <p class="text-slate-300 dark:text-navy-200 pb-3">
                   Set your server, then sign in with your account
                 </p>
                 <label class="mt-1.5 flex -space-x-px">
-                  <span
-                    class="flex items-center justify-center rounded-l-lg border border-slate-300 px-3.5 font-inter dark:border-navy-450"
-                  >
-                    <span class="-mt-1"
-                      ><i class="fa-solid fa-server" style="color: #ffffff"></i
-                    ></span>
+                  <span class="flex items-center justify-center rounded-l-lg border border-slate-300 px-3.5 font-inter dark:border-navy-450">
+                    <span class="-mt-1"><i class="fa-solid fa-server" style="color: #ffffff"></i></span>
                   </span>
                   <input
-                    id="bvc-server-input"
-                    class="form-input w-full rounded-r-lg border border-slate-300 bg-transparent px-3 py-2 placeholder:text-slate-400/70 hover:z-10 hover:border-slate-400 focus:z-10 focus:border-primary dark:border-navy-450 dark:hover:border-navy-400 dark:focus:border-accent"
+                    class="form-input w-full rounded-r-lg border bg-transparent px-3 py-2 placeholder:text-slate-400/70 hover:z-10 focus:z-10 dark:hover:border-navy-400 dark:focus:border-accent
+                      {serverInputInvalid ? 'border-error' : 'border-slate-300 hover:border-slate-400 focus:border-primary dark:border-navy-450'}"
                     placeholder="bvc.alaydriem.com"
                     type="text"
                     autocorrect="off"
                     autocapitalize="none"
                     spellcheck="false"
                     autocomplete="url"
-                    oninput={(e) => { isCodeLogin = /^(https?:\/\/)?code@/.test((e.currentTarget as HTMLInputElement).value); }}
+                    value={serverInputValue}
+                    oninput={(e) => handleServerInputChange((e.currentTarget as HTMLInputElement).value)}
+                    onblur={handleServerInputBlur}
                   />
                 </label>
-                <span
-                  id="bvc-server-input-error-message"
-                  class="text-tiny+ text-error invisible mt-2 block"
-                  >Unable to connect and verify BVC Server. Check the URL?</span
-                >
+                <span class="text-tiny+ text-error mt-2 block {formError ? '' : 'invisible'}">
+                  {formError || 'Unable to connect and verify BVC Server. Check the URL?'}
+                </span>
               </div>
               {#if isCodeLogin}
                 <button
                   type="button"
                   class="btn mt-5 w-full bg-primary font-medium text-white hover:bg-primary-focus focus:bg-primary-focus active:bg-primary-focus/90 dark:bg-accent dark:hover:bg-accent-focus dark:focus:bg-accent-focus dark:active:bg-accent/90"
-                  onclick={() => {
-                    const raw = (document.querySelector('#bvc-server-input') as HTMLInputElement)?.value ?? '';
-                    const server = raw.replace(/^(https?:\/\/)?code@/, (_, proto) => proto ?? 'https://');
-                    window.location.href = `/login/code?server=${encodeURIComponent(server)}`;
-                  }}
+                  onclick={handleCodeLoginClick}
                 >
                   Login with Code
                 </button>
               {:else}
-                <button class="btn mt-5 w-full">
+                <button type="submit" class="btn mt-5 w-full">
                   <img
                     src="/images/ms-symbollockup_signin_dark.svg"
                     alt="Sign in with Microsoft Account"
@@ -152,7 +165,7 @@
                     <span class="px-3 text-slate-400 dark:text-navy-300 text-sm">or</span>
                     <hr class="flex-grow border-slate-300 dark:border-navy-450" />
                   </div>
-                  <button id="hytale-login-btn" type="button" class="btn w-full" onclick={(e) => window.App.loginWithHytale(e)}>
+                  <button type="button" class="btn w-full" onclick={handleHytaleLogin}>
                     <img
                       src="/images/hytale-login-button.svg"
                       alt="Sign in with Hytale"
@@ -164,9 +177,7 @@
               {/if}
             </div>
           </form>
-          <div
-            class="mt-8 flex flex-col items-center text-xs text-slate-400 dark:text-navy-300"
-          >
+          <div class="mt-8 flex flex-col items-center text-xs text-slate-400 dark:text-navy-300">
             <button
               type="button"
               class="hover:text-slate-500 dark:hover:text-navy-200 hover:underline cursor-pointer"

@@ -1,7 +1,7 @@
 use bytes::Bytes;
 use clap::Parser;
 use common::response::auth::AuthStateResponse;
-use common::response::ApiConfig;
+use common::response::ApiConfigResponse;
 use common::rustls::MtlsHttpClient;
 use common::structs::channel::{Channel, ChannelEvent, ChannelEvents};
 use common::structs::packet::AudioFramePacket;
@@ -14,7 +14,7 @@ use core::{
     task::{Context, Poll},
 };
 use hound;
-use rcgen::CertificateParams;
+use x509_parser::prelude::*;
 use rodio::Decoder;
 use common::s2n_quic::{client::Connect, Client, Connection};
 use std::io::BufWriter;
@@ -82,21 +82,17 @@ fn parse_server_name(server_name: &str) -> (String, u16) {
 }
 
 fn extract_player_from_cert(cert_path: &str) -> Result<String, Box<dyn Error>> {
-    let cert_pem = std::fs::read_to_string(cert_path)?;
-    let params = CertificateParams::from_ca_cert_pem(&cert_pem)?;
-    let cn = params
-        .distinguished_name
-        .get(&rcgen::DnType::CommonName)
-        .ok_or("No CommonName found in certificate")?;
+    let cert_pem = std::fs::read(cert_path)?;
+    let (_, pem) = parse_x509_pem(&cert_pem)?;
+    let (_, cert) = X509Certificate::from_der(&pem.contents)?;
+    let cn_str = cert
+        .subject()
+        .iter_common_name()
+        .next()
+        .ok_or("No CommonName found in certificate")?
+        .as_str()?
+        .to_string();
 
-    let cn_str = match cn {
-        rcgen::DnValue::Utf8String(s) => s.clone(),
-        rcgen::DnValue::PrintableString(s) => s.as_str().to_string(),
-        rcgen::DnValue::Ia5String(s) => s.as_str().to_string(),
-        _ => return Err("Unsupported DN value type for CommonName".into()),
-    };
-
-    // Handle both "game:gamertag" and plain "gamertag" formats
     let gamertag = match cn_str.split_once(':') {
         Some((_, name)) => name.to_string(),
         None => cn_str,
@@ -128,7 +124,7 @@ async fn run(args: Args) -> Result<(), Box<dyn Error>> {
     let base_url = format!("https://{}:{}", hostname, api_port);
     println!("Querying API config at {}/api/config", base_url);
 
-    let config: ApiConfig = http_client
+    let config: ApiConfigResponse = http_client
         .client()
         .get(format!("{}/api/config", base_url))
         .send()

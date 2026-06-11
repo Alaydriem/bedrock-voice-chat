@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import BVCApp from './BVCApp.ts';
 import type { LoginResponse } from '../bindings/LoginResponse';
 import type { Game } from '../bindings/Game';
+import type { ServerListEntry } from '../bindings/ServerListEntry';
 
 export default class LoginCode extends BVCApp {
     private serverUrl = "";
@@ -53,7 +54,7 @@ export default class LoginCode extends BVCApp {
             const store = await this.getStore();
 
             const [rawServerList] = await Promise.all([
-                store.get("server_list") as Promise<Array<{ server: string, player: string, game?: string }> | null>,
+                store.get("server_list") as Promise<ServerListEntry[] | null>,
                 store.set("current_server", this.serverUrl),
                 store.set("current_player", response.gamertag),
                 store.set("active_game", game),
