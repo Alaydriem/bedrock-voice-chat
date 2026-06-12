@@ -11,5 +11,6 @@ pub use proxy::{
 pub(crate) use proxy::ProxyDeps;
 pub use auth::{BedrockAuthService, BedrockKeyringService};
 pub use gating::ProtocolGatingService;
+pub use gating::RealmsConnectGatingService;
 pub use state::BedrockState;
 pub use transfer_keep_alive::TransferKeepAlive;

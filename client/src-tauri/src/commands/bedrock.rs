@@ -37,7 +37,6 @@ pub(crate) async fn bedrock_start_proxy(
     network_interface: String,
     state: State<'_, Mutex<BedrockState>>,
     app_state: State<'_, Mutex<AppState>>,
-    entitlement: State<'_, EntitlementService>,
     quic_producer: State<'_, Arc<flume::Sender<NetworkPacket>>>,
     flag_service: State<'_, Arc<FeatureFlagService>>,
     analytics: State<'_, Arc<AnalyticsService>>,
@@ -45,8 +44,6 @@ pub(crate) async fn bedrock_start_proxy(
     eject_injector: State<'_, Arc<JukeboxEjectInjector>>,
     error_channel: State<'_, Arc<BedrockConnectErrorChannel>>,
 ) -> Result<(), String> {
-    entitlement.require_entitlement()?;
-
     let mut state = state.lock().await;
 
     if state.realms.as_ref().is_some_and(|r| !r.is_stopped()) {
@@ -137,7 +134,7 @@ pub(crate) async fn bedrock_start_realms(
     network_interface: String,
     state: State<'_, Mutex<BedrockState>>,
     app_state: State<'_, Mutex<AppState>>,
-    entitlement: State<'_, EntitlementService>,
+    entitlement: State<'_, Arc<EntitlementService>>,
     quic_producer: State<'_, Arc<flume::Sender<NetworkPacket>>>,
     flag_service: State<'_, Arc<FeatureFlagService>>,
     analytics: State<'_, Arc<AnalyticsService>>,
@@ -145,7 +142,19 @@ pub(crate) async fn bedrock_start_realms(
     error_channel: State<'_, Arc<BedrockConnectErrorChannel>>,
     eject_injector: State<'_, Arc<JukeboxEjectInjector>>,
 ) -> Result<(), String> {
-    entitlement.require_entitlement()?;
+    let gate = crate::bedrock::RealmsConnectGatingService::new(
+        Arc::clone(flag_service.inner()),
+        Arc::clone(analytics.inner()),
+    );
+    if !matches!(
+        gate.evaluate(entitlement.is_entitled()).await,
+        common::structs::iap::RealmsGateStatus::Allowed { .. }
+    ) {
+        return Err(
+            "Realms Connect requires an active subscription, a free-weekend window, or a membership code."
+                .to_string(),
+        );
+    }
 
     let mut state = state.lock().await;
 
@@ -515,7 +524,20 @@ pub(crate) async fn bedrock_get_status(
 
 #[tauri::command(async)]
 pub(crate) async fn bedrock_check_entitlement(
-    entitlement: State<'_, EntitlementService>,
+    entitlement: State<'_, Arc<EntitlementService>>,
 ) -> Result<bool, String> {
     Ok(entitlement.is_entitled())
+}
+
+#[tauri::command(async)]
+pub(crate) async fn bedrock_realms_gate(
+    entitlement: State<'_, Arc<EntitlementService>>,
+    flag_service: State<'_, Arc<FeatureFlagService>>,
+    analytics: State<'_, Arc<AnalyticsService>>,
+) -> Result<common::structs::iap::RealmsGateStatus, String> {
+    let gate = crate::bedrock::RealmsConnectGatingService::new(
+        Arc::clone(flag_service.inner()),
+        Arc::clone(analytics.inner()),
+    );
+    Ok(gate.evaluate(entitlement.is_entitled()).await)
 }

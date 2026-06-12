@@ -11,6 +11,7 @@
     import ErrorBanner from "./ErrorBanner.svelte";
     import XboxLoginModal from "./XboxLoginModal.svelte";
     import BedrockConnectionInfoModal from "./BedrockConnectionInfoModal.svelte";
+    import GatingModal from "./GatingModal.svelte";
 
     interface Props {
         bedrockManager: BedrockManager;
@@ -32,7 +33,7 @@
         body,
     }: Props = $props();
 
-    const isEntitled = bedrockManager.isEntitled;
+    const gateStatus = bedrockManager.gateStatus;
     const isAuthenticated = bedrockManager.isAuthenticated;
     const isRestoringAuth = bedrockManager.isRestoringAuth;
     const showLoginModal = bedrockManager.showLoginModal;
@@ -43,7 +44,7 @@
 <div class="grid grid-cols-1 gap-4 sm:gap-5 lg:gap-6 pt-4 md:pt-0">
     {#if $isRestoringAuth}
         <RestoringAuthBanner />
-    {:else if requiresEntitlement && !$isEntitled}
+    {:else if requiresEntitlement && $gateStatus !== null && $gateStatus.status !== "allowed"}
         <EntitlementBanner />
     {:else if !$isAuthenticated}
         <SignInCard {bedrockManager} description={signedOutDescription} />
@@ -62,3 +63,5 @@
 {/if}
 
 <BedrockConnectionInfoModal {bedrockManager} />
+
+<GatingModal {bedrockManager} />

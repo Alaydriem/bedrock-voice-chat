@@ -284,6 +284,16 @@ pub fn run() {
             crate::commands::bedrock::bedrock_restore_auth,
             #[cfg(feature = "bedrock-protocol")]
             crate::commands::bedrock::bedrock_force_refresh,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_realms_gate,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::iap::iap_list_offers,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::iap::iap_purchase,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::iap::iap_restore,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::iap::iap_refresh,
         ])
         .setup(move |app| {
             let sentry_logger = sentry_logger.clone();
@@ -513,11 +523,27 @@ pub fn run() {
                 let bedrock_state = crate::bedrock::BedrockState::new();
                 let cache = std::sync::Arc::clone(&bedrock_state.player_state_cache);
                 app.manage(Mutex::new(bedrock_state));
-                app.manage(crate::iap::EntitlementService::new(
-                    crate::iap::EntitlementProviderType::Bedrock(
-                        crate::iap::bedrock::Provider::new(app.handle().clone()),
-                    ),
-                ));
+
+                handle.plugin(tauri_plugin_iap::init())?;
+
+                app.manage(std::sync::Arc::new(crate::iap::EntitlementService::new(
+                    vec![crate::iap::EntitlementProviderType::Store(
+                        crate::iap::store::StoreProvider::new(app.handle().clone()),
+                    )],
+                )));
+
+                let refresh_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    use tauri::Manager;
+                    let svc = refresh_handle
+                        .state::<std::sync::Arc<crate::iap::EntitlementService>>()
+                        .inner()
+                        .clone();
+                    if let Err(e) = svc.check_and_refresh().await {
+                        log::warn!("startup entitlement refresh failed: {e}");
+                    }
+                });
+
                 cache
             };
 
