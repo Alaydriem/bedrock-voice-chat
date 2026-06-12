@@ -534,3 +534,16 @@ pub(crate) async fn bedrock_realms_gate(
     );
     Ok(gate.evaluate(entitlement.is_entitled()).await)
 }
+
+#[tauri::command(async)]
+pub(crate) async fn bedrock_realms_gate(
+    entitlement: State<'_, Arc<EntitlementService>>,
+    flag_service: State<'_, Arc<FeatureFlagService>>,
+    analytics: State<'_, Arc<AnalyticsService>>,
+) -> Result<common::structs::iap::RealmsGateStatus, String> {
+    let gate = crate::bedrock::RealmsConnectGatingService::new(
+        Arc::clone(flag_service.inner()),
+        Arc::clone(analytics.inner()),
+    );
+    Ok(gate.evaluate(entitlement.is_entitled()).await)
+}
