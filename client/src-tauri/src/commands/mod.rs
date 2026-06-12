@@ -14,3 +14,5 @@ pub(crate) mod updater;
 pub(crate) mod websocket;
 #[cfg(feature = "bedrock-protocol")]
 pub(crate) mod bedrock;
+#[cfg(feature = "bedrock-protocol")]
+pub(crate) mod iap;

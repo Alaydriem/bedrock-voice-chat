@@ -24,15 +24,15 @@
   "bundle": {
     "android": {
       "minSdkVersion": 30,
-      "versionCode": 1000512
+      "versionCode": 1001072
     },
     "iOS": {
       "minimumSystemVersion": "26.0",
-      "bundleVersion": "1000512",
+      "bundleVersion": "1001072",
       "infoPlist": "./Info.ios.plist"
     },
     "macOS": {
-      "bundleVersion": "1000512",
+      "bundleVersion": "1001072",
       "minimumSystemVersion": "26.0",
       "infoPlist": "./Info.macos.plist",
       "hardenedRuntime": true

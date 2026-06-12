@@ -1081,6 +1081,7 @@ dependencies = [
  "tauri-plugin-fs",
  "tauri-plugin-global-shortcut",
  "tauri-plugin-http",
+ "tauri-plugin-iap",
  "tauri-plugin-keyring",
  "tauri-plugin-log",
  "tauri-plugin-notification",
@@ -2696,6 +2697,17 @@ dependencies = [
  "precomputed-hash",
  "selectors",
  "tendril",
+]
+
+[[package]]
+name = "dos-date-time"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e6bf3a6a5a5068b83e2bc1251735e040c3c0d54bc0bb829bec86d76eb1197689"
+dependencies = [
+ "chrono",
+ "jiff",
+ "time",
 ]
 
 [[package]]
@@ -4571,6 +4583,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "jiff"
+version = "0.2.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4603d3033e49e2b0e31229fcab20a5d40089c607d975cd9c80551dc69eed9102"
+dependencies = [
+ "jiff-static",
+ "log",
+ "portable-atomic",
+ "portable-atomic-util",
+ "serde_core",
+]
+
+[[package]]
+name = "jiff-static"
+version = "0.2.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "782d32378dddf207193ac91cefb848ad41abb58195c95168e1291227a0832b47"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+]
+
+[[package]]
 name = "jni"
 version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5517,6 +5553,19 @@ dependencies = [
  "serde",
  "tauri-winrt-notification",
  "zbus",
+]
+
+[[package]]
+name = "nt-time"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "293dcb75775acfac821c0be754ea8489cc606689f1a23faa11425c0154e5a85c"
+dependencies = [
+ "chrono",
+ "dos-date-time",
+ "jiff",
+ "rand 0.10.1",
+ "time",
 ]
 
 [[package]]
@@ -9292,6 +9341,53 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
+name = "swift-bridge"
+version = "0.1.59"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "384ed39ea10f1cefabb197b7d8e67f0034b15a94ccbb1038b8e020da59bfb0be"
+dependencies = [
+ "once_cell",
+ "swift-bridge-build",
+ "swift-bridge-macro",
+ "tokio",
+]
+
+[[package]]
+name = "swift-bridge-build"
+version = "0.1.59"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "71b36df21e7f8a8b5eeb718d2e71f9cfc308477bfb705981cca705de9767dcb7"
+dependencies = [
+ "proc-macro2",
+ "swift-bridge-ir",
+ "syn 1.0.109",
+ "tempfile",
+]
+
+[[package]]
+name = "swift-bridge-ir"
+version = "0.1.59"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c73bd16155df50708b92306945656e57d62d321290a7db490f299f709fb31c83"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "swift-bridge-macro"
+version = "0.1.59"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a1a13dc0dc875d85341dec5b5344a7d713f20eb5650b71086b27d09a6ece272f"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "swift-bridge-ir",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "swift-rs"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9850,6 +9946,26 @@ dependencies = [
  "tokio",
  "url",
  "urlpattern",
+]
+
+[[package]]
+name = "tauri-plugin-iap"
+version = "0.10.0-rc.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7c5677307f66307c646bd6e056116c51b869ebbe185ba796883a690d5616f977"
+dependencies = [
+ "base64 0.22.1",
+ "log",
+ "nt-time",
+ "serde",
+ "serde_json",
+ "swift-bridge",
+ "swift-bridge-build",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 2.0.18",
+ "windows 0.61.3",
+ "windows-collections 0.2.0",
 ]
 
 [[package]]

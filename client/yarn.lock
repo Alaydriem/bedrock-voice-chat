@@ -166,6 +166,13 @@
   resolved "https://registry.yarnpkg.com/@caneara/iodine/-/iodine-8.5.0.tgz#45227f98bb4486d87cbb3ba14a4f808613011525"
   integrity sha512-drPlPjJTrFsgbWkxFbvgl/Gzfz9NwSzBSC/QTU2i2lSa4Ij8n3uDPpZrHt1aDSwhAWP5U+EzAw6+cnB0+uznuQ==
 
+"@choochmeque/tauri-plugin-iap-api@0.10.0-rc.1":
+  version "0.10.0-rc.1"
+  resolved "https://registry.yarnpkg.com/@choochmeque/tauri-plugin-iap-api/-/tauri-plugin-iap-api-0.10.0-rc.1.tgz#c99a156b36d1e24dbe3b37e73c6d6b1030b57a4b"
+  integrity sha512-+cO2wQV3zAzFlenOyBP8l6Rza0U6A/bwxf/p5pQ6sHoeD7jkeAvQvy+GwwquOJ5njxnYqWV4pSP100QRXkduKQ==
+  dependencies:
+    "@tauri-apps/api" "^2.6.0"
+
 "@csstools/selector-resolve-nested@^4.0.0":
   version "4.0.0"
   resolved "https://registry.yarnpkg.com/@csstools/selector-resolve-nested/-/selector-resolve-nested-4.0.0.tgz#ccc38c2cdc14c3ddd1d94647803facef654d47e2"
@@ -799,7 +806,7 @@
     "@tailwindcss/oxide" "4.3.0"
     tailwindcss "4.3.0"
 
-"@tauri-apps/api@^2", "@tauri-apps/api@^2.10.1", "@tauri-apps/api@^2.11.0", "@tauri-apps/api@^2.8.0":
+"@tauri-apps/api@^2", "@tauri-apps/api@^2.10.1", "@tauri-apps/api@^2.11.0", "@tauri-apps/api@^2.6.0", "@tauri-apps/api@^2.8.0":
   version "2.11.0"
   resolved "https://registry.yarnpkg.com/@tauri-apps/api/-/api-2.11.0.tgz#00fb69996010178a5153798d4a84f6fe3a1e1182"
   integrity sha512-7CinYODhky9lmO23xHnUFv0Xt43fbtWMyxZcLcRBlFkcgXKuEirBvHpmtJ89YMhyeGcq20Wuc47Fa4XjyniywA==

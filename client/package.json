@@ -15,6 +15,7 @@
   },
   "license": "UNLICENSED",
   "dependencies": {
+    "@choochmeque/tauri-plugin-iap-api": "0.10.0-rc.1",
     "@sentry/browser": "^10.43.0",
     "@sentry/vite-plugin": "^5.3",
     "@tauri-apps/api": "^2.11.0",
