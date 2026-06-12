@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { Store } from '@tauri-apps/plugin-store';
 import { info, error as logError } from '@tauri-apps/plugin-log';
 import type { RealmEntry } from '../../../../bindings/RealmEntry';
+import type { RealmsGateStatus } from '../../../../bindings/RealmsGateStatus';
 import type { RealmsLifecycle } from './RealmsLifecycle';
 import type { BedrockRealmsManagerCallbacks } from './BedrockRealmsManagerCallbacks';
 
@@ -131,6 +132,19 @@ export class BedrockRealmsManager implements RealmsLifecycle {
         this.callbacks.setStatus('');
         this.callbacks.clearLogs();
         this.callbacks.clearConnectionError();
+
+        // Hard gate pre-check. The backend re-enforces this on start
+        // (server-authoritative); this drives the not-entitled modal UX.
+        try {
+            const gate = await invoke<RealmsGateStatus>('bedrock_realms_gate');
+            if (gate.status !== 'allowed') {
+                this.callbacks.onGateBlocked(gate);
+                return;
+            }
+        } catch (e) {
+            logError(`Realms gate pre-check failed: ${e}`);
+        }
+
         try {
             try {
                 await invoke('bedrock_force_refresh');

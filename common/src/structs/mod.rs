@@ -5,6 +5,7 @@ pub mod channel;
 pub mod config;
 pub mod events;
 pub mod game;
+pub mod iap;
 pub mod keybinds;
 pub mod network;
 pub mod onboarding;

@@ -466,6 +466,21 @@ jobs:
             fi
           fi
 
+      - name: Verify Google Play billing permission present
+        working-directory: ./client
+        run: |
+          BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}"
+          APK="bvc-android-$BUILD_MODE.apk"
+          echo "Checking $APK for com.android.vending.BILLING..."
+          PERMS=$("$ANDROID_HOME/build-tools/36.1.0/aapt" dump permissions "$APK")
+          echo "$PERMS"
+          if echo "$PERMS" | grep -q "com.android.vending.BILLING"; then
+            echo "OK: BILLING permission present"
+          else
+            echo "ERROR: com.android.vending.BILLING missing from $APK — IAP subscriptions will fail on device."
+            exit 1
+          fi
+
       - name: Upload Android APK artifact
         uses: actions/upload-artifact@v5
         id: upload-android

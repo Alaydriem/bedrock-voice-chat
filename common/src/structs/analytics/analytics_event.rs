@@ -28,6 +28,11 @@ pub enum AnalyticsEvent {
     BedrockRealmStarted,
     BedrockConnected,
     BedrockDisconnected,
+    RealmsGateEvaluated,
+    RealmsPurchaseStarted,
+    RealmsPurchaseCompleted,
+    RealmsPurchaseFailed,
+    RealmsRestoreInvoked,
 }
 
 impl AnalyticsEvent {
@@ -57,6 +62,11 @@ impl AnalyticsEvent {
             Self::BedrockRealmStarted => "BedrockRealmStarted",
             Self::BedrockConnected => "BedrockConnected",
             Self::BedrockDisconnected => "BedrockDisconnected",
+            Self::RealmsGateEvaluated => "RealmsGateEvaluated",
+            Self::RealmsPurchaseStarted => "RealmsPurchaseStarted",
+            Self::RealmsPurchaseCompleted => "RealmsPurchaseCompleted",
+            Self::RealmsPurchaseFailed => "RealmsPurchaseFailed",
+            Self::RealmsRestoreInvoked => "RealmsRestoreInvoked",
         }
     }
 }

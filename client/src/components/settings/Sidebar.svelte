@@ -1,6 +1,7 @@
 <script lang="ts">
     import { mount, onMount, onDestroy } from "svelte";
     import { invoke } from "@tauri-apps/api/core";
+    import type { RealmsGateStatus } from "../../js/bindings/RealmsGateStatus";
     import account from "../../components/settings/pages/account.svelte";
     import audio from "../../components/settings/pages/audio.svelte";
     import keybinds from "../../components/settings/pages/keybinds.svelte";
@@ -9,6 +10,7 @@
     import websocket from "../../components/settings/pages/websocket.svelte";
     import proxy_connect from "../../components/settings/pages/proxy_connect.svelte";
     import realms_connect from "../../components/settings/pages/realms_connect.svelte";
+    import subscriptions from "../../components/settings/pages/subscriptions.svelte";
     import about from "../../components/settings/pages/about.svelte";
     import PlatformDetector from "../../js/app/utils/PlatformDetector.ts";
     import { BedrockManager } from "../../js/app/managers/bedrock/BedrockManager";
@@ -21,11 +23,14 @@
 
     let isMobile = $state(false);
     let currentPageTitle = $state("Account");
+    let realmsConnectEnabled = $state(false);
+    let hasOffers = $state(false);
+    let navHandler: ((e: Event) => void) | null = null;
 
     const platformDetector = new PlatformDetector();
 
     let bedrockManager: BedrockManager | null = null;
-    const bedrockPageIds = new Set(["proxy_connect.svelte", "realms_connect.svelte"]);
+    const bedrockPageIds = new Set(["proxy_connect.svelte", "realms_connect.svelte", "subscriptions.svelte"]);
 
     function getBedrockManager(): BedrockManager {
         if (!bedrockManager) {
@@ -123,6 +128,15 @@
             </svg>`,
             component: realms_connect
         },
+        {
+            type: "page",
+            id: "subscriptions.svelte",
+            title: "Subscription",
+            icon: `<svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+            </svg>`,
+            component: subscriptions
+        },
     ];
 
     const mobileHiddenPages = new Set(["recordings.svelte", "audioLibrary.svelte", "websocket.svelte", "keybinds.svelte"]);
@@ -164,6 +178,13 @@
     function handlePageNavigation(pageId: string) {
         const pageConfig = getPageConfig(pageId);
         if (!pageConfig) return;
+        // Block the feature-gated pages when the feature flag is off. The
+        // Subscriptions page stays reachable from the banner/modal CTAs even
+        // when no store offers exist (its sidebar item is offers-gated, but
+        // navigation to it is not).
+        if ((pageId === "realms_connect.svelte" || pageId === "subscriptions.svelte") && !realmsConnectEnabled) {
+            return;
+        }
 
         activePage = pageId;
         currentPageTitle = pageConfig.title;
@@ -238,10 +259,33 @@
         } catch (error) {
             hideBedrockSection = true;
         }
+
+        try {
+            const gate = await invoke<RealmsGateStatus>("bedrock_realms_gate");
+            realmsConnectEnabled = gate.status !== "feature_disabled";
+        } catch (e) {
+            realmsConnectEnabled = false;
+        }
+        try {
+            const offers = await invoke<unknown[]>("iap_list_offers");
+            hasOffers = Array.isArray(offers) && offers.length > 0;
+        } catch (e) {
+            hasOffers = false;
+        }
+
+        navHandler = (e: Event) => {
+            const detail = (e as CustomEvent<string>).detail;
+            if (detail) handlePageNavigation(detail);
+        };
+        window.addEventListener("settings-navigate", navHandler as EventListener);
     });
 
     onDestroy(() => {
         bedrockManager?.destroy();
+        if (navHandler) {
+            window.removeEventListener("settings-navigate", navHandler as EventListener);
+            navHandler = null;
+        }
     });
 </script>
 

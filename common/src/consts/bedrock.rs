@@ -4,3 +4,4 @@ pub const BEDROCK_LISTEN_PORT: u16 = 19137;
 pub const BEDROCK_KEYRING_NS: &str = "bedrock-xbox";
 pub const BEDROCK_KEYRING_KEY_REFRESH_TOKEN: &str = "refresh_token";
 pub const BEDROCK_KEYRING_KEY_XUID: &str = "xuid";
+pub const BEDROCK_KEYRING_KEY_ENTITLEMENT: &str = "realms_entitlement";
