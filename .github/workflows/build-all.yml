@@ -168,7 +168,7 @@ jobs:
     with:
       build_mode: ${{ needs.changes.outputs.is_release_branch == 'true' && 'release' || needs.changes.outputs.build_mode }}
       build_number: ${{ needs.changes.outputs.build_number }}
-      play_store_track: ${{ github.ref == 'refs/heads/beta' && 'Beta Early Access' || github.ref == 'refs/heads/master' && 'production' || '' }}
+      play_store_track: ${{ github.ref == 'refs/heads/beta' && 'internal' || github.ref == 'refs/heads/master' && 'production' || '' }}
     secrets: inherit
 
   # Build iOS client
@@ -190,7 +190,7 @@ jobs:
     if: needs.changes.outputs.client == 'true' || needs.changes.outputs.common == 'true'
     uses: ./.github/workflows/build-client.yml
     with:
-      build_mode: ${{ needs.changes.outputs.build_mode }}
+      build_mode: ${{ needs.changes.outputs.is_release_branch == 'true' && 'release' || needs.changes.outputs.build_mode }}
     secrets: inherit
 
   # Build macOS client

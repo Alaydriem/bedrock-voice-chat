@@ -2,7 +2,7 @@
  * Shared monotonic version encoder for mod manifests.
  *
  * Encoding: major.minor.(patch*1000 + channel*100 + prerelease)
- * Channels: 1=alpha, 5=beta, 8=rc, 9=stable
+ * Channels: 1=alpha, 2=internal, 5=beta, 8=rc, 9=stable
  *
  * Used by .github/scripts/patch-mod-versions.js and the BDS build (mods/bds)
  * so both produce identical version arrays from a single source of truth.
@@ -21,12 +21,13 @@ class VersionEncoder {
     let prereleaseNum = 0;
 
     if (prerelease) {
-      const match = prerelease.match(/^(alpha|beta|rc)\.?(\d+)?$/);
+      const match = prerelease.match(/^(alpha|internal|beta|rc)\.?(\d+)?$/);
       if (match) {
         const channelName = match[1];
         prereleaseNum = parseInt(match[2]) || 1;
 
         if (channelName === 'alpha') channel = 1;
+        else if (channelName === 'internal') channel = 2;
         else if (channelName === 'beta') channel = 5;
         else if (channelName === 'rc') channel = 8;
       }
@@ -36,6 +37,11 @@ class VersionEncoder {
     const display = `${major}.${minor}.${encodedPatch}`;
 
     return { major, minor, encodedPatch, display, array: [major, minor, encodedPatch] };
+  }
+
+  static versionCode(version) {
+    const { major, minor, encodedPatch } = VersionEncoder.encode(version);
+    return major * 1000000 + minor * 10000 + encodedPatch;
   }
 }
 

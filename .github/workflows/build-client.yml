@@ -24,11 +24,27 @@ on:
       build_mode:
         description: 'Build mode'
         required: true
-        default: 'debug'
+        default: 'release'
         type: choice
         options:
           - debug
           - release
+      variant:
+        description: 'Version channel for the MSIX/display version'
+        required: true
+        default: 'internal'
+        type: choice
+        options:
+          - internal
+          - alpha
+          - beta
+          - rc
+          - stable
+      variant_iteration:
+        description: 'Prerelease number N (blank = derive from current repo version)'
+        required: false
+        default: ''
+        type: string
 
 jobs:
   build-windows:
@@ -41,11 +57,30 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.ref }}
 
-      - name: Patch version files
-        if: inputs.version != ''
+      - name: Compose manual variant version
+        id: manualver
+        if: github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
-          node .github/scripts/patch-versions.js "${{ inputs.version }}"
+          CORE=$(grep '^version' client/src-tauri/Cargo.toml | head -1 | sed -E 's/.*"([0-9]+\.[0-9]+\.[0-9]+).*"/\1/')
+          CURPRE=$(grep '^version' client/src-tauri/Cargo.toml | head -1 | sed -E 's/.*-(alpha|internal|beta|rc)\.?([0-9]+).*/\2/')
+          N="${{ inputs.variant_iteration }}"
+          if [ -z "$N" ]; then N="$CURPRE"; fi
+          if ! echo "$N" | grep -qE '^[0-9]+$'; then N=1; fi
+          VARIANT="${{ inputs.variant }}"
+          if [ "$VARIANT" = "stable" ]; then
+            COMPOSED="$CORE"
+          else
+            COMPOSED="$CORE-$VARIANT.$N"
+          fi
+          echo "Composed manual version: $COMPOSED"
+          echo "version=$COMPOSED" >> "$GITHUB_OUTPUT"
+
+      - name: Patch version files
+        if: inputs.version != '' || steps.manualver.outputs.version != ''
+        shell: bash
+        run: |
+          node .github/scripts/patch-versions.js "${{ inputs.version != '' && inputs.version || steps.manualver.outputs.version }}"
 
       - name: Set up Node.js
         uses: actions/setup-node@v5

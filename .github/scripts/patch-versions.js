@@ -16,54 +16,12 @@
 
 const fs = require('fs');
 const path = require('path');
+const { VersionEncoder } = require('./lib/encode-version');
 
 const version = process.argv[2];
 if (!version) {
   console.error('Usage: node patch-versions.js <version>');
   process.exit(1);
-}
-
-/**
- * Encode semantic version to monotonic 3-component version
- * Formula: major.minor.(patch*1000 + channel*100 + prerelease)
- * Channels: 1=alpha, 5=beta, 8=rc, 9=stable
- *
- * This is the canonical encoding used by mods, Apple CFBundleShortVersionString,
- * and (when flattened) Android versionCode and Apple CFBundleVersion.
- */
-function encodeModVersion(version) {
-  const [core, prerelease] = version.split('-');
-  const [major = 0, minor = 0, patch = 0] = core.split('.').map(Number);
-
-  let channel = 9; // stable
-  let prereleaseNum = 0;
-
-  if (prerelease) {
-    const match = prerelease.match(/^(alpha|beta|rc)\.?(\d+)?$/);
-    if (match) {
-      const channelName = match[1];
-      prereleaseNum = parseInt(match[2]) || 1;
-
-      if (channelName === 'alpha') channel = 1;
-      else if (channelName === 'beta') channel = 5;
-      else if (channelName === 'rc') channel = 8;
-    }
-  }
-
-  const encodedPatch = patch * 1000 + channel * 100 + prereleaseNum;
-  return { major, minor, encodedPatch };
-}
-
-/**
- * Flatten the mod encoding into a single integer for Android versionCode / Apple CFBundleVersion
- * Formula: major * 1000000 + minor * 10000 + encodedPatch
- *
- * Uses the same channel values as encodeModVersion (1=alpha, 5=beta, 8=rc, 9=stable).
- * Example: 1.0.0-beta.8 → encodeModVersion gives 1.0.508 → flattened: 1000508
- */
-function calculateVersionCode(version) {
-  const { major, minor, encodedPatch } = encodeModVersion(version);
-  return major * 1000000 + minor * 10000 + encodedPatch;
 }
 
 /**
@@ -99,13 +57,13 @@ function patchTauriConf(filePath, version) {
   }
   const content = JSON.parse(fs.readFileSync(filePath, 'utf8'));
 
-  const encoded = encodeModVersion(version);
+  const encoded = VersionEncoder.encode(version);
   const displayVersion = `${encoded.major}.${encoded.minor}.${encoded.encodedPatch}`;
 
   content.version = displayVersion;
-  content.bundle.android.versionCode = calculateVersionCode(version);
+  content.bundle.android.versionCode = VersionEncoder.versionCode(version);
 
-  const bundleVersion = String(calculateVersionCode(version));
+  const bundleVersion = String(VersionEncoder.versionCode(version));
   if (!content.bundle.iOS) content.bundle.iOS = {};
   content.bundle.iOS.bundleVersion = bundleVersion;
   if (!content.bundle.macOS) content.bundle.macOS = {};
@@ -138,7 +96,7 @@ function patchBdsManifest(filePath, version) {
     return;
   }
   const content = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-  const encoded = encodeModVersion(version);
+  const encoded = VersionEncoder.encode(version);
   const encodedVersion = [encoded.major, encoded.minor, encoded.encodedPatch];
   content.header.version = encodedVersion;
   for (const mod of content.modules || []) {
@@ -164,9 +122,9 @@ function patchInfoPlist(filePath, version) {
     return;
   }
 
-  const encoded = encodeModVersion(version);
+  const encoded = VersionEncoder.encode(version);
   const shortVersion = `${encoded.major}.${encoded.minor}.${encoded.encodedPatch}`;
-  const bundleVersion = String(calculateVersionCode(version));
+  const bundleVersion = String(VersionEncoder.versionCode(version));
 
   let content = fs.readFileSync(filePath, 'utf8');
 
@@ -233,7 +191,7 @@ function patchHytaleManifest(filePath, encodedVersion) {
 const rootDir = path.resolve(__dirname, '../..');
 
 console.log(`Patching files to version ${version}...`);
-console.log(`Android versionCode will be: ${calculateVersionCode(version)}`);
+console.log(`Android versionCode will be: ${VersionEncoder.versionCode(version)}`);
 console.log('');
 
 patchCargoToml(path.join(rootDir, 'server/server/Cargo.toml'), version);
@@ -251,7 +209,7 @@ patchBdsManifest(path.join(rootDir, 'mods/bds/bp/manifest.json'), version);
 patchBdsManifest(path.join(rootDir, 'mods/bds/rp/manifest.json'), version);
 
 // Java mod files (using encoded version for consistency with BDS)
-const encoded = encodeModVersion(version);
+const encoded = VersionEncoder.encode(version);
 const encodedDisplay = `${encoded.major}.${encoded.minor}.${encoded.encodedPatch}`;
 console.log(`\nEncoded mod version: ${encodedDisplay}`);
 
