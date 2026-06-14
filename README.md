@@ -6,7 +6,7 @@
 
 <a href="https://www.youtube.com/@Alaydriem"><img src="https://img.shields.io/youtube/channel/subscribers/UCXgqRZv7bHsKzwYBrtA9DFA?label=Youtube%20Subscribers&logo=Alaydriem&style=flat-square" width="140"/></a>
 
-<a href="https://discord.gg/CdtchD5zxr"><img src="https://raw.githubusercontent.com/Alaydriem/bedrock-voice-chat/master/client/static/images/app-logo-transparent.png" width="140"/></a>
+<a href="https://discord.gg/MAHckcEATj"><img src="https://raw.githubusercontent.com/Alaydriem/bedrock-voice-chat/master/client/static/images/app-logo-transparent.png" width="140"/></a>
 
   <p>
     <strong>A High Performance, Low Latency, Secure Voice Chat server for Minecraft Bedrock Dedicated Servers</strong><br /><br />

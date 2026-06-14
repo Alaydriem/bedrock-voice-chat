@@ -46,6 +46,11 @@ fn main() {
         println!("cargo:rustc-env=APP_BUILD_NUMBER={}", build_number);
     }
 
+    println!("cargo:rerun-if-env-changed=BVC_MOCK_IAP");
+    if let Ok(mock_iap) = std::env::var("BVC_MOCK_IAP") {
+        println!("cargo:rustc-env=BVC_MOCK_IAP={}", mock_iap);
+    }
+
     let version = std::env::var("CARGO_PKG_VERSION").unwrap_or_default();
     let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
 

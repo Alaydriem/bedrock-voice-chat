@@ -7,4 +7,5 @@ use ts_rs::TS;
 pub enum GateReason {
     Entitled,
     FreeWeekend,
+    Allowlisted,
 }

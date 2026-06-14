@@ -17,3 +17,10 @@ pub(crate) async fn get_bedrock_connect_enabled(
 ) -> Result<bool, String> {
     Ok(service.get(BedrockConnectEnabled).await)
 }
+
+#[tauri::command]
+pub(crate) async fn refresh_feature_flags(
+    service: State<'_, Arc<FeatureFlagService>>,
+) -> Result<(), String> {
+    service.refresh().await
+}

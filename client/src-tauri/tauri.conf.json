@@ -14,7 +14,8 @@
       {
         "title": "Bedrock Voice Chat",
         "width": 1440,
-        "height": 900
+        "height": 900,
+        "zoomHotkeysEnabled": true
       }
     ],
     "security": {

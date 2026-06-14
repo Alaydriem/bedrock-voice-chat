@@ -2,7 +2,7 @@
 
   <h1>Bedrock Voice Chat Privacy Statement</h1>
 
-<a href="https://discord.gg/CdtchD5zxr"><img src="https://raw.githubusercontent.com/Alaydriem/bedrock-voice-chat/master/client/static/images/app-logo-transparent.png" width="140"/></a>
+<a href="https://discord.gg/MAHckcEATj"><img src="https://raw.githubusercontent.com/Alaydriem/bedrock-voice-chat/master/client/static/images/app-logo-transparent.png" width="140"/></a>
 
   <p>
     <strong>A High Performance, Low Latency, Secure Voice Chat server for Minecraft Bedrock Dedicated Servers</strong>

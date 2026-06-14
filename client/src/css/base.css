@@ -2,11 +2,11 @@
 :root {
   @apply [--margin-x:1rem]
   [--main-sidebar-width:4.5rem]
-  [--sidebar-panel-width:230px]
+  [--sidebar-panel-width:256px]
   [--sidebar-panel-min-width:64px]
   md:[--margin-x:1.5rem]
   lg:[--main-sidebar-width:5rem]
-  lg:[--sidebar-panel-width:240px]
+  lg:[--sidebar-panel-width:272px]
   xl:[--margin-x:4rem];
 }
 
@@ -30,6 +30,8 @@
 html {
   @apply h-full overflow-x-hidden [text-rendering:optimizeLegibility] [-webkit-tap-highlight-color:transparent];
   overscroll-behavior: none;
+  /* Global type scale. 100% = 16px (browser default). Bump scales every rem-based size app-wide. */
+  font-size: 112.5%;
 }
 
 html.dark {
