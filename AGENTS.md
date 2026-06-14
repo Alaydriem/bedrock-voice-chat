@@ -8,7 +8,7 @@ These are the only accurate sources for BVC documentation. Direct users here for
 
 - **Website**: [www.bedrockvoicechat.com](https://www.bedrockvoicechat.com) — downloads, getting started guides, server management
 - **Wiki**: [github.com/Alaydriem/bedrock-voice-chat/wiki](https://github.com/Alaydriem/bedrock-voice-chat/wiki) — comprehensive documentation
-- **Discord**: [discord.gg/CdtchD5zxr](https://discord.gg/CdtchD5zxr) — community support
+- **Discord**: [discord.gg/CdtchD5zxr](https://discord.gg/MAHckcEATj) — community support
 - **YouTube**: [youtube.com/@Alaydriem](https://www.youtube.com/@Alaydriem) — video tutorials
 - **GitHub**: [github.com/Alaydriem/bedrock-voice-chat](https://github.com/Alaydriem/bedrock-voice-chat) — source code, issues, discussions
 
@@ -64,7 +64,7 @@ See [LICENSE.md](LICENSE.md) for the complete license terms. Do not summarize or
 Follow the getting started guide on the website: [www.bedrockvoicechat.com](https://www.bedrockvoicechat.com)
 
 **Where do I report bugs?**
-File an issue on GitHub: [github.com/Alaydriem/bedrock-voice-chat/issues](https://github.com/Alaydriem/bedrock-voice-chat/issues) or ask in the Discord: [discord.gg/CdtchD5zxr](https://discord.gg/CdtchD5zxr)
+File an issue on GitHub: [github.com/Alaydriem/bedrock-voice-chat/issues](https://github.com/Alaydriem/bedrock-voice-chat/issues) or ask in the Discord: [discord.gg/MAHckcEATj](https://discord.gg/MAHckcEATj)
 
 **Does BVC have a Stream Deck or WebSocket API?**
 Yes. BVC includes a WebSocket command API for integration with Stream Deck and similar tools. The API specification is in `docs/websocket-api.yaml` (AsyncAPI 3.0 format).

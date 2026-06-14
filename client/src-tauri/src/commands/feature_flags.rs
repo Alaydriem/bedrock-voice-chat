@@ -9,3 +9,10 @@ pub(crate) async fn get_feature_flag(
 ) -> Result<bool, String> {
     Ok(service.is_enabled(&flag).await)
 }
+
+#[tauri::command]
+pub(crate) async fn refresh_feature_flags(
+    service: State<'_, Arc<FeatureFlagService>>,
+) -> Result<(), String> {
+    service.refresh().await
+}

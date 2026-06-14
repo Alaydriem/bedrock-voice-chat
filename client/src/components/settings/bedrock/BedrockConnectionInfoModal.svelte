@@ -63,7 +63,18 @@
             >
                 {isRealm(info) ? "Realm" : "Proxy"} is running
             </h3>
-            <p class="mt-2 text-sm text-slate-600 dark:text-navy-200">
+
+            <div class="mt-3 rounded-lg border-l-4 border-warning bg-warning/10 p-3">
+                <p class="text-sm font-semibold text-slate-800 dark:text-navy-100">
+                    Voice works only between players on this BVC server
+                </p>
+                <p class="mt-1 text-xs+ leading-relaxed text-slate-600 dark:text-navy-200">
+                    This enables proximity voice between players connected to this same BVC server.
+                    All players MUST be connected to the same BVC server. If you are not connected to the same server, logout and reconnect to the correct one.
+                </p>
+            </div>
+
+            <p class="mt-4 text-sm text-slate-600 dark:text-navy-200">
                 Open Minecraft, go to <b>Servers</b> → <b>Add Server</b>, and
                 enter one of these:
             </p>

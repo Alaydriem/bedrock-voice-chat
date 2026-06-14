@@ -195,7 +195,7 @@
             <div class="my-4 mx-4 h-px bg-slate-200 dark:bg-navy-500"></div>
             <div class="flex flex-col grow overflow-hidden">
                 <div class="flex min-w-0 items-center justify-between px-4">
-                    <span class="truncate text-tiny-plus font-medium uppercase"
+                    <span class="truncate text-xs-plus font-medium uppercase"
                         >Active Voice Channels</span
                     >
                     <!--

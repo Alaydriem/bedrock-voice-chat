@@ -31,7 +31,6 @@ export class BedrockManager {
     private statusMessageStore: Writable<string>;
     public readonly statusMessage: Readable<string>;
 
-    public readonly isEntitled: Readable<boolean>;
     public readonly isAuthenticated: Readable<boolean>;
     public readonly isRestoringAuth: Readable<boolean>;
     public readonly showLoginModal: Readable<boolean>;
@@ -72,6 +71,8 @@ export class BedrockManager {
     public readonly gateStatus: Readable<RealmsGateStatus | null>;
     private offersStore: Writable<IapOffer[]>;
     public readonly offers: Readable<IapOffer[]>;
+    private offersLoadedStore: Writable<boolean>;
+    public readonly offersLoaded: Readable<boolean>;
     private gatingModalStore: Writable<RealmsGateStatus | null>;
     public readonly gatingModal: Readable<RealmsGateStatus | null>;
 
@@ -89,6 +90,8 @@ export class BedrockManager {
         this.gateStatus = { subscribe: this.gateStatusStore.subscribe };
         this.offersStore = writable([]);
         this.offers = { subscribe: this.offersStore.subscribe };
+        this.offersLoadedStore = writable(false);
+        this.offersLoaded = { subscribe: this.offersLoadedStore.subscribe };
         this.gatingModalStore = writable(null);
         this.gatingModal = { subscribe: this.gatingModalStore.subscribe };
 
@@ -102,7 +105,10 @@ export class BedrockManager {
                 reportError: (raw) => this.connectionManager.setConnectErrorFromInvoke(raw),
                 clearLogs: () => this.logsManager.clearLogs(),
                 clearConnectionError: () => this.connectionManager.clearError(),
-                onGateBlocked: (status) => this.gatingModalStore.set(status),
+                onGateBlocked: (status) => {
+                    this.gateStatusStore.set(status);
+                    this.gatingModalStore.set(status);
+                },
             },
         );
 
@@ -114,7 +120,6 @@ export class BedrockManager {
             },
         });
 
-        this.isEntitled = this.authManager.isEntitled;
         this.isAuthenticated = this.authManager.isAuthenticated;
         this.isRestoringAuth = this.authManager.isRestoringAuth;
         this.showLoginModal = this.authManager.showLoginModal;
@@ -169,17 +174,6 @@ export class BedrockManager {
         await this.realmsManager.initialize(this.store);
         await this.proxyManager.initialize(this.store);
 
-        await this.authManager.checkEntitlement();
-        await this.refreshGate();
-        await this.loadOffers();
-        try {
-            const listener = await onPurchaseUpdated(() => {
-                void this.refreshEntitlementAndGate();
-            });
-            this.purchaseUnlisten = () => listener.unregister();
-        } catch (e) {
-            logError(`onPurchaseUpdated subscription failed: ${e}`);
-        }
         await this.authManager.restoreAuth();
 
         try {
@@ -232,6 +226,26 @@ export class BedrockManager {
         return this.realmsManager.loadRealms();
     }
 
+    // Realms-only IAP init. Called by the Realms Connect page (never by Proxy
+    // Connect, never on the shared restoring path). Resolves the gate from the
+    // cached entitlement immediately, then corrects from a fresh store read and
+    // subscribes to purchase updates in the background so neither can stall the
+    // page.
+    async initializeRealmsAccess(): Promise<void> {
+        await this.refreshGate();
+        void this.refreshEntitlementAndGate();
+        void this.loadOffers();
+        if (!this.purchaseUnlisten) {
+            onPurchaseUpdated(() => {
+                void this.refreshEntitlementAndGate();
+            })
+                .then((listener) => {
+                    this.purchaseUnlisten = () => listener.unregister();
+                })
+                .catch((e) => logError(`onPurchaseUpdated subscription failed: ${e}`));
+        }
+    }
+
     async refreshGate(): Promise<void> {
         try {
             const status = await invoke<RealmsGateStatus>('bedrock_realms_gate');
@@ -247,6 +261,8 @@ export class BedrockManager {
             this.offersStore.set(offers);
         } catch (e) {
             logError(`Load offers failed: ${e}`);
+        } finally {
+            this.offersLoadedStore.set(true);
         }
     }
 

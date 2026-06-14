@@ -237,6 +237,7 @@ pub fn run() {
             crate::commands::keybinds::start_keybind_listener,
             // Feature Flags
             crate::commands::feature_flags::get_feature_flag,
+            crate::commands::feature_flags::refresh_feature_flags,
             // Audio Library
             crate::commands::audio_library::upload_audio_file,
             crate::commands::audio_library::list_audio_files,
@@ -272,8 +273,6 @@ pub fn run() {
             crate::commands::bedrock::bedrock_list_realms,
             #[cfg(feature = "bedrock-protocol")]
             crate::commands::bedrock::bedrock_get_position,
-            #[cfg(feature = "bedrock-protocol")]
-            crate::commands::bedrock::bedrock_check_entitlement,
             #[cfg(feature = "bedrock-protocol")]
             crate::commands::bedrock::bedrock_get_status,
             #[cfg(feature = "bedrock-protocol")]
@@ -526,10 +525,29 @@ pub fn run() {
 
                 handle.plugin(tauri_plugin_iap::init())?;
 
-                app.manage(std::sync::Arc::new(crate::iap::EntitlementService::new(
+                let mut entitlement_providers =
                     vec![crate::iap::EntitlementProviderType::Store(
                         crate::iap::store::StoreProvider::new(app.handle().clone()),
-                    )],
+                    )];
+                let mock_iap = option_env!("BVC_MOCK_IAP")
+                    .map(|v| {
+                        matches!(
+                            v.trim().to_ascii_lowercase().as_str(),
+                            "1" | "true" | "yes" | "on"
+                        )
+                    })
+                    .unwrap_or(false);
+                if mock_iap {
+                    log::info!("BVC_MOCK_IAP set — using mock IAP offers for local preview");
+                    entitlement_providers.insert(
+                        0,
+                        crate::iap::EntitlementProviderType::Mock(
+                            crate::iap::mock::MockProvider::new(),
+                        ),
+                    );
+                }
+                app.manage(std::sync::Arc::new(crate::iap::EntitlementService::new(
+                    entitlement_providers,
                 )));
 
                 let refresh_handle = app.handle().clone();

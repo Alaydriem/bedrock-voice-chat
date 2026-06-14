@@ -4,7 +4,6 @@
     import TopBar from "./TopBar.svelte";
     import NetworkingCard from "./NetworkingCard.svelte";
     import LogPanel from "./LogPanel.svelte";
-    import EntitlementBanner from "./EntitlementBanner.svelte";
     import RestoringAuthBanner from "./RestoringAuthBanner.svelte";
     import SignInCard from "./SignInCard.svelte";
     import StatusMessageCard from "./StatusMessageCard.svelte";
@@ -18,7 +17,6 @@
         title: string;
         signedOutDescription: string;
         showListenPort?: boolean;
-        requiresEntitlement?: boolean;
         extraActions?: Snippet;
         body: Snippet;
     }
@@ -28,12 +26,10 @@
         title,
         signedOutDescription,
         showListenPort = true,
-        requiresEntitlement = true,
         extraActions,
         body,
     }: Props = $props();
 
-    const gateStatus = bedrockManager.gateStatus;
     const isAuthenticated = bedrockManager.isAuthenticated;
     const isRestoringAuth = bedrockManager.isRestoringAuth;
     const showLoginModal = bedrockManager.showLoginModal;
@@ -44,8 +40,6 @@
 <div class="grid grid-cols-1 gap-4 sm:gap-5 lg:gap-6 pt-4 md:pt-0">
     {#if $isRestoringAuth}
         <RestoringAuthBanner />
-    {:else if requiresEntitlement && $gateStatus !== null && $gateStatus.status !== "allowed"}
-        <EntitlementBanner />
     {:else if !$isAuthenticated}
         <SignInCard {bedrockManager} description={signedOutDescription} />
     {:else}

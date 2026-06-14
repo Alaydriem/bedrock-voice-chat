@@ -6,7 +6,6 @@ import { info, error as logError } from '@tauri-apps/plugin-log';
 import type { BedrockAuthManagerCallbacks } from './BedrockAuthManagerCallbacks';
 
 export class BedrockAuthManager {
-    private isEntitledStore: Writable<boolean>;
     private isAuthenticatedStore: Writable<boolean>;
     private isRestoringAuthStore: Writable<boolean>;
     private showLoginModalStore: Writable<boolean>;
@@ -15,7 +14,6 @@ export class BedrockAuthManager {
     private loginErrorStore: Writable<string>;
     private codeCopiedStore: Writable<boolean>;
 
-    public readonly isEntitled: Readable<boolean>;
     public readonly isAuthenticated: Readable<boolean>;
     public readonly isRestoringAuth: Readable<boolean>;
     public readonly showLoginModal: Readable<boolean>;
@@ -31,7 +29,6 @@ export class BedrockAuthManager {
     constructor(callbacks: BedrockAuthManagerCallbacks) {
         this.callbacks = callbacks;
 
-        this.isEntitledStore = writable(false);
         this.isAuthenticatedStore = writable(false);
         this.isRestoringAuthStore = writable(true);
         this.showLoginModalStore = writable(false);
@@ -40,7 +37,6 @@ export class BedrockAuthManager {
         this.loginErrorStore = writable('');
         this.codeCopiedStore = writable(false);
 
-        this.isEntitled = { subscribe: this.isEntitledStore.subscribe };
         this.isAuthenticated = { subscribe: this.isAuthenticatedStore.subscribe };
         this.isRestoringAuth = { subscribe: this.isRestoringAuthStore.subscribe };
         this.showLoginModal = { subscribe: this.showLoginModalStore.subscribe };
@@ -52,15 +48,6 @@ export class BedrockAuthManager {
 
     isAuthenticatedNow(): boolean {
         return get(this.isAuthenticatedStore);
-    }
-
-    async checkEntitlement(): Promise<void> {
-        try {
-            const entitled = await invoke<boolean>('bedrock_check_entitlement');
-            this.isEntitledStore.set(entitled);
-        } catch (e) {
-            logError(`Entitlement check failed: ${e}`);
-        }
     }
 
     async restoreAuth(): Promise<void> {

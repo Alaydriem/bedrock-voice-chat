@@ -14,7 +14,7 @@ impl FeatureFlag for FreeWeekendEnabled {
     }
 
     fn key(&self) -> Cow<'static, str> {
-        Cow::Borrowed("feature.bedrock.free_weekend.enabled")
+        Cow::Borrowed("feature.bedrock.realms_connect.free_weekend")
     }
 }
 
@@ -25,7 +25,10 @@ mod tests {
     #[test]
     fn key_and_default() {
         let flag = FreeWeekendEnabled;
-        assert_eq!(flag.key().as_ref(), "feature.bedrock.free_weekend.enabled");
+        assert_eq!(
+            flag.key().as_ref(),
+            "feature.bedrock.realms_connect.free_weekend"
+        );
         assert!(!flag.default());
     }
 }
