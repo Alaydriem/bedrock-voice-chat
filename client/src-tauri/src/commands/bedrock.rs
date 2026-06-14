@@ -523,13 +523,6 @@ pub(crate) async fn bedrock_get_status(
 }
 
 #[tauri::command(async)]
-pub(crate) async fn bedrock_check_entitlement(
-    entitlement: State<'_, Arc<EntitlementService>>,
-) -> Result<bool, String> {
-    Ok(entitlement.is_entitled())
-}
-
-#[tauri::command(async)]
 pub(crate) async fn bedrock_realms_gate(
     entitlement: State<'_, Arc<EntitlementService>>,
     flag_service: State<'_, Arc<FeatureFlagService>>,

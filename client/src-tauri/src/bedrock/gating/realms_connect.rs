@@ -5,10 +5,12 @@ use common::structs::{AnalyticsEvent, AnalyticsEventData};
 
 use crate::analytics::AnalyticsService;
 use crate::feature_flags::FeatureFlagService;
-use crate::feature_flags::flags::bedrock::{FreeWeekendEnabled, RealmsConnectEnabled};
+use crate::feature_flags::flags::bedrock::{
+    FreeWeekendEnabled, RealmsAllowlisted, RealmsConnectEnabled,
+};
 
 // Decides whether Realms Connect may run:
-//   feature_enabled AND (free_weekend OR entitled)
+//   feature_enabled AND (free_weekend OR allowlisted OR entitled)
 // Emits one analytics event per evaluation. `is_entitled` is supplied by the
 // caller as a cached read.
 pub struct RealmsConnectGatingService {
@@ -43,6 +45,11 @@ impl RealmsConnectGatingService {
                 reason: GateReason::FreeWeekend,
             };
         }
+        if self.flags.get(RealmsAllowlisted).await {
+            return RealmsGateStatus::Allowed {
+                reason: GateReason::Allowlisted,
+            };
+        }
         if is_entitled {
             return RealmsGateStatus::Allowed {
                 reason: GateReason::Entitled,
@@ -59,6 +66,9 @@ impl RealmsConnectGatingService {
             RealmsGateStatus::Allowed {
                 reason: GateReason::FreeWeekend,
             } => "allowed_free_weekend",
+            RealmsGateStatus::Allowed {
+                reason: GateReason::Allowlisted,
+            } => "allowed_allowlisted",
             RealmsGateStatus::FeatureDisabled => "feature_disabled",
             RealmsGateStatus::NotEntitled => "not_entitled",
         };

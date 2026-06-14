@@ -2,8 +2,10 @@
     import { onMount, onDestroy } from "svelte";
     import { invoke } from "@tauri-apps/api/core";
     import { openUrl } from "@tauri-apps/plugin-opener";
-    import { error, info, warn } from "@tauri-apps/plugin-log";
+    import { error } from "@tauri-apps/plugin-log";
+    import { Store } from "@tauri-apps/plugin-store";
     import Analytics from "../../../js/app/analytics";
+    import PlatformDetector from "../../../js/app/utils/PlatformDetector.ts";
 
     interface AppInfo {
         app_version: string;
@@ -27,7 +29,7 @@
             icon: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>`
         },
         {
-            url: "https://discord.gg/WGXy5kBP9E",
+            url: "https://discord.gg/MAHckcEATj",
             title: "Discussions",
             description: "Community discussions and help",
             icon: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"/>`
@@ -42,6 +44,7 @@
 
     let appInfo: AppInfo | null = $state(null);
     let isReady = $state(false);
+    let isMobile = $state(false);
     let isExporting = $state(false);
     let exportError = $state("");
     let telemetry = $state(true);
@@ -49,20 +52,53 @@
     let variantClickCount = $state(0);
     let variantClickTimer: ReturnType<typeof setTimeout> | null = null;
 
-    function handleVariantClick() {
+    // Page-local only (deliberately not persisted): tap the build variant 3x to
+    // reveal the install_id, used to target this install in Flagsmith.
+    let showPlatformId = $state(false);
+    let platformId = $state("");
+    let platformIdCopied = $state(false);
+
+    let isRefreshingFlags = $state(false);
+    let refreshFlagsMessage = $state("");
+
+    async function handleVariantClick() {
         variantClickCount++;
 
         if (variantClickTimer) clearTimeout(variantClickTimer);
         variantClickTimer = setTimeout(() => { variantClickCount = 0; }, 2000);
 
-        switch (variantClickCount) {
-            case 3: error("debug trigger: error (click 3)"); break;
-            case 4: info("debug trigger: info (click 4)"); break;
-            case 5: warn("debug trigger: warn (click 5)"); break;
-            case 6:
-                error("debug trigger: error (click 6)");
-                variantClickCount = 0;
-                break;
+        if (variantClickCount >= 3 && !showPlatformId) {
+            try {
+                const store = await Store.load("store.json", { autoSave: false });
+                platformId = (await store.get<string>("install_id")) ?? "";
+            } catch (e) {
+                error(`Failed to read install_id: ${e}`);
+            }
+            showPlatformId = true;
+        }
+    }
+
+    async function copyPlatformId() {
+        try {
+            await navigator.clipboard.writeText(platformId);
+            platformIdCopied = true;
+            setTimeout(() => { platformIdCopied = false; }, 1500);
+        } catch (e) {
+            error(`Failed to copy install_id: ${e}`);
+        }
+    }
+
+    async function handleRefreshFlags() {
+        isRefreshingFlags = true;
+        refreshFlagsMessage = "";
+        try {
+            await invoke("refresh_feature_flags");
+            refreshFlagsMessage = "Feature flags refreshed.";
+        } catch (e) {
+            refreshFlagsMessage = `Refresh failed: ${e}`;
+            error(`Refresh feature flags failed: ${e}`);
+        } finally {
+            isRefreshingFlags = false;
         }
     }
 
@@ -95,6 +131,9 @@
     }
 
     onMount(async () => {
+        const platformDetector = new PlatformDetector();
+        isMobile = await platformDetector.checkMobile();
+
         try {
             appInfo = await invoke<AppInfo>("get_app_info");
             telemetry = await invoke<boolean>("get_telemetry");
@@ -142,6 +181,18 @@
                     {appInfo.build_variant}
                 </span>
             </div>
+            {#if showPlatformId}
+            <div class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-slate-50 dark:hover:bg-navy-600">
+                <span class="text-sm font-medium text-slate-700 dark:text-navy-100">Platform ID</span>
+                <button
+                    class="text-sm text-slate-500 dark:text-navy-300 font-mono cursor-pointer hover:text-primary dark:hover:text-accent-light"
+                    onclick={copyPlatformId}
+                    title="Click to copy"
+                >
+                    {platformIdCopied ? "Copied!" : platformId}
+                </button>
+            </div>
+            {/if}
         </div>
         {/if}
     </div>
@@ -210,6 +261,7 @@
     </div>
 
     <!-- Diagnostics -->
+    {#if !isMobile}
     <div class="card px-5 pb-4 sm:px-5">
         <div class="my-3 flex flex-col">
             <h2 class="font-medium tracking-wide text-slate-700 dark:text-navy-100 lg:text-base pb-2">
@@ -241,4 +293,32 @@
             {/if}
         </div>
     </div>
+    {/if}
+
+    <!-- Developer (debug builds only) -->
+    {#if appInfo?.build_variant === "dev"}
+    <div class="card px-5 pb-4 sm:px-5">
+        <div class="my-3 flex flex-col">
+            <h2 class="font-medium tracking-wide text-slate-700 dark:text-navy-100 lg:text-base pb-2">
+                Developer
+            </h2>
+            <p class="text-sm leading-6">
+                Debug-only tools. Re-fetch feature flags from Flagsmith without restarting.
+            </p>
+        </div>
+
+        <div class="mt-2">
+            <button
+                class="btn bg-primary font-medium text-white hover:bg-primary-focus dark:bg-accent dark:hover:bg-accent-focus"
+                onclick={handleRefreshFlags}
+                disabled={isRefreshingFlags}
+            >
+                {isRefreshingFlags ? "Refreshing…" : "Refresh Feature Flags"}
+            </button>
+            {#if refreshFlagsMessage}
+                <p class="text-xs text-slate-500 dark:text-navy-300 mt-2">{refreshFlagsMessage}</p>
+            {/if}
+        </div>
+    </div>
+    {/if}
 </div>

@@ -6,7 +6,7 @@
 
 <a href="https://www.youtube.com/@Alaydriem"><img src="https://raw.githubusercontent.com/alaydriem/bedrock-material-list/master/docs/subscribe.png" width="140"/></a>
 
-<a href="https://discord.gg/CdtchD5zxr"><img src="https://raw.githubusercontent.com/alaydriem/bedrock-voice-chat/master/pack/pack/bp/pack_icon.png" width="140"/></a>
+<a href="https://discord.gg/MAHckcEATj"><img src="https://raw.githubusercontent.com/alaydriem/bedrock-voice-chat/master/pack/pack/bp/pack_icon.png" width="140"/></a>
 
   <p>
     <strong>A client application for Bedrock Voice Chat, written in Rust, Svelte, Typescript - and Tauri.</strong>

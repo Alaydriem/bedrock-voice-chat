@@ -32,7 +32,6 @@
     title="Saved Proxy Servers"
     signedOutDescription="Sign in with your Xbox Live account to use Bedrock proxy features."
     showListenPort={true}
-    requiresEntitlement={false}
 >
     {#snippet extraActions()}
         <button

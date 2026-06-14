@@ -1,6 +1,7 @@
 pub(crate) mod feature;
 pub(crate) mod flag;
 pub(crate) mod identity_response;
+pub(crate) mod spki_pinning_verifier;
 pub(crate) mod value;
 
 pub(crate) use flag::FlagsmithFlag;
@@ -36,6 +37,7 @@ impl FlagsmithProvider {
         server_url: String,
         install_id: String,
         refresh_interval: Duration,
+        http_client: reqwest::Client,
     ) -> Self {
         let normalized_url = if server_url.ends_with("/api/v1/") {
             server_url
@@ -51,20 +53,33 @@ impl FlagsmithProvider {
             server_url: normalized_url,
             install_id,
             refresh_interval,
-            http_client: reqwest::Client::new(),
+            http_client,
             cache: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
-    async fn refresh(&self) -> Result<(), anyhow::Error> {
-        let url = format!(
-            "{}identities/?identifier={}",
-            self.server_url, self.install_id
-        );
-        let response = self
-            .http_client
+    pub(crate) fn cache(&self) -> Arc<RwLock<HashMap<String, FlagsmithFlag>>> {
+        self.cache.clone()
+    }
+
+    pub(crate) fn server_url(&self) -> &str {
+        &self.server_url
+    }
+
+    // Fetch the identity's flags and replace the cache. Shared by the initial
+    // load, the background poll loop, and on-demand refresh — all of which
+    // write the same `Arc<RwLock<..>>` the resolvers read.
+    pub(crate) async fn fetch_flags(
+        http_client: &reqwest::Client,
+        server_url: &str,
+        api_key: &str,
+        install_id: &str,
+        cache: &RwLock<HashMap<String, FlagsmithFlag>>,
+    ) -> Result<usize, anyhow::Error> {
+        let url = format!("{}identities/?identifier={}", server_url, install_id);
+        let response = http_client
             .get(&url)
-            .header("X-Environment-Key", &self.api_key)
+            .header("X-Environment-Key", api_key)
             .header("Content-Type", "application/json")
             .send()
             .await?;
@@ -77,19 +92,30 @@ impl FlagsmithProvider {
         }
 
         let identity_response: FlagsmithIdentityResponse = response.json().await?;
-        let mut cache = self.cache.write().await;
-        cache.clear();
+        let mut c = cache.write().await;
+        c.clear();
         for flag in identity_response.flags {
             info!(
                 "Flag '{}': enabled={}, value={:?}",
                 flag.feature.name, flag.enabled, flag.value
             );
-            cache.insert(flag.feature.name.clone(), flag);
+            c.insert(flag.feature.name.clone(), flag);
         }
+        Ok(c.len())
+    }
+
+    async fn refresh(&self) -> Result<(), anyhow::Error> {
+        let count = Self::fetch_flags(
+            &self.http_client,
+            &self.server_url,
+            &self.api_key,
+            &self.install_id,
+            &self.cache,
+        )
+        .await?;
         info!(
             "Refreshed {} feature flags for identity {}",
-            cache.len(),
-            self.install_id
+            count, self.install_id
         );
         Ok(())
     }
@@ -135,30 +161,16 @@ impl FeatureProvider for FlagsmithProvider {
             interval.tick().await;
             loop {
                 interval.tick().await;
-                let url = format!("{}identities/?identifier={}", server_url, install_id);
-                match http_client
-                    .get(&url)
-                    .header("X-Environment-Key", &api_key)
-                    .header("Content-Type", "application/json")
-                    .send()
-                    .await
+                match FlagsmithProvider::fetch_flags(
+                    &http_client,
+                    &server_url,
+                    &api_key,
+                    &install_id,
+                    &cache,
+                )
+                .await
                 {
-                    Ok(response) if response.status().is_success() => {
-                        match response.json::<FlagsmithIdentityResponse>().await {
-                            Ok(identity_response) => {
-                                let mut c = cache.write().await;
-                                c.clear();
-                                for flag in identity_response.flags {
-                                    c.insert(flag.feature.name.clone(), flag);
-                                }
-                                info!("Refreshed {} feature flags", c.len());
-                            }
-                            Err(e) => warn!("Feature flag refresh parse failed: {}", e),
-                        }
-                    }
-                    Ok(response) => {
-                        warn!("Feature flag refresh returned status {}", response.status());
-                    }
+                    Ok(n) => info!("Refreshed {} feature flags", n),
                     Err(e) => warn!("Feature flag refresh failed: {}", e),
                 }
             }
@@ -176,7 +188,24 @@ impl FeatureProvider for FlagsmithProvider {
     ) -> EvaluationResult<ResolutionDetails<bool>> {
         let cache = self.cache.read().await;
         match cache.get(flag_key) {
-            Some(flag) => Ok(ResolutionDetails::new(flag.enabled)),
+            // A boolean flag resolves to its value, gated by the enabled
+            // toggle. Disabled -> false. Enabled with an explicit value ->
+            // that value (so an enabled flag whose value is false is false).
+            // Enabled with no value -> true (a bare on-toggle).
+            Some(flag) => {
+                let result = flag.enabled
+                    && match &flag.value {
+                        Some(FlagsmithFlagValue::Bool(b)) => *b,
+                        Some(FlagsmithFlagValue::String(s)) => {
+                            !matches!(s.trim().to_ascii_lowercase().as_str(), "false" | "0" | "")
+                        }
+                        Some(FlagsmithFlagValue::Int(i)) => *i != 0,
+                        Some(FlagsmithFlagValue::Float(f)) => *f != 0.0,
+                        Some(FlagsmithFlagValue::Json(_)) => true,
+                        None => true,
+                    };
+                Ok(ResolutionDetails::new(result))
+            }
             None => Err(Self::flag_not_found(flag_key)),
         }
     }
@@ -249,5 +278,68 @@ impl FeatureProvider for FlagsmithProvider {
             },
             None => Err(Self::flag_not_found(flag_key)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::feature::FlagsmithFeature;
+    use super::*;
+
+    fn provider() -> FlagsmithProvider {
+        FlagsmithProvider::new(
+            String::new(),
+            String::new(),
+            String::new(),
+            Duration::from_secs(3600),
+            reqwest::Client::new(),
+        )
+    }
+
+    fn flag(enabled: bool, value: Option<FlagsmithFlagValue>) -> FlagsmithFlag {
+        FlagsmithFlag {
+            enabled,
+            feature: FlagsmithFeature {
+                name: "k".to_string(),
+            },
+            value,
+        }
+    }
+
+    async fn resolve(p: &FlagsmithProvider, key: &str) -> bool {
+        p.resolve_bool_value(key, &EvaluationContext::default())
+            .await
+            .unwrap()
+            .value
+    }
+
+    #[tokio::test]
+    async fn bool_resolves_value_gated_by_enabled() {
+        let p = provider();
+        {
+            let mut c = p.cache.write().await;
+            c.insert(
+                "enabled_true".into(),
+                flag(true, Some(FlagsmithFlagValue::Bool(true))),
+            );
+            c.insert(
+                "enabled_false".into(),
+                flag(true, Some(FlagsmithFlagValue::Bool(false))),
+            );
+            c.insert(
+                "disabled_with_true_value".into(),
+                flag(false, Some(FlagsmithFlagValue::Bool(true))),
+            );
+            c.insert("enabled_no_value".into(), flag(true, None));
+        }
+
+        // Enabled + value true -> true.
+        assert!(resolve(&p, "enabled_true").await);
+        // Enabled + value false -> false (the bug this fixes: was true).
+        assert!(!resolve(&p, "enabled_false").await);
+        // Disabled gates off regardless of value.
+        assert!(!resolve(&p, "disabled_with_true_value").await);
+        // Bare enabled toggle with no value -> true.
+        assert!(resolve(&p, "enabled_no_value").await);
     }
 }

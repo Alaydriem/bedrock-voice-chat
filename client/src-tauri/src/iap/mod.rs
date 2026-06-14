@@ -1,3 +1,4 @@
+pub mod mock;
 pub mod provider;
 pub mod service;
 pub mod store;
