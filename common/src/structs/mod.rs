@@ -13,6 +13,7 @@ pub mod packet;
 pub mod permission;
 pub mod players;
 pub mod recording;
+pub mod relay;
 pub mod server_list_entry;
 pub mod spatial_audio_config;
 

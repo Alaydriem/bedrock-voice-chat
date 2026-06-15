@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use common::PlayerEnum;
 use common::structs::packet::{
-    BedrockEvent, BedrockEventDirection, BedrockEventPacket, PacketType, PlayerPositionPacket,
-    QuicNetworkPacket, QuicNetworkPacketData,
+    BedrockEvent, BedrockEventDirection, BedrockEventPacket, PacketType, PeerPresenceObservedPacket,
+    PlayerPositionPacket, QuicNetworkPacket, QuicNetworkPacketData,
 };
 use log::{debug, warn, trace};
 
@@ -60,6 +60,50 @@ impl BedrockEventEmitter {
             Err(flume::TrySendError::Disconnected(_)) => {
                 warn!("Network packet channel disconnected; dropping bedrock position");
             }
+        }
+    }
+
+    pub fn try_send_observed(&self, token: String) {
+        let packet = NetworkPacket {
+            data: QuicNetworkPacket {
+                packet_type: PacketType::PeerPresenceObserved,
+                owner: None,
+                data: QuicNetworkPacketData::PeerPresenceObserved(PeerPresenceObservedPacket {
+                    token,
+                }),
+            },
+        };
+
+        match self.tx.try_send(packet) {
+            Ok(()) => trace!("Bedrock presence observation queued for QUIC transport"),
+            Err(flume::TrySendError::Full(_)) => {
+                warn!("Network packet queue full; dropping bedrock presence observation");
+            }
+            Err(flume::TrySendError::Disconnected(_)) => {
+                warn!("Network packet channel disconnected; dropping bedrock presence observation");
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn try_send_observed_emits_observed_packet() {
+        let (tx, rx) = flume::unbounded::<NetworkPacket>();
+        let emitter = BedrockEventEmitter::new(Arc::new(tx));
+
+        emitter.try_send_observed("tok".to_string());
+
+        let packet = rx.try_recv().expect("observed packet should be queued");
+        assert_eq!(packet.data.packet_type, PacketType::PeerPresenceObserved);
+        match packet.data.data {
+            QuicNetworkPacketData::PeerPresenceObserved(observed) => {
+                assert_eq!(observed.token, "tok");
+            }
+            other => panic!("expected PeerPresenceObserved, got {:?}", other),
         }
     }
 }

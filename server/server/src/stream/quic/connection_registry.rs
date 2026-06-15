@@ -4,8 +4,10 @@ use common::traits::player_data::PlayerData;
 use common::PlayerEnum;
 use dashmap::DashMap;
 use moka::future::Cache;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use tokio::sync::mpsc;
+
+use crate::services::relay::{PeerManager, RelayedPacket};
 
 pub(crate) enum RoutedPacket {
     Serialized(Bytes),
@@ -20,6 +22,12 @@ pub(crate) struct ConnectionRegistry {
     connections: DashMap<Vec<u8>, ConnectionEntry>,
     // player_name -> channel_id (one channel per player)
     player_channel: DashMap<String, String>,
+    // Optional cross-server relay fan-out. When present, LOCAL-origin packets
+    // are forwarded to peer servers sharing the sender's relay world. Packets
+    // that arrived FROM a peer are not routed through here (single-hop); the
+    // relay ingest path publishes them straight to the broadcast loop. Installed
+    // after the registry is wired into the QUIC manager and cache.
+    peer_manager: OnceLock<Arc<PeerManager>>,
 }
 
 impl Default for ConnectionRegistry {
@@ -33,7 +41,51 @@ impl ConnectionRegistry {
         Self {
             connections: DashMap::new(),
             player_channel: DashMap::new(),
+            peer_manager: OnceLock::new(),
         }
+    }
+
+    // Installs the cross-server relay manager. Set once; a later install is
+    // ignored.
+    pub fn set_peer_manager(&self, peer_manager: Arc<PeerManager>) {
+        let _ = self.peer_manager.set(peer_manager);
+    }
+
+    // The installed relay manager, if any. Used by the QUIC input path to route
+    // inbound `PeerPresenceObserved` reports from local clients.
+    pub fn peer_manager(&self) -> Option<&Arc<PeerManager>> {
+        self.peer_manager.get()
+    }
+
+    // Forwards a LOCAL-origin packet to peer servers sharing the sender's relay
+    // world. No-op when no relay is wired or the sender carries no
+    // `relay_world_uuid`. Off the hot path semantics are preserved by the
+    // manager (bounded `try_send`, drop-on-full).
+    pub fn forward_local_to_peers(&self, packet: &QuicNetworkPacket) {
+        let peer_manager = match self.peer_manager.get() {
+            Some(pm) => pm,
+            None => return,
+        };
+
+        let world = match Self::relay_world_of(packet) {
+            Some(w) => w,
+            None => return,
+        };
+
+        let relayed = RelayedPacket::local(packet.clone());
+        peer_manager.forward_local(&relayed, &world);
+    }
+
+    // Extracts the sender's `relay_world_uuid` from an audio packet, if any.
+    fn relay_world_of(packet: &QuicNetworkPacket) -> Option<String> {
+        if let QuicNetworkPacketData::AudioFrame(af) = &packet.data {
+            if let Some(sender) = &af.sender {
+                if let Some(mc) = sender.as_minecraft() {
+                    return mc.relay_world_uuid.clone();
+                }
+            }
+        }
+        None
     }
 
     pub fn register(
@@ -274,5 +326,166 @@ impl ConnectionRegistry {
         for key in dead_keys {
             self.unregister(&key);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::services::relay::{
+        AlwaysProven, PeerTable, RelayIngestSink, RelayedPacket as _RelayedPacket,
+    };
+    use common::players::MinecraftPlayer;
+    use common::structs::packet::{AudioFramePacket, PacketOwner, PacketType};
+    use common::structs::relay::RelayEndpoint;
+    use common::{Coordinate, Orientation};
+    use common::game_data::Dimension;
+    use std::time::Instant;
+
+    struct NoopSink;
+    #[async_trait::async_trait]
+    impl RelayIngestSink for NoopSink {
+        async fn publish(&self, _packet: QuicNetworkPacket) {}
+    }
+
+    fn registry_with_takeable_peer(world: &str, peer: RelayEndpoint) -> (ConnectionRegistry, Arc<PeerManager>) {
+        let table = PeerTable::new_shared();
+        table.set_active_worlds(vec![world.to_string()]);
+        table.set_world_peers(world, vec![peer.clone()]);
+        let mgr = Arc::new(PeerManager::new(
+            ep("self", 1),
+            table,
+            Arc::new(NoopSink),
+            Arc::new(AlwaysProven),
+        ));
+        mgr.register_inbound(&PeerManager::endpoint_key(&peer), Instant::now());
+        let reg = ConnectionRegistry::new();
+        reg.set_peer_manager(mgr.clone());
+        (reg, mgr)
+    }
+
+    fn ep(host: &str, port: u16) -> RelayEndpoint {
+        RelayEndpoint {
+            host: host.into(),
+            port,
+            primary: false,
+        }
+    }
+
+    fn mc(relay_world: Option<&str>) -> PlayerEnum {
+        PlayerEnum::Minecraft(MinecraftPlayer {
+            name: "alice".into(),
+            coordinates: Coordinate { x: 0.0, y: 0.0, z: 0.0 },
+            orientation: Orientation { x: 0.0, y: 0.0 },
+            dimension: Dimension::Overworld,
+            deafen: false,
+            spectator: false,
+            world_uuid: None,
+            alternative_identity: None,
+            player_uuid: None,
+            relay_world_uuid: relay_world.map(String::from),
+        })
+    }
+
+    fn audio_packet(sender: Option<PlayerEnum>) -> QuicNetworkPacket {
+        QuicNetworkPacket {
+            packet_type: PacketType::AudioFrame,
+            owner: Some(PacketOwner {
+                name: "alice".into(),
+                client_id: vec![1, 2, 3],
+            }),
+            data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
+                vec![5, 5, 5],
+                48000,
+                sender,
+                Some(true),
+            )),
+        }
+    }
+
+    fn registry_with_peer(world: &str, peers: Vec<RelayEndpoint>) -> ConnectionRegistry {
+        let table = PeerTable::new_shared();
+        table.set_active_worlds(vec![world.to_string()]);
+        table.set_world_peers(world, peers.clone());
+        let mgr = PeerManager::new(
+            ep("self", 1),
+            table,
+            Arc::new(NoopSink),
+            Arc::new(AlwaysProven),
+        );
+        for p in &peers {
+            mgr.register_inbound(&PeerManager::endpoint_key(p), Instant::now());
+        }
+        let reg = ConnectionRegistry::new();
+        reg.set_peer_manager(Arc::new(mgr));
+        reg
+    }
+
+    #[test]
+    fn relay_world_extracted_from_audio_sender() {
+        let p = audio_packet(Some(mc(Some("W1"))));
+        assert_eq!(
+            ConnectionRegistry::relay_world_of(&p),
+            Some("W1".to_string())
+        );
+    }
+
+    #[test]
+    fn no_relay_world_when_sender_absent() {
+        let p = audio_packet(None);
+        assert_eq!(ConnectionRegistry::relay_world_of(&p), None);
+    }
+
+    #[test]
+    fn forward_local_is_noop_without_peer_manager() {
+        let reg = ConnectionRegistry::new();
+        // must not panic; simply does nothing
+        reg.forward_local_to_peers(&audio_packet(Some(mc(Some("W1")))));
+    }
+
+    #[test]
+    fn forward_local_enqueues_for_world_peer() {
+        let reg = registry_with_peer("W1", vec![ep("z", 9)]);
+        // sanity: the wired manager would forward one copy for a local packet
+        let pm = reg.peer_manager().unwrap();
+        let local = _RelayedPacket::local(audio_packet(Some(mc(Some("W1")))));
+        assert_eq!(pm.forward_local(&local, "W1"), 1);
+    }
+
+    // A server-originated AudioFrame (e.g. jukebox playback) whose sender
+    // carries a relay_world_uuid must be forwarded to the peer's outbound queue
+    // when forward_local_to_peers is called.
+    #[tokio::test]
+    async fn server_originated_audio_frame_with_relay_world_reaches_peer_queue() {
+        let peer = ep("peer", 7);
+        let peer_key = PeerManager::endpoint_key(&peer);
+        let (reg, mgr) = registry_with_takeable_peer("W1", peer);
+        let mut rx = mgr
+            .take_outbound_receiver(&peer_key)
+            .expect("peer link must expose its outbound receiver");
+
+        reg.forward_local_to_peers(&audio_packet(Some(mc(Some("W1")))));
+
+        let got = rx.try_recv().expect("forwarded packet must arrive on peer queue");
+        assert_eq!(got.packet.packet_type, PacketType::AudioFrame);
+    }
+
+    // A server-originated AudioFrame with no relay_world_uuid (non-jukebox,
+    // non-relay) must NOT be forwarded to any peer queue.
+    #[tokio::test]
+    async fn server_originated_audio_frame_without_relay_world_skips_peers() {
+        let peer = ep("peer", 8);
+        let peer_key = PeerManager::endpoint_key(&peer);
+        let (reg, mgr) = registry_with_takeable_peer("W1", peer);
+        let mut rx = mgr
+            .take_outbound_receiver(&peer_key)
+            .expect("peer link must expose its outbound receiver");
+
+        reg.forward_local_to_peers(&audio_packet(None));
+
+        assert!(
+            rx.try_recv().is_err(),
+            "packet without relay_world_uuid must not be forwarded to peers"
+        );
     }
 }

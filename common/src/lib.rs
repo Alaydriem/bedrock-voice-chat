@@ -11,6 +11,7 @@ pub mod response;
 #[cfg(feature = "quic")]
 pub mod rustls;
 pub mod structs;
+pub mod tls;
 pub mod traits;
 pub mod players;
 pub mod game_data;

@@ -17,6 +17,7 @@ pub mod meridian_service;
 pub mod permission_service;
 pub mod player_identity_service;
 pub mod player_registrar_service;
+pub mod relay;
 
 pub use audio_file_service::{AudioFileError, AudioFileService};
 pub use audio_stream_token_cache::AudioStreamTokenCache;
@@ -30,3 +31,7 @@ pub use meridian_service::MeridianService;
 pub use permission_service::{PermissionService, PermissionServiceError};
 pub use player_identity_service::PlayerIdentityService;
 pub use player_registrar_service::{PlayerRegistrarService, RegisteredPlayersCache};
+pub use relay::{
+    HttpEndpointReachability, PeerCertIssueError, PeerCertIssuer, PeerTable, RegisterNonceStore,
+    RelayClient, RelayRegistry,
+};

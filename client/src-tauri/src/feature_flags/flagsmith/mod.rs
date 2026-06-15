@@ -1,7 +1,7 @@
 pub(crate) mod feature;
 pub(crate) mod flag;
 pub(crate) mod identity_response;
-pub(crate) mod spki_pinning_verifier;
+pub(crate) mod pinned_client;
 pub(crate) mod value;
 
 pub(crate) use flag::FlagsmithFlag;
