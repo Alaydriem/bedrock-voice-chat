@@ -19,8 +19,8 @@ pub struct AppState {
     input_audio_device: Option<AudioDevice>,
     output_audio_device: AudioDevice,
     pub current_server: Option<String>,
-    pub api_client: Option<Api>,
-    pub server_pool: Arc<RwLock<HashMap<String, Api>>>,
+    pub(crate) api_client: Option<Api>,
+    pub(crate) server_pool: Arc<RwLock<HashMap<String, Api>>>,
 }
 
 impl AppState {
@@ -67,14 +67,14 @@ impl AppState {
     }
 
     /// Get the API client, returning an error if not initialized
-    pub fn get_api_client(&self) -> Result<&Api, String> {
+    pub(crate) fn get_api_client(&self) -> Result<&Api, String> {
         self.api_client
             .as_ref()
             .ok_or_else(|| "API client not initialized. Please log in first.".to_string())
     }
 
     /// Get API client for a specific server from pool
-    pub async fn get_api_client_for_server(&self, endpoint: &str) -> Result<Api, String> {
+    pub(crate) async fn get_api_client_for_server(&self, endpoint: &str) -> Result<Api, String> {
         let pool = self.server_pool.read().await;
         pool.get(endpoint)
             .cloned()

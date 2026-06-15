@@ -3,7 +3,7 @@ use std::sync::Arc;
 use common::structs::packet::QuicNetworkPacket;
 
 use super::ingest_sink::GatedPeerIngest;
-use super::peer_manager::PeerManager;
+use crate::relay::peer::manager::PeerManager;
 
 // Binds a `PeerManager` together with a single peer endpoint so a peer-link read
 // pump can route every inbound datagram through the GATED `PeerManager::ingest`
@@ -35,9 +35,9 @@ impl GatedPeerIngest for PeerLinkIngest {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::services::relay::ingest_sink::RelayIngestSink;
-    use crate::services::relay::peer_table::PeerTable;
-    use crate::services::relay::presence::PresenceProver;
+    use crate::relay::peer::link::ingest_sink::RelayIngestSink;
+    use crate::relay::peer::table::PeerTable;
+    use crate::relay::presence::PresenceProver;
     use common::structs::relay::RelayEndpoint;
     use std::sync::atomic::{AtomicUsize, Ordering};
 

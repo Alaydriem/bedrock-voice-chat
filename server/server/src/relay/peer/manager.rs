@@ -9,15 +9,15 @@ use common::structs::relay::{AudioQuery, RelayEndpoint};
 
 use common::structs::packet::PeerPresenceInjectPacket;
 
-use super::audio_peer_query::{AudioPeerQuery, ResolvedAudio};
-use super::audio_source::AudioSource;
-use super::ingest_sink::RelayIngestSink;
-use super::peer_link::{PeerDirection, PeerLink};
-use super::peer_role::Caps;
-use super::peer_table::PeerTable;
-use super::presence::{PresenceProver, CHALLENGE_TTL};
-use super::presence_gate::PresenceGate;
-use super::relayed_packet::{PacketOrigin, RelayedPacket};
+use super::link::ingest_sink::RelayIngestSink;
+use super::link::{PeerDirection, PeerLink};
+use super::role::Caps;
+use super::table::PeerTable;
+use crate::relay::audio::peer_query::{AudioPeerQuery, ResolvedAudio};
+use crate::relay::audio::source::AudioSource;
+use crate::relay::presence::gate::PresenceGate;
+use crate::relay::presence::{PresenceProver, CHALLENGE_TTL};
+use crate::relay::relayed_packet::{PacketOrigin, RelayedPacket};
 
 // Coordinates server↔server peer links: deterministic dial/accept tiebreak,
 // one connection per peer endpoint (deduped across worlds), inbound packet
@@ -606,7 +606,7 @@ impl AudioPeerQuery for PeerManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::services::relay::presence_gate::{AlwaysProven, NeverProven};
+    use crate::relay::presence::gate::{AlwaysProven, NeverProven};
     use common::structs::packet::{
         AudioFramePacket, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
     };
@@ -754,7 +754,7 @@ mod tests {
     // mutually proven for that world, the same packet IS published.
     #[tokio::test]
     async fn ingest_drops_audio_from_unproven_peer_then_publishes_once_proven() {
-        use crate::services::relay::presence::PresenceProver;
+        use crate::relay::presence::PresenceProver;
         let sink = Arc::new(SpySink {
             published: AtomicUsize::new(0),
         });
@@ -793,7 +793,7 @@ mod tests {
     // NOT have its audio for a DIFFERENT world W2 published.
     #[tokio::test]
     async fn ingest_proof_does_not_cross_worlds() {
-        use crate::services::relay::presence::PresenceProver;
+        use crate::relay::presence::PresenceProver;
         let sink = Arc::new(SpySink {
             published: AtomicUsize::new(0),
         });
@@ -1151,7 +1151,7 @@ mod tests {
 
     #[test]
     fn challenges_emitted_for_worlds_with_unproven_peers() {
-        use crate::services::relay::presence::PresenceProver;
+        use crate::relay::presence::PresenceProver;
         let sink = Arc::new(SpySink {
             published: AtomicUsize::new(0),
         });
@@ -1170,7 +1170,7 @@ mod tests {
 
     #[test]
     fn no_challenge_once_peer_proven() {
-        use crate::services::relay::presence::PresenceProver;
+        use crate::relay::presence::PresenceProver;
         let sink = Arc::new(SpySink {
             published: AtomicUsize::new(0),
         });
@@ -1190,7 +1190,7 @@ mod tests {
 
     #[test]
     fn observed_from_peer_marks_gate_proven() {
-        use crate::services::relay::presence::PresenceProver;
+        use crate::relay::presence::PresenceProver;
         let sink = Arc::new(SpySink {
             published: AtomicUsize::new(0),
         });
@@ -1215,7 +1215,7 @@ mod tests {
 
     #[test]
     fn local_observed_tokens_drain_for_echo() {
-        use crate::services::relay::presence::PresenceProver;
+        use crate::relay::presence::PresenceProver;
         let sink = Arc::new(SpySink {
             published: AtomicUsize::new(0),
         });
@@ -1236,7 +1236,7 @@ mod tests {
     // At the manager seam: an unknown observed token is dropped.
     #[test]
     fn local_observed_unknown_token_is_dropped() {
-        use crate::services::relay::presence::PresenceProver;
+        use crate::relay::presence::PresenceProver;
         let sink = Arc::new(SpySink {
             published: AtomicUsize::new(0),
         });

@@ -3,9 +3,9 @@ use std::time::Duration;
 
 use common::structs::relay::RelayEndpoint;
 
-use super::client::RelayClient;
-use super::peer_table::PeerTable;
-use super::register_nonce_store::RegisterNonceStore;
+use super::discovery::client::RelayClient;
+use super::discovery::nonce_store::RegisterNonceStore;
+use super::peer::table::PeerTable;
 
 const DEFAULT_REGISTER_INTERVAL_SECS: u64 = 60;
 

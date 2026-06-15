@@ -5,7 +5,7 @@ use common::structs::packet::{
     BedrockEvent, BedrockEventDirection, BedrockEventPacket, PacketType, PeerPresenceObservedPacket,
     PlayerPositionPacket, QuicNetworkPacket, QuicNetworkPacketData,
 };
-use log::{debug, warn, trace};
+use log::{warn, trace};
 
 use crate::NetworkPacket;
 
@@ -14,7 +14,7 @@ pub struct BedrockEventEmitter {
 }
 
 impl BedrockEventEmitter {
-    pub fn new(tx: Arc<flume::Sender<NetworkPacket>>) -> Self {
+    pub(crate) fn new(tx: Arc<flume::Sender<NetworkPacket>>) -> Self {
         Self { tx }
     }
 

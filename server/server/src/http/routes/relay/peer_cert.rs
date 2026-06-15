@@ -3,8 +3,8 @@ use std::sync::Arc;
 use common::structs::relay::{PeerCertRequest, PeerCertResponse};
 use rocket::{http::Status, serde::json::Json, State};
 
-use crate::services::relay::PeerCertIssueError;
-use crate::services::PeerCertIssuer;
+use crate::relay::PeerCertIssueError;
+use crate::relay::PeerCertIssuer;
 
 // Peer-cert issuance: the acceptor side issues the initiator an in-memory client
 // cert for its `host:https_port` identity ONLY when that peer is mutually

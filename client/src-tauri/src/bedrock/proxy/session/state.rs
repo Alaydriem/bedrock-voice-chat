@@ -7,7 +7,7 @@ use common::players::PlayerEnum;
 use common::structs::bedrock::BedrockWorldId;
 use common::structs::game::coordinate::Coordinate;
 use common::structs::game::orientation::Orientation;
-use log::{info, debug};
+use log::debug;
 
 pub struct BedrockSessionState {
     name: String,

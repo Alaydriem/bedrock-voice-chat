@@ -4,8 +4,8 @@ use common::structs::relay::{PeerCertResponse, RelayEndpoint};
 
 use crate::services::CertificateService;
 
-use super::peer_cert_issue_error::PeerCertIssueError;
-use super::presence_gate::PresenceGate;
+use super::error::PeerCertIssueError;
+use crate::relay::presence::gate::PresenceGate;
 
 // Issues the in-memory peer client cert that bootstraps a server↔server media
 // link. This is the ACCEPTOR side: the initiator fetches a cert here (over its
@@ -80,8 +80,8 @@ impl PeerCertIssuer {
 mod tests {
     use super::*;
     use crate::runtime::ca_cert::CaCertManager;
-    use crate::services::relay::presence::PresenceProver;
-    use crate::services::relay::peer_manager::PeerManager;
+    use crate::relay::presence::PresenceProver;
+    use crate::relay::peer::manager::PeerManager;
     use std::fs;
     use std::time::Instant;
     use tempfile::TempDir;
