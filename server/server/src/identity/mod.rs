@@ -3,7 +3,7 @@ pub mod secrets;
 pub mod store;
 
 pub use resolver::IdentityResolver;
-pub use store::{Identity, IdentityMetadata, IdentityStore, IdentitySummary};
+pub use store::{Identity, IdentityStore};
 
 use anyhow::anyhow;
 use common::Game;
