@@ -29,6 +29,11 @@
   let isHandoff = $state(false);       // success: external auth URL opened
   let lastLoginKind = $state<LoginKind>('ms');
   let fidgetIndex = $state(0);
+  let spinnerFrame = $state(0);
+
+  // Braille spinner frames cycled while connecting, mirroring the indicator
+  // CLI tools render when working.
+  const BRAILLE_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
   // Monotonic token identifying the current attempt. Bumped on each new
   // attempt and on cancel so a late-resolving request can't clobber the UI.
   let attemptId = 0;
@@ -41,10 +46,20 @@
   $effect(() => {
     if (loginState !== 'connecting' || isHandoff) return;
     fidgetIndex = 0;
-    const id = setInterval(() => {
+    const phraseId = setInterval(() => {
       fidgetIndex = (fidgetIndex + 1) % CONNECTING_STATUS_PHRASES.length;
     }, 1600);
-    return () => clearInterval(id);
+
+    spinnerFrame = 0;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const spinnerId = reduceMotion ? null : setInterval(() => {
+      spinnerFrame = (spinnerFrame + 1) % BRAILLE_FRAMES.length;
+    }, 90);
+
+    return () => {
+      clearInterval(phraseId);
+      if (spinnerId) clearInterval(spinnerId);
+    };
   });
 
   onMount(() => {
@@ -317,9 +332,7 @@
                   <span class="break-all text-primary dark:text-accent-light">{attemptServer}</span>…
                 </p>
                 <div class="mt-4 flex items-center justify-center gap-2.5 min-h-[22px] font-inter">
-                  <svg class="bvc-sparkle size-[18px] text-primary dark:text-accent-light" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <path d="M12 0l2.2 7.2L21 9.4l-5.6 3.4L17 21l-5-4.3L7 21l1.6-8.2L3 9.4l6.8-2.2z" />
-                  </svg>
+                  <span class="bvc-spinner text-primary dark:text-accent-light" aria-hidden="true">{BRAILLE_FRAMES[spinnerFrame]}</span>
                   <span class="bvc-shimmer text-xs+">{CONNECTING_STATUS_PHRASES[fidgetIndex]}</span>
                 </div>
               {/if}
@@ -414,13 +427,14 @@
     to { transform: rotate(360deg); }
   }
 
-  .bvc-sparkle {
-    animation: bvc-sparkle 3.2s ease-in-out infinite;
-  }
-  @keyframes bvc-sparkle {
-    0% { transform: rotate(0) scale(0.85); opacity: 0.7; }
-    50% { transform: rotate(180deg) scale(1.1); opacity: 1; }
-    100% { transform: rotate(360deg) scale(0.85); opacity: 0.7; }
+  .bvc-spinner {
+    display: inline-block;
+    width: 18px;
+    text-align: center;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 18px;
+    line-height: 1;
+    font-weight: 600;
   }
 
   .bvc-shimmer {
@@ -449,7 +463,6 @@
 
   @media (prefers-reduced-motion: reduce) {
     .bvc-ring { animation-duration: 1.6s; }
-    .bvc-sparkle,
     .bvc-shimmer { animation: none; }
     .bvc-shimmer { -webkit-text-fill-color: currentColor; }
   }
