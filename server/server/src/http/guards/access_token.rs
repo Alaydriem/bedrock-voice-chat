@@ -5,14 +5,12 @@ use rocket::{
     http::Status,
     request::{FromRequest, Outcome, Request},
 };
-/// Extracts the Access Token from the ncryptf request
-pub struct AccessToken(pub String);
 
-#[derive(Debug)]
-pub enum AccessTokenError {
-    Missing,
-    Invalid,
-}
+use crate::http::guards::AccessTokenError;
+
+/// Extracts the Access Token from the ncryptf request
+#[allow(dead_code)]
+pub struct AccessToken(pub String);
 
 #[async_trait]
 impl<'r> FromRequest<'r> for AccessToken {
