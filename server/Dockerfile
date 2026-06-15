@@ -12,8 +12,8 @@ RUN chmod +x /usr/local/bin/bvc-server && \
 
 USER bvc
 
-EXPOSE 443
-EXPOSE 8443/udp
+EXPOSE 443/tcp
+EXPOSE 443/udp
 
 WORKDIR /data
 VOLUME ["/data"]

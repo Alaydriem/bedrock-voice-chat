@@ -7,7 +7,7 @@ use moka::future::Cache;
 use std::sync::{Arc, OnceLock};
 use tokio::sync::mpsc;
 
-use crate::services::relay::{PeerManager, RelayedPacket};
+use crate::relay::{PeerManager, RelayedPacket};
 
 pub(crate) enum RoutedPacket {
     Serialized(Bytes),
@@ -332,7 +332,7 @@ impl ConnectionRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::services::relay::{
+    use crate::relay::{
         AlwaysProven, PeerTable, RelayIngestSink, RelayedPacket as _RelayedPacket,
     };
     use common::players::MinecraftPlayer;

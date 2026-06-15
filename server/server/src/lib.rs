@@ -7,6 +7,7 @@ extern crate rocket;
 
 pub mod config;
 pub mod http;
+pub mod relay;
 pub mod services;
 pub mod stream;
 

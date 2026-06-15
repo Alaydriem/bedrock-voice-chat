@@ -36,9 +36,9 @@ use tokio::sync::mpsc;
 
 use crate::stream::quic::connection_registry::{ConnectionRegistry, RoutedPacket};
 
-use super::ingest_sink::RelayIngestSink;
-use super::peer_manager::PeerManager;
-use super::peer_table::PeerTable;
+use super::peer::link::ingest_sink::RelayIngestSink;
+use super::peer::manager::PeerManager;
+use super::peer::table::PeerTable;
 use super::presence::PresenceProver;
 use super::relayed_packet::RelayedPacket;
 

@@ -5,9 +5,9 @@ use common::structs::packet::{
 };
 
 use super::super::orchestrator::PeerEchoDelivery;
-use super::super::peer_manager::PeerManager;
-use super::super::presence::PresenceProver;
 use super::super::relayed_packet::RelayedPacket;
+use crate::relay::peer::manager::PeerManager;
+use crate::relay::presence::PresenceProver;
 
 // Production `PeerEchoDelivery`: enqueues a `PeerPresenceObserved` onto every
 // live peer link's outbound queue (the same datagram channel the peer-link

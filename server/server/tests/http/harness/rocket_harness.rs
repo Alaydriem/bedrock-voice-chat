@@ -12,7 +12,7 @@ use bvc_server_lib::config::ApplicationConfig;
 use bvc_server_lib::http::pool::AppDb;
 use bvc_server_lib::http::routes;
 use bvc_server_lib::services::CertificateService;
-use bvc_server_lib::services::relay::EndpointReachability;
+use bvc_server_lib::relay::EndpointReachability;
 use common::ncryptflib as ncryptf;
 use common::structs::relay::RelayEndpoint;
 use rocket::routes;
@@ -86,7 +86,7 @@ impl RocketHarness {
         if relay_enabled {
             let reachability: Arc<dyn EndpointReachability> = Arc::new(AlwaysReachable);
             rocket = rocket
-                .manage(bvc_server_lib::services::RelayRegistry::new_shared())
+                .manage(bvc_server_lib::relay::RelayRegistry::new_shared())
                 .manage(reachability)
                 .mount(
                     "/relay",

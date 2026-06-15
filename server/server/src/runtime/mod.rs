@@ -184,16 +184,16 @@ impl ServerRuntime {
         // miss can fetch the `.opus` from a peer; otherwise discovery is absent and
         // a miss is a hard error.
         let playback_cancel_token = tokio_util::sync::CancellationToken::new();
-        let peer_query: Option<Arc<dyn crate::services::relay::AudioPeerQuery>> = relay_client_state
+        let peer_query: Option<Arc<dyn crate::relay::AudioPeerQuery>> = relay_client_state
             .as_ref()
-            .map(|(_, _, pm)| pm.clone() as Arc<dyn crate::services::relay::AudioPeerQuery>);
+            .map(|relay| relay.peer_manager() as Arc<dyn crate::relay::AudioPeerQuery>);
         let audio_playback_service = Arc::new(AudioPlaybackService::new(
             webhook_receiver.clone(),
             self.config.audio.file_path.clone(),
             playback_cancel_token.clone(),
             self.config.audio.max_concurrent_per_uuid,
             peer_query,
-            crate::services::relay::RelayAudioPuller::new_shared(),
+            crate::relay::RelayAudioPuller::new_shared(),
         ));
 
         // Store audio_playback_service and db_conn for FFI access
@@ -243,8 +243,8 @@ impl ServerRuntime {
             audio_playback_service,
             bedrock_event_service,
             cert_service,
-            relay_client_state.as_ref().map(|(n, _, _)| n.clone()),
-            relay_client_state.as_ref().map(|(_, i, _)| i.clone()),
+            relay_client_state.as_ref().map(|relay| relay.nonce_store()),
+            relay_client_state.as_ref().map(|relay| relay.peer_cert_issuer()),
             Some(audio_stream_token_cache),
             #[cfg(feature = "bedrock")]
             transfer_target_cache.clone(),
@@ -369,12 +369,13 @@ impl ServerRuntime {
         Ok(())
     }
 
-    /// Construct and spawn the cross-server voice relay client plane:
-    /// relay client + peer table + presence prover + peer manager + background
-    /// register/lookup task + presence/idle orchestration. Installs the peer
-    /// manager on the connection registry so the QUIC fan-out forwards
-    /// local-origin audio to proven peers. No-op unless `features.relay.client_*`
-    /// is configured. Everything is off the audio hot path (dedicated tasks).
+    /// Assemble the cross-server voice relay client plane via `RelayManager`,
+    /// install the peer manager on the connection registry so the QUIC fan-out
+    /// forwards local-origin audio to proven peers, and spawn the relay's
+    /// background + orchestration tasks. No-op unless the relay client builds.
+    /// Returns the manager the runtime retains for the remaining integration
+    /// wires (playback discovery handle + Rocket relay-route state). Everything
+    /// is off the audio hot path (dedicated tasks).
     fn wire_relay_client(
         &self,
         webhook_receiver: &WebhookReceiver,
@@ -384,32 +385,18 @@ impl ServerRuntime {
         ca_pem: String,
         db_conn: Arc<DatabaseConnection>,
         audio_stream_token_cache: crate::services::AudioStreamTokenCache,
-    ) -> Option<(
-        Arc<crate::services::RegisterNonceStore>,
-        Arc<crate::services::PeerCertIssuer>,
-        Arc<crate::services::relay::PeerManager>,
-    )> {
-        use crate::services::relay::{
-            ActiveWorldsSource, AudioSource, BroadcastInjectDelivery, DbAudioFileExistence,
-            FnActiveWorldsSource, LinkEchoDelivery, PeerCertIssuer, PeerManager, PeerTable,
-            PresenceGate, PresenceProver, ProductionPeerDialDriver, RegisterNonceStore,
-            RelayBackgroundTask, RelayClient, RelayOrchestrator, WebhookIngestSink,
-        };
+    ) -> Option<Arc<crate::relay::RelayManager>> {
+        use crate::relay::{RelayClient, RelayManager, RelayManagerConfig};
         use common::structs::relay::RelayEndpoint;
 
-        let relay = &self.config.server.features.relay;
-        let client_url = relay
+        let client_url = self
+            .config
+            .server
+            .features
+            .relay
             .client_url
             .clone()
             .unwrap_or_else(|| RelayClient::DEFAULT_RELAY_URL.to_string());
-
-        let relay_client = match RelayClient::new_shared(&client_url) {
-            Ok(c) => c,
-            Err(e) => {
-                tracing::error!("failed to build relay client, cross-server voice disabled: {}", e);
-                return None;
-            }
-        };
 
         let self_host = self
             .config
@@ -429,68 +416,32 @@ impl ServerRuntime {
             primary: false,
         };
 
-        let peer_table = PeerTable::new_shared();
-        let prover = PresenceProver::new_shared();
-        let ingest = WebhookIngestSink::new_shared(webhook_receiver.clone());
-        let peer_manager = PeerManager::new_shared(
-            self_endpoint.clone(),
-            peer_table.clone(),
-            ingest,
-            prover.clone(),
-        );
-        peer_manager.set_prover(prover.clone());
-
-        // Cross-server jukebox responder: answers a peer's `AudioQuery` with a
-        // minted stream token when this server holds the file on disk.
-        let existence =
-            DbAudioFileExistence::new_shared(db_conn, self.config.audio.file_path.clone());
-        let audio_source = AudioSource::new_shared(audio_stream_token_cache, existence);
-        peer_manager.set_audio_source(audio_source);
-
-        connection_registry.set_peer_manager(peer_manager.clone());
-
-        // Peer-cert issuer: the acceptor side of the bootstrap, gated on mutual
-        // presence proof (the same prover that gates peering).
-        let presence_gate: Arc<dyn PresenceGate> = prover.clone();
-        let peer_cert_issuer =
-            PeerCertIssuer::new_shared(cert_service, presence_gate, ca_pem);
-
-        // Nonce store backing `/relay/proof` for endpoint-control proof.
-        let nonces = RegisterNonceStore::new_shared();
-
-        let active_worlds: Arc<dyn ActiveWorldsSource> = {
-            let cm = cache_manager.clone();
-            Arc::new(FnActiveWorldsSource(move || cm.active_relay_worlds()))
+        let relay = match RelayManager::new_shared(RelayManagerConfig {
+            self_endpoint,
+            client_url,
+            webhook_receiver: webhook_receiver.clone(),
+            cache_manager: cache_manager.clone(),
+            cert_service,
+            ca_pem,
+            db_conn,
+            audio_storage_path: self.config.audio.file_path.clone(),
+            audio_stream_token_cache,
+        }) {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::error!("failed to build relay client, cross-server voice disabled: {}", e);
+                return None;
+            }
         };
-        let background = RelayBackgroundTask::new(
-            relay_client.clone(),
-            peer_table.clone(),
-            self_endpoint.clone(),
-            active_worlds,
-            nonces.clone(),
-        );
-        tokio::spawn(async move { background.run().await });
 
-        // Dial driver: consumes reconcile's dial intents, fetches a
-        // peer cert from the acceptor, and spawns the `PeerDialer` run loop so the
-        // outbound queue `forward_local` fills is actually drained.
-        let dial_driver = ProductionPeerDialDriver::new_shared(
-            relay_client,
-            peer_manager.clone(),
-            self_endpoint.clone(),
-        );
-
-        let inject = BroadcastInjectDelivery::new_shared(webhook_receiver.clone());
-        let echo = LinkEchoDelivery::new_shared(peer_manager.clone(), prover.clone());
-        let peer_query_handle = peer_manager.clone();
-        let orchestrator = RelayOrchestrator::new_with_driver(peer_manager, inject, echo, dial_driver);
-        tokio::spawn(async move { orchestrator.run().await });
+        connection_registry.set_peer_manager(relay.peer_manager());
+        relay.start();
 
         tracing::info!(
             "cross-server voice relay client wired (relay url configured); peer dial + presence tasks spawned"
         );
 
-        Some((nonces, peer_cert_issuer, peer_query_handle))
+        Some(relay)
     }
 
     /// Signal the server to stop gracefully

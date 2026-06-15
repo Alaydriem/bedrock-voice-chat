@@ -19,7 +19,7 @@ use moka::future::Cache;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
 use tokio_util::sync::CancellationToken;
 
-use crate::services::relay::{AudioPeerQuery, AudioPuller};
+use crate::relay::{AudioPeerQuery, AudioPuller};
 use crate::stream::quic::WebhookReceiver;
 
 use ogg_opus_parser::OggOpusParser;
@@ -403,7 +403,7 @@ mod tests {
     use common::request::audio::play::MinecraftAudioContext;
     use common::structs::packet::PacketType;
     use common::structs::relay::{AudioAvailable, RelayEndpoint};
-    use crate::services::relay::ResolvedAudio;
+    use crate::relay::ResolvedAudio;
     use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
     use tokio::sync::mpsc;
     use tokio::sync::oneshot;
@@ -721,7 +721,7 @@ mod tests {
     // Exercises the full discover -> HTTP pull -> parse -> play chain.
     #[tokio::test]
     async fn miss_path_pulls_over_http_end_to_end() {
-        use crate::services::relay::RelayAudioPuller;
+        use crate::relay::RelayAudioPuller;
 
         let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
         let port = spawn_opus_endpoint(fixture_bytes());

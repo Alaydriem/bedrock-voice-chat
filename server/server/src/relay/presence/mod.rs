@@ -5,8 +5,11 @@ use std::time::{Duration, Instant};
 
 use common::structs::relay::RelayEndpoint;
 
-use super::peer_manager::PeerManager;
-use super::presence_gate::PresenceGate;
+pub mod gate;
+
+pub use gate::{AlwaysProven, NeverProven, PresenceGate};
+
+use crate::relay::peer::manager::PeerManager;
 
 // How long an injected challenge token stays outstanding before it can no
 // longer be matched against a peer's echo

@@ -29,8 +29,8 @@ pub struct RocketManager {
     // Relay-client-side state. Present when this server runs the cross-server
     // relay client: the nonce store backs the `/relay/proof` endpoint-control
     // responder and the peer-cert issuer backs `/relay/peer-cert`.
-    register_nonce_store: Option<Arc<crate::services::RegisterNonceStore>>,
-    peer_cert_issuer: Option<Arc<crate::services::PeerCertIssuer>>,
+    register_nonce_store: Option<Arc<crate::relay::RegisterNonceStore>>,
+    peer_cert_issuer: Option<Arc<crate::relay::PeerCertIssuer>>,
     #[cfg(feature = "bedrock")]
     transfer_target_cache: Option<crate::services::bedrock::TransferTargetCache>,
 }
@@ -45,8 +45,8 @@ impl RocketManager {
         audio_playback_service: Arc<AudioPlaybackService>,
         bedrock_event_service: Arc<BedrockEventService>,
         cert_service: Arc<CertificateService>,
-        register_nonce_store: Option<Arc<crate::services::RegisterNonceStore>>,
-        peer_cert_issuer: Option<Arc<crate::services::PeerCertIssuer>>,
+        register_nonce_store: Option<Arc<crate::relay::RegisterNonceStore>>,
+        peer_cert_issuer: Option<Arc<crate::relay::PeerCertIssuer>>,
         audio_stream_token_cache: Option<AudioStreamTokenCache>,
         #[cfg(feature = "bedrock")]
         transfer_target_cache: Option<crate::services::bedrock::TransferTargetCache>,
@@ -126,10 +126,10 @@ impl RocketManager {
 
                 if self.config.server.features.relay.enabled {
                     tracing::info!("features.relay enabled, mounting relay discovery routes");
-                    let reachability: Arc<dyn crate::services::relay::EndpointReachability> =
-                        Arc::new(crate::services::HttpEndpointReachability::default());
+                    let reachability: Arc<dyn crate::relay::EndpointReachability> =
+                        Arc::new(crate::relay::HttpEndpointReachability::default());
                     rocket = rocket
-                        .manage(crate::services::RelayRegistry::new_shared())
+                        .manage(crate::relay::RelayRegistry::new_shared())
                         .manage(reachability)
                         .mount(
                             "/relay",

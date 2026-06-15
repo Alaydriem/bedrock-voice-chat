@@ -5,8 +5,8 @@ use common::structs::packet::{
     PacketType, PeerPresenceInjectPacket, QuicNetworkPacket, QuicNetworkPacketData,
 };
 
-use super::peer_dial_driver::PeerDialDriver;
-use super::peer_manager::PeerManager;
+use super::peer::dial::driver::PeerDialDriver;
+use super::peer::manager::PeerManager;
 
 // How often the orchestrator drives the presence-challenge / echo / idle-sweep
 // cycle. Independent of the relay register/lookup interval; both run off the
@@ -134,9 +134,9 @@ impl RelayOrchestrator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::services::relay::peer_table::PeerTable;
-    use crate::services::relay::presence::PresenceProver;
-    use crate::services::relay::ingest_sink::RelayIngestSink;
+    use crate::relay::peer::table::PeerTable;
+    use crate::relay::presence::PresenceProver;
+    use crate::relay::peer::link::ingest_sink::RelayIngestSink;
     use common::structs::packet::QuicNetworkPacket;
     use common::structs::relay::RelayEndpoint;
     use std::sync::Mutex as StdMutex;
@@ -230,7 +230,7 @@ mod tests {
     struct CaptureDial {
         dialed: StdMutex<Vec<(String, String)>>,
     }
-    impl crate::services::relay::peer_dial_driver::PeerDialDriver for CaptureDial {
+    impl crate::relay::peer::dial::driver::PeerDialDriver for CaptureDial {
         fn begin_dial(&self, peer_ep: String, hashed_world: String) {
             self.dialed.lock().unwrap().push((peer_ep, hashed_world));
         }
@@ -238,7 +238,7 @@ mod tests {
 
     #[test]
     fn tick_consumes_reconcile_dial_intents() {
-        use crate::services::relay::presence::PresenceProver;
+        use crate::relay::presence::PresenceProver;
         let table = PeerTable::new_shared();
         table.set_active_worlds(vec!["W".into()]);
         // self is "a:1"; peer "b:1" is lexically higher -> we initiate to it.
@@ -273,8 +273,8 @@ mod tests {
     // (stub) drain — the receiver `take_outbound_receiver` hands to the writer.
     #[tokio::test]
     async fn outbound_enqueued_packet_is_taken_by_drain() {
-        use crate::services::relay::presence_gate::AlwaysProven;
-        use crate::services::relay::relayed_packet::RelayedPacket;
+        use crate::relay::presence::gate::AlwaysProven;
+        use crate::relay::relayed_packet::RelayedPacket;
         use common::structs::packet::{AudioFramePacket, PacketType, QuicNetworkPacketData};
 
         let table = PeerTable::new_shared();

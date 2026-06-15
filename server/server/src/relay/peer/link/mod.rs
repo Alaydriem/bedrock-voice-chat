@@ -2,8 +2,14 @@ use std::time::{Duration, Instant};
 
 use tokio::sync::mpsc;
 
-use super::peer_role::PeerRole;
-use super::relayed_packet::RelayedPacket;
+pub mod ingest;
+pub mod ingest_sink;
+
+pub use ingest::PeerLinkIngest;
+pub use ingest_sink::{GatedPeerIngest, RelayIngestSink, WebhookIngestSink};
+
+use super::role::PeerRole;
+use crate::relay::relayed_packet::RelayedPacket;
 
 // A peer link is torn down after this much wall-clock time with no relayed
 // traffic in either direction

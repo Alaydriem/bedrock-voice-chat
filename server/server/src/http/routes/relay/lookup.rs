@@ -4,8 +4,8 @@ use std::time::Instant;
 use common::structs::relay::{LookupRequest, LookupResponse};
 use rocket::{serde::json::Json, State};
 
-use crate::services::relay::EndpointReachability;
-use crate::services::RelayRegistry;
+use crate::relay::EndpointReachability;
+use crate::relay::RelayRegistry;
 
 // Lookup is gated on the same endpoint-control proof register requires: the
 // caller must control the `caller` endpoint it claims. Without this an attacker

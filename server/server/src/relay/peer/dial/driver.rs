@@ -3,10 +3,10 @@ use std::sync::Arc;
 
 use common::structs::relay::RelayEndpoint;
 
-use super::client::RelayClient;
-use super::peer_dialer::PeerDialer;
-use super::peer_link_ingest::PeerLinkIngest;
-use super::peer_manager::PeerManager;
+use super::dialer::PeerDialer;
+use crate::relay::discovery::client::RelayClient;
+use crate::relay::peer::link::ingest::PeerLinkIngest;
+use crate::relay::peer::manager::PeerManager;
 
 // Seam the orchestrator drives for each dial intent `reconcile` produces.
 pub trait PeerDialDriver: Send + Sync {

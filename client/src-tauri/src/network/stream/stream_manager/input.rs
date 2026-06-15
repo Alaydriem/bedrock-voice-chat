@@ -24,6 +24,7 @@ pub(crate) struct InputStream {
     jobs: Vec<AbortHandle>,
     shutdown: Arc<AtomicBool>,
     pub metadata: Arc<moka::future::Cache<String, String>>,
+    #[allow(unused)]
     app_handle: tauri::AppHandle,
     pub health_state: Arc<HealthMonitorState>,
 }
