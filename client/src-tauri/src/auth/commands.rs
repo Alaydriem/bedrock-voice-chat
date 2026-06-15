@@ -254,5 +254,7 @@ pub(crate) async fn link_java_identity(
         .await
     }
 
+    // Reachable on non-desktop platforms. Supress linter warning
+    #[allow(unused)]
     return Err("Java identity linking is only available on the desktop app".to_string())
 }

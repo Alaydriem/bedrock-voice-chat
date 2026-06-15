@@ -11,8 +11,8 @@ use common::s2n_quic::{Client, Connection};
 use common::structs::packet::QuicNetworkPacket;
 use tokio::sync::mpsc;
 
-use super::ingest_sink::GatedPeerIngest;
-use super::relayed_packet::RelayedPacket;
+use crate::relay::peer::link::ingest_sink::GatedPeerIngest;
+use crate::relay::relayed_packet::RelayedPacket;
 
 // Adapts s2n-quic's poll-based datagram receive into an awaitable future,
 // matching the server's own input stream (`stream/quic/stream_manager/input.rs`).

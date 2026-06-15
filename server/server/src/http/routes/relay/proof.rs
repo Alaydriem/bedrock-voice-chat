@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use rocket::{http::Status, State};
 
-use crate::services::RegisterNonceStore;
+use crate::relay::RegisterNonceStore;
 
 // Endpoint-control proof responder: the relay's reachability callback hits this
 // on the registrant's own HTTPS listener. We echo the nonce back ONLY when it

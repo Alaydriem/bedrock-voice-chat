@@ -266,7 +266,6 @@ fn zero_mp4_timestamps(data: &mut [u8]) {
                 let fourcc_pos = search_pos + rel_pos;
                 // The box starts 4 bytes before the fourcc (size field)
                 if fourcc_pos >= 4 {
-                    let box_start = fourcc_pos - 4;
                     let version_pos = fourcc_pos + 4; // version is right after fourcc
 
                     if version_pos < data.len() {

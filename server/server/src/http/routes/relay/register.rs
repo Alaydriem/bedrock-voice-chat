@@ -4,8 +4,8 @@ use std::time::Instant;
 use common::structs::relay::RegisterRequest;
 use rocket::{http::Status, serde::json::Json, State};
 
-use crate::services::relay::EndpointReachability;
-use crate::services::RelayRegistry;
+use crate::relay::EndpointReachability;
+use crate::relay::RelayRegistry;
 
 // Public TLS, no client-cert guard: callers authenticate the relay via SPKI
 // pinning (RelayClient). Registration is gated on endpoint-control proof: the

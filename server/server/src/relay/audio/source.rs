@@ -4,7 +4,7 @@ use common::structs::relay::{AudioAvailable, AudioQuery};
 
 use crate::services::AudioStreamTokenCache;
 
-use super::audio_file_existence::AudioFileExistence;
+use super::file_existence::AudioFileExistence;
 
 // Responder half of the cross-server jukebox peer-link discovery handshake.
 // On an inbound `AudioQuery`, if this server holds the file it mints a stream

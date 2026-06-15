@@ -1,6 +1,6 @@
 use anyhow::Error;
 
-use super::client::RelayClient;
+use crate::relay::discovery::client::RelayClient;
 
 // Fetches a discovered `.opus` from a responding peer's audio endpoint into
 // memory. Abstracted so the playback service can be exercised with a stub that

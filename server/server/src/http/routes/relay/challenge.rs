@@ -4,7 +4,7 @@ use std::time::Instant;
 use common::structs::relay::{RegisterChallengeRequest, RegisterChallengeResponse};
 use rocket::{serde::json::Json, State};
 
-use crate::services::RelayRegistry;
+use crate::relay::RelayRegistry;
 
 // Endpoint-control-proven registration, leg 1: issue a challenge bound to the
 // claimed endpoint. The registrant must remember `nonce` so its own

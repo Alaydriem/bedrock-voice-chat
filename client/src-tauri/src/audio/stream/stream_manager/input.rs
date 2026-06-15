@@ -13,7 +13,7 @@ use common::RecordingPlayerData;
 use common::consts::OPUS_FRAME_DURATION_MS;
 use common::structs::audio::{NoiseGateSettings, StreamEvent};
 use common::structs::packet::{AudioFramePacket, QuicNetworkPacket, QuicNetworkPacketData};
-use log::{debug, error, warn};
+use log::{error, warn};
 use once_cell::sync::Lazy;
 use opus2::Bitrate;
 use rodio::DeviceTrait;
@@ -303,7 +303,6 @@ impl InputStream {
                                     });
                                 };
 
-                                let callback_count = 0u64;
                                 let mut consecutive_silent_frames: u32 = 0;
 
                                 // Trailing frame count scales with release_rate (20ms per frame at 48kHz)

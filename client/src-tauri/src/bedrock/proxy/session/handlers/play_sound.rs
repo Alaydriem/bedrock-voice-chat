@@ -42,7 +42,7 @@ impl<'a> PlaySoundHandler<'a> {
         }
     }
 
-    pub fn parse(name: &str, position: &BlockPos) -> Option<JukeboxCommand> {
+    fn parse(name: &str, position: &BlockPos) -> Option<JukeboxCommand> {
         let pos = Self::block_coords(position);
         if let Some(rest) = name.strip_prefix(PLAY) {
             let (audio_id, dimension) = rest.split_once(':')?;

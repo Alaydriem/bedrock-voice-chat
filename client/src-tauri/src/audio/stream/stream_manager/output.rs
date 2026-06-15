@@ -65,8 +65,8 @@ pub(crate) struct OutputStream {
     client_id_to_player: Arc<moka::sync::Cache<String, String>>,
     recording_producer: Option<Arc<RecordingProducer>>,
     player_gain_cache: Arc<moka::sync::Cache<String, PlayerGainSettings>>,
-    // Recording state - shared from RecordingManager for post-jitter-buffer recording
     recording_active: Option<Arc<AtomicBool>>,
+    #[allow(unused)]
     recovery_tx: RecoverySender,
     #[cfg(feature = "bedrock-protocol")]
     beacon_cache: Option<Arc<JukeboxBeaconCache>>,
