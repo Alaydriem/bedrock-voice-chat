@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use base64::Engine;
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
-use rustls::crypto::{CryptoProvider, aws_lc_rs, verify_tls12_signature, verify_tls13_signature};
+use rustls::crypto::{aws_lc_rs, verify_tls12_signature, verify_tls13_signature, CryptoProvider};
 use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use rustls::{DigitallySignedStruct, SignatureScheme};
 use sha2::{Digest, Sha256};
@@ -14,27 +14,27 @@ use x509_parser::prelude::*;
 // works with a self-signed or CA-issued cert alike. Certificate validity is
 // still enforced.
 #[derive(Debug)]
-pub(crate) struct SpkiPinningVerifier {
+pub struct SpkiPinningVerifier {
     provider: Arc<CryptoProvider>,
     pins: Vec<[u8; 32]>,
 }
 
 impl SpkiPinningVerifier {
-    // SHA-256(SubjectPublicKeyInfo DER), base64 — the pinned public key(s) for
-    // the Flagsmith host. Multiple entries allow rotating the key with a backup
-    // pin without shipping a client update.
-    const SPKI_PINS: &[&str] = &["Ae0qBh6ONPl2sGUMgJiRJE9mrho9ehVfPBPv3kI5eEo="];
-
-    fn new() -> Self {
+    // Each pin is base64(SHA-256(SubjectPublicKeyInfo DER)). Multiple entries
+    // allow rotating the key with a backup pin without shipping a client update.
+    pub fn new(pins: &[String]) -> Self {
         Self {
             provider: Arc::new(aws_lc_rs::default_provider()),
-            pins: Self::decode_pins(),
+            pins: Self::decode_pins(pins),
         }
     }
 
-    fn decode_pins() -> Vec<[u8; 32]> {
-        Self::SPKI_PINS
-            .iter()
+    pub fn new_shared(pins: &[String]) -> Arc<Self> {
+        Arc::new(Self::new(pins))
+    }
+
+    fn decode_pins(pins: &[String]) -> Vec<[u8; 32]> {
+        pins.iter()
             .filter_map(|pin| {
                 base64::engine::general_purpose::STANDARD
                     .decode(pin)
@@ -44,23 +44,18 @@ impl SpkiPinningVerifier {
             .collect()
     }
 
-    // A reqwest client that only completes TLS to the Flagsmith host if the
-    // server presents a certificate whose public key matches a pinned SPKI hash.
-    pub(crate) fn pinned_client() -> reqwest::Client {
-        let verifier = Arc::new(Self::new());
-        let provider = verifier.provider.clone();
+    pub fn has_pins(&self) -> bool {
+        !self.pins.is_empty()
+    }
 
-        let config = rustls::ClientConfig::builder_with_provider(provider)
-            .with_safe_default_protocol_versions()
-            .expect("rustls supports the default protocol versions")
-            .dangerous()
-            .with_custom_certificate_verifier(verifier)
-            .with_no_client_auth();
+    // Number of pins retained after decoding. Inputs that are not
+    // base64(32-byte) are dropped, so this reflects the usable pin set.
+    pub fn pin_count(&self) -> usize {
+        self.pins.len()
+    }
 
-        reqwest::Client::builder()
-            .use_preconfigured_tls(config)
-            .build()
-            .expect("failed to build pinned reqwest client")
+    pub fn provider(&self) -> Arc<CryptoProvider> {
+        self.provider.clone()
     }
 }
 

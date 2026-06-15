@@ -1846,6 +1846,7 @@ dependencies = [
  "rocket_dyn_templates",
  "rodio",
  "ron",
+ "rustls 0.23.40",
  "rustls-pemfile 2.2.0",
  "s2n-quic",
  "s2n-quic-core",
@@ -1855,12 +1856,14 @@ dependencies = [
  "serde",
  "serde_bytes",
  "serde_json",
+ "sha2 0.10.9",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
  "ts-rs",
  "typetag",
  "webbrowser",
+ "x509-parser 0.18.1",
 ]
 
 [[package]]

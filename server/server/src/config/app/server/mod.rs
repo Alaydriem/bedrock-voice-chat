@@ -2,6 +2,7 @@ pub mod bedrock;
 pub mod features;
 pub mod meridian;
 pub mod minecraft;
+pub mod relay;
 pub mod tls;
 
 pub use bedrock::BedrockConfig;

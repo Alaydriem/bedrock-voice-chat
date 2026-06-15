@@ -108,6 +108,7 @@ impl BedrockSessionState {
             world_uuid: None,
             alternative_identity: None,
             player_uuid: self.player_uuid.clone(),
+            relay_world_uuid: self.world_uuid.clone(),
         })
     }
 
@@ -122,6 +123,7 @@ impl BedrockSessionState {
             world_uuid: None,
             alternative_identity: None,
             player_uuid: self.player_uuid.clone(),
+            relay_world_uuid: self.world_uuid.clone(),
         })
     }
 
@@ -156,5 +158,39 @@ impl BedrockSessionState {
 
     fn is_spectator_gamemode(gamemode: i32) -> bool {
         matches!(gamemode, 3 | 4 | 6)
+    }
+
+    #[cfg(test)]
+    pub fn set_world_uuid_for_test(&mut self, uuid: String) {
+        self.world_uuid = Some(uuid);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn to_player_enum_sets_relay_world_uuid_and_keeps_world_uuid_none() {
+        let mut s = BedrockSessionState::new("TestPlayer".to_string(), None);
+        s.world_uuid = Some(BedrockWorldId::derive(123, "lvl", "World"));
+
+        let PlayerEnum::Minecraft(player) = s.to_player_enum() else {
+            panic!("expected Minecraft variant");
+        };
+        assert_eq!(player.world_uuid, None);
+        assert_eq!(player.relay_world_uuid, s.world_uuid);
+    }
+
+    #[test]
+    fn to_departed_player_enum_sets_relay_world_uuid_and_keeps_world_uuid_none() {
+        let mut s = BedrockSessionState::new("TestPlayer".to_string(), None);
+        s.world_uuid = Some(BedrockWorldId::derive(123, "lvl", "World"));
+
+        let PlayerEnum::Minecraft(player) = s.to_departed_player_enum() else {
+            panic!("expected Minecraft variant");
+        };
+        assert_eq!(player.world_uuid, None);
+        assert_eq!(player.relay_world_uuid, s.world_uuid);
     }
 }

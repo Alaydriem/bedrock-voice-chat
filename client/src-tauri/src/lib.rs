@@ -574,6 +574,10 @@ pub fn run() {
             #[cfg(feature = "bedrock-protocol")]
             app.manage(Arc::clone(&bedrock_eject_injector));
             #[cfg(feature = "bedrock-protocol")]
+            let bedrock_presence_injector = crate::bedrock::PresenceInjector::new_shared();
+            #[cfg(feature = "bedrock-protocol")]
+            app.manage(Arc::clone(&bedrock_presence_injector));
+            #[cfg(feature = "bedrock-protocol")]
             app.manage(Arc::clone(&bedrock_connect_error_channel));
             #[cfg(feature = "bedrock-protocol")]
             app.manage(Arc::clone(&bedrock_log_channel));
@@ -609,6 +613,8 @@ pub fn run() {
                 Some(Arc::clone(&bedrock_beacon_cache)),
                 #[cfg(feature = "bedrock-protocol")]
                 Some(Arc::clone(&bedrock_eject_injector)),
+                #[cfg(feature = "bedrock-protocol")]
+                Some(Arc::clone(&bedrock_presence_injector)),
             );
             app.manage(Mutex::new(audio_stream));
 

@@ -50,6 +50,24 @@ impl CacheManager {
         self.player_cache.clone()
     }
 
+    // Distinct `relay_world_uuid`s of players currently in the routing cache.
+    // Backs the relay `ActiveWorldsSource` so the background register/lookup
+    // task advertises only the worlds this server is actively hosting clients
+    // in. Lock-light (a snapshot iteration over the moka cache); never on the
+    // audio hot path.
+    pub fn active_relay_worlds(&self) -> Vec<String> {
+        use std::collections::HashSet;
+        let mut seen: HashSet<String> = HashSet::new();
+        for (_, player) in self.player_cache.iter() {
+            if let Some(mc) = player.as_minecraft() {
+                if let Some(world) = &mc.relay_world_uuid {
+                    seen.insert(world.clone());
+                }
+            }
+        }
+        seen.into_iter().collect()
+    }
+
     pub fn get_channel_collection(&self) -> Arc<ChannelCollection> {
         self.channel_collection.clone()
     }

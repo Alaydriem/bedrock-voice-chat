@@ -3,6 +3,7 @@ import { Payload, Player } from './dto';
 import { AudioPlayerManager } from './audio/player_manager';
 import { AudioComponentRegistry } from './audio/components';
 import { ChatEjectListener } from './audio/chat_eject_listener';
+import { ChatPresenceListener } from './audio/chat_presence_listener';
 import { DiscCommand } from './commands/mod';
 import { NetAudioSender, NoNetAudioSender } from './audio/sender';
 import { httpClient } from './net';
@@ -64,6 +65,9 @@ componentRegistry.register();
 
 const chatEjectListener = new ChatEjectListener(audioManager, getWorldUuid);
 chatEjectListener.register();
+
+const chatPresenceListener = new ChatPresenceListener();
+chatPresenceListener.register();
 
 DiscCommand.register();
 

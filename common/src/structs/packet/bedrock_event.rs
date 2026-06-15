@@ -10,6 +10,7 @@ pub enum BedrockEvent {
         block_pos: Coordinate,
         dimension: Dimension,
         player_xuid: String,
+        relay_world_uuid: Option<String>,
     },
     JukeboxEject {
         event_id: String,

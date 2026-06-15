@@ -9,4 +9,6 @@ pub struct MinecraftAudioContext {
     pub coordinates: Coordinate,
     pub dimension: Dimension,
     pub world_uuid: String,
+    #[serde(default)]
+    pub relay_world_uuid: Option<String>,
 }

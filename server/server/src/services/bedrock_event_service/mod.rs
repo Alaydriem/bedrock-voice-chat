@@ -103,9 +103,10 @@ impl BedrockEventService {
                 audio_id,
                 block_pos,
                 dimension,
-                ..
+                player_xuid: _,
+                relay_world_uuid,
             } => {
-                self.on_jukebox_insert(audio_id, block_pos, dimension, packet.world_uuid)
+                self.on_jukebox_insert(audio_id, block_pos, dimension, packet.world_uuid, relay_world_uuid)
                     .await
             }
             BedrockEvent::JukeboxEject { event_id, .. } => {
@@ -133,6 +134,7 @@ impl BedrockEventService {
         block_pos: Coordinate,
         dimension: Dimension,
         world_uuid: String,
+        relay_world_uuid: Option<String>,
     ) -> Result<(), BedrockEventRejection> {
         let request = AudioPlayRequest {
             audio_file_id: audio_id,
@@ -140,6 +142,7 @@ impl BedrockEventService {
                 coordinates: block_pos,
                 dimension,
                 world_uuid,
+                relay_world_uuid,
             }),
         };
 
@@ -182,6 +185,7 @@ impl BedrockEventService {
             },
             alternative_identity: None,
             player_uuid: None,
+            relay_world_uuid: None,
         };
 
         PositionUpdater::broadcast_positions(
@@ -215,6 +219,7 @@ impl BedrockEventService {
             },
             alternative_identity: None,
             player_uuid: None,
+            relay_world_uuid: None,
         };
 
         PositionUpdater::broadcast_positions(

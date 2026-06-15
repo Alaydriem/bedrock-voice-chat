@@ -32,7 +32,7 @@ pub struct DeviceFlow {
 
 impl DeviceFlow {
     /// Create a new DeviceFlow
-    pub(crate) fn new(
+    pub fn new(
         device_code: String,
         user_code: String,
         verification_uri: String,
@@ -53,46 +53,5 @@ impl DeviceFlow {
     /// Get the device code for session storage
     pub fn device_code(&self) -> &str {
         &self.device_code
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_device_flow_device_code_visibility() {
-        let flow = DeviceFlow {
-            device_code: "secret".to_string(),
-            user_code: "ABCD-1234".to_string(),
-            verification_uri: "https://example.com/device".to_string(),
-            verification_uri_complete: "https://example.com/device?code=ABCD-1234".to_string(),
-            expires_in: 600,
-            interval: 5,
-        };
-
-        // device_code is accessible via method
-        assert_eq!(flow.device_code(), "secret");
-
-        // user_code is public
-        assert_eq!(flow.user_code, "ABCD-1234");
-    }
-
-    #[test]
-    fn test_device_flow_serialization_hides_device_code() {
-        let flow = DeviceFlow {
-            device_code: "secret".to_string(),
-            user_code: "ABCD-1234".to_string(),
-            verification_uri: "https://example.com/device".to_string(),
-            verification_uri_complete: "https://example.com/device?code=ABCD-1234".to_string(),
-            expires_in: 600,
-            interval: 5,
-        };
-
-        let json = serde_json::to_string(&flow).unwrap();
-
-        // device_code should not appear in serialized output
-        assert!(!json.contains("secret"));
-        assert!(json.contains("ABCD-1234"));
     }
 }

@@ -6,7 +6,8 @@ pub mod state;
 
 pub use proxy::{
     BedrockConnectErrorChannel, BedrockEventEmitter, BedrockPlayerStateCache, BedrockProxyManager,
-    DiscNbt, JukeboxBeaconCache, JukeboxEjectInjector, PendingEject,
+    BvcpCodec, DiscNbt, JukeboxBeaconCache, JukeboxEjectInjector, PendingEject, PendingInject,
+    PresenceInjector,
 };
 pub(crate) use proxy::ProxyDeps;
 pub use auth::{BedrockAuthService, BedrockKeyringService};
