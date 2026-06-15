@@ -17,6 +17,37 @@ declare global {
   }
 }
 
+/**
+ * Outcome of a login attempt, used by the login page to drive its
+ * idle -> connecting -> error/redirect view state.
+ *
+ * - `invalid`     pre-flight validation failed; an inline error has been set
+ *                 via the formError store and the page should stay on idle.
+ * - `navigating`  the page is performing a same-window navigation (code login).
+ * - `redirecting` the attempt succeeded and an external auth URL was opened;
+ *                 the page should remain in its "connecting" handoff state.
+ * - `error`       the server could not be reached or denied access; the page
+ *                 should present the connection-error view for `sanitized`.
+ */
+export type LoginAttemptResult =
+  | { status: 'invalid'; sanitized?: string }
+  | { status: 'navigating'; sanitized: string }
+  | { status: 'redirecting'; sanitized: string }
+  | { status: 'error'; sanitized: string };
+
+/**
+ * Status messages cycled beneath the spinner while a connection attempt is in
+ * flight. Edit this list freely - it is the single source of truth for the
+ * "connecting" fidget copy.
+ */
+export const CONNECTING_STATUS_PHRASES: readonly string[] = [
+  'Reaching your server…',
+  'Verifying server configuration…',
+  'Checking your permissions…',
+  'Negotiating a secure channel…',
+  'Almost there…',
+];
+
 export default class Login extends BVCApp {
   private static readonly CODE_LOGIN_PATTERN = /^(https?:\/\/)?code@/;
 
@@ -134,17 +165,53 @@ export default class Login extends BVCApp {
     return { valid: true };
   }
 
-  private clearError(): void {
+  public clearError(): void {
     this.formErrorStore.set('');
     this.serverInputInvalidStore.set(false);
   }
 
-  private reportError(message: string): void {
+  /**
+   * GET fetch with a hard timeout.
+   *
+   * We use a manually-cleared AbortController instead of AbortSignal.timeout()
+   * on purpose. The Tauri http plugin registers an `abort` listener on the
+   * signal but never removes it after the request completes, and its abort
+   * handler calls `plugin:http|fetch_cancel` against the request's resource id.
+   * With AbortSignal.timeout(ms) the abort event fires unconditionally once the
+   * timer elapses - even when the request already succeeded - so fetch_cancel
+   * runs against a resource id that has already been consumed/dropped. That
+   * surfaces as an uncaught "The resource id <n> is invalid." promise rejection
+   * (the very errors flooding Sentry). Clearing the timer on completion means
+   * abort() only ever fires while the request is genuinely in flight.
+   */
+  private async fetchWithTimeout(url: string, timeoutMs = 5000): Promise<Response> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, {
+        signal: controller.signal,
+        method: 'GET',
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  public reportError(message: string): void {
     this.formErrorStore.set(message);
     this.serverInputInvalidStore.set(true);
   }
 
-  async login(rawValue: string): Promise<{ sanitized?: string }> {
+  /**
+   * Cancel an in-progress Hytale device-flow poll. Used when the user backs
+   * out of the "connecting" handoff view so we don't keep polling a flow they
+   * abandoned.
+   */
+  public cancelHytalePolling(): void {
+    this.stopHytalePolling();
+  }
+
+  async login(rawValue: string): Promise<LoginAttemptResult> {
     this.clearError();
 
     const trimmed = rawValue.trim();
@@ -152,28 +219,24 @@ export default class Login extends BVCApp {
       const serverPart = trimmed.replace(/^(https?:\/\/)?code@/, '');
       const sanitized = this.sanitizeServerUrl(serverPart);
       window.location.href = `/login/code?server=${encodeURIComponent(sanitized)}`;
-      return { sanitized };
+      return { status: 'navigating', sanitized };
     }
 
     const validation = this.validateServerUrl(rawValue);
     if (!validation.valid) {
       this.reportError(validation.error || "Please enter a valid server URL");
-      return {};
+      return { status: 'invalid' };
     }
 
     const sanitizedUrl = this.sanitizeServerUrl(rawValue);
     info(sanitizedUrl + this.CONFIG_ENDPOINT);
 
     try {
-      const response = await fetch(sanitizedUrl + this.CONFIG_ENDPOINT, {
-        signal: AbortSignal.timeout(5000),
-        method: 'GET',
-      });
+      const response = await this.fetchWithTimeout(sanitizedUrl + this.CONFIG_ENDPOINT);
 
       if (response.status === 403) {
         warn("Server returned 403 Forbidden");
-        this.reportError("Access denied. Check with your server operator if you have permissions.");
-        return { sanitized: sanitizedUrl };
+        return { status: 'error', sanitized: sanitizedUrl };
       }
 
       if (response.status !== 200) {
@@ -196,11 +259,10 @@ export default class Login extends BVCApp {
         `https://login.live.com/oauth20_authorize.srf?client_id=${clientId}&response_type=code&redirect_uri=${redirectUrl}&scope=XboxLive.signin%20offline_access&state=${secretState}`;
 
       await this.openUrlWithLogging(authLoginUrl);
-      return { sanitized: sanitizedUrl };
+      return { status: 'redirecting', sanitized: sanitizedUrl };
     } catch (e) {
       warn(String(e));
-      this.reportError("Cannot connect to Bedrock Voice Chat server. Confirm the URL and access permissions with your server operator.");
-      return { sanitized: sanitizedUrl };
+      return { status: 'error', sanitized: sanitizedUrl };
     }
   }
 
@@ -213,27 +275,23 @@ export default class Login extends BVCApp {
     await openUrl(url);
   }
 
-  async loginWithHytale(rawValue: string): Promise<{ sanitized?: string }> {
+  async loginWithHytale(rawValue: string): Promise<LoginAttemptResult> {
     this.clearError();
 
     const validation = this.validateServerUrl(rawValue);
     if (!validation.valid) {
       this.reportError(validation.error || "Please enter a valid server URL");
-      return {};
+      return { status: 'invalid' };
     }
 
     const serverUrl = this.sanitizeServerUrl(rawValue);
 
     try {
-      const configResponse = await fetch(serverUrl + this.CONFIG_ENDPOINT, {
-        signal: AbortSignal.timeout(5000),
-        method: 'GET',
-      });
+      const configResponse = await this.fetchWithTimeout(serverUrl + this.CONFIG_ENDPOINT);
 
       if (configResponse.status === 403) {
         warn("Server returned 403 Forbidden");
-        this.reportError("Access denied. Check with your server operator if you have permissions.");
-        return { sanitized: serverUrl };
+        return { status: 'error', sanitized: serverUrl };
       }
 
       if (configResponse.status !== 200) {
@@ -254,11 +312,10 @@ export default class Login extends BVCApp {
       await this.openUrlWithLogging(response.verification_uri_complete);
 
       this.startHytalePolling(serverUrl, response.session_id, response.interval);
-      return { sanitized: serverUrl };
+      return { status: 'redirecting', sanitized: serverUrl };
     } catch (e) {
       warn(`Hytale login failed: ${String(e)}`);
-      this.reportError("Cannot connect to Bedrock Voice Chat server. Confirm the URL and access permissions with your server operator.");
-      return { sanitized: serverUrl };
+      return { status: 'error', sanitized: serverUrl };
     }
   }
 
