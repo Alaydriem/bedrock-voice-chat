@@ -48,6 +48,10 @@ pub struct TestServer {
 
 impl TestServer {
     pub async fn start() -> Result<Self> {
+        Self::start_with_relay(false).await
+    }
+
+    pub async fn start_with_relay(relay_enabled: bool) -> Result<Self> {
         // rustls crypto provider: install once per process; ignore re-install error.
         let _ = common::s2n_quic::provider::tls::rustls::rustls::crypto::aws_lc_rs::default_provider()
             .install_default();
@@ -102,6 +106,7 @@ impl TestServer {
 
         let mut config = ApplicationConfig::default();
         config.server.features.code_login = true;
+        config.server.features.relay.enabled = relay_enabled;
         config.database.scheme = "sqlite".into();
         config.database.database = db_path.to_string_lossy().into_owned();
         config.server.port = port as u32;

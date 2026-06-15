@@ -159,6 +159,8 @@ mod tests {
                 String::new(),
                 tokio_util::sync::CancellationToken::new(),
                 1,
+                None,
+                crate::services::relay::RelayAudioPuller::new_shared(),
             )),
             webhook,
             conn,

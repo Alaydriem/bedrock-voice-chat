@@ -18,7 +18,7 @@ use common::{
         packet::{
             AudioFrameMetadata, AudioFramePacket, ChannelEventPacket, ConnectionEventType,
             PacketType, PlayerDataPacket, PlayerPresenceEvent, QuicNetworkPacket,
-            ServerErrorPacket, ServerErrorType,
+            QuicNetworkPacketData, ServerErrorPacket, ServerErrorType,
         },
     },
 };
@@ -27,7 +27,11 @@ use crate::bedrock::JukeboxBeaconCache;
 #[cfg(feature = "bedrock-protocol")]
 use crate::bedrock::JukeboxEjectInjector;
 #[cfg(feature = "bedrock-protocol")]
+use crate::bedrock::PresenceInjector;
+#[cfg(feature = "bedrock-protocol")]
 use common::structs::packet::BedrockEventPacket;
+#[cfg(feature = "bedrock-protocol")]
+use common::structs::packet::PeerPresenceInjectPacket;
 use log::{error, info, warn};
 use moka::future::Cache;
 use once_cell::sync::Lazy;
@@ -68,6 +72,8 @@ pub(crate) struct OutputStream {
     beacon_cache: Option<Arc<JukeboxBeaconCache>>,
     #[cfg(feature = "bedrock-protocol")]
     eject_injector: Option<Arc<JukeboxEjectInjector>>,
+    #[cfg(feature = "bedrock-protocol")]
+    presence_injector: Option<Arc<PresenceInjector>>,
 }
 
 impl common::traits::StreamTrait for OutputStream {
@@ -210,6 +216,7 @@ impl OutputStream {
         recovery_tx: RecoverySender,
         #[cfg(feature = "bedrock-protocol")] beacon_cache: Option<Arc<JukeboxBeaconCache>>,
         #[cfg(feature = "bedrock-protocol")] eject_injector: Option<Arc<JukeboxEjectInjector>>,
+        #[cfg(feature = "bedrock-protocol")] presence_injector: Option<Arc<PresenceInjector>>,
     ) -> Self {
         let players = moka::sync::Cache::builder()
             .time_to_idle(Duration::from_secs(15 * 60))
@@ -252,6 +259,8 @@ impl OutputStream {
             beacon_cache,
             #[cfg(feature = "bedrock-protocol")]
             eject_injector,
+            #[cfg(feature = "bedrock-protocol")]
+            presence_injector,
         }
     }
 
@@ -279,6 +288,8 @@ impl OutputStream {
                     let beacon_cache = self.beacon_cache.clone();
                     #[cfg(feature = "bedrock-protocol")]
                     let eject_injector = self.eject_injector.clone();
+                    #[cfg(feature = "bedrock-protocol")]
+                    let presence_injector = self.presence_injector.clone();
 
                     let handle = tokio::spawn(async move {
                         #[allow(irrefutable_let_patterns)]
@@ -346,6 +357,18 @@ impl OutputStream {
                                                 if let Ok(event_packet) = decoded {
                                                     injector.handle_packet(&event_packet);
                                                 }
+                                            }
+                                        }
+                                    }
+                                    #[cfg(feature = "bedrock-protocol")]
+                                    PacketType::PeerPresenceInject => {
+                                        if let Some(injector) = presence_injector.as_ref() {
+                                            if let Some(
+                                                QuicNetworkPacketData::PeerPresenceInject(inject),
+                                            ) = packet.data.get_data()
+                                            {
+                                                let inject: &PeerPresenceInjectPacket = inject;
+                                                injector.handle_inject(inject);
                                             }
                                         }
                                     }

@@ -5,6 +5,7 @@ use super::connect_error_channel::BedrockConnectErrorChannel;
 use super::event_emitter::BedrockEventEmitter;
 use super::jukebox::{JukeboxBeaconCache, JukeboxEjectInjector};
 use super::player_state_cache::BedrockPlayerStateCache;
+use super::presence::PresenceInjector;
 
 // Shared service dependencies every BedrockProxyManager needs regardless of
 // backend. Required at construction so the Direct and Realm connect paths
@@ -16,6 +17,7 @@ pub(crate) struct ProxyDeps {
     pub(crate) error_channel: Arc<BedrockConnectErrorChannel>,
     pub(crate) event_emitter: Arc<BedrockEventEmitter>,
     pub(crate) eject_injector: Arc<JukeboxEjectInjector>,
+    pub(crate) presence_injector: Arc<PresenceInjector>,
 }
 
 impl ProxyDeps {
@@ -26,6 +28,7 @@ impl ProxyDeps {
         error_channel: Arc<BedrockConnectErrorChannel>,
         event_emitter: Arc<BedrockEventEmitter>,
         eject_injector: Arc<JukeboxEjectInjector>,
+        presence_injector: Arc<PresenceInjector>,
     ) -> Self {
         Self {
             player_state_cache,
@@ -34,6 +37,7 @@ impl ProxyDeps {
             error_channel,
             event_emitter,
             eject_injector,
+            presence_injector,
         }
     }
 }

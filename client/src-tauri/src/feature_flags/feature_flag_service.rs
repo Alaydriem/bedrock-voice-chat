@@ -44,7 +44,7 @@ impl FeatureFlagService {
             install_id,
             build_number,
             refresh_interval,
-            http_client: super::flagsmith::spki_pinning_verifier::SpkiPinningVerifier::pinned_client(),
+            http_client: super::flagsmith::pinned_client::FlagsmithPinnedClient::build(),
             flag_cache: RwLock::new(None),
             normalized_url: RwLock::new(None),
         }

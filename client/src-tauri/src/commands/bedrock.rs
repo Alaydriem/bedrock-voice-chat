@@ -23,7 +23,7 @@ use crate::iap::EntitlementService;
 use crate::bedrock::BedrockProxyManager;
 use crate::bedrock::{
     BedrockAuthService, BedrockKeyringService, BedrockState, JukeboxBeaconCache,
-    JukeboxEjectInjector, ProtocolGatingService, ProxyDeps,
+    JukeboxEjectInjector, PresenceInjector, ProtocolGatingService, ProxyDeps,
 };
 use crate::feature_flags::FeatureFlagService;
 use crate::structs::app_state::AppState;
@@ -42,6 +42,7 @@ pub(crate) async fn bedrock_start_proxy(
     analytics: State<'_, Arc<AnalyticsService>>,
     beacon_cache: State<'_, Arc<JukeboxBeaconCache>>,
     eject_injector: State<'_, Arc<JukeboxEjectInjector>>,
+    presence_injector: State<'_, Arc<PresenceInjector>>,
     error_channel: State<'_, Arc<BedrockConnectErrorChannel>>,
 ) -> Result<(), String> {
     let mut state = state.lock().await;
@@ -72,6 +73,7 @@ pub(crate) async fn bedrock_start_proxy(
         Arc::clone(error_channel.inner()),
         Arc::new(BedrockEventEmitter::new(quic_producer.inner().clone())),
         Arc::clone(eject_injector.inner()),
+        Arc::clone(presence_injector.inner()),
     );
     let mut proxy = BedrockProxyManager::new_direct(
         target_host.clone(),
@@ -141,6 +143,7 @@ pub(crate) async fn bedrock_start_realms(
     beacon_cache: State<'_, Arc<JukeboxBeaconCache>>,
     error_channel: State<'_, Arc<BedrockConnectErrorChannel>>,
     eject_injector: State<'_, Arc<JukeboxEjectInjector>>,
+    presence_injector: State<'_, Arc<PresenceInjector>>,
 ) -> Result<(), String> {
     let gate = crate::bedrock::RealmsConnectGatingService::new(
         Arc::clone(flag_service.inner()),
@@ -202,6 +205,7 @@ pub(crate) async fn bedrock_start_realms(
         Arc::clone(error_channel.inner()),
         Arc::new(BedrockEventEmitter::new(quic_producer.inner().clone())),
         Arc::clone(eject_injector.inner()),
+        Arc::clone(presence_injector.inner()),
     );
     let mut realms = BedrockProxyManager::new_realm(
         realm_id,

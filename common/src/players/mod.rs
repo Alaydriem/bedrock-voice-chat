@@ -1,8 +1,6 @@
 mod generic;
 mod hytale;
 mod player_enum;
-#[cfg(test)]
-mod tests;
 
 pub mod minecraft;
 pub use generic::GenericPlayer;

@@ -12,9 +12,25 @@ use bvc_server_lib::config::ApplicationConfig;
 use bvc_server_lib::http::pool::AppDb;
 use bvc_server_lib::http::routes;
 use bvc_server_lib::services::CertificateService;
+use bvc_server_lib::services::relay::EndpointReachability;
 use common::ncryptflib as ncryptf;
+use common::structs::relay::RelayEndpoint;
 use rocket::routes;
 use sea_orm_rocket::Database;
+
+// Permissive endpoint-control checker for the discovery-plane integration tests:
+// the real `HttpEndpointReachability` would try to HTTPS-fetch the
+// fake `*.example.com` endpoints. This stub stands in for "the endpoint served
+// the relay's nonce back", so the tests still exercise the token-gated register
+// + scoped lookup mechanics. The deny path is unit-tested in `registry.rs`.
+struct AlwaysReachable;
+
+#[async_trait::async_trait]
+impl EndpointReachability for AlwaysReachable {
+    async fn serves_nonce(&self, _endpoint: &RelayEndpoint, _nonce: &str) -> bool {
+        true
+    }
+}
 
 pub struct RocketHarness;
 
@@ -54,7 +70,9 @@ impl RocketHarness {
         let cache = Arc::new(Mutex::new(cache));
         let cache_wrapper = ncryptf::rocket::CacheWrapper::TimedCache(cache);
 
-        let rocket = rocket::custom(figment)
+        let relay_enabled = features.relay.enabled;
+
+        let mut rocket = rocket::custom(figment)
             .manage(server_state)
             .manage(features)
             .manage(permissions)
@@ -65,16 +83,33 @@ impl RocketHarness {
             .mount("/api/admin", admin_routes)
             .mount("/api", auth_routes);
 
+        if relay_enabled {
+            let reachability: Arc<dyn EndpointReachability> = Arc::new(AlwaysReachable);
+            rocket = rocket
+                .manage(bvc_server_lib::services::RelayRegistry::new_shared())
+                .manage(reachability)
+                .mount(
+                    "/relay",
+                    routes![
+                        routes::relay::challenge::challenge,
+                        routes::relay::register::register,
+                        routes::relay::lookup::lookup,
+                    ],
+                );
+        }
+
+        let rocket = rocket;
+
         let handle = tokio::spawn(async move {
             let ignite = match rocket.ignite().await {
                 Ok(r) => r,
                 Err(e) => {
-                    eprintln!("rocket ignite failed: {}", e);
+                    tracing::error!("rocket ignite failed: {}", e);
                     return;
                 }
             };
             if let Err(e) = ignite.launch().await {
-                eprintln!("rocket launch failed: {}", e);
+                tracing::error!("rocket launch failed: {}", e);
             }
         });
         Ok(handle)

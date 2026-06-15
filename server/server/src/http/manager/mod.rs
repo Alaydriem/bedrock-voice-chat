@@ -26,6 +26,11 @@ pub struct RocketManager {
     cert_service: Arc<CertificateService>,
     hytale_session_cache: routes::api::HytaleSessionCache,
     audio_stream_token_cache: AudioStreamTokenCache,
+    // Relay-client-side state. Present when this server runs the cross-server
+    // relay client: the nonce store backs the `/relay/proof` endpoint-control
+    // responder and the peer-cert issuer backs `/relay/peer-cert`.
+    register_nonce_store: Option<Arc<crate::services::RegisterNonceStore>>,
+    peer_cert_issuer: Option<Arc<crate::services::PeerCertIssuer>>,
     #[cfg(feature = "bedrock")]
     transfer_target_cache: Option<crate::services::bedrock::TransferTargetCache>,
 }
@@ -40,6 +45,9 @@ impl RocketManager {
         audio_playback_service: Arc<AudioPlaybackService>,
         bedrock_event_service: Arc<BedrockEventService>,
         cert_service: Arc<CertificateService>,
+        register_nonce_store: Option<Arc<crate::services::RegisterNonceStore>>,
+        peer_cert_issuer: Option<Arc<crate::services::PeerCertIssuer>>,
+        audio_stream_token_cache: Option<AudioStreamTokenCache>,
         #[cfg(feature = "bedrock")]
         transfer_target_cache: Option<crate::services::bedrock::TransferTargetCache>,
     ) -> Self {
@@ -53,7 +61,10 @@ impl RocketManager {
             bedrock_event_service,
             cert_service,
             hytale_session_cache: routes::api::HytaleSessionCache::new(),
-            audio_stream_token_cache: AudioStreamTokenCache::new(),
+            audio_stream_token_cache: audio_stream_token_cache
+                .unwrap_or_else(AudioStreamTokenCache::new),
+            register_nonce_store,
+            peer_cert_issuer,
             #[cfg(feature = "bedrock")]
             transfer_target_cache,
         }
@@ -111,6 +122,39 @@ impl RocketManager {
                 #[cfg(feature = "bedrock")]
                 if let Some(ref cache) = self.transfer_target_cache {
                     rocket = rocket.manage(cache.clone());
+                }
+
+                if self.config.server.features.relay.enabled {
+                    tracing::info!("features.relay enabled, mounting relay discovery routes");
+                    let reachability: Arc<dyn crate::services::relay::EndpointReachability> =
+                        Arc::new(crate::services::HttpEndpointReachability::default());
+                    rocket = rocket
+                        .manage(crate::services::RelayRegistry::new_shared())
+                        .manage(reachability)
+                        .mount(
+                            "/relay",
+                            routes![
+                                routes::relay::challenge::challenge,
+                                routes::relay::register::register,
+                                routes::relay::lookup::lookup,
+                            ],
+                        );
+                }
+
+                // Relay-client-side routes: the endpoint-control proof responder
+                // and the peer-cert issuer. Mounted only when this server runs
+                // the relay client (state present).
+                if let (Some(nonces), Some(issuer)) =
+                    (&self.register_nonce_store, &self.peer_cert_issuer)
+                {
+                    tracing::info!("relay client active, mounting /relay/proof and /relay/peer-cert");
+                    rocket = rocket
+                        .manage(nonces.clone())
+                        .manage(issuer.clone())
+                        .mount(
+                            "/relay",
+                            routes![routes::relay::proof::proof, routes::relay::peer_cert::peer_cert],
+                        );
                 }
 
                 let mut rocket = rocket
