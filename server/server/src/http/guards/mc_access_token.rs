@@ -8,15 +8,11 @@ use rocket_okapi::r#gen::OpenApiGenerator;
 use rocket_okapi::request::{OpenApiFromRequest, RequestHeaderInput};
 
 use crate::config::Server;
+use crate::http::guards::MCAccessTokenError;
 
 /// Extracts the Access Token from the ncryptf request
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MCAccessToken(pub String);
-
-#[derive(Debug)]
-pub enum MCAccessTokenError {
-    Invalid,
-}
 
 #[async_trait]
 impl<'r> FromRequest<'r> for MCAccessToken {
