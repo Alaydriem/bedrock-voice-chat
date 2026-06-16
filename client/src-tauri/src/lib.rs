@@ -237,6 +237,7 @@ pub fn run() {
             crate::commands::keybinds::start_keybind_listener,
             // Feature Flags
             crate::commands::feature_flags::get_feature_flag,
+            crate::commands::feature_flags::get_bedrock_connect_enabled,
             // Audio Library
             crate::commands::audio_library::upload_audio_file,
             crate::commands::audio_library::list_audio_files,

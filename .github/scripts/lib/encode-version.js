@@ -43,6 +43,35 @@ class VersionEncoder {
     const { major, minor, encodedPatch } = VersionEncoder.encode(version);
     return major * 1000000 + minor * 10000 + encodedPatch;
   }
+
+  /**
+   * Release channel for a semver, derived from its prerelease tag. Mirrors
+   * encode(): an absent or unrecognized prerelease is treated as stable.
+   * @param {string} version - e.g. "1.2.3" or "1.2.3-beta.1"
+   * @returns {{ name: string, number: number }}
+   */
+  static channel(version) {
+    const [, prerelease] = version.split('-');
+    if (!prerelease) return { name: 'stable', number: 9 };
+    const match = prerelease.match(/^(alpha|internal|beta|rc)\.?(\d+)?$/);
+    if (!match) return { name: 'stable', number: 9 };
+    const numbers = { alpha: 1, internal: 2, beta: 5, rc: 8 };
+    return { name: match[1], number: numbers[match[1]] };
+  }
+
+  /**
+   * Operator-controlled channel -> Flagsmith environment mapping. Store track
+   * is irrelevant; the release channel decides which environment a build's
+   * feature flags resolve against.
+   * @param {string} version
+   * @returns {string} one of "dev" | "staging" | "prod"
+   */
+  static flagsmithEnvironment(version) {
+    const name = VersionEncoder.channel(version).name;
+    if (name === 'alpha' || name === 'internal') return 'dev';
+    if (name === 'beta' || name === 'rc') return 'staging';
+    return 'prod';
+  }
 }
 
 module.exports = { VersionEncoder };

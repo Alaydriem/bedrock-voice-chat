@@ -1,5 +1,6 @@
 <script lang="ts">
     import { mount, onMount, onDestroy } from "svelte";
+    import { invoke } from "@tauri-apps/api/core";
     import account from "../../components/settings/pages/account.svelte";
     import audio from "../../components/settings/pages/audio.svelte";
     import keybinds from "../../components/settings/pages/keybinds.svelte";
@@ -126,9 +127,10 @@
 
     const mobileHiddenPages = new Set(["recordings.svelte", "audioLibrary.svelte", "websocket.svelte", "keybinds.svelte"]);
 
-    // Temporary: hide the Minecraft Bedrock settings section for the beta store
-    // hotfix. Flip to false (or remove this block) once connect ships publicly.
-    const hideBedrockSection = true;
+    // Hide the Minecraft Bedrock settings section until the
+    // `feature.bedrock.connect-enabled` flag resolves true. Defaults to hidden
+    // so an unresolved or disabled flag keeps the section out of the sidebar.
+    let hideBedrockSection = $state(true);
 
     let visibleItems = $derived(
         settingsItems.filter(item => {
@@ -230,6 +232,13 @@
             isMobile = await platformDetector.checkMobile();
         } catch (error) {
             isMobile = false;
+        }
+
+        try {
+            const enabled = await invoke<boolean>("get_bedrock_connect_enabled");
+            hideBedrockSection = !enabled;
+        } catch (error) {
+            hideBedrockSection = true;
         }
     });
 

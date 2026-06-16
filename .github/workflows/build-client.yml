@@ -138,6 +138,26 @@ jobs:
           Write-Host "Setting LIBCLANG_PATH to: $libclangPath"
           echo "LIBCLANG_PATH=$libclangPath" >> $env:GITHUB_ENV
 
+      - name: Resolve Flagsmith environment key
+        id: flagsmith
+        shell: bash
+        env:
+          FLAGSMITH_KEY_DEV: ${{ secrets.FLAGSMITH_KEY_DEV }}
+          FLAGSMITH_KEY_STAGING: ${{ secrets.FLAGSMITH_KEY_STAGING }}
+          FLAGSMITH_KEY_PROD: ${{ secrets.FLAGSMITH_KEY_PROD }}
+        run: |
+          SEMVER="$(node -p "require('./client/package.json').version")"
+          ENVNAME="$(node .github/scripts/resolve-flagsmith-environment.js "$SEMVER")"
+          echo "Flagsmith environment for $SEMVER: $ENVNAME"
+          case "$ENVNAME" in
+            dev)     KEY="$FLAGSMITH_KEY_DEV" ;;
+            staging) KEY="$FLAGSMITH_KEY_STAGING" ;;
+            prod)    KEY="$FLAGSMITH_KEY_PROD" ;;
+            *)       KEY="" ;;
+          esac
+          echo "::add-mask::$KEY"
+          echo "key=$KEY" >> "$GITHUB_OUTPUT"
+
       - name: Write client environment file
         shell: bash
         run: |
@@ -145,7 +165,7 @@ jobs:
           SENTRY_DSN=${{ secrets.SENTRY_DSN }}
           POSTHOG_KEY=${{ secrets.POSTHOG_KEY }}
           POSTHOG_HOST=${{ secrets.POSTHOG_HOST }}
-          FLAGSMITH_KEY=${{ secrets.FLAGSMITH_KEY }}
+          FLAGSMITH_KEY=${{ steps.flagsmith.outputs.key }}
           FLAGSMITH_SERVER=${{ secrets.FLAGSMITH_SERVER }}
           ENVEOF
 
