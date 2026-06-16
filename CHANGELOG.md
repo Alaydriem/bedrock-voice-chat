@@ -1,3 +1,10 @@
+# [1.0.0-beta.13](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.12...v1.0.0-beta.13) (2026-06-16)
+
+
+### Features
+
+* bedrock protocol ([#171](https://github.com/Alaydriem/bedrock-voice-chat/issues/171)) ([6b1c862](https://github.com/Alaydriem/bedrock-voice-chat/commit/6b1c862401d53369bb26006b823c2db726c196a6)), closes [#78](https://github.com/Alaydriem/bedrock-voice-chat/issues/78)
+
 # [1.0.0-beta.12](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.11...v1.0.0-beta.12) (2026-05-12)
 
 # [1.0.0-beta.11](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.10...v1.0.0-beta.11) (2026-05-11)
