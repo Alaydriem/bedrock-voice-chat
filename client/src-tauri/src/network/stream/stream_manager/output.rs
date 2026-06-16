@@ -115,6 +115,12 @@ impl common::traits::StreamTrait for OutputStream {
                                     }
                                 } else {
                                     error_count = 0;
+                                    #[cfg(feature = "e2e")]
+                                    if quic_network_packet.packet_type
+                                        == common::structs::packet::PacketType::AudioFrame
+                                    {
+                                        crate::testkit::counters::TransportCounters::increment_sent();
+                                    }
                                 }
                             }
                             Err(e) => { error!("{}", e.to_string()); }

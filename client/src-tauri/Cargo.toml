@@ -116,6 +116,13 @@ jni = "0.21"
 ndk-context = "0.1"
 
 [dev-dependencies]
+libloading = { version = "^0.8" }
+tempfile = { version = "^3" }
+hound = { version = "^3.5" }
+
+[[test]]
+name = "integration"
+path = "tests/integration.rs"
 
 [features]
 default = ["bedrock-protocol"]
@@ -123,3 +130,10 @@ bedrock-protocol = [
     "common/bedrock-protocol",
     "dep:if-addrs",
 ]
+# Gates the e2e harness bin so normal builds never compile it.
+e2e = []
+
+[[bin]]
+name = "bvc_client_e2e"
+path = "src/bin/bvc_client_e2e.rs"
+required-features = ["e2e"]

@@ -33,7 +33,6 @@ jobs:
       macos: ${{ steps.changes.outputs.macos }}
       fabric-mod: ${{ steps.changes.outputs.fabric-mod }}
       paper-mod: ${{ steps.changes.outputs.paper-mod }}
-      hytale-mod: ${{ steps.changes.outputs.hytale-mod }}
       bds-pack: ${{ steps.changes.outputs.bds-pack }}
       build_mode: ${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
       is_release_branch: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/beta') }}
@@ -95,15 +94,6 @@ jobs:
               - 'mods/java/settings.gradle.kts'
               - '.github/workflows/build-mod-paper.yml'
               - '.github/workflows/build-all.yml'
-            hytale-mod:
-              - 'mods/java/common/**'
-              - 'mods/java/hytale/**'
-              - 'mods/java/buildSrc/**'
-              - 'mods/java/build.gradle.kts'
-              - 'mods/java/gradle.properties'
-              - 'mods/java/settings.gradle.kts'
-              - '.github/workflows/build-mod-hytale.yml'
-              - '.github/workflows/build-all.yml'
             bds-pack:
               - 'mods/bds/**'
               - '.github/workflows/build-mod-bds.yml'
@@ -121,7 +111,6 @@ jobs:
           echo "macOS: ${{ steps.changes.outputs.macos }}"
           echo "Fabric Mod: ${{ steps.changes.outputs.fabric-mod }}"
           echo "Paper Mod: ${{ steps.changes.outputs.paper-mod }}"
-          echo "Hytale Mod: ${{ steps.changes.outputs.hytale-mod }}"
           echo "BDS Pack: ${{ steps.changes.outputs.bds-pack }}"
           echo "Common: ${{ steps.changes.outputs.common }}"
 
@@ -235,17 +224,6 @@ jobs:
       artifact_run_id: ${{ github.run_id }}
     secrets: inherit
 
-  # Build Hytale Plugin
-  build-hytale-mod:
-    name: Build Hytale Plugin
-    needs: [changes, build-server]
-    if: needs.build-server.result == 'success' && needs.changes.outputs.hytale-mod == 'true'
-    uses: ./.github/workflows/build-mod-hytale.yml
-    with:
-      version: ${{ needs.changes.outputs.version }}
-      artifact_run_id: ${{ github.run_id }}
-    secrets: inherit
-
   # Build BDS Pack
   build-bds-pack:
     name: Build BDS Pack
@@ -326,11 +304,11 @@ jobs:
   collect-artifacts:
     name: Collect All Artifacts
     runs-on: ubuntu-latest
-    needs: [build-server, build-android, build-ios, build-client, build-macos-client, build-fabric-mod, build-paper-mod, build-hytale-mod, build-bds-pack]
+    needs: [build-server, build-android, build-ios, build-client, build-macos-client, build-fabric-mod, build-paper-mod, build-bds-pack]
     if: |
       always() &&
       !cancelled() &&
-      (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-ios.result == 'success' || needs.build-client.result == 'success' || needs.build-macos-client.result == 'success' || needs.build-fabric-mod.result == 'success' || needs.build-paper-mod.result == 'success' || needs.build-hytale-mod.result == 'success' || needs.build-bds-pack.result == 'success')
+      (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-ios.result == 'success' || needs.build-client.result == 'success' || needs.build-macos-client.result == 'success' || needs.build-fabric-mod.result == 'success' || needs.build-paper-mod.result == 'success' || needs.build-bds-pack.result == 'success')
     steps:
       - name: Create build summary
         id: build-summary
@@ -350,7 +328,6 @@ jobs:
           echo "- **macOS Status:** ${{ needs.build-macos-client.result || 'skipped' }}" >> build-summary.md
           echo "- **Fabric Mod Status:** ${{ needs.build-fabric-mod.result || 'skipped' }}" >> build-summary.md
           echo "- **Paper Plugin Status:** ${{ needs.build-paper-mod.result || 'skipped' }}" >> build-summary.md
-          echo "- **Hytale Plugin Status:** ${{ needs.build-hytale-mod.result || 'skipped' }}" >> build-summary.md
           echo "- **BDS Pack Status:** ${{ needs.build-bds-pack.result || 'skipped' }}" >> build-summary.md
           echo "" >> build-summary.md
 
@@ -402,12 +379,6 @@ jobs:
             echo "" >> build-summary.md
           fi
 
-          if [ "${{ needs.build-hytale-mod.result }}" = "success" ]; then
-            echo "### 🎮 Hytale Plugin" >> build-summary.md
-            echo "- [bedrock-voice-chat-hytale](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) - Hytale Plugin JAR" >> build-summary.md
-            echo "" >> build-summary.md
-          fi
-
           if [ "${{ needs.build-bds-pack.result }}" = "success" ]; then
             echo "### 📦 BDS Pack (Bedrock)" >> build-summary.md
             echo "- [bedrock-voice-chat-bds](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) - Bedrock Dedicated Server Pack" >> build-summary.md
@@ -442,7 +413,6 @@ jobs:
           echo "   - macOS: ${{ needs.build-macos-client.result || 'skipped' }}"
           echo "   - Fabric Mod: ${{ needs.build-fabric-mod.result || 'skipped' }}"
           echo "   - Paper Plugin: ${{ needs.build-paper-mod.result || 'skipped' }}"
-          echo "   - Hytale Plugin: ${{ needs.build-hytale-mod.result || 'skipped' }}"
           echo "   - BDS Pack: ${{ needs.build-bds-pack.result || 'skipped' }}"
           echo ""
           echo "Individual Artifact Downloads:"
@@ -468,9 +438,6 @@ jobs:
           fi
           if [ "${{ needs.build-paper-mod.result }}" = "success" ]; then
             echo "   Paper Plugin: bedrock-voice-chat-paper (contains .jar file)"
-          fi
-          if [ "${{ needs.build-hytale-mod.result }}" = "success" ]; then
-            echo "   Hytale Plugin: bedrock-voice-chat-hytale (contains .jar file)"
           fi
           if [ "${{ needs.build-bds-pack.result }}" = "success" ]; then
             echo "   BDS Pack: bedrock-voice-chat-bds (contains .mcaddon file)"

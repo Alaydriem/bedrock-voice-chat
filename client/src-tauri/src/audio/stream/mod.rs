@@ -1,6 +1,6 @@
 mod activity_detector;
 pub mod jitter_buffer;
-mod stream_manager;
+pub(crate) mod stream_manager;
 
 use crate::NetworkPacket;
 use crate::audio::recording::RecordingManager;
@@ -22,7 +22,7 @@ use tauri::async_runtime::Mutex as TauriMutex;
 use tokio::sync::mpsc;
 
 use super::AudioPacket;
-use stream_manager::{StreamTrait, StreamTraitType};
+use stream_manager::{AudioInputSource, AudioOutputSink, StreamTrait, StreamTraitType};
 
 pub(crate) use activity_detector::ActivityUpdate;
 
@@ -70,6 +70,42 @@ impl AudioStreamManager {
         #[cfg(feature = "bedrock-protocol")] eject_injector: Option<Arc<JukeboxEjectInjector>>,
         #[cfg(feature = "bedrock-protocol")] presence_injector: Option<Arc<PresenceInjector>>,
     ) -> Self {
+        Self::new_with_sources(
+            producer,
+            consumer,
+            app_handle,
+            recording_manager,
+            AudioInputSource::Cpal,
+            AudioOutputSink::Rodio,
+            #[cfg(feature = "bedrock-protocol")]
+            player_state_cache,
+            #[cfg(feature = "bedrock-protocol")]
+            beacon_cache,
+            #[cfg(feature = "bedrock-protocol")]
+            eject_injector,
+            #[cfg(feature = "bedrock-protocol")]
+            presence_injector,
+        )
+    }
+
+    /// Creates a new audio stream manager with explicitly injected input
+    /// source and output sink, used to swap in fake backends for tests while
+    /// the production `new()` always selects the real Cpal/Rodio backends.
+    /// The injected source/sink are consumed into the initial streams; device
+    /// changes via `init`/`restart`/`reset` always rebuild on the real backend.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_sources(
+        producer: Arc<flume::Sender<NetworkPacket>>,
+        consumer: Arc<flume::Receiver<AudioPacket>>,
+        app_handle: tauri::AppHandle,
+        recording_manager: Option<Arc<TauriMutex<RecordingManager>>>,
+        input_source: AudioInputSource,
+        output_sink: AudioOutputSink,
+        #[cfg(feature = "bedrock-protocol")] player_state_cache: Option<Arc<BedrockPlayerStateCache>>,
+        #[cfg(feature = "bedrock-protocol")] beacon_cache: Option<Arc<JukeboxBeaconCache>>,
+        #[cfg(feature = "bedrock-protocol")] eject_injector: Option<Arc<JukeboxEjectInjector>>,
+        #[cfg(feature = "bedrock-protocol")] presence_injector: Option<Arc<PresenceInjector>>,
+    ) -> Self {
         let (recovery_tx, recovery_rx) = mpsc::unbounded_channel::<StreamRecoveryEvent>();
 
         Self {
@@ -77,6 +113,7 @@ impl AudioStreamManager {
             consumer: consumer.clone(),
             input: StreamTraitType::Input(stream_manager::InputStream::new(
                 None,
+                input_source,
                 producer.clone(),
                 Arc::new(moka::future::Cache::builder().build()),
                 app_handle.clone(),
@@ -88,6 +125,7 @@ impl AudioStreamManager {
             )),
             output: StreamTraitType::Output(stream_manager::OutputStream::new(
                 None,
+                output_sink,
                 consumer.clone(),
                 Arc::new(moka::future::Cache::builder().build()),
                 app_handle.clone(),
@@ -168,6 +206,7 @@ impl AudioStreamManager {
             AudioDeviceType::InputDevice => {
                 self.input = StreamTraitType::Input(stream_manager::InputStream::new(
                     Some(device),
+                    stream_manager::AudioInputSource::Cpal,
                     self.producer.clone(),
                     self.input.get_metadata().clone(),
                     self.app_handle.clone(),
@@ -181,6 +220,7 @@ impl AudioStreamManager {
             AudioDeviceType::OutputDevice => {
                 self.output = StreamTraitType::Output(stream_manager::OutputStream::new(
                     Some(device),
+                    stream_manager::AudioOutputSink::Rodio,
                     self.consumer.clone(),
                     self.output.get_metadata().clone(),
                     self.app_handle.clone(),
@@ -222,6 +262,7 @@ impl AudioStreamManager {
             AudioDeviceType::InputDevice => {
                 self.input = StreamTraitType::Input(stream_manager::InputStream::new(
                     self.input.get_device(),
+                    stream_manager::AudioInputSource::Cpal,
                     self.producer.clone(),
                     self.input.get_metadata().clone(),
                     self.app_handle.clone(),
@@ -235,6 +276,7 @@ impl AudioStreamManager {
             AudioDeviceType::OutputDevice => {
                 self.output = StreamTraitType::Output(stream_manager::OutputStream::new(
                     self.output.get_device(),
+                    stream_manager::AudioOutputSink::Rodio,
                     self.consumer.clone(),
                     self.output.get_metadata().clone(),
                     self.app_handle.clone(),
@@ -349,6 +391,7 @@ impl AudioStreamManager {
 
         self.input = StreamTraitType::Input(stream_manager::InputStream::new(
             None,
+            stream_manager::AudioInputSource::Cpal,
             self.producer.clone(),
             self.input.get_metadata().clone(),
             self.app_handle.clone(),
@@ -362,6 +405,7 @@ impl AudioStreamManager {
         // Recreate output stream, preserving metadata
         self.output = StreamTraitType::Output(stream_manager::OutputStream::new(
             None,
+            stream_manager::AudioOutputSink::Rodio,
             self.consumer.clone(),
             self.output.get_metadata().clone(),
             self.app_handle.clone(),

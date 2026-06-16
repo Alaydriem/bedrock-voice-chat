@@ -6,7 +6,7 @@ pub mod encode;
 pub mod recording;
 pub(crate) mod types;
 
-mod stream;
+pub(crate) mod stream;
 
 pub(crate) use actions::AudioActionsManager;
 pub(crate) use recording::RecordingManager;

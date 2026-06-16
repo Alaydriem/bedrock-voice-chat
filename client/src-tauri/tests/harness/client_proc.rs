@@ -1,0 +1,343 @@
+use std::io::Write;
+use std::path::PathBuf;
+use std::process::{Child, ChildStdin, Command, Stdio};
+use std::sync::{Arc, Mutex};
+use std::thread::JoinHandle;
+use std::time::{Duration, Instant};
+
+use bvc_client_lib::testkit::bridge::{Frame, InMsg, OutMsg};
+
+/// Shared state the stdout-reader thread writes and the orchestrator reads.
+/// `ready`/`connected` latch on first sight of the matching `OutMsg`; `captured`
+/// accumulates every `CapturedPcm` chunk in arrival order; `stats` holds the
+/// most recently received transport-counter snapshot from `OutMsg::Stats`.
+#[derive(Default)]
+struct SharedState {
+    ready: bool,
+    connected: bool,
+    disconnected: bool,
+    // Server-assigned channel id reported by OutMsg::ChannelJoined after connect.
+    channel_id: Option<String>,
+    // Name of the most recently completed channel op (OutMsg::ChannelOpDone),
+    // cleared before each op so the orchestrator can await a fresh completion.
+    last_channel_op: Option<String>,
+    // Server-assigned (audio_file_id, duration_ms) from the last UploadAudio.
+    last_upload: Option<(String, u32)>,
+    captured: Vec<f32>,
+    stats: Option<(u64, u64, u64)>,
+}
+
+/// Drives the `bvc_client_e2e` bin as a child process over the framed
+/// stdin/stdout protocol from `bvc_client_lib::testkit::bridge`. Sends `InMsg`
+/// commands down stdin and folds the bin's `OutMsg` events into shared state on
+/// a background reader thread.
+///
+/// The e2e bin must be PRE-BUILT before tests spawn a `ClientProc`:
+/// `cargo build -p bedrock-voice-chat-client --bin bvc_client_e2e --features e2e`
+/// (it lands in the ROOT workspace target dir, `target/debug/`, since the client
+/// crate belongs to the root workspace).
+pub struct ClientProc {
+    child: Child,
+    stdin: ChildStdin,
+    state: Arc<Mutex<SharedState>>,
+    reader: Option<JoinHandle<()>>,
+}
+
+impl ClientProc {
+    /// Platform-specific bin file name produced by the e2e bin target.
+    fn bin_file_name() -> &'static str {
+        if cfg!(windows) {
+            "bvc_client_e2e.exe"
+        } else {
+            "bvc_client_e2e"
+        }
+    }
+
+    /// Resolve the e2e bin path. The client crate lives in the ROOT workspace
+    /// (`client/src-tauri`), so its artifacts land in the root `target/debug`,
+    /// two levels up from this crate's manifest dir.
+    pub fn bin_path() -> PathBuf {
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        PathBuf::from(manifest_dir)
+            .join("..")
+            .join("..")
+            .join("target")
+            .join("debug")
+            .join(Self::bin_file_name())
+    }
+
+    /// Spawn the e2e bin with the `BVC_E2E_*` env populated and stdin/stdout
+    /// piped. A background thread immediately starts draining framed `OutMsg`
+    /// from stdout into shared state.
+    pub fn spawn(gamertag: &str, login_code: &str, server_url: &str, channel: &str) -> ClientProc {
+        Self::spawn_with_channel_id(gamertag, login_code, server_url, channel, None)
+    }
+
+    /// Like `spawn` but accepts a pre-existing channel id. When `channel_id` is
+    /// `Some`, the bin skips channel creation and joins the supplied id directly.
+    /// Use this when two clients must share an already-created channel.
+    pub fn spawn_with_channel_id(
+        gamertag: &str,
+        login_code: &str,
+        server_url: &str,
+        channel: &str,
+        channel_id: Option<&str>,
+    ) -> ClientProc {
+        let bin = Self::bin_path();
+        assert!(
+            bin.exists(),
+            "e2e bin not found at {}; build it first with \
+             `cargo build -p bedrock-voice-chat-client --bin bvc_client_e2e --features e2e`",
+            bin.display()
+        );
+
+        let mut cmd = Command::new(&bin);
+        cmd.env("BVC_E2E_SERVER", server_url)
+            .env("BVC_E2E_GAMERTAG", gamertag)
+            .env("BVC_E2E_CODE", login_code)
+            .env("BVC_E2E_CHANNEL", channel);
+        if let Some(id) = channel_id {
+            cmd.env("BVC_E2E_CHANNEL_ID", id);
+        }
+        let mut child = cmd
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .unwrap_or_else(|e| panic!("spawn e2e bin {}: {e}", bin.display()));
+
+        let stdin = child.stdin.take().expect("child stdin piped");
+        let mut stdout = child.stdout.take().expect("child stdout piped");
+
+        let state = Arc::new(Mutex::new(SharedState::default()));
+        let reader_state = state.clone();
+        let reader = std::thread::Builder::new()
+            .name("client-proc-stdout".to_string())
+            .spawn(move || loop {
+                match Frame::read::<_, OutMsg>(&mut stdout) {
+                    Ok(OutMsg::Ready) => reader_state.lock().unwrap().ready = true,
+                    Ok(OutMsg::Connected) => reader_state.lock().unwrap().connected = true,
+                    Ok(OutMsg::Disconnected) => {
+                        reader_state.lock().unwrap().disconnected = true
+                    }
+                    Ok(OutMsg::ChannelJoined { channel_id }) => {
+                        reader_state.lock().unwrap().channel_id = Some(channel_id);
+                    }
+                    Ok(OutMsg::ChannelOpDone { op }) => {
+                        reader_state.lock().unwrap().last_channel_op = Some(op);
+                    }
+                    Ok(OutMsg::AudioUploaded { audio_file_id, duration_ms }) => {
+                        reader_state.lock().unwrap().last_upload = Some((audio_file_id, duration_ms));
+                    }
+                    Ok(OutMsg::CapturedPcm { samples }) => {
+                        reader_state.lock().unwrap().captured.extend_from_slice(&samples);
+                    }
+                    Ok(OutMsg::Log { line }) => {
+                        eprintln!("[bvc_client_e2e] {line}");
+                    }
+                    Ok(OutMsg::Stats {
+                        frames_sent,
+                        frames_from_quic,
+                        frames_into_jitter_buffer,
+                    }) => {
+                        reader_state.lock().unwrap().stats =
+                            Some((frames_sent, frames_from_quic, frames_into_jitter_buffer));
+                    }
+                    Err(_) => break,
+                }
+            })
+            .expect("spawn client-proc stdout reader");
+
+        ClientProc {
+            child,
+            stdin,
+            state,
+            reader: Some(reader),
+        }
+    }
+
+    /// Block until the bin has emitted `Ready` or `timeout` elapses.
+    pub fn await_ready(&self, timeout: Duration) -> Result<(), String> {
+        self.await_flag(timeout, |s| s.ready, "Ready")
+    }
+
+    /// Block until the bin has emitted `Connected` or `timeout` elapses.
+    pub fn await_connected(&self, timeout: Duration) -> Result<(), String> {
+        self.await_flag(timeout, |s| s.connected, "Connected")
+    }
+
+    /// Gracefully tear down the QUIC connection (without exiting the process)
+    /// and block until the bin confirms with `Disconnected`. This drives the
+    /// production server-switch path so the server sees a clean CONNECTION_CLOSE
+    /// and runs its disconnect cleanup promptly.
+    pub fn disconnect(&self, timeout: Duration) -> Result<(), String> {
+        self.send(&InMsg::Disconnect);
+        self.await_flag(timeout, |s| s.disconnected, "Disconnected")
+    }
+
+    /// Block until the bin reports the channel id it joined during connect, or
+    /// `timeout` elapses.
+    pub fn await_channel_id(&self, timeout: Duration) -> Result<String, String> {
+        let deadline = Instant::now() + timeout;
+        loop {
+            if let Some(id) = self.state.lock().unwrap().channel_id.clone() {
+                return Ok(id);
+            }
+            if Instant::now() >= deadline {
+                return Err(format!("timed out waiting for ChannelJoined after {timeout:?}"));
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    /// Explicitly leave the given channel over the real HTTP channel-event API
+    /// and block until the bin acknowledges.
+    pub fn leave_channel(&self, channel_id: &str, timeout: Duration) -> Result<(), String> {
+        self.channel_op(InMsg::LeaveChannel { channel_id: channel_id.to_string() }, "leave", timeout)
+    }
+
+    /// Re-join the given channel over the real HTTP channel-event API and block
+    /// until the bin acknowledges.
+    pub fn rejoin_channel(&self, channel_id: &str, timeout: Duration) -> Result<(), String> {
+        self.channel_op(InMsg::RejoinChannel { channel_id: channel_id.to_string() }, "rejoin", timeout)
+    }
+
+    /// Disband (delete) the given channel over the real HTTP channel-event API
+    /// and block until the bin acknowledges.
+    pub fn delete_channel(&self, channel_id: &str, timeout: Duration) -> Result<(), String> {
+        self.channel_op(InMsg::DeleteChannel { channel_id: channel_id.to_string() }, "delete", timeout)
+    }
+
+    /// Upload a WAV through the client's real encode+upload path; block until the
+    /// bin reports the server-assigned id. Returns (audio_file_id, duration_ms).
+    pub fn upload_audio(&self, wav_path: &str, game: &str, timeout: Duration) -> Result<(String, u32), String> {
+        self.state.lock().unwrap().last_upload = None;
+        self.send(&InMsg::UploadAudio {
+            wav_path: wav_path.to_string(),
+            game: game.to_string(),
+        });
+        let deadline = Instant::now() + timeout;
+        loop {
+            if let Some(u) = self.state.lock().unwrap().last_upload.clone() {
+                return Ok(u);
+            }
+            if Instant::now() >= deadline {
+                return Err(format!("timed out waiting for AudioUploaded after {timeout:?}"));
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    }
+
+    /// Send one channel-membership command and block until the bin echoes a
+    /// matching `ChannelOpDone`. The completion latch is cleared first so a
+    /// prior op's ack is never mistaken for this one.
+    fn channel_op(&self, msg: InMsg, op: &str, timeout: Duration) -> Result<(), String> {
+        self.state.lock().unwrap().last_channel_op = None;
+        self.send(&msg);
+
+        let deadline = Instant::now() + timeout;
+        loop {
+            if self.state.lock().unwrap().last_channel_op.as_deref() == Some(op) {
+                return Ok(());
+            }
+            if Instant::now() >= deadline {
+                return Err(format!("timed out waiting for channel op '{op}' after {timeout:?}"));
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    /// Poll the shared state until `pred` holds or the deadline passes.
+    fn await_flag(
+        &self,
+        timeout: Duration,
+        pred: impl Fn(&SharedState) -> bool,
+        label: &str,
+    ) -> Result<(), String> {
+        let deadline = Instant::now() + timeout;
+        loop {
+            if pred(&self.state.lock().unwrap()) {
+                return Ok(());
+            }
+            if Instant::now() >= deadline {
+                return Err(format!("timed out waiting for {label} after {timeout:?}"));
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    /// Deliver the full probe `pcm` to the bin promptly as ~20 ms `InputPcm`
+    /// frames with NO wall-clock sleep between sends. The orchestrator no longer
+    /// paces delivery: the fake input source on the bin side clocks PCM out to
+    /// the DSP at an accurate 20 ms cadence (like a real microphone), so the
+    /// whole clip is enqueued in milliseconds here and the bin's FrameClock
+    /// governs real-time pacing into the QUIC send path.
+    pub fn feed_tone(&self, pcm: &[f32], sample_rate: u32) {
+        let frame = (sample_rate / 50).max(1) as usize;
+        for chunk in pcm.chunks(frame) {
+            self.send(&InMsg::InputPcm {
+                samples: chunk.to_vec(),
+            });
+        }
+    }
+
+    /// Request a transport-counter snapshot from the bin and block until it
+    /// arrives (or the 5 s deadline passes). Returns `(frames_sent,
+    /// frames_from_quic, frames_into_jitter_buffer)` as recorded by the atomic
+    /// counters in the real audio path.
+    pub fn stats(&self) -> (u64, u64, u64) {
+        // Clear any stale snapshot before requesting a fresh one.
+        self.state.lock().unwrap().stats = None;
+        self.send(&InMsg::RequestStats);
+
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            if let Some(s) = self.state.lock().unwrap().stats {
+                return s;
+            }
+            if Instant::now() >= deadline {
+                return (0, 0, 0);
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    /// Drain captured samples accumulated over `dur`. Sleeps the full window so
+    /// the reader thread has time to fold in late-arriving `CapturedPcm`, then
+    /// snapshots and clears the buffer.
+    pub fn collect_captured(&self, dur: Duration) -> Vec<f32> {
+        std::thread::sleep(dur);
+        let mut state = self.state.lock().unwrap();
+        std::mem::take(&mut state.captured)
+    }
+
+    /// Signal the bin to exit, then wait for the process and reader thread.
+    pub fn shutdown(mut self) {
+        self.send(&InMsg::Shutdown);
+        let _ = self.child.wait();
+        if let Some(reader) = self.reader.take() {
+            let _ = reader.join();
+        }
+    }
+
+    /// Write one framed `InMsg` to the child's stdin. Frame errors are swallowed
+    /// so a dead child doesn't panic the orchestrator mid-test.
+    fn send(&self, msg: &InMsg) {
+        let mut stdin = &self.stdin;
+        if Frame::write(&mut stdin, msg).is_ok() {
+            let _ = stdin.flush();
+        }
+    }
+}
+
+impl Drop for ClientProc {
+    /// Best-effort cleanup if `shutdown` was never called: kill the child and
+    /// join the reader so no orphaned process or thread survives the test.
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+        if let Some(reader) = self.reader.take() {
+            let _ = reader.join();
+        }
+    }
+}
