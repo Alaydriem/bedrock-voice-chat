@@ -126,13 +126,19 @@
 
     const mobileHiddenPages = new Set(["recordings.svelte", "audioLibrary.svelte", "websocket.svelte", "keybinds.svelte"]);
 
+    // Temporary: hide the Minecraft Bedrock settings section for the beta store
+    // hotfix. Flip to false (or remove this block) once connect ships publicly.
+    const hideBedrockSection = true;
+
     let visibleItems = $derived(
-        isMobile
-            ? settingsItems.filter(item => {
-                if (item.type === "separator") return true;
-                return !mobileHiddenPages.has(item.id);
-            })
-            : settingsItems
+        settingsItems.filter(item => {
+            if (hideBedrockSection) {
+                if (item.type === "separator" && item.label === "Minecraft Bedrock") return false;
+                if (item.type === "page" && bedrockPageIds.has(item.id)) return false;
+            }
+            if (isMobile && item.type === "page" && mobileHiddenPages.has(item.id)) return false;
+            return true;
+        })
     );
 
     function getPageConfig(pageId: string) {
