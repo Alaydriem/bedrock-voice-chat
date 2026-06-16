@@ -3,6 +3,7 @@ use std::time::Instant;
 
 use common::structs::relay::{RegisterChallengeRequest, RegisterChallengeResponse};
 use rocket::{serde::json::Json, State};
+use rocket_okapi::openapi;
 
 use crate::relay::RelayRegistry;
 
@@ -11,6 +12,7 @@ use crate::relay::RelayRegistry;
 // `/relay/proof/<nonce>` route can serve it when the relay's reachability
 // callback fires during `register`. SPKI pinning authenticates the relay to
 // callers; this gate authenticates the caller's endpoint claim to the relay.
+#[openapi(tag = "Relay")]
 #[post("/challenge", data = "<payload>")]
 pub async fn challenge(
     payload: Json<RegisterChallengeRequest>,

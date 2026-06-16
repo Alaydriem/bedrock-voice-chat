@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 // hardening could have the initiator generate a CSR instead; v1 reuses
 // `sign_peer_cert`'s issued pair.
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[cfg_attr(feature = "openapi", derive(schemars::JsonSchema))]
 pub struct PeerCertResponse {
     pub ca_pem: String,
     pub cert_pem: String,

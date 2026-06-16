@@ -12,6 +12,7 @@ inventory::submit! {
 inventory::submit! {
     RouteSpec {
         prefix: "/api/gamerpic",
+        auto_mount: true,
         spec_fn: || {
             let settings = rocket_okapi::settings::OpenApiSettings::default();
             rocket_okapi::openapi_get_routes_spec![settings: get_gamerpic]

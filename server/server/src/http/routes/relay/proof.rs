@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use rocket::{http::Status, State};
+use rocket_okapi::openapi;
 
 use crate::relay::RegisterNonceStore;
 
@@ -9,6 +10,7 @@ use crate::relay::RegisterNonceStore;
 // is one we were actually issued (held in our `RegisterNonceStore`), proving we
 // received the challenge for the endpoint we are claiming. A nonce we never
 // received is rejected.
+#[openapi(tag = "Relay")]
 #[get("/proof/<nonce>")]
 pub fn proof(nonce: &str, nonces: &State<Arc<RegisterNonceStore>>) -> Result<String, Status> {
     if nonces.contains(nonce) {
