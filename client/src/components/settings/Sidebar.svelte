@@ -131,7 +131,7 @@
 
     // Temporary: hide the Minecraft Bedrock settings section for the beta store
     // hotfix. Flip to false (or remove this block) once connect ships publicly.
-    const hideBedrockSection = true;
+    const hideBedrockSection = false;
 
     let visibleItems = $derived(
         settingsItems.filter(item => {

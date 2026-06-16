@@ -1,6 +1,36 @@
 pub use common::consts::audio::BUFFER_SIZE;
 pub use common::structs::audio::{AudioDevice, AudioDeviceHost, AudioDeviceType, StreamConfig};
 
+// Extension trait providing a synthetic AudioDevice for the e2e harness. The
+// real type lives in `common`, so a client-side trait carries the constructor.
+#[cfg(feature = "e2e")]
+pub trait FakeAudioDevice {
+    fn fake_for_sender(sample_rate: u32, channels: u16) -> AudioDevice;
+}
+
+#[cfg(feature = "e2e")]
+impl FakeAudioDevice for AudioDevice {
+    // Build a minimal AudioDevice carrying only the stream config needed by the
+    // Opus sender. Used by the test harness when the Fake audio backend is
+    // active and no real CPAL device exists.
+    fn fake_for_sender(sample_rate: u32, channels: u16) -> AudioDevice {
+        AudioDevice {
+            io: AudioDeviceType::InputDevice,
+            id: "fake".to_string(),
+            name: "fake".to_string(),
+            host: AudioDeviceHost::default(),
+            stream_configs: vec![StreamConfig {
+                channels,
+                sample_rate,
+                sample_format: "f32".to_string(),
+                buffer_size_min: 0,
+                buffer_size_max: 4096,
+            }],
+            display_name: "Fake Device".to_string(),
+        }
+    }
+}
+
 use rodio::{
     DeviceTrait,
     cpal::{self, HostId, traits::HostTrait},

@@ -3,6 +3,7 @@ use crate::audio::recording::RecordingProducer;
 use crate::audio::stream::RecoverySender;
 use crate::audio::stream::jitter_buffer::EncodedAudioFramePacket;
 use crate::audio::stream::stream_manager::AudioSinkType;
+use crate::audio::stream::stream_manager::AudioOutputSink;
 
 use crate::AudioPacket;
 use crate::audio::types::{AudioDevice, AudioDeviceCpal};
@@ -52,6 +53,7 @@ static MUTE_OUTPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false
 
 pub(crate) struct OutputStream {
     pub device: Option<AudioDevice>,
+    sink: AudioOutputSink,
     pub bus: Arc<flume::Receiver<AudioPacket>>,
     players: Arc<moka::sync::Cache<String, PlayerEnum>>,
     jobs: Vec<AbortHandle>,
@@ -208,6 +210,7 @@ impl common::traits::StreamTrait for OutputStream {
 impl OutputStream {
     pub fn new(
         device: Option<AudioDevice>,
+        sink: AudioOutputSink,
         bus: Arc<flume::Receiver<AudioPacket>>,
         metadata: Arc<moka::future::Cache<String, String>>,
         app_handle: tauri::AppHandle,
@@ -240,6 +243,7 @@ impl OutputStream {
 
         Self {
             device,
+            sink,
             bus,
             players: Arc::new(players),
             jobs: vec![],
@@ -273,122 +277,116 @@ impl OutputStream {
         players: Arc<moka::sync::Cache<String, PlayerEnum>>,
         metadata: Arc<Cache<String, String>>,
     ) -> Result<JoinHandle<()>, anyhow::Error> {
-        match self.device.clone() {
-            Some(device) => match device.get_stream_config() {
-                Ok(_config) => {
-                    let bus = self.bus.clone();
+        // When a real device is configured, validate that it has a usable stream config.
+        // When device=None (Fake backend), skip that check and fall through to spawn the listener.
+        if let Some(device) = self.device.clone() {
+            device.get_stream_config()?;
+        }
 
-                    let player_presence = self.player_presence.clone();
-                    let player_presence_debounce = self.player_presence_debounce.clone();
-                    let client_id_to_player = self.client_id_to_player.clone();
-                    let app_handle = self.app_handle.clone();
+        let bus = self.bus.clone();
 
-                    let player_gain_cache = self.player_gain_cache.clone();
-                    #[cfg(feature = "bedrock-protocol")]
-                    let beacon_cache = self.beacon_cache.clone();
-                    #[cfg(feature = "bedrock-protocol")]
-                    let eject_injector = self.eject_injector.clone();
-                    #[cfg(feature = "bedrock-protocol")]
-                    let presence_injector = self.presence_injector.clone();
+        let player_presence = self.player_presence.clone();
+        let player_presence_debounce = self.player_presence_debounce.clone();
+        let client_id_to_player = self.client_id_to_player.clone();
+        let app_handle = self.app_handle.clone();
 
-                    let handle = tokio::spawn(async move {
-                        #[allow(irrefutable_let_patterns)]
-                        while let packet = bus.recv_async().await {
-                            if shutdown.load(Ordering::Relaxed) {
-                                break;
-                            }
+        let player_gain_cache = self.player_gain_cache.clone();
+        #[cfg(feature = "bedrock-protocol")]
+        let beacon_cache = self.beacon_cache.clone();
+        #[cfg(feature = "bedrock-protocol")]
+        let eject_injector = self.eject_injector.clone();
+        #[cfg(feature = "bedrock-protocol")]
+        let presence_injector = self.presence_injector.clone();
 
-                            match packet {
-                                Ok(packet) => match packet.data.get_packet_type() {
-                                    PacketType::AudioFrame => {
-                                        OutputStream::handle_audio_data(
-                                            producer.clone(),
-                                            &packet.data,
-                                            metadata.clone(),
-                                            players.clone(),
-                                            player_gain_cache.clone(),
-                                            player_presence.clone(),
-                                            player_presence_debounce.clone(),
-                                            client_id_to_player.clone(),
-                                            Some(&app_handle.clone()),
-                                            #[cfg(feature = "bedrock-protocol")]
-                                            beacon_cache.clone(),
-                                        )
-                                        .await
+        let handle = tokio::spawn(async move {
+            #[allow(irrefutable_let_patterns)]
+            while let packet = bus.recv_async().await {
+                if shutdown.load(Ordering::Relaxed) {
+                    break;
+                }
+
+                match packet {
+                    Ok(packet) => match packet.data.get_packet_type() {
+                        PacketType::AudioFrame => {
+                            OutputStream::handle_audio_data(
+                                producer.clone(),
+                                &packet.data,
+                                metadata.clone(),
+                                players.clone(),
+                                player_gain_cache.clone(),
+                                player_presence.clone(),
+                                player_presence_debounce.clone(),
+                                client_id_to_player.clone(),
+                                Some(&app_handle.clone()),
+                                #[cfg(feature = "bedrock-protocol")]
+                                beacon_cache.clone(),
+                            )
+                            .await
+                        }
+                        PacketType::PlayerData => {
+                            OutputStream::handle_player_data(
+                                players.clone(),
+                                &packet.data,
+                            )
+                            .await
+                        }
+                        PacketType::ServerError => {
+                            OutputStream::handle_server_error(
+                                &packet.data,
+                                Some(&app_handle.clone()),
+                            )
+                            .await
+                        }
+                        PacketType::PlayerPresence => {
+                            OutputStream::handle_player_presence(
+                                &packet.data,
+                                metadata.clone(),
+                                Some(&app_handle.clone()),
+                                player_presence.clone(),
+                                player_presence_debounce.clone(),
+                                players.clone(),
+                            )
+                            .await
+                        }
+                        PacketType::ChannelEvent => {
+                            OutputStream::handle_channel_event(
+                                &packet.data,
+                                Some(&app_handle.clone()),
+                            )
+                            .await
+                        }
+                        #[cfg(feature = "bedrock-protocol")]
+                        PacketType::BedrockEvent => {
+                            if let Some(injector) = eject_injector.as_ref() {
+                                if let Some(data) = packet.data.get_data() {
+                                    let decoded: Result<BedrockEventPacket, ()> =
+                                        data.to_owned().try_into();
+                                    if let Ok(event_packet) = decoded {
+                                        injector.handle_packet(&event_packet);
                                     }
-                                    PacketType::PlayerData => {
-                                        OutputStream::handle_player_data(
-                                            players.clone(),
-                                            &packet.data,
-                                        )
-                                        .await
-                                    }
-                                    PacketType::ServerError => {
-                                        OutputStream::handle_server_error(
-                                            &packet.data,
-                                            Some(&app_handle.clone()),
-                                        )
-                                        .await
-                                    }
-                                    PacketType::PlayerPresence => {
-                                        OutputStream::handle_player_presence(
-                                            &packet.data,
-                                            metadata.clone(),
-                                            Some(&app_handle.clone()),
-                                            player_presence.clone(),
-                                            player_presence_debounce.clone(),
-                                            players.clone(),
-                                        )
-                                        .await
-                                    }
-                                    PacketType::ChannelEvent => {
-                                        OutputStream::handle_channel_event(
-                                            &packet.data,
-                                            Some(&app_handle.clone()),
-                                        )
-                                        .await
-                                    }
-                                    #[cfg(feature = "bedrock-protocol")]
-                                    PacketType::BedrockEvent => {
-                                        if let Some(injector) = eject_injector.as_ref() {
-                                            if let Some(data) = packet.data.get_data() {
-                                                let decoded: Result<BedrockEventPacket, ()> =
-                                                    data.to_owned().try_into();
-                                                if let Ok(event_packet) = decoded {
-                                                    injector.handle_packet(&event_packet);
-                                                }
-                                            }
-                                        }
-                                    }
-                                    #[cfg(feature = "bedrock-protocol")]
-                                    PacketType::PeerPresenceInject => {
-                                        if let Some(injector) = presence_injector.as_ref() {
-                                            if let Some(
-                                                QuicNetworkPacketData::PeerPresenceInject(inject),
-                                            ) = packet.data.get_data()
-                                            {
-                                                let inject: &PeerPresenceInjectPacket = inject;
-                                                injector.handle_inject(inject);
-                                            }
-                                        }
-                                    }
-                                    _ => {}
-                                },
-                                Err(_e) => {}
+                                }
                             }
                         }
-                    });
-
-                    return Ok(handle);
+                        #[cfg(feature = "bedrock-protocol")]
+                        PacketType::PeerPresenceInject => {
+                            if let Some(injector) = presence_injector.as_ref() {
+                                if let Some(
+                                    QuicNetworkPacketData::PeerPresenceInject(inject),
+                                ) = packet.data.get_data()
+                                {
+                                    let inject: &PeerPresenceInjectPacket = inject;
+                                    injector.handle_inject(inject);
+                                }
+                            }
+                        }
+                        _ => {}
+                    },
+                    Err(_e) => {}
                 }
-                Err(e) => return Err(e),
-            },
-            None => {
-                return Err(anyhow!(
-                    "Output Stream is not initialized with a device! Unable to start stream"
-                ));
             }
-        };
+        });
+
+        Ok(handle)
     }
 
     /// Handles playback of the PCM Audio Stream to the output device
@@ -426,6 +424,18 @@ impl OutputStream {
                 }),
             );
         }
+
+        // Move the injected sink out so we can dispatch by value; the real
+        // device path is the default, the Fake path is used only under test
+        let sink = std::mem::replace(&mut self.sink, AudioOutputSink::Rodio);
+        #[cfg(feature = "e2e")]
+        if let AudioOutputSink::Fake(cap) = sink {
+            return self
+                .fake_playback(cap, consumer, metadata, players, current_player_name)
+                .await;
+        }
+        #[cfg(not(feature = "e2e"))]
+        let _ = sink;
 
         match self.device.clone() {
             Some(device) => match device.get_stream_config() {
@@ -543,6 +553,85 @@ impl OutputStream {
                 ));
             }
         };
+    }
+
+    // Drives the real decode/jitter/spatial/mix path through an in-memory
+    // rodio mixer instead of a cpal device, capturing the post-mix PCM.
+    // Used by the integration-test harness.
+    #[cfg(feature = "e2e")]
+    async fn fake_playback(
+        &mut self,
+        cap: crate::audio::stream::stream_manager::sink::CapturingSink,
+        consumer: flume::Receiver<EncodedAudioFramePacket>,
+        metadata: Arc<Cache<String, String>>,
+        players: Arc<moka::sync::Cache<String, PlayerEnum>>,
+        current_player_name: String,
+    ) -> Result<JoinHandle<()>, anyhow::Error> {
+        let channels = std::num::NonZeroU16::new(cap.channels())
+            .ok_or_else(|| anyhow!("fake sink channels must be non-zero"))?;
+        let sample_rate = std::num::NonZeroU32::new(cap.sample_rate())
+            .ok_or_else(|| anyhow!("fake sink sample_rate must be non-zero"))?;
+
+        let (mix, mut source) = rodio::mixer::mixer(channels, sample_rate);
+
+        // MixerSource::next() yields None whenever it has no active sources,
+        // so keep an infinite silent source registered to keep the drain alive.
+        mix.add(rodio::source::Zero::new(channels, sample_rate));
+
+        let spatial_config = match metadata.get("spatial_audio_config").await {
+            Some(json) => serde_json::from_str::<SpatialAudioConfig>(&json).unwrap_or_default(),
+            None => SpatialAudioConfig::default(),
+        };
+
+        let panning_intensity = match metadata.get("panning_intensity").await {
+            Some(val) => val.parse::<f32>().unwrap_or(0.8),
+            None => 0.8,
+        };
+
+        let sink_manager = SinkManager::new(
+            consumer,
+            (*players).clone(),
+            current_player_name,
+            Arc::new(StdMutex::new(PlayerGainStore::default())),
+            Arc::new(mix),
+            self.app_handle.clone(),
+            self.recording_producer.as_ref().map(|p| (**p).clone()),
+            self.recording_active.clone(),
+            spatial_config,
+            panning_intensity,
+        );
+
+        self.sink_manager = Some(sink_manager);
+
+        let listen_handle = match self.sink_manager.as_mut().unwrap().listen().await {
+            Ok(handle) => handle,
+            Err(e) => return Err(e),
+        };
+
+        // ~20ms blocks: sample_rate/50 frames * channels samples per pull
+        let frames = (cap.sample_rate() / 50) as usize;
+        let block_len = frames * cap.channels() as usize;
+        let shutdown = self.shutdown.clone();
+
+        std::thread::Builder::new()
+            .name("audio-output-fake".into())
+            .spawn(move || {
+                let mut clock =
+                    super::frame_clock::FrameClock::new(20.0);
+                while !shutdown.load(Ordering::Relaxed) {
+                    let mut block = Vec::with_capacity(block_len);
+                    for _ in 0..block_len {
+                        match source.next() {
+                            Some(s) => block.push(s),
+                            None => break,
+                        }
+                    }
+                    cap.submit(block);
+                    clock.wait_next();
+                }
+            })?;
+
+        Ok(listen_handle)
     }
 
     // Process the player presence event
@@ -787,6 +876,8 @@ impl OutputStream {
                 };
 
                 // Send to playback - recording is now handled post-jitter-buffer in JitterBufferSource
+                #[cfg(feature = "e2e")]
+                crate::testkit::counters::TransportCounters::increment_into_jitter_buffer();
                 match producer.send(encoded_packet.clone()) {
                     Ok(_) => {}
                     Err(e) => {

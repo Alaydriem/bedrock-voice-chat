@@ -276,7 +276,7 @@ impl QuicServerManager {
 
                             registry.unregister(&client_id);
 
-                            match cache_manager.remove_player(&player_id).await {
+                            match cache_manager.remove_player(&player_id, None).await {
                                 Ok(removed_channels) => {
                                     for channel_id in removed_channels {
                                         let leave_packet = common::structs::packet::QuicNetworkPacket {

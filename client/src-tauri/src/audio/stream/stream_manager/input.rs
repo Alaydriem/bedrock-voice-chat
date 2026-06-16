@@ -1,12 +1,16 @@
 use super::resampler::AudioResampler;
 
 use super::AudioFrame;
+use super::input_core::InputProcessCore;
+use super::source::AudioInputSource;
 use crate::audio::recording::{RawRecordingData, RecordingProducer};
 use crate::audio::stream::{RecoverySender, StreamRecoveryEvent};
 use crate::audio::types::{AudioDevice, AudioDeviceCpal, AudioDeviceType, BUFFER_SIZE};
+#[cfg(feature = "e2e")]
+use crate::audio::types::FakeAudioDevice;
 #[cfg(feature = "bedrock-protocol")]
 use crate::bedrock::BedrockPlayerStateCache;
-use crate::{NetworkPacket, audio::stream::stream_manager::AudioFrameData};
+use crate::NetworkPacket;
 use anyhow::anyhow;
 use audio_gate::NoiseGate;
 use common::RecordingPlayerData;
@@ -29,10 +33,11 @@ use tauri_plugin_store::StoreExt;
 use tokio::task::{AbortHandle, JoinHandle};
 
 /// Indicator for if the Input Stream should be muted
-static MUTE_INPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
-static USE_NOISE_GATE: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
-static UPDATE_NOISE_GATE_SETTINGS: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
-static NOISE_GATE_SETTINGS: Lazy<Mutex<serde_json::Value>> = Lazy::new(|| {
+pub(crate) static MUTE_INPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
+pub(crate) static USE_NOISE_GATE: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
+pub(crate) static UPDATE_NOISE_GATE_SETTINGS: Lazy<AtomicBool> =
+    Lazy::new(|| AtomicBool::new(false));
+pub(crate) static NOISE_GATE_SETTINGS: Lazy<Mutex<serde_json::Value>> = Lazy::new(|| {
     Mutex::new(
         serde_json::to_value(NoiseGateSettings::default())
             .expect("Failed to serialize NoiseGateSettings"),
@@ -41,6 +46,7 @@ static NOISE_GATE_SETTINGS: Lazy<Mutex<serde_json::Value>> = Lazy::new(|| {
 
 pub(crate) struct InputStream {
     pub device: Option<AudioDevice>,
+    source: AudioInputSource,
     pub bus: Arc<flume::Sender<NetworkPacket>>,
     jobs: Vec<AbortHandle>,
     shutdown: Arc<AtomicBool>,
@@ -143,6 +149,17 @@ impl common::traits::StreamTrait for InputStream {
                 anyhow!("Cannot start input stream without current_player set in store")
             })?;
 
+        // Capture fake source config before `listener` moves out the source.
+        // Sender needs the sample_rate / channels when no real device is present.
+        #[cfg(feature = "e2e")]
+        let fake_config: Option<(u32, u16)> = if let AudioInputSource::Fake(ref src) = self.source {
+            Some((src.sample_rate(), src.channels()))
+        } else {
+            None
+        };
+        #[cfg(not(feature = "e2e"))]
+        let fake_config: Option<(u32, u16)> = None;
+
         // Start the audio input listener thread
         match self.listener(producer, self.shutdown.clone()) {
             Ok(job) => jobs.push(job),
@@ -158,6 +175,7 @@ impl common::traits::StreamTrait for InputStream {
             self.shutdown.clone(),
             current_player_name,
             self.recording_active.clone(),
+            fake_config,
         ) {
             Ok(job) => jobs.push(job),
             Err(e) => {
@@ -174,6 +192,7 @@ impl common::traits::StreamTrait for InputStream {
 impl InputStream {
     pub fn new(
         device: Option<AudioDevice>,
+        source: AudioInputSource,
         bus: Arc<flume::Sender<NetworkPacket>>,
         metadata: Arc<moka::future::Cache<String, String>>,
         app_handle: tauri::AppHandle,
@@ -185,6 +204,7 @@ impl InputStream {
     ) -> Self {
         Self {
             device,
+            source,
             bus,
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),
@@ -207,6 +227,16 @@ impl InputStream {
     ) -> Result<JoinHandle<()>, anyhow::Error> {
         // Clone recovery_tx for use in the thread
         let recovery_tx = self.recovery_tx.clone();
+
+        // Move the injected source out so we can dispatch by value; the real
+        // device path is the default, the Fake path is used only under test
+        let source = std::mem::replace(&mut self.source, AudioInputSource::Cpal);
+        #[cfg(feature = "e2e")]
+        if let AudioInputSource::Fake(src) = source {
+            return self.fake_listener(src, producer, shutdown);
+        }
+        #[cfg(not(feature = "e2e"))]
+        let _ = source;
 
         match self.device.clone() {
             Some(device) => match device.get_stream_config() {
@@ -276,7 +306,7 @@ impl InputStream {
                                         Err(_) => NoiseGateSettings::default(),
                                     };
 
-                                let mut gate = NoiseGate::new(
+                                let gate = NoiseGate::new(
                                     noise_gate_settings.open_threshold,
                                     noise_gate_settings.close_threshold,
                                     device_config.sample_rate as f32,
@@ -303,19 +333,14 @@ impl InputStream {
                                     });
                                 };
 
-                                let mut consecutive_silent_frames: u32 = 0;
-
                                 // Trailing frame count scales with release_rate (20ms per frame at 48kHz)
-                                let mut tail_frame_count: u32 =
+                                let tail_frame_count: u32 =
                                     (noise_gate_settings.release_rate / OPUS_FRAME_DURATION_MS as f32)
                                         .ceil()
                                         .max(2.0) as u32;
 
-                                // Pre-allocate buffer for in-place processing (dynamically sized for variable buffer sizes)
-                                let mut pcm_buffer: Vec<f32> = vec![0.0; 4096];
-
                                 // Create resampler if device sample rate is not 48 kHz
-                                let mut audio_resampler = match AudioResampler::new_if_needed(device_config.sample_rate) {
+                                let audio_resampler = match AudioResampler::new_if_needed(device_config.sample_rate) {
                                     Some(Ok(r)) => {
                                         warn!(
                                             "Input device sample rate {} Hz requires resampling to 48 kHz. \
@@ -331,110 +356,19 @@ impl InputStream {
                                     None => None,
                                 };
 
+                                // The processing core owns the gate, resampler, buffers, and
+                                // silence/tail state previously captured by the inline closure
+                                let mut core = InputProcessCore::new(
+                                    gate,
+                                    audio_resampler,
+                                    device_config.channels,
+                                    device_config.sample_rate,
+                                    tail_frame_count,
+                                    producer,
+                                );
+
                                 let process_fn = move |data: &[f32]| {
-                                    let len = data.len();
-
-                                    if pcm_buffer.len() < len {
-                                        pcm_buffer.resize(len, 0.0);
-                                    }
-
-                                    pcm_buffer[..len].copy_from_slice(data);
-
-                                    // If the noise gate is enabled, process data through it
-                                    if USE_NOISE_GATE.load(Ordering::Relaxed) {
-                                        // If there is a pending update, apply it, then disable the lock check
-                                        if UPDATE_NOISE_GATE_SETTINGS.load(Ordering::Relaxed) {
-                                            let current_settings = NOISE_GATE_SETTINGS.lock().unwrap();
-                                            match serde_json::from_value::<NoiseGateSettings>(
-                                                current_settings.clone(),
-                                            ) {
-                                                Ok(settings) => {
-                                                    log::info!(
-                                                        "Updating noise gate settings: {:?}",
-                                                        settings
-                                                    );
-                                                    gate.update(
-                                                        settings.open_threshold,
-                                                        settings.close_threshold,
-                                                        settings.release_rate,
-                                                        settings.attack_rate,
-                                                        settings.hold_time,
-                                                    );
-
-                                                    tail_frame_count =
-                                                        (settings.release_rate / OPUS_FRAME_DURATION_MS as f32)
-                                                            .ceil()
-                                                            .max(2.0)
-                                                            as u32;
-                                                }
-                                                Err(e) => {
-                                                    warn!("Noise gate settings were asked to update, but failed to deserialize: {}", e);
-                                                }
-                                            };
-                                            drop(current_settings);
-
-                                            UPDATE_NOISE_GATE_SETTINGS.store(false, Ordering::Relaxed);
-                                        }
-
-                                        // Process the frame in-place through the gate
-                                        gate.process_frame(&mut pcm_buffer[..len]);
-                                    }
-
-                                    // Convert to mono if stereo
-                                    let mono_pcm: Vec<f32> = if device_config.channels == 2 {
-                                        pcm_buffer[..len].chunks_exact(2)
-                                            .map(|lr| (lr[0] + lr[1]) / 2.0)
-                                            .collect()
-                                    } else {
-                                        pcm_buffer[..len].to_vec()
-                                    };
-
-                                    // Resample 44.1 kHz → 48 kHz if needed
-                                    let mono_pcm = if let Some(ref mut rs) = audio_resampler {
-                                        rs.process(&mono_pcm)
-                                    } else {
-                                        mono_pcm
-                                    };
-
-                                    let is_silent = mono_pcm.iter().all(|&e| f32::abs(e) == 0.0);
-                                    let is_muted = MUTE_INPUT_STREAM.load(Ordering::Relaxed);
-
-                                    if is_muted {
-                                        // Hard mute: reset state, send nothing
-                                        consecutive_silent_frames = 0;
-                                    } else if !is_silent {
-                                        // Gate is open — real audio, reset counter, send frame
-                                        consecutive_silent_frames = 0;
-
-                                        let captured_at_ms = std::time::SystemTime::now()
-                                            .duration_since(std::time::UNIX_EPOCH)
-                                            .unwrap_or_default()
-                                            .as_millis() as u64;
-
-                                        match producer.try_send(AudioFrame::F32(AudioFrameData {
-                                            pcm: mono_pcm,
-                                            captured_at_ms,
-                                        })) {
-                                            Ok(()) => { }
-                                            Err(_e) => {}
-                                        }
-                                    } else if consecutive_silent_frames < tail_frame_count {
-                                        // Gate just closed — send trailing silence frame
-                                        consecutive_silent_frames += 1;
-
-                                        let captured_at_ms = std::time::SystemTime::now()
-                                            .duration_since(std::time::UNIX_EPOCH)
-                                            .unwrap_or_default()
-                                            .as_millis() as u64;
-
-                                        match producer.try_send(AudioFrame::F32(AudioFrameData {
-                                            pcm: mono_pcm,
-                                            captured_at_ms,
-                                        })) {
-                                            Ok(()) => { }
-                                            Err(_e) => {}
-                                        }
-                                    }
+                                    core.process(data);
                                 };
 
                                 // Wrap process_fn in Arc<Mutex<>> so it can be shared across fallback attempts
@@ -593,14 +527,100 @@ impl InputStream {
         };
     }
 
+    // Feeds the input processing core from an injected pull-based source
+    // instead of a live cpal device. Used by the integration-test harness.
+    #[cfg(feature = "e2e")]
+    fn fake_listener(
+        &mut self,
+        mut src: super::source::BridgeInputSource,
+        producer: flume::Sender<AudioFrame>,
+        shutdown: Arc<AtomicBool>,
+    ) -> Result<JoinHandle<()>, anyhow::Error> {
+        let src_sample_rate = src.sample_rate();
+        let src_channels = src.channels();
+
+        // Disabled-by-default gate matching the Cpal path's gate shape
+        let noise_gate_settings = NoiseGateSettings::default();
+        let gate = NoiseGate::new(
+            noise_gate_settings.open_threshold,
+            noise_gate_settings.close_threshold,
+            src_sample_rate as f32,
+            match src_channels {
+                1 => 1,
+                2 => 2,
+                _ => 2,
+            },
+            noise_gate_settings.release_rate,
+            noise_gate_settings.attack_rate,
+            noise_gate_settings.hold_time,
+        );
+
+        // Trailing frame count scales with release_rate, identical to the Cpal path
+        let tail_frame_count: u32 =
+            (noise_gate_settings.release_rate / OPUS_FRAME_DURATION_MS as f32)
+                .ceil()
+                .max(2.0) as u32;
+
+        // Resample the source rate to 48 kHz if needed, mirroring the Cpal path
+        let audio_resampler = match AudioResampler::new_if_needed(src_sample_rate) {
+            Some(Ok(r)) => Some(r),
+            Some(Err(e)) => {
+                error!("Failed to create audio resampler for fake input: {:?}", e);
+                None
+            }
+            None => None,
+        };
+
+        let mut core = InputProcessCore::new(
+            gate,
+            audio_resampler,
+            src_channels,
+            src_sample_rate,
+            tail_frame_count,
+            producer,
+        );
+
+        std::thread::Builder::new()
+            .name("audio-input-fake".into())
+            .spawn(move || {
+                while !shutdown.load(Ordering::Relaxed) {
+                    match src.next_frame() {
+                        Some(frame) => core.process(&frame),
+                        None => break,
+                    }
+                }
+            })?;
+
+        // Match the Cpal path: real work runs on the OS thread, return a tokio handle
+        let handle = tokio::spawn(async {});
+        Ok(handle)
+    }
+
     fn sender(
         &mut self,
         consumer: flume::Receiver<AudioFrame>,
         shutdown: Arc<AtomicBool>,
         current_player_name: String,
         recording_active: Option<Arc<AtomicBool>>,
+        fake_config: Option<(u32, u16)>,
     ) -> Result<JoinHandle<()>, anyhow::Error> {
-        match self.device.clone() {
+        // When no real device is present but the Fake source provided a config,
+        // build a synthetic StreamConfig so the Opus sender can run without a
+        // CPAL device. This is the test-harness path; production always has a
+        // device.
+        #[cfg(feature = "e2e")]
+        let resolved_device = self.device.clone().or_else(|| {
+            fake_config.map(|(sample_rate, channels)| {
+                AudioDevice::fake_for_sender(sample_rate, channels)
+            })
+        });
+        #[cfg(not(feature = "e2e"))]
+        let resolved_device = {
+            let _ = fake_config;
+            self.device.clone()
+        };
+
+        match resolved_device {
             Some(device) => {
                 match device.get_stream_config() {
                     Ok(stored_config) => {

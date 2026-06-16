@@ -31,7 +31,10 @@ pub async fn auth_state(
 
     // Clean stale channel memberships
     if let Some(ref gt) = player_model.gamertag {
-        if let Err(e) = cache_manager.remove_player(gt).await {
+        if let Err(e) = cache_manager
+            .remove_player(gt, Some(player_model.game.clone()))
+            .await
+        {
             tracing::error!("Failed to clean stale memberships for {}: {}", gt, e);
         }
     }

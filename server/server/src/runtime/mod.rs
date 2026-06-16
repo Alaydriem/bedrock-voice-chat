@@ -573,7 +573,7 @@ impl ServerRuntime {
             tracing::Level::WARN => "warn,hyper=off,rustls=off,rocket::server=off,rocket_http::tls::listener=off",
         };
 
-        subscriber
+        let installed = subscriber
             .with_writer(non_blocking)
             .with_max_level(self.config.get_tracing_log_level())
             .with_level(true)
@@ -582,9 +582,18 @@ impl ServerRuntime {
             .with_env_filter(env_filter)
             .with_ansi(true)
             .compact()
-            .init();
+            .try_init()
+            .is_ok();
 
-        self._logger_guard = Some(guard);
+        if installed {
+            self._logger_guard = Some(guard);
+        } else {
+            // Another runtime in this process already owns the global subscriber,
+            // so drop our worker guard rather than retaining a writer that is
+            // never wired up.
+            self._logger_guard = None;
+        }
+
         Ok(())
     }
 
@@ -597,5 +606,20 @@ impl ServerRuntime {
         let mut san_names = self.config.server.tls.names.clone();
         san_names.append(&mut self.config.server.tls.ips.clone());
         ca_cert::CaCertManager::new(&self.config.server.tls.certs_path).ensure(&san_names)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::ApplicationConfig;
+
+    #[test]
+    fn logging_init_is_idempotent_within_a_process() {
+        let mut first = ServerRuntime::new(ApplicationConfig::default()).unwrap();
+        let mut second = ServerRuntime::new(ApplicationConfig::default()).unwrap();
+
+        first.setup_logging().unwrap();
+        second.setup_logging().unwrap();
     }
 }

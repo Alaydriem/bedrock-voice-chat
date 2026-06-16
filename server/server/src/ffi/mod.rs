@@ -18,7 +18,9 @@
 
 use crate::config::ApplicationConfig;
 use crate::runtime::{position_updater, ServerRuntime};
-use crate::services::{AudioPlaybackService, PlayerIdentityService, PlayerRegistrarService};
+use crate::services::{
+    AudioPlaybackService, AuthCodeService, PlayerIdentityService, PlayerRegistrarService,
+};
 use crate::stream::quic::WebhookReceiver;
 
 use common::traits::player_data::PlayerData;
@@ -647,6 +649,134 @@ pub unsafe extern "C" fn bvc_audio_stop(
         Err(e) => {
             set_last_error(&format!("Audio stop failed: {}", e));
             -1
+        }
+    }
+}
+
+/// Provision a player (idempotent create) and return a fresh single-use login
+/// code that a client can later redeem via `code_login`.
+///
+/// # Arguments
+/// * `handle` - Handle from `bvc_server_create()`
+/// * `gamertag` - Player gamertag to provision
+/// * `game` - Game type (e.g. "minecraft", "hytale")
+/// * `ttl_secs` - Lifetime of the generated code in seconds
+///
+/// # Returns
+/// * Pointer to a heap-allocated login code string on success (free via `bvc_free_string`)
+/// * NULL on error (call `bvc_get_last_error()` for details)
+///
+/// # Safety
+/// * `handle` must be a valid pointer from `bvc_server_create()`
+/// * `gamertag` and `game` must be valid null-terminated UTF-8 strings
+/// * Server must be running (after `bvc_server_start()` has been called)
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn bvc_provision_login_code(
+    handle: *mut RuntimeHandle,
+    gamertag: *const c_char,
+    game: *const c_char,
+    ttl_secs: u32,
+) -> *mut c_char {
+    if handle.is_null() {
+        set_last_error("handle is null");
+        return ptr::null_mut();
+    }
+
+    if gamertag.is_null() {
+        set_last_error("gamertag is null");
+        return ptr::null_mut();
+    }
+
+    if game.is_null() {
+        set_last_error("game is null");
+        return ptr::null_mut();
+    }
+
+    let gamertag_str = match unsafe { CStr::from_ptr(gamertag) }.to_str() {
+        Ok(s) => s,
+        Err(e) => {
+            set_last_error(&format!("Invalid UTF-8 in gamertag: {}", e));
+            return ptr::null_mut();
+        }
+    };
+
+    let game_str = match unsafe { CStr::from_ptr(game) }.to_str() {
+        Ok(s) => s,
+        Err(e) => {
+            set_last_error(&format!("Invalid UTF-8 in game: {}", e));
+            return ptr::null_mut();
+        }
+    };
+
+    let game_type = match game_str {
+        "minecraft" => Game::Minecraft,
+        "hytale" => Game::Hytale,
+        other => {
+            set_last_error(&format!("Invalid game '{}'", other));
+            return ptr::null_mut();
+        }
+    };
+
+    let handle_ref = unsafe { &*handle };
+
+    let tokio_rt = match &handle_ref.tokio_runtime {
+        Some(rt) => rt,
+        None => {
+            set_last_error("Tokio runtime not available");
+            return ptr::null_mut();
+        }
+    };
+
+    let pr_guard = match handle_ref.player_registrar.read() {
+        Ok(g) => g,
+        Err(e) => {
+            set_last_error(&format!("Failed to read player_registrar: {}", e));
+            return ptr::null_mut();
+        }
+    };
+
+    let registrar = match pr_guard.as_ref() {
+        Some(r) => r.clone(),
+        None => {
+            set_last_error("Server not started - player_registrar not available");
+            return ptr::null_mut();
+        }
+    };
+    drop(pr_guard);
+
+    let db_guard = match handle_ref.db_conn.read() {
+        Ok(g) => g,
+        Err(e) => {
+            set_last_error(&format!("Failed to read db_conn: {}", e));
+            return ptr::null_mut();
+        }
+    };
+
+    let db_conn = match db_guard.as_ref() {
+        Some(c) => c.clone(),
+        None => {
+            set_last_error("Server not started - db_conn not available");
+            return ptr::null_mut();
+        }
+    };
+    drop(db_guard);
+
+    let result = tokio_rt.block_on(async {
+        let player = registrar.create_player(gamertag_str, &game_type, None).await?;
+        AuthCodeService::generate_code(db_conn.as_ref(), player.id, ttl_secs as u64).await
+    });
+
+    match result {
+        Ok(code) => match CString::new(code) {
+            Ok(cstr) => cstr.into_raw(),
+            Err(e) => {
+                set_last_error(&format!("Failed to create CString: {}", e));
+                ptr::null_mut()
+            }
+        },
+        Err(e) => {
+            set_last_error(&format!("Provision login code failed: {}", e));
+            ptr::null_mut()
         }
     }
 }

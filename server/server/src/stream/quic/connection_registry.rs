@@ -159,6 +159,13 @@ impl ConnectionRegistry {
         self.player_channel.retain(|_, v| v != channel_id);
     }
 
+    // Builds the `game:gamertag` key used to index `player_channel`.
+    // The player_channel map is written by the channel event handler using the
+    // cert CN, which is always in `game:gamertag` form (e.g. "minecraft:Alice").
+    fn channel_key(game: common::structs::game::Game, name: &str) -> String {
+        format!("{}:{}", game.as_str(), name)
+    }
+
     pub async fn route_audio_frame(
         &self,
         packet: &QuicNetworkPacket,
@@ -176,8 +183,22 @@ impl ConnectionRegistry {
             _ => return,
         };
 
-        let sender_channel: Option<String> =
-            self.player_channel.get(sender_name).map(|r| r.clone());
+        // Resolve sender's PlayerEnum once up-front so the game is available
+        // both for the channel-key derivation and for the proximity branch.
+        // player_cache is keyed by bare gamertag; audio_frame.sender carries the
+        // full PlayerEnum when the client has already sent a position packet.
+        let sender_player: Option<PlayerEnum> = match &audio_frame.sender {
+            Some(player) => Some(player.clone()),
+            None => player_cache.get(sender_name).await,
+        };
+
+        // Derive the channel-membership key for the sender only when a game is
+        // known. Falls back to None (proximity-only) when the sender has not yet
+        // appeared in the position cache.
+        let sender_channel: Option<String> = sender_player.as_ref().and_then(|sp| {
+            let key = Self::channel_key(sp.get_game(), sender_name);
+            self.player_channel.get(&key).map(|r| r.clone())
+        });
 
         let original_spatial = audio_frame.spatial;
         let has_sender = audio_frame.sender.is_some();
@@ -226,17 +247,30 @@ impl ConnectionRegistry {
 
         let mut dead_keys: Vec<Vec<u8>> = Vec::new();
 
-        let mut sender_player: Option<PlayerEnum> = None;
-        let mut sender_player_resolved = false;
-
         for (client_id, recipient_name, tx) in &snapshot {
             if recipient_name == sender_name {
                 continue;
             }
 
-            let recipient_channel: Option<String> =
-                self.player_channel.get(recipient_name).map(|r| r.clone());
+            // Resolve the recipient's PlayerEnum; needed both for the channel-key
+            // derivation and for the proximity spatial check below.
+            let recipient_player = match player_cache.get(recipient_name).await {
+                Some(player) => player,
+                None => continue,
+            };
 
+            // Build channel-membership key for the recipient using their game
+            // prefix, matching the cert-CN format written by the channel handler.
+            let recipient_channel: Option<String> = {
+                let key = Self::channel_key(recipient_player.get_game(), recipient_name);
+                self.player_channel.get(&key).map(|r| r.clone())
+            };
+
+            // Channel membership is cross-game by design: a channel id is shared
+            // across games, so `minecraft:Bob` and `hytale:Carol` in the same
+            // channel hear each other. Only the fallback proximity path below is
+            // gated to same-game (different games have unrelated coordinate
+            // spaces, so spatial routing between them is meaningless).
             let in_same_channel = match (&sender_channel, &recipient_channel) {
                 (Some(sc), Some(rc)) => sc == rc,
                 _ => false,
@@ -249,33 +283,17 @@ impl ConnectionRegistry {
                     recipient_name,
                     original_spatial,
                 );
-                match original_spatial {
-                    // None = unset by client, treat as spatial (default behavior)
-                    None | Some(true) => match &bytes_spatial {
-                        Some(b) => b,
-                        None => continue,
-                    },
-                    Some(false) => match &bytes_channel {
-                        Some(b) => b,
-                        None => continue,
-                    },
+                // Same-channel members always receive the non-spatial variant so
+                // the client skips distance-based volume attenuation. Without this,
+                // a spatial=true packet would be zeroed by calculate_spatial_audio_data
+                // when members are far apart, defeating the channel-bypass entirely.
+                match &bytes_channel {
+                    Some(b) => b,
+                    None => continue,
                 }
             } else {
-                if !sender_player_resolved {
-                    sender_player = match &audio_frame.sender {
-                        Some(player) => Some(player.clone()),
-                        None => player_cache.get(sender_name).await,
-                    };
-                    sender_player_resolved = true;
-                }
-
                 let sp = match &sender_player {
                     Some(p) => p,
-                    None => continue,
-                };
-
-                let recipient_player = match player_cache.get(recipient_name).await {
-                    Some(player) => player,
                     None => continue,
                 };
 
