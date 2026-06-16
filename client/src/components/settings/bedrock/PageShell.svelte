@@ -40,11 +40,6 @@
 <div class="grid grid-cols-1 gap-4 sm:gap-5 lg:gap-6 pt-4 md:pt-0">
     {#if $isRestoringAuth}
         <RestoringAuthBanner />
-<<<<<<< HEAD
-=======
-    {:else if requiresEntitlement && $gateStatus !== null && $gateStatus.status !== "allowed"}
-        <EntitlementBanner />
->>>>>>> 5e4dc89 (chore: initial iap variant)
     {:else if !$isAuthenticated}
         <SignInCard {bedrockManager} description={signedOutDescription} />
     {:else}

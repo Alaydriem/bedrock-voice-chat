@@ -3,6 +3,7 @@ use std::time::Instant;
 
 use common::structs::relay::RegisterRequest;
 use rocket::{http::Status, serde::json::Json, State};
+use rocket_okapi::openapi;
 
 use crate::relay::EndpointReachability;
 use crate::relay::RelayRegistry;
@@ -12,6 +13,7 @@ use crate::relay::RelayRegistry;
 // token must be live and bound to the claimed endpoint, and the relay confirms
 // control by fetching its nonce back from that endpoint (reachability callback)
 // before accepting. Lookups are later scoped to worlds the caller registered.
+#[openapi(tag = "Relay")]
 #[post("/register", data = "<payload>")]
 pub async fn register(
     payload: Json<RegisterRequest>,

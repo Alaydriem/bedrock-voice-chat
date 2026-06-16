@@ -8,6 +8,7 @@ use super::relay_endpoint::RelayEndpoint;
 // the registrant actually controls that endpoint by fetching the nonce back from
 // it before it will accept a `register` for the endpoint.
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[cfg_attr(feature = "openapi", derive(schemars::JsonSchema))]
 pub struct RegisterChallengeRequest {
     pub endpoint: RelayEndpoint,
 }

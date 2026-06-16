@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 // endpoint the challenge was issued for and is only honored once the relay has
 // observed the nonce served back from that endpoint.
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[cfg_attr(feature = "openapi", derive(schemars::JsonSchema))]
 pub struct RegisterChallengeResponse {
     pub token: String,
     pub nonce: String,

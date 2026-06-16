@@ -3,10 +3,7 @@ use enum_dispatch::enum_dispatch;
 
 use common::structs::iap::IapOffer;
 
-<<<<<<< HEAD
 use crate::iap::mock::MockProvider;
-=======
->>>>>>> 86597dc (chore: initial iap variant)
 use crate::iap::store::StoreProvider;
 
 // Platform entitlement interface; `EntitlementService` aggregates one or more.

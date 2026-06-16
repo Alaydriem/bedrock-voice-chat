@@ -144,10 +144,6 @@
             if (item.type === "separator") return true;
             if (isMobile && mobileHiddenPages.has(item.id)) return false;
             if (item.id === "realms_connect.svelte" && !realmsConnectEnabled) return false;
-<<<<<<< HEAD
-=======
-            if (item.id === "subscriptions.svelte" && !(realmsConnectEnabled && hasOffers)) return false;
->>>>>>> 86597dc (chore: initial iap variant)
             return true;
         })
     );
@@ -175,17 +171,9 @@
     function handlePageNavigation(pageId: string) {
         const pageConfig = getPageConfig(pageId);
         if (!pageConfig) return;
-<<<<<<< HEAD
         // Block Realms Connect when its feature flag is off (it also renders
         // the subscription upsell internally when the user isn't entitled).
         if (pageId === "realms_connect.svelte" && !realmsConnectEnabled) {
-=======
-        // Block the feature-gated pages when the feature flag is off. The
-        // Subscriptions page stays reachable from the banner/modal CTAs even
-        // when no store offers exist (its sidebar item is offers-gated, but
-        // navigation to it is not).
-        if ((pageId === "realms_connect.svelte" || pageId === "subscriptions.svelte") && !realmsConnectEnabled) {
->>>>>>> 86597dc (chore: initial iap variant)
             return;
         }
 
@@ -262,21 +250,6 @@
         } catch (e) {
             realmsConnectEnabled = false;
         }
-<<<<<<< HEAD
-=======
-        try {
-            const offers = await invoke<unknown[]>("iap_list_offers");
-            hasOffers = Array.isArray(offers) && offers.length > 0;
-        } catch (e) {
-            hasOffers = false;
-        }
-
-        navHandler = (e: Event) => {
-            const detail = (e as CustomEvent<string>).detail;
-            if (detail) handlePageNavigation(detail);
-        };
-        window.addEventListener("settings-navigate", navHandler as EventListener);
->>>>>>> 86597dc (chore: initial iap variant)
     });
 
     onDestroy(() => {
