@@ -3,6 +3,7 @@ use std::time::Instant;
 
 use common::structs::relay::{LookupRequest, LookupResponse};
 use rocket::{serde::json::Json, State};
+use rocket_okapi::openapi;
 
 use crate::relay::EndpointReachability;
 use crate::relay::RelayRegistry;
@@ -12,6 +13,7 @@ use crate::relay::RelayRegistry;
 // who knows a world hash AND a registered member endpoint could pass
 // `caller = victim_endpoint` to enumerate peers. We run the (idempotent)
 // reachability proof for the token, then `lookup` enforces the token binding.
+#[openapi(tag = "Relay")]
 #[post("/lookup", data = "<payload>")]
 pub async fn lookup(
     payload: Json<LookupRequest>,

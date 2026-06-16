@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use common::structs::relay::{PeerCertRequest, PeerCertResponse};
 use rocket::{http::Status, serde::json::Json, State};
+use rocket_okapi::openapi;
 
 use crate::relay::PeerCertIssueError;
 use crate::relay::PeerCertIssuer;
@@ -9,6 +10,7 @@ use crate::relay::PeerCertIssuer;
 // Peer-cert issuance: the acceptor side issues the initiator an in-memory client
 // cert for its `host:https_port` identity ONLY when that peer is mutually
 // presence-proven for the shared world (default deny).
+#[openapi(tag = "Relay")]
 #[post("/peer-cert", data = "<payload>")]
 pub fn peer_cert(
     payload: Json<PeerCertRequest>,
