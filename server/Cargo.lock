@@ -710,7 +710,7 @@ checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 [[package]]
 name = "bedrock-network"
 version = "0.0.9"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.30.6#00ac59692b2025581d12cf0470047caf2db435b2"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.30.7#7d43717ce444eeb7ffba196a33decdbd56f76e7f"
 dependencies = [
  "bytes",
  "futures-util",
@@ -731,8 +731,8 @@ dependencies = [
 
 [[package]]
 name = "bedrock-protocol"
-version = "26.30.6"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.30.6#00ac59692b2025581d12cf0470047caf2db435b2"
+version = "26.30.7"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.30.7#7d43717ce444eeb7ffba196a33decdbd56f76e7f"
 dependencies = [
  "aes 0.9.1",
  "aes-gcm",
@@ -771,7 +771,7 @@ dependencies = [
 [[package]]
 name = "bedrock-server"
 version = "0.0.10"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.30.6#00ac59692b2025581d12cf0470047caf2db435b2"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.30.7#7d43717ce444eeb7ffba196a33decdbd56f76e7f"
 dependencies = [
  "base64 0.22.1",
  "bedrock-protocol",
@@ -8087,7 +8087,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
