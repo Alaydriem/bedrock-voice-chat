@@ -93,6 +93,9 @@ impl EmbeddedServer {
                         "enabled": false,
                     },
                 },
+                "bedrock": {
+                    "transfer_port": Self::free_port_udp(),
+                },
             },
         });
 

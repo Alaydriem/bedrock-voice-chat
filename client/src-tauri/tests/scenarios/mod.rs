@@ -7,4 +7,6 @@ mod connect;
 mod jukebox;
 mod library;
 mod provision;
+mod proxy_audio;
+mod proxy_jukebox;
 mod same_channel;

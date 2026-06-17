@@ -16,8 +16,9 @@ pub enum InMsg {
         z: f32,
     },
     StartProxy {
-        host: String,
-        port: u16,
+        upstream_host: String,
+        upstream_port: u16,
+        listen_port: u16,
     },
     InjectPresence {
         token: String,
@@ -77,6 +78,9 @@ pub enum OutMsg {
     },
     CapturedPcm { samples: Vec<f32> },
     Log { line: String },
+    // Emitted after StartProxy completes, carrying the local port the proxy is
+    // listening on so the orchestrator can connect a downstream client to it.
+    ProxyStarted { listen_port: u16 },
     // Transport-fidelity counter snapshot emitted in response to InMsg::RequestStats.
     // frames_sent      — Opus AudioFrame packets this client emitted to the QUIC bus.
     // frames_from_quic — AudioFrame packets this client received from the QUIC bus

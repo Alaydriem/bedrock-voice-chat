@@ -209,4 +209,95 @@ impl Connector {
         let mut nsm = nsm.lock().await;
         nsm.reset().await.map_err(|e| e.to_string())
     }
+
+    // Starts the Bedrock proxy via the production `bedrock_start_proxy` command
+    // path. Because proxy tests run against a fake upstream (not Xbox Live), a
+    // stub `AuthManager` is seeded into `BedrockState` so the command's auth
+    // guard passes; the stub carries no real credentials and authentication will
+    // fail at the upstream connection level, which is expected and non-fatal for
+    // the harness scenarios this is designed to support.
+    //
+    // `listen_port` is the local UDP port the proxy will bind. `upstream_host`
+    // and `upstream_port` point at the fake `BedrockServer`. On success the proxy
+    // is listening and `()` is returned; the caller emits `ProxyStarted`.
+    #[cfg(feature = "bedrock-protocol")]
+    pub async fn start_proxy(
+        handle: &tauri::AppHandle,
+        upstream_host: String,
+        upstream_port: u16,
+        listen_port: u16,
+    ) -> Result<(), String> {
+        use crate::bedrock::BedrockState;
+
+        {
+            let state = handle.state::<Mutex<BedrockState>>();
+            let mut state = state.lock().await;
+            if state.auth_manager.is_none() {
+                let auth_manager = std::sync::Arc::new(common::bedrock_protocol::AuthManager::offline());
+                state.auth_manager = Some(auth_manager);
+            }
+        }
+
+        crate::commands::bedrock::bedrock_start_proxy(
+            handle.clone(),
+            upstream_host,
+            upstream_port,
+            Some(listen_port),
+            "127.0.0.1".to_string(),
+            handle.state::<Mutex<BedrockState>>(),
+            handle.state::<Mutex<AppState>>(),
+            handle.state::<Arc<flume::Sender<crate::NetworkPacket>>>(),
+            handle.state::<Arc<crate::feature_flags::FeatureFlagService>>(),
+            handle.state::<Arc<AnalyticsService>>(),
+            handle.state::<Arc<crate::bedrock::JukeboxBeaconCache>>(),
+            handle.state::<Arc<crate::bedrock::JukeboxEjectInjector>>(),
+            handle.state::<Arc<crate::bedrock::PresenceInjector>>(),
+            handle.state::<Arc<crate::bedrock::BedrockConnectErrorChannel>>(),
+        )
+        .await
+    }
+
+    // Returns a freshly-constructed `BedrockState` wrapped in an async Mutex,
+    // ready to be registered with `app.manage()` in the e2e bin.
+    #[cfg(feature = "bedrock-protocol")]
+    pub fn bedrock_state() -> Mutex<crate::bedrock::BedrockState> {
+        Mutex::new(crate::bedrock::BedrockState::new())
+    }
+
+    // Returns a no-op `FeatureFlagService` (empty API key, no remote refresh)
+    // for the e2e bin to register so `bedrock_start_proxy` can extract it from
+    // State without hitting a real feature-flag endpoint.
+    #[cfg(feature = "bedrock-protocol")]
+    pub fn feature_flag_service() -> Arc<crate::feature_flags::FeatureFlagService> {
+        Arc::new(crate::feature_flags::FeatureFlagService::new(
+            String::new(),
+            String::new(),
+            String::new(),
+            std::time::Duration::from_secs(3600),
+        ))
+    }
+
+    // Returns a freshly-constructed `JukeboxBeaconCache` for state registration.
+    #[cfg(feature = "bedrock-protocol")]
+    pub fn beacon_cache() -> Arc<crate::bedrock::JukeboxBeaconCache> {
+        Arc::new(crate::bedrock::JukeboxBeaconCache::new())
+    }
+
+    // Returns a freshly-constructed `JukeboxEjectInjector` for state registration.
+    #[cfg(feature = "bedrock-protocol")]
+    pub fn eject_injector() -> Arc<crate::bedrock::JukeboxEjectInjector> {
+        crate::bedrock::JukeboxEjectInjector::new_shared()
+    }
+
+    // Returns a freshly-constructed `PresenceInjector` for state registration.
+    #[cfg(feature = "bedrock-protocol")]
+    pub fn presence_injector() -> Arc<crate::bedrock::PresenceInjector> {
+        crate::bedrock::PresenceInjector::new_shared()
+    }
+
+    // Returns a freshly-constructed `BedrockConnectErrorChannel` for state registration.
+    #[cfg(feature = "bedrock-protocol")]
+    pub fn connect_error_channel() -> Arc<crate::bedrock::BedrockConnectErrorChannel> {
+        Arc::new(crate::bedrock::BedrockConnectErrorChannel::new())
+    }
 }

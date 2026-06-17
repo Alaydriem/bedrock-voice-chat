@@ -173,19 +173,44 @@ fn main() {
             // telemetry-disabled instance so the real command path runs unchanged.
             app.manage(Connector::analytics_service());
 
-            // Bedrock caches are unused in the harness; pass None for each. The
-            // Fake backend drives the same construction path as the real app.
+            // Bedrock proxy commands read several State entries that the production
+            // `run()` registers but the harness bin must register explicitly. Each
+            // factory builds a no-op or default instance: FeatureFlagService uses an
+            // empty API key (no remote refresh), BedrockState starts empty (the stub
+            // auth manager is seeded by Connector::start_proxy on demand).
+            //
+            // beacon_cache, eject_injector, and presence_injector are constructed
+            // here so the same Arc is shared with build_managed_state below — the
+            // output stream manager calls beacon_cache.observe() as jukebox frames
+            // arrive, which is what lets the PlaySoundHandler resolve an event_id
+            // for bvc:eject. Without this wiring the eject silently drops.
+            #[cfg(feature = "bedrock-protocol")]
+            let harness_beacon_cache = Connector::beacon_cache();
+            #[cfg(feature = "bedrock-protocol")]
+            let harness_eject_injector = Connector::eject_injector();
+            #[cfg(feature = "bedrock-protocol")]
+            let harness_presence_injector = Connector::presence_injector();
+            #[cfg(feature = "bedrock-protocol")]
+            {
+                app.manage(Connector::bedrock_state());
+                app.manage(Connector::feature_flag_service());
+                app.manage(Arc::clone(&harness_beacon_cache));
+                app.manage(Arc::clone(&harness_eject_injector));
+                app.manage(Arc::clone(&harness_presence_injector));
+                app.manage(Connector::connect_error_channel());
+            }
+
             build_managed_state(
                 app,
                 backend.take().expect("backend taken once"),
                 #[cfg(feature = "bedrock-protocol")]
                 None,
                 #[cfg(feature = "bedrock-protocol")]
-                None,
+                Some(Arc::clone(&harness_beacon_cache)),
                 #[cfg(feature = "bedrock-protocol")]
-                None,
+                Some(Arc::clone(&harness_eject_injector)),
                 #[cfg(feature = "bedrock-protocol")]
-                None,
+                Some(Arc::clone(&harness_presence_injector)),
             )?;
 
             // Capture-drain thread: post-mix PCM out to stdout as it arrives.
@@ -268,13 +293,34 @@ fn main() {
                                 frames_into_jitter_buffer: into_jitter_buffer,
                             });
                         }
-                        Ok(InMsg::TriggerJukebox { .. })
-                        | Ok(InMsg::StartProxy { .. })
-                        | Ok(InMsg::InjectPresence { .. }) => {
-                            // No bin-side handler is wired for these commands yet;
-                            // acknowledge receipt so the orchestrator isn't left waiting.
+                        Ok(InMsg::TriggerJukebox { .. }) | Ok(InMsg::InjectPresence { .. }) => {
                             StdoutBridge::emit(&OutMsg::Log {
                                 line: "received unhandled command".to_string(),
+                            });
+                        }
+                        #[cfg(feature = "bedrock-protocol")]
+                        Ok(InMsg::StartProxy { upstream_host, upstream_port, listen_port }) => {
+                            let h = stdin_handle.clone();
+                            tauri::async_runtime::spawn(async move {
+                                match bvc_client_lib::testkit::connect::Connector::start_proxy(
+                                    &h,
+                                    upstream_host,
+                                    upstream_port,
+                                    listen_port,
+                                )
+                                .await
+                                {
+                                    Ok(()) => StdoutBridge::emit(&OutMsg::ProxyStarted { listen_port }),
+                                    Err(e) => StdoutBridge::emit(&OutMsg::Log {
+                                        line: format!("start_proxy failed: {e}"),
+                                    }),
+                                }
+                            });
+                        }
+                        #[cfg(not(feature = "bedrock-protocol"))]
+                        Ok(InMsg::StartProxy { .. }) => {
+                            StdoutBridge::emit(&OutMsg::Log {
+                                line: "start_proxy: bedrock-protocol feature not enabled".to_string(),
                             });
                         }
                         Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
