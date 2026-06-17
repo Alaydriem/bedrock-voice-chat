@@ -225,13 +225,9 @@ impl ServerRuntime {
         audio_playback_service.set_eject_scheduler(eject_scheduler);
 
         #[cfg(feature = "bedrock")]
-        let transfer_target_cache = if self.config.server.bedrock.enabled {
-            Some(crate::services::bedrock::TransferTargetCache::new(
-                self.config.server.bedrock.transfer_cache_ttl_secs,
-            ))
-        } else {
-            None
-        };
+        let transfer_target_cache = crate::services::bedrock::TransferTargetCache::new(
+            self.config.server.bedrock.transfer_cache_ttl_secs,
+        );
 
         // Create Rocket manager
         let mut rocket_manager = RocketManager::new(
@@ -258,7 +254,7 @@ impl ServerRuntime {
         let mut transfer_relay = None;
 
         #[cfg(feature = "bedrock")]
-        if self.config.server.bedrock.enabled {
+        {
             use common::traits::StreamTrait;
 
             let listen_ip: std::net::IpAddr = self.config.server.listen.parse()
@@ -281,16 +277,14 @@ impl ServerRuntime {
             }
             dns_service = Some(dns);
 
-            if let Some(ref cache) = transfer_target_cache {
-                let mut relay = crate::services::bedrock::TransferRelayService::new(
-                    self.config.server.bedrock.transfer_port,
-                    cache.clone(),
-                );
-                if let Err(e) = relay.start().await {
-                    tracing::error!("Failed to start bedrock transfer relay: {}", e);
-                }
-                transfer_relay = Some(relay);
+            let mut relay = crate::services::bedrock::TransferRelayService::new(
+                self.config.server.bedrock.transfer_port,
+                transfer_target_cache.clone(),
+            );
+            if let Err(e) = relay.start().await {
+                tracing::error!("Failed to start bedrock transfer relay: {}", e);
             }
+            transfer_relay = Some(relay);
         }
 
         // Register with Meridian if configured

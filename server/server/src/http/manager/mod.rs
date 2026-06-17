@@ -32,7 +32,7 @@ pub struct RocketManager {
     register_nonce_store: Option<Arc<crate::relay::RegisterNonceStore>>,
     peer_cert_issuer: Option<Arc<crate::relay::PeerCertIssuer>>,
     #[cfg(feature = "bedrock")]
-    transfer_target_cache: Option<crate::services::bedrock::TransferTargetCache>,
+    transfer_target_cache: crate::services::bedrock::TransferTargetCache,
 }
 
 impl RocketManager {
@@ -49,7 +49,7 @@ impl RocketManager {
         peer_cert_issuer: Option<Arc<crate::relay::PeerCertIssuer>>,
         audio_stream_token_cache: Option<AudioStreamTokenCache>,
         #[cfg(feature = "bedrock")]
-        transfer_target_cache: Option<crate::services::bedrock::TransferTargetCache>,
+        transfer_target_cache: crate::services::bedrock::TransferTargetCache,
     ) -> Self {
         Self {
             config,
@@ -120,8 +120,8 @@ impl RocketManager {
                     .manage(self.audio_stream_token_cache.clone());
 
                 #[cfg(feature = "bedrock")]
-                if let Some(ref cache) = self.transfer_target_cache {
-                    rocket = rocket.manage(cache.clone());
+                {
+                    rocket = rocket.manage(self.transfer_target_cache.clone());
                 }
 
                 if self.config.server.features.relay.enabled {

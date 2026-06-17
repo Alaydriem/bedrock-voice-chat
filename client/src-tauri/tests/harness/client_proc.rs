@@ -23,6 +23,8 @@ struct SharedState {
     last_channel_op: Option<String>,
     // Server-assigned (audio_file_id, duration_ms) from the last UploadAudio.
     last_upload: Option<(String, u32)>,
+    // Local listen port reported by OutMsg::ProxyStarted after a StartProxy command.
+    proxy_listen: Option<u16>,
     captured: Vec<f32>,
     stats: Option<(u64, u64, u64)>,
 }
@@ -129,6 +131,9 @@ impl ClientProc {
                     Ok(OutMsg::AudioUploaded { audio_file_id, duration_ms }) => {
                         reader_state.lock().unwrap().last_upload = Some((audio_file_id, duration_ms));
                     }
+                    Ok(OutMsg::ProxyStarted { listen_port }) => {
+                        reader_state.lock().unwrap().proxy_listen = Some(listen_port);
+                    }
                     Ok(OutMsg::CapturedPcm { samples }) => {
                         reader_state.lock().unwrap().captured.extend_from_slice(&samples);
                     }
@@ -228,6 +233,34 @@ impl ClientProc {
         }
     }
 
+    /// Tell the bin to start its Bedrock proxy pointed at `upstream_host:upstream_port`
+    /// and listening on `listen_port`, then block until the bin confirms with
+    /// `ProxyStarted` or `timeout` elapses. Returns `Ok(())` once the proxy is up.
+    pub fn start_proxy(
+        &self,
+        upstream_host: &str,
+        upstream_port: u16,
+        listen_port: u16,
+        timeout: Duration,
+    ) -> Result<(), String> {
+        self.state.lock().unwrap().proxy_listen = None;
+        self.send(&InMsg::StartProxy {
+            upstream_host: upstream_host.to_string(),
+            upstream_port,
+            listen_port,
+        });
+        let deadline = Instant::now() + timeout;
+        loop {
+            if self.state.lock().unwrap().proxy_listen == Some(listen_port) {
+                return Ok(());
+            }
+            if Instant::now() >= deadline {
+                return Err("timed out waiting for ProxyStarted".into());
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    }
+
     /// Send one channel-membership command and block until the bin echoes a
     /// matching `ChannelOpDone`. The completion latch is cleared first so a
     /// prior op's ack is never mistaken for this one.
@@ -307,6 +340,14 @@ impl ClientProc {
     /// snapshots and clears the buffer.
     pub fn collect_captured(&self, dur: Duration) -> Vec<f32> {
         std::thread::sleep(dur);
+        let mut state = self.state.lock().unwrap();
+        std::mem::take(&mut state.captured)
+    }
+
+    /// Snapshot and clear the accumulated captured samples without sleeping.
+    /// Use when the caller controls the sleep externally (e.g. concurrent
+    /// multi-player capture where a single shared sleep window covers all procs).
+    pub fn drain_captured(&self) -> Vec<f32> {
         let mut state = self.state.lock().unwrap();
         std::mem::take(&mut state.captured)
     }

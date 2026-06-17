@@ -14,7 +14,7 @@ use crate::bedrock::proxy::session::{
     GameTypeHandler, PlaySoundHandler, PlayerAuthInputHandler, SetHealthHandler, StartGameHandler,
 };
 use crate::bedrock::proxy::session::BedrockSessionState;
-
+use log::info;
 pub struct BedrockSessionEventDispatcher {
     player_name: String,
     beacon_cache: Arc<JukeboxBeaconCache>,
@@ -79,11 +79,13 @@ impl BedrockSessionEventDispatcher {
                 true
             }
             EventPacket::UpdatePlayerGameType(p) => {
+                info!("Received UpdatePlayerGameType: {:?}", p);
                 let gamemode = i64::from(p.player_game_type) as i32;
                 GameTypeHandler.handle(&gamemode, state, emitter);
                 true
             }
-            EventPacket::PlaySound(p) if matches!(direction, Direction::Clientbound) => {
+            EventPacket::PlaySound(p) => {
+                info!("Received PlaySound: {:?}", p);
                 PlaySoundHandler {
                     beacon_cache: &self.beacon_cache,
                 }
