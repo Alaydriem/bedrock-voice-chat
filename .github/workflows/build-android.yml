@@ -1,6 +1,6 @@
 name: Build Android Client
 permissions:
-  contents: read
+  contents: write
 
 on:
   workflow_call:
@@ -113,6 +113,13 @@ jobs:
         with:
           redis_url: ${{ secrets.UPSTASH_REDIS_REST_URL }}
           redis_token: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          sha: ${{ github.sha }}
+          branch: ${{ github.ref_name }}
+          ref: ${{ github.ref }}
+          version: ${{ steps.manualver.outputs.version }}
+          track: ${{ inputs.track }}
+          run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Apply manual build number
         if: steps.dispatch-build-number.outputs.build_number != ''
@@ -350,6 +357,7 @@ jobs:
           POSTHOG_HOST=${{ secrets.POSTHOG_HOST }}
           FLAGSMITH_KEY=${{ secrets.FLAGSMITH_KEY }}
           FLAGSMITH_SERVER=${{ secrets.FLAGSMITH_SERVER }}
+          APP_BUILD_NUMBER=${{ inputs.build_number != '' && inputs.build_number || steps.dispatch-build-number.outputs.build_number }}
           ENVEOF
 
       - name: Build Android

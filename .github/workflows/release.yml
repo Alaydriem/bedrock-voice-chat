@@ -81,13 +81,6 @@ jobs:
           redis_url: ${{ secrets.UPSTASH_REDIS_REST_URL }}
           redis_token: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
 
-      - name: Get build number
-        id: build-number
-        uses: ./.github/actions/get-build-number
-        with:
-          redis_url: ${{ secrets.UPSTASH_REDIS_REST_URL }}
-          redis_token: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
-
       - name: Run semantic-release
         id: semantic
         uses: cycjimmy/semantic-release-action@v4
@@ -99,6 +92,21 @@ jobs:
             @semantic-release/git
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
+
+      - name: Get build number
+        id: build-number
+        if: ${{ !inputs.dry_run }}
+        uses: ./.github/actions/get-build-number
+        with:
+          redis_url: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          redis_token: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          sha: ${{ github.sha }}
+          branch: ${{ github.ref_name }}
+          ref: ${{ github.ref }}
+          version: ${{ steps.semantic.outputs.new_release_version }}
+          track: ${{ github.ref == 'refs/heads/beta' && 'Beta Early Access' || 'production' }}
+          run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Release summary
         run: |
@@ -252,6 +260,7 @@ jobs:
       build_mode: release
       ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
       version: ${{ needs.prepare-release.outputs.new_version }}
+      build_number: ${{ needs.prepare-release.outputs.build_number }}
     secrets: inherit
 
   # Job 6: Build macOS client (release mode, signed + TestFlight upload)

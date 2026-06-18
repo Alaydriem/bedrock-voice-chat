@@ -8,6 +8,27 @@ inputs:
   redis_token:
     description: 'Upstash Redis REST API token'
     required: true
+  sha:
+    description: 'Git commit SHA for this build'
+    required: false
+  branch:
+    description: 'Branch name (ref_name)'
+    required: false
+  ref:
+    description: 'Full Git ref (refs/heads/...)'
+    required: false
+  version:
+    description: 'Semantic version string'
+    required: false
+  track:
+    description: 'Release track (e.g. alpha, Beta Early Access, production)'
+    required: false
+  run_url:
+    description: 'URL of the GitHub Actions run'
+    required: false
+  token:
+    description: 'GitHub token used to push builds.json to gh-pages'
+    required: false
 
 outputs:
   build_number:
@@ -31,3 +52,67 @@ runs:
         fi
         echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
         echo "Build number: $BUILD_NUMBER"
+
+    - name: Record build in Redis
+      shell: bash
+      env:
+        BUILD_NUMBER: ${{ steps.incr.outputs.build_number }}
+        SHA: ${{ inputs.sha }}
+        BRANCH: ${{ inputs.branch }}
+        REF: ${{ inputs.ref }}
+        VERSION: ${{ inputs.version }}
+        TRACK: ${{ inputs.track }}
+        RUN_URL: ${{ inputs.run_url }}
+        REDIS_URL: ${{ inputs.redis_url }}
+        REDIS_TOKEN: ${{ inputs.redis_token }}
+      run: |
+        set -e
+        RECORD=$(node -e '
+          const { BuildLedger } = require("./.github/scripts/build-ledger");
+          process.stdout.write(JSON.stringify(BuildLedger.record(process.argv[1], {
+            sha: process.argv[2], branch: process.argv[3], ref: process.argv[4],
+            version: process.argv[5], track: process.argv[6], run: process.argv[7], ts: process.argv[8],
+          })));
+        ' "$BUILD_NUMBER" "$SHA" "$BRANCH" "$REF" "$VERSION" "$TRACK" "$RUN_URL" "$(date -u +%FT%TZ)")
+        if [ -z "$RECORD" ]; then
+          echo "::error::failed to build ledger record"; exit 1
+        fi
+        HSET_BODY=$(jq -nc --arg f "$BUILD_NUMBER" --arg v "$RECORD" '["HSET","builds",$f,$v]')
+        HTTP_STATUS=$(curl -s -o /tmp/hset_resp -w "%{http_code}" -X POST \
+          -H "Authorization: Bearer $REDIS_TOKEN" -H "Content-Type: application/json" \
+          "$REDIS_URL" -d "$HSET_BODY")
+        if [ "$HTTP_STATUS" != "200" ]; then
+          echo "::warning::ledger HSET returned $HTTP_STATUS for build $BUILD_NUMBER"
+        fi
+
+    - name: Publish builds.json to gh-pages
+      if: ${{ inputs.token != '' }}
+      shell: bash
+      env:
+        BUILD_NUMBER: ${{ steps.incr.outputs.build_number }}
+        REDIS_URL: ${{ inputs.redis_url }}
+        REDIS_TOKEN: ${{ inputs.redis_token }}
+        TOKEN: ${{ inputs.token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+      run: |
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git config --global user.name "github-actions[bot]"
+        REPO_URL="https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+        PUSH_OK=0
+        for attempt in 1 2 3 4 5; do
+          rm -rf /tmp/ghp && git clone --depth 1 --branch gh-pages "$REPO_URL" /tmp/ghp || \
+            { git clone --depth 1 "$REPO_URL" /tmp/ghp && (cd /tmp/ghp && git checkout --orphan gh-pages && git rm -rf . >/dev/null 2>&1 || true); }
+          node .github/scripts/publish-build-ledger.js "$REDIS_URL" "$REDIS_TOKEN" /tmp/ghp/builds.json
+          ( cd /tmp/ghp
+            git add builds.json
+            git diff --cached --quiet && { echo "no change"; exit 0; }
+            git commit -m "chore: update build ledger ($BUILD_NUMBER) [skip ci]"
+            git push origin gh-pages
+          ) && { PUSH_OK=1; break; }
+          echo "push attempt $attempt failed; retrying"
+          sleep 3
+        done
+        if [ "$PUSH_OK" != "1" ]; then
+          echo "::error::failed to publish builds.json to gh-pages after 5 attempts"
+          exit 1
+        fi

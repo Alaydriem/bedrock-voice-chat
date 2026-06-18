@@ -149,6 +149,7 @@ mod tests {
             String::new(),
             String::new(),
             String::new(),
+            0,
             std::time::Duration::from_secs(3600),
         ));
         let telemetry = Arc::new(crate::logging::Telemetry::new(false));
