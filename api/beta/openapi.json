@@ -7,7 +7,7 @@
       "name": "Repository",
       "url": "https://github.com/alaydriem/bedrock-voice-chat"
     },
-    "version": "1.0.0-beta.12"
+    "version": "1.0.0-beta.13"
   },
   "paths": {
     "/api/position": {
@@ -2085,12 +2085,12 @@
       "description": "Operator-only administrative endpoints. Caller must present a valid mTLS certificate AND hold the `admin` permission."
     },
     {
-      "name": "Authentication",
-      "description": "OAuth2 authentication via Microsoft (Minecraft) or Hytale device code flow. Returns mTLS certificates and ncryptf keys for subsequent API calls. Interacting with these endpoints REQUIRES ncryptf. non-ncryptf request/response bodies are provided here as sample references."
-    },
-    {
       "name": "Identity",
       "description": "Player identity management. Retrieve current session state, permissions, and certificate renewal. Link external accounts such as Minecraft Java."
+    },
+    {
+      "name": "Authentication",
+      "description": "OAuth2 authentication via Microsoft (Minecraft) or Hytale device code flow. Returns mTLS certificates and ncryptf keys for subsequent API calls. Interacting with these endpoints REQUIRES ncryptf. non-ncryptf request/response bodies are provided here as sample references."
     },
     {
       "name": "Server",
