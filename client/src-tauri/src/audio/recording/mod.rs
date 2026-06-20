@@ -172,7 +172,10 @@ impl Recorder {
                                     *absolute_timestamp_ms =
                                         Some(abs_ts.saturating_sub(session_start_timestamp));
                                 }
-                                let target = if emitter.name.starts_with(common::consts::audio::JUKEBOX_PLAYER_PREFIX) {
+                                let target = if emitter
+                                    .name
+                                    .starts_with(common::consts::audio::JUKEBOX_PLAYER_PREFIX)
+                                {
                                     &mut jukebox_participants
                                 } else {
                                     &mut participants

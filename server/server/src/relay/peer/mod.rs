@@ -1,12 +1,10 @@
-pub mod cert;
 pub mod dial;
 pub mod link;
 pub mod manager;
 pub mod role;
 pub mod table;
 
-pub use cert::{PeerCertIssueError, PeerCertIssuer};
-pub use dial::{PeerDialDriver, PeerDialer, ProductionPeerDialDriver};
+pub use dial::{PeerDialer, ProductionPeerDialDriver, RedeemedDial};
 pub use link::{
     GatedPeerIngest, IDLE_TIMEOUT, PeerDirection, PeerLink, PeerLinkIngest, PeerLinkState,
     RelayIngestSink, WebhookIngestSink,

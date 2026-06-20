@@ -24,11 +24,7 @@ impl FlagsmithValue for bool {
 }
 
 impl FlagsmithValue for Option<i64> {
-    async fn fetch(
-        svc: &FeatureFlagService,
-        key: &str,
-        default: Option<i64>,
-    ) -> Option<i64> {
+    async fn fetch(svc: &FeatureFlagService, key: &str, default: Option<i64>) -> Option<i64> {
         svc.get_int_value(key).await.or(default)
     }
 }

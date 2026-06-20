@@ -6,7 +6,9 @@ use ts_rs::TS;
 #[serde(tag = "status")]
 pub enum ConnectionHealth {
     Connected,
-    Reconnecting { attempt: u32 },
+    Reconnecting {
+        attempt: u32,
+    },
     Disconnected,
     Failed,
     VersionMismatch {

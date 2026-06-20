@@ -72,7 +72,11 @@ impl KeyringService {
         self.set_keyring_password(server, KEY_CERTIFICATE, &response.certificate)?;
         self.set_keyring_password(server, KEY_CERTIFICATE_KEY, &response.certificate_key)?;
         self.set_keyring_password(server, KEY_CERTIFICATE_CA, &response.certificate_ca)?;
-        self.set_keyring_password(server, KEY_QUIC_CONNECT_STRING, &response.quic_connect_string)?;
+        self.set_keyring_password(
+            server,
+            KEY_QUIC_CONNECT_STRING,
+            &response.quic_connect_string,
+        )?;
 
         if let Some(ref perms) = response.server_permissions {
             self.set_keyring_password(
@@ -90,10 +94,7 @@ impl KeyringService {
         Ok(())
     }
 
-    pub fn get_credentials(
-        &mut self,
-        server: &str,
-    ) -> Result<LoginResponse, anyhow::Error> {
+    pub fn get_credentials(&mut self, server: &str) -> Result<LoginResponse, anyhow::Error> {
         if let Some(cached) = self.cache.get(server) {
             return Ok(cached.clone());
         }
@@ -103,11 +104,7 @@ impl KeyringService {
         Ok(response)
     }
 
-    pub fn get_credential(
-        &mut self,
-        server: &str,
-        key: &str,
-    ) -> Result<String, anyhow::Error> {
+    pub fn get_credential(&mut self, server: &str, key: &str) -> Result<String, anyhow::Error> {
         // For standard LoginResponse fields, try cache first
         if let Some(cached) = self.cache.get(server) {
             if let Some(value) = Self::extract_field(cached, key) {
@@ -134,10 +131,7 @@ impl KeyringService {
         super::CertificateValidator::is_expired(&cert_pem)
     }
 
-    pub fn delete_credentials(
-        &mut self,
-        server: &str,
-    ) -> Result<(), anyhow::Error> {
+    pub fn delete_credentials(&mut self, server: &str) -> Result<(), anyhow::Error> {
         for key in ALL_CREDENTIAL_KEYS {
             let _ = self.delete_keyring_password(server, key);
         }
@@ -167,24 +161,24 @@ impl KeyringService {
             .map_err(|e| anyhow::anyhow!("Failed to set keyring password for {}: {}", key, e))
     }
 
-    fn get_keyring_password(
-        &self,
-        server: &str,
-        key: &str,
-    ) -> Result<String, anyhow::Error> {
+    fn get_keyring_password(&self, server: &str, key: &str) -> Result<String, anyhow::Error> {
         let encoded_key = Self::make_key(server, key);
-        match self.app_handle.keyring().get(&encoded_key, CredentialType::Password) {
+        match self
+            .app_handle
+            .keyring()
+            .get(&encoded_key, CredentialType::Password)
+        {
             Ok(CredentialValue::Password(password)) => Ok(password),
             Ok(_) => Err(anyhow::anyhow!("Unexpected credential type for {}", key)),
-            Err(e) => Err(anyhow::anyhow!("Failed to get keyring password for {}: {}", key, e)),
+            Err(e) => Err(anyhow::anyhow!(
+                "Failed to get keyring password for {}: {}",
+                key,
+                e
+            )),
         }
     }
 
-    fn delete_keyring_password(
-        &self,
-        server: &str,
-        key: &str,
-    ) -> Result<(), anyhow::Error> {
+    fn delete_keyring_password(&self, server: &str, key: &str) -> Result<(), anyhow::Error> {
         let encoded_key = Self::make_key(server, key);
         self.app_handle
             .keyring()
@@ -192,10 +186,7 @@ impl KeyringService {
             .map_err(|e| anyhow::anyhow!("Failed to delete keyring password for {}: {}", key, e))
     }
 
-    fn load_credentials_from_keyring(
-        &self,
-        server: &str,
-    ) -> Result<LoginResponse, anyhow::Error> {
+    fn load_credentials_from_keyring(&self, server: &str) -> Result<LoginResponse, anyhow::Error> {
         let gamerpic = self.get_keyring_password(server, KEY_GAMERPIC)?;
         let gamertag = self.get_keyring_password(server, KEY_GAMERTAG)?;
         let keypair: Keypair =
@@ -269,7 +260,8 @@ impl KeyringService {
                 KEY_CERTIFICATE_CA => cached.certificate_ca = value.to_string(),
                 KEY_QUIC_CONNECT_STRING => cached.quic_connect_string = value.to_string(),
                 KEY_SERVER_PERMISSIONS => {
-                    cached.server_permissions = serde_json::from_str::<ServerPermissions>(value).ok();
+                    cached.server_permissions =
+                        serde_json::from_str::<ServerPermissions>(value).ok();
                 }
                 KEY_MINECRAFT_USERNAME => {
                     cached.minecraft_username = Some(value.to_string());

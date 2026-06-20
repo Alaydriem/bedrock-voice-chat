@@ -63,13 +63,19 @@ struct E2eEnv;
 
 impl E2eEnv {
     fn connect_config() -> Option<ConnectConfig> {
-        let code = std::env::var("BVC_E2E_CODE").ok().filter(|s| !s.is_empty())?;
+        let code = std::env::var("BVC_E2E_CODE")
+            .ok()
+            .filter(|s| !s.is_empty())?;
         Some(ConnectConfig {
             server: std::env::var("BVC_E2E_SERVER").unwrap_or_default(),
             gamertag: std::env::var("BVC_E2E_GAMERTAG").unwrap_or_default(),
             code,
-            channel: std::env::var("BVC_E2E_CHANNEL").ok().filter(|s| !s.is_empty()),
-            channel_id: std::env::var("BVC_E2E_CHANNEL_ID").ok().filter(|s| !s.is_empty()),
+            channel: std::env::var("BVC_E2E_CHANNEL")
+                .ok()
+                .filter(|s| !s.is_empty()),
+            channel_id: std::env::var("BVC_E2E_CHANNEL_ID")
+                .ok()
+                .filter(|s| !s.is_empty()),
         })
     }
 }
@@ -100,9 +106,18 @@ impl StoreSeeder {
 
     fn seed(store: &Arc<tauri_plugin_store::Store<tauri::Wry>>) {
         store.set("current_player", serde_json::json!("E2ePlayer"));
-        store.set("input_audio_device", Self::fake_device("input_audio_device"));
-        store.set("output_audio_device", Self::fake_device("output_audio_device"));
-        store.set("install_id", serde_json::json!("00000000-0000-0000-0000-000000000000"));
+        store.set(
+            "input_audio_device",
+            Self::fake_device("input_audio_device"),
+        );
+        store.set(
+            "output_audio_device",
+            Self::fake_device("output_audio_device"),
+        );
+        store.set(
+            "install_id",
+            serde_json::json!("00000000-0000-0000-0000-000000000000"),
+        );
         store.set("use_noise_gate", serde_json::json!(false));
         let _ = store.save();
     }
@@ -120,7 +135,6 @@ fn main() {
         .chain(std::io::stderr())
         .apply();
 
-
     // input_tx feeds the real DSP through BridgeInputSource; cap_rx receives
     // post-mix PCM from CapturingSink.
     let (input_tx, input_rx) = flume::unbounded::<Vec<f32>>();
@@ -132,6 +146,18 @@ fn main() {
     let mut backend = Some(AudioBackend::Fake { input, capture });
     let mut cap_rx = Some(cap_rx);
     let mut input_tx = Some(input_tx);
+
+    // Move app_data_dir into a throwaway e2e namespace so every identifier-scoped
+    // write — the seeded store, the audio input path's own `app.store("store.json")`
+    // read, the webview's store/cookies — lands off the real client's app-data dir.
+    // The harness wipes this namespace between runs.
+    let mut context = tauri::generate_context!();
+    context.config_mut().identifier = "com.alaydriem.bvc.client.e2e".to_string();
+    // Headless: drop the configured window so no WebView2 instance is created. This
+    // removes the dominant per-process cost (each WebView2 spawns several helper
+    // processes), letting many client procs run without exhausting resources. The
+    // test driver is entirely Rust over the AppHandle + managed State.
+    context.config_mut().app.windows.clear();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -149,20 +175,13 @@ fn main() {
         .setup(move |app| {
             let handle = app.handle().clone();
 
-            // tauri.conf.json declares a `main` window that Tauri auto-creates,
-            // so hide that one rather than building a second `main`. Fall back to
-            // building a hidden window if no config window is present.
-            match app.get_webview_window("main") {
-                Some(window) => {
-                    let _ = window.hide();
-                }
-                None => {
-                    tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::default())
-                        .visible(false)
-                        .build()?;
-                }
-            }
+            // No window is created (cleared from the context above), so there is
+            // nothing to hide here — the bin runs headless.
 
+            // The audio input path (and others) read `app.store("store.json")`
+            // resolved under app_data_dir, so the seed must use that same relative
+            // path — the e2e identifier override in `main` is what keeps app_data_dir
+            // (and therefore this store) out of the production namespace.
             let store = app.store("store.json")?;
             StoreSeeder::seed(&store);
 
@@ -191,12 +210,15 @@ fn main() {
             #[cfg(feature = "bedrock-protocol")]
             let harness_presence_injector = Connector::presence_injector();
             #[cfg(feature = "bedrock-protocol")]
+            let harness_announce_injector = Connector::announce_injector();
+            #[cfg(feature = "bedrock-protocol")]
             {
                 app.manage(Connector::bedrock_state());
                 app.manage(Connector::feature_flag_service());
                 app.manage(Arc::clone(&harness_beacon_cache));
                 app.manage(Arc::clone(&harness_eject_injector));
                 app.manage(Arc::clone(&harness_presence_injector));
+                app.manage(Arc::clone(&harness_announce_injector));
                 app.manage(Connector::connect_error_channel());
             }
 
@@ -211,6 +233,8 @@ fn main() {
                 Some(Arc::clone(&harness_eject_injector)),
                 #[cfg(feature = "bedrock-protocol")]
                 Some(Arc::clone(&harness_presence_injector)),
+                #[cfg(feature = "bedrock-protocol")]
+                Some(Arc::clone(&harness_announce_injector)),
             )?;
 
             // Capture-drain thread: post-mix PCM out to stdout as it arrives.
@@ -299,7 +323,11 @@ fn main() {
                             });
                         }
                         #[cfg(feature = "bedrock-protocol")]
-                        Ok(InMsg::StartProxy { upstream_host, upstream_port, listen_port }) => {
+                        Ok(InMsg::StartProxy {
+                            upstream_host,
+                            upstream_port,
+                            listen_port,
+                        }) => {
                             let h = stdin_handle.clone();
                             tauri::async_runtime::spawn(async move {
                                 match bvc_client_lib::testkit::connect::Connector::start_proxy(
@@ -310,7 +338,9 @@ fn main() {
                                 )
                                 .await
                                 {
-                                    Ok(()) => StdoutBridge::emit(&OutMsg::ProxyStarted { listen_port }),
+                                    Ok(()) => {
+                                        StdoutBridge::emit(&OutMsg::ProxyStarted { listen_port })
+                                    }
                                     Err(e) => StdoutBridge::emit(&OutMsg::Log {
                                         line: format!("start_proxy failed: {e}"),
                                     }),
@@ -320,7 +350,8 @@ fn main() {
                         #[cfg(not(feature = "bedrock-protocol"))]
                         Ok(InMsg::StartProxy { .. }) => {
                             StdoutBridge::emit(&OutMsg::Log {
-                                line: "start_proxy: bedrock-protocol feature not enabled".to_string(),
+                                line: "start_proxy: bedrock-protocol feature not enabled"
+                                    .to_string(),
                             });
                         }
                         Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
@@ -357,7 +388,7 @@ fn main() {
             StdoutBridge::emit(&OutMsg::Ready);
             Ok(())
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building e2e tauri application")
         .run(|_app_handle, _event| {});
 }

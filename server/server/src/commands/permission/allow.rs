@@ -1,11 +1,11 @@
 use clap::Parser;
+use common::Game;
 use common::request::admin::SetPermissionRequest;
 use common::structs::permission::PermissionEffect;
-use common::Game;
 
+use crate::commands::Cli;
 use crate::commands::admin_api_client::AdminApiClient;
 use crate::commands::admin_api_error::AdminApiError;
-use crate::commands::Cli;
 
 #[derive(Debug, Parser, Clone)]
 #[clap(author, version, about = "Explicitly allow a permission for a player", long_about = None)]
@@ -44,10 +44,9 @@ impl Config {
                 "Player '{}' not found for game '{}'",
                 self.player, self.game
             ),
-            Err(AdminApiError::BadRequest(_)) => eprintln!(
-                "Unknown permission: '{}'",
-                self.permission
-            ),
+            Err(AdminApiError::BadRequest(_)) => {
+                eprintln!("Unknown permission: '{}'", self.permission)
+            }
             Err(e) => {
                 eprintln!("Failed to update permission: {}", e);
                 std::process::exit(1);

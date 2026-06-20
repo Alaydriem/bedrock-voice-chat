@@ -78,7 +78,9 @@ impl BridgeInputSource {
         }
 
         // Start the clock on first frame so its zero point is the first emit.
-        let clock = self.clock.get_or_insert_with(|| FrameClock::new(FRAME_INTERVAL_MS));
+        let clock = self
+            .clock
+            .get_or_insert_with(|| FrameClock::new(FRAME_INTERVAL_MS));
         clock.wait_next();
 
         Some(frame)

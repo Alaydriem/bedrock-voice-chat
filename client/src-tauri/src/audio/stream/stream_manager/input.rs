@@ -3,14 +3,14 @@ use super::resampler::AudioResampler;
 use super::AudioFrame;
 use super::input_core::InputProcessCore;
 use super::source::AudioInputSource;
+use crate::NetworkPacket;
 use crate::audio::recording::{RawRecordingData, RecordingProducer};
 use crate::audio::stream::{RecoverySender, StreamRecoveryEvent};
-use crate::audio::types::{AudioDevice, AudioDeviceCpal, AudioDeviceType, BUFFER_SIZE};
 #[cfg(feature = "e2e")]
 use crate::audio::types::FakeAudioDevice;
+use crate::audio::types::{AudioDevice, AudioDeviceCpal, AudioDeviceType, BUFFER_SIZE};
 #[cfg(feature = "bedrock-protocol")]
 use crate::bedrock::BedrockPlayerStateCache;
-use crate::NetworkPacket;
 use anyhow::anyhow;
 use audio_gate::NoiseGate;
 use common::RecordingPlayerData;
@@ -199,8 +199,9 @@ impl InputStream {
         recording_producer: Option<Arc<RecordingProducer>>,
         recording_active: Option<Arc<AtomicBool>>,
         recovery_tx: RecoverySender,
-        #[cfg(feature = "bedrock-protocol")]
-        player_state_cache: Option<Arc<BedrockPlayerStateCache>>,
+        #[cfg(feature = "bedrock-protocol")] player_state_cache: Option<
+            Arc<BedrockPlayerStateCache>,
+        >,
     ) -> Self {
         Self {
             device,
@@ -556,10 +557,10 @@ impl InputStream {
         );
 
         // Trailing frame count scales with release_rate, identical to the Cpal path
-        let tail_frame_count: u32 =
-            (noise_gate_settings.release_rate / OPUS_FRAME_DURATION_MS as f32)
-                .ceil()
-                .max(2.0) as u32;
+        let tail_frame_count: u32 = (noise_gate_settings.release_rate
+            / OPUS_FRAME_DURATION_MS as f32)
+            .ceil()
+            .max(2.0) as u32;
 
         // Resample the source rate to 48 kHz if needed, mirroring the Cpal path
         let audio_resampler = match AudioResampler::new_if_needed(src_sample_rate) {
@@ -610,9 +611,8 @@ impl InputStream {
         // device.
         #[cfg(feature = "e2e")]
         let resolved_device = self.device.clone().or_else(|| {
-            fake_config.map(|(sample_rate, channels)| {
-                AudioDevice::fake_for_sender(sample_rate, channels)
-            })
+            fake_config
+                .map(|(sample_rate, channels)| AudioDevice::fake_for_sender(sample_rate, channels))
         });
         #[cfg(not(feature = "e2e"))]
         let resolved_device = {

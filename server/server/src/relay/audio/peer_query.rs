@@ -18,5 +18,6 @@ pub struct ResolvedAudio {
 // The `correlation_id` (the playback `event_id`) keys the outstanding query so
 // concurrent fetches of the same `audio_id` never clobber each other.
 pub trait AudioPeerQuery: Send + Sync {
-    fn query_audio(&self, audio_id: &str, correlation_id: &str) -> oneshot::Receiver<ResolvedAudio>;
+    fn query_audio(&self, audio_id: &str, correlation_id: &str)
+    -> oneshot::Receiver<ResolvedAudio>;
 }

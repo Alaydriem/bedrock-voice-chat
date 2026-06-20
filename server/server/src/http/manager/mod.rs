@@ -2,7 +2,10 @@ use crate::{
     config::ApplicationConfig,
     http::pool::AppDb,
     http::routes,
-    services::{AudioPlaybackService, AudioStreamTokenCache, BedrockEventService, CertificateService, PlayerIdentityService, PlayerRegistrarService},
+    services::{
+        AudioPlaybackService, AudioStreamTokenCache, BedrockEventService, CertificateService,
+        PlayerIdentityService, PlayerRegistrarService,
+    },
     stream::quic::{CacheManager, WebhookReceiver},
 };
 use anyhow::Error;
@@ -26,11 +29,11 @@ pub struct RocketManager {
     cert_service: Arc<CertificateService>,
     hytale_session_cache: routes::api::HytaleSessionCache,
     audio_stream_token_cache: AudioStreamTokenCache,
-    // Relay-client-side state. Present when this server runs the cross-server
-    // relay client: the nonce store backs the `/relay/proof` endpoint-control
-    // responder and the peer-cert issuer backs `/relay/peer-cert`.
-    register_nonce_store: Option<Arc<crate::relay::RegisterNonceStore>>,
-    peer_cert_issuer: Option<Arc<crate::relay::PeerCertIssuer>>,
+    // Code-redemption relay state: the in-memory peer store backs `/relay/offer`
+    // (mint) and `/relay/peer-redeem`, and the inject delivery pushes a minted
+    // code into the realm via this server's own client.
+    server_peer_store: Option<Arc<crate::relay::ServerPeerStore>>,
+    relay_inject_delivery: Option<Arc<dyn crate::relay::LocalInjectDelivery>>,
     #[cfg(feature = "bedrock")]
     transfer_target_cache: crate::services::bedrock::TransferTargetCache,
 }
@@ -45,8 +48,8 @@ impl RocketManager {
         audio_playback_service: Arc<AudioPlaybackService>,
         bedrock_event_service: Arc<BedrockEventService>,
         cert_service: Arc<CertificateService>,
-        register_nonce_store: Option<Arc<crate::relay::RegisterNonceStore>>,
-        peer_cert_issuer: Option<Arc<crate::relay::PeerCertIssuer>>,
+        server_peer_store: Option<Arc<crate::relay::ServerPeerStore>>,
+        relay_inject_delivery: Option<Arc<dyn crate::relay::LocalInjectDelivery>>,
         audio_stream_token_cache: Option<AudioStreamTokenCache>,
         #[cfg(feature = "bedrock")]
         transfer_target_cache: crate::services::bedrock::TransferTargetCache,
@@ -63,8 +66,8 @@ impl RocketManager {
             hytale_session_cache: routes::api::HytaleSessionCache::new(),
             audio_stream_token_cache: audio_stream_token_cache
                 .unwrap_or_else(AudioStreamTokenCache::new),
-            register_nonce_store,
-            peer_cert_issuer,
+            server_peer_store,
+            relay_inject_delivery,
             #[cfg(feature = "bedrock")]
             transfer_target_cache,
         }
@@ -77,7 +80,10 @@ impl RocketManager {
         // Ensure the assets directory exists
         let assets_path = std::path::Path::new(&self.config.server.assets_path);
         if !assets_path.exists() {
-            tracing::info!("Assets directory does not exist, creating: {:?}", assets_path);
+            tracing::info!(
+                "Assets directory does not exist, creating: {:?}",
+                assets_path
+            );
             if let Err(e) = std::fs::create_dir_all(assets_path) {
                 tracing::warn!("Failed to create assets directory: {}", e);
             }
@@ -87,7 +93,7 @@ impl RocketManager {
             Ok(figment) => {
                 let cache = cached::TimedCache::with_lifespan_and_refresh(
                     std::time::Duration::from_secs(3600),
-                    true
+                    true,
                 );
                 let cache = Arc::new(Mutex::new(cache));
                 let cache_wrapper = ncryptf::rocket::CacheWrapper::TimedCache(cache);
@@ -124,54 +130,39 @@ impl RocketManager {
                     rocket = rocket.manage(self.transfer_target_cache.clone());
                 }
 
-                if self.config.server.features.relay.enabled {
-                    tracing::info!("features.relay enabled, mounting relay discovery routes");
-                    let reachability: Arc<dyn crate::relay::EndpointReachability> =
-                        Arc::new(crate::relay::HttpEndpointReachability::default());
-                    rocket = rocket
-                        .manage(crate::relay::RelayRegistry::new_shared())
-                        .manage(reachability)
-                        .mount(
-                            "/relay",
-                            routes![
-                                routes::relay::challenge::challenge,
-                                routes::relay::register::register,
-                                routes::relay::lookup::lookup,
-                            ],
-                        );
-                }
-
-                // Relay-client-side routes: the endpoint-control proof responder
-                // and the peer-cert issuer. Mounted only when this server runs
-                // the relay client (state present).
-                if let (Some(nonces), Some(issuer)) =
-                    (&self.register_nonce_store, &self.peer_cert_issuer)
+                // Cross-server peering routes: the code-mint/offer, code-redeem, and
+                // peer-link endpoints two servers sharing a realm use directly.
+                // Discovery is decentralized (in-realm `!bvca` announce); there is no
+                // central relay role to mount. Present whenever the relay plane built.
+                if let (Some(store), Some(inject)) =
+                    (&self.server_peer_store, &self.relay_inject_delivery)
                 {
-                    tracing::info!("relay client active, mounting /relay/proof and /relay/peer-cert");
-                    rocket = rocket
-                        .manage(nonces.clone())
-                        .manage(issuer.clone())
-                        .mount(
-                            "/relay",
-                            routes![routes::relay::proof::proof, routes::relay::peer_cert::peer_cert],
-                        );
+                    tracing::info!(
+                        "relay plane active, mounting /relay/{{offer,peer-redeem,peer-link}}"
+                    );
+                    rocket = rocket.manage(store.clone()).manage(inject.clone()).mount(
+                        "/api/relay",
+                        routes![
+                            routes::api::relay::offer::offer,
+                            routes::api::relay::peer_redeem::peer_redeem,
+                            routes::api::relay::peer_link::peer_link,
+                        ],
+                    );
                 }
 
                 let mut rocket = rocket
                     .attach(AppDb::init())
                     .attach(cors.to_cors().unwrap())
                     .attach(rocket::fairing::AdHoc::try_on_ignite("Migrations", migrate))
-                    .mount("/assets", rocket::fs::FileServer::from(&self.config.server.assets_path))
-                    .mount("/assets", routes![
-                        routes::assets::get_avatar,
-                        routes::assets::get_canvas,
-                    ])
                     .mount(
-                        "/ncryptf",
-                        routes![
-                            routes::ncryptf::ncryptf_ek_route
-                        ],
-                    );
+                        "/assets",
+                        rocket::fs::FileServer::from(&self.config.server.assets_path),
+                    )
+                    .mount(
+                        "/assets",
+                        routes![routes::assets::get_avatar, routes::assets::get_canvas,],
+                    )
+                    .mount("/ncryptf", routes![routes::ncryptf::ncryptf_ek_route]);
 
                 for (prefix, route_list) in crate::http::openapi::OpenApiSpec::routes() {
                     rocket = rocket.mount(prefix, route_list);
@@ -187,8 +178,13 @@ impl RocketManager {
                     tracing::info!("OpenAPI docs enabled at /docs");
                 }
 
-                let rocket = rocket
-                    .register("/", catchers![routes::catchers::default_catcher]);
+                let rocket = rocket.register(
+                    "/",
+                    catchers![
+                        routes::catchers::default_catcher,
+                        rocket_governor::rocket_governor_catcher
+                    ],
+                );
 
                 match rocket.ignite().await {
                     Ok(ignite) => {

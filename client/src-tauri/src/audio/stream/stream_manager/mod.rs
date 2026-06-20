@@ -18,9 +18,9 @@ use crate::audio::types::AudioDevice;
 pub(crate) use audio_sink::AudioSinkType;
 pub(crate) use common::traits::StreamTrait;
 pub(crate) use input::InputStream;
+pub(crate) use output::OutputStream;
 pub(crate) use sink::AudioOutputSink;
 pub(crate) use source::AudioInputSource;
-pub(crate) use output::OutputStream;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]

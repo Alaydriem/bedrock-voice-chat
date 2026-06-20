@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use rocket::{http::Status, serde::json::Json, State};
 use crate::http::openapi::CustomJsonResponse;
-use rocket_okapi::openapi;
 use common::request::{AudioPlayRequest, GameAudioContext};
 use common::response::AudioEventResponse;
+use rocket::{State, http::Status, serde::json::Json};
+use rocket_okapi::openapi;
 
 use crate::http::guards::MCAccessToken;
 use crate::http::pool::Db;
@@ -24,14 +24,13 @@ pub async fn audio_event_play(
 
     if let GameAudioContext::Minecraft(ctx) = &request.game {
         if !ctx.world_uuid.is_empty() {
-            bedrock_event_service.notify_addon_http(&ctx.world_uuid).await;
+            bedrock_event_service
+                .notify_addon_http(&ctx.world_uuid)
+                .await;
         }
     }
 
-    match playback_service
-        .start_playback(conn, request)
-        .await
-    {
+    match playback_service.start_playback(conn, request).await {
         Ok(response) => CustomJsonResponse::ok(response),
         Err(e) => {
             tracing::error!("Failed to start playback: {}", e);

@@ -17,7 +17,10 @@ use std::fmt;
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Hash, ts_rs::TS)]
 #[cfg_attr(feature = "openapi", derive(schemars::JsonSchema))]
 #[ts(export, export_to = "./../../client/src/js/bindings/")]
-#[cfg_attr(feature = "server", derive(sea_orm::EnumIter, sea_orm::DeriveActiveEnum, clap::ValueEnum))]
+#[cfg_attr(
+    feature = "server",
+    derive(sea_orm::EnumIter, sea_orm::DeriveActiveEnum, clap::ValueEnum)
+)]
 #[cfg_attr(feature = "server", sea_orm(rs_type = "String", db_type = "Text"))]
 pub enum Game {
     #[serde(rename = "minecraft")]

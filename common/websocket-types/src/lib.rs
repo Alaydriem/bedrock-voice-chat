@@ -6,4 +6,6 @@ pub mod success_response;
 pub use command::{Command, CommandMessage};
 pub use device_type::DeviceType;
 pub use error_response::ErrorResponse;
-pub use success_response::{MuteData, PongData, RecordData, ResponseData, StateData, SuccessResponse};
+pub use success_response::{
+    MuteData, PongData, RecordData, ResponseData, StateData, SuccessResponse,
+};

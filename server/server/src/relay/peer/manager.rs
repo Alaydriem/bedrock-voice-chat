@@ -1,22 +1,21 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use tokio::sync::{mpsc, oneshot};
 
+use common::structs::packet::PacketOwner;
 use common::structs::relay::{AudioQuery, RelayEndpoint};
 
-use common::structs::packet::PeerPresenceInjectPacket;
-
 use super::link::ingest_sink::RelayIngestSink;
-use super::link::{PeerDirection, PeerLink};
+use super::link::{IDLE_TIMEOUT, PeerDirection, PeerLink};
 use super::role::Caps;
 use super::table::PeerTable;
 use crate::relay::audio::peer_query::{AudioPeerQuery, ResolvedAudio};
 use crate::relay::audio::source::AudioSource;
 use crate::relay::presence::gate::PresenceGate;
-use crate::relay::presence::{PresenceProver, CHALLENGE_TTL};
 use crate::relay::relayed_packet::{PacketOrigin, RelayedPacket};
 
 // Coordinates server↔server peer links: deterministic dial/accept tiebreak,
@@ -32,12 +31,6 @@ pub struct PeerManager {
     peer_table: Arc<PeerTable>,
     ingest: Arc<dyn RelayIngestSink>,
     presence: Arc<dyn PresenceGate>,
-    // Concrete presence-proof orchestrator (challenge generation + echo
-    // bookkeeping). Optional so the existing dial/accept/forward tests can keep
-    // injecting an `AlwaysProven`/`NeverProven` gate without a real prover. The
-    // runtime sets this to the same `PresenceProver` instance used as
-    // the `presence` gate so the gate's `is_proven` and the orchestration agree.
-    prover: Mutex<Option<Arc<PresenceProver>>>,
     // Cross-server jukebox responder. Optional so the dial/accept/forward and
     // presence tests need not construct a database-backed file lookup; the
     // runtime installs the concrete `AudioSource` via `set_audio_source`. When
@@ -53,7 +46,21 @@ pub struct PeerManager {
     pending_audio_queries: Mutex<HashMap<String, oneshot::Sender<ResolvedAudio>>>,
     // endpoint string -> link
     links: Mutex<HashMap<String, PeerLink>>,
+    // Offers we've sent (asker side): peer endpoint -> (hashed_world, when). Caps
+    // re-offers (cooldown) and lets the observe→redeem path know which minters to
+    // try an observed code against.
+    pending_offers: Mutex<HashMap<String, (String, Instant)>>,
+    // Seconds a link may sit idle before `sweep_idle` closes it. Defaults to
+    // `IDLE_TIMEOUT`; the runtime lowers it from relay config for integration tests.
+    idle_timeout_secs: AtomicU64,
 }
+
+// Re-offer cooldown: don't re-offer to the same peer within this window.
+const OFFER_COOLDOWN: Duration = Duration::from_secs(15);
+
+// How long an observed peer announce keeps the peer in the table before a fresh
+// announce must refresh it. Mirrors the old register TTL (300s).
+const ANNOUNCE_TTL: Duration = Duration::from_secs(300);
 
 impl PeerManager {
     pub fn new(
@@ -67,11 +74,19 @@ impl PeerManager {
             peer_table,
             ingest,
             presence,
-            prover: Mutex::new(None),
             audio_source: Mutex::new(None),
             pending_audio_queries: Mutex::new(HashMap::new()),
             links: Mutex::new(HashMap::new()),
+            pending_offers: Mutex::new(HashMap::new()),
+            idle_timeout_secs: AtomicU64::new(IDLE_TIMEOUT.as_secs()),
         }
+    }
+
+    // Override the idle-link teardown window. Called by the runtime from relay
+    // config; integration tests lower it so a drop + reconnect is observable.
+    pub fn set_idle_timeout(&self, timeout: Duration) {
+        self.idle_timeout_secs
+            .store(timeout.as_secs(), AtomicOrdering::Relaxed);
     }
 
     pub fn new_shared(
@@ -88,16 +103,6 @@ impl PeerManager {
         format!("{}:{}", ep.host, ep.port)
     }
 
-    // Installs the concrete presence-proof orchestrator. Called by the runtime
-    // with the same `PresenceProver` that backs the `presence` gate.
-    pub fn set_prover(&self, prover: Arc<PresenceProver>) {
-        *self.prover.lock().expect("prover poisoned") = Some(prover);
-    }
-
-    fn prover(&self) -> Option<Arc<PresenceProver>> {
-        self.prover.lock().expect("prover poisoned").clone()
-    }
-
     // Installs the cross-server jukebox responder. Called by the runtime with an
     // `AudioSource` wired to the local audio file lookup + stream-token cache.
     pub fn set_audio_source(&self, source: Arc<AudioSource>) {
@@ -105,76 +110,10 @@ impl PeerManager {
     }
 
     fn audio_source(&self) -> Option<Arc<AudioSource>> {
-        self.audio_source.lock().expect("audio source poisoned").clone()
-    }
-
-    // Generates a fresh presence challenge for every active world that has a
-    // non-self peer not yet proven, returning the `(hashed_world, packet)` pairs
-    // the runtime must deliver as `PeerPresenceInject` to this server's OWN local
-    // client(s) in that world (NEVER to a peer — see `PresenceProver` invariant).
-    // Empty when no prover is installed.
-    pub fn challenges_to_send(&self, now: Instant) -> Vec<(String, PeerPresenceInjectPacket)> {
-        let prover = match self.prover() {
-            Some(p) => p,
-            None => return Vec::new(),
-        };
-        let ttl_ms = CHALLENGE_TTL.as_millis() as u32;
-        let mut out = Vec::new();
-        for world in self.peer_table.active_worlds() {
-            let needs_challenge = self.peer_table.peers_for_world(&world).iter().any(|peer| {
-                let key = Self::endpoint_key(peer);
-                // A challenge is needed until the peer has echoed a token WE
-                // injected for this world. The OUTBOUND half (us echoing their
-                // token) is driven by their own challenge, so it must not
-                // suppress ours.
-                !Self::is_self(&self.self_endpoint, &key) && !prover.peer_proved_us(peer, &world)
-            });
-            if needs_challenge {
-                let token = prover.new_challenge(&world, now);
-                out.push((world, PeerPresenceInjectPacket { token, ttl_ms }));
-            }
-        }
-        out
-    }
-
-    // Routes a `PeerPresenceObserved` token a peer echoed back to us over the
-    // peer link into the prover, marking the peer proven for the world it echoed
-    // a token for (no-op without a prover or on an unknown/expired token).
-    pub fn route_observed_from_peer(&self, peer_ep: &str, token: &str, now: Instant) {
-        if let Some(prover) = self.prover() {
-            prover.record_observed_from_peer(peer_ep, token, now);
-        }
-    }
-
-    // Records that one of THIS server's own local clients observed a token in the
-    // realm (the peer challenged us). The token is echoed back to the peer
-    // link(s) via `tokens_to_echo_to_peer` only when it matches a challenge we
-    // are participating in (enforced inside the prover); arbitrary
-    // strings are dropped.
-    pub fn on_local_client_observed(&self, token: &str, now: Instant) {
-        if let Some(prover) = self.prover() {
-            prover.on_client_observed(token, now);
-        }
-    }
-
-    // Registers a token a peer is expected to challenge us with for
-    // `hashed_world`, so our client's later observation of it is treated as a
-    // known (echo-eligible) token rather than dropped.
-    pub fn expect_observed(&self, token: &str, hashed_world: &str, now: Instant) {
-        if let Some(prover) = self.prover() {
-            prover.expect_observed(token, hashed_world, now);
-        }
-    }
-
-    // Drains the `(token, hashed_world)` pairs our local clients observed that
-    // must be echoed to peers over the link as `PeerPresenceObserved`. Empty
-    // without a prover. World-attributed so the echo records the mutual-proof
-    // half for the correct world.
-    pub fn tokens_to_echo_to_peer(&self) -> Vec<(String, String)> {
-        match self.prover() {
-            Some(prover) => prover.tokens_to_echo_to_peer(),
-            None => Vec::new(),
-        }
+        self.audio_source
+            .lock()
+            .expect("audio source poisoned")
+            .clone()
     }
 
     // Deterministic tiebreak: the lexically-lower endpoint dials; the other
@@ -208,55 +147,84 @@ impl PeerManager {
         }
     }
 
-    // Reconciles the link table against the current `PeerTable` discovery view.
-    // For each non-self peer this server should initiate to (and that presence
-    // has proven for the world), ensures a `Dialing` link exists. Acceptor-side
-    // links are created lazily when an inbound connection arrives. Returns the
-    // endpoints this server intends to dial.
-    pub fn reconcile(&self, now: Instant) -> Vec<String> {
-        let mut to_dial = Vec::new();
-        let worlds = self.peer_table.active_worlds();
-        let mut links = self.links.lock().expect("peer link map poisoned");
-
-        for world in &worlds {
-            for peer in self.peer_table.peers_for_world(world) {
+    // Peers this server should send a code OFFER to (the asker side of Flow 1).
+    // For each active world: a non-self peer we should initiate to (tiebreak) that
+    // is not yet authorized for the world and has no link yet. The orchestrator
+    // turns each into a `/relay/offer` call; the peer mints a code + injects it
+    // into the realm, our client observes it, and we redeem + dial. Returns
+    // `(hashed_world, peer)` pairs.
+    pub fn offers_to_send(&self, now: Instant) -> Vec<(String, RelayEndpoint)> {
+        let mut out = Vec::new();
+        let links = self.links.lock().expect("peer link map poisoned");
+        let pending = self.pending_offers.lock().expect("pending offers poisoned");
+        for world in self.peer_table.active_worlds() {
+            for peer in self.peer_table.peers_for_world(&world) {
                 let key = Self::endpoint_key(&peer);
                 if Self::is_self(&self.self_endpoint, &key) {
-                    continue;
-                }
-                if !self.presence.is_proven(&peer, world) {
                     continue;
                 }
                 if !Self::should_initiate(&self.self_endpoint, &key) {
                     continue;
                 }
-                if !links.contains_key(&key) {
-                    links.insert(
-                        key.clone(),
-                        PeerLink::new(&key, PeerDirection::Initiator, now),
-                    );
-                    to_dial.push(key);
+                // Already authorized for this world, or a link is already
+                // forming/up — no offer needed.
+                if self.presence.is_proven(&peer, &world) || links.contains_key(&key) {
+                    continue;
                 }
+                // Recently offered — within the cooldown, don't re-offer (avoids
+                // re-offer spam / repeated realm-chat injection).
+                if let Some((_, offered_at)) = pending.get(&key) {
+                    if now.saturating_duration_since(*offered_at) < OFFER_COOLDOWN {
+                        continue;
+                    }
+                }
+                out.push((world.clone(), peer));
             }
         }
-
-        to_dial
+        out
     }
 
-    // The first active world that lists `peer_ep` as a peer. Used by
-    // the orchestrator to scope a dial intent's peer-cert fetch to a shared world.
-    pub fn world_for_peer(&self, peer_ep: &str) -> Option<String> {
-        for world in self.peer_table.active_worlds() {
-            let in_world = self
-                .peer_table
-                .peers_for_world(&world)
-                .iter()
-                .any(|p| Self::endpoint_key(p) == peer_ep);
-            if in_world {
-                return Some(world);
-            }
-        }
-        None
+    // Records that we offered to `peer_key` for `world` at `now` (asker side).
+    // Drives the re-offer cooldown and the observed-code redemption candidates.
+    pub fn record_offer(&self, peer_key: &str, world: &str, now: Instant) {
+        self.pending_offers
+            .lock()
+            .expect("pending offers poisoned")
+            .insert(peer_key.to_string(), (world.to_string(), now));
+    }
+
+    pub const ANNOUNCE_TTL: Duration = ANNOUNCE_TTL;
+
+    // Records a peer endpoint observed via a realm `!bvca` announce as live for
+    // `hashed_world`. The existing `offers_to_send` / `forward_local` paths read it
+    // straight from the peer table — no other change is needed for discovery.
+    pub fn observe_announced_peer(
+        &self,
+        hashed_world: &str,
+        endpoint: RelayEndpoint,
+        now: Instant,
+    ) {
+        self.peer_table
+            .observe_peer(hashed_world, endpoint, now, ANNOUNCE_TTL);
+    }
+
+    // Forgets peers whose last announce has aged past `ANNOUNCE_TTL`, so a peer
+    // that left the realm stops being a forward/offer target. Driven by the
+    // orchestrator tick.
+    pub fn sweep_announced_peers(&self, now: Instant) {
+        self.peer_table.sweep_expired(now);
+    }
+
+    // Peers we have outstanding offers to, as `(endpoint_key, hashed_world)`. The
+    // observe→redeem path tries an observed code against each — only the minter
+    // that issued the code accepts it.
+    pub fn pending_offer_peers(&self) -> Vec<(String, String)> {
+        self.pending_offers
+            .lock()
+            .expect("pending offers poisoned")
+            .iter()
+            .map(|(key, (world, _))| (key.clone(), world.clone()))
+            .collect()
     }
 
     // Registers an inbound peer connection. If a dial to the same endpoint was
@@ -276,16 +244,44 @@ impl PeerManager {
         }
     }
 
+    // Creates an Initiator link for `peer_ep` if none exists, so the
+    // observe→redeem dial path can take its outbound receiver and the orchestrator
+    // reconcile won't independently dial the same peer. Returns true when a fresh
+    // link was created (the caller should dial); false when a link already exists
+    // (a dial or accept is already in flight).
+    pub fn begin_initiator_link(&self, peer_ep: &str, now: Instant) -> bool {
+        let mut links = self.links.lock().expect("peer link map poisoned");
+        if links.contains_key(peer_ep) {
+            return false;
+        }
+        links.insert(
+            peer_ep.to_string(),
+            PeerLink::new(peer_ep, PeerDirection::Initiator, now),
+        );
+        true
+    }
+
     // Hands the receive half of a link's bounded outbound queue to the peer-writer
     // task. The dialer's write pump drains this receiver onto the
     // QUIC connection; without this call the queue `forward_local` fills was never
     // drained (filled to 1024 then silently dropped). Takeable once per link.
-    pub fn take_outbound_receiver(
-        &self,
-        peer_ep: &str,
-    ) -> Option<mpsc::Receiver<RelayedPacket>> {
+    pub fn take_outbound_receiver(&self, peer_ep: &str) -> Option<mpsc::Receiver<RelayedPacket>> {
         let mut links = self.links.lock().expect("peer link map poisoned");
-        links.get_mut(peer_ep).and_then(|link| link.take_outbound_receiver())
+        links
+            .get_mut(peer_ep)
+            .and_then(|link| link.take_outbound_receiver())
+    }
+
+    // Removes a peer link immediately (a transport-detected connection close,
+    // ahead of the idle sweep). Returns true if a link was present. The orchestrator
+    // then re-offers the peer once its identity's reconnect grace lapses,
+    // rather than waiting out the multi-minute idle timeout.
+    pub fn drop_link(&self, peer_ep: &str) -> bool {
+        self.links
+            .lock()
+            .expect("peer link map poisoned")
+            .remove(peer_ep)
+            .is_some()
     }
 
     pub fn link_count(&self) -> usize {
@@ -293,7 +289,10 @@ impl PeerManager {
     }
 
     pub fn has_link(&self, peer_ep: &str) -> bool {
-        self.links.lock().expect("peer link map poisoned").contains_key(peer_ep)
+        self.links
+            .lock()
+            .expect("peer link map poisoned")
+            .contains_key(peer_ep)
     }
 
     // Inbound relayed packet: FAIL CLOSED on presence proof. Before
@@ -349,11 +348,7 @@ impl PeerManager {
     // Routes an inbound `AudioQuery` to the responder and, when this server holds
     // the file, enqueues the `AudioAvailable` reply back onto the originating
     // peer link. No-op when no responder is installed or the file is absent.
-    async fn answer_audio_query(
-        &self,
-        peer_ep: &str,
-        query: &common::structs::relay::AudioQuery,
-    ) {
+    async fn answer_audio_query(&self, peer_ep: &str, query: &common::structs::relay::AudioQuery) {
         use common::structs::packet::{PacketType, QuicNetworkPacket, QuicNetworkPacketData};
         let source = match self.audio_source() {
             Some(s) => s,
@@ -378,7 +373,11 @@ impl PeerManager {
     // same `audio_id` from clobbering one another. No-op fan-out when there are no
     // peer links — the receiver then resolves only if a reply somehow arrives,
     // otherwise the caller times out.
-    pub fn query_audio(&self, audio_id: &str, correlation_id: &str) -> oneshot::Receiver<ResolvedAudio> {
+    pub fn query_audio(
+        &self,
+        audio_id: &str,
+        correlation_id: &str,
+    ) -> oneshot::Receiver<ResolvedAudio> {
         use common::structs::packet::{PacketType, QuicNetworkPacket, QuicNetworkPacketData};
         let (tx, rx) = oneshot::channel();
         {
@@ -429,12 +428,13 @@ impl PeerManager {
     // Enqueues a packet onto a single peer link's outbound queue (drop-on-full,
     // never blocks). Used to send a discovery reply back to the peer that asked.
     fn enqueue_to_link(&self, peer_ep: &str, packet: &RelayedPacket) {
+        let stamped = self.stamp_peer_identity(packet);
         let mut links = self.links.lock().expect("peer link map poisoned");
         if let Some(link) = links.get_mut(peer_ep) {
             if link.is_closed() {
                 return;
             }
-            if link.outbound_sender().try_send(packet.clone()).is_err() {
+            if link.outbound_sender().try_send(stamped.clone()).is_err() {
                 tracing::debug!(
                     "dropping audio discovery reply for peer {} (queue full/closed)",
                     peer_ep
@@ -456,7 +456,10 @@ impl PeerManager {
     ) -> bool {
         use common::structs::packet::PacketType;
         match packet.packet_type {
-            PacketType::PeerPresenceObserved | PacketType::PeerPresenceInject => true,
+            PacketType::PeerPresenceObserved
+            | PacketType::PeerPresenceInject
+            | PacketType::PeerAnnounceObserved
+            | PacketType::PeerAnnounceInject => true,
             // Peer-link discovery handshake for cross-server jukebox. These
             // carry no Minecraft sender, so they have no resolvable relay world;
             // they ride peer links that are already mutually presence-proven, so
@@ -475,9 +478,7 @@ impl PeerManager {
     // Extracts the `relay_world_uuid` a relayed packet is scoped to, from the
     // sender embedded in an audio frame or the player in a position packet.
     // `None` when the packet carries no Minecraft sender / relay world.
-    fn packet_relay_world(
-        packet: &common::structs::packet::QuicNetworkPacket,
-    ) -> Option<String> {
+    fn packet_relay_world(packet: &common::structs::packet::QuicNetworkPacket) -> Option<String> {
         use common::structs::packet::QuicNetworkPacketData;
         let player = match &packet.data {
             QuicNetworkPacketData::AudioFrame(frame) => frame.sender.as_ref(),
@@ -507,6 +508,30 @@ impl PeerManager {
         }
     }
 
+    // Stamps a relayed packet's top-level `owner.name` with THIS server's peer
+    // identity (`server::host:port`) before it goes onto a peer link. The acceptor
+    // classifies the inbound QUIC connection by the first packet's `owner.name`
+    // (`ConnectionClassifier`), so without this the connection is misread as a
+    // player (the relayed frame still carries the original speaker's owner). The
+    // embedded audio sender (used for proximity) and the `client_id` (used for the
+    // receiving client's per-speaker sinks) are preserved — only the routing
+    // identity changes. Every packet self-identifies, so a lost first datagram
+    // cannot misclassify the link.
+    fn stamp_peer_identity(&self, relayed: &RelayedPacket) -> RelayedPacket {
+        let mut out = relayed.clone();
+        let name = format!("server::{}", self.self_endpoint);
+        match out.packet.owner.as_mut() {
+            Some(owner) => owner.name = name,
+            None => {
+                out.packet.owner = Some(PacketOwner {
+                    name,
+                    client_id: Vec::new(),
+                })
+            }
+        }
+        out
+    }
+
     // Outbound fan-out for a local-origin packet. For each peer link whose world
     // has peers, enqueues one copy via `try_send` (drop-on-full; never blocks
     // the audio path). Relayed-origin packets are refused here (single hop).
@@ -523,6 +548,7 @@ impl PeerManager {
             return 0;
         }
 
+        let stamped = self.stamp_peer_identity(relayed);
         let mut sent = 0;
         let mut links = self.links.lock().expect("peer link map poisoned");
         let now = Instant::now();
@@ -531,17 +557,27 @@ impl PeerManager {
             if Self::is_self(&self.self_endpoint, &key) {
                 continue;
             }
+            // Outbound authorization (fail-closed): a peer receives a world's audio
+            // ONLY when it is authorized for that world. Without this a peer that
+            // merely opened a link would receive world audio it never proved
+            // presence/grant for (the cross-server eavesdrop).
+            if !self.presence.is_proven(peer, hashed_world) {
+                continue;
+            }
             if let Some(link) = links.get_mut(&key) {
                 if link.is_closed() {
                     continue;
                 }
-                match link.outbound_sender().try_send(relayed.clone()) {
+                match link.outbound_sender().try_send(stamped.clone()) {
                     Ok(()) => {
                         link.mark_activity(now);
                         sent += 1;
                     }
                     Err(_) => {
-                        tracing::debug!("dropping relay packet for peer {} (queue full/closed)", key);
+                        tracing::debug!(
+                            "dropping relay packet for peer {} (queue full/closed)",
+                            key
+                        );
                     }
                 }
             }
@@ -554,29 +590,18 @@ impl PeerManager {
     // keys it reached so the caller can record the mutual-proof half per peer.
     // Drop-on-full like the audio fan-out — never blocks.
     pub fn enqueue_to_all_links(&self, packet: &RelayedPacket) -> Vec<String> {
+        let stamped = self.stamp_peer_identity(packet);
         let mut reached = Vec::new();
         let mut links = self.links.lock().expect("peer link map poisoned");
         for (key, link) in links.iter_mut() {
             if link.is_closed() {
                 continue;
             }
-            if link.outbound_sender().try_send(packet.clone()).is_ok() {
+            if link.outbound_sender().try_send(stamped.clone()).is_ok() {
                 reached.push(key.clone());
             }
         }
         reached
-    }
-
-    // Endpoint keys of every live (non-closed) peer link. Lets the echo path
-    // record the mutual-proof half against the peers an echo is dispatched to.
-    pub fn live_link_endpoints(&self) -> Vec<String> {
-        self.links
-            .lock()
-            .expect("peer link map poisoned")
-            .iter()
-            .filter(|(_, link)| !link.is_closed())
-            .map(|(key, _)| key.clone())
-            .collect()
     }
 
     // Closes peer links idle for >= IDLE_TIMEOUT and returns their endpoints so
@@ -584,10 +609,11 @@ impl PeerManager {
     // drops its side on receiving it). Re-establishment is lazy on the next
     // relay-worthy packet via `reconcile`.
     pub fn sweep_idle(&self, now: Instant) -> Vec<String> {
+        let timeout = Duration::from_secs(self.idle_timeout_secs.load(AtomicOrdering::Relaxed));
         let mut closed = Vec::new();
         let mut links = self.links.lock().expect("peer link map poisoned");
         for (key, link) in links.iter_mut() {
-            if link.is_idle(now) && !link.is_closed() {
+            if link.is_idle(now, timeout) && !link.is_closed() {
                 link.close();
                 closed.push(key.clone());
             }
@@ -598,7 +624,11 @@ impl PeerManager {
 }
 
 impl AudioPeerQuery for PeerManager {
-    fn query_audio(&self, audio_id: &str, correlation_id: &str) -> oneshot::Receiver<ResolvedAudio> {
+    fn query_audio(
+        &self,
+        audio_id: &str,
+        correlation_id: &str,
+    ) -> oneshot::Receiver<ResolvedAudio> {
         PeerManager::query_audio(self, audio_id, correlation_id)
     }
 }
@@ -654,7 +684,11 @@ mod tests {
         use common::{Coordinate, Orientation, PlayerEnum};
         let sender = PlayerEnum::Minecraft(MinecraftPlayer {
             name: "alice".into(),
-            coordinates: Coordinate { x: 0.0, y: 0.0, z: 0.0 },
+            coordinates: Coordinate {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
             orientation: Orientation { x: 0.0, y: 0.0 },
             dimension: Dimension::Overworld,
             deafen: false,
@@ -746,72 +780,6 @@ mod tests {
         mgr.register_inbound("peer:2", Instant::now());
         mgr.ingest("peer:2", audio_packet_in_world("W")).await;
         assert_eq!(sink.published.load(AtomicOrdering::SeqCst), 1);
-    }
-
-    // An inbound relayed AUDIO packet from a peer that is NOT yet
-    // mutually presence-proven for the packet's relay world must be DROPPED
-    // (fail closed) — never published to the broadcast sink. Once the peer is
-    // mutually proven for that world, the same packet IS published.
-    #[tokio::test]
-    async fn ingest_drops_audio_from_unproven_peer_then_publishes_once_proven() {
-        use crate::relay::presence::PresenceProver;
-        let sink = Arc::new(SpySink {
-            published: AtomicUsize::new(0),
-        });
-        let prover = PresenceProver::new_shared();
-        let peer = ep("peerX", 7000);
-        let key = PeerManager::endpoint_key(&peer);
-        let mgr = PeerManager::new(ep("self", 1), PeerTable::new_shared(), sink.clone(), prover.clone());
-        mgr.set_prover(prover.clone());
-        mgr.register_inbound(&key, Instant::now());
-
-        // Un-proven: the relayed audio must be dropped.
-        mgr.ingest(&key, audio_packet_in_world("W")).await;
-        assert_eq!(
-            sink.published.load(AtomicOrdering::SeqCst),
-            0,
-            "un-proven peer's relayed audio must not be published"
-        );
-
-        // Complete the mutual proof for world W against this peer.
-        let now = Instant::now();
-        let token = prover.new_challenge("W", now);
-        prover.record_observed_from_peer(&key, &token, now);
-        prover.record_echoed_to_peer(&key, "W");
-        assert!(mgr.presence.is_proven(&peer, "W"));
-
-        // Now the same relayed audio IS published.
-        mgr.ingest(&key, audio_packet_in_world("W")).await;
-        assert_eq!(
-            sink.published.load(AtomicOrdering::SeqCst),
-            1,
-            "once mutually proven, the relayed audio is published"
-        );
-    }
-
-    // Proof is world-scoped at ingest too — a peer proven for W must
-    // NOT have its audio for a DIFFERENT world W2 published.
-    #[tokio::test]
-    async fn ingest_proof_does_not_cross_worlds() {
-        use crate::relay::presence::PresenceProver;
-        let sink = Arc::new(SpySink {
-            published: AtomicUsize::new(0),
-        });
-        let prover = PresenceProver::new_shared();
-        let peer = ep("peerX", 7000);
-        let key = PeerManager::endpoint_key(&peer);
-        let mgr = PeerManager::new(ep("self", 1), PeerTable::new_shared(), sink.clone(), prover.clone());
-        mgr.set_prover(prover.clone());
-        mgr.register_inbound(&key, Instant::now());
-
-        let now = Instant::now();
-        let token = prover.new_challenge("W", now);
-        prover.record_observed_from_peer(&key, &token, now);
-        prover.record_echoed_to_peer(&key, "W");
-
-        // proven for W, but the packet is scoped to W2 -> dropped.
-        mgr.ingest(&key, audio_packet_in_world("W2")).await;
-        assert_eq!(sink.published.load(AtomicOrdering::SeqCst), 0);
     }
 
     // Presence-proof CONTROL packets (the echoes that COMPLETE the
@@ -1013,48 +981,21 @@ mod tests {
     }
 
     #[test]
-    fn reconcile_initiates_only_to_higher_proven_peers() {
-        let sink = Arc::new(SpySink {
-            published: AtomicUsize::new(0),
-        });
-        let table = PeerTable::new_shared();
-        table.set_active_worlds(vec!["W".into()]);
-        // self is "a:1"; peers "b:1" (higher -> dial) and "0:1" (lower -> wait)
-        table.set_world_peers("W", vec![ep("b", 1), ep("0", 1)]);
-        let mgr = PeerManager::new(ep("a", 1), table, sink, Arc::new(AlwaysProven));
-        let dialed = mgr.reconcile(Instant::now());
-        assert_eq!(dialed, vec!["b:1".to_string()]);
-        assert!(mgr.has_link("b:1"));
-        assert!(!mgr.has_link("0:1"));
-    }
-
-    #[test]
-    fn reconcile_skips_unproven_peers() {
-        let sink = Arc::new(SpySink {
-            published: AtomicUsize::new(0),
-        });
-        let table = PeerTable::new_shared();
-        table.set_active_worlds(vec!["W".into()]);
-        table.set_world_peers("W", vec![ep("z", 1)]);
-        let mgr = PeerManager::new(ep("a", 1), table, sink, Arc::new(NeverProven));
-        assert!(mgr.reconcile(Instant::now()).is_empty());
-        assert_eq!(mgr.link_count(), 0);
-    }
-
-    #[test]
     fn inbound_cancels_pending_dial() {
         let sink = Arc::new(SpySink {
             published: AtomicUsize::new(0),
         });
         let table = PeerTable::new_shared();
-        table.set_active_worlds(vec!["W".into()]);
-        table.set_world_peers("W", vec![ep("b", 1)]);
-        let mgr = PeerManager::new(ep("a", 1), table, sink, Arc::new(AlwaysProven));
+        let mgr = PeerManager::new(ep("a", 1), table, sink, Arc::new(NeverProven));
         let now = Instant::now();
-        mgr.reconcile(now);
+        // An outstanding initiator link (the observe→redeem path opened it).
+        mgr.begin_initiator_link("b:1", now);
         assert!(mgr.has_link("b:1"));
         let cancelled = mgr.register_inbound("b:1", now);
-        assert!(cancelled, "inbound for a peer we were dialing cancels the dial");
+        assert!(
+            cancelled,
+            "inbound for a peer we were dialing cancels the dial"
+        );
     }
 
     #[test]
@@ -1073,6 +1014,118 @@ mod tests {
         let local = RelayedPacket::local(audio_packet());
         let sent = mgr.forward_local(&local, "W");
         assert_eq!(sent, 2);
+    }
+
+    // Outbound gate: a peer with a live link but NOT authorized for the world
+    // receives nothing (fail-closed) — closes the cross-server eavesdrop.
+    #[test]
+    fn forward_local_skips_unauthorized_peer() {
+        let sink = Arc::new(SpySink {
+            published: AtomicUsize::new(0),
+        });
+        let table = PeerTable::new_shared();
+        table.set_active_worlds(vec!["W".into()]);
+        table.set_world_peers("W", vec![ep("b", 1)]);
+        let mgr = PeerManager::new(ep("a", 1), table, sink, Arc::new(NeverProven));
+        mgr.register_inbound("b:1", Instant::now());
+        let local = RelayedPacket::local(audio_packet());
+        assert_eq!(
+            mgr.forward_local(&local, "W"),
+            0,
+            "an unauthorized peer must receive no world audio even with a live link"
+        );
+    }
+
+    #[test]
+    fn observed_announce_makes_peer_offerable() {
+        let sink = Arc::new(SpySink {
+            published: AtomicUsize::new(0),
+        });
+        let table = PeerTable::new_shared();
+        table.set_active_worlds(vec!["W".into()]);
+        let mgr = PeerManager::new(ep("a", 1), table, sink, Arc::new(NeverProven));
+        let now = Instant::now();
+        mgr.observe_announced_peer("W", ep("z", 1), now);
+        let offers = mgr.offers_to_send(now);
+        assert_eq!(offers.len(), 1);
+        assert_eq!(PeerManager::endpoint_key(&offers[0].1), "z:1");
+    }
+
+    #[test]
+    fn offers_to_send_targets_discovered_unauthorized_initiator_peer() {
+        let sink = Arc::new(SpySink {
+            published: AtomicUsize::new(0),
+        });
+        let table = PeerTable::new_shared();
+        table.set_active_worlds(vec!["W".into()]);
+        // self "a:1"; peer "z:1" is lexically higher -> we initiate -> we offer.
+        table.set_world_peers("W", vec![ep("z", 1)]);
+        let mgr = PeerManager::new(ep("a", 1), table, sink, Arc::new(NeverProven));
+        let offers = mgr.offers_to_send(Instant::now());
+        assert_eq!(offers.len(), 1);
+        assert_eq!(offers[0].0, "W");
+        assert_eq!(PeerManager::endpoint_key(&offers[0].1), "z:1");
+    }
+
+    #[test]
+    fn no_offer_to_lower_endpoint() {
+        let sink = Arc::new(SpySink {
+            published: AtomicUsize::new(0),
+        });
+        let table = PeerTable::new_shared();
+        table.set_active_worlds(vec!["W".into()]);
+        // self "z:1"; peer "a:1" is lower -> the peer initiates, not us.
+        table.set_world_peers("W", vec![ep("a", 1)]);
+        let mgr = PeerManager::new(ep("z", 1), table, sink, Arc::new(NeverProven));
+        assert!(mgr.offers_to_send(Instant::now()).is_empty());
+    }
+
+    #[test]
+    fn no_offer_when_already_authorized() {
+        let sink = Arc::new(SpySink {
+            published: AtomicUsize::new(0),
+        });
+        let table = PeerTable::new_shared();
+        table.set_active_worlds(vec!["W".into()]);
+        table.set_world_peers("W", vec![ep("z", 1)]);
+        let mgr = PeerManager::new(ep("a", 1), table, sink, Arc::new(AlwaysProven));
+        assert!(mgr.offers_to_send(Instant::now()).is_empty());
+    }
+
+    #[test]
+    fn no_offer_when_link_already_exists() {
+        let sink = Arc::new(SpySink {
+            published: AtomicUsize::new(0),
+        });
+        let table = PeerTable::new_shared();
+        table.set_active_worlds(vec!["W".into()]);
+        table.set_world_peers("W", vec![ep("z", 1)]);
+        let mgr = PeerManager::new(ep("a", 1), table, sink, Arc::new(NeverProven));
+        mgr.register_inbound("z:1", Instant::now());
+        assert!(mgr.offers_to_send(Instant::now()).is_empty());
+    }
+
+    #[test]
+    fn recently_offered_peer_is_skipped_until_cooldown_lapses() {
+        let sink = Arc::new(SpySink {
+            published: AtomicUsize::new(0),
+        });
+        let table = PeerTable::new_shared();
+        table.set_active_worlds(vec!["W".into()]);
+        table.set_world_peers("W", vec![ep("z", 1)]);
+        let mgr = PeerManager::new(ep("a", 1), table, sink, Arc::new(NeverProven));
+        let t0 = Instant::now();
+        // First pass offers; record it.
+        assert_eq!(mgr.offers_to_send(t0).len(), 1);
+        mgr.record_offer("z:1", "W", t0);
+        assert_eq!(
+            mgr.pending_offer_peers(),
+            vec![("z:1".to_string(), "W".to_string())]
+        );
+        // Within cooldown: skipped.
+        assert!(mgr.offers_to_send(t0 + Duration::from_secs(5)).is_empty());
+        // After cooldown: offered again.
+        assert_eq!(mgr.offers_to_send(t0 + Duration::from_secs(20)).len(), 1);
     }
 
     // Acceptor-side bidirectional writer seam: for an acceptor link
@@ -1104,7 +1157,10 @@ mod tests {
         assert_eq!(mgr.forward_local(&local, "W"), 1);
 
         // The taken receiver observes exactly that enqueue.
-        let got = rx.recv().await.expect("forwarded packet must arrive on the taken receiver");
+        let got = rx
+            .recv()
+            .await
+            .expect("forwarded packet must arrive on the taken receiver");
         assert_eq!(got.packet.packet_type, PacketType::AudioFrame);
 
         // Receiver is takeable once: a second take yields None.
@@ -1138,113 +1194,44 @@ mod tests {
     }
 
     #[test]
-    fn no_challenges_without_a_prover_installed() {
+    fn drop_link_removes_the_link_immediately() {
         let sink = Arc::new(SpySink {
             published: AtomicUsize::new(0),
         });
-        let table = PeerTable::new_shared();
-        table.set_active_worlds(vec!["W".into()]);
-        table.set_world_peers("W", vec![ep("b", 1)]);
-        let mgr = PeerManager::new(ep("a", 1), table, sink, Arc::new(AlwaysProven));
-        assert!(mgr.challenges_to_send(Instant::now()).is_empty());
-    }
-
-    #[test]
-    fn challenges_emitted_for_worlds_with_unproven_peers() {
-        use crate::relay::presence::PresenceProver;
-        let sink = Arc::new(SpySink {
-            published: AtomicUsize::new(0),
-        });
-        let table = PeerTable::new_shared();
-        table.set_active_worlds(vec!["W".into()]);
-        table.set_world_peers("W", vec![ep("b", 1)]);
-        let prover = PresenceProver::new_shared();
-        // gate must be the same prover so is_proven and orchestration agree
-        let mgr = PeerManager::new(ep("a", 1), table, sink, prover.clone());
-        mgr.set_prover(prover);
-        let challenges = mgr.challenges_to_send(Instant::now());
-        assert_eq!(challenges.len(), 1);
-        assert_eq!(challenges[0].0, "W");
-        assert_eq!(challenges[0].1.token.len(), 32);
-    }
-
-    #[test]
-    fn no_challenge_once_peer_proven() {
-        use crate::relay::presence::PresenceProver;
-        let sink = Arc::new(SpySink {
-            published: AtomicUsize::new(0),
-        });
-        let table = PeerTable::new_shared();
-        table.set_active_worlds(vec!["W".into()]);
-        table.set_world_peers("W", vec![ep("b", 1)]);
-        let prover = PresenceProver::new_shared();
-        let mgr = PeerManager::new(ep("a", 1), table, sink, prover.clone());
-        mgr.set_prover(prover);
-        let now = Instant::now();
-        let challenges = mgr.challenges_to_send(now);
-        let token = challenges[0].1.token.clone();
-        // peer echoes our token over the link -> proven -> no further challenge
-        mgr.route_observed_from_peer("b:1", &token, now);
-        assert!(mgr.challenges_to_send(now).is_empty());
-    }
-
-    #[test]
-    fn observed_from_peer_marks_gate_proven() {
-        use crate::relay::presence::PresenceProver;
-        let sink = Arc::new(SpySink {
-            published: AtomicUsize::new(0),
-        });
-        let table = PeerTable::new_shared();
-        table.set_active_worlds(vec!["W".into()]);
-        table.set_world_peers("W", vec![ep("b", 1)]);
-        let prover = PresenceProver::new_shared();
-        let mgr = PeerManager::new(ep("a", 1), table, sink, prover.clone());
-        mgr.set_prover(prover.clone());
-        let now = Instant::now();
-        let token = mgr.challenges_to_send(now)[0].1.token.clone();
-        // gate is MUTUAL: a peer echoing our token alone does not satisfy it.
-        assert!(!mgr.presence.is_proven(&ep("b", 1), "W"));
-        mgr.route_observed_from_peer("b:1", &token, now);
-        // peer proved us (single direction), but the mutual gate is still closed
-        // until we echo a token they injected.
-        assert!(prover.peer_proved_us(&ep("b", 1), "W"));
-        assert!(!mgr.presence.is_proven(&ep("b", 1), "W"));
-        prover.record_echoed_to_peer("b:1", "W");
-        assert!(mgr.presence.is_proven(&ep("b", 1), "W"));
-    }
-
-    #[test]
-    fn local_observed_tokens_drain_for_echo() {
-        use crate::relay::presence::PresenceProver;
-        let sink = Arc::new(SpySink {
-            published: AtomicUsize::new(0),
-        });
-        let prover = PresenceProver::new_shared();
-        let mgr = PeerManager::new(ep("a", 1), PeerTable::new_shared(), sink, prover.clone());
-        mgr.set_prover(prover);
-        let now = Instant::now();
-        // the token must be a known (expected) challenge to be echoed
-        mgr.expect_observed("peer-tok", "W", now);
-        mgr.on_local_client_observed("peer-tok", now);
-        assert_eq!(
-            mgr.tokens_to_echo_to_peer(),
-            vec![("peer-tok".to_string(), "W".to_string())]
+        let mgr = PeerManager::new(
+            ep("a", 1),
+            PeerTable::new_shared(),
+            sink,
+            Arc::new(NeverProven),
         );
-        assert!(mgr.tokens_to_echo_to_peer().is_empty());
+        mgr.register_inbound("b:1", Instant::now());
+        assert!(mgr.has_link("b:1"));
+        assert!(
+            mgr.drop_link("b:1"),
+            "dropping an existing link reports true"
+        );
+        assert!(!mgr.has_link("b:1"));
+        assert!(
+            !mgr.drop_link("b:1"),
+            "dropping an absent link reports false"
+        );
     }
 
-    // At the manager seam: an unknown observed token is dropped.
     #[test]
-    fn local_observed_unknown_token_is_dropped() {
-        use crate::relay::presence::PresenceProver;
+    fn begin_initiator_link_creates_a_drainable_link_once() {
         let sink = Arc::new(SpySink {
             published: AtomicUsize::new(0),
         });
-        let prover = PresenceProver::new_shared();
-        let mgr = PeerManager::new(ep("a", 1), PeerTable::new_shared(), sink, prover.clone());
-        mgr.set_prover(prover);
-        mgr.on_local_client_observed("garbage", Instant::now());
-        assert!(mgr.tokens_to_echo_to_peer().is_empty());
+        let table = PeerTable::new_shared();
+        let mgr = PeerManager::new(ep("a", 1), table, sink, Arc::new(NeverProven));
+        let now = Instant::now();
+        // First call: a fresh initiator link is created and the caller should dial.
+        assert!(mgr.begin_initiator_link("b:1", now));
+        assert!(mgr.has_link("b:1"));
+        // Its outbound queue is drainable by the dial path.
+        assert!(mgr.take_outbound_receiver("b:1").is_some());
+        // Second call: a link already exists (dial/accept in flight) -> no re-dial.
+        assert!(!mgr.begin_initiator_link("b:1", now));
     }
 
     #[test]
@@ -1257,7 +1244,10 @@ mod tests {
         let t0 = Instant::now();
         mgr.register_inbound("b:1", t0);
         // not yet idle
-        assert!(mgr.sweep_idle(t0 + std::time::Duration::from_secs(299)).is_empty());
+        assert!(
+            mgr.sweep_idle(t0 + std::time::Duration::from_secs(299))
+                .is_empty()
+        );
         let closed = mgr.sweep_idle(t0 + std::time::Duration::from_secs(301));
         assert_eq!(closed, vec!["b:1".to_string()]);
         // link removed after close

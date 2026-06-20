@@ -70,10 +70,10 @@ impl InputProcessCore {
                             settings.hold_time,
                         );
 
-                        self.tail_frame_count =
-                            (settings.release_rate / OPUS_FRAME_DURATION_MS as f32)
-                                .ceil()
-                                .max(2.0) as u32;
+                        self.tail_frame_count = (settings.release_rate
+                            / OPUS_FRAME_DURATION_MS as f32)
+                            .ceil()
+                            .max(2.0) as u32;
                     }
                     Err(e) => {
                         warn!(
@@ -175,8 +175,7 @@ mod tests {
         let (producer, consumer) = flume::bounded::<AudioFrame>(10000);
 
         // 48 kHz mono → no resampler needed
-        let mut core =
-            InputProcessCore::new(make_gate_disabled(), None, 1, 48000, 2, producer);
+        let mut core = InputProcessCore::new(make_gate_disabled(), None, 1, 48000, 2, producer);
 
         // 20 ms at 48 kHz = 960 frames per chunk
         let chunk_frames = 960usize;

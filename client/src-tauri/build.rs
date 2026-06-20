@@ -82,9 +82,7 @@ fn sync_android_main_activity() {
     println!("cargo:rerun-if-changed={}", src.display());
 
     if !src.exists() {
-        println!(
-            "cargo:warning=android/MainActivity.kt missing; skipping ndk-context shim sync"
-        );
+        println!("cargo:warning=android/MainActivity.kt missing; skipping ndk-context shim sync");
         return;
     }
 

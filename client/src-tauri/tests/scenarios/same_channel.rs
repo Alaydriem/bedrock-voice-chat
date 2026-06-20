@@ -63,8 +63,7 @@ async fn same_channel_members_hear_regardless_of_distance() {
         .expect("Alice connects + joins shared-voice");
 
     let bob = ClientProc::spawn("Bob", &bob_code, &url, "shared-voice");
-    bob
-        .await_connected(Duration::from_secs(30))
+    bob.await_connected(Duration::from_secs(30))
         .expect("Bob connects + joins shared-voice");
 
     // Place them 10 000 blocks apart — far beyond every proximity gate —

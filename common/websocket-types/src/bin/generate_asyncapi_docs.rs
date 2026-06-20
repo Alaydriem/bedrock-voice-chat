@@ -1,5 +1,5 @@
 use schemars::schema_for;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::fs;
 use std::path::Path;
 use websocket_types::*;
@@ -90,11 +90,9 @@ fn main() {
 
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let output_path = Path::new(manifest_dir).join("../../docs/websocket-api.yaml");
-    fs::create_dir_all(output_path.parent().unwrap())
-        .expect("Failed to create docs directory");
+    fs::create_dir_all(output_path.parent().unwrap()).expect("Failed to create docs directory");
 
-    let yaml =
-        serde_yaml::to_string(&spec).expect("Failed to serialize AsyncAPI spec to YAML");
+    let yaml = serde_yaml::to_string(&spec).expect("Failed to serialize AsyncAPI spec to YAML");
 
     fs::write(&output_path, yaml).expect("Failed to write AsyncAPI spec");
 

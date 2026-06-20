@@ -1,18 +1,18 @@
 pub mod change_dimension;
-pub mod play_sound;
-pub mod jukebox_command;
 pub mod disconnected;
 pub mod game_type;
+pub mod jukebox_command;
+pub mod play_sound;
 pub mod player_auth_input;
 pub mod player_leave;
 pub mod set_health;
 pub mod start_game;
 
 pub use change_dimension::ChangeDimensionHandler;
-pub use play_sound::PlaySoundHandler;
-pub(crate) use jukebox_command::JukeboxCommand;
 pub use disconnected::DisconnectedHandler;
 pub use game_type::GameTypeHandler;
+pub(crate) use jukebox_command::JukeboxCommand;
+pub use play_sound::PlaySoundHandler;
 pub use player_auth_input::PlayerAuthInputHandler;
 pub use player_leave::PlayerLeaveHandler;
 pub use set_health::SetHealthHandler;

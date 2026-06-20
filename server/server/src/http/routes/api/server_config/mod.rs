@@ -1,6 +1,6 @@
 use common::consts::version::PROTOCOL_VERSION;
 use common::response::ApiConfigResponse;
-use rocket::{serde::json::Json, State};
+use rocket::{State, serde::json::Json};
 use rocket_okapi::openapi;
 
 use crate::config::{Server, Voice};
@@ -27,10 +27,7 @@ inventory::submit! {
 
 #[openapi(tag = "Server")]
 #[get("/config")]
-pub async fn get_config(
-    config: &State<Server>,
-    voice: &State<Voice>,
-) -> Json<ApiConfigResponse> {
+pub async fn get_config(config: &State<Server>, voice: &State<Voice>) -> Json<ApiConfigResponse> {
     Json(ApiConfigResponse {
         status: String::from("Ok"),
         client_id: config.minecraft.client_id.clone(),

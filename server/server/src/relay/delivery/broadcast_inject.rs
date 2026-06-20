@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use common::structs::packet::{
-    PacketType, PeerPresenceInjectPacket, QuicNetworkPacket, QuicNetworkPacketData,
+    PacketType, PeerAnnounceInjectPacket, PeerPresenceInjectPacket, QuicNetworkPacket,
+    QuicNetworkPacketData,
 };
 
 use crate::stream::quic::WebhookReceiver;
@@ -39,6 +40,20 @@ impl LocalInjectDelivery for BroadcastInjectDelivery {
         tokio::spawn(async move {
             if let Err(e) = webhook.send_packet(quic_packet).await {
                 tracing::warn!("relay presence inject broadcast failed: {}", e);
+            }
+        });
+    }
+
+    fn deliver_announce(&self, packet: PeerAnnounceInjectPacket) {
+        let quic_packet = QuicNetworkPacket {
+            packet_type: PacketType::PeerAnnounceInject,
+            owner: None,
+            data: QuicNetworkPacketData::PeerAnnounceInject(packet),
+        };
+        let webhook = self.webhook.clone();
+        tokio::spawn(async move {
+            if let Err(e) = webhook.send_packet(quic_packet).await {
+                tracing::warn!("relay announce broadcast failed: {}", e);
             }
         });
     }

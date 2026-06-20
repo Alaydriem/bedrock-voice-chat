@@ -19,15 +19,15 @@ inventory::submit! {
         },
     }
 }
+use crate::http::openapi::CustomJsonResponseRequired;
 use common::Game;
 use common::response::GamerpicResponse;
 use entity::player;
 use rocket::mtls::Certificate;
-use crate::http::openapi::CustomJsonResponseRequired;
 use rocket_okapi::openapi;
+use sea_orm::ColumnTrait;
 use sea_orm::EntityTrait;
 use sea_orm::QueryFilter;
-use sea_orm::ColumnTrait;
 
 #[openapi(tag = "Gamerpic")]
 #[get("/<game>/<gamertag>")]

@@ -72,8 +72,7 @@ async fn in_range_hears_out_of_range_silent() {
         .expect("Alice connects + joins");
 
     let bob = ClientProc::spawn("Bob", &bob_code, &url, "bob-solo");
-    bob
-        .await_connected(Duration::from_secs(30))
+    bob.await_connected(Duration::from_secs(30))
         .expect("Bob connects + joins");
 
     let probe = Signal::musical_probe(48_000);

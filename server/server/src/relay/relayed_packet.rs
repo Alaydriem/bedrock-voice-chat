@@ -45,9 +45,7 @@ impl RelayedPacket {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use common::structs::packet::{
-        AudioFramePacket, PacketType, QuicNetworkPacketData,
-    };
+    use common::structs::packet::{AudioFramePacket, PacketType, QuicNetworkPacketData};
 
     fn sample_packet() -> QuicNetworkPacket {
         QuicNetworkPacket {

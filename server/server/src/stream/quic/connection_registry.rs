@@ -1,13 +1,13 @@
 use bytes::Bytes;
+use common::PlayerEnum;
 use common::structs::packet::{QuicNetworkPacket, QuicNetworkPacketData};
 use common::traits::player_data::PlayerData;
-use common::PlayerEnum;
 use dashmap::DashMap;
 use moka::future::Cache;
 use std::sync::{Arc, OnceLock};
 use tokio::sync::mpsc;
 
-use crate::relay::{PeerManager, RelayedPacket};
+use crate::relay::{ObservedCodeHandler, PeerManager, RelayedPacket};
 
 pub(crate) enum RoutedPacket {
     Serialized(Bytes),
@@ -28,6 +28,10 @@ pub(crate) struct ConnectionRegistry {
     // relay ingest path publishes them straight to the broadcast loop. Installed
     // after the registry is wired into the QUIC manager and cache.
     peer_manager: OnceLock<Arc<PeerManager>>,
+    // Optional asker-side observe handler (Flow 1). When present, a local
+    // client's `PeerPresenceObserved` report is redeemed against the offering
+    // minter to establish the peer link. Installed alongside the relay manager.
+    observe_handler: OnceLock<Arc<dyn ObservedCodeHandler>>,
 }
 
 impl Default for ConnectionRegistry {
@@ -42,6 +46,7 @@ impl ConnectionRegistry {
             connections: DashMap::new(),
             player_channel: DashMap::new(),
             peer_manager: OnceLock::new(),
+            observe_handler: OnceLock::new(),
         }
     }
 
@@ -49,6 +54,41 @@ impl ConnectionRegistry {
     // ignored.
     pub fn set_peer_manager(&self, peer_manager: Arc<PeerManager>) {
         let _ = self.peer_manager.set(peer_manager);
+    }
+
+    // Installs the asker-side observe handler. Set once; a later install is
+    // ignored.
+    pub fn set_observe_handler(&self, handler: Arc<dyn ObservedCodeHandler>) {
+        let _ = self.observe_handler.set(handler);
+    }
+
+    // Routes a `!bvcp` code a local client observed in the realm to the observe
+    // handler (the asker side of Flow 1). No-op when no handler is wired.
+    pub fn on_peer_presence_observed(&self, token: String) {
+        if let Some(handler) = self.observe_handler.get() {
+            handler.on_observed(token);
+        }
+    }
+
+    // A local client observed a peer `!bvca` announce in the realm. Record the
+    // peer endpoint as live for the observer's world so the offer/forward paths
+    // can reach it — the decentralized replacement for relay lookup.
+    pub fn on_peer_announce_observed(&self, hashed_world: String, endpoint: String) {
+        let Some(peer_manager) = self.peer_manager.get() else {
+            return;
+        };
+        let ep = match endpoint.rsplit_once(':') {
+            Some((host, port)) => common::structs::relay::RelayEndpoint {
+                host: host.to_string(),
+                port: port.parse().unwrap_or(0),
+                primary: false,
+            },
+            None => return,
+        };
+        if ep.port == 0 {
+            return;
+        }
+        peer_manager.observe_announced_peer(&hashed_world, ep, std::time::Instant::now());
     }
 
     // The installed relay manager, if any. Used by the QUIC input path to route
@@ -99,10 +139,8 @@ impl ConnectionRegistry {
             player_name,
             self.connections.len() + 1
         );
-        self.connections.insert(
-            client_id,
-            ConnectionEntry { player_name, tx },
-        );
+        self.connections
+            .insert(client_id, ConnectionEntry { player_name, tx });
     }
 
     pub fn unregister(&self, client_id: &[u8]) {
@@ -128,7 +166,11 @@ impl ConnectionRegistry {
         let mut dead_keys: Vec<Vec<u8>> = Vec::new();
 
         for entry in self.connections.iter() {
-            match entry.value().tx.try_send(RoutedPacket::Serialized(bytes.clone())) {
+            match entry
+                .value()
+                .tx
+                .try_send(RoutedPacket::Serialized(bytes.clone()))
+            {
                 Ok(()) => {}
                 Err(mpsc::error::TrySendError::Full(_)) => {
                     tracing::debug!(
@@ -350,14 +392,12 @@ impl ConnectionRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::relay::{
-        AlwaysProven, PeerTable, RelayIngestSink, RelayedPacket as _RelayedPacket,
-    };
+    use crate::relay::{AlwaysProven, PeerTable, RelayIngestSink, RelayedPacket as _RelayedPacket};
+    use common::game_data::Dimension;
     use common::players::MinecraftPlayer;
     use common::structs::packet::{AudioFramePacket, PacketOwner, PacketType};
     use common::structs::relay::RelayEndpoint;
     use common::{Coordinate, Orientation};
-    use common::game_data::Dimension;
     use std::time::Instant;
 
     struct NoopSink;
@@ -366,7 +406,10 @@ mod tests {
         async fn publish(&self, _packet: QuicNetworkPacket) {}
     }
 
-    fn registry_with_takeable_peer(world: &str, peer: RelayEndpoint) -> (ConnectionRegistry, Arc<PeerManager>) {
+    fn registry_with_takeable_peer(
+        world: &str,
+        peer: RelayEndpoint,
+    ) -> (ConnectionRegistry, Arc<PeerManager>) {
         let table = PeerTable::new_shared();
         table.set_active_worlds(vec![world.to_string()]);
         table.set_world_peers(world, vec![peer.clone()]);
@@ -393,7 +436,11 @@ mod tests {
     fn mc(relay_world: Option<&str>) -> PlayerEnum {
         PlayerEnum::Minecraft(MinecraftPlayer {
             name: "alice".into(),
-            coordinates: Coordinate { x: 0.0, y: 0.0, z: 0.0 },
+            coordinates: Coordinate {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
             orientation: Orientation { x: 0.0, y: 0.0 },
             dimension: Dimension::Overworld,
             deafen: false,
@@ -484,7 +531,9 @@ mod tests {
 
         reg.forward_local_to_peers(&audio_packet(Some(mc(Some("W1")))));
 
-        let got = rx.try_recv().expect("forwarded packet must arrive on peer queue");
+        let got = rx
+            .try_recv()
+            .expect("forwarded packet must arrive on peer queue");
         assert_eq!(got.packet.packet_type, PacketType::AudioFrame);
     }
 

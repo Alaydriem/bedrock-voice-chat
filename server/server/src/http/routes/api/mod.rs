@@ -5,6 +5,7 @@ pub(crate) mod channel;
 pub(crate) mod gamerpic;
 pub(crate) mod health;
 pub(crate) mod positions;
+pub mod relay;
 pub(crate) mod server_config;
 
 #[cfg(feature = "bedrock")]

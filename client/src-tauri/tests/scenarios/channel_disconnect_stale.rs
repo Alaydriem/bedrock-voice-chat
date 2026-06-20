@@ -71,8 +71,7 @@ async fn disconnect_does_not_leak_channel_membership() {
         .expect("Alice connects + joins leak-test");
 
     let bob = ClientProc::spawn("Bob", &bob_code, &url, "leak-test");
-    bob
-        .await_connected(Duration::from_secs(30))
+    bob.await_connected(Duration::from_secs(30))
         .expect("Bob connects + joins leak-test");
 
     let probe = Signal::musical_probe(48_000);

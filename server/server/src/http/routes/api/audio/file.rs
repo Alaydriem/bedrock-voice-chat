@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
+use crate::http::openapi::CustomJsonResponse;
 use rocket::{
+    State,
     data::{Data, ToByteUnit},
     http::Status,
     mtls::Certificate,
-    State,
 };
-use crate::http::openapi::CustomJsonResponse;
 use rocket_okapi::openapi;
 
 use common::response::{AudioFileResponse, AudioStreamTokenResponse, PaginatedResponse};
@@ -15,7 +15,9 @@ use common::structs::permission::Permission;
 use crate::config::{Audio, Permissions};
 use crate::http::guards::OriginalFilename;
 use crate::http::pool::Db;
-use crate::services::{AuthService, AudioFileService, AudioPlaybackService, AudioStreamTokenCache, PermissionService};
+use crate::services::{
+    AudioFileService, AudioPlaybackService, AudioStreamTokenCache, AuthService, PermissionService,
+};
 
 #[openapi(skip)]
 #[post("/file", data = "<data>")]

@@ -18,10 +18,9 @@ impl TransferTargetCache {
     }
 
     pub async fn set(&self, xuid: &str, host: String, port: u16) {
-        self.cache.insert(
-            xuid.to_string(),
-            TransferTarget { host, port },
-        ).await;
+        self.cache
+            .insert(xuid.to_string(), TransferTarget { host, port })
+            .await;
     }
 
     pub async fn get(&self, xuid: &str) -> Option<TransferTarget> {
@@ -40,7 +39,9 @@ mod tests {
     #[tokio::test]
     async fn test_transfer_target_cache_set_and_get() {
         let cache = TransferTargetCache::new(900);
-        cache.set("2535428504476914", "192.168.1.100".to_string(), 19137).await;
+        cache
+            .set("2535428504476914", "192.168.1.100".to_string(), 19137)
+            .await;
 
         let target = cache.get("2535428504476914").await;
         assert!(target.is_some());
@@ -59,7 +60,9 @@ mod tests {
     #[tokio::test]
     async fn test_transfer_target_cache_remove() {
         let cache = TransferTargetCache::new(900);
-        cache.set("2535428504476914", "192.168.1.100".to_string(), 19137).await;
+        cache
+            .set("2535428504476914", "192.168.1.100".to_string(), 19137)
+            .await;
         cache.remove("2535428504476914").await;
 
         let target = cache.get("2535428504476914").await;

@@ -56,7 +56,10 @@ impl DnsService {
         let override_host = self.config.override_host.clone();
         let lan_ip = self.lan_ip;
         let rate_limit = self.config.rate_limit_per_sec;
-        let upstream_addrs: Vec<SocketAddr> = self.config.upstream.iter()
+        let upstream_addrs: Vec<SocketAddr> = self
+            .config
+            .upstream
+            .iter()
             .filter_map(|s| format!("{}:53", s).parse().ok())
             .collect();
 
@@ -75,11 +78,21 @@ impl DnsService {
 
         let handle = tokio::spawn(async move {
             tokio::spawn(Self::serve_udp(
-                udp_socket, override_host_udp, lan_ip, upstream_udp, rate_limit, shutdown_rx_udp,
+                udp_socket,
+                override_host_udp,
+                lan_ip,
+                upstream_udp,
+                rate_limit,
+                shutdown_rx_udp,
             ));
 
             tokio::spawn(Self::serve_tcp(
-                tcp_listener, override_host, lan_ip, upstream_addrs, rate_limit, shutdown_rx_tcp,
+                tcp_listener,
+                override_host,
+                lan_ip,
+                upstream_addrs,
+                rate_limit,
+                shutdown_rx_tcp,
             ));
 
             let mut rx = shutdown_rx;
@@ -227,9 +240,9 @@ impl DnsService {
         query: &hickory_proto::op::Message,
         lan_ip: IpAddr,
     ) -> Result<Vec<u8>, anyhow::Error> {
-        use hickory_proto::op::{Message, Metadata, MessageType, OpCode, ResponseCode};
-        use hickory_proto::rr::{Name, RData, Record, RecordType};
+        use hickory_proto::op::{Message, MessageType, Metadata, OpCode, ResponseCode};
         use hickory_proto::rr::rdata::{A, AAAA};
+        use hickory_proto::rr::{Name, RData, Record, RecordType};
         use std::str::FromStr;
 
         let mut response = Message::new(query.metadata.id, MessageType::Response, OpCode::Query);
@@ -251,8 +264,7 @@ impl DnsService {
                 }
                 IpAddr::V6(ipv6) => {
                     if q.query_type() == RecordType::AAAA || q.query_type() == RecordType::ANY {
-                        let record =
-                            Record::from_rdata(name.clone(), 60, RData::AAAA(AAAA(ipv6)));
+                        let record = Record::from_rdata(name.clone(), 60, RData::AAAA(AAAA(ipv6)));
                         response.add_answer(record);
                     }
                 }
@@ -275,7 +287,9 @@ impl DnsService {
             match tokio::time::timeout(
                 std::time::Duration::from_secs(3),
                 socket.recv_from(&mut buf),
-            ).await {
+            )
+            .await
+            {
                 Ok(Ok((len, _))) => return Ok(buf[..len].to_vec()),
                 Ok(Err(e)) => {
                     tracing::warn!("DNS upstream {} recv error: {}", addr, e);

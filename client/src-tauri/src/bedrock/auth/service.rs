@@ -12,11 +12,7 @@ impl BedrockAuthService {
         Self
     }
 
-    pub fn build_auth_manager(
-        &self,
-        refresh_token: Option<&str>,
-        xuid: &str,
-    ) -> Arc<AuthManager> {
+    pub fn build_auth_manager(&self, refresh_token: Option<&str>, xuid: &str) -> Arc<AuthManager> {
         let cache = moka::future::Cache::builder()
             .time_to_live(Duration::from_secs(86400))
             .max_capacity(100)

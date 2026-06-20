@@ -1,12 +1,12 @@
 use crate::services::BedrockEventService;
 use crate::stream::quic::connection_registry::ConnectionRegistry;
 use anyhow::Error;
+use common::PlayerEnum;
 use common::structs::channel::{ChannelCollection, ChannelEvents};
 use common::structs::packet::{
     BedrockEventPacket, ChannelEventPacket, PacketType, PlayerDataPacket, PlayerPositionPacket,
     QuicNetworkPacket,
 };
-use common::PlayerEnum;
 use moka::future::Cache;
 use std::sync::Arc;
 use std::time::Duration;
@@ -159,9 +159,7 @@ impl CacheManager {
                                 );
                             }
                             ChannelEvents::Delete => {
-                                self.channel_collection
-                                    .remove(&channel_data.channel)
-                                    .await;
+                                self.channel_collection.remove(&channel_data.channel).await;
 
                                 if let Some(registry) = &self.connection_registry {
                                     registry.remove_channel(&channel_data.channel);

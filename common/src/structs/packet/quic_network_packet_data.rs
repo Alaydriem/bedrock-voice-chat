@@ -6,6 +6,8 @@ use super::channel_event_packet::ChannelEventPacket;
 use super::collection_packet::CollectionPacket;
 use super::debug_packet::DebugPacket;
 use super::health_check_packet::HealthCheckPacket;
+use super::peer_announce_inject_packet::PeerAnnounceInjectPacket;
+use super::peer_announce_observed_packet::PeerAnnounceObservedPacket;
 use super::peer_presence_inject_packet::PeerPresenceInjectPacket;
 use super::peer_presence_observed_packet::PeerPresenceObservedPacket;
 use super::player_data_packet::PlayerDataPacket;
@@ -28,6 +30,8 @@ pub enum QuicNetworkPacketData {
     BedrockEvent(BedrockEventPacket),
     PeerPresenceInject(PeerPresenceInjectPacket),
     PeerPresenceObserved(PeerPresenceObservedPacket),
+    PeerAnnounceInject(PeerAnnounceInjectPacket),
+    PeerAnnounceObserved(PeerAnnounceObservedPacket),
     AudioQuery(AudioQuery),
     AudioAvailable(AudioAvailable),
 }

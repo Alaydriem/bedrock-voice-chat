@@ -12,7 +12,7 @@
 
 use crate::harness::http_client::MtlsClient;
 use crate::harness::server::ADMIN_GAMERTAG;
-use crate::harness::{assert_status, TestServer};
+use crate::harness::{HttpAssert, TestServer};
 
 use common::Game;
 
@@ -46,7 +46,7 @@ async fn admin_introspects_self_with_admin_permission() {
         .send()
         .await
         .unwrap();
-    assert_status(resp.status().as_u16(), 200);
+    HttpAssert::status(resp.status().as_u16(), 200);
 
     let body: serde_json::Value = resp.json().await.unwrap();
     assert_eq!(body["gamertag"].as_str().unwrap(), ADMIN_GAMERTAG);
@@ -76,7 +76,7 @@ async fn non_admin_introspects_self_with_empty_permissions() {
         .send()
         .await
         .unwrap();
-    assert_status(resp.status().as_u16(), 200);
+    HttpAssert::status(resp.status().as_u16(), 200);
 
     let body: serde_json::Value = resp.json().await.unwrap();
     assert_eq!(body["gamertag"].as_str().unwrap(), "Bob");

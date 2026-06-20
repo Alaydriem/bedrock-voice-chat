@@ -60,13 +60,7 @@ impl AnalyticsProvider for Provider {
 
     fn breadcrumb(&self, _category: &str, _message: &str, _level: AnalyticsLevel) {}
 
-    fn capture_message(
-        &self,
-        _message: &str,
-        _level: AnalyticsLevel,
-        _tags: &[(String, String)],
-    ) {
-    }
+    fn capture_message(&self, _message: &str, _level: AnalyticsLevel, _tags: &[(String, String)]) {}
 
     async fn send_batch(
         &self,

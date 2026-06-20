@@ -30,9 +30,9 @@ inventory::submit! {
         },
     }
 }
-use common::structs::channel::Channel;
-use rocket::{http::Status, mtls::Certificate, State};
 use crate::http::openapi::CustomJsonResponseRequired;
+use common::structs::channel::Channel;
+use rocket::{State, http::Status, mtls::Certificate};
 use rocket_okapi::openapi;
 
 #[openapi(tag = "Channels")]

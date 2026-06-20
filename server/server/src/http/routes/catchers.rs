@@ -1,5 +1,5 @@
-use rocket::http::Status;
 use rocket::Request;
+use rocket::http::Status;
 
 pub struct DefaultCatcher;
 

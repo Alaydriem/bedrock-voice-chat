@@ -8,11 +8,11 @@
 //! - 409 when admin tries to deny their own admin permission
 
 use crate::harness::server::{ADMIN_GAME, ADMIN_GAMERTAG};
-use crate::harness::{assert_status, TestServer};
+use crate::harness::{HttpAssert, TestServer};
 
+use common::Game;
 use common::request::admin::SetPermissionRequest;
 use common::structs::permission::PermissionEffect;
-use common::Game;
 
 const ENDPOINT: &str = "/api/admin/permission";
 
@@ -32,7 +32,7 @@ async fn returns_401_without_client_cert() {
         .send()
         .await
         .unwrap();
-    assert_status(resp.status().as_u16(), 401);
+    HttpAssert::status(resp.status().as_u16(), 401);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -51,7 +51,7 @@ async fn returns_404_when_target_missing() {
         .send()
         .await
         .unwrap();
-    assert_status(resp.status().as_u16(), 404);
+    HttpAssert::status(resp.status().as_u16(), 404);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -71,7 +71,7 @@ async fn returns_400_for_unknown_permission() {
         .send()
         .await
         .unwrap();
-    assert_status(resp.status().as_u16(), 400);
+    HttpAssert::status(resp.status().as_u16(), 400);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -91,7 +91,7 @@ async fn admin_can_grant_permission_to_other_player() {
         .send()
         .await
         .unwrap();
-    assert_status(resp.status().as_u16(), 204);
+    HttpAssert::status(resp.status().as_u16(), 204);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -110,5 +110,5 @@ async fn rejects_self_admin_deny() {
         .send()
         .await
         .unwrap();
-    assert_status(resp.status().as_u16(), 409);
+    HttpAssert::status(resp.status().as_u16(), 409);
 }

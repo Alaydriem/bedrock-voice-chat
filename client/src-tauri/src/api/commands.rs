@@ -62,7 +62,10 @@ pub(crate) async fn api_get_config(
     };
 
     let config = api.get_config().await?;
-    Ok(ApiConfigCheckResponse::from_config(config, PROTOCOL_VERSION))
+    Ok(ApiConfigCheckResponse::from_config(
+        config,
+        PROTOCOL_VERSION,
+    ))
 }
 
 #[tauri::command(async)]

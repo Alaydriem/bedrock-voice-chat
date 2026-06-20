@@ -1,10 +1,10 @@
 use clap::Parser;
-use common::request::admin::BanishUserRequest;
 use common::Game;
+use common::request::admin::BanishUserRequest;
 
+use crate::commands::Cli;
 use crate::commands::admin_api_client::AdminApiClient;
 use crate::commands::admin_api_error::AdminApiError;
-use crate::commands::Cli;
 
 #[derive(Debug, Parser, Clone)]
 #[clap(author, version, about = "Banish or unbanish a player", long_about = None)]
@@ -40,7 +40,11 @@ impl Config {
 
         match client.banish_user(&req).await {
             Ok(_) => {
-                let action = if self.banish { "banished" } else { "unbanished" };
+                let action = if self.banish {
+                    "banished"
+                } else {
+                    "unbanished"
+                };
                 println!(
                     "Successfully {} player '{}' for game '{}'",
                     action, self.player, self.game

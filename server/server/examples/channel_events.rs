@@ -7,8 +7,8 @@ use tokio::io::AsyncReadExt;
 use anyhow::anyhow;
 use clap::Parser;
 use reqwest::{
-    header::{HeaderMap, HeaderValue},
     Certificate, Client, Identity,
+    header::{HeaderMap, HeaderValue},
 };
 
 #[derive(Parser, Debug)]
@@ -176,7 +176,13 @@ async fn main() -> anyhow::Result<()> {
             println!("� Joining channel '{}'...", id);
             let url = format!("{}/api/channel/{}", opt.uri, id);
             let join_event = ChannelEvent::new(ChannelEvents::Join);
-            match client.put(&url).headers(headers).json(&join_event).send().await {
+            match client
+                .put(&url)
+                .headers(headers)
+                .json(&join_event)
+                .send()
+                .await
+            {
                 Ok(response) => {
                     if response.status().is_success() {
                         println!("✅ Successfully joined channel!");
@@ -195,7 +201,13 @@ async fn main() -> anyhow::Result<()> {
             println!("🚪 Leaving channel '{}'...", id);
             let url = format!("{}/api/channel/{}", opt.uri, id);
             let leave_event = ChannelEvent::new(ChannelEvents::Leave);
-            match client.put(&url).headers(headers).json(&leave_event).send().await {
+            match client
+                .put(&url)
+                .headers(headers)
+                .json(&leave_event)
+                .send()
+                .await
+            {
                 Ok(response) => {
                     if response.status().is_success() {
                         println!("✅ Successfully left channel!");
@@ -233,4 +245,3 @@ async fn main() -> anyhow::Result<()> {
 
     Ok(())
 }
-

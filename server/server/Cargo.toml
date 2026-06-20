@@ -78,6 +78,8 @@ blake3 = { version = "^1.8" }
 hex = { version = "^0.4" }
 redcon = { version = "^0.1" }
 rocket_cors = { version = "^0.6" }
+rocket-governor = { version = "0.2.0-rc.4" }
+dryoc = { version = "^0.7" }
 semver = { version = "^1.0" }
 dashmap = { version = "^6" }
 cached = { version = "^0.58" }

@@ -1,6 +1,6 @@
+use rocket::State;
 use rocket::fs::NamedFile;
 use rocket::http::Status;
-use rocket::State;
 use rocket_okapi::openapi;
 
 use crate::config::Audio;

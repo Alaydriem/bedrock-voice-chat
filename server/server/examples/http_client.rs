@@ -7,8 +7,8 @@ use tokio::io::AsyncReadExt;
 use anyhow::anyhow;
 use clap::Parser;
 use reqwest::{
-    header::{HeaderMap, HeaderValue},
     Certificate, Client, Identity,
+    header::{HeaderMap, HeaderValue},
 };
 
 #[derive(Parser, Debug)]
@@ -73,8 +73,7 @@ impl Opt {
             .add_root_certificate(self.get_ca_bytes().await.unwrap())
             .identity(self.get_identity_bytes().await.unwrap());
 
-            let mut builder = common::reqwest::Client::builder()
-            .timeout(Duration::from_secs(5));
+        let mut builder = common::reqwest::Client::builder().timeout(Duration::from_secs(5));
 
         #[cfg(dev)]
         {

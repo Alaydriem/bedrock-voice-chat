@@ -36,16 +36,17 @@ impl CertificateService {
     }
 
     /// Issues an in-memory client certificate for a peered remote server.
-    /// The CN carries `{remote_host}:{port}` (the peer's advertised HTTPS endpoint
-    /// port) so two endpoints on the same host stay distinct. Because a `host:port`
-    /// string is not a valid DNS name, the SAN carries only the bare host; the full
+    /// The CN carries the explicit peer marker `server::{remote_host}:{port}` so a
+    /// peer connection is unambiguously classified as a `Peer` (never a player) and
+    /// the `host:port` keeps two endpoints on the same host distinct. Because the
+    /// CN is not a valid DNS name, the SAN carries only the bare host; the full
     /// identity lives in the CN.
     pub fn sign_peer_cert(
         &self,
         remote_host: &str,
         port: u16,
     ) -> Result<(Certificate, KeyPair), anyhow::Error> {
-        self.build_signed_cert(&format!("{remote_host}:{port}"), remote_host)
+        self.build_signed_cert(&format!("server::{remote_host}:{port}"), remote_host)
     }
 
     /// Single cert-issuance path shared by all leaf-cert callers. The CN is set
@@ -91,8 +92,7 @@ impl CertificateService {
         let root_ca_path_str = format!("{}/{}", certificate_path, "ca.crt");
         let root_ca_key_path_str = format!("{}/{}", certificate_path, "ca.key");
         let root_kp = KeyPair::from_pem(&fs::read_to_string(root_ca_key_path_str)?)?;
-        let issuer =
-            Issuer::from_ca_cert_pem(&fs::read_to_string(root_ca_path_str)?, root_kp)?;
+        let issuer = Issuer::from_ca_cert_pem(&fs::read_to_string(root_ca_path_str)?, root_kp)?;
         Ok(issuer)
     }
 }
@@ -135,7 +135,7 @@ mod tests {
             .sign_peer_cert("peer.example.com", 5000)
             .expect("sign_peer_cert should succeed");
 
-        assert_eq!(extract_cn(&cert), "peer.example.com:5000");
+        assert_eq!(extract_cn(&cert), "server::peer.example.com:5000");
     }
 
     #[test]
@@ -152,8 +152,11 @@ mod tests {
         let cn_a = extract_cn(&cert_a);
         let cn_b = extract_cn(&cert_b);
 
-        assert_ne!(cn_a, cn_b, "different ports must produce different identities");
-        assert_eq!(cn_a, "relay.bvc.io:5000");
-        assert_eq!(cn_b, "relay.bvc.io:5001");
+        assert_ne!(
+            cn_a, cn_b,
+            "different ports must produce different identities"
+        );
+        assert_eq!(cn_a, "server::relay.bvc.io:5000");
+        assert_eq!(cn_b, "server::relay.bvc.io:5001");
     }
 }

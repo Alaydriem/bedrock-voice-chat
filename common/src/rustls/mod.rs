@@ -8,11 +8,10 @@ pub use http_client::MtlsHttpClient;
 use s2n_quic::provider::tls as s2n_quic_tls_provider;
 #[allow(deprecated)]
 use s2n_quic::provider::tls::rustls::rustls::{
-    self as rustls_crate,
+    self as rustls_crate, Error as RustlsError, RootCertStore,
     crypto::CryptoProvider,
     pki_types::{CertificateDer, PrivateKeyDer},
     server::WebPkiClientVerifier,
-    Error as RustlsError, RootCertStore,
 };
 use std::{io::Cursor, path::Path, sync::Arc};
 use tokio::{fs::File, io::AsyncReadExt};

@@ -27,7 +27,10 @@ mod tests {
     #[test]
     fn key_and_default() {
         let flag = RealmsConnectEnabled;
-        assert_eq!(flag.key().as_ref(), "feature.bedrock.realms_connect.enabled");
+        assert_eq!(
+            flag.key().as_ref(),
+            "feature.bedrock.realms_connect.enabled"
+        );
         assert!(!flag.default());
     }
 }

@@ -11,5 +11,5 @@ pub mod signal;
 
 pub use bridge::{Frame, InMsg, OutMsg};
 pub use connect::ConnectConfig;
-pub use signal::Signal;
 pub use counters::TransportCounters;
+pub use signal::Signal;

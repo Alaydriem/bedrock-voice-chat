@@ -66,21 +66,31 @@ pub enum OutMsg {
     // Emitted after the connect sequence joins a channel, carrying the
     // server-assigned channel id so the orchestrator can later target it with
     // explicit leave/rejoin/delete operations.
-    ChannelJoined { channel_id: String },
+    ChannelJoined {
+        channel_id: String,
+    },
     // Emitted after an explicit channel-membership operation
     // (LeaveChannel/RejoinChannel/DeleteChannel) completes, echoing the op name.
-    ChannelOpDone { op: String },
+    ChannelOpDone {
+        op: String,
+    },
     // Emitted after UploadAudio: the server-assigned audio file id + its decoded
     // duration, so the orchestrator can trigger jukebox playback of it.
     AudioUploaded {
         audio_file_id: String,
         duration_ms: u32,
     },
-    CapturedPcm { samples: Vec<f32> },
-    Log { line: String },
+    CapturedPcm {
+        samples: Vec<f32>,
+    },
+    Log {
+        line: String,
+    },
     // Emitted after StartProxy completes, carrying the local port the proxy is
     // listening on so the orchestrator can connect a downstream client to it.
-    ProxyStarted { listen_port: u16 },
+    ProxyStarted {
+        listen_port: u16,
+    },
     // Transport-fidelity counter snapshot emitted in response to InMsg::RequestStats.
     // frames_sent      — Opus AudioFrame packets this client emitted to the QUIC bus.
     // frames_from_quic — AudioFrame packets this client received from the QUIC bus

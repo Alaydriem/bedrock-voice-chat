@@ -1,9 +1,9 @@
 mod eject_scheduler;
+pub(crate) mod ogg_opus_parser;
+mod parse_result;
 mod playback_entry;
 mod playback_expiry;
-mod parse_result;
 mod playback_task;
-pub(crate) mod ogg_opus_parser;
 
 pub use eject_scheduler::EjectScheduler;
 
@@ -92,13 +92,22 @@ impl AudioPlaybackService {
         let dedup_key = match &request.game {
             GameAudioContext::Minecraft(ctx) => format!(
                 "minecraft:{}:{}:{}:{}:{}",
-                ctx.world_uuid, ctx.coordinates.x, ctx.coordinates.y, ctx.coordinates.z, request.audio_file_id
+                ctx.world_uuid,
+                ctx.coordinates.x,
+                ctx.coordinates.y,
+                ctx.coordinates.z,
+                request.audio_file_id
             ),
             GameAudioContext::Hytale(_) => format!("hytale:{}", request.audio_file_id),
         };
 
         if let Some(existing_event_id) = self.dedup_cache.get(&dedup_key).await {
-            if self.active_playbacks.get(&existing_event_id).await.is_some() {
+            if self
+                .active_playbacks
+                .get(&existing_event_id)
+                .await
+                .is_some()
+            {
                 return Err("Duplicate play request".to_string());
             }
         }
@@ -131,14 +140,19 @@ impl AudioPlaybackService {
 
         let stripped = event_id.replace('-', "");
         let jukebox_hash = &stripped[stripped.len() - 8..];
-        let jukebox_name = format!("{}{}", common::consts::audio::JUKEBOX_PLAYER_PREFIX, jukebox_hash);
+        let jukebox_name = format!(
+            "{}{}",
+            common::consts::audio::JUKEBOX_PLAYER_PREFIX,
+            jukebox_hash
+        );
         let minecraft_eject_target: Option<(String, common::Coordinate)> = match &request.game {
             GameAudioContext::Minecraft(ctx) => {
                 Some((ctx.world_uuid.clone(), ctx.coordinates.clone()))
             }
             GameAudioContext::Hytale(_) => None,
         };
-        let (synthetic_player, position, dimension) = Self::build_synthetic_player(&jukebox_name, request.game);
+        let (synthetic_player, position, dimension) =
+            Self::build_synthetic_player(&jukebox_name, request.game);
 
         let cancel_token_clone = cancel_token.clone();
 
@@ -158,12 +172,8 @@ impl AudioPlaybackService {
             audio_file_id: audio_file_id.clone(),
             duration: Duration::from_millis(duration_ms),
         };
-        self.active_playbacks
-            .insert(event_id.clone(), entry)
-            .await;
-        self.dedup_cache
-            .insert(dedup_key, event_id.clone())
-            .await;
+        self.active_playbacks.insert(event_id.clone(), entry).await;
+        self.dedup_cache.insert(dedup_key, event_id.clone()).await;
 
         let cleanup_cache = self.active_playbacks.clone();
         let cleanup_event_id = event_id.clone();
@@ -376,7 +386,11 @@ impl AudioPlaybackService {
                 )
             }
             GameAudioContext::Hytale(_ctx) => {
-                let coordinates = common::Coordinate { x: 0.0, y: 0.0, z: 0.0 };
+                let coordinates = common::Coordinate {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                };
                 (
                     PlayerEnum::Hytale(HytalePlayer {
                         name: jukebox_name.to_string(),
@@ -399,11 +413,11 @@ impl AudioPlaybackService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::relay::ResolvedAudio;
     use common::game_data::Dimension;
     use common::request::audio::play::MinecraftAudioContext;
     use common::structs::packet::PacketType;
     use common::structs::relay::{AudioAvailable, RelayEndpoint};
-    use crate::relay::ResolvedAudio;
     use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
     use tokio::sync::mpsc;
     use tokio::sync::oneshot;
@@ -424,7 +438,11 @@ mod tests {
     }
 
     impl AudioPeerQuery for StubPeerQuery {
-        fn query_audio(&self, _audio_id: &str, _correlation_id: &str) -> oneshot::Receiver<ResolvedAudio> {
+        fn query_audio(
+            &self,
+            _audio_id: &str,
+            _correlation_id: &str,
+        ) -> oneshot::Receiver<ResolvedAudio> {
             self.queries.fetch_add(1, AtomicOrdering::SeqCst);
             let (tx, rx) = oneshot::channel();
             let _ = tx.send(ResolvedAudio {
@@ -443,7 +461,11 @@ mod tests {
     }
 
     impl AudioPeerQuery for SilentPeerQuery {
-        fn query_audio(&self, _audio_id: &str, _correlation_id: &str) -> oneshot::Receiver<ResolvedAudio> {
+        fn query_audio(
+            &self,
+            _audio_id: &str,
+            _correlation_id: &str,
+        ) -> oneshot::Receiver<ResolvedAudio> {
             let (tx, rx) = oneshot::channel();
             self.parked.lock().expect("parked poisoned").push(tx);
             rx
@@ -457,7 +479,12 @@ mod tests {
 
     #[async_trait::async_trait]
     impl AudioPuller for StubPuller {
-        async fn pull(&self, _host: &str, _port: u16, _token: &str) -> Result<Vec<u8>, anyhow::Error> {
+        async fn pull(
+            &self,
+            _host: &str,
+            _port: u16,
+            _token: &str,
+        ) -> Result<Vec<u8>, anyhow::Error> {
             Ok(self.bytes.clone())
         }
     }
@@ -470,7 +497,12 @@ mod tests {
 
     #[async_trait::async_trait]
     impl AudioPuller for StallingPuller {
-        async fn pull(&self, _host: &str, _port: u16, _token: &str) -> Result<Vec<u8>, anyhow::Error> {
+        async fn pull(
+            &self,
+            _host: &str,
+            _port: u16,
+            _token: &str,
+        ) -> Result<Vec<u8>, anyhow::Error> {
             tokio::select! {
                 _ = self.cancel.cancelled() => Err(anyhow::anyhow!("aborted")),
                 _ = tokio::time::sleep(Duration::from_secs(30)) => Ok(Vec::new()),
@@ -491,7 +523,11 @@ mod tests {
         AudioPlayRequest {
             audio_file_id: audio_id.to_string(),
             game: GameAudioContext::Minecraft(MinecraftAudioContext {
-                coordinates: common::Coordinate { x: 1.0, y: 2.0, z: 3.0 },
+                coordinates: common::Coordinate {
+                    x: 1.0,
+                    y: 2.0,
+                    z: 3.0,
+                },
                 dimension: Dimension::Overworld,
                 world_uuid: "world-1".to_string(),
                 relay_world_uuid: Some("W".to_string()),
@@ -538,7 +574,11 @@ mod tests {
             .await
             .expect("remote miss should resolve to a playing event");
 
-        assert_eq!(queries.load(AtomicOrdering::SeqCst), 1, "discovery issued once");
+        assert_eq!(
+            queries.load(AtomicOrdering::SeqCst),
+            1,
+            "discovery issued once"
+        );
         assert!(service.active_playbacks.get(&resp.event_id).await.is_some());
 
         // The first emitted frame must be an AudioFrame whose synthetic sender is
@@ -600,7 +640,11 @@ mod tests {
         // coordinates so it reaches the remote-miss path again.
         let mut second = minecraft_request("audio-remote");
         if let GameAudioContext::Minecraft(ctx) = &mut second.game {
-            ctx.coordinates = common::Coordinate { x: 99.0, y: 99.0, z: 99.0 };
+            ctx.coordinates = common::Coordinate {
+                x: 99.0,
+                y: 99.0,
+                z: 99.0,
+            };
         }
         service
             .start_playback(&db, second)
@@ -653,7 +697,9 @@ mod tests {
             let service = Arc::new(service);
             let svc = service.clone();
             async move {
-                let r = svc.start_playback(&db, minecraft_request("audio-remote")).await;
+                let r = svc
+                    .start_playback(&db, minecraft_request("audio-remote"))
+                    .await;
                 (service, r)
             }
         });
@@ -666,7 +712,10 @@ mod tests {
         assert!(result.is_err(), "cancelled fetch must return an error");
 
         // No frames were emitted.
-        assert!(rx.try_recv().is_err(), "no playback frames on a cancelled fetch");
+        assert!(
+            rx.try_recv().is_err(),
+            "no playback frames on a cancelled fetch"
+        );
         // The pending entry was removed.
         service.active_playbacks.run_pending_tasks().await;
         assert_eq!(service.active_playbacks.entry_count(), 0);
@@ -690,7 +739,9 @@ mod tests {
         );
         let db = empty_db().await;
 
-        let result = service.start_playback(&db, minecraft_request("audio-remote")).await;
+        let result = service
+            .start_playback(&db, minecraft_request("audio-remote"))
+            .await;
         assert!(result.is_err(), "no responder must error");
 
         service.active_playbacks.run_pending_tasks().await;
@@ -712,7 +763,9 @@ mod tests {
             Arc::new(StubPuller { bytes: Vec::new() }),
         );
         let db = empty_db().await;
-        let result = service.start_playback(&db, minecraft_request("audio-missing")).await;
+        let result = service
+            .start_playback(&db, minecraft_request("audio-missing"))
+            .await;
         assert!(result.is_err());
     }
 
@@ -774,9 +827,8 @@ mod tests {
         let cert = rcgen::generate_simple_self_signed(vec!["127.0.0.1".to_string()])
             .expect("generate self-signed cert");
         let cert_der = rustls::pki_types::CertificateDer::from(cert.cert.der().to_vec());
-        let key_der =
-            rustls::pki_types::PrivateKeyDer::try_from(cert.signing_key.serialize_der())
-                .expect("private key der");
+        let key_der = rustls::pki_types::PrivateKeyDer::try_from(cert.signing_key.serialize_der())
+            .expect("private key der");
 
         let tls_config = rustls::ServerConfig::builder()
             .with_no_client_auth()
@@ -842,7 +894,11 @@ mod tests {
     #[test]
     fn synthetic_player_carries_relay_world_uuid_from_context() {
         let ctx = MinecraftAudioContext {
-            coordinates: common::Coordinate { x: 10.0, y: 64.0, z: -5.0 },
+            coordinates: common::Coordinate {
+                x: 10.0,
+                y: 64.0,
+                z: -5.0,
+            },
             dimension: Dimension::Overworld,
             world_uuid: "world-abc".to_string(),
             relay_world_uuid: Some("W".to_string()),

@@ -1,6 +1,6 @@
 use clap::Parser;
-use common::request::admin::CreateUserRequest;
 use common::Game;
+use common::request::admin::CreateUserRequest;
 
 use super::super::Cli;
 use crate::commands::admin_api_client::AdminApiClient;

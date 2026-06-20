@@ -8,9 +8,9 @@
 
 mod dtos;
 
-use base64::{engine::general_purpose, Engine as _};
-use reqwest::header::HeaderMap;
+use base64::{Engine as _, engine::general_purpose};
 use reqwest::Url;
+use reqwest::header::HeaderMap;
 
 use crate::auth::provider::{AuthError, AuthResult};
 use dtos::{
@@ -59,9 +59,7 @@ impl MinecraftAuthProvider {
         let xsts_token = self.get_xsts_token(&client, &xbl_token).await?;
 
         // Step 4: Get user's XUID
-        let xuid = self
-            .get_user_xuid(&client, &user_hash, &xsts_token)
-            .await?;
+        let xuid = self.get_user_xuid(&client, &user_hash, &xsts_token).await?;
 
         // Step 5: Get user profile (gamertag and gamerpic)
         let profile = self
@@ -324,7 +322,11 @@ impl MinecraftAuthProvider {
         let mc_login_status = mc_login_response.status();
         if !mc_login_status.is_success() {
             let body = mc_login_response.text().await.unwrap_or_default();
-            tracing::error!("MC Services: login_with_xbox failed ({}): {}", mc_login_status, body);
+            tracing::error!(
+                "MC Services: login_with_xbox failed ({}): {}",
+                mc_login_status,
+                body
+            );
             return Err(AuthError::AuthenticationFailed(format!(
                 "MC Services login failed ({}): {}",
                 mc_login_status, body
@@ -348,7 +350,11 @@ impl MinecraftAuthProvider {
         let profile_status = profile_response.status();
         if !profile_status.is_success() {
             let body = profile_response.text().await.unwrap_or_default();
-            tracing::warn!("MC Services: profile fetch failed ({}): {}", profile_status, body);
+            tracing::warn!(
+                "MC Services: profile fetch failed ({}): {}",
+                profile_status,
+                body
+            );
             return Err(AuthError::AuthenticationFailed(format!(
                 "MC profile fetch failed ({})",
                 profile_status
@@ -392,7 +398,11 @@ impl MinecraftAuthProvider {
         let xsts_status = xsts_response.status();
         if !xsts_status.is_success() {
             let body = xsts_response.text().await.unwrap_or_default();
-            tracing::warn!("MC Services: XSTS authorize failed ({}): {}", xsts_status, body);
+            tracing::warn!(
+                "MC Services: XSTS authorize failed ({}): {}",
+                xsts_status,
+                body
+            );
             return Err(AuthError::AuthenticationFailed(format!(
                 "MC XSTS authorize failed ({})",
                 xsts_status

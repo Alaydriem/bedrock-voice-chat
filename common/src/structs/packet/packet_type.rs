@@ -14,6 +14,8 @@ pub enum PacketType {
     BedrockEvent,
     PeerPresenceInject,
     PeerPresenceObserved,
+    PeerAnnounceInject,
+    PeerAnnounceObserved,
     AudioQuery,
     AudioAvailable,
 }

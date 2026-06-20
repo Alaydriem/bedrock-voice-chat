@@ -8,12 +8,15 @@
 
 #![allow(dead_code)]
 
-pub mod assertions;
 pub mod ca;
 pub mod fixtures;
+pub mod http_assert;
 pub mod http_client;
+pub mod json_message;
+pub mod ncryptf_login;
 pub mod rocket_harness;
 pub mod server;
 
-pub use assertions::*;
+pub use http_assert::HttpAssert;
+pub use ncryptf_login::NcryptfLogin;
 pub use server::TestServer;

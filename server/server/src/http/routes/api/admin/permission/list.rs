@@ -1,5 +1,5 @@
-use common::response::admin::{PermissionEntry, PermissionListResponse};
 use common::Game;
+use common::response::admin::{PermissionEntry, PermissionListResponse};
 use entity::player;
 use rocket::{http::Status, serde::json::Json};
 use rocket_okapi::openapi;

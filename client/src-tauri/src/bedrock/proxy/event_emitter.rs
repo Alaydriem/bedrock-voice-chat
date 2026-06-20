@@ -2,10 +2,11 @@ use std::sync::Arc;
 
 use common::PlayerEnum;
 use common::structs::packet::{
-    BedrockEvent, BedrockEventDirection, BedrockEventPacket, PacketType, PeerPresenceObservedPacket,
-    PlayerPositionPacket, QuicNetworkPacket, QuicNetworkPacketData,
+    BedrockEvent, BedrockEventDirection, BedrockEventPacket, PacketType,
+    PeerAnnounceObservedPacket, PeerPresenceObservedPacket, PlayerPositionPacket,
+    QuicNetworkPacket, QuicNetworkPacketData,
 };
-use log::{warn, trace};
+use log::{trace, warn};
 
 use crate::NetworkPacket;
 
@@ -81,6 +82,29 @@ impl BedrockEventEmitter {
             }
             Err(flume::TrySendError::Disconnected(_)) => {
                 warn!("Network packet channel disconnected; dropping bedrock presence observation");
+            }
+        }
+    }
+
+    pub fn try_send_announce_observed(&self, hashed_world: String, endpoint: String) {
+        let packet = NetworkPacket {
+            data: QuicNetworkPacket {
+                packet_type: PacketType::PeerAnnounceObserved,
+                owner: None,
+                data: QuicNetworkPacketData::PeerAnnounceObserved(PeerAnnounceObservedPacket {
+                    hashed_world,
+                    endpoint,
+                }),
+            },
+        };
+
+        match self.tx.try_send(packet) {
+            Ok(()) => trace!("Bedrock announce observation queued for QUIC transport"),
+            Err(flume::TrySendError::Full(_)) => {
+                warn!("Network packet queue full; dropping bedrock announce observation");
+            }
+            Err(flume::TrySendError::Disconnected(_)) => {
+                warn!("Network packet channel disconnected; dropping bedrock announce observation");
             }
         }
     }

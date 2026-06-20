@@ -35,8 +35,7 @@ impl JukeboxWorld {
             .await_connected(Duration::from_secs(30))
             .expect("Alice connects");
         let bob = ClientProc::spawn("Bob", &bob_code, &url, "");
-        bob
-            .await_connected(Duration::from_secs(30))
+        bob.await_connected(Duration::from_secs(30))
             .expect("Bob connects");
 
         Self {

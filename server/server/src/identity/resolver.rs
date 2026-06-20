@@ -1,7 +1,7 @@
 use anyhow::anyhow;
 
-use super::store::IdentityStore;
 use super::IdentitySlot;
+use super::store::IdentityStore;
 
 pub struct IdentityResolver;
 
@@ -24,10 +24,7 @@ impl IdentityResolver {
                 Ok(summary.slot)
             }
             _ => {
-                let names: Vec<String> = summaries
-                    .iter()
-                    .map(|s| s.slot.key())
-                    .collect();
+                let names: Vec<String> = summaries.iter().map(|s| s.slot.key()).collect();
                 Err(anyhow!(
                     "ambiguous identity ({} stored: {}). Set BVC_IDENTITY or pass --identity",
                     summaries.len(),

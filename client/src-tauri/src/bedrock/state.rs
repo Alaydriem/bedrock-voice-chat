@@ -4,10 +4,10 @@ use common::bedrock_protocol::{AuthManager, RealmsApi};
 use common::traits::StreamTrait;
 use tokio::sync::watch;
 
-use crate::bedrock::TransferKeepAlive;
-use crate::bedrock::BedrockProxyManager;
-use crate::bedrock::BedrockPlayerStateCache;
 use crate::bedrock::BedrockAuthService;
+use crate::bedrock::BedrockPlayerStateCache;
+use crate::bedrock::BedrockProxyManager;
+use crate::bedrock::TransferKeepAlive;
 use crate::structs::app_state::AppState;
 
 pub struct BedrockState {
@@ -62,8 +62,8 @@ impl BedrockState {
         refresh_token: Option<String>,
         xuid: String,
     ) {
-        let auth_manager = BedrockAuthService::new()
-            .build_auth_manager(refresh_token.as_deref(), &xuid);
+        let auth_manager =
+            BedrockAuthService::new().build_auth_manager(refresh_token.as_deref(), &xuid);
 
         self.auth_manager = Some(auth_manager);
         self.realms_api = Some(api);

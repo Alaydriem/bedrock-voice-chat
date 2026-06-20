@@ -25,21 +25,22 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(store: Arc<Store<Wry>>, app_handle: AppHandle) -> Self {
-        let output_device = AppState::setup_audio_device(
-            AudioDeviceType::OutputDevice,
-            &store,
-        ).unwrap_or_else(|e| {
-            log::error!("Failed to initialize default output device: {}. Using placeholder.", e);
-            AudioDevice {
-                io: AudioDeviceType::OutputDevice,
-                id: "default".to_string(),
-                name: "default".to_string(),
-                host: AudioDeviceHost::try_from(cpal::default_host().id())
-                    .unwrap_or_else(|_| AudioDeviceHost::default()),
-                stream_configs: vec![],
-                display_name: "Default Device".to_string(),
-            }
-        });
+        let output_device = AppState::setup_audio_device(AudioDeviceType::OutputDevice, &store)
+            .unwrap_or_else(|e| {
+                log::error!(
+                    "Failed to initialize default output device: {}. Using placeholder.",
+                    e
+                );
+                AudioDevice {
+                    io: AudioDeviceType::OutputDevice,
+                    id: "default".to_string(),
+                    name: "default".to_string(),
+                    host: AudioDeviceHost::try_from(cpal::default_host().id())
+                        .unwrap_or_else(|_| AudioDeviceHost::default()),
+                    stream_configs: vec![],
+                    display_name: "Default Device".to_string(),
+                }
+            });
 
         Self {
             store: store.clone(),
@@ -174,7 +175,10 @@ impl AppState {
         }
     }
 
-    fn setup_audio_device(io: AudioDeviceType, store: &Arc<Store<Wry>>) -> Result<AudioDevice, String> {
+    fn setup_audio_device(
+        io: AudioDeviceType,
+        store: &Arc<Store<Wry>>,
+    ) -> Result<AudioDevice, String> {
         // Check if stored config exists and has the new `id` field
         let use_stored = match store.get(io.store_key()) {
             Some(s) => {
@@ -216,10 +220,18 @@ impl AppState {
         } else {
             let default_host = cpal::default_host();
             let default_device = match io {
-                AudioDeviceType::InputDevice => default_host.default_input_device()
-                    .ok_or_else(|| "No default input device found. Check your system sound settings.".to_string())?,
-                AudioDeviceType::OutputDevice => default_host.default_output_device()
-                    .ok_or_else(|| "No default output device found. Check your system sound settings.".to_string())?,
+                AudioDeviceType::InputDevice => {
+                    default_host.default_input_device().ok_or_else(|| {
+                        "No default input device found. Check your system sound settings."
+                            .to_string()
+                    })?
+                }
+                AudioDeviceType::OutputDevice => {
+                    default_host.default_output_device().ok_or_else(|| {
+                        "No default output device found. Check your system sound settings."
+                            .to_string()
+                    })?
+                }
             };
 
             let default_configs = match io {

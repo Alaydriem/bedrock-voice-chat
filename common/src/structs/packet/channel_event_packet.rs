@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-use crate::structs::channel::ChannelEvents;
 use super::quic_network_packet_data::QuicNetworkPacketData;
+use crate::structs::channel::ChannelEvents;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ChannelEventPacket {
@@ -44,7 +44,7 @@ impl ChannelEventPacket {
                 SystemTime::now()
                     .duration_since(UNIX_EPOCH)
                     .unwrap_or_default()
-                    .as_millis() as i64
+                    .as_millis() as i64,
             ),
         }
     }

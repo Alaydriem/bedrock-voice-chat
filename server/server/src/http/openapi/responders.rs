@@ -102,9 +102,7 @@ impl<T: serde::Serialize> NcryptfJsonResponse<T> {
     }
 }
 
-impl<'r, T: serde::Serialize + Send + 'static> Responder<'r, 'static>
-    for NcryptfJsonResponse<T>
-{
+impl<'r, T: serde::Serialize + Send + 'static> Responder<'r, 'static> for NcryptfJsonResponse<T> {
     fn respond_to(self, request: &'r Request<'_>) -> response::Result<'static> {
         self.0.respond_to(request)
     }

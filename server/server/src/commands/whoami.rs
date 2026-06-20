@@ -44,8 +44,7 @@ impl Config {
                 if resp.permissions.is_empty() {
                     println!("Permissions:  (none)");
                 } else {
-                    let perms: Vec<&str> =
-                        resp.permissions.iter().map(|p| p.as_str()).collect();
+                    let perms: Vec<&str> = resp.permissions.iter().map(|p| p.as_str()).collect();
                     println!("Permissions:  {}", perms.join(", "));
                 }
             }

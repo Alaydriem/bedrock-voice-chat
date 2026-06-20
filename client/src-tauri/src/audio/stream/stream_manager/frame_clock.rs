@@ -72,7 +72,9 @@ impl FrameClock {
             let remaining_ms = remaining_ticks as f64 * 1000.0 / self.frequency as f64;
 
             if remaining_ms > 2.0 {
-                std::thread::sleep(std::time::Duration::from_millis((remaining_ms - 1.0) as u64));
+                std::thread::sleep(std::time::Duration::from_millis(
+                    (remaining_ms - 1.0) as u64,
+                ));
             } else {
                 std::thread::yield_now();
             }

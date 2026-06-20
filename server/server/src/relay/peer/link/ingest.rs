@@ -37,7 +37,7 @@ mod tests {
     use super::*;
     use crate::relay::peer::link::ingest_sink::RelayIngestSink;
     use crate::relay::peer::table::PeerTable;
-    use crate::relay::presence::PresenceProver;
+    use crate::relay::presence::gate::{AlwaysProven, NeverProven};
     use common::structs::relay::RelayEndpoint;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -63,13 +63,15 @@ mod tests {
     fn audio_packet_in_world(relay_world: &str) -> QuicNetworkPacket {
         use common::game_data::Dimension;
         use common::players::MinecraftPlayer;
-        use common::structs::packet::{
-            AudioFramePacket, PacketType, QuicNetworkPacketData,
-        };
+        use common::structs::packet::{AudioFramePacket, PacketType, QuicNetworkPacketData};
         use common::{Coordinate, Orientation, PlayerEnum};
         let sender = PlayerEnum::Minecraft(MinecraftPlayer {
             name: "alice".into(),
-            coordinates: Coordinate { x: 0.0, y: 0.0, z: 0.0 },
+            coordinates: Coordinate {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
             orientation: Orientation { x: 0.0, y: 0.0 },
             dimension: Dimension::Overworld,
             deafen: false,
@@ -91,47 +93,50 @@ mod tests {
         }
     }
 
-    // The dialer-side gated ingest mirrors the acceptor gate. An un-proven peer's
-    // relayed AUDIO is dropped fail-closed; once the peer is
-    // mutually proven for the packet's world the SAME packet is published.
+    // The dialer-side gated ingest mirrors the acceptor gate: an unauthorized
+    // peer's relayed AUDIO is dropped fail-closed, while an authorized peer's is
+    // published. (Per-world authorization transitions are covered by the
+    // link→world gate tests once that gate is in place.)
     #[tokio::test]
-    async fn dialer_ingest_drops_audio_from_unproven_peer_then_publishes_once_proven() {
-        let sink = Arc::new(SpySink {
+    async fn dialer_ingest_drops_unauthorized_publishes_authorized() {
+        let key = PeerManager::endpoint_key(&ep("peerX", 7000));
+
+        // Unauthorized gate: dialer-received audio is dropped.
+        let dropped = Arc::new(SpySink {
             published: AtomicUsize::new(0),
         });
-        let prover = PresenceProver::new_shared();
-        let peer = ep("peerX", 7000);
-        let key = PeerManager::endpoint_key(&peer);
         let mgr = Arc::new(PeerManager::new(
             ep("self", 1),
             PeerTable::new_shared(),
-            sink.clone(),
-            prover.clone(),
+            dropped.clone(),
+            Arc::new(NeverProven),
         ));
-        mgr.set_prover(prover.clone());
         mgr.register_inbound(&key, std::time::Instant::now());
-
         let gated = PeerLinkIngest::new(mgr.clone(), key.clone());
-
-        // Un-proven: dropped.
         gated.ingest_from_peer(audio_packet_in_world("W")).await;
         assert_eq!(
-            sink.published.load(Ordering::SeqCst),
+            dropped.published.load(Ordering::SeqCst),
             0,
-            "dialer-received audio from an un-proven peer must be dropped (gated)"
+            "dialer-received audio from an unauthorized peer must be dropped (gated)"
         );
 
-        // Complete the mutual proof for world W against this peer.
-        let now = std::time::Instant::now();
-        let token = prover.new_challenge("W", now);
-        prover.record_observed_from_peer(&key, &token, now);
-        prover.record_echoed_to_peer(&key, "W");
-
-        gated.ingest_from_peer(audio_packet_in_world("W")).await;
+        // Authorized gate: dialer-received audio is published via the same path.
+        let published = Arc::new(SpySink {
+            published: AtomicUsize::new(0),
+        });
+        let mgr2 = Arc::new(PeerManager::new(
+            ep("self", 1),
+            PeerTable::new_shared(),
+            published.clone(),
+            Arc::new(AlwaysProven),
+        ));
+        mgr2.register_inbound(&key, std::time::Instant::now());
+        let gated2 = PeerLinkIngest::new(mgr2.clone(), key.clone());
+        gated2.ingest_from_peer(audio_packet_in_world("W")).await;
         assert_eq!(
-            sink.published.load(Ordering::SeqCst),
+            published.published.load(Ordering::SeqCst),
             1,
-            "once mutually proven, dialer-received audio is published"
+            "an authorized peer's dialer-received audio is published"
         );
     }
 }

@@ -1,14 +1,14 @@
-use entity::{audio_file, player};
 use common::response::{AudioFileResponse, PaginatedResponse};
 use common::structs::game::UploaderIdentity;
+use entity::{audio_file, player};
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, Order,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
 };
 
 use crate::config::Audio;
-use crate::services::audio_playback_service::ogg_opus_parser::OggOpusParser;
 use crate::services::AudioPlaybackService;
+use crate::services::audio_playback_service::ogg_opus_parser::OggOpusParser;
 
 pub struct AudioFileService;
 
@@ -27,12 +27,11 @@ impl AudioFileService {
         }
 
         let bytes_clone = bytes.clone();
-        let (duration_ms, _frame_count) = tokio::task::spawn_blocking(move || {
-            OggOpusParser::parse_duration(&bytes_clone)
-        })
-        .await
-        .map_err(|_| AudioFileError::ParseFailed)?
-        .map_err(|_| AudioFileError::ParseFailed)?;
+        let (duration_ms, _frame_count) =
+            tokio::task::spawn_blocking(move || OggOpusParser::parse_duration(&bytes_clone))
+                .await
+                .map_err(|_| AudioFileError::ParseFailed)?
+                .map_err(|_| AudioFileError::ParseFailed)?;
 
         if duration_ms > 600_000 {
             return Err(AudioFileError::AudioTooLong);
@@ -41,12 +40,10 @@ impl AudioFileService {
         let file_id = uuid::Uuid::now_v7().to_string();
         let audio_dir = config.file_path.clone();
 
-        tokio::fs::create_dir_all(&audio_dir)
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to create audio directory: {}", e);
-                AudioFileError::Internal
-            })?;
+        tokio::fs::create_dir_all(&audio_dir).await.map_err(|e| {
+            tracing::error!("Failed to create audio directory: {}", e);
+            AudioFileError::Internal
+        })?;
 
         let file_path = format!("{}/{}.opus", audio_dir, file_id);
         tokio::fs::write(&file_path, &bytes).await.map_err(|e| {
@@ -89,8 +86,7 @@ impl AudioFileService {
     ) -> Result<PaginatedResponse<AudioFileResponse>, AudioFileError> {
         let page_size = page_size.min(100);
 
-        let mut base = audio_file::Entity::find()
-            .filter(audio_file::Column::Deleted.eq(0));
+        let mut base = audio_file::Entity::find().filter(audio_file::Column::Deleted.eq(0));
 
         if let Some(ref search) = search {
             if !search.is_empty() {
@@ -132,9 +128,7 @@ impl AudioFileService {
         let items = results
             .into_iter()
             .map(|(file, player)| {
-                let gamertag = player
-                    .and_then(|p| p.gamertag)
-                    .unwrap_or_default();
+                let gamertag = player.and_then(|p| p.gamertag).unwrap_or_default();
                 Self::to_response(file, gamertag)
             })
             .collect();

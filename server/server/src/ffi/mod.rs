@@ -17,16 +17,16 @@
 //! ```
 
 use crate::config::ApplicationConfig;
-use crate::runtime::{position_updater, ServerRuntime};
+use crate::runtime::{ServerRuntime, position_updater};
 use crate::services::{
     AudioPlaybackService, AuthCodeService, PlayerIdentityService, PlayerRegistrarService,
 };
 use crate::stream::quic::WebhookReceiver;
 
-use common::traits::player_data::PlayerData;
 use common::Game;
+use common::traits::player_data::PlayerData;
 use sea_orm::DatabaseConnection;
-use std::ffi::{c_char, c_int, CStr, CString};
+use std::ffi::{CStr, CString, c_char, c_int};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
@@ -120,9 +120,32 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
     let audio_playback_service = runtime.get_audio_playback_service();
     let db_conn = runtime.get_db_conn();
 
-    // Create a tokio runtime for the server
+    // Create a tokio runtime for the server.
+    //
+    // Thread pools are bounded because this runtime is per-embedded-server: the
+    // Java/BDS mod and the e2e harness create MANY of these in one machine (the
+    // harness boots up to 3 servers per test, run in parallel). An unbounded
+    // multi-thread runtime defaults to one worker per CPU plus a blocking pool
+    // that grows to 512 threads — multiplied across concurrent servers that
+    // exhausts OS threads/handles and faults the native crypto/QUIC deps
+    // (STATUS_ACCESS_VIOLATION). The standalone binary uses #[tokio::main]
+    // (one runtime per process) and is unaffected by these caps. Overridable via
+    // the BVC_RUNTIME_WORKER_THREADS / BVC_RUNTIME_MAX_BLOCKING_THREADS env vars
+    // for embedded deployments that want larger pools.
+    let worker_threads = std::env::var("BVC_RUNTIME_WORKER_THREADS")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .filter(|n| *n > 0)
+        .unwrap_or(2);
+    let max_blocking_threads = std::env::var("BVC_RUNTIME_MAX_BLOCKING_THREADS")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .filter(|n| *n > 0)
+        .unwrap_or(16);
     let tokio_runtime = match tokio::runtime::Builder::new_multi_thread()
         .enable_all()
+        .worker_threads(worker_threads)
+        .max_blocking_threads(max_blocking_threads)
         .build()
     {
         Ok(rt) => rt,
@@ -476,14 +499,19 @@ pub unsafe extern "C" fn bvc_update_positions(
             // Fire-and-forget player registration in background task
             // This ensures bvc_update_positions returns immediately without waiting for DB operations
             tokio::spawn(async move {
-                registrar.process_players(&players_clone, game_type_clone).await;
+                registrar
+                    .process_players(&players_clone, game_type_clone)
+                    .await;
             });
         } else {
-            tracing::warn!("FFI: PlayerRegistrarService not available - player registration skipped");
+            tracing::warn!(
+                "FFI: PlayerRegistrarService not available - player registration skipped"
+            );
         }
 
         // Broadcast positions to QUIC clients (this happens immediately)
-        position_updater::PositionUpdater::broadcast_positions(players, &webhook_receiver_clone).await;
+        position_updater::PositionUpdater::broadcast_positions(players, &webhook_receiver_clone)
+            .await;
     });
 
     0
@@ -512,14 +540,13 @@ pub unsafe extern "C" fn bvc_audio_play(
         }
     };
 
-    let request: common::request::AudioPlayRequest =
-        match serde_json::from_str(json_str) {
-            Ok(r) => r,
-            Err(e) => {
-                set_last_error(&format!("Failed to parse play_json: {}", e));
-                return ptr::null_mut();
-            }
-        };
+    let request: common::request::AudioPlayRequest = match serde_json::from_str(json_str) {
+        Ok(r) => r,
+        Err(e) => {
+            set_last_error(&format!("Failed to parse play_json: {}", e));
+            return ptr::null_mut();
+        }
+    };
 
     let handle_ref = unsafe { &*handle };
 
@@ -566,7 +593,9 @@ pub unsafe extern "C" fn bvc_audio_play(
     drop(db_guard);
 
     let result = tokio_rt.block_on(async {
-        audio_service.start_playback(db_conn.as_ref(), request).await
+        audio_service
+            .start_playback(db_conn.as_ref(), request)
+            .await
     });
 
     match result {
@@ -640,9 +669,7 @@ pub unsafe extern "C" fn bvc_audio_stop(
     };
     drop(aps_guard);
 
-    let result = tokio_rt.block_on(async {
-        audio_service.stop_playback(event_id_str).await
-    });
+    let result = tokio_rt.block_on(async { audio_service.stop_playback(event_id_str).await });
 
     match result {
         Ok(_) => 0,
@@ -762,8 +789,11 @@ pub unsafe extern "C" fn bvc_provision_login_code(
     drop(db_guard);
 
     let result = tokio_rt.block_on(async {
-        let player = registrar.create_player(gamertag_str, &game_type, None).await?;
-        AuthCodeService::generate_code(db_conn.as_ref(), player.id, ttl_secs as u64).await
+        let player = registrar
+            .create_player(gamertag_str, &game_type, None)
+            .await?;
+        // FFI-minted codes are single-use (ephemeral), matching prior behavior.
+        AuthCodeService::generate_code(db_conn.as_ref(), player.id, ttl_secs as u64, true).await
     });
 
     match result {

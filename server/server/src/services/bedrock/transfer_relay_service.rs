@@ -2,8 +2,8 @@ use common::bedrock_protocol::TransferPacket;
 use common::bedrock_server::{BedrockServer, ServerConfig, StartGameConfig};
 use common::traits::StreamTrait;
 use moka::future::Cache;
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 use tokio::sync::watch;
 use tokio::task::AbortHandle;
@@ -49,7 +49,10 @@ impl TransferRelayService {
         };
 
         let mut server = BedrockServer::bind(config).await?;
-        tracing::info!("Bedrock transfer relay listening on {}", server.local_addr());
+        tracing::info!(
+            "Bedrock transfer relay listening on {}",
+            server.local_addr()
+        );
 
         let cache = self.cache.clone();
         let ip_blocks = Self::build_invalid_attempt_cache();

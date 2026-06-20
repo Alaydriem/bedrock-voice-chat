@@ -40,12 +40,17 @@ pub fn build_managed_state(
     #[cfg(feature = "bedrock-protocol")] player_state_cache: Option<
         Arc<crate::bedrock::BedrockPlayerStateCache>,
     >,
-    #[cfg(feature = "bedrock-protocol")] beacon_cache: Option<Arc<crate::bedrock::JukeboxBeaconCache>>,
+    #[cfg(feature = "bedrock-protocol")] beacon_cache: Option<
+        Arc<crate::bedrock::JukeboxBeaconCache>,
+    >,
     #[cfg(feature = "bedrock-protocol")] eject_injector: Option<
         Arc<crate::bedrock::JukeboxEjectInjector>,
     >,
     #[cfg(feature = "bedrock-protocol")] presence_injector: Option<
         Arc<crate::bedrock::PresenceInjector>,
+    >,
+    #[cfg(feature = "bedrock-protocol")] announce_injector: Option<
+        Arc<crate::bedrock::AnnounceInjector>,
     >,
 ) -> anyhow::Result<()> {
     let handle = app.handle().clone();
@@ -85,7 +90,12 @@ pub fn build_managed_state(
         handle.state::<Arc<Sender<NetworkPacket>>>().inner().clone(),
         handle.state::<Arc<Receiver<AudioPacket>>>().inner().clone(),
         handle.clone(),
-        Some(handle.state::<Arc<Mutex<RecordingManager>>>().inner().clone()),
+        Some(
+            handle
+                .state::<Arc<Mutex<RecordingManager>>>()
+                .inner()
+                .clone(),
+        ),
         input_source,
         output_sink,
         #[cfg(feature = "bedrock-protocol")]
@@ -96,6 +106,8 @@ pub fn build_managed_state(
         eject_injector,
         #[cfg(feature = "bedrock-protocol")]
         presence_injector,
+        #[cfg(feature = "bedrock-protocol")]
+        announce_injector,
     );
     app.manage(Mutex::new(audio_stream));
 
