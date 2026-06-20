@@ -225,6 +225,7 @@ jobs:
           POSTHOG_HOST=${{ secrets.POSTHOG_HOST }}
           FLAGSMITH_KEY=${{ secrets.FLAGSMITH_KEY }}
           FLAGSMITH_SERVER=${{ secrets.FLAGSMITH_SERVER }}
+          APP_BUILD_NUMBER=${{ inputs.build_number }}
           ENVEOF
 
       - name: Build frontend

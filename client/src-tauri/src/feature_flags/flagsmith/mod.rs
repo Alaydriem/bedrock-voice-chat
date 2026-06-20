@@ -25,6 +25,7 @@ pub struct FlagsmithProvider {
     api_key: String,
     server_url: String,
     install_id: String,
+    build_number: i64,
     refresh_interval: Duration,
     http_client: reqwest::Client,
     cache: Arc<RwLock<HashMap<String, FlagsmithFlag>>>,
@@ -35,6 +36,7 @@ impl FlagsmithProvider {
         api_key: String,
         server_url: String,
         install_id: String,
+        build_number: i64,
         refresh_interval: Duration,
     ) -> Self {
         let normalized_url = if server_url.ends_with("/api/v1/") {
@@ -50,22 +52,36 @@ impl FlagsmithProvider {
             api_key,
             server_url: normalized_url,
             install_id,
+            build_number,
             refresh_interval,
             http_client: reqwest::Client::new(),
             cache: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
-    async fn refresh(&self) -> Result<(), anyhow::Error> {
-        let url = format!(
-            "{}identities/?identifier={}",
-            self.server_url, self.install_id
-        );
-        let response = self
-            .http_client
-            .get(&url)
-            .header("X-Environment-Key", &self.api_key)
+    pub fn build_identity_body(install_id: &str, build_number: i64) -> serde_json::Value {
+        serde_json::json!({
+            "identifier": install_id,
+            "traits": [
+                { "trait_key": "build_number", "trait_value": build_number, "transient": true }
+            ]
+        })
+    }
+
+    async fn fetch_into_cache(
+        http_client: &reqwest::Client,
+        server_url: &str,
+        api_key: &str,
+        install_id: &str,
+        build_number: i64,
+        cache: &RwLock<HashMap<String, FlagsmithFlag>>,
+    ) -> Result<usize, anyhow::Error> {
+        let url = format!("{}identities/", server_url);
+        let response = http_client
+            .post(&url)
+            .header("X-Environment-Key", api_key)
             .header("Content-Type", "application/json")
+            .json(&Self::build_identity_body(install_id, build_number))
             .send()
             .await?;
 
@@ -77,20 +93,25 @@ impl FlagsmithProvider {
         }
 
         let identity_response: FlagsmithIdentityResponse = response.json().await?;
-        let mut cache = self.cache.write().await;
-        cache.clear();
+        let mut c = cache.write().await;
+        c.clear();
         for flag in identity_response.flags {
-            info!(
-                "Flag '{}': enabled={}, value={:?}",
-                flag.feature.name, flag.enabled, flag.value
-            );
-            cache.insert(flag.feature.name.clone(), flag);
+            c.insert(flag.feature.name.clone(), flag);
         }
-        info!(
-            "Refreshed {} feature flags for identity {}",
-            cache.len(),
-            self.install_id
-        );
+        Ok(c.len())
+    }
+
+    async fn refresh(&self) -> Result<(), anyhow::Error> {
+        let count = Self::fetch_into_cache(
+            &self.http_client,
+            &self.server_url,
+            &self.api_key,
+            &self.install_id,
+            self.build_number,
+            &self.cache,
+        )
+        .await?;
+        info!("Refreshed {} feature flags for identity {}", count, self.install_id);
         Ok(())
     }
 
@@ -128,6 +149,7 @@ impl FeatureProvider for FlagsmithProvider {
         let api_key = self.api_key.clone();
         let server_url = self.server_url.clone();
         let install_id = self.install_id.clone();
+        let build_number = self.build_number;
         let refresh_interval = self.refresh_interval;
 
         tokio::spawn(async move {
@@ -135,30 +157,12 @@ impl FeatureProvider for FlagsmithProvider {
             interval.tick().await;
             loop {
                 interval.tick().await;
-                let url = format!("{}identities/?identifier={}", server_url, install_id);
-                match http_client
-                    .get(&url)
-                    .header("X-Environment-Key", &api_key)
-                    .header("Content-Type", "application/json")
-                    .send()
-                    .await
+                match Self::fetch_into_cache(
+                    &http_client, &server_url, &api_key, &install_id, build_number, &cache,
+                )
+                .await
                 {
-                    Ok(response) if response.status().is_success() => {
-                        match response.json::<FlagsmithIdentityResponse>().await {
-                            Ok(identity_response) => {
-                                let mut c = cache.write().await;
-                                c.clear();
-                                for flag in identity_response.flags {
-                                    c.insert(flag.feature.name.clone(), flag);
-                                }
-                                info!("Refreshed {} feature flags", c.len());
-                            }
-                            Err(e) => warn!("Feature flag refresh parse failed: {}", e),
-                        }
-                    }
-                    Ok(response) => {
-                        warn!("Feature flag refresh returned status {}", response.status());
-                    }
+                    Ok(count) => info!("Refreshed {} feature flags", count),
                     Err(e) => warn!("Feature flag refresh failed: {}", e),
                 }
             }

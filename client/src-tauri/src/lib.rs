@@ -26,6 +26,7 @@ mod commands;
 mod deep_links;
 mod events;
 mod feature_flags;
+pub use feature_flags::flagsmith::FlagsmithProvider;
 #[cfg(feature = "bedrock-protocol")]
 mod iap;
 mod keyring;
@@ -237,6 +238,7 @@ pub fn run() {
             crate::commands::keybinds::start_keybind_listener,
             // Feature Flags
             crate::commands::feature_flags::get_feature_flag,
+            crate::commands::feature_flags::get_bedrock_connect_enabled,
             // Audio Library
             crate::commands::audio_library::upload_audio_file,
             crate::commands::audio_library::list_audio_files,
@@ -393,6 +395,9 @@ pub fn run() {
                         .unwrap_or("https://flagsmith.bedrockvoicechat.com")
                         .to_string(),
                     install_id.clone(),
+                    option_env!("APP_BUILD_NUMBER")
+                        .and_then(|s| s.parse::<i64>().ok())
+                        .unwrap_or(0),
                     std::time::Duration::from_secs(3600),
                 )
             );

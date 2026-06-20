@@ -14,6 +14,7 @@ pub struct FeatureFlagService {
     api_key: String,
     server_url: String,
     install_id: String,
+    build_number: i64,
     refresh_interval: Duration,
 }
 
@@ -22,6 +23,7 @@ impl FeatureFlagService {
         api_key: String,
         server_url: String,
         install_id: String,
+        build_number: i64,
         refresh_interval: Duration,
     ) -> Self {
         let (ready_tx, ready_rx) = watch::channel(false);
@@ -32,6 +34,7 @@ impl FeatureFlagService {
             api_key,
             server_url,
             install_id,
+            build_number,
             refresh_interval,
         }
     }
@@ -47,6 +50,7 @@ impl FeatureFlagService {
             self.api_key.clone(),
             self.server_url.clone(),
             self.install_id.clone(),
+            self.build_number,
             self.refresh_interval,
         );
 

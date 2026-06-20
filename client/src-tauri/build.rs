@@ -41,6 +41,11 @@ fn main() {
         println!("cargo:rustc-env=FLAGSMITH_SERVER={}", server);
     }
 
+    println!("cargo:rerun-if-env-changed=APP_BUILD_NUMBER");
+    if let Ok(build_number) = std::env::var("APP_BUILD_NUMBER") {
+        println!("cargo:rustc-env=APP_BUILD_NUMBER={}", build_number);
+    }
+
     let version = std::env::var("CARGO_PKG_VERSION").unwrap_or_default();
     let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
 
