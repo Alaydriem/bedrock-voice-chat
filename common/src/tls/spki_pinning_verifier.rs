@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use base64::Engine;
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
-use rustls::crypto::{aws_lc_rs, verify_tls12_signature, verify_tls13_signature, CryptoProvider};
+use rustls::crypto::{CryptoProvider, aws_lc_rs, verify_tls12_signature, verify_tls13_signature};
 use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use rustls::{DigitallySignedStruct, SignatureScheme};
 use sha2::{Digest, Sha256};
@@ -78,7 +78,11 @@ impl ServerCertVerifier for SpkiPinningVerifier {
         }
 
         let digest = Sha256::digest(cert.public_key().raw);
-        if self.pins.iter().any(|pin| pin.as_slice() == digest.as_slice()) {
+        if self
+            .pins
+            .iter()
+            .any(|pin| pin.as_slice() == digest.as_slice())
+        {
             Ok(ServerCertVerified::assertion())
         } else {
             Err(rustls::Error::General(

@@ -29,8 +29,7 @@ pub(crate) async fn get_credential(
     key: String,
 ) -> Result<String, String> {
     let mut kr = keyring.lock().await;
-    kr.get_credential(&server, &key)
-        .map_err(|e| e.to_string())
+    kr.get_credential(&server, &key).map_err(|e| e.to_string())
 }
 
 #[tauri::command(async)]
@@ -61,6 +60,5 @@ pub(crate) async fn delete_credentials(
     server: String,
 ) -> Result<(), String> {
     let mut kr = keyring.lock().await;
-    kr.delete_credentials(&server)
-        .map_err(|e| e.to_string())
+    kr.delete_credentials(&server).map_err(|e| e.to_string())
 }

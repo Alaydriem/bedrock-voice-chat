@@ -9,7 +9,7 @@
 
 mod dtos;
 
-use base64::{engine::general_purpose, Engine as _};
+use base64::{Engine as _, engine::general_purpose};
 use reqwest::header::HeaderMap;
 
 use crate::auth::provider::{AuthError, AuthResult};
@@ -68,14 +68,15 @@ impl HytaleAuthProvider {
             .map_err(|e| AuthError::InvalidResponse(e.to_string()))?;
 
         // Build verification_uri_complete if not provided
-        let verification_uri_complete = device_response
-            .verification_uri_complete
-            .unwrap_or_else(|| {
-                format!(
-                    "{}?user_code={}",
-                    device_response.verification_uri, device_response.user_code
-                )
-            });
+        let verification_uri_complete =
+            device_response
+                .verification_uri_complete
+                .unwrap_or_else(|| {
+                    format!(
+                        "{}?user_code={}",
+                        device_response.verification_uri, device_response.user_code
+                    )
+                });
 
         Ok(DeviceFlow::new(
             device_response.device_code,

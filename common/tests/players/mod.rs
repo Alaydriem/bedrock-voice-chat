@@ -1,1 +1,2 @@
+mod fixture;
 mod minecraft;

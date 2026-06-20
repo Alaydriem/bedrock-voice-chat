@@ -127,11 +127,7 @@ impl TransferKeepAlive {
                             );
                         }
                         Err(e) => {
-                            log::error!(
-                                "Transfer keepalive attempt {} error: {}",
-                                attempt + 1,
-                                e
-                            );
+                            log::error!("Transfer keepalive attempt {} error: {}", attempt + 1, e);
                         }
                     }
                     if attempt < 2 {

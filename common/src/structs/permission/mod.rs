@@ -1,8 +1,8 @@
 pub mod effect;
 pub mod server_permissions;
 pub use effect::PermissionEffect;
-pub use server_permissions::ServerPermissions;
 use serde::{Deserialize, Serialize};
+pub use server_permissions::ServerPermissions;
 use ts_rs::TS;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, TS)]
@@ -15,11 +15,18 @@ pub enum Permission {
     AudioDelete,
     #[serde(rename = "admin")]
     Admin,
+    #[serde(rename = "peer_link")]
+    PeerLink,
 }
 
 impl Permission {
     pub fn all() -> Vec<Permission> {
-        vec![Permission::AudioUpload, Permission::AudioDelete, Permission::Admin]
+        vec![
+            Permission::AudioUpload,
+            Permission::AudioDelete,
+            Permission::Admin,
+            Permission::PeerLink,
+        ]
     }
 
     pub fn as_str(&self) -> &'static str {
@@ -27,6 +34,7 @@ impl Permission {
             Permission::AudioUpload => "audio_upload",
             Permission::AudioDelete => "audio_delete",
             Permission::Admin => "admin",
+            Permission::PeerLink => "peer_link",
         }
     }
 

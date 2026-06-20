@@ -21,10 +21,10 @@ use deep_links::DeepLinkHandler;
 mod analytics;
 mod api;
 pub mod app_builder;
-#[cfg(feature = "bedrock-protocol")]
-pub mod bedrock;
 pub mod audio;
 mod auth;
+#[cfg(feature = "bedrock-protocol")]
+pub mod bedrock;
 mod commands;
 mod deep_links;
 mod events;
@@ -32,9 +32,9 @@ mod feature_flags;
 pub use feature_flags::flagsmith::FlagsmithProvider;
 #[cfg(feature = "bedrock-protocol")]
 mod iap;
-mod keyring;
 #[cfg(desktop)]
 pub mod keybinds;
+mod keyring;
 mod logging;
 mod network;
 mod structs;
@@ -138,9 +138,7 @@ pub fn run() {
     let bedrock_log_sender = bedrock_log_channel.sender();
 
     #[cfg(feature = "bedrock-protocol")]
-    let bedrock_connect_error_channel = Arc::new(
-        crate::bedrock::BedrockConnectErrorChannel::new(),
-    );
+    let bedrock_connect_error_channel = Arc::new(crate::bedrock::BedrockConnectErrorChannel::new());
 
     builder
         .plugin(
@@ -596,6 +594,10 @@ pub fn run() {
             #[cfg(feature = "bedrock-protocol")]
             app.manage(Arc::clone(&bedrock_presence_injector));
             #[cfg(feature = "bedrock-protocol")]
+            let bedrock_announce_injector = crate::bedrock::AnnounceInjector::new_shared();
+            #[cfg(feature = "bedrock-protocol")]
+            app.manage(Arc::clone(&bedrock_announce_injector));
+            #[cfg(feature = "bedrock-protocol")]
             app.manage(Arc::clone(&bedrock_connect_error_channel));
             #[cfg(feature = "bedrock-protocol")]
             app.manage(Arc::clone(&bedrock_log_channel));
@@ -615,6 +617,8 @@ pub fn run() {
                 Some(Arc::clone(&bedrock_eject_injector)),
                 #[cfg(feature = "bedrock-protocol")]
                 Some(Arc::clone(&bedrock_presence_injector)),
+                #[cfg(feature = "bedrock-protocol")]
+                Some(Arc::clone(&bedrock_announce_injector)),
             )?;
 
             // KeybindManager listens for global key events and triggers actions in AudioActionsManager for desktop

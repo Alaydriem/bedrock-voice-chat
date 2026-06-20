@@ -1,20 +1,20 @@
-use anyhow::{anyhow, Context};
-use base64::{engine::general_purpose, Engine};
+use anyhow::{Context, anyhow};
+use base64::{Engine, engine::general_purpose};
+use common::Game;
 use common::ncryptflib::{ExportableEncryptionKeyData, Keypair, Response as NcryptfResponse};
+use common::request::CodeLoginRequest;
 use common::request::admin::{
     BanishUserRequest, ClearPermissionRequest, CreateUserRequest, GenerateCodeRequest,
     SetPermissionRequest,
 };
-use common::request::CodeLoginRequest;
+use common::response::LoginResponse;
 use common::response::admin::{
     BanishedUserResponse, CreatedUserResponse, GeneratedCodeResponse, PermissionListResponse,
 };
 use common::response::auth::IntrospectResponse;
-use common::response::LoginResponse;
-use common::Game;
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Certificate, Client, Identity as ReqwestIdentity, Method, StatusCode};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 /// ncryptf-wrapped response envelope used by the server.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -132,7 +132,8 @@ impl AdminApiClient {
         &self,
         req: &CreateUserRequest,
     ) -> Result<CreatedUserResponse, AdminApiError> {
-        self.request(Method::POST, "/api/admin/user", Some(req)).await
+        self.request(Method::POST, "/api/admin/user", Some(req))
+            .await
     }
 
     pub async fn banish_user(
@@ -234,18 +235,14 @@ impl AdminApiClient {
         body: &impl Serialize,
     ) -> Result<reqwest::Response, AdminApiError> {
         let mut headers = HeaderMap::new();
-        headers.insert(
-            "Content-Type",
-            HeaderValue::from_static("application/json"),
-        );
+        headers.insert("Content-Type", HeaderValue::from_static("application/json"));
         headers.insert(
             "Accept",
             HeaderValue::from_static("application/vnd.ncryptf+json"),
         );
         headers.insert(
             "X-HashId",
-            HeaderValue::from_str(&ek.hash_id)
-                .map_err(|e| AdminApiError::Transport(anyhow!(e)))?,
+            HeaderValue::from_str(&ek.hash_id).map_err(|e| AdminApiError::Transport(anyhow!(e)))?,
         );
         headers.insert(
             "X-PubKey",

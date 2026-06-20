@@ -1,28 +1,28 @@
 use bytes::Bytes;
 use clap::Parser;
-use common::response::auth::AuthStateResponse;
+use common::Game;
 use common::response::ApiConfigResponse;
+use common::response::auth::AuthStateResponse;
 use common::rustls::MtlsHttpClient;
+use common::s2n_quic::{Client, Connection, client::Connect};
 use common::structs::channel::{Channel, ChannelEvent, ChannelEvents};
 use common::structs::packet::AudioFramePacket;
 use common::structs::packet::PacketType;
 use common::structs::packet::QuicNetworkPacket;
-use common::Game;
 use core::{
     future::Future,
     pin::Pin,
     task::{Context, Poll},
 };
 use hound;
-use x509_parser::prelude::*;
 use rodio::Decoder;
-use common::s2n_quic::{client::Connect, Client, Connection};
 use std::io::BufWriter;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use std::{error::Error, net::SocketAddr};
 use std::{fs::File, io::BufReader, path::Path};
+use x509_parser::prelude::*;
 
 #[derive(Debug, Parser)]
 #[clap(about = "Broadcast audio to a BVC server")]
@@ -550,11 +550,11 @@ impl<'c> RecvDatagram<'c> {
 impl<'c> Future for RecvDatagram<'c> {
     type Output = Result<Bytes, anyhow::Error>;
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match self
-            .conn
-            .datagram_mut(|r: &mut common::s2n_quic::provider::datagram::default::Receiver| {
+        match self.conn.datagram_mut(
+            |r: &mut common::s2n_quic::provider::datagram::default::Receiver| {
                 r.poll_recv_datagram(cx)
-            }) {
+            },
+        ) {
             Ok(Poll::Ready(Ok(bytes))) => Poll::Ready(Ok(bytes)),
             Ok(Poll::Ready(Err(e))) => Poll::Ready(Err(anyhow::anyhow!(e))),
             Ok(Poll::Pending) => Poll::Pending,

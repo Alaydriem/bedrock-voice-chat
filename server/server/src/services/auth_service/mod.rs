@@ -7,16 +7,15 @@ use std::path::Path;
 use std::sync::Arc;
 
 use common::{
+    Game,
     request::CodeLoginRequest,
     response::LoginResponse,
-    structs::{
-        config::Keypair,
-        permission::ServerPermissions,
-    },
-    Game,
+    structs::{config::Keypair, permission::ServerPermissions},
 };
 use entity::player;
-use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter,
+};
 
 pub use auth_error::AuthError;
 pub use code_login_error::CodeLoginError;
@@ -55,13 +54,16 @@ impl AuthService {
                 let effective_game = game_hint
                     .map(|g| g.to_lowercase())
                     .unwrap_or_else(|| "minecraft".to_string());
-                tracing::warn!("player_from_certificate: legacy cert gamertag={}, effective_game={}", cn, effective_game);
+                tracing::warn!(
+                    "player_from_certificate: legacy cert gamertag={}, effective_game={}",
+                    cn,
+                    effective_game
+                );
                 (Some(effective_game), cn.to_string())
             }
         };
 
-        let mut query = player::Entity::find()
-            .filter(player::Column::Gamertag.eq(&gamertag));
+        let mut query = player::Entity::find().filter(player::Column::Gamertag.eq(&gamertag));
         if let Some(ref game) = game_filter {
             query = query.filter(player::Column::Game.eq(game));
         }
@@ -124,9 +126,7 @@ impl AuthService {
         }
 
         // Rotate certificate if expiring or using legacy CN format
-        let needs_rotation = actual
-            .is_certificate_expiring()
-            .unwrap_or(false)
+        let needs_rotation = actual.is_certificate_expiring().unwrap_or(false)
             || actual.has_legacy_certificate_cn(&game);
 
         let (certificate, certificate_key) = if needs_rotation {
@@ -172,8 +172,8 @@ impl AuthService {
                     AuthError::CertificateError(e.to_string())
                 })?;
 
-        let decoded_gamerpic = crate::services::GamerpicDecoder::decode(Some(gamerpic))
-            .unwrap_or_default();
+        let decoded_gamerpic =
+            crate::services::GamerpicDecoder::decode(Some(gamerpic)).unwrap_or_default();
 
         let server_permissions = if let Some(perm_service) = permission_service {
             let allowed = perm_service.evaluate_all(conn, actual.id).await;
@@ -211,10 +211,6 @@ impl AuthService {
         features: &Features,
         perm_config_defaults: std::collections::HashMap<String, bool>,
     ) -> Result<LoginResponse, CodeLoginError> {
-        if !features.code_login {
-            return Err(CodeLoginError::FeatureDisabled);
-        }
-
         let player_record =
             AuthCodeService::validate_and_consume_code(conn, &payload.code, &payload.gamertag)
                 .await?;

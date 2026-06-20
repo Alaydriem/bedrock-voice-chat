@@ -6,8 +6,8 @@ use rubato::audioadapter::Adapter;
 use rubato::{Fft, FixedSync, Resampler};
 use std::path::Path;
 
-use super::ogg_writer::OggOpusWriter;
 use super::EncodeOutput;
+use super::ogg_writer::OggOpusWriter;
 
 const OPUS_SAMPLE_RATE: u32 = 48000;
 const FRAME_SIZE: usize = 960;
@@ -139,8 +139,7 @@ impl AudioFileEncoder {
                 .process(&input_adapter, 0, None)
                 .map_err(|e| anyhow!("Resample error: {:?}", e))?;
 
-            let expected_output = (remaining.len() as f64
-                * OPUS_SAMPLE_RATE as f64
+            let expected_output = (remaining.len() as f64 * OPUS_SAMPLE_RATE as f64
                 / source_rate as f64)
                 .ceil() as usize;
             let frames = resampled.frames();

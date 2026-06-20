@@ -8,12 +8,12 @@ pub use app::Permissions;
 pub use app::Server;
 pub use app::Voice;
 
+pub use app::BedrockDnsConfig;
 #[allow(unused_imports)]
 pub use app::Database;
 #[allow(unused_imports)]
 pub use app::Logger;
 #[allow(unused_imports)]
-pub use app::Tls;
-#[allow(unused_imports)]
 pub use app::Minecraft;
-pub use app::BedrockDnsConfig;
+#[allow(unused_imports)]
+pub use app::Tls;

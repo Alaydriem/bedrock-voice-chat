@@ -3,7 +3,7 @@ use rocket::request::{FromRequest, Outcome, Request};
 use rocket_okapi::r#gen::OpenApiGenerator;
 use rocket_okapi::request::{OpenApiFromRequest, RequestHeaderInput};
 use sea_orm::{self, ConnectOptions};
-use sea_orm_rocket::{self, rocket::figment::Figment, Config, Connection};
+use sea_orm_rocket::{self, Config, Connection, rocket::figment::Figment};
 
 use std::ops::{Deref, DerefMut};
 use std::time::Duration;

@@ -1,19 +1,21 @@
 use std::sync::Arc;
 
 use common::{
+    Game,
     auth::{AuthError as CommonAuthError, MinecraftAuthProvider},
     request::LoginRequest,
     response::LoginResponse,
-    Game,
 };
-use rocket::{http::Status, serde::json::Json, State};
+use rocket::{State, http::Status, serde::json::Json};
 use rocket_okapi::openapi;
 
 use crate::config::{Permissions, Server};
 use crate::http::dtos::ncryptf::JsonMessage;
 use crate::http::openapi::NcryptfJsonResponse;
 use crate::http::pool::Db;
-use crate::services::{AuthError, AuthService, CertificateService, PermissionService, PlayerIdentityService};
+use crate::services::{
+    AuthError, AuthService, CertificateService, PermissionService, PlayerIdentityService,
+};
 
 /// Authenticates the Player via Xbox Live to grab their gamertag and other identifying information
 #[openapi(tag = "Authentication")]
@@ -33,7 +35,12 @@ pub async fn authenticate(
         Ok(uri) => uri,
         Err(e) => {
             tracing::error!("Invalid redirect URI: {}", e);
-            return NcryptfJsonResponse::from_inner(JsonMessage::create(Status::BadRequest, None, None, None));
+            return NcryptfJsonResponse::from_inner(JsonMessage::create(
+                Status::BadRequest,
+                None,
+                None,
+                None,
+            ));
         }
     };
 
@@ -46,10 +53,15 @@ pub async fn authenticate(
         Err(e) => {
             tracing::error!("Xbox Live authentication failed: {}", e);
             return match e {
-                CommonAuthError::ProfileNotFound => {
-                    NcryptfJsonResponse::from_inner(JsonMessage::create(Status::Forbidden, None, None, None))
-                }
-                _ => NcryptfJsonResponse::from_inner(JsonMessage::create(Status::Forbidden, None, None, None)),
+                CommonAuthError::ProfileNotFound => NcryptfJsonResponse::from_inner(
+                    JsonMessage::create(Status::Forbidden, None, None, None),
+                ),
+                _ => NcryptfJsonResponse::from_inner(JsonMessage::create(
+                    Status::Forbidden,
+                    None,
+                    None,
+                    None,
+                )),
             };
         }
     };
@@ -100,15 +112,30 @@ pub async fn authenticate(
             // Include MC username in response for client display
             response.minecraft_username = minecraft_username;
 
-            NcryptfJsonResponse::from_inner(JsonMessage::create(Status::Ok, Some(response), None, None))
+            NcryptfJsonResponse::from_inner(JsonMessage::create(
+                Status::Ok,
+                Some(response),
+                None,
+                None,
+            ))
         }
         Err(e) => {
             tracing::error!("Login failed: {}", e);
             match e {
                 AuthError::PlayerNotFound | AuthError::PlayerBanished => {
-                    NcryptfJsonResponse::from_inner(JsonMessage::create(Status::Forbidden, None, None, None))
+                    NcryptfJsonResponse::from_inner(JsonMessage::create(
+                        Status::Forbidden,
+                        None,
+                        None,
+                        None,
+                    ))
                 }
-                _ => NcryptfJsonResponse::from_inner(JsonMessage::create(Status::InternalServerError, None, None, None)),
+                _ => NcryptfJsonResponse::from_inner(JsonMessage::create(
+                    Status::InternalServerError,
+                    None,
+                    None,
+                    None,
+                )),
             }
         }
     }

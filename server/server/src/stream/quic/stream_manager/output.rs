@@ -2,10 +2,10 @@ use crate::stream::quic::client_id_hasher::ClientIdHasher;
 use crate::stream::quic::connection_registry::RoutedPacket;
 use anyhow::Error;
 use bytes::Bytes;
-use common::traits::StreamTrait;
 use common::s2n_quic::Connection;
-use std::sync::atomic::{AtomicBool, Ordering};
+use common::traits::StreamTrait;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::mpsc;
 
 pub(crate) struct OutputStream {

@@ -8,10 +8,10 @@
 
 use crate::harness::http_client::MtlsClient;
 use crate::harness::server::{ADMIN_GAME, ADMIN_GAMERTAG};
-use crate::harness::{assert_status, TestServer};
+use crate::harness::{HttpAssert, TestServer};
 
-use common::request::admin::BanishUserRequest;
 use common::Game;
+use common::request::admin::BanishUserRequest;
 
 const ENDPOINT: &str = "/api/admin/user/banish";
 
@@ -30,7 +30,7 @@ async fn returns_401_without_client_cert() {
         .send()
         .await
         .unwrap();
-    assert_status(resp.status().as_u16(), 401);
+    HttpAssert::status(resp.status().as_u16(), 401);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -48,7 +48,7 @@ async fn returns_403_for_non_admin() {
         .send()
         .await
         .unwrap();
-    assert_status(resp.status().as_u16(), 403);
+    HttpAssert::status(resp.status().as_u16(), 403);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -66,7 +66,7 @@ async fn returns_404_when_target_missing() {
         .send()
         .await
         .unwrap();
-    assert_status(resp.status().as_u16(), 404);
+    HttpAssert::status(resp.status().as_u16(), 404);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -85,7 +85,7 @@ async fn admin_can_banish_other_player() {
         .send()
         .await
         .unwrap();
-    assert_status(resp.status().as_u16(), 200);
+    HttpAssert::status(resp.status().as_u16(), 200);
     let body: serde_json::Value = resp.json().await.unwrap();
     assert_eq!(body["banished"].as_bool().unwrap(), true);
 }
@@ -110,7 +110,7 @@ async fn returns_403_for_banished_admin() {
         .send()
         .await
         .unwrap();
-    assert_status(resp.status().as_u16(), 403);
+    HttpAssert::status(resp.status().as_u16(), 403);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -130,7 +130,7 @@ async fn admin_can_unbanish_player() {
         .send()
         .await
         .unwrap();
-    assert_status(banish.status().as_u16(), 200);
+    HttpAssert::status(banish.status().as_u16(), 200);
 
     // Then unbanish
     let unbanish = client
@@ -143,7 +143,7 @@ async fn admin_can_unbanish_player() {
         .send()
         .await
         .unwrap();
-    assert_status(unbanish.status().as_u16(), 200);
+    HttpAssert::status(unbanish.status().as_u16(), 200);
     let body: serde_json::Value = unbanish.json().await.unwrap();
     assert_eq!(body["banished"].as_bool().unwrap(), false);
 }
@@ -163,5 +163,5 @@ async fn rejects_self_banish() {
         .send()
         .await
         .unwrap();
-    assert_status(resp.status().as_u16(), 409);
+    HttpAssert::status(resp.status().as_u16(), 409);
 }

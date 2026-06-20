@@ -60,8 +60,7 @@ async fn channel_membership_governs_audio_through_join_leave_rejoin_disband() {
         .expect("Alice reports the joined channel id");
 
     let bob = ClientProc::spawn("Bob", &bob_code, &url, "lifecycle");
-    bob
-        .await_connected(Duration::from_secs(30))
+    bob.await_connected(Duration::from_secs(30))
         .expect("Bob connects + joins lifecycle");
 
     let probe = Signal::musical_probe(48_000);

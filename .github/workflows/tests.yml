@@ -1,0 +1,155 @@
+name: Tests
+
+permissions:
+  contents: read
+
+# Independent test pipeline (not coupled to build-server): runs the common,
+# client, and server workspaces under cargo-nextest on a single Windows runner.
+# Windows is required because the client e2e harness links Wry/WebView2 and loads
+# the server cdylib via FFI. Consolidating here means the server compiles once for
+# both its own workspace tests and the cdylib the harness loads.
+#
+# Reusable workflow: invoked by build-all.yml and release.yml (which provide the
+# PR/push triggers), plus workflow_dispatch for manual runs. It carries no
+# pull_request/push triggers of its own to avoid double-running.
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Git ref to checkout (tag, branch, or SHA)'
+        required: false
+        type: string
+      test_jobs:
+        description: 'Parallelism for the client e2e harness (nextest -j). Lower on constrained runners.'
+        required: false
+        default: '4'
+        type: string
+  workflow_dispatch:
+    inputs:
+      test_jobs:
+        description: 'Parallelism for the client e2e harness (nextest -j). Lower on constrained runners.'
+        required: false
+        default: '4'
+        type: string
+
+jobs:
+  tests:
+    name: Tests (Windows)
+    runs-on: windows-2022
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: 'yarn'
+          cache-dependency-path: client/yarn.lock
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
+      - name: Setup private cargo deps auth
+        uses: ./.github/actions/setup-private-cargo-deps
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            .
+            server
+          key: test
+
+      - name: Install JavaScript dependencies
+        working-directory: ./client
+        run: yarn install --frozen-lockfile
+
+      - name: Download and setup ASIO SDK
+        working-directory: ./client/src-tauri
+        shell: powershell
+        run: |
+          Invoke-WebRequest -Uri "https://download.steinberg.net/sdk_downloads/asiosdk_2.3.3_2019-06-14.zip" -OutFile "asiosdk.zip"
+          Expand-Archive -Path "asiosdk.zip" -DestinationPath "." -Force
+
+      - name: Set up LIBCLANG environment
+        shell: powershell
+        run: |
+          $libclangPath = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm\x64\lib"
+          if (-not (Test-Path $libclangPath)) {
+            $libclangPath = "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Tools\Llvm\x64\lib"
+          }
+          if (-not (Test-Path $libclangPath)) {
+            $libclangPath = "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\x64\lib"
+          }
+          echo "LIBCLANG_PATH=$libclangPath" >> $env:GITHUB_ENV
+
+      - name: Install Windows dependencies (server vcpkg)
+        shell: bash
+        working-directory: ./server
+        run: |
+          "$VCPKG_INSTALLATION_ROOT/vcpkg" install \
+            --triplet x64-windows-static-md \
+            --x-install-root="$VCPKG_INSTALLATION_ROOT/installed"
+          echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" >> $GITHUB_ENV
+
+      - name: Force libz-sys/libgit2-sys rebuild
+        shell: bash
+        working-directory: ./server
+        run: |
+          rm -rf target/*/build/libz-sys-* target/*/build/libgit2-sys-* 2>/dev/null || true
+          rm -rf target/*/.fingerprint/libz-sys-* target/*/.fingerprint/libgit2-sys-* 2>/dev/null || true
+
+      - name: Build frontend dist
+        working-directory: ./client
+        run: yarn build
+
+      - name: Server workspace tests
+        working-directory: ./server
+        shell: bash
+        # Serial (-j1): each server test binds 127.0.0.1:0 then hands the port to
+        # Rocket — a bind-then-handoff TOCTOU that process isolation does not fix,
+        # so concurrency stays at one. nextest still gives per-test process
+        # isolation and consistent reporting with the client suite.
+        run: cargo nextest run --workspace -j 1
+
+      - name: Build server cdylib
+        working-directory: ./server
+        shell: bash
+        # The client e2e harness loads this cdylib via FFI; build it from the same
+        # server/ checkout so it shares the workspace-test cargo cache above.
+        run: cargo build -p bedrock-voice-chat-server --features bedrock
+
+      - name: Build e2e client bin
+        shell: bash
+        run: cargo build -p bedrock-voice-chat-client --bin bvc_client_e2e --features e2e
+
+      - name: Common workspace tests
+        shell: bash
+        run: cargo nextest run -p common
+
+      - name: Client tests + e2e harness
+        shell: bash
+        # `--features e2e` enables the gated integration target (and testkit), so
+        # this one invocation runs the client unit tests AND the e2e scenarios.
+        # nextest's process-per-test isolates the in-process server cdylib so the
+        # suite never accumulates native state and faults. `-j` is the per-runner
+        # parallelism lever (test_jobs); the heavy relay scenarios stay serial
+        # regardless via the test group in .config/nextest.toml.
+        run: >
+          cargo nextest run
+          -p bedrock-voice-chat-client
+          --features e2e
+          -j ${{ inputs.test_jobs || '4' }}

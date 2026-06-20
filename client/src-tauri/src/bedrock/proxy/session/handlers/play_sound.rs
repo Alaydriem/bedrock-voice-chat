@@ -120,7 +120,10 @@ impl<'a> BedrockPacketHandler for PlaySoundHandler<'a> {
                         return;
                     }
                 };
-                info!("Bedrock proxy: bvc:eject -> JukeboxEject event_id={}", event_id);
+                info!(
+                    "Bedrock proxy: bvc:eject -> JukeboxEject event_id={}",
+                    event_id
+                );
                 emitter.try_send(
                     BedrockEvent::JukeboxEject {
                         event_id,
@@ -136,8 +139,8 @@ impl<'a> BedrockPacketHandler for PlaySoundHandler<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use common::structs::packet::{PacketType, QuicNetworkPacketData};
     use crate::network::NetworkPacket;
+    use common::structs::packet::{PacketType, QuicNetworkPacketData};
 
     fn make_emitter() -> (Arc<BedrockEventEmitter>, flume::Receiver<NetworkPacket>) {
         let (tx, rx) = flume::unbounded::<NetworkPacket>();
@@ -150,7 +153,8 @@ mod tests {
         let (emitter, rx) = make_emitter();
         let beacon_cache = JukeboxBeaconCache::default();
 
-        let mut state = BedrockSessionState::new("TestPlayer".to_string(), Some("xuid-1".to_string()));
+        let mut state =
+            BedrockSessionState::new("TestPlayer".to_string(), Some("xuid-1".to_string()));
         state.set_world_uuid_for_test("world-uuid-xyz".to_string());
 
         let packet = PlaySoundPacketAny::V897(
@@ -162,19 +166,24 @@ mod tests {
             },
         );
 
-        PlaySoundHandler { beacon_cache: &beacon_cache }.handle(&packet, &mut state, Some(&emitter));
+        PlaySoundHandler {
+            beacon_cache: &beacon_cache,
+        }
+        .handle(&packet, &mut state, Some(&emitter));
 
-        let net_packet = rx.try_recv().expect("JukeboxInsert packet should be queued");
+        let net_packet = rx
+            .try_recv()
+            .expect("JukeboxInsert packet should be queued");
         assert_eq!(net_packet.data.packet_type, PacketType::BedrockEvent);
         match net_packet.data.data {
-            QuicNetworkPacketData::BedrockEvent(ep) => {
-                match ep.event {
-                    BedrockEvent::JukeboxInsert { relay_world_uuid, .. } => {
-                        assert_eq!(relay_world_uuid, Some("world-uuid-xyz".to_string()));
-                    }
-                    other => panic!("expected JukeboxInsert, got {:?}", other),
+            QuicNetworkPacketData::BedrockEvent(ep) => match ep.event {
+                BedrockEvent::JukeboxInsert {
+                    relay_world_uuid, ..
+                } => {
+                    assert_eq!(relay_world_uuid, Some("world-uuid-xyz".to_string()));
                 }
-            }
+                other => panic!("expected JukeboxInsert, got {:?}", other),
+            },
             other => panic!("expected BedrockEvent packet, got {:?}", other),
         }
     }

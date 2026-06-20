@@ -1,16 +1,10 @@
 use std::time::Duration;
 
 use bvc_client_lib::testkit::signal::Signal;
-use common::bedrock_protocol::version::ProtocolVersion;
 
-use crate::harness::proxy_scale::{hears, silent_of, ALICE, BOB, CAROL, DAVE};
+use crate::harness::protocol_matrix::ProtocolMatrix;
+use crate::harness::proxy_scale::{ALICE, BOB, CAROL, DAVE, Scale};
 use crate::harness::proxy_world::ProxyWorld;
-
-/// Protocol coverage is the last two generated versions — derived, never hardcoded.
-pub(crate) fn last_two() -> Vec<ProtocolVersion> {
-    let all = ProtocolVersion::GENERATED_ALL;
-    all[all.len() - 2..].to_vec()
-}
 
 /// Proves the full chain stands up over both protocol versions before any audio:
 /// real Wry client boots + voice-connects, proxy dials the fake upstream,
@@ -19,7 +13,7 @@ pub(crate) fn last_two() -> Vec<ProtocolVersion> {
 /// PlayerAuthInput position drive does not error.
 #[tokio::test(flavor = "multi_thread")]
 async fn proxy_single_player_attaches_to_upstream() {
-    for v in last_two() {
+    for v in ProtocolMatrix::last_two() {
         let mut w = ProxyWorld::boot(v, &["Alice"]).await;
         // Drive a non-default position via PlayerAuthInput; if the proxy were in
         // transparent-relay mode it would never decode this, so reaching here with
@@ -44,7 +38,7 @@ async fn proxy_single_player_attaches_to_upstream() {
 /// buffer without a second sleep, keeping total wall time to one capture window.
 #[tokio::test(flavor = "multi_thread")]
 async fn proxy_two_players_in_range_hear_each_other() {
-    for v in last_two() {
+    for v in ProtocolMatrix::last_two() {
         let mut w = ProxyWorld::boot(v, &["Alice", "Bob"]).await;
 
         // Drive co-located positions via PlayerAuthInput. Loop so the proxy's
@@ -57,7 +51,7 @@ async fn proxy_two_players_in_range_hear_each_other() {
 
         // Queue both feeds back-to-back. feed_tone writes frames to stdin without
         // sleeping; the bin's FrameClock paces them to QUIC at a real 20 ms cadence.
-        // Disjoint scales (ALICE = C-major, BOB = A-major) make hears() unambiguous.
+        // Disjoint scales (ALICE = C-major, BOB = A-major) make Scale::hears() unambiguous.
         let alice_pcm = ALICE.voice(2);
         let bob_pcm = BOB.voice(2);
         w.proc("Alice").feed_tone(&alice_pcm, 48_000);
@@ -94,8 +88,14 @@ async fn proxy_two_players_in_range_hear_each_other() {
 
         assert!(a_sent > 0 && b_sent > 0, "[{v}] both produce input frames");
         assert!(a_fq > 0 && b_fq > 0, "[{v}] both receive frames from QUIC");
-        assert!(hears(&mono_a, BOB), "[{v}] Alice hears Bob (A-major triad)");
-        assert!(hears(&mono_b, ALICE), "[{v}] Bob hears Alice (C-major triad)");
+        assert!(
+            Scale::hears(&mono_a, BOB),
+            "[{v}] Alice hears Bob (A-major triad)"
+        );
+        assert!(
+            Scale::hears(&mono_b, ALICE),
+            "[{v}] Bob hears Alice (C-major triad)"
+        );
     }
 }
 
@@ -112,7 +112,7 @@ async fn proxy_two_players_in_range_hear_each_other() {
 /// captured buffer is RMS-silent.
 #[tokio::test(flavor = "multi_thread")]
 async fn proxy_out_of_range_cannot_hear() {
-    for v in last_two() {
+    for v in ProtocolMatrix::last_two() {
         let mut w = ProxyWorld::boot(v, &["Alice", "Bob"]).await;
 
         // PHASE 1: in-range baseline. Co-locate 1 block apart.
@@ -182,7 +182,7 @@ async fn proxy_out_of_range_cannot_hear() {
 /// out to the other two. A single 4 500 ms window covers all three paced sends.
 #[tokio::test(flavor = "multi_thread")]
 async fn proxy_three_players_in_range_all_hear() {
-    for v in last_two() {
+    for v in ProtocolMatrix::last_two() {
         let mut w = ProxyWorld::boot(v, &["Alice", "Bob", "Carol"]).await;
 
         for _ in 0..5 {
@@ -218,12 +218,12 @@ async fn proxy_three_players_in_range_all_hear() {
              alice_hears(bob={} carol={}) \
              bob_hears(alice={} carol={}) \
              carol_hears(alice={} bob={})",
-            hears(&mono_a, BOB),
-            hears(&mono_a, CAROL),
-            hears(&mono_b, ALICE),
-            hears(&mono_b, CAROL),
-            hears(&mono_c, ALICE),
-            hears(&mono_c, BOB),
+            Scale::hears(&mono_a, BOB),
+            Scale::hears(&mono_a, CAROL),
+            Scale::hears(&mono_b, ALICE),
+            Scale::hears(&mono_b, CAROL),
+            Scale::hears(&mono_c, ALICE),
+            Scale::hears(&mono_c, BOB),
         );
 
         w.shutdown();
@@ -232,12 +232,12 @@ async fn proxy_three_players_in_range_all_hear() {
             a_fq > 0 && b_fq > 0 && c_fq > 0,
             "[{v}] all three receive frames from QUIC"
         );
-        assert!(hears(&mono_a, BOB), "[{v}] Alice hears Bob");
-        assert!(hears(&mono_a, CAROL), "[{v}] Alice hears Carol");
-        assert!(hears(&mono_b, ALICE), "[{v}] Bob hears Alice");
-        assert!(hears(&mono_b, CAROL), "[{v}] Bob hears Carol");
-        assert!(hears(&mono_c, ALICE), "[{v}] Carol hears Alice");
-        assert!(hears(&mono_c, BOB), "[{v}] Carol hears Bob");
+        assert!(Scale::hears(&mono_a, BOB), "[{v}] Alice hears Bob");
+        assert!(Scale::hears(&mono_a, CAROL), "[{v}] Alice hears Carol");
+        assert!(Scale::hears(&mono_b, ALICE), "[{v}] Bob hears Alice");
+        assert!(Scale::hears(&mono_b, CAROL), "[{v}] Bob hears Carol");
+        assert!(Scale::hears(&mono_c, ALICE), "[{v}] Carol hears Alice");
+        assert!(Scale::hears(&mono_c, BOB), "[{v}] Carol hears Bob");
     }
 }
 
@@ -262,13 +262,15 @@ async fn proxy_three_players_in_range_all_hear() {
 /// router.
 #[tokio::test(flavor = "multi_thread")]
 async fn proxy_two_isolated_pairs_audio_within_not_across() {
-    for v in last_two() {
+    for v in ProtocolMatrix::last_two() {
         let mut w = ProxyWorld::boot(v, &["Alice", "Bob", "Carol", "Dave"]).await;
 
         for _ in 0..5 {
             w.upstream.drive_position("Alice", 0.0, 64.0, 0.0).await;
             w.upstream.drive_position("Bob", 1.0, 64.0, 0.0).await;
-            w.upstream.drive_position("Carol", 10_000.0, 64.0, 0.0).await;
+            w.upstream
+                .drive_position("Carol", 10_000.0, 64.0, 0.0)
+                .await;
             w.upstream.drive_position("Dave", 10_001.0, 64.0, 0.0).await;
             tokio::time::sleep(Duration::from_millis(120)).await;
         }
@@ -293,10 +295,10 @@ async fn proxy_two_isolated_pairs_audio_within_not_across() {
              b_fq={b_fq} c_fq={c_fq} \
              bob_hears_alice={} bob_silent_of_dave={} \
              carol_hears_dave={} carol_silent_of_alice={}",
-            hears(&mono_b, ALICE),
-            silent_of(&mono_b, DAVE),
-            hears(&mono_c, DAVE),
-            silent_of(&mono_c, ALICE),
+            Scale::hears(&mono_b, ALICE),
+            Scale::silent_of(&mono_b, DAVE),
+            Scale::hears(&mono_c, DAVE),
+            Scale::silent_of(&mono_c, ALICE),
         );
 
         w.shutdown();
@@ -305,14 +307,20 @@ async fn proxy_two_isolated_pairs_audio_within_not_across() {
             b_fq > 0 && c_fq > 0,
             "[{v}] both pair listeners receive frames from QUIC"
         );
-        assert!(hears(&mono_b, ALICE), "[{v}] Bob hears Alice (same pair)");
         assert!(
-            silent_of(&mono_b, DAVE),
+            Scale::hears(&mono_b, ALICE),
+            "[{v}] Bob hears Alice (same pair)"
+        );
+        assert!(
+            Scale::silent_of(&mono_b, DAVE),
             "[{v}] Bob is silent of Dave (other pair)"
         );
-        assert!(hears(&mono_c, DAVE), "[{v}] Carol hears Dave (same pair)");
         assert!(
-            silent_of(&mono_c, ALICE),
+            Scale::hears(&mono_c, DAVE),
+            "[{v}] Carol hears Dave (same pair)"
+        );
+        assert!(
+            Scale::silent_of(&mono_c, ALICE),
             "[{v}] Carol is silent of Alice (other pair)"
         );
     }

@@ -9,4 +9,6 @@ mod library;
 mod provision;
 mod proxy_audio;
 mod proxy_jukebox;
+mod relay_jukebox;
+mod relay_voice;
 mod same_channel;

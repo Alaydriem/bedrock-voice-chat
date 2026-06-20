@@ -10,10 +10,10 @@
 //! trust for every player cert ever issued, and keeps the Subject DN + SPKI of
 //! the trust anchor stable for clients that have pinned the root cert.
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use rcgen::{
-    CertificateParams, DistinguishedName, ExtendedKeyUsagePurpose, IsCa, KeyPair,
-    KeyUsagePurpose, SanType,
+    CertificateParams, DistinguishedName, ExtendedKeyUsagePurpose, IsCa, KeyPair, KeyUsagePurpose,
+    SanType,
 };
 use std::collections::HashSet;
 use std::fs;
@@ -158,8 +158,7 @@ impl CaCertManager {
                 .map_err(|e| anyhow!("parsing ca.key at {}: {e}", key_path.display()))?;
             Ok((kp, pem))
         } else {
-            let kp = KeyPair::generate()
-                .map_err(|e| anyhow!("generating ca.key: {e}"))?;
+            let kp = KeyPair::generate().map_err(|e| anyhow!("generating ca.key: {e}"))?;
             let pem = kp.serialize_pem();
             fs::write(key_path, &pem)
                 .with_context(|| format!("writing ca.key at {}", key_path.display()))?;
@@ -206,8 +205,7 @@ impl CaCertManager {
             p.push(".tmp");
             PathBuf::from(p)
         };
-        fs::write(&tmp, content)
-            .with_context(|| format!("writing tmp file {}", tmp.display()))?;
+        fs::write(&tmp, content).with_context(|| format!("writing tmp file {}", tmp.display()))?;
         fs::rename(&tmp, path)
             .with_context(|| format!("renaming {} -> {}", tmp.display(), path.display()))?;
         Ok(())
@@ -226,7 +224,9 @@ mod tests {
     use std::fs as stdfs;
     use tempfile::TempDir;
 
-    fn s(v: &str) -> String { v.to_string() }
+    fn s(v: &str) -> String {
+        v.to_string()
+    }
 
     #[test]
     fn san_key_normalizes_dns() {
@@ -248,15 +248,24 @@ mod tests {
 
     #[test]
     fn build_desired_san_keys_mixes_dns_and_ip() {
-        let got = CaCertManager::build_desired_san_keys(&[s("localhost"), s("127.0.0.1"), s("::1")]).unwrap();
+        let got =
+            CaCertManager::build_desired_san_keys(&[s("localhost"), s("127.0.0.1"), s("::1")])
+                .unwrap();
         let want: HashSet<String> = ["DNS:localhost", "IP:127.0.0.1", "IP:::1"]
-            .iter().map(|s| s.to_string()).collect();
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
         assert_eq!(got, want);
     }
 
     #[test]
     fn build_desired_san_keys_dedupes_and_is_order_independent() {
-        let a = CaCertManager::build_desired_san_keys(&[s("a.example"), s("b.example"), s("a.example")]).unwrap();
+        let a = CaCertManager::build_desired_san_keys(&[
+            s("a.example"),
+            s("b.example"),
+            s("a.example"),
+        ])
+        .unwrap();
         let b = CaCertManager::build_desired_san_keys(&[s("b.example"), s("a.example")]).unwrap();
         assert_eq!(a, b);
         assert_eq!(a.len(), 2);
@@ -279,7 +288,9 @@ mod tests {
         let pem = build_test_cert_pem(&[s("foo.example"), s("10.0.0.1"), s("::1")]);
         let got = CaCertManager::parse_existing_san_keys(&pem).unwrap();
         let want: HashSet<String> = ["DNS:foo.example", "IP:10.0.0.1", "IP:::1"]
-            .iter().map(|s| s.to_string()).collect();
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
         assert_eq!(got, want);
     }
 
@@ -324,7 +335,10 @@ mod tests {
         let (_kp2, pem2) = CaCertManager::load_or_create_keypair(&key_path).unwrap();
         let mtime2 = stdfs::metadata(&key_path).unwrap().modified().unwrap();
         assert_eq!(pem1, pem2, "key PEM must not change on reload");
-        assert_eq!(mtime1, mtime2, "ca.key file must not be rewritten on reload");
+        assert_eq!(
+            mtime1, mtime2,
+            "ca.key file must not be rewritten on reload"
+        );
     }
 
     #[test]
@@ -486,11 +500,20 @@ mod tests {
         let sans = vec![s("localhost"), s("127.0.0.1")];
         let mgr = CaCertManager::new(path);
         let (cert1, key1) = mgr.ensure(&sans).unwrap();
-        let cert_mtime_1 = stdfs::metadata(dir.path().join("ca.crt")).unwrap().modified().unwrap();
+        let cert_mtime_1 = stdfs::metadata(dir.path().join("ca.crt"))
+            .unwrap()
+            .modified()
+            .unwrap();
         std::thread::sleep(std::time::Duration::from_millis(20));
         let (cert2, key2) = mgr.ensure(&sans).unwrap();
-        let cert_mtime_2 = stdfs::metadata(dir.path().join("ca.crt")).unwrap().modified().unwrap();
-        assert_eq!(cert1, cert2, "cert PEM must be byte-equal across no-op runs");
+        let cert_mtime_2 = stdfs::metadata(dir.path().join("ca.crt"))
+            .unwrap()
+            .modified()
+            .unwrap();
+        assert_eq!(
+            cert1, cert2,
+            "cert PEM must be byte-equal across no-op runs"
+        );
         assert_eq!(key1, key2, "key PEM must be byte-equal across no-op runs");
         assert_eq!(cert_mtime_1, cert_mtime_2, "ca.crt must not be rewritten");
     }
@@ -501,11 +524,21 @@ mod tests {
         let path = dir.path().to_str().unwrap();
         let mgr = CaCertManager::new(path);
         mgr.ensure(&[s("a.example"), s("b.example")]).unwrap();
-        let cert_mtime_1 = stdfs::metadata(dir.path().join("ca.crt")).unwrap().modified().unwrap();
+        let cert_mtime_1 = stdfs::metadata(dir.path().join("ca.crt"))
+            .unwrap()
+            .modified()
+            .unwrap();
         std::thread::sleep(std::time::Duration::from_millis(20));
-        mgr.ensure(&[s("b.example"), s("a.example"), s("a.example")]).unwrap();
-        let cert_mtime_2 = stdfs::metadata(dir.path().join("ca.crt")).unwrap().modified().unwrap();
-        assert_eq!(cert_mtime_1, cert_mtime_2, "ca.crt must not be rewritten on equivalent SAN set");
+        mgr.ensure(&[s("b.example"), s("a.example"), s("a.example")])
+            .unwrap();
+        let cert_mtime_2 = stdfs::metadata(dir.path().join("ca.crt"))
+            .unwrap()
+            .modified()
+            .unwrap();
+        assert_eq!(
+            cert_mtime_1, cert_mtime_2,
+            "ca.crt must not be rewritten on equivalent SAN set"
+        );
     }
 
     #[test]
@@ -514,14 +547,23 @@ mod tests {
         let path = dir.path().to_str().unwrap();
         let mgr = CaCertManager::new(path);
         let (cert1, key1) = mgr.ensure(&[s("a.example")]).unwrap();
-        let key_mtime_1 = stdfs::metadata(dir.path().join("ca.key")).unwrap().modified().unwrap();
+        let key_mtime_1 = stdfs::metadata(dir.path().join("ca.key"))
+            .unwrap()
+            .modified()
+            .unwrap();
         std::thread::sleep(std::time::Duration::from_millis(20));
         let (cert2, key2) = mgr.ensure(&[s("a.example"), s("b.example")]).unwrap();
-        let key_mtime_2 = stdfs::metadata(dir.path().join("ca.key")).unwrap().modified().unwrap();
+        let key_mtime_2 = stdfs::metadata(dir.path().join("ca.key"))
+            .unwrap()
+            .modified()
+            .unwrap();
 
         assert_ne!(cert1, cert2, "cert PEM must change when SANs drift");
         assert_eq!(key1, key2, "key PEM must not change when SANs drift");
-        assert_eq!(key_mtime_1, key_mtime_2, "ca.key file must not be rewritten");
+        assert_eq!(
+            key_mtime_1, key_mtime_2,
+            "ca.key file must not be rewritten"
+        );
 
         let sans2 = CaCertManager::parse_existing_san_keys(&cert2).unwrap();
         assert!(sans2.contains("DNS:a.example"));
@@ -597,8 +639,7 @@ mod tests {
         let (_, ca) = X509Certificate::from_der(&der_a).unwrap();
         let (_, cb) = X509Certificate::from_der(&der_b).unwrap();
         assert_eq!(
-            ca.tbs_certificate.subject_pki.raw,
-            cb.tbs_certificate.subject_pki.raw,
+            ca.tbs_certificate.subject_pki.raw, cb.tbs_certificate.subject_pki.raw,
             "SubjectPublicKeyInfo bytes must be identical across re-sign"
         );
     }
@@ -675,8 +716,7 @@ mod tests {
         let (root_pem_pre, key_pem) = mgr.ensure(&[s("a.example")]).unwrap();
         let leaf_pem = mint_leaf_signed_by_root(&root_pem_pre, &key_pem, "player:alice");
 
-        let (root_pem_post, key_pem_2) =
-            mgr.ensure(&[s("a.example"), s("b.example")]).unwrap();
+        let (root_pem_post, key_pem_2) = mgr.ensure(&[s("a.example"), s("b.example")]).unwrap();
         assert_eq!(key_pem, key_pem_2, "key PEM must be unchanged");
         assert_ne!(root_pem_pre, root_pem_post, "root cert must have re-signed");
 
@@ -721,8 +761,7 @@ mod tests {
         let mgr = CaCertManager::new(path);
 
         let (_root_pre, _) = mgr.ensure(&[s("a.example")]).unwrap();
-        let (root_post, key_post) =
-            mgr.ensure(&[s("a.example"), s("b.example")]).unwrap();
+        let (root_post, key_post) = mgr.ensure(&[s("a.example"), s("b.example")]).unwrap();
 
         let leaf_pem = mint_leaf_signed_by_root(&root_post, &key_post, "player:bob");
 

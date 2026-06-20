@@ -125,6 +125,11 @@ bedrock-client = { path = "../../../bedrock-protocol-rs/bedrock-protocol/client"
 [[test]]
 name = "integration"
 path = "tests/integration.rs"
+# The integration tests use `bvc_client_lib::testkit`, which is gated behind the
+# `e2e` feature. Without this, a plain `cargo test`/`cargo nextest run` tries to
+# compile this target with `testkit` configured out and fails. `required-features`
+# makes cargo skip the target entirely unless `e2e` is enabled.
+required-features = ["e2e"]
 
 [features]
 default = ["bedrock-protocol"]

@@ -2,8 +2,8 @@ use common::bedrock_protocol::PlayerAuthInputPacket;
 use common::bedrock_protocol::StartGamePacket;
 use common::bedrock_protocol::protocol::packets::generated::misc::change_dimension::ChangeDimensionPacket;
 use common::game_data::Dimension;
-use common::players::minecraft::MinecraftPlayer;
 use common::players::PlayerEnum;
+use common::players::minecraft::MinecraftPlayer;
 use common::structs::bedrock::BedrockWorldId;
 use common::structs::game::coordinate::Coordinate;
 use common::structs::game::orientation::Orientation;
@@ -39,7 +39,6 @@ impl BedrockSessionState {
             spectator: false,
         }
     }
-
 
     pub fn apply_start_game(&mut self, p: &StartGamePacket) {
         self.dimension = Self::dimension_from_i32(p.dimension);

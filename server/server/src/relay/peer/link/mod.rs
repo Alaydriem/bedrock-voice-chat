@@ -11,8 +11,8 @@ pub use ingest_sink::{GatedPeerIngest, RelayIngestSink, WebhookIngestSink};
 use super::role::PeerRole;
 use crate::relay::relayed_packet::RelayedPacket;
 
-// A peer link is torn down after this much wall-clock time with no relayed
-// traffic in either direction
+// Default wall-clock time with no relayed traffic in either direction before a
+// peer link is torn down. Overridable via relay config for integration tests.
 pub const IDLE_TIMEOUT: Duration = Duration::from_secs(300);
 
 // Bounded per-peer outbound queue. Forwarding uses `try_send` and drops on full
@@ -115,8 +115,8 @@ impl PeerLink {
         self.last_activity = now;
     }
 
-    pub fn is_idle(&self, now: Instant) -> bool {
-        now.duration_since(self.last_activity) >= IDLE_TIMEOUT
+    pub fn is_idle(&self, now: Instant, timeout: Duration) -> bool {
+        now.duration_since(self.last_activity) >= timeout
     }
 
     pub fn close(&mut self) {
@@ -161,10 +161,10 @@ mod tests {
         let t0 = Instant::now();
         let mut link = PeerLink::new("a:1", PeerDirection::Acceptor, t0);
         link.mark_activity(t0);
-        assert!(!link.is_idle(t0 + secs(299)));
-        assert!(link.is_idle(t0 + secs(301)));
+        assert!(!link.is_idle(t0 + secs(299), IDLE_TIMEOUT));
+        assert!(link.is_idle(t0 + secs(301), IDLE_TIMEOUT));
         link.mark_activity(t0 + secs(301));
-        assert!(!link.is_idle(t0 + secs(360)));
+        assert!(!link.is_idle(t0 + secs(360), IDLE_TIMEOUT));
     }
 
     #[test]

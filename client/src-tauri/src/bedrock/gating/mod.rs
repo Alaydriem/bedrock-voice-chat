@@ -31,10 +31,7 @@ pub struct ProtocolGatingService {
 }
 
 impl ProtocolGatingService {
-    pub fn new(
-        flag_service: Arc<FeatureFlagService>,
-        analytics: Arc<AnalyticsService>,
-    ) -> Self {
+    pub fn new(flag_service: Arc<FeatureFlagService>, analytics: Arc<AnalyticsService>) -> Self {
         Self {
             flag_service,
             analytics,
@@ -84,9 +81,7 @@ impl ProtocolGatingService {
 
         if let Some(max) = self.flag_service.get(MaxTrustedMinecraftProtocol).await {
             if (raw as i64) <= max {
-                log::info!(
-                    "Minecraft protocol {raw} permitted via max_trusted_protocol={max}"
-                );
+                log::info!("Minecraft protocol {raw} permitted via max_trusted_protocol={max}");
                 self.record_allowed(raw, "max_trusted_dial");
                 return true;
             }

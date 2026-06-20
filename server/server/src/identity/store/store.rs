@@ -1,10 +1,10 @@
 use std::fs;
 use std::path::PathBuf;
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 
-use crate::identity::secrets::{DefaultBackend, SecretBackend};
 use crate::identity::IdentitySlot;
+use crate::identity::secrets::{DefaultBackend, SecretBackend};
 
 use super::{Identity, IdentityMetadata, IdentitySummary};
 
@@ -30,7 +30,12 @@ impl IdentityStore {
     pub fn save(identity: &Identity) -> Result<(), anyhow::Error> {
         let slot = IdentitySlot::new(identity.gamertag.clone(), identity.game.clone());
         let backend = DefaultBackend::new();
-        backend.save(&slot.key(), &identity.cert_pem, &identity.key_pem, &identity.ca_pem)?;
+        backend.save(
+            &slot.key(),
+            &identity.cert_pem,
+            &identity.key_pem,
+            &identity.ca_pem,
+        )?;
 
         let metadata = IdentityMetadata {
             gamertag: identity.gamertag.clone(),

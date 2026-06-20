@@ -13,11 +13,11 @@ use std::net::TcpListener;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use bvc_server_lib::config::ApplicationConfig;
 use bvc_server_lib::services::CertificateService;
-use common::structs::permission::PermissionEffect;
 use common::Game;
+use common::structs::permission::PermissionEffect;
 use entity::player;
 use migration::{Migrator, MigratorTrait};
 use sea_orm::{
@@ -53,8 +53,9 @@ impl TestServer {
 
     pub async fn start_with_relay(relay_enabled: bool) -> Result<Self> {
         // rustls crypto provider: install once per process; ignore re-install error.
-        let _ = common::s2n_quic::provider::tls::rustls::rustls::crypto::aws_lc_rs::default_provider()
-            .install_default();
+        let _ =
+            common::s2n_quic::provider::tls::rustls::rustls::crypto::aws_lc_rs::default_provider()
+                .install_default();
 
         let tmp = TempDir::new()?;
         let certs_path = tmp.path().join("certs");
@@ -64,10 +65,7 @@ impl TestServer {
         let db_path = tmp.path().join("test.sqlite3");
         std::fs::File::create(&db_path)?;
 
-        let ca = GeneratedCa::generate(&[
-            "localhost".into(),
-            "127.0.0.1".into(),
-        ])?;
+        let ca = GeneratedCa::generate(&["localhost".into(), "127.0.0.1".into()])?;
         std::fs::write(certs_path.join("ca.crt"), &ca.cert_pem)?;
         std::fs::write(certs_path.join("ca.key"), &ca.key_pem)?;
 
@@ -82,7 +80,7 @@ impl TestServer {
         std::fs::write(&server_cert_path, server_cert.pem())?;
         std::fs::write(&server_key_path, server_key.serialize_pem())?;
 
-        let port = pick_free_port()?;
+        let port = Self::pick_free_port()?;
         let base_url = format!("https://127.0.0.1:{}", port);
 
         let dsn = format!("sqlite://{}", db_path.display());
@@ -105,8 +103,6 @@ impl TestServer {
         let admin_key = admin_key_obj.serialize_pem();
 
         let mut config = ApplicationConfig::default();
-        config.server.features.code_login = true;
-        config.server.features.relay.enabled = relay_enabled;
         config.database.scheme = "sqlite".into();
         config.database.database = db_path.to_string_lossy().into_owned();
         config.server.port = port as u32;
@@ -116,13 +112,14 @@ impl TestServer {
         config.server.tls.certs_path = certs_path.to_string_lossy().into_owned();
         config.server.assets_path = assets_path.to_string_lossy().into_owned();
 
-        let server_task = RocketHarness::launch(config, cert_service.clone()).await?;
+        let server_task =
+            RocketHarness::launch(config, cert_service.clone(), relay_enabled).await?;
 
         // Poll until the server accepts connections (the introspect probe expects 401
         // because the probe client has no client cert; we treat any HTTP response as ready).
         let probe = MtlsClient::no_identity(&ca.cert_pem)?;
         let probe_url = format!("{}/api/auth/introspect", base_url);
-        wait_for_ready(&probe, &probe_url).await?;
+        Self::wait_for_ready(&probe, &probe_url).await?;
 
         Ok(TestServer {
             base_url,
@@ -141,12 +138,32 @@ impl TestServer {
         MtlsClient::with_identity(&self.ca_pem, &self.admin_cert, &self.admin_key)
     }
 
+    // An mTLS client presenting an arbitrary CA-signed identity (e.g. an
+    // `issue_player` cert), for routes guarded by `Certificate<'_>`.
+    pub fn mtls_client(&self, cert_pem: &str, key_pem: &str) -> Result<reqwest::Client> {
+        MtlsClient::with_identity(&self.ca_pem, cert_pem, key_pem)
+    }
+
     pub fn noauth_client(&self) -> Result<reqwest::Client> {
         MtlsClient::no_identity(&self.ca_pem)
     }
 
     pub async fn issue_player(&self, gamertag: &str, game: &Game) -> Result<(String, String)> {
         let _ = PlayerFixture::insert(&self.db, &self.cert_service, gamertag, game).await?;
+        let (c, k) = self.cert_service.sign_player_cert(gamertag, game)?;
+        Ok((c.pem(), k.serialize_pem()))
+    }
+
+    // Issues a player AND grants it `permission` (Allow), returning its mTLS
+    // (cert, key) PEMs. For routes gated on a specific permission.
+    pub async fn issue_player_with_perm(
+        &self,
+        gamertag: &str,
+        game: &Game,
+        permission: &str,
+    ) -> Result<(String, String)> {
+        let player = PlayerFixture::insert(&self.db, &self.cert_service, gamertag, game).await?;
+        PermissionFixture::upsert(&self.db, player.id, permission, PermissionEffect::Allow).await?;
         let (c, k) = self.cert_service.sign_player_cert(gamertag, game)?;
         Ok((c.pem(), k.serialize_pem()))
     }
@@ -163,19 +180,19 @@ impl TestServer {
         active.update(&self.db).await?;
         Ok(())
     }
-}
 
-fn pick_free_port() -> Result<u16> {
-    let l = TcpListener::bind("127.0.0.1:0")?;
-    Ok(l.local_addr()?.port())
-}
-
-async fn wait_for_ready(client: &reqwest::Client, url: &str) -> Result<()> {
-    for _ in 0..50 {
-        match client.get(url).send().await {
-            Ok(_) => return Ok(()),
-            Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
-        }
+    fn pick_free_port() -> Result<u16> {
+        let l = TcpListener::bind("127.0.0.1:0")?;
+        Ok(l.local_addr()?.port())
     }
-    Err(anyhow!("server did not become ready within timeout"))
+
+    async fn wait_for_ready(client: &reqwest::Client, url: &str) -> Result<()> {
+        for _ in 0..50 {
+            match client.get(url).send().await {
+                Ok(_) => return Ok(()),
+                Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
+            }
+        }
+        Err(anyhow!("server did not become ready within timeout"))
+    }
 }

@@ -22,11 +22,11 @@ mod webhook_receiver;
 use crate::config::ApplicationConfig;
 use anyhow;
 use client_id_hasher::ClientIdHasher;
+use common::s2n_quic::{Connection, Server};
 use common::structs::packet::{
     PacketType, PlayerDataPacket, PlayerPositionPacket, QuicNetworkPacket, QuicNetworkPacketData,
 };
 use common::traits::StreamTrait;
-use common::s2n_quic::{Connection, Server};
 use connection_registry::ConnectionRegistry;
 use std::sync::Arc;
 use stream_manager::{InputStream, OutputStream};
@@ -111,7 +111,9 @@ impl QuicServerManager {
             .with_io(bind_addr.as_str())?
             .with_datagram(dg_endpoint)?;
 
-        let server = if let Some(instance_id) = self.config.server.meridian.as_ref().map(|m| m.instance_id) {
+        let server = if let Some(instance_id) =
+            self.config.server.meridian.as_ref().map(|m| m.instance_id)
+        {
             tracing::info!(instance_id, "Using prefixed connection ID format");
             builder
                 .with_connection_id(PrefixedConnectionIdFormat::new(instance_id))?
@@ -120,14 +122,18 @@ impl QuicServerManager {
             builder.start()?
         };
 
-        let mut webhook_rx = self.webhook_rx.take()
+        let mut webhook_rx = self
+            .webhook_rx
+            .take()
             .ok_or_else(|| anyhow::anyhow!("QUIC server already started"))?;
         let cache_manager = self.cache_manager.clone();
         let connection_registry = self.connection_registry.clone();
         let player_cache = cache_manager.get_player_cache();
         let broadcast_range = self.config.voice.spatial_audio.broadcast_range;
         let deafen_distance = self.config.voice.spatial_audio.deafen_distance;
-        let mut shutdown_rx = self.shutdown_rx.take()
+        let mut shutdown_rx = self
+            .shutdown_rx
+            .take()
             .ok_or_else(|| anyhow::anyhow!("QUIC server already started"))?;
 
         tracing::info!("QUIC server started on {}", bind_addr);
@@ -441,6 +447,15 @@ impl QuicServerManager {
                                     owner.name
                                 );
                             }
+                            connection_identity::ConnectionKind::Rejected { identity } => {
+                                // A `server::`-marked identity that is not a
+                                // well-formed endpoint: route it nowhere (fail
+                                // closed) — never the player path, never a peer.
+                                tracing::warn!(
+                                    "Refusing connection with malformed server-peer identity '{}' (fail closed)",
+                                    identity
+                                );
+                            }
                         }
                         has_set_identity = true;
                     }
@@ -497,19 +512,26 @@ impl QuicServerManager {
                             }
                         }
                         PacketType::PeerPresenceObserved => {
-                            // A local client reported a `!bvcp` token it observed
-                            // in the realm (a peer challenged us). Hand it to the
-                            // relay manager so the token is queued to be echoed
-                            // back to the peer link(s); never broadcast onward.
+                            // A local client reported a `!bvcp` code observed in the
+                            // realm. Route it to the asker-side observe handler
+                            // (Flow 1) to redeem against the offering minter and open
+                            // the peer link. Never broadcast onward.
                             if let QuicNetworkPacketData::PeerPresenceObserved(observed) =
-                                &updated_packet.data
+                                updated_packet.data
                             {
-                                if let Some(pm) = connection_registry.peer_manager() {
-                                    pm.on_local_client_observed(
-                                        &observed.token,
-                                        std::time::Instant::now(),
-                                    );
-                                }
+                                connection_registry.on_peer_presence_observed(observed.token);
+                            }
+                        }
+                        PacketType::PeerAnnounceObserved => {
+                            // A local client reported a peer `!bvca` announce observed
+                            // in the realm. Record the peer endpoint for the observer's
+                            // world so the offer/forward paths can reach it. Never
+                            // broadcast onward.
+                            if let QuicNetworkPacketData::PeerAnnounceObserved(announce) =
+                                updated_packet.data
+                            {
+                                connection_registry
+                                    .on_peer_announce_observed(announce.hashed_world, announce.endpoint);
                             }
                         }
                         _ => {

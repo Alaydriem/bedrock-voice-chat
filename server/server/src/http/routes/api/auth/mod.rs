@@ -5,7 +5,6 @@ pub mod link_java;
 pub mod minecraft;
 pub mod state;
 
-
 // Re-export HytaleSessionCache from dtos for route mounting
 pub use crate::http::dtos::HytaleSessionCache;
 

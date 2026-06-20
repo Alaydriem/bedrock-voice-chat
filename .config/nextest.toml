@@ -1,0 +1,22 @@
+# nextest runs every test in its own process, which is what makes the e2e suite
+# robust: the client harness loads the server cdylib via FFI and boots in-process
+# server runtimes, and a single long-lived `cargo test` process accumulates native
+# state across tests until it faults (STATUS_ACCESS_VIOLATION). Process-per-test
+# isolates each one, so that accumulation never happens.
+#
+# Global concurrency is the `--test-threads` / `-j` lever, set per-environment
+# (a CI runner has far less headroom than a dev workstation) rather than pinned
+# here. The group below bounds only the heaviest tests on top of that lever.
+
+[test-groups]
+# The cross-server voice/jukebox scenarios each boot 2-3 in-process server
+# runtimes plus up to 3 client procs — by far the heaviest tests. The FFI runtime
+# is now thread-bounded (server/server/src/ffi/mod.rs), which fixed the hard
+# crash and lets these run concurrently; but several at once is still enough load
+# to exhaust a small machine, so they are capped at 2 concurrent. Everything else
+# parallelizes up to `-j`. Raise this only with headroom to spare.
+heavy-relay-e2e = { max-threads = 2 }
+
+[[profile.default.overrides]]
+filter = 'test(/scenarios::relay_/)'
+test-group = 'heavy-relay-e2e'

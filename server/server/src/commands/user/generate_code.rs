@@ -1,6 +1,6 @@
 use clap::Parser;
-use common::request::admin::GenerateCodeRequest;
 use common::Game;
+use common::request::admin::GenerateCodeRequest;
 
 use super::super::Cli;
 use crate::commands::admin_api_client::AdminApiClient;
@@ -20,6 +20,11 @@ pub struct Config {
     /// How long the code is valid for, in seconds
     #[clap(short, long, default_value = "3600")]
     pub duration: u64,
+
+    /// Whether the code is single-use (consumed on redemption). Pass
+    /// `--ephemeral false` to mint a reusable code valid until expiry.
+    #[clap(long, action = clap::ArgAction::Set, default_value_t = true)]
+    pub ephemeral: bool,
 }
 
 impl Config {
@@ -36,6 +41,7 @@ impl Config {
             gamertag: self.player.clone(),
             game: self.game.clone(),
             duration: self.duration,
+            ephemeral: self.ephemeral,
         };
 
         match client.generate_code(&req).await {

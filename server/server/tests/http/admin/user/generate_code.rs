@@ -7,10 +7,10 @@
 //! - 200 with `{ code, expires_in_seconds }` for an existing player
 
 use crate::harness::http_client::MtlsClient;
-use crate::harness::{assert_status, TestServer};
+use crate::harness::{HttpAssert, TestServer};
 
-use common::request::admin::GenerateCodeRequest;
 use common::Game;
+use common::request::admin::GenerateCodeRequest;
 
 const ENDPOINT: &str = "/api/admin/user/code";
 
@@ -25,11 +25,12 @@ async fn returns_401_without_client_cert() {
             gamertag: "Bob".into(),
             game: Game::Minecraft,
             duration: 60,
+            ephemeral: true,
         })
         .send()
         .await
         .unwrap();
-    assert_status(resp.status().as_u16(), 401);
+    HttpAssert::status(resp.status().as_u16(), 401);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -43,11 +44,12 @@ async fn returns_403_for_non_admin() {
             gamertag: "Bob".into(),
             game: Game::Minecraft,
             duration: 60,
+            ephemeral: true,
         })
         .send()
         .await
         .unwrap();
-    assert_status(resp.status().as_u16(), 403);
+    HttpAssert::status(resp.status().as_u16(), 403);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -61,11 +63,12 @@ async fn returns_404_when_target_missing() {
             gamertag: "Ghost".into(),
             game: Game::Minecraft,
             duration: 60,
+            ephemeral: true,
         })
         .send()
         .await
         .unwrap();
-    assert_status(resp.status().as_u16(), 404);
+    HttpAssert::status(resp.status().as_u16(), 404);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -80,11 +83,12 @@ async fn admin_can_generate_code_for_existing_player() {
             gamertag: "Bob".into(),
             game: Game::Minecraft,
             duration: 600,
+            ephemeral: true,
         })
         .send()
         .await
         .unwrap();
-    assert_status(resp.status().as_u16(), 200);
+    HttpAssert::status(resp.status().as_u16(), 200);
     let body: serde_json::Value = resp.json().await.unwrap();
     let code = body["code"].as_str().unwrap();
     assert!(!code.is_empty(), "code should be non-empty");

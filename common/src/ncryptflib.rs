@@ -1,7 +1,7 @@
 // Core ncryptf exports (always available without rocket)
 pub use ncryptf::{
-    client, randombytes_buf, Authorization, Keypair, NcryptfError, Request,
-    Response, Signature, Token, shared, shared::ExportableEncryptionKeyData
+    Authorization, Keypair, NcryptfError, Request, Response, Signature, Token, client,
+    randombytes_buf, shared, shared::ExportableEncryptionKeyData,
 };
 
 // Server-only: auth, ek_route macro and rocket module require rocket feature

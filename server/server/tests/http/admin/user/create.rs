@@ -9,10 +9,10 @@
 
 use crate::harness::http_client::MtlsClient;
 use crate::harness::server::{ADMIN_GAME, ADMIN_GAMERTAG};
-use crate::harness::{assert_status, TestServer};
+use crate::harness::{HttpAssert, TestServer};
 
-use common::request::admin::CreateUserRequest;
 use common::Game;
+use common::request::admin::CreateUserRequest;
 
 const ENDPOINT: &str = "/api/admin/user";
 
@@ -31,7 +31,7 @@ async fn returns_401_without_client_cert() {
         .await
         .unwrap();
 
-    assert_status(resp.status().as_u16(), 401);
+    HttpAssert::status(resp.status().as_u16(), 401);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -50,7 +50,7 @@ async fn returns_403_for_non_admin_caller() {
         .await
         .unwrap();
 
-    assert_status(resp.status().as_u16(), 403);
+    HttpAssert::status(resp.status().as_u16(), 403);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -72,7 +72,7 @@ async fn returns_403_for_banished_admin() {
         .await
         .unwrap();
 
-    assert_status(resp.status().as_u16(), 403);
+    HttpAssert::status(resp.status().as_u16(), 403);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -90,7 +90,7 @@ async fn returns_201_on_fresh_gamertag() {
         .await
         .unwrap();
 
-    assert_status(resp.status().as_u16(), 201);
+    HttpAssert::status(resp.status().as_u16(), 201);
     let body: serde_json::Value = resp.json().await.unwrap();
     assert_eq!(body["gamertag"].as_str().unwrap(), "Diana");
     assert_eq!(body["game"].as_str().unwrap(), "minecraft");
@@ -110,7 +110,7 @@ async fn returns_201_on_cross_game_duplicate() {
         .send()
         .await
         .unwrap();
-    assert_status(first.status().as_u16(), 201);
+    HttpAssert::status(first.status().as_u16(), 201);
 
     let second = client
         .post(format!("{}{}", env.base_url, ENDPOINT))
@@ -121,7 +121,7 @@ async fn returns_201_on_cross_game_duplicate() {
         .send()
         .await
         .unwrap();
-    assert_status(second.status().as_u16(), 201);
+    HttpAssert::status(second.status().as_u16(), 201);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -140,7 +140,7 @@ async fn returns_409_on_duplicate() {
         .send()
         .await
         .unwrap();
-    assert_status(first.status().as_u16(), 201);
+    HttpAssert::status(first.status().as_u16(), 201);
 
     let second = client
         .post(format!("{}{}", env.base_url, ENDPOINT))
@@ -148,5 +148,5 @@ async fn returns_409_on_duplicate() {
         .send()
         .await
         .unwrap();
-    assert_status(second.status().as_u16(), 409);
+    HttpAssert::status(second.status().as_u16(), 409);
 }

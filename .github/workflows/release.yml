@@ -222,6 +222,17 @@ jobs:
       ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
     secrets: inherit
 
+  # Workspace tests (common + client + server) at the release ref — gates asset
+  # upload so a release is never cut on a red test suite.
+  tests:
+    name: Tests
+    needs: prepare-release
+    if: needs.prepare-release.outputs.new_release == 'true'
+    uses: ./.github/workflows/tests.yml
+    with:
+      ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
+    secrets: inherit
+
   # Job 4: Build Android (release mode, includes signing)
   build-android:
     name: Build Android (release)
@@ -315,8 +326,8 @@ jobs:
   # Job 12: Upload client/server release assets to GitHub
   upload-assets:
     name: Upload Release Assets
-    needs: [prepare-release, build-server, build-android, build-ios, build-client, build-macos-client]
-    if: always() && needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false && (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-ios.result == 'success' || needs.build-client.result == 'success' || needs.build-macos-client.result == 'success')
+    needs: [prepare-release, tests, build-server, build-android, build-ios, build-client, build-macos-client]
+    if: always() && needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false && needs.tests.result == 'success' && (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-ios.result == 'success' || needs.build-client.result == 'success' || needs.build-macos-client.result == 'success')
     runs-on: ubuntu-latest
     steps:
       - name: Generate GitHub App token

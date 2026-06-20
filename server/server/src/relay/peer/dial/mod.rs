@@ -2,4 +2,4 @@ pub mod dialer;
 pub mod driver;
 
 pub use dialer::PeerDialer;
-pub use driver::{PeerDialDriver, ProductionPeerDialDriver};
+pub use driver::{ProductionPeerDialDriver, RedeemedDial};

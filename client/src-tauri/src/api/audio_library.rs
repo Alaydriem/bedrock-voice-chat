@@ -60,7 +60,13 @@ impl Api {
             }
         }
 
-        match client.get(url).query(&query_params).headers(headers).send().await {
+        match client
+            .get(url)
+            .query(&query_params)
+            .headers(headers)
+            .send()
+            .await
+        {
             Ok(response) if response.status() == StatusCode::OK => {
                 let body = response
                     .text()
@@ -108,7 +114,10 @@ impl Api {
             .send()
             .await
         {
-            Ok(response) if response.status() == StatusCode::CREATED || response.status() == StatusCode::OK => {
+            Ok(response)
+                if response.status() == StatusCode::CREATED
+                    || response.status() == StatusCode::OK =>
+            {
                 let body = response
                     .text()
                     .await

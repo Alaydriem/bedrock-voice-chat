@@ -6,7 +6,10 @@ impl UpdaterHelper {
     fn is_msix_packaged() -> bool {
         std::env::current_exe()
             .ok()
-            .and_then(|p| p.to_str().map(|s| s.to_lowercase().contains(r"\windowsapps\")))
+            .and_then(|p| {
+                p.to_str()
+                    .map(|s| s.to_lowercase().contains(r"\windowsapps\"))
+            })
             .unwrap_or(false)
     }
 

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use common::request::admin::CreateUserRequest;
 use common::response::admin::CreatedUserResponse;
 use entity::player;
-use rocket::{http::Status, serde::json::Json, State};
+use rocket::{State, http::Status, serde::json::Json};
 use rocket_okapi::openapi;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
@@ -38,7 +38,8 @@ pub async fn create_user(
         return Err(Status::Conflict);
     }
 
-    let registrar = PlayerRegistrarService::new(Arc::new(conn.clone()), cert_service.inner().clone());
+    let registrar =
+        PlayerRegistrarService::new(Arc::new(conn.clone()), cert_service.inner().clone());
     registrar
         .create_player(&req.gamertag, &req.game, None)
         .await

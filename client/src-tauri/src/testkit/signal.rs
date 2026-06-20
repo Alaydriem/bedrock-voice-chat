@@ -343,7 +343,11 @@ mod tests {
         let sr = 48_000u32;
         let probe = Signal::musical_probe(sr);
 
-        for (name, freq) in [("C4", super::NOTE_C4), ("E4", super::NOTE_E4), ("G4", super::NOTE_G4)] {
+        for (name, freq) in [
+            ("C4", super::NOTE_C4),
+            ("E4", super::NOTE_E4),
+            ("G4", super::NOTE_G4),
+        ] {
             let fraction = Signal::tone_energy_fraction(&probe, sr, freq);
             assert!(
                 fraction > 0.05,
@@ -393,7 +397,10 @@ mod tests {
     fn identical_signals_correlate_near_one() {
         let tone = Signal::chirp(48_000, 0.1, 500.0, 4_000.0);
         let peak = Signal::xcorr_peak(&tone, &tone);
-        assert!(peak > 0.95, "identical signals should correlate, got {peak}");
+        assert!(
+            peak > 0.95,
+            "identical signals should correlate, got {peak}"
+        );
     }
 
     #[test]
@@ -401,7 +408,10 @@ mod tests {
         let tone = Signal::chirp(48_000, 0.1, 500.0, 4_000.0);
         let silence = vec![0.0_f32; tone.len()];
         let peak = Signal::xcorr_peak(&tone, &silence);
-        assert!(peak < 0.2, "silence vs tone should not correlate, got {peak}");
+        assert!(
+            peak < 0.2,
+            "silence vs tone should not correlate, got {peak}"
+        );
     }
 
     #[test]
@@ -414,7 +424,10 @@ mod tests {
             tone.push(0.5 * (2.0 * std::f32::consts::PI * 1_000.0 * t).sin());
         }
         let ratio = Signal::band_energy_ratio(&tone, sr, 800.0, 1_200.0);
-        assert!(ratio > 0.8, "1kHz tone should concentrate in [800,1200], got {ratio}");
+        assert!(
+            ratio > 0.8,
+            "1kHz tone should concentrate in [800,1200], got {ratio}"
+        );
     }
 
     #[test]

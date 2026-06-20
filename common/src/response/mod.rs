@@ -1,9 +1,9 @@
 pub mod admin;
 pub mod api_config_check_response;
 pub mod api_config_response;
-pub mod bedrock;
 pub mod audio;
 pub mod auth;
+pub mod bedrock;
 pub mod gamerpic_response;
 pub mod link_java_identity_response;
 pub mod login;

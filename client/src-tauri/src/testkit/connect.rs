@@ -115,18 +115,16 @@ impl Connector {
             // Try to find an existing channel by name first; create only when none exists.
             // This lets multiple clients in the same test join the same channel by name
             // without each creating a separate one.
-            let existing_id = crate::api::commands::api_list_channels(
-                handle.state::<Mutex<AppState>>(),
-                None,
-            )
-            .await
-            .ok()
-            .and_then(|channels| {
-                channels
-                    .into_iter()
-                    .find(|c| c.name == *channel_name)
-                    .map(|c| c.id())
-            });
+            let existing_id =
+                crate::api::commands::api_list_channels(handle.state::<Mutex<AppState>>(), None)
+                    .await
+                    .ok()
+                    .and_then(|channels| {
+                        channels
+                            .into_iter()
+                            .find(|c| c.name == *channel_name)
+                            .map(|c| c.id())
+                    });
 
             if let Some(id) = existing_id {
                 Some(id)
@@ -233,7 +231,8 @@ impl Connector {
             let state = handle.state::<Mutex<BedrockState>>();
             let mut state = state.lock().await;
             if state.auth_manager.is_none() {
-                let auth_manager = std::sync::Arc::new(common::bedrock_protocol::AuthManager::offline());
+                let auth_manager =
+                    std::sync::Arc::new(common::bedrock_protocol::AuthManager::offline());
                 state.auth_manager = Some(auth_manager);
             }
         }
@@ -252,6 +251,7 @@ impl Connector {
             handle.state::<Arc<crate::bedrock::JukeboxBeaconCache>>(),
             handle.state::<Arc<crate::bedrock::JukeboxEjectInjector>>(),
             handle.state::<Arc<crate::bedrock::PresenceInjector>>(),
+            handle.state::<Arc<crate::bedrock::AnnounceInjector>>(),
             handle.state::<Arc<crate::bedrock::BedrockConnectErrorChannel>>(),
         )
         .await
@@ -293,6 +293,12 @@ impl Connector {
     #[cfg(feature = "bedrock-protocol")]
     pub fn presence_injector() -> Arc<crate::bedrock::PresenceInjector> {
         crate::bedrock::PresenceInjector::new_shared()
+    }
+
+    // Returns a freshly-constructed `AnnounceInjector` for state registration.
+    #[cfg(feature = "bedrock-protocol")]
+    pub fn announce_injector() -> Arc<crate::bedrock::AnnounceInjector> {
+        crate::bedrock::AnnounceInjector::new_shared()
     }
 
     // Returns a freshly-constructed `BedrockConnectErrorChannel` for state registration.

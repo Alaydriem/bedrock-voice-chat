@@ -209,9 +209,7 @@ pub(crate) async fn refresh_server_state(
             let _ = kr.set_credential(server_url, "server_permissions", &perms_json);
         }
 
-        if let (Some(cert), Some(cert_key)) =
-            (&response.certificate, &response.certificate_key)
-        {
+        if let (Some(cert), Some(cert_key)) = (&response.certificate, &response.certificate_key) {
             let _ = kr.set_credential(server_url, "certificate", cert);
             let _ = kr.set_credential(server_url, "certificate_key", cert_key);
 
@@ -238,23 +236,23 @@ pub(crate) async fn link_java_identity(
     app_state: State<'_, Mutex<AppState>>,
     gamertag: String,
 ) -> Result<LinkJavaIdentityResponse, String> {
-
     #[cfg(desktop)]
     {
         let code = McOauthWindow::open(app_handle).await?;
 
         let state = app_state.lock().await;
         let api = state.get_api_client()?;
-        return api.link_java_identity(
-            code,
-            McOauthWindow::redirect_uri().to_string(),
-            McOauthWindow::client_id().to_string(),
-            gamertag,
-        )
-        .await
+        return api
+            .link_java_identity(
+                code,
+                McOauthWindow::redirect_uri().to_string(),
+                McOauthWindow::client_id().to_string(),
+                gamertag,
+            )
+            .await;
     }
 
     // Reachable on non-desktop platforms. Supress linter warning
     #[allow(unused)]
-    return Err("Java identity linking is only available on the desktop app".to_string())
+    return Err("Java identity linking is only available on the desktop app".to_string());
 }

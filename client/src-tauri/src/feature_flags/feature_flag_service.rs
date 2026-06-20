@@ -166,10 +166,7 @@ impl FeatureFlagService {
             Some(client) => {
                 let mut context = EvaluationContext::default();
                 context.targeting_key = Some(self.install_id.clone());
-                client
-                    .get_int_value(flag, Some(&context), None)
-                    .await
-                    .ok()
+                client.get_int_value(flag, Some(&context), None).await.ok()
             }
             None => None,
         };

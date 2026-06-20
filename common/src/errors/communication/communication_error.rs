@@ -1,5 +1,7 @@
+use super::{
+    GameError, GenericCommunicationError, HytaleCommunicationError, MinecraftCommunicationError,
+};
 use crate::Game;
-use super::{GameError, GenericCommunicationError, HytaleCommunicationError, MinecraftCommunicationError};
 
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum CommunicationError {

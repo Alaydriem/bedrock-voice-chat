@@ -46,9 +46,7 @@ impl PlayerIdentityService {
             Ok(Some(identity)) => {
                 let gamertag = self.lookup_gamertag(identity.player_id, game).await;
                 if let Some(ref gt) = gamertag {
-                    self.alias_cache
-                        .insert(cache_key, gt.clone())
-                        .await;
+                    self.alias_cache.insert(cache_key, gt.clone()).await;
                     return gt.clone();
                 }
             }
@@ -62,11 +60,7 @@ impl PlayerIdentityService {
     }
 
     /// Bulk resolve in-game names to canonical gamertags, mutating player names in place.
-    pub async fn resolve_and_remap_players(
-        &self,
-        players: &mut Vec<PlayerEnum>,
-        game: &Game,
-    ) {
+    pub async fn resolve_and_remap_players(&self, players: &mut Vec<PlayerEnum>, game: &Game) {
         for player in players.iter_mut() {
             let current_name = player.get_name().to_string();
             let resolved = self.resolve_name(&current_name, game).await;
@@ -136,11 +130,7 @@ impl PlayerIdentityService {
     }
 
     /// Look up a player's ID by their canonical gamertag.
-    pub async fn find_player_id_by_gamertag(
-        &self,
-        gamertag: &str,
-        game: &Game,
-    ) -> Option<i32> {
+    pub async fn find_player_id_by_gamertag(&self, gamertag: &str, game: &Game) -> Option<i32> {
         match player::Entity::find()
             .filter(player::Column::Gamertag.eq(gamertag))
             .filter(player::Column::Game.eq(game.clone()))
@@ -166,7 +156,11 @@ impl PlayerIdentityService {
             Ok(Some(p)) => p.gamertag,
             Ok(None) => None,
             Err(e) => {
-                tracing::error!("Failed to lookup gamertag for player_id {}: {}", player_id, e);
+                tracing::error!(
+                    "Failed to lookup gamertag for player_id {}: {}",
+                    player_id,
+                    e
+                );
                 None
             }
         }

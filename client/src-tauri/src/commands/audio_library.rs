@@ -98,18 +98,12 @@ pub(crate) async fn get_audio_stream_url(
     let api = match server {
         Some(ref ep) => {
             drop(state);
-            app_state
-                .lock()
-                .await
-                .get_api_client_for_server(ep)
-                .await?
+            app_state.lock().await.get_api_client_for_server(ep).await?
         }
         None => state.get_api_client()?.clone(),
     };
 
-    let token_response = api
-        .get_audio_stream_token(&fileId, game.as_deref())
-        .await?;
+    let token_response = api.get_audio_stream_token(&fileId, game.as_deref()).await?;
 
     let base = server.unwrap_or(endpoint);
     Ok(format!(

@@ -22,6 +22,11 @@ pub struct Config {
     /// How long the code is valid for, in seconds
     #[clap(short, long, default_value = "3600")]
     pub duration: u64,
+
+    /// Whether the code is single-use (consumed on redemption). Pass
+    /// `--ephemeral false` to mint a reusable code valid until expiry.
+    #[clap(long, action = clap::ArgAction::Set, default_value_t = true)]
+    pub ephemeral: bool,
 }
 
 impl Config {
@@ -50,15 +55,14 @@ impl Config {
         let player_record = match existing {
             Some(p) => p,
             None => {
-                let cert_service = match CertificateService::new_shared(
-                    &cfg.config.server.tls.certs_path,
-                ) {
-                    Ok(c) => c,
-                    Err(e) => {
-                        eprintln!("Failed to initialize certificate service: {}", e);
-                        std::process::exit(1);
-                    }
-                };
+                let cert_service =
+                    match CertificateService::new_shared(&cfg.config.server.tls.certs_path) {
+                        Ok(c) => c,
+                        Err(e) => {
+                            eprintln!("Failed to initialize certificate service: {}", e);
+                            std::process::exit(1);
+                        }
+                    };
 
                 let registrar = PlayerRegistrarService::new(Arc::new(db.clone()), cert_service);
                 match registrar
@@ -81,7 +85,9 @@ impl Config {
             }
         };
 
-        match AuthCodeService::generate_code(&db, player_record.id, self.duration).await {
+        match AuthCodeService::generate_code(&db, player_record.id, self.duration, self.ephemeral)
+            .await
+        {
             Ok(code) => {
                 println!("Code: {}", code);
                 println!("Player: {} ({})", self.player, self.game.as_str());

@@ -2,13 +2,27 @@ use super::sink_manager::SinkManager;
 use crate::audio::recording::RecordingProducer;
 use crate::audio::stream::RecoverySender;
 use crate::audio::stream::jitter_buffer::EncodedAudioFramePacket;
-use crate::audio::stream::stream_manager::AudioSinkType;
 use crate::audio::stream::stream_manager::AudioOutputSink;
+use crate::audio::stream::stream_manager::AudioSinkType;
 
 use crate::AudioPacket;
 use crate::audio::types::{AudioDevice, AudioDeviceCpal};
+#[cfg(feature = "bedrock-protocol")]
+use crate::bedrock::AnnounceInjector;
+#[cfg(feature = "bedrock-protocol")]
+use crate::bedrock::JukeboxBeaconCache;
+#[cfg(feature = "bedrock-protocol")]
+use crate::bedrock::JukeboxEjectInjector;
+#[cfg(feature = "bedrock-protocol")]
+use crate::bedrock::PresenceInjector;
 use anyhow::anyhow;
 use base64::engine::{Engine, general_purpose};
+#[cfg(feature = "bedrock-protocol")]
+use common::structs::packet::BedrockEventPacket;
+#[cfg(feature = "bedrock-protocol")]
+use common::structs::packet::PeerAnnounceInjectPacket;
+#[cfg(feature = "bedrock-protocol")]
+use common::structs::packet::PeerPresenceInjectPacket;
 use common::traits::player_data::PlayerData;
 use common::{
     Coordinate, Game, GenericPlayer, Orientation, PlayerEnum, RecordingPlayerData,
@@ -23,16 +37,6 @@ use common::{
         },
     },
 };
-#[cfg(feature = "bedrock-protocol")]
-use crate::bedrock::JukeboxBeaconCache;
-#[cfg(feature = "bedrock-protocol")]
-use crate::bedrock::JukeboxEjectInjector;
-#[cfg(feature = "bedrock-protocol")]
-use crate::bedrock::PresenceInjector;
-#[cfg(feature = "bedrock-protocol")]
-use common::structs::packet::BedrockEventPacket;
-#[cfg(feature = "bedrock-protocol")]
-use common::structs::packet::PeerPresenceInjectPacket;
 use log::{error, info, warn};
 use moka::future::Cache;
 use once_cell::sync::Lazy;
@@ -76,6 +80,8 @@ pub(crate) struct OutputStream {
     eject_injector: Option<Arc<JukeboxEjectInjector>>,
     #[cfg(feature = "bedrock-protocol")]
     presence_injector: Option<Arc<PresenceInjector>>,
+    #[cfg(feature = "bedrock-protocol")]
+    announce_injector: Option<Arc<AnnounceInjector>>,
 }
 
 impl common::traits::StreamTrait for OutputStream {
@@ -220,6 +226,7 @@ impl OutputStream {
         #[cfg(feature = "bedrock-protocol")] beacon_cache: Option<Arc<JukeboxBeaconCache>>,
         #[cfg(feature = "bedrock-protocol")] eject_injector: Option<Arc<JukeboxEjectInjector>>,
         #[cfg(feature = "bedrock-protocol")] presence_injector: Option<Arc<PresenceInjector>>,
+        #[cfg(feature = "bedrock-protocol")] announce_injector: Option<Arc<AnnounceInjector>>,
     ) -> Self {
         let players = moka::sync::Cache::builder()
             .time_to_idle(Duration::from_secs(15 * 60))
@@ -265,6 +272,8 @@ impl OutputStream {
             eject_injector,
             #[cfg(feature = "bedrock-protocol")]
             presence_injector,
+            #[cfg(feature = "bedrock-protocol")]
+            announce_injector,
         }
     }
 
@@ -297,6 +306,8 @@ impl OutputStream {
         let eject_injector = self.eject_injector.clone();
         #[cfg(feature = "bedrock-protocol")]
         let presence_injector = self.presence_injector.clone();
+        #[cfg(feature = "bedrock-protocol")]
+        let announce_injector = self.announce_injector.clone();
 
         let handle = tokio::spawn(async move {
             #[allow(irrefutable_let_patterns)]
@@ -324,11 +335,7 @@ impl OutputStream {
                             .await
                         }
                         PacketType::PlayerData => {
-                            OutputStream::handle_player_data(
-                                players.clone(),
-                                &packet.data,
-                            )
-                            .await
+                            OutputStream::handle_player_data(players.clone(), &packet.data).await
                         }
                         PacketType::ServerError => {
                             OutputStream::handle_server_error(
@@ -370,11 +377,21 @@ impl OutputStream {
                         #[cfg(feature = "bedrock-protocol")]
                         PacketType::PeerPresenceInject => {
                             if let Some(injector) = presence_injector.as_ref() {
-                                if let Some(
-                                    QuicNetworkPacketData::PeerPresenceInject(inject),
-                                ) = packet.data.get_data()
+                                if let Some(QuicNetworkPacketData::PeerPresenceInject(inject)) =
+                                    packet.data.get_data()
                                 {
                                     let inject: &PeerPresenceInjectPacket = inject;
+                                    injector.handle_inject(inject);
+                                }
+                            }
+                        }
+                        #[cfg(feature = "bedrock-protocol")]
+                        PacketType::PeerAnnounceInject => {
+                            if let Some(injector) = announce_injector.as_ref() {
+                                if let Some(QuicNetworkPacketData::PeerAnnounceInject(inject)) =
+                                    packet.data.get_data()
+                                {
+                                    let inject: &PeerAnnounceInjectPacket = inject;
                                     injector.handle_inject(inject);
                                 }
                             }
@@ -616,8 +633,7 @@ impl OutputStream {
         std::thread::Builder::new()
             .name("audio-output-fake".into())
             .spawn(move || {
-                let mut clock =
-                    super::frame_clock::FrameClock::new(20.0);
+                let mut clock = super::frame_clock::FrameClock::new(20.0);
                 while !shutdown.load(Ordering::Relaxed) {
                     let mut block = Vec::with_capacity(block_len);
                     for _ in 0..block_len {

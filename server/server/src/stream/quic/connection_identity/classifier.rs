@@ -1,34 +1,30 @@
 use super::ConnectionKind;
-use common::Game;
 
 pub struct ConnectionClassifier;
 
 impl ConnectionClassifier {
     // Classifies an authenticated connection identity string.
     //
-    // The game prefix is ALWAYS the first segment of a player identity
-    // (`{game}:{playername}`, issued by `sign_player_cert`). So the head — the
-    // text before the FIRST `:` — is the strongest available signal: if it is a
-    // known game keyword the connection is ALWAYS a `Player`, no matter what the
-    // remainder contains (a display name may itself contain colons, e.g.
-    // `minecraft:Steve:5000`). Only when the head is NOT a known game AND the
-    // identity's LAST segment parses as a non-zero u16 port is it treated as a
-    // `Peer`. Any ambiguity falls through to the safe `Player` default, so a
-    // mis-classification can never silently swallow a real player's connection.
+    // A server-peer identity carries the explicit marker `server::{host}:{port}`
+    // (issued by `sign_peer_cert`). When the marker is present and the remainder
+    // is a well-formed `host:port` (non-empty host, non-zero u16 port), the
+    // connection is a `Peer`. When the marker is present but the remainder is
+    // malformed, the connection is `Rejected` (fail closed) — it is NEVER treated
+    // as a player. Any identity WITHOUT the marker (including the player shape
+    // `{game}:{playername}`) is a `Player` and takes the normal client path.
+    //
+    // Because the marker is explicit, a peer CN can never be mistaken for a player
+    // and a bare `host:port` (no marker) is a player, not a peer.
     pub fn classify(identity: &str) -> ConnectionKind {
-        if let Some((head, _)) = identity.split_once(':') {
-            // First segment is a known game keyword -> always a player, never a
-            // peer, regardless of the rest of the identity.
-            if Self::is_known_game(head) {
-                return ConnectionKind::Player {
-                    identity: identity.to_string(),
-                };
-            }
-        }
+        let Some(rest) = identity.strip_prefix("server::") else {
+            return ConnectionKind::Player {
+                identity: identity.to_string(),
+            };
+        };
 
-        // Not game-prefixed: a peer iff the last segment is a non-zero u16 port
-        // and the host portion (everything before the last colon) is non-empty.
-        if let Some((host, suffix)) = identity.rsplit_once(':') {
+        // `server::` marker present: the remainder must be a well-formed
+        // `host:port`. Split on the LAST colon so namespaced/IPv6-ish hosts work.
+        if let Some((host, suffix)) = rest.rsplit_once(':') {
             if !host.is_empty() {
                 if let Ok(port) = suffix.parse::<u16>() {
                     if port != 0 {
@@ -42,18 +38,10 @@ impl ConnectionClassifier {
             }
         }
 
-        ConnectionKind::Player {
+        // Marked as a peer but not a well-formed endpoint: refuse, never a player.
+        ConnectionKind::Rejected {
             identity: identity.to_string(),
         }
-    }
-
-    // Whether `prefix` is one of the known game keywords `sign_player_cert`
-    // emits. Matched against the `Game` enum's canonical strings so adding a
-    // game here is covered without touching this classifier.
-    fn is_known_game(prefix: &str) -> bool {
-        [Game::Minecraft, Game::Hytale]
-            .iter()
-            .any(|g| g.as_str() == prefix)
     }
 }
 
@@ -62,10 +50,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn peer_cn_parses_host_and_port() {
-        let kind = ConnectionClassifier::classify("relay.bvc.io:5000");
+    fn server_peer_cn_parses_host_and_port() {
         assert_eq!(
-            kind,
+            ConnectionClassifier::classify("server::relay.bvc.io:5000"),
             ConnectionKind::Peer {
                 host: "relay.bvc.io".to_string(),
                 port: 5000,
@@ -75,10 +62,9 @@ mod tests {
     }
 
     #[test]
-    fn peer_cn_with_ipv4_host() {
-        let kind = ConnectionClassifier::classify("203.0.113.7:5001");
+    fn server_peer_cn_with_ipv4_host() {
         assert_eq!(
-            kind,
+            ConnectionClassifier::classify("server::203.0.113.7:5001"),
             ConnectionKind::Peer {
                 host: "203.0.113.7".to_string(),
                 port: 5001,
@@ -88,10 +74,21 @@ mod tests {
     }
 
     #[test]
-    fn minecraft_player_cn_is_player() {
-        let kind = ConnectionClassifier::classify("minecraft:Steve");
+    fn server_peer_cn_multicolon_host_uses_last_segment_as_port() {
         assert_eq!(
-            kind,
+            ConnectionClassifier::classify("server::a:b:5000"),
+            ConnectionKind::Peer {
+                host: "a:b".to_string(),
+                port: 5000,
+                endpoint: "a:b:5000".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn minecraft_player_cn_is_player() {
+        assert_eq!(
+            ConnectionClassifier::classify("minecraft:Steve"),
             ConnectionKind::Player {
                 identity: "minecraft:Steve".to_string()
             }
@@ -109,21 +106,7 @@ mod tests {
     }
 
     #[test]
-    fn numeric_gamertag_after_known_game_is_player() {
-        // a game-prefixed numeric name must not be mistaken for host:port
-        assert_eq!(
-            ConnectionClassifier::classify("hytale:12345"),
-            ConnectionKind::Player {
-                identity: "hytale:12345".to_string()
-            }
-        );
-    }
-
-    #[test]
-    fn minecraft_player_with_colon_in_name_is_player() {
-        // a display name containing a colon (and a numeric tail that looks like
-        // a port) must STILL classify as a player because the head is a known
-        // game keyword.
+    fn player_name_with_colon_is_player() {
         assert_eq!(
             ConnectionClassifier::classify("minecraft:Steve:5000"),
             ConnectionKind::Player {
@@ -132,18 +115,20 @@ mod tests {
         );
     }
 
+    // Closes the masquerade gap: a bare `host:port` WITHOUT the `server::` marker
+    // is a player (normal client path), never a peer.
     #[test]
-    fn hytale_player_with_colon_in_name_is_player() {
+    fn bare_host_port_without_marker_is_player() {
         assert_eq!(
-            ConnectionClassifier::classify("hytale:Name:1"),
+            ConnectionClassifier::classify("relay.bvc.io:5000"),
             ConnectionKind::Player {
-                identity: "hytale:Name:1".to_string()
+                identity: "relay.bvc.io:5000".to_string()
             }
         );
     }
 
     #[test]
-    fn malformed_no_colon_defaults_to_player() {
+    fn no_colon_is_player() {
         assert_eq!(
             ConnectionClassifier::classify("nocolon"),
             ConnectionKind::Player {
@@ -152,46 +137,44 @@ mod tests {
         );
     }
 
+    // A `server::`-marked CN that is not a well-formed host:port must fail closed
+    // (Rejected), NOT default to Player.
     #[test]
-    fn non_numeric_suffix_defaults_to_player() {
+    fn server_marker_non_numeric_port_is_rejected() {
         assert_eq!(
-            ConnectionClassifier::classify("host:notaport"),
-            ConnectionKind::Player {
-                identity: "host:notaport".to_string()
+            ConnectionClassifier::classify("server::host:notaport"),
+            ConnectionKind::Rejected {
+                identity: "server::host:notaport".to_string()
             }
         );
     }
 
     #[test]
-    fn port_zero_defaults_to_player() {
+    fn server_marker_port_zero_is_rejected() {
         assert_eq!(
-            ConnectionClassifier::classify("host:0"),
-            ConnectionKind::Player {
-                identity: "host:0".to_string()
+            ConnectionClassifier::classify("server::host:0"),
+            ConnectionKind::Rejected {
+                identity: "server::host:0".to_string()
             }
         );
     }
 
     #[test]
-    fn empty_host_defaults_to_player() {
+    fn server_marker_empty_host_is_rejected() {
         assert_eq!(
-            ConnectionClassifier::classify(":5000"),
-            ConnectionKind::Player {
-                identity: ":5000".to_string()
+            ConnectionClassifier::classify("server:::5000"),
+            ConnectionKind::Rejected {
+                identity: "server:::5000".to_string()
             }
         );
     }
 
     #[test]
-    fn host_with_multiple_colons_uses_last_segment_as_port() {
-        // e.g. an IPv6-ish or namespaced host — split on the LAST colon
-        let kind = ConnectionClassifier::classify("a:b:5000");
+    fn server_marker_no_port_is_rejected() {
         assert_eq!(
-            kind,
-            ConnectionKind::Peer {
-                host: "a:b".to_string(),
-                port: 5000,
-                endpoint: "a:b:5000".to_string(),
+            ConnectionClassifier::classify("server::nocolon"),
+            ConnectionKind::Rejected {
+                identity: "server::nocolon".to_string()
             }
         );
     }

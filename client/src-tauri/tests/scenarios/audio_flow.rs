@@ -60,8 +60,7 @@ async fn two_clients_audio_flows_alice_to_bob() {
         .expect("Alice connects + joins");
 
     let bob = ClientProc::spawn("Bob", &bob_code, &url, "voice");
-    bob
-        .await_connected(Duration::from_secs(30))
+    bob.await_connected(Duration::from_secs(30))
         .expect("Bob connects + joins");
 
     // Place both players co-located in overworld so can_communicate_with

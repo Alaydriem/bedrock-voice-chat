@@ -48,11 +48,34 @@ impl EmbeddedServer {
     /// (`ca.crt`/`ca.key`), which carries ServerAuth EKU and a
     /// `localhost`/`127.0.0.1` SAN, so no separate leaf cert is required.
     pub fn config_json(rocket_port: u16, quic_port: u16, data_dir: &Path) -> String {
+        Self::config_json_with_relay(rocket_port, quic_port, data_dir, None)
+    }
+
+    /// Like `config_json` but lowers the cross-server relay cadence so a peer link
+    /// converges within a test window. Discovery is decentralized (in-realm `!bvca`
+    /// announce); the relay plane builds unconditionally, so the only knobs are the
+    /// announce/orchestration cadence (lowered to 1s here from the 60s/5s production
+    /// defaults) and `idle_timeout_secs`, which when set lowers the peer-link idle
+    /// teardown window so a drop + reconnect is observable (production is 300s).
+    pub fn config_json_with_relay(
+        rocket_port: u16,
+        quic_port: u16,
+        data_dir: &Path,
+        idle_timeout_secs: Option<u64>,
+    ) -> String {
         let certs_path = data_dir.join("certificates");
         let db_path = data_dir.join("bvc-test.sqlite3");
         let assets_path = data_dir.join("assets");
         let audio_path = data_dir.join("audio");
         std::fs::create_dir_all(&audio_path).expect("create audio storage dir");
+
+        let mut relay = json!({
+            "announce_interval_secs": 1,
+            "orchestration_interval_secs": 1,
+        });
+        if let Some(secs) = idle_timeout_secs {
+            relay["idle_timeout_secs"] = json!(secs);
+        }
 
         let config = json!({
             "database": {
@@ -89,9 +112,7 @@ impl EmbeddedServer {
                 },
                 "features": {
                     "code_login": true,
-                    "relay": {
-                        "enabled": false,
-                    },
+                    "relay": relay,
                 },
                 "bedrock": {
                     "transfer_port": Self::free_port_udp(),
@@ -137,7 +158,10 @@ impl EmbeddedServer {
                 let handle = start_handle;
                 let rc = unsafe { (start_lib.start)(handle.0) };
                 if rc != 0 {
-                    eprintln!("bvc_server_start returned {rc}: {}", Self::last_error(&start_lib));
+                    eprintln!(
+                        "bvc_server_start returned {rc}: {}",
+                        Self::last_error(&start_lib)
+                    );
                 }
             })
             .expect("spawn embedded server thread");
@@ -283,7 +307,11 @@ impl EmbeddedServer {
             .send()
             .await
             .expect("POST /api/audio/event");
-        assert!(resp.status().is_success(), "jukebox play failed: {}", resp.status());
+        assert!(
+            resp.status().is_success(),
+            "jukebox play failed: {}",
+            resp.status()
+        );
         let v: serde_json::Value = resp.json().await.expect("parse AudioEventResponse");
         let event_id = v["event_id"].as_str().expect("event_id").to_string();
         let duration_ms = v["duration_ms"].as_u64().unwrap_or(0) as u32;
@@ -306,7 +334,11 @@ impl EmbeddedServer {
             .send()
             .await
             .expect("DELETE /api/audio/event");
-        assert!(resp.status().is_success(), "jukebox stop failed: {}", resp.status());
+        assert!(
+            resp.status().is_success(),
+            "jukebox stop failed: {}",
+            resp.status()
+        );
     }
 
     /// Read the library's thread-local last-error string.
@@ -337,7 +369,10 @@ impl EmbeddedServer {
                 }
             }
             if Instant::now() >= deadline {
-                panic!("embedded server did not serve {} within the boot timeout", url);
+                panic!(
+                    "embedded server did not serve {} within the boot timeout",
+                    url
+                );
             }
             tokio::time::sleep(Duration::from_millis(100)).await;
         }

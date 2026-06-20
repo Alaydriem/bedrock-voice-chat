@@ -6,14 +6,14 @@ use common::bedrock_protocol::protocol::types::generated::TextPacketBody;
 use common::bedrock_protocol::{Direction, Event};
 
 use crate::bedrock::BedrockEventEmitter;
+use crate::bedrock::BedrockPlayerStateCache;
 use crate::bedrock::BvcpCodec;
 use crate::bedrock::JukeboxBeaconCache;
-use crate::bedrock::BedrockPlayerStateCache;
+use crate::bedrock::proxy::session::BedrockSessionState;
 use crate::bedrock::proxy::session::{
     BedrockPacketHandler, ChangeDimensionHandler, DisconnectedHandler, DispatchOutcome,
     GameTypeHandler, PlaySoundHandler, PlayerAuthInputHandler, SetHealthHandler, StartGameHandler,
 };
-use crate::bedrock::proxy::session::BedrockSessionState;
 use log::info;
 pub struct BedrockSessionEventDispatcher {
     player_name: String,
@@ -50,11 +50,16 @@ impl BedrockSessionEventDispatcher {
         BvcpCodec::parse_bvcp(message)
     }
 
-    pub fn dispatch(
-        &mut self,
-        evt: &Event,
-        state: &mut BedrockSessionState,
-    ) -> DispatchOutcome {
+    fn bvca_endpoint(packet: &TextPacket) -> Option<String> {
+        let message = match &packet.body {
+            TextPacketBody::MessageOnly(body) => &body.message,
+            TextPacketBody::AuthorAndMessage(body) => &body.message,
+            TextPacketBody::MessageAndParams(body) => &body.message,
+        };
+        BvcpCodec::parse_bvca(message)
+    }
+
+    pub fn dispatch(&mut self, evt: &Event, state: &mut BedrockSessionState) -> DispatchOutcome {
         let emitter = self.emitter.as_ref();
         let direction = evt.direction();
         let state_changed = match evt.packet() {
@@ -114,6 +119,10 @@ impl BedrockSessionEventDispatcher {
                     if let Some(emitter) = emitter {
                         emitter.try_send_observed(token);
                     }
+                } else if let Some(endpoint) = Self::bvca_endpoint(p) {
+                    if let (Some(emitter), Some(world)) = (emitter, state.world_uuid()) {
+                        emitter.try_send_announce_observed(world.to_string(), endpoint);
+                    }
                 }
                 false
             }
@@ -130,11 +139,11 @@ impl BedrockSessionEventDispatcher {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::NetworkPacket;
+    use crate::bedrock::proxy::presence::BvcpCodec;
     use common::bedrock_protocol::ProtocolVersion;
     use common::bedrock_protocol::protocol::types::generated::{AuthorAndMessage, TextPacketType};
     use common::structs::packet::{PacketType, QuicNetworkPacketData};
-    use crate::NetworkPacket;
-    use crate::bedrock::proxy::presence::BvcpCodec;
 
     fn chat_event(message: &str, direction: Direction) -> Event {
         let packet = TextPacket {
@@ -155,8 +164,10 @@ mod tests {
         )
     }
 
-    fn build_dispatcher(
-    ) -> (BedrockSessionEventDispatcher, flume::Receiver<NetworkPacket>) {
+    fn build_dispatcher() -> (
+        BedrockSessionEventDispatcher,
+        flume::Receiver<NetworkPacket>,
+    ) {
         let (tx, rx) = flume::unbounded::<NetworkPacket>();
         let emitter = Arc::new(BedrockEventEmitter::new(Arc::new(tx)));
         let dispatcher = BedrockSessionEventDispatcher::new(
@@ -183,6 +194,31 @@ mod tests {
                 assert_eq!(observed.token, "tok-1");
             }
             other => panic!("expected PeerPresenceObserved, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn clientbound_bvca_chat_emits_announce_observed() {
+        let (mut dispatcher, rx) = build_dispatcher();
+        let mut state = BedrockSessionState::new("alice".to_string(), None);
+        state.set_world_uuid_for_test("world-xyz".to_string());
+
+        let evt = chat_event(
+            &BvcpCodec::format_bvca("peer.example:443"),
+            Direction::Clientbound,
+        );
+        dispatcher.dispatch(&evt, &mut state);
+
+        let packet = rx
+            .try_recv()
+            .expect("announce observed packet should be emitted");
+        assert_eq!(packet.data.packet_type, PacketType::PeerAnnounceObserved);
+        match packet.data.data {
+            QuicNetworkPacketData::PeerAnnounceObserved(obs) => {
+                assert_eq!(obs.hashed_world, "world-xyz");
+                assert_eq!(obs.endpoint, "peer.example:443");
+            }
+            other => panic!("expected PeerAnnounceObserved, got {:?}", other),
         }
     }
 

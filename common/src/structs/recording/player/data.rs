@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-use crate::structs::audio::PlayerGainSettings;
-use crate::structs::packet::{PacketOwner, AudioFramePacket};
 use super::metadata::PlayerMetadata;
+use crate::structs::audio::PlayerGainSettings;
+use crate::structs::packet::{AudioFramePacket, PacketOwner};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RecordingPlayerData {
@@ -67,10 +67,7 @@ impl RecordingPlayerData {
         }
     }
 
-    pub fn for_input(
-        player_name: String,
-        gain_settings: Option<PlayerGainSettings>,
-    ) -> Self {
+    pub fn for_input(player_name: String, gain_settings: Option<PlayerGainSettings>) -> Self {
         Self {
             name: player_name,
             client_id: None,

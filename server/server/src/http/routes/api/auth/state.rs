@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
-use entity::player;
-use rocket::{mtls::Certificate, State};
-use sea_orm::{ActiveModelTrait, ActiveValue};
 use crate::http::openapi::CustomJsonResponse;
 use common::response::auth::AuthStateResponse;
 use common::structs::permission::ServerPermissions;
+use entity::player;
+use rocket::{State, mtls::Certificate};
 use rocket_okapi::openapi;
+use sea_orm::{ActiveModelTrait, ActiveValue};
 
 use crate::config::Permissions;
 use crate::http::pool::Db;
@@ -42,9 +42,7 @@ pub async fn auth_state(
     let perm_service = PermissionService::new(perm_config.defaults.clone());
     let allowed = perm_service.evaluate_all(conn, player_model.id).await;
 
-    let needs_rotation = player_model
-        .is_certificate_expiring()
-        .unwrap_or(false)
+    let needs_rotation = player_model.is_certificate_expiring().unwrap_or(false)
         || player_model.has_legacy_certificate_cn(&player_model.game);
 
     let (certificate, certificate_key) = if needs_rotation {

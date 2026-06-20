@@ -2,27 +2,14 @@ use std::time::Duration;
 
 use bvc_client_lib::testkit::signal::Signal;
 
-use crate::harness::jukebox_fixture::{a_major_wav, bm_wav, A_NOTES, BM_NOTES};
+use crate::harness::jukebox_fixture::{A_NOTES, BM_NOTES, JukeboxFixture};
 use crate::harness::jukebox_world::JukeboxWorld;
+use crate::harness::note_energy::NoteEnergy;
 
 // Within proximity (server broadcast_range default 48 → gate ≈ 1.73*48 ≈ 83 blocks).
 const NEAR: (f32, f32, f32) = (0.0, 64.0, 0.0);
 // Far beyond every proximity gate.
 const FAR: (f32, f32, f32) = (10_000.0, 64.0, 0.0);
-
-// True when every note frequency carries > 2% Goertzel energy in the mono capture.
-fn has_all_notes(mono: &[f32], notes: &[f32]) -> bool {
-    notes
-        .iter()
-        .all(|&f| Signal::tone_energy_fraction(mono, 48_000, f) > 0.02)
-}
-
-// True when NO note frequency carries > 1% energy (cross-bleed / leakage absent).
-fn has_no_notes(mono: &[f32], notes: &[f32]) -> bool {
-    notes
-        .iter()
-        .all(|&f| Signal::tone_energy_fraction(mono, 48_000, f) < 0.01)
-}
 
 /// Case 1: two players both within proximity of one jukebox both hear the song.
 #[tokio::test(flavor = "multi_thread")]
@@ -31,7 +18,7 @@ async fn both_in_range_hear_jukebox() {
 
     // Alice uploads the Bm progression through the real client encode+upload path.
     let fixture_dir = tempfile::tempdir().expect("fixture dir");
-    let wav = bm_wav(fixture_dir.path(), "bm", 1);
+    let wav = JukeboxFixture::bm_wav(fixture_dir.path(), "bm", 1);
     let (audio_id, duration_ms) = w
         .alice
         .upload_audio(wav.to_str().unwrap(), "minecraft", Duration::from_secs(20))
@@ -48,7 +35,10 @@ async fn both_in_range_hear_jukebox() {
     }
     std::thread::sleep(Duration::from_millis(500));
 
-    let (_event_id, _) = w.server.jukebox_play(&audio_id, NEAR.0, NEAR.1, NEAR.2).await;
+    let (_event_id, _) = w
+        .server
+        .jukebox_play(&audio_id, NEAR.0, NEAR.1, NEAR.2)
+        .await;
 
     // Capture across the playback window (duration + drain headroom). Both clients'
     // capture buffers accumulate continuously; draining Alice's long window first
@@ -71,9 +61,18 @@ async fn both_in_range_hear_jukebox() {
     w.alice.shutdown();
     w.bob.shutdown();
 
-    assert!(a_fq > 0 && b_fq > 0, "both clients must receive jukebox frames from QUIC");
-    assert!(has_all_notes(&mono_a, &BM_NOTES), "Alice must hear every Bm note");
-    assert!(has_all_notes(&mono_b, &BM_NOTES), "Bob must hear every Bm note");
+    assert!(
+        a_fq > 0 && b_fq > 0,
+        "both clients must receive jukebox frames from QUIC"
+    );
+    assert!(
+        NoteEnergy::all_present(&mono_a, &BM_NOTES),
+        "Alice must hear every Bm note"
+    );
+    assert!(
+        NoteEnergy::all_present(&mono_b, &BM_NOTES),
+        "Bob must hear every Bm note"
+    );
 }
 
 /// Case 2: jukebox at the origin; Alice in range hears it, Bob far away does not.
@@ -82,7 +81,7 @@ async fn in_range_hears_out_of_range_silent_jukebox() {
     let w = JukeboxWorld::boot().await;
 
     let fixture_dir = tempfile::tempdir().expect("fixture dir");
-    let wav = bm_wav(fixture_dir.path(), "bm", 1);
+    let wav = JukeboxFixture::bm_wav(fixture_dir.path(), "bm", 1);
     let (audio_id, duration_ms) = w
         .alice
         .upload_audio(wav.to_str().unwrap(), "minecraft", Duration::from_secs(20))
@@ -97,7 +96,9 @@ async fn in_range_hears_out_of_range_silent_jukebox() {
     }
     std::thread::sleep(Duration::from_millis(600));
 
-    w.server.jukebox_play(&audio_id, NEAR.0, NEAR.1, NEAR.2).await;
+    w.server
+        .jukebox_play(&audio_id, NEAR.0, NEAR.1, NEAR.2)
+        .await;
 
     let window = Duration::from_millis(duration_ms as u64 + 1_500);
     let cap_a = w.alice.collect_captured(window);
@@ -112,9 +113,18 @@ async fn in_range_hears_out_of_range_silent_jukebox() {
     w.alice.shutdown();
     w.bob.shutdown();
 
-    assert!(a_fq > 0 && has_all_notes(&mono_a, &BM_NOTES), "Alice in range must hear the jukebox");
-    assert_eq!(b_fq, 0, "Bob out of range must receive zero jukebox frames from QUIC");
-    assert!(rms_b < 0.01, "Bob out of range must be silent (rms={rms_b:.6})");
+    assert!(
+        a_fq > 0 && NoteEnergy::all_present(&mono_a, &BM_NOTES),
+        "Alice in range must hear the jukebox"
+    );
+    assert_eq!(
+        b_fq, 0,
+        "Bob out of range must receive zero jukebox frames from QUIC"
+    );
+    assert!(
+        rms_b < 0.01,
+        "Bob out of range must be silent (rms={rms_b:.6})"
+    );
 }
 
 /// Case 3: jukebox at the origin; both players far away → neither hears it.
@@ -123,7 +133,7 @@ async fn both_out_of_range_silent_jukebox() {
     let w = JukeboxWorld::boot().await;
 
     let fixture_dir = tempfile::tempdir().expect("fixture dir");
-    let wav = bm_wav(fixture_dir.path(), "bm", 1);
+    let wav = JukeboxFixture::bm_wav(fixture_dir.path(), "bm", 1);
     let (audio_id, duration_ms) = w
         .alice
         .upload_audio(wav.to_str().unwrap(), "minecraft", Duration::from_secs(20))
@@ -139,7 +149,9 @@ async fn both_out_of_range_silent_jukebox() {
     std::thread::sleep(Duration::from_millis(600));
 
     // Jukebox at the origin — far from both players.
-    w.server.jukebox_play(&audio_id, NEAR.0, NEAR.1, NEAR.2).await;
+    w.server
+        .jukebox_play(&audio_id, NEAR.0, NEAR.1, NEAR.2)
+        .await;
 
     let window = Duration::from_millis(duration_ms as u64 + 1_000);
     let cap_a = w.alice.collect_captured(window);
@@ -154,9 +166,15 @@ async fn both_out_of_range_silent_jukebox() {
     w.alice.shutdown();
     w.bob.shutdown();
 
-    assert_eq!(a_fq, 0, "Alice out of range must receive zero jukebox frames");
+    assert_eq!(
+        a_fq, 0,
+        "Alice out of range must receive zero jukebox frames"
+    );
     assert_eq!(b_fq, 0, "Bob out of range must receive zero jukebox frames");
-    assert!(rms_a < 0.01 && rms_b < 0.01, "both must be silent (rms_a={rms_a:.6} rms_b={rms_b:.6})");
+    assert!(
+        rms_a < 0.01 && rms_b < 0.01,
+        "both must be silent (rms_a={rms_a:.6} rms_b={rms_b:.6})"
+    );
 }
 
 /// Case 4: a 10x Bm loop is ejected after ~2 loops; the remaining loops never
@@ -166,7 +184,7 @@ async fn eject_truncates_remaining_loops() {
     let w = JukeboxWorld::boot().await;
 
     let fixture_dir = tempfile::tempdir().expect("fixture dir");
-    let wav = bm_wav(fixture_dir.path(), "bm10", 10);
+    let wav = JukeboxFixture::bm_wav(fixture_dir.path(), "bm10", 10);
     let (audio_id, duration_ms) = w
         .alice
         .upload_audio(wav.to_str().unwrap(), "minecraft", Duration::from_secs(30))
@@ -182,7 +200,10 @@ async fn eject_truncates_remaining_loops() {
     }
     std::thread::sleep(Duration::from_millis(500));
 
-    let (event_id, _) = w.server.jukebox_play(&audio_id, NEAR.0, NEAR.1, NEAR.2).await;
+    let (event_id, _) = w
+        .server
+        .jukebox_play(&audio_id, NEAR.0, NEAR.1, NEAR.2)
+        .await;
 
     // Let ~2 loops play, then eject.
     std::thread::sleep(Duration::from_millis((per_loop_ms * 2) as u64));
@@ -205,7 +226,10 @@ async fn eject_truncates_remaining_loops() {
     w.alice.shutdown();
     w.bob.shutdown();
 
-    assert!(a_fq_at_eject > 0 && b_fq_at_eject > 0, "both should hear the first loops");
+    assert!(
+        a_fq_at_eject > 0 && b_fq_at_eject > 0,
+        "both should hear the first loops"
+    );
 
     let full_frames = (duration_ms as u64) / 20;
     let one_loop_frames = (per_loop_ms as u64) / 20;
@@ -228,7 +252,7 @@ async fn natural_end_returns_to_silence() {
     let w = JukeboxWorld::boot().await;
 
     let fixture_dir = tempfile::tempdir().expect("fixture dir");
-    let wav = bm_wav(fixture_dir.path(), "bm", 1);
+    let wav = JukeboxFixture::bm_wav(fixture_dir.path(), "bm", 1);
     let (audio_id, duration_ms) = w
         .alice
         .upload_audio(wav.to_str().unwrap(), "minecraft", Duration::from_secs(20))
@@ -243,12 +267,16 @@ async fn natural_end_returns_to_silence() {
     }
     std::thread::sleep(Duration::from_millis(500));
 
-    w.server.jukebox_play(&audio_id, NEAR.0, NEAR.1, NEAR.2).await;
+    w.server
+        .jukebox_play(&audio_id, NEAR.0, NEAR.1, NEAR.2)
+        .await;
 
     // Phase A: capture the full playback → energy present.
-    let cap_play = w.alice.collect_captured(Duration::from_millis(duration_ms as u64 + 1_000));
+    let cap_play = w
+        .alice
+        .collect_captured(Duration::from_millis(duration_ms as u64 + 1_000));
     assert!(
-        has_all_notes(&Signal::to_mono(&cap_play), &BM_NOTES),
+        NoteEnergy::all_present(&Signal::to_mono(&cap_play), &BM_NOTES),
         "Alice must hear the progression during playback"
     );
 
@@ -267,8 +295,14 @@ async fn natural_end_returns_to_silence() {
     w.alice.shutdown();
     w.bob.shutdown();
 
-    assert_eq!(a_fq_after, a_fq_baseline, "no jukebox frames must arrive after the song ended");
-    assert!(rms_after < 0.01, "capture must be silent after the song ended (rms={rms_after:.6})");
+    assert_eq!(
+        a_fq_after, a_fq_baseline,
+        "no jukebox frames must arrive after the song ended"
+    );
+    assert!(
+        rms_after < 0.01,
+        "capture must be silent after the song ended (rms={rms_after:.6})"
+    );
 }
 
 /// Case 6: two jukeboxes at two distant positions play different progressions
@@ -278,8 +312,8 @@ async fn concurrent_jukeboxes_no_cross_bleed() {
     let w = JukeboxWorld::boot().await;
 
     let fixture_dir = tempfile::tempdir().expect("fixture dir");
-    let bm = bm_wav(fixture_dir.path(), "bm", 2);
-    let amaj = a_major_wav(fixture_dir.path(), "amaj", 2);
+    let bm = JukeboxFixture::bm_wav(fixture_dir.path(), "bm", 2);
+    let amaj = JukeboxFixture::a_major_wav(fixture_dir.path(), "amaj", 2);
     let (bm_id, bm_dur) = w
         .alice
         .upload_audio(bm.to_str().unwrap(), "minecraft", Duration::from_secs(20))
@@ -301,8 +335,12 @@ async fn concurrent_jukeboxes_no_cross_bleed() {
     std::thread::sleep(Duration::from_millis(500));
 
     // Distinct coords → no dedup collision.
-    w.server.jukebox_play(&bm_id, site_a.0, site_a.1, site_a.2).await;
-    w.server.jukebox_play(&amaj_id, site_b.0, site_b.1, site_b.2).await;
+    w.server
+        .jukebox_play(&bm_id, site_a.0, site_a.1, site_a.2)
+        .await;
+    w.server
+        .jukebox_play(&amaj_id, site_b.0, site_b.1, site_b.2)
+        .await;
 
     let window = Duration::from_millis(bm_dur.max(amaj_dur) as u64 + 1_500);
     let cap_a = w.alice.collect_captured(window);
@@ -317,9 +355,24 @@ async fn concurrent_jukeboxes_no_cross_bleed() {
     w.alice.shutdown();
     w.bob.shutdown();
 
-    assert!(a_fq > 0 && b_fq > 0, "both clients must receive their own jukebox frames");
-    assert!(has_all_notes(&mono_a, &BM_NOTES), "Alice must hear the Bm progression");
-    assert!(has_no_notes(&mono_a, &A_NOTES), "Alice must NOT hear the A-major progression");
-    assert!(has_all_notes(&mono_b, &A_NOTES), "Bob must hear the A-major progression");
-    assert!(has_no_notes(&mono_b, &BM_NOTES), "Bob must NOT hear the Bm progression");
+    assert!(
+        a_fq > 0 && b_fq > 0,
+        "both clients must receive their own jukebox frames"
+    );
+    assert!(
+        NoteEnergy::all_present(&mono_a, &BM_NOTES),
+        "Alice must hear the Bm progression"
+    );
+    assert!(
+        NoteEnergy::all_absent(&mono_a, &A_NOTES),
+        "Alice must NOT hear the A-major progression"
+    );
+    assert!(
+        NoteEnergy::all_present(&mono_b, &A_NOTES),
+        "Bob must hear the A-major progression"
+    );
+    assert!(
+        NoteEnergy::all_absent(&mono_b, &BM_NOTES),
+        "Bob must NOT hear the Bm progression"
+    );
 }

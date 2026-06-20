@@ -6,11 +6,11 @@
 //! - 200 with empty entries when no overrides
 //! - 200 with entries reflecting set overrides
 
-use crate::harness::{assert_status, TestServer};
+use crate::harness::{HttpAssert, TestServer};
 
+use common::Game;
 use common::request::admin::SetPermissionRequest;
 use common::structs::permission::PermissionEffect;
-use common::Game;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn returns_401_without_client_cert() {
@@ -18,11 +18,14 @@ async fn returns_401_without_client_cert() {
     let resp = env
         .noauth_client()
         .unwrap()
-        .get(format!("{}/api/admin/permission/minecraft/Bob", env.base_url))
+        .get(format!(
+            "{}/api/admin/permission/minecraft/Bob",
+            env.base_url
+        ))
         .send()
         .await
         .unwrap();
-    assert_status(resp.status().as_u16(), 401);
+    HttpAssert::status(resp.status().as_u16(), 401);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -31,11 +34,14 @@ async fn returns_404_when_target_missing() {
     let resp = env
         .admin_client()
         .unwrap()
-        .get(format!("{}/api/admin/permission/minecraft/Ghost", env.base_url))
+        .get(format!(
+            "{}/api/admin/permission/minecraft/Ghost",
+            env.base_url
+        ))
         .send()
         .await
         .unwrap();
-    assert_status(resp.status().as_u16(), 404);
+    HttpAssert::status(resp.status().as_u16(), 404);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -45,11 +51,14 @@ async fn returns_empty_entries_when_no_overrides() {
     let resp = env
         .admin_client()
         .unwrap()
-        .get(format!("{}/api/admin/permission/minecraft/Bob", env.base_url))
+        .get(format!(
+            "{}/api/admin/permission/minecraft/Bob",
+            env.base_url
+        ))
         .send()
         .await
         .unwrap();
-    assert_status(resp.status().as_u16(), 200);
+    HttpAssert::status(resp.status().as_u16(), 200);
     let body: serde_json::Value = resp.json().await.unwrap();
     assert_eq!(body["gamertag"].as_str().unwrap(), "Bob");
     assert_eq!(body["entries"].as_array().unwrap().len(), 0);
@@ -72,14 +81,17 @@ async fn returns_set_overrides() {
         .send()
         .await
         .unwrap();
-    assert_status(set.status().as_u16(), 204);
+    HttpAssert::status(set.status().as_u16(), 204);
 
     let resp = client
-        .get(format!("{}/api/admin/permission/minecraft/Bob", env.base_url))
+        .get(format!(
+            "{}/api/admin/permission/minecraft/Bob",
+            env.base_url
+        ))
         .send()
         .await
         .unwrap();
-    assert_status(resp.status().as_u16(), 200);
+    HttpAssert::status(resp.status().as_u16(), 200);
     let body: serde_json::Value = resp.json().await.unwrap();
     let entries = body["entries"].as_array().unwrap();
     assert_eq!(entries.len(), 1);

@@ -1,8 +1,7 @@
 use rocket::{
-    async_trait,
+    State, async_trait,
     http::Status,
     request::{FromRequest, Outcome, Request},
-    State,
 };
 use rocket_okapi::r#gen::OpenApiGenerator;
 use rocket_okapi::request::{OpenApiFromRequest, RequestHeaderInput};

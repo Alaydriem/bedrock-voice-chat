@@ -2,13 +2,13 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use common::{
+    Game,
     auth::{HytaleAuthProvider, PollResult},
     structs::config::{
         HytaleAuthStatus, HytaleDeviceFlowStartResponse, HytaleDeviceFlowStatusResponse,
     },
-    Game,
 };
-use rocket::{http::Status, State};
+use rocket::{State, http::Status};
 use rocket_okapi::openapi;
 
 use crate::config::{Permissions, Server};
@@ -33,7 +33,12 @@ pub async fn start_device_flow(
         Ok(f) => f,
         Err(e) => {
             tracing::error!("Failed to start Hytale device flow: {}", e);
-            return NcryptfJsonResponse::from_inner(JsonMessage::create(Status::InternalServerError, None, None, None));
+            return NcryptfJsonResponse::from_inner(JsonMessage::create(
+                Status::InternalServerError,
+                None,
+                None,
+                None,
+            ));
         }
     };
 
@@ -81,7 +86,12 @@ pub async fn poll_status(
         Some(s) => s,
         None => {
             tracing::warn!("Hytale session not found: {}", session_id);
-            return NcryptfJsonResponse::from_inner(JsonMessage::create(Status::NotFound, None, None, None));
+            return NcryptfJsonResponse::from_inner(JsonMessage::create(
+                Status::NotFound,
+                None,
+                None,
+                None,
+            ));
         }
     };
 
@@ -92,7 +102,12 @@ pub async fn poll_status(
             status: HytaleAuthStatus::Expired,
             login_response: None,
         };
-        return NcryptfJsonResponse::from_inner(JsonMessage::create(Status::Ok, Some(response), None, None));
+        return NcryptfJsonResponse::from_inner(JsonMessage::create(
+            Status::Ok,
+            Some(response),
+            None,
+            None,
+        ));
     }
 
     // Create provider and poll for completion
@@ -106,7 +121,12 @@ pub async fn poll_status(
                 status: HytaleAuthStatus::Error,
                 login_response: None,
             };
-            return NcryptfJsonResponse::from_inner(JsonMessage::create(Status::Ok, Some(response), None, None));
+            return NcryptfJsonResponse::from_inner(JsonMessage::create(
+                Status::Ok,
+                Some(response),
+                None,
+                None,
+            ));
         }
     };
 
@@ -116,7 +136,12 @@ pub async fn poll_status(
                 status: HytaleAuthStatus::Pending,
                 login_response: None,
             };
-            NcryptfJsonResponse::from_inner(JsonMessage::create(Status::Ok, Some(response), None, None))
+            NcryptfJsonResponse::from_inner(JsonMessage::create(
+                Status::Ok,
+                Some(response),
+                None,
+                None,
+            ))
         }
         PollResult::Expired => {
             session_cache.remove(session_id).await;
@@ -124,7 +149,12 @@ pub async fn poll_status(
                 status: HytaleAuthStatus::Expired,
                 login_response: None,
             };
-            NcryptfJsonResponse::from_inner(JsonMessage::create(Status::Ok, Some(response), None, None))
+            NcryptfJsonResponse::from_inner(JsonMessage::create(
+                Status::Ok,
+                Some(response),
+                None,
+                None,
+            ))
         }
         PollResult::Denied => {
             session_cache.remove(session_id).await;
@@ -132,7 +162,12 @@ pub async fn poll_status(
                 status: HytaleAuthStatus::Denied,
                 login_response: None,
             };
-            NcryptfJsonResponse::from_inner(JsonMessage::create(Status::Ok, Some(response), None, None))
+            NcryptfJsonResponse::from_inner(JsonMessage::create(
+                Status::Ok,
+                Some(response),
+                None,
+                None,
+            ))
         }
         PollResult::Success(auth_result) => {
             // Remove session from cache (single use)
@@ -157,20 +192,35 @@ pub async fn poll_status(
                         status: HytaleAuthStatus::Success,
                         login_response: Some(login_response),
                     };
-                    NcryptfJsonResponse::from_inner(JsonMessage::create(Status::Ok, Some(response), None, None))
+                    NcryptfJsonResponse::from_inner(JsonMessage::create(
+                        Status::Ok,
+                        Some(response),
+                        None,
+                        None,
+                    ))
                 }
                 Err(e) => {
                     tracing::error!("Login with hytale failed: {}", e);
                     match e {
                         AuthError::PlayerNotFound | AuthError::PlayerBanished => {
-                            NcryptfJsonResponse::from_inner(JsonMessage::create(Status::Forbidden, None, None, None))
+                            NcryptfJsonResponse::from_inner(JsonMessage::create(
+                                Status::Forbidden,
+                                None,
+                                None,
+                                None,
+                            ))
                         }
                         _ => {
                             let response = HytaleDeviceFlowStatusResponse {
                                 status: HytaleAuthStatus::Error,
                                 login_response: None,
                             };
-                            NcryptfJsonResponse::from_inner(JsonMessage::create(Status::Ok, Some(response), None, None))
+                            NcryptfJsonResponse::from_inner(JsonMessage::create(
+                                Status::Ok,
+                                Some(response),
+                                None,
+                                None,
+                            ))
                         }
                     }
                 }

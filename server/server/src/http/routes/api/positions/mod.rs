@@ -1,17 +1,17 @@
 use std::sync::Arc;
 
-use common::traits::player_data::PlayerData;
 use common::Game;
-use rocket::{http::Status, serde::json::Json, State};
+use common::traits::player_data::PlayerData;
+use rocket::{State, http::Status, serde::json::Json};
 use rocket_okapi::openapi;
 
 use crate::http::openapi::{RouteSpec, TagDefinition};
+use crate::runtime::position_updater;
 use crate::{
     http::guards::MCAccessToken,
     services::{BedrockEventService, PlayerIdentityService, PlayerRegistrarService},
     stream::quic::{CacheManager, WebhookReceiver},
 };
-use crate::runtime::position_updater;
 
 inventory::submit! {
     TagDefinition {

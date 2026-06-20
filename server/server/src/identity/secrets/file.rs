@@ -2,7 +2,7 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 
 use super::SecretBackend;
 
@@ -40,9 +40,18 @@ impl SecretBackend for FileBackend {
         let p = Self::path(slot_key)?;
         let body = fs::read_to_string(&p).with_context(|| format!("read {}", p.display()))?;
         let mut parts = body.split(SEPARATOR);
-        let cert = parts.next().ok_or_else(|| anyhow!("missing cert"))?.to_string();
-        let key = parts.next().ok_or_else(|| anyhow!("missing key"))?.to_string();
-        let ca = parts.next().ok_or_else(|| anyhow!("missing ca"))?.to_string();
+        let cert = parts
+            .next()
+            .ok_or_else(|| anyhow!("missing cert"))?
+            .to_string();
+        let key = parts
+            .next()
+            .ok_or_else(|| anyhow!("missing key"))?
+            .to_string();
+        let ca = parts
+            .next()
+            .ok_or_else(|| anyhow!("missing ca"))?
+            .to_string();
         Ok((cert, key, ca))
     }
 

@@ -1,10 +1,10 @@
 use std::time::Duration;
 
+use common::game_data::Dimension;
 use common::structs::packet::{
     AudioFrameMetadata, AudioFramePacket, JukeboxMetadata, PacketOwner, PacketType,
     QuicNetworkPacket, QuicNetworkPacketData,
 };
-use common::game_data::Dimension;
 use common::{Coordinate, PlayerEnum};
 use tokio_util::sync::CancellationToken;
 

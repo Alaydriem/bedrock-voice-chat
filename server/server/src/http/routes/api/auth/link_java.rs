@@ -1,10 +1,8 @@
 use common::{
-    auth::MinecraftAuthProvider,
-    request::LinkJavaIdentityRequest,
+    Game, auth::MinecraftAuthProvider, request::LinkJavaIdentityRequest,
     response::LinkJavaIdentityResponse,
-    Game,
 };
-use rocket::{http::Status, mtls::Certificate, serde::json::Json, State};
+use rocket::{State, http::Status, mtls::Certificate, serde::json::Json};
 use rocket_okapi::openapi;
 
 use crate::services::PlayerIdentityService;
@@ -41,7 +39,12 @@ pub async fn link_java_identity(
             .await
         {
             if let Err(e) = identity_service
-                .create_alias(player_id, &mc_username, &Game::Minecraft, "minecraft_services")
+                .create_alias(
+                    player_id,
+                    &mc_username,
+                    &Game::Minecraft,
+                    "minecraft_services",
+                )
                 .await
             {
                 tracing::warn!("Failed to create identity alias for {}: {}", mc_username, e);

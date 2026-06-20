@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use common::{request::CodeLoginRequest, response::LoginResponse};
-use rocket::{http::Status, serde::json::Json, State};
+use rocket::{State, http::Status, serde::json::Json};
 use rocket_okapi::openapi;
 
 use crate::config::{Features, Permissions, Server};

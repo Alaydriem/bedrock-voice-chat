@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-use crate::game_data::Dimension;
 use crate::Coordinate;
+use crate::game_data::Dimension;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(schemars::JsonSchema))]
