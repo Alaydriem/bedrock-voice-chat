@@ -127,8 +127,26 @@ impl EmbeddedServer {
     /// target dir. The cdylib must already be built
     /// (`cargo build -p bedrock-voice-chat-server` in `server/`).
     pub fn load_library() -> Arc<ServerLibrary> {
+        Self::constrain_runtime();
         let path = ServerLibrary::default_lib_path();
         ServerLibrary::load(&path).expect("load server cdylib")
+    }
+
+    /// Cap each embedded server's tokio pools for the test process. Production /
+    /// the Java mod leave these unset and keep tokio's CPU-scaled defaults; the
+    /// suite embeds several servers per process and runs many processes in
+    /// parallel, so without this the aggregate thread/handle count faults the
+    /// native crypto/QUIC deps. Read by `bvc_server_create` in the cdylib.
+    fn constrain_runtime() {
+        static ONCE: std::sync::Once = std::sync::Once::new();
+        ONCE.call_once(|| {
+            // SAFETY: set exactly once, before any server runtime is created and
+            // before any thread reads these vars, from the harness entry point.
+            unsafe {
+                std::env::set_var("BVC_RUNTIME_WORKER_THREADS", "2");
+                std::env::set_var("BVC_RUNTIME_MAX_BLOCKING_THREADS", "16");
+            }
+        });
     }
 
     /// Boot the server: create the runtime from the JSON config, spawn the

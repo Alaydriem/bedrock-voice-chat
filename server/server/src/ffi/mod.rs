@@ -61,6 +61,23 @@ fn set_last_error(msg: &str) {
     });
 }
 
+/// Run an FFI entry point's body, converting any panic into the function's error
+/// sentinel instead of letting it unwind across the C ABI — an unwind out of an
+/// `extern "C"` function aborts the host process (the Java/BDS mod's JVM). On
+/// panic the message is recorded for `bvc_get_last_error` and the sentinel is
+/// returned so the embedder sees a recoverable error rather than a crash.
+macro_rules! ffi_guard {
+    ($name:literal, $sentinel:expr, $body:block) => {
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| $body)) {
+            Ok(value) => value,
+            Err(_) => {
+                set_last_error(concat!("panic in ", $name));
+                $sentinel
+            }
+        }
+    };
+}
+
 /// Platform initialization. Called automatically by `bvc_server_create`.
 /// Kept for backward compatibility — safe to call multiple times.
 #[unsafe(no_mangle)]
@@ -81,6 +98,7 @@ pub extern "C" fn bvc_init() -> c_int {
 /// * `config_json` must be a valid null-terminated UTF-8 string
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut RuntimeHandle {
+    ffi_guard!("bvc_server_create", ptr::null_mut(), {
     if config_json.is_null() {
         set_last_error("config_json is null");
         return ptr::null_mut();
@@ -120,34 +138,25 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
     let audio_playback_service = runtime.get_audio_playback_service();
     let db_conn = runtime.get_db_conn();
 
-    // Create a tokio runtime for the server.
-    //
-    // Thread pools are bounded because this runtime is per-embedded-server: the
-    // Java/BDS mod and the e2e harness create MANY of these in one machine (the
-    // harness boots up to 3 servers per test, run in parallel). An unbounded
-    // multi-thread runtime defaults to one worker per CPU plus a blocking pool
-    // that grows to 512 threads — multiplied across concurrent servers that
-    // exhausts OS threads/handles and faults the native crypto/QUIC deps
-    // (STATUS_ACCESS_VIOLATION). The standalone binary uses #[tokio::main]
-    // (one runtime per process) and is unaffected by these caps. Overridable via
-    // the BVC_RUNTIME_WORKER_THREADS / BVC_RUNTIME_MAX_BLOCKING_THREADS env vars
-    // for embedded deployments that want larger pools.
-    let worker_threads = std::env::var("BVC_RUNTIME_WORKER_THREADS")
+    let mut runtime_builder = tokio::runtime::Builder::new_multi_thread();
+    runtime_builder.enable_all();
+    if let Some(n) = std::env::var("BVC_RUNTIME_WORKER_THREADS")
         .ok()
         .and_then(|v| v.parse::<usize>().ok())
         .filter(|n| *n > 0)
-        .unwrap_or(2);
-    let max_blocking_threads = std::env::var("BVC_RUNTIME_MAX_BLOCKING_THREADS")
-        .ok()
-        .and_then(|v| v.parse::<usize>().ok())
-        .filter(|n| *n > 0)
-        .unwrap_or(16);
-    let tokio_runtime = match tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .worker_threads(worker_threads)
-        .max_blocking_threads(max_blocking_threads)
-        .build()
     {
+        runtime_builder.worker_threads(n);
+    }
+
+    if let Some(n) = std::env::var("BVC_RUNTIME_MAX_BLOCKING_THREADS")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .filter(|n| *n > 0)
+    {
+        runtime_builder.max_blocking_threads(n);
+    }
+
+    let tokio_runtime = match runtime_builder.build() {
         Ok(rt) => rt,
         Err(e) => {
             set_last_error(&format!("Failed to create tokio runtime: {}", e));
@@ -168,6 +177,7 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
     });
 
     Box::into_raw(handle)
+    })
 }
 
 /// Start the server. This function BLOCKS until the server stops.
@@ -187,6 +197,7 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
 /// * Must not be called concurrently on the same handle
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn bvc_server_start(handle: *mut RuntimeHandle) -> c_int {
+    ffi_guard!("bvc_server_start", -1, {
     if handle.is_null() {
         set_last_error("handle is null");
         return -1;
@@ -230,6 +241,7 @@ pub unsafe extern "C" fn bvc_server_start(handle: *mut RuntimeHandle) -> c_int {
             -1
         }
     }
+    })
 }
 
 /// Signal the server to stop gracefully.
@@ -248,6 +260,7 @@ pub unsafe extern "C" fn bvc_server_start(handle: *mut RuntimeHandle) -> c_int {
 /// * `handle` must be a valid pointer from `bvc_server_create()`
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn bvc_server_stop(handle: *mut RuntimeHandle) -> c_int {
+    ffi_guard!("bvc_server_stop", -1, {
     if handle.is_null() {
         set_last_error("handle is null");
         return -1;
@@ -260,6 +273,7 @@ pub unsafe extern "C" fn bvc_server_stop(handle: *mut RuntimeHandle) -> c_int {
     handle_ref.shutdown_flag.store(true, Ordering::SeqCst);
     handle_ref.shutdown_notify.notify_one();
     0
+    })
 }
 
 /// Destroy the server handle and free all resources.
@@ -278,6 +292,7 @@ pub unsafe extern "C" fn bvc_server_stop(handle: *mut RuntimeHandle) -> c_int {
 /// * Must not be called while `bvc_server_start()` is running
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn bvc_server_destroy(handle: *mut RuntimeHandle) -> c_int {
+    ffi_guard!("bvc_server_destroy", -1, {
     if handle.is_null() {
         set_last_error("handle is null");
         return -1;
@@ -296,6 +311,7 @@ pub unsafe extern "C" fn bvc_server_destroy(handle: *mut RuntimeHandle) -> c_int
     // Now drop the rest (runtime mutex, etc.)
     drop(handle_box);
     0
+    })
 }
 
 /// Get the last error message.
@@ -378,6 +394,7 @@ pub unsafe extern "C" fn bvc_update_positions(
     handle: *mut RuntimeHandle,
     game_data_json: *const c_char,
 ) -> c_int {
+    ffi_guard!("bvc_update_positions", -1, {
     if handle.is_null() {
         set_last_error("handle is null");
         return -1;
@@ -515,6 +532,7 @@ pub unsafe extern "C" fn bvc_update_positions(
     });
 
     0
+    })
 }
 
 #[unsafe(no_mangle)]
@@ -522,6 +540,7 @@ pub unsafe extern "C" fn bvc_audio_play(
     handle: *mut RuntimeHandle,
     play_json: *const c_char,
 ) -> *mut c_char {
+    ffi_guard!("bvc_audio_play", ptr::null_mut(), {
     if handle.is_null() {
         set_last_error("handle is null");
         return ptr::null_mut();
@@ -617,6 +636,7 @@ pub unsafe extern "C" fn bvc_audio_play(
             ptr::null_mut()
         }
     }
+    })
 }
 
 #[unsafe(no_mangle)]
@@ -624,6 +644,7 @@ pub unsafe extern "C" fn bvc_audio_stop(
     handle: *mut RuntimeHandle,
     event_id: *const c_char,
 ) -> c_int {
+    ffi_guard!("bvc_audio_stop", -1, {
     if handle.is_null() {
         set_last_error("handle is null");
         return -1;
@@ -678,6 +699,7 @@ pub unsafe extern "C" fn bvc_audio_stop(
             -1
         }
     }
+    })
 }
 
 /// Provision a player (idempotent create) and return a fresh single-use login
@@ -704,6 +726,7 @@ pub unsafe extern "C" fn bvc_provision_login_code(
     game: *const c_char,
     ttl_secs: u32,
 ) -> *mut c_char {
+    ffi_guard!("bvc_provision_login_code", ptr::null_mut(), {
     if handle.is_null() {
         set_last_error("handle is null");
         return ptr::null_mut();
@@ -809,4 +832,5 @@ pub unsafe extern "C" fn bvc_provision_login_code(
             ptr::null_mut()
         }
     }
+    })
 }
