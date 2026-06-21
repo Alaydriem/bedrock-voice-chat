@@ -1,26 +1,14 @@
-// Pull-based source of raw f32 frames fed through the real input processing
-// path. Enum dispatch, no trait objects.
-pub(crate) enum AudioInputSource {
-    Cpal,
-    #[cfg(feature = "e2e")]
-    Fake(BridgeInputSource),
-}
+use super::super::frame_clock::FrameClock;
 
-#[cfg(feature = "e2e")]
 const FRAME_SAMPLES: usize = 960;
 
-#[cfg(feature = "e2e")]
 const FRAME_INTERVAL_MS: f64 = 20.0;
-
-#[cfg(feature = "e2e")]
-use super::frame_clock::FrameClock;
 
 // Pull-based fake microphone. The orchestrator fills the bridge receiver with
 // variable-size PCM chunks; this source accumulates them and clocks out exactly
 // 960-sample (20 ms @ 48 kHz) mono frames on a FrameClock cadence so the real
 // input pipeline and QUIC send path see real-time-paced input rather than one
 // burst that overruns the bounded datagram queue.
-#[cfg(feature = "e2e")]
 pub struct BridgeInputSource {
     rx: flume::Receiver<Vec<f32>>,
     sample_rate: u32,
@@ -29,7 +17,6 @@ pub struct BridgeInputSource {
     clock: Option<FrameClock>,
 }
 
-#[cfg(feature = "e2e")]
 impl BridgeInputSource {
     pub fn new(rx: flume::Receiver<Vec<f32>>, sample_rate: u32, channels: u16) -> Self {
         Self {
@@ -49,16 +36,23 @@ impl BridgeInputSource {
         self.channels
     }
 
-    // Blocks for the next raw chunk; None when the bridge closes (end of test).
-    pub fn next_chunk(&self) -> Option<Vec<f32>> {
-        self.rx.recv().ok()
+    // Drives the input processing core from the bridge feed: pulls clocked frames
+    // and pushes each into the same sink closure the real cpal callback calls, so
+    // both paths converge on one InputProcessCore driver with no queue hop.
+    pub fn drive<F>(&mut self, mut sink: F)
+    where
+        F: FnMut(&[f32]),
+    {
+        while let Some(frame) = self.next_frame() {
+            sink(&frame);
+        }
     }
 
     // Clocks out the next 960-sample mono frame at an accurate 20 ms cadence.
     // Pulls PCM from the bridge receiver into an internal buffer, blocking until
     // a full frame's worth is available, then waits for the next 20 ms slot
     // before returning. None once the bridge closes and the buffer is drained.
-    pub fn next_frame(&mut self) -> Option<Vec<f32>> {
+    fn next_frame(&mut self) -> Option<Vec<f32>> {
         while self.pending.len() < FRAME_SAMPLES {
             match self.rx.recv() {
                 Ok(chunk) => self.pending.extend(chunk),
@@ -87,12 +81,14 @@ impl BridgeInputSource {
     }
 }
 
-#[cfg(all(test, feature = "e2e"))]
+#[cfg(test)]
 mod tests {
-    use super::super::AudioFrame;
-    use super::super::input::{MUTE_INPUT_STREAM, UPDATE_NOISE_GATE_SETTINGS, USE_NOISE_GATE};
-    use super::super::input_core::InputProcessCore;
-    use super::super::resampler::AudioResampler;
+    use super::super::super::AudioFrame;
+    use super::super::super::input::{
+        MUTE_INPUT_STREAM, UPDATE_NOISE_GATE_SETTINGS, USE_NOISE_GATE,
+    };
+    use super::super::super::input_core::InputProcessCore;
+    use super::super::super::resampler::AudioResampler;
     use super::*;
     use audio_gate::NoiseGate;
     use std::sync::Arc;
@@ -106,8 +102,8 @@ mod tests {
             .collect()
     }
 
-    // Mirrors InputStream::fake_listener: drive an InputProcessCore from a
-    // BridgeInputSource feed loop and assert frames arrive on the producer.
+    // Drive an InputProcessCore from a BridgeInputSource feed loop and assert
+    // frames arrive on the producer.
     #[test]
     fn fake_source_feeds_frames_through_processing_core() {
         USE_NOISE_GATE.store(false, Ordering::Relaxed);
@@ -137,12 +133,12 @@ mod tests {
 
         let shutdown_thread = shutdown.clone();
         let handle = std::thread::spawn(move || {
-            while !shutdown_thread.load(Ordering::Relaxed) {
-                match src.next_frame() {
-                    Some(frame) => core.process(&frame),
-                    None => break,
+            src.drive(|frame| {
+                if shutdown_thread.load(Ordering::Relaxed) {
+                    return;
                 }
-            }
+                core.process(frame);
+            });
         });
 
         // Send a 440 Hz sine through the bridge as 20 ms (960 sample) chunks
@@ -151,7 +147,7 @@ mod tests {
             chunk_tx.send(chunk.to_vec()).unwrap();
         }
 
-        // Drop the sender so next_frame() returns None and the loop ends
+        // Drop the sender so drive() returns and the loop ends
         drop(chunk_tx);
         handle.join().unwrap();
 

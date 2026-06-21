@@ -1,5 +1,5 @@
-use crate::feature_flags::flags::bedrock::BedrockConnectEnabled;
 use crate::feature_flags::FeatureFlagService;
+use crate::feature_flags::flags::bedrock::BedrockConnectEnabled;
 use std::sync::Arc;
 use tauri::State;
 

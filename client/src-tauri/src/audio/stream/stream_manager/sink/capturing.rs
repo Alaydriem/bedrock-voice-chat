@@ -1,18 +1,12 @@
-// Push-based sink for post-mix output samples. Enum dispatch, no trait objects.
-pub(crate) enum AudioOutputSink {
-    Rodio,
-    #[cfg(feature = "e2e")]
-    Fake(CapturingSink),
-}
-
-#[cfg(feature = "e2e")]
+// Push-based sink that captures post-mix output PCM for the test harness. The
+// orchestrator drains an in-memory mixer at a real-time cadence and submits each
+// block here so assertions can observe what would have reached the speakers.
 pub struct CapturingSink {
     tx: flume::Sender<Vec<f32>>,
     sample_rate: u32,
     channels: u16,
 }
 
-#[cfg(feature = "e2e")]
 impl CapturingSink {
     pub fn new(tx: flume::Sender<Vec<f32>>, sample_rate: u32, channels: u16) -> Self {
         Self {
@@ -36,7 +30,7 @@ impl CapturingSink {
     }
 }
 
-#[cfg(all(test, feature = "e2e"))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use rodio::Source;
