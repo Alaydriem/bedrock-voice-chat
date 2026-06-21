@@ -16,9 +16,9 @@ use shared_state::SharedState;
 /// commands down stdin and folds the bin's `OutMsg` events into shared state on
 /// a background reader thread.
 ///
-/// The e2e bin must be PRE-BUILT before tests spawn a `ClientProc`:
-/// `cargo build -p bedrock-voice-chat-client --bin bvc_client_e2e --features e2e`
-/// (it lands in the ROOT workspace target dir, `target/debug/`, since the client
+/// The e2e harness must be PRE-BUILT before tests spawn a `ClientProc`:
+/// `cargo build -p bvc-client-e2e`
+/// (it lands in the ROOT workspace target dir, `target/debug/`, since the harness
 /// crate belongs to the root workspace).
 pub struct ClientProc {
     child: Child,
@@ -89,8 +89,8 @@ impl ClientProc {
         let bin = Self::bin_path();
         assert!(
             bin.exists(),
-            "e2e bin not found at {}; build it first with \
-             `cargo build -p bedrock-voice-chat-client --bin bvc_client_e2e --features e2e`",
+            "e2e harness not found at {}; build it first with \
+             `cargo build -p bvc-client-e2e`",
             bin.display()
         );
 

@@ -38,11 +38,6 @@ impl<'r, T: serde::Serialize + Send + 'static> Responder<'r, 'static> for Custom
             Some(body) => {
                 rocket::response::status::Custom(self.status, Json(body)).respond_to(request)
             }
-            // Empty body: build the response from the intended status directly.
-            // Routing a `None` body through `Option`'s responder renders it as
-            // `Status::NotFound`, which `status::Custom` cannot override — so an
-            // `error(Forbidden)` (or any bodyless error) would surface to clients
-            // as a misleading 404 instead of its real status.
             None => rocket::Response::build().status(self.status).ok(),
         }
     }

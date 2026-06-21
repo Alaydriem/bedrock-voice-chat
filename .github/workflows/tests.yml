@@ -3,15 +3,6 @@ name: Tests
 permissions:
   contents: read
 
-# Independent test pipeline (not coupled to build-server): runs the common,
-# client, and server workspaces under cargo-nextest on a single Windows runner.
-# Windows is required because the client e2e harness links Wry/WebView2 and loads
-# the server cdylib via FFI. Consolidating here means the server compiles once for
-# both its own workspace tests and the cdylib the harness loads.
-#
-# Reusable workflow: invoked by build-all.yml and release.yml (which provide the
-# PR/push triggers), plus workflow_dispatch for manual runs. It carries no
-# pull_request/push triggers of its own to avoid double-running.
 on:
   workflow_call:
     inputs:
@@ -123,7 +114,7 @@ jobs:
         # Rocket — a bind-then-handoff TOCTOU that process isolation does not fix,
         # so concurrency stays at one. nextest still gives per-test process
         # isolation and consistent reporting with the client suite.
-        run: cargo nextest run --workspace -j 1
+        run: cargo nextest run --workspace -j 1 --no-fail-fast
 
       - name: Build server cdylib
         working-directory: ./server
@@ -132,13 +123,16 @@ jobs:
         # server/ checkout so it shares the workspace-test cargo cache above.
         run: cargo build -p bedrock-voice-chat-server --features bedrock
 
-      - name: Build e2e client bin
+      - name: Build e2e client harness
         shell: bash
-        run: cargo build -p bedrock-voice-chat-client --bin bvc_client_e2e --features e2e
+        # The harness is its own crate (not an app-package bin) so `tauri build`
+        # never bundles it. It enables `bvc_client_lib/e2e` itself, so no extra
+        # feature flag is needed here.
+        run: cargo build -p bvc-client-e2e
 
       - name: Common workspace tests
         shell: bash
-        run: cargo nextest run -p common
+        run: cargo nextest run -p common --no-fail-fast
 
       - name: Client tests + e2e harness
         shell: bash
@@ -152,4 +146,5 @@ jobs:
           cargo nextest run
           -p bedrock-voice-chat-client
           --features e2e
+          --no-fail-fast
           -j ${{ inputs.test_jobs || '4' }}

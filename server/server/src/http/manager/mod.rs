@@ -29,9 +29,6 @@ pub struct RocketManager {
     cert_service: Arc<CertificateService>,
     hytale_session_cache: routes::api::HytaleSessionCache,
     audio_stream_token_cache: AudioStreamTokenCache,
-    // Code-redemption relay state: the in-memory peer store backs `/relay/offer`
-    // (mint) and `/relay/peer-redeem`, and the inject delivery pushes a minted
-    // code into the realm via this server's own client.
     server_peer_store: Option<Arc<crate::relay::ServerPeerStore>>,
     relay_inject_delivery: Option<Arc<dyn crate::relay::LocalInjectDelivery>>,
     #[cfg(feature = "bedrock")]

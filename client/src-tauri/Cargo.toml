@@ -133,10 +133,7 @@ bedrock-protocol = [
     "common/bedrock-protocol",
     "dep:if-addrs",
 ]
-# Gates the e2e harness bin so normal builds never compile it.
+# Gates the `testkit` module and the e2e integration test target. The e2e
+# harness binary itself lives in its own crate (`client/e2e-harness`) so
+# `tauri build` never enumerates it as an app-package bin to bundle.
 e2e = []
-
-[[bin]]
-name = "bvc_client_e2e"
-path = "src/bin/bvc_client_e2e.rs"
-required-features = ["e2e"]

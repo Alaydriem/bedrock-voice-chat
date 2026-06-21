@@ -1338,6 +1338,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
 
 [[package]]
+name = "bvc-client-e2e"
+version = "1.0.0"
+dependencies = [
+ "bedrock-voice-chat-client",
+ "common",
+ "fern",
+ "flume",
+ "log",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-fs",
+ "tauri-plugin-http",
+ "tauri-plugin-opener",
+ "tauri-plugin-os",
+ "tauri-plugin-store",
+]
+
+[[package]]
 name = "bwavfile"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

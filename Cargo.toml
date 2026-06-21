@@ -1,5 +1,5 @@
 [workspace]
-members = ["common", "common/websocket-types", "client/src-tauri"]
+members = ["common", "common/websocket-types", "client/src-tauri", "client/e2e-harness"]
 resolver = "2"
 
 [profile.release]

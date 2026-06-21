@@ -43,7 +43,7 @@ use crate::harness::server::EmbeddedServer;
 ///
 /// Requires both artifacts to be pre-built:
 /// * server cdylib: `cargo build -p bedrock-voice-chat-server` in `server/`
-/// * e2e bin: `cargo build -p bedrock-voice-chat-client --bin bvc_client_e2e --features e2e`
+/// * e2e harness: `cargo build -p bvc-client-e2e`
 #[tokio::test(flavor = "multi_thread")]
 async fn disconnect_does_not_leak_channel_membership() {
     let data_dir = tempfile::tempdir().expect("create temp data dir");

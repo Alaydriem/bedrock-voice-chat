@@ -100,10 +100,6 @@ jobs:
           cp ../.github/client/.cargo/config.toml ./src-tauri/.cargo/config.toml
           cat ./src-tauri/.cargo/config.toml
 
-      # StoreKit IAP requires no entitlement/capability injection: In-App
-      # Purchase is auto-enabled on the App ID and StoreKit is linked by the
-      # tauri-plugin-iap Swift package during `tauri ios init`. Products are
-      # configured in App Store Connect.
       - name: Initialize Tauri iOS project
         working-directory: ./client
         run: yarn tauri:ios:init

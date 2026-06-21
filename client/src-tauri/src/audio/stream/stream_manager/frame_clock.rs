@@ -1,8 +1,5 @@
 // High-precision 20 ms cadence clock used to pace fake frames like a real
-// audio device. On Windows it raises the system timer resolution and busy-waits
-// against QueryPerformanceCounter; elsewhere it falls back to a monotonic
-// Instant spin/sleep loop. target_time = start + n * interval keeps the cadence
-// drift-free rather than accumulating per-frame sleep error.
+// audio device.
 #[cfg(target_os = "windows")]
 pub(crate) struct FrameClock {
     frequency: i64,
@@ -11,6 +8,10 @@ pub(crate) struct FrameClock {
     tick: i64,
 }
 
+// raises the system timer resolution and busy-waits
+// against QueryPerformanceCounter; elsewhere it falls back to a monotonic
+// Instant spin/sleep loop. target_time = start + n * interval keeps the cadence
+// drift-free rather than accumulating per-frame sleep error.
 #[cfg(target_os = "windows")]
 impl FrameClock {
     pub(crate) fn new(interval_ms: f64) -> Self {

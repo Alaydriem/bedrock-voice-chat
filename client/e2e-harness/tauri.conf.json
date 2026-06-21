@@ -1,0 +1,23 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "bvc-client-e2e",
+  "version": "1.0.0",
+  "identifier": "com.alaydriem.bvc.client.e2e",
+  "build": {
+    "frontendDist": "../build"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": false,
+    "targets": [],
+    "icon": [
+      "../src-tauri/icons/icon.png",
+      "../src-tauri/icons/icon.ico"
+    ]
+  }
+}
