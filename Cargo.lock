@@ -952,9 +952,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 
 [[package]]
+name = "bedrock-client"
+version = "0.0.1"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.30.9#d31fd95ded851fdba264260649303d25f5231ccd"
+dependencies = [
+ "base64 0.22.1",
+ "bedrock-protocol",
+ "bytes",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-raknet",
+ "tracing",
+]
+
+[[package]]
 name = "bedrock-network"
 version = "0.0.9"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.30.7#7d43717ce444eeb7ffba196a33decdbd56f76e7f"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.30.9#d31fd95ded851fdba264260649303d25f5231ccd"
 dependencies = [
  "bytes",
  "futures-util",
@@ -975,8 +990,8 @@ dependencies = [
 
 [[package]]
 name = "bedrock-protocol"
-version = "26.30.7"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.30.7#7d43717ce444eeb7ffba196a33decdbd56f76e7f"
+version = "26.30.9"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.30.9#d31fd95ded851fdba264260649303d25f5231ccd"
 dependencies = [
  "aes 0.9.1",
  "aes-gcm",
@@ -1014,8 +1029,8 @@ dependencies = [
 
 [[package]]
 name = "bedrock-server"
-version = "0.0.10"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.30.7#7d43717ce444eeb7ffba196a33decdbd56f76e7f"
+version = "0.0.12"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.30.9#d31fd95ded851fdba264260649303d25f5231ccd"
 dependencies = [
  "base64 0.22.1",
  "bedrock-protocol",
@@ -1039,6 +1054,8 @@ dependencies = [
  "audio-gate",
  "audioadapter-buffers",
  "base64 0.22.1",
+ "bedrock-client",
+ "bedrock-server",
  "bwavfile",
  "bytes",
  "chrono",

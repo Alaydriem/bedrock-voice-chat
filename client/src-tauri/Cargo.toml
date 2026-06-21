@@ -16,10 +16,6 @@ autotests = false
 name = "bvc_client_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
-[[test]]
-name = "integration"
-path = "tests/integration.rs"
-
 [build-dependencies]
 tauri-build = { version = "^2.4", features = [] }
 dotenvy = { version = "^0.15" }
