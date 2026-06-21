@@ -7,7 +7,6 @@
 // `Shutdown`; supplying the BVC_E2E_* variables drives the full connect and
 // PCM-streaming sequence against a live server.
 
-use std::io::Write as _;
 use std::sync::Arc;
 
 use tauri::Manager;
@@ -15,113 +14,18 @@ use tauri_plugin_store::StoreExt;
 
 use bvc_client_lib::app_builder::{AudioBackend, build_managed_state};
 use bvc_client_lib::testkit::bridge::{Frame, InMsg, OutMsg};
-use bvc_client_lib::testkit::connect::{ConnectConfig, Connector};
+use bvc_client_lib::testkit::connect::Connector;
 use bvc_client_lib::{BridgeInputSource, CapturingSink};
 
-// Stdout is shared between the capture-drain thread and any ad-hoc logging, so
-// every framed write goes through one lock to avoid interleaving frames.
-struct StdoutBridge;
+mod channel_driver;
+mod e2e_env;
+mod stdout_bridge;
+mod store_seeder;
 
-impl StdoutBridge {
-    fn emit(msg: &OutMsg) {
-        let stdout = std::io::stdout();
-        let mut lock = stdout.lock();
-        if Frame::write(&mut lock, msg).is_err() {
-            return;
-        }
-        let _ = lock.flush();
-    }
-}
-
-// Drives an explicit channel-membership operation on the Tauri runtime and
-// emits a completion frame. Spawned onto the async runtime so the synchronous
-// stdin reader thread is never blocked on network I/O.
-struct ChannelDriver;
-
-impl ChannelDriver {
-    fn run(
-        handle: &tauri::AppHandle,
-        channel_id: String,
-        event: common::structs::channel::ChannelEvents,
-        op: &'static str,
-    ) {
-        let handle = handle.clone();
-        tauri::async_runtime::spawn(async move {
-            match Connector::channel_event(&handle, channel_id, event).await {
-                Ok(()) => StdoutBridge::emit(&OutMsg::ChannelOpDone { op: op.to_string() }),
-                Err(e) => StdoutBridge::emit(&OutMsg::Log {
-                    line: format!("channel {op} failed: {e}"),
-                }),
-            }
-        });
-    }
-}
-
-// Reads the four optional BVC_E2E_* variables. The connect sequence only runs
-// when a login code is present; the standalone smoke leaves it unset.
-struct E2eEnv;
-
-impl E2eEnv {
-    fn connect_config() -> Option<ConnectConfig> {
-        let code = std::env::var("BVC_E2E_CODE")
-            .ok()
-            .filter(|s| !s.is_empty())?;
-        Some(ConnectConfig {
-            server: std::env::var("BVC_E2E_SERVER").unwrap_or_default(),
-            gamertag: std::env::var("BVC_E2E_GAMERTAG").unwrap_or_default(),
-            code,
-            channel: std::env::var("BVC_E2E_CHANNEL")
-                .ok()
-                .filter(|s| !s.is_empty()),
-            channel_id: std::env::var("BVC_E2E_CHANNEL_ID")
-                .ok()
-                .filter(|s| !s.is_empty()),
-        })
-    }
-}
-
-// Seeds the store so AppState construction and the audio device setup never
-// touch real Cpal devices. The Fake backend bypasses device enumeration, but
-// AppState still reads these keys during construction.
-struct StoreSeeder;
-
-impl StoreSeeder {
-    fn fake_device(io: &str) -> serde_json::Value {
-        let channels = if io == "input_audio_device" { 1 } else { 2 };
-        serde_json::json!({
-            "id": "fake",
-            "name": "fake",
-            "host": serde_json::to_value(common::structs::audio::AudioDeviceHost::default())
-                .unwrap_or(serde_json::Value::Null),
-            "config": [{
-                "channels": channels,
-                "sample_rate": 48_000,
-                "sample_format": "f32",
-                "buffer_size_min": 0,
-                "buffer_size_max": 4096
-            }],
-            "display_name": "Fake Device"
-        })
-    }
-
-    fn seed(store: &Arc<tauri_plugin_store::Store<tauri::Wry>>) {
-        store.set("current_player", serde_json::json!("E2ePlayer"));
-        store.set(
-            "input_audio_device",
-            Self::fake_device("input_audio_device"),
-        );
-        store.set(
-            "output_audio_device",
-            Self::fake_device("output_audio_device"),
-        );
-        store.set(
-            "install_id",
-            serde_json::json!("00000000-0000-0000-0000-000000000000"),
-        );
-        store.set("use_noise_gate", serde_json::json!(false));
-        let _ = store.save();
-    }
-}
+use channel_driver::ChannelDriver;
+use e2e_env::E2eEnv;
+use stdout_bridge::StdoutBridge;
+use store_seeder::StoreSeeder;
 
 fn main() {
     _ = common::s2n_quic::provider::tls::rustls::rustls::crypto::aws_lc_rs::default_provider()

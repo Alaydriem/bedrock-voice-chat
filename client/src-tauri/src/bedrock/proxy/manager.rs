@@ -862,7 +862,12 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn start_stop_start_does_not_leak_port() {
-        let port: u16 = 21900;
+        // Acquire an OS-assigned free UDP port rather than a hardcoded one so the
+        // test never collides with a parallel test or a leftover socket under CI.
+        let port: u16 = {
+            let scout = std::net::UdpSocket::bind(("0.0.0.0", 0)).expect("acquire ephemeral port");
+            scout.local_addr().expect("ephemeral local addr").port()
+        };
         let auth_cache = moka::future::Cache::builder()
             .time_to_live(std::time::Duration::from_secs(60))
             .max_capacity(10)
@@ -882,9 +887,21 @@ mod tests {
         mgr.stop().await.expect("stop");
         assert!(mgr.is_stopped());
 
-        let probe = tokio::net::UdpSocket::bind(("0.0.0.0", port))
-            .await
-            .expect("port still bound — manager leaked the listener");
+        // The bedrock-protocol lib flushes Disconnect packets on internal relay
+        // tasks that can briefly outlive stop(), so the listener socket's release
+        // is not synchronous with stop() returning. Poll for the port to become
+        // bindable rather than probing exactly once.
+        let mut probe = None;
+        for _ in 0..50 {
+            match tokio::net::UdpSocket::bind(("0.0.0.0", port)).await {
+                Ok(sock) => {
+                    probe = Some(sock);
+                    break;
+                }
+                Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
+            }
+        }
+        let probe = probe.expect("port still bound after stop — manager leaked the listener");
         drop(probe);
 
         let mut mgr2 = BedrockProxyManager::new_direct(

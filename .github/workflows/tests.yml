@@ -3,6 +3,25 @@ name: Tests
 permissions:
   contents: read
 
+# Suites run as PARALLEL jobs:
+#   - `common`           (Linux)   — platform-agnostic crate.
+#   - `server`           (Linux)   — the server's production target is Linux; its
+#                                    tests bind 127.0.0.1 + SQLite, no Windows needed.
+#   - `e2e-build-server` (Windows) — compiles the server cdylib (loaded via FFI).
+#   - `e2e-build-client` (Windows) — compiles the e2e harness bin + the client test
+#                                    binaries (packaged with `nextest archive`).
+#   - `e2e-shard`        (Windows) — downloads both build artifacts and RUNS a shard
+#                                    of the suite via `nextest run --archive-file
+#                                    --partition`. No compilation.
+#
+# The cdylib and the client test suite have no build-time dependency on each other
+# (the cdylib is dlopen'd at runtime), so their two build jobs run concurrently;
+# the shards then build nothing. Each build job carries only the setup it needs:
+# the server job skips node/yarn/ASIO/frontend, the client job skips vcpkg.
+#
+# Reusable workflow: invoked by build-all.yml and release.yml (which provide the
+# PR/push triggers), plus workflow_dispatch. The caller's job result is success
+# only when every job below passes.
 on:
   workflow_call:
     inputs:
@@ -11,21 +30,172 @@ on:
         required: false
         type: string
       test_jobs:
-        description: 'Parallelism for the client e2e harness (nextest -j). Lower on constrained runners.'
+        description: 'Parallelism for each e2e shard (nextest -j). Lower on constrained runners.'
         required: false
         default: '4'
         type: string
   workflow_dispatch:
     inputs:
       test_jobs:
-        description: 'Parallelism for the client e2e harness (nextest -j). Lower on constrained runners.'
+        description: 'Parallelism for each e2e shard (nextest -j). Lower on constrained runners.'
         required: false
         default: '4'
         type: string
 
 jobs:
-  tests:
-    name: Tests (Windows)
+  common:
+    name: Common tests (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
+      - name: Setup private cargo deps auth
+        uses: ./.github/actions/setup-private-cargo-deps
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: test-common
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config cmake build-essential libasound2-dev
+
+      - name: Common workspace tests
+        run: cargo nextest run -p common --no-fail-fast
+
+  server:
+    name: Server tests (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
+      - name: Setup private cargo deps auth
+        uses: ./.github/actions/setup-private-cargo-deps
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./server"
+          shared-key: test-server
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config cmake build-essential libasound2-dev
+
+      - name: Server workspace tests
+        working-directory: ./server/server
+        # Serial (-j1): each server test binds 127.0.0.1:0 then hands the port to
+        # Rocket — a bind-then-handoff TOCTOU that process isolation does not fix,
+        # so concurrency stays at one. Run from the server crate dir so the
+        # `s2n_quic_unstable` rustflag in its .cargo/config applies.
+        run: cargo nextest run --workspace -j 1 --no-fail-fast
+
+  e2e-build-server:
+    name: Build server cdylib (Windows)
+    runs-on: windows-2022
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Setup private cargo deps auth
+        uses: ./.github/actions/setup-private-cargo-deps
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./server"
+          shared-key: test-e2e-server
+
+      - name: Set up LIBCLANG environment
+        shell: powershell
+        run: |
+          $libclangPath = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm\x64\lib"
+          if (-not (Test-Path $libclangPath)) {
+            $libclangPath = "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Tools\Llvm\x64\lib"
+          }
+          if (-not (Test-Path $libclangPath)) {
+            $libclangPath = "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\x64\lib"
+          }
+          echo "LIBCLANG_PATH=$libclangPath" >> $env:GITHUB_ENV
+
+      - name: Install Windows dependencies (server vcpkg)
+        shell: bash
+        working-directory: ./server
+        run: |
+          "$VCPKG_INSTALLATION_ROOT/vcpkg" install \
+            --triplet x64-windows-static-md \
+            --x-install-root="$VCPKG_INSTALLATION_ROOT/installed"
+          echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" >> $GITHUB_ENV
+
+      - name: Force libz-sys/libgit2-sys rebuild
+        shell: bash
+        working-directory: ./server
+        run: |
+          rm -rf target/*/build/libz-sys-* target/*/build/libgit2-sys-* 2>/dev/null || true
+          rm -rf target/*/.fingerprint/libz-sys-* target/*/.fingerprint/libgit2-sys-* 2>/dev/null || true
+
+      - name: Build server cdylib
+        working-directory: ./server
+        shell: bash
+        # The e2e harness loads this cdylib via FFI from server/target/debug/.
+        run: cargo build -p bedrock-voice-chat-server --features bedrock
+
+      - name: Stage cdylib
+        shell: bash
+        run: |
+          mkdir -p e2e-cdylib
+          cp server/target/debug/bvc_server_lib.dll e2e-cdylib/
+
+      - name: Upload cdylib artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: e2e-cdylib
+          path: e2e-cdylib
+          retention-days: 1
+
+  e2e-build-client:
+    name: Build e2e client + harness (Windows)
     runs-on: windows-2022
     steps:
       - name: Checkout code
@@ -59,10 +229,7 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: |
-            .
-            server
-          key: test
+          shared-key: test-e2e-client
 
       - name: Install JavaScript dependencies
         working-directory: ./client
@@ -87,64 +254,90 @@ jobs:
           }
           echo "LIBCLANG_PATH=$libclangPath" >> $env:GITHUB_ENV
 
-      - name: Install Windows dependencies (server vcpkg)
-        shell: bash
-        working-directory: ./server
-        run: |
-          "$VCPKG_INSTALLATION_ROOT/vcpkg" install \
-            --triplet x64-windows-static-md \
-            --x-install-root="$VCPKG_INSTALLATION_ROOT/installed"
-          echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" >> $GITHUB_ENV
-
-      - name: Force libz-sys/libgit2-sys rebuild
-        shell: bash
-        working-directory: ./server
-        run: |
-          rm -rf target/*/build/libz-sys-* target/*/build/libgit2-sys-* 2>/dev/null || true
-          rm -rf target/*/.fingerprint/libz-sys-* target/*/.fingerprint/libgit2-sys-* 2>/dev/null || true
-
       - name: Build frontend dist
         working-directory: ./client
         run: yarn build
 
-      - name: Server workspace tests
-        working-directory: ./server
-        shell: bash
-        # Serial (-j1): each server test binds 127.0.0.1:0 then hands the port to
-        # Rocket — a bind-then-handoff TOCTOU that process isolation does not fix,
-        # so concurrency stays at one. nextest still gives per-test process
-        # isolation and consistent reporting with the client suite.
-        run: cargo nextest run --workspace -j 1 --no-fail-fast
-
-      - name: Build server cdylib
-        working-directory: ./server
-        shell: bash
-        # The client e2e harness loads this cdylib via FFI; build it from the same
-        # server/ checkout so it shares the workspace-test cargo cache above.
-        run: cargo build -p bedrock-voice-chat-server --features bedrock
-
       - name: Build e2e client harness
         shell: bash
-        # The harness is its own crate (not an app-package bin) so `tauri build`
-        # never bundles it. It enables `bvc_client_lib/e2e` itself, so no extra
-        # feature flag is needed here.
+        # Separate crate (not an app-package bin) so `tauri build` never bundles it.
+        # The integration tests spawn it from target/debug/.
         run: cargo build -p bvc-client-e2e
 
-      - name: Common workspace tests
+      - name: Archive e2e test binaries
         shell: bash
-        run: cargo nextest run -p common --no-fail-fast
+        # Compiles the client unit + integration (e2e) test binaries ONCE and packs
+        # them so the shard jobs can run them without recompiling.
+        run: cargo nextest archive -p bedrock-voice-chat-client --features e2e --archive-file nextest-archive.tar.zst
 
-      - name: Client tests + e2e harness
+      - name: Stage client artifacts
         shell: bash
-        # `--features e2e` enables the gated integration target (and testkit), so
-        # this one invocation runs the client unit tests AND the e2e scenarios.
-        # nextest's process-per-test isolates the in-process server cdylib so the
-        # suite never accumulates native state and faults. `-j` is the per-runner
-        # parallelism lever (test_jobs); the heavy relay scenarios stay serial
-        # regardless via the test group in .config/nextest.toml.
+        # The harness bin is loaded by the tests via a path baked from
+        # CARGO_MANIFEST_DIR; the shard jobs restore it to target/debug. GitHub
+        # runners use a stable checkout path, so the baked path matches across jobs.
+        run: |
+          mkdir -p e2e-client
+          cp nextest-archive.tar.zst e2e-client/
+          cp target/debug/bvc_client_e2e.exe e2e-client/
+
+      - name: Upload client artifacts
+        uses: actions/upload-artifact@v5
+        with:
+          name: e2e-client
+          path: e2e-client
+          retention-days: 1
+
+  e2e-shard:
+    name: e2e tests (Windows, shard ${{ matrix.shard }}/3)
+    runs-on: windows-2022
+    needs: [e2e-build-server, e2e-build-client]
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
+      - name: Download cdylib artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: e2e-cdylib
+          path: e2e-cdylib
+
+      - name: Download client artifacts
+        uses: actions/download-artifact@v5
+        with:
+          name: e2e-client
+          path: e2e-client
+
+      - name: Restore harness + cdylib to their load paths
+        shell: bash
+        run: |
+          mkdir -p target/debug server/target/debug
+          cp e2e-client/bvc_client_e2e.exe target/debug/
+          cp e2e-cdylib/bvc_server_lib.dll server/target/debug/
+
+      - name: Run e2e shard
+        shell: bash
+        # `--archive-file` runs the pre-built binaries with no compilation;
+        # `--partition` selects this shard's slice; `--workspace-remap .` points
+        # path-relative lookups at this checkout. The heavy relay scenarios stay
+        # serial via the test group in .config/nextest.toml.
         run: >
           cargo nextest run
-          -p bedrock-voice-chat-client
-          --features e2e
+          --archive-file e2e-client/nextest-archive.tar.zst
+          --workspace-remap .
+          --partition hash:${{ matrix.shard }}/3
           --no-fail-fast
           -j ${{ inputs.test_jobs || '4' }}

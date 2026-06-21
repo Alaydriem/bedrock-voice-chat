@@ -1,10 +1,12 @@
 #[cfg(feature = "e2e")]
 mod bridge;
 mod config;
+mod driver;
 
 #[cfg(feature = "e2e")]
 pub use bridge::BridgeInputSource;
 pub(crate) use config::CaptureConfig;
+pub(crate) use driver::SourceDriver;
 
 use crate::audio::stream::StreamRecoveryEvent;
 use crate::audio::types::{AudioDevice, AudioDeviceCpal, AudioDeviceType};
@@ -14,15 +16,6 @@ use rodio::DeviceTrait;
 use rodio::cpal::traits::StreamTrait as CpalStreamTrait;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use tokio::task::JoinHandle;
-
-// Driver returned by a source after it begins producing frames: the tokio handle
-// the sender task is paired against, plus the oneshot the listener holds to stop
-// a live cpal stream (None for sources that stop on their own feed closing).
-pub(crate) struct SourceDriver {
-    pub handle: JoinHandle<()>,
-    pub shutdown_tx: Option<tokio::sync::oneshot::Sender<()>>,
-}
 
 // Pull/push source of raw f32 frames fed through the real input processing path.
 // Enum dispatch, no trait objects: both variants resolve a uniform CaptureConfig

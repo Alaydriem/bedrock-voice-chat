@@ -20,6 +20,8 @@ use std::io::BufWriter;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
+#[cfg(not(target_os = "windows"))]
+use std::time::Instant;
 use std::{error::Error, net::SocketAddr};
 use std::{fs::File, io::BufReader, path::Path};
 use x509_parser::prelude::*;
@@ -348,24 +350,38 @@ async fn run(args: Args) -> Result<(), Box<dyn Error>> {
         let source_file = source_file.clone();
         let id = id.clone();
         async move {
+            #[cfg(target_os = "windows")]
             windows_targets::link!("winmm.dll" "system" fn timeBeginPeriod(uperiod: u32) -> u32);
+            #[cfg(target_os = "windows")]
             windows_targets::link!("winmm.dll" "system" fn timeEndPeriod(uperiod: u32) -> u32);
+            #[cfg(target_os = "windows")]
             windows_targets::link!("kernel32.dll" "system" fn QueryPerformanceCounter(lpperformancecount: *mut i64) -> i32);
+            #[cfg(target_os = "windows")]
             windows_targets::link!("kernel32.dll" "system" fn QueryPerformanceFrequency(lpfrequency: *mut i64) -> i32);
 
+            #[cfg(target_os = "windows")]
             unsafe {
                 timeBeginPeriod(1);
             }
 
-            let mut frequency = 0i64;
-            let mut start_time = 0i64;
-            unsafe {
-                QueryPerformanceFrequency(&mut frequency);
-                QueryPerformanceCounter(&mut start_time);
-            }
+            #[cfg(target_os = "windows")]
+            let (frequency, start_time) = {
+                let mut frequency = 0i64;
+                let mut start_time = 0i64;
+                unsafe {
+                    QueryPerformanceFrequency(&mut frequency);
+                    QueryPerformanceCounter(&mut start_time);
+                }
+                (frequency, start_time)
+            };
 
-            let target_interval_ms = 20.0;
-            let target_interval_ticks = (frequency as f64 * target_interval_ms / 1000.0) as i64;
+            #[cfg(target_os = "windows")]
+            let target_interval_ticks = (frequency as f64 * 20.0 / 1000.0) as i64;
+
+            #[cfg(not(target_os = "windows"))]
+            let start_time = Instant::now();
+            #[cfg(not(target_os = "windows"))]
+            let target_interval = Duration::from_millis(20);
 
             let client_id: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
 
@@ -446,25 +462,49 @@ async fn run(args: Args) -> Result<(), Box<dyn Error>> {
                         }
 
                         packet_count += 1;
-                        let target_time = start_time + (packet_count * target_interval_ticks);
 
-                        loop {
-                            let mut current_time = 0i64;
-                            unsafe {
-                                QueryPerformanceCounter(&mut current_time);
+                        #[cfg(target_os = "windows")]
+                        {
+                            let target_time = start_time + (packet_count * target_interval_ticks);
+
+                            loop {
+                                let mut current_time = 0i64;
+                                unsafe {
+                                    QueryPerformanceCounter(&mut current_time);
+                                }
+
+                                if current_time >= target_time {
+                                    break;
+                                }
+
+                                let remaining_ticks = target_time - current_time;
+                                let remaining_ms = remaining_ticks as f64 * 1000.0 / frequency as f64;
+
+                                if remaining_ms > 2.0 {
+                                    tokio::time::sleep(Duration::from_millis((remaining_ms - 1.0) as u64)).await;
+                                } else {
+                                    tokio::task::yield_now().await;
+                                }
                             }
+                        }
 
-                            if current_time >= target_time {
-                                break;
-                            }
+                        #[cfg(not(target_os = "windows"))]
+                        {
+                            let target_time = start_time + target_interval * packet_count as u32;
 
-                            let remaining_ticks = target_time - current_time;
-                            let remaining_ms = remaining_ticks as f64 * 1000.0 / frequency as f64;
+                            loop {
+                                let now = Instant::now();
+                                if now >= target_time {
+                                    break;
+                                }
 
-                            if remaining_ms > 2.0 {
-                                tokio::time::sleep(Duration::from_millis((remaining_ms - 1.0) as u64)).await;
-                            } else {
-                                tokio::task::yield_now().await;
+                                let remaining = target_time - now;
+
+                                if remaining > Duration::from_millis(2) {
+                                    tokio::time::sleep(remaining - Duration::from_millis(1)).await;
+                                } else {
+                                    tokio::task::yield_now().await;
+                                }
                             }
                         }
                     }
@@ -476,6 +516,7 @@ async fn run(args: Args) -> Result<(), Box<dyn Error>> {
 
             println!("Send task complete");
 
+            #[cfg(target_os = "windows")]
             unsafe {
                 timeEndPeriod(1);
             }
