@@ -1,9 +1,14 @@
 mod audio_sink;
+#[cfg(feature = "e2e")]
+pub(crate) mod frame_clock;
 mod input;
+mod input_core;
 mod mono_to_panned;
 mod output;
 mod resampler;
+pub(crate) mod sink;
 mod sink_manager;
+pub(crate) mod source;
 
 use common::structs::audio::StreamEvent;
 use std::sync::Arc;
@@ -14,6 +19,8 @@ pub(crate) use audio_sink::AudioSinkType;
 pub(crate) use common::traits::StreamTrait;
 pub(crate) use input::InputStream;
 pub(crate) use output::OutputStream;
+pub(crate) use sink::AudioOutputSink;
+pub(crate) use source::AudioInputSource;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]

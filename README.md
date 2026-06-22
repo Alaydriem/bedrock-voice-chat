@@ -6,7 +6,7 @@
 
 <a href="https://www.youtube.com/@Alaydriem"><img src="https://img.shields.io/youtube/channel/subscribers/UCXgqRZv7bHsKzwYBrtA9DFA?label=Youtube%20Subscribers&logo=Alaydriem&style=flat-square" width="140"/></a>
 
-<a href="https://discord.gg/CdtchD5zxr"><img src="https://raw.githubusercontent.com/Alaydriem/bedrock-voice-chat/master/client/static/images/app-logo-transparent.png" width="140"/></a>
+<a href="https://discord.gg/MAHckcEATj"><img src="https://raw.githubusercontent.com/Alaydriem/bedrock-voice-chat/master/client/static/images/app-logo-transparent.png" width="140"/></a>
 
   <p>
     <strong>A High Performance, Low Latency, Secure Voice Chat server for Minecraft Bedrock Dedicated Servers</strong><br /><br />
@@ -32,6 +32,8 @@ Bedrock Voice Chat is an client app + addon for Minecraft Bedrock edition that p
 ## Getting Started
 
 [www.bedrockvoicechat.com](https://www.bedrockvoicechat.com) is your source for getting started, finding the most recent download, and getting information on how to run and manage Bedrock Voice Chat. Be sure to checkout the wiki at: https://github.com/Alaydriem/bedrock-voice-chat/wiki for comprehensive documentation.
+
+For operators running cross-server voice relay (Realms Connect / Proxy Connect with multiple BVC servers sharing a world), see [docs/relay-performance.md](docs/relay-performance.md) for bandwidth and scaling guidance.
 
 ## How you can Support
 

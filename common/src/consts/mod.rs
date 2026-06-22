@@ -1,5 +1,6 @@
 pub mod audio;
 pub mod bedrock;
+pub mod iap;
 pub mod variant;
 pub mod version;
 

@@ -1,6 +1,7 @@
 <script lang="ts">
     import { mount, onMount, onDestroy } from "svelte";
     import { invoke } from "@tauri-apps/api/core";
+    import type { RealmsGateStatus } from "../../js/bindings/RealmsGateStatus";
     import account from "../../components/settings/pages/account.svelte";
     import audio from "../../components/settings/pages/audio.svelte";
     import keybinds from "../../components/settings/pages/keybinds.svelte";
@@ -21,6 +22,7 @@
 
     let isMobile = $state(false);
     let currentPageTitle = $state("Account");
+    let realmsConnectEnabled = $state(false);
 
     const platformDetector = new PlatformDetector();
 
@@ -127,15 +129,9 @@
 
     const mobileHiddenPages = new Set(["recordings.svelte", "audioLibrary.svelte", "websocket.svelte", "keybinds.svelte"]);
 
-    // Hidden until 'feature.bedrock.connect-enabled' resolves true.
-    let hideBedrockSection = $state(true);
-
     let visibleItems = $derived(
         settingsItems.filter(item => {
-            if (hideBedrockSection) {
-                if (item.type === "separator" && item.label === "Minecraft Bedrock") return false;
-                if (item.type === "page" && bedrockPageIds.has(item.id)) return false;
-            }
+            if (!realmsConnectEnabled && item.type === "page" && item.id === "realms_connect.svelte") return false;
             if (isMobile && item.type === "page" && mobileHiddenPages.has(item.id)) return false;
             return true;
         })
@@ -164,6 +160,11 @@
     function handlePageNavigation(pageId: string) {
         const pageConfig = getPageConfig(pageId);
         if (!pageConfig) return;
+        // Block Realms Connect when its feature flag is off (it also renders
+        // the subscription upsell internally when the user isn't entitled).
+        if (pageId === "realms_connect.svelte" && !realmsConnectEnabled) {
+            return;
+        }
 
         activePage = pageId;
         currentPageTitle = pageConfig.title;
@@ -233,10 +234,10 @@
         }
 
         try {
-            const enabled = await invoke<boolean>("get_bedrock_connect_enabled");
-            hideBedrockSection = !enabled;
-        } catch (error) {
-            hideBedrockSection = true;
+            const gate = await invoke<RealmsGateStatus>("bedrock_realms_gate");
+            realmsConnectEnabled = gate.status !== "feature_disabled";
+        } catch (e) {
+            realmsConnectEnabled = false;
         }
     });
 

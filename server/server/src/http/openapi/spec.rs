@@ -13,6 +13,10 @@ inventory::collect!(TagDefinition);
 /// Submit from any route module to register routes in the OpenAPI spec.
 pub struct RouteSpec {
     pub prefix: &'static str,
+    // When false, the group contributes to the generated OpenAPI spec but is NOT
+    // auto-mounted by `routes()`. Used for routes mounted manually under runtime
+    // conditions (e.g. feature-gated relay routes) that must still be documented.
+    pub auto_mount: bool,
     pub spec_fn: fn() -> (Vec<rocket::Route>, OpenApi),
 }
 
@@ -36,7 +40,11 @@ impl OpenApiSpec {
         for route_spec in inventory::iter::<RouteSpec> {
             let (_, spec) = (route_spec.spec_fn)();
             if let Err(e) = okapi::merge::merge_specs(&mut merged, &route_spec.prefix, &spec) {
-                tracing::error!("Failed to merge OpenAPI spec for {}: {}", route_spec.prefix, e);
+                tracing::error!(
+                    "Failed to merge OpenAPI spec for {}: {}",
+                    route_spec.prefix,
+                    e
+                );
             }
         }
 
@@ -55,6 +63,7 @@ impl OpenApiSpec {
     pub fn routes() -> Vec<(&'static str, Vec<rocket::Route>)> {
         inventory::iter::<RouteSpec>
             .into_iter()
+            .filter(|rs| rs.auto_mount)
             .map(|rs| {
                 let (routes, _) = (rs.spec_fn)();
                 (rs.prefix, routes)

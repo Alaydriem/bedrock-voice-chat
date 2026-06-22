@@ -160,7 +160,9 @@ pub async fn export_recording(
         .is_some_and(|v| v == common::consts::version::RECORDING_VERSION);
 
     if !exportable {
-        return Err("Recording was made with an incompatible version and cannot be exported".to_string());
+        return Err(
+            "Recording was made with an incompatible version and cannot be exported".to_string(),
+        );
     }
 
     let session_path = rec_path.clone();

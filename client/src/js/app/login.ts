@@ -51,6 +51,12 @@ export const CONNECTING_STATUS_PHRASES: readonly string[] = [
 export default class Login extends BVCApp {
   private static readonly CODE_LOGIN_PATTERN = /^(https?:\/\/)?code@/;
 
+  // Key under which the deep-link auth callback persists a user-facing error
+  // when login fails after returning from the external browser. The login page
+  // observes this key so failures surface as a warning instead of leaving the
+  // user on a frozen "connecting" view.
+  static readonly LOGIN_ERROR_KEY = "login_error";
+
   readonly CONFIG_ENDPOINT = "/api/config";
   readonly AUTH_ENDPOINT = "/api/auth";
   readonly NCRYPTF_EK_ENDPOINT = "/ncryptf/ek";
@@ -168,6 +174,35 @@ export default class Login extends BVCApp {
   public clearError(): void {
     this.formErrorStore.set('');
     this.serverInputInvalidStore.set(false);
+  }
+
+  /**
+   * Read and clear any auth-callback error left by the deep-link handler. Used
+   * on page mount to surface failures from a callback that completed before the
+   * page (re)loaded (e.g. a cold-started OAuth return).
+   */
+  public async consumeAuthError(): Promise<string | null> {
+    const store = await this.getStore();
+    const message = await store.get<string>(Login.LOGIN_ERROR_KEY);
+    if (message) {
+      await store.delete(Login.LOGIN_ERROR_KEY);
+      await store.save();
+      return message;
+    }
+    return null;
+  }
+
+  /**
+   * Observe auth-callback errors written by the deep-link handler while the
+   * page is already mounted (the warm OAuth return path). Fires the callback
+   * with the message; the caller is responsible for clearing it via
+   * consumeAuthError so it is not replayed on the next mount.
+   */
+  public async watchAuthError(cb: (message: string) => void): Promise<() => void> {
+    const store = await this.getStore();
+    return await store.onKeyChange<string>(Login.LOGIN_ERROR_KEY, (value) => {
+      if (value) cb(value);
+    });
   }
 
   /**

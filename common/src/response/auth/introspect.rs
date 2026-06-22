@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-use crate::structs::permission::Permission;
 use crate::Game;
+use crate::structs::permission::Permission;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(schemars::JsonSchema))]

@@ -97,12 +97,7 @@ impl AnalyticsService {
         }
     }
 
-    pub fn capture_message(
-        &self,
-        message: &str,
-        level: AnalyticsLevel,
-        tags: &[(String, String)],
-    ) {
+    pub fn capture_message(&self, message: &str, level: AnalyticsLevel, tags: &[(String, String)]) {
         if !self.telemetry.is_enabled() {
             return;
         }

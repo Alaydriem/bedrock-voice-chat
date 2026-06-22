@@ -42,7 +42,7 @@ impl<'a> PlaySoundHandler<'a> {
         }
     }
 
-    pub fn parse(name: &str, position: &BlockPos) -> Option<JukeboxCommand> {
+    fn parse(name: &str, position: &BlockPos) -> Option<JukeboxCommand> {
         let pos = Self::block_coords(position);
         if let Some(rest) = name.strip_prefix(PLAY) {
             let (audio_id, dimension) = rest.split_once(':')?;
@@ -102,6 +102,7 @@ impl<'a> BedrockPacketHandler for PlaySoundHandler<'a> {
                         block_pos: pos,
                         dimension: Dimension::from(dimension.as_str()),
                         player_xuid,
+                        relay_world_uuid: Some(world_uuid.clone()),
                     },
                     world_uuid,
                 );
@@ -119,7 +120,10 @@ impl<'a> BedrockPacketHandler for PlaySoundHandler<'a> {
                         return;
                     }
                 };
-                info!("Bedrock proxy: bvc:eject -> JukeboxEject event_id={}", event_id);
+                info!(
+                    "Bedrock proxy: bvc:eject -> JukeboxEject event_id={}",
+                    event_id
+                );
                 emitter.try_send(
                     BedrockEvent::JukeboxEject {
                         event_id,
@@ -135,6 +139,54 @@ impl<'a> BedrockPacketHandler for PlaySoundHandler<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::network::NetworkPacket;
+    use common::structs::packet::{PacketType, QuicNetworkPacketData};
+
+    fn make_emitter() -> (Arc<BedrockEventEmitter>, flume::Receiver<NetworkPacket>) {
+        let (tx, rx) = flume::unbounded::<NetworkPacket>();
+        let emitter = Arc::new(BedrockEventEmitter::new(Arc::new(tx)));
+        (emitter, rx)
+    }
+
+    #[test]
+    fn jukebox_insert_emits_relay_world_uuid_matching_session_world_uuid() {
+        let (emitter, rx) = make_emitter();
+        let beacon_cache = JukeboxBeaconCache::default();
+
+        let mut state =
+            BedrockSessionState::new("TestPlayer".to_string(), Some("xuid-1".to_string()));
+        state.set_world_uuid_for_test("world-uuid-xyz".to_string());
+
+        let packet = PlaySoundPacketAny::V897(
+            common::bedrock_protocol::protocol::packets::generated::misc::play_sound::PlaySoundPacketV897 {
+                name: "bvc:play:019d1701-7bb8-7e70-9a36-65653d22245d:minecraft:overworld".to_string(),
+                position: BlockPos::new(976, 1072, 192),
+                volume: 1.0,
+                pitch: 1.0,
+            },
+        );
+
+        PlaySoundHandler {
+            beacon_cache: &beacon_cache,
+        }
+        .handle(&packet, &mut state, Some(&emitter));
+
+        let net_packet = rx
+            .try_recv()
+            .expect("JukeboxInsert packet should be queued");
+        assert_eq!(net_packet.data.packet_type, PacketType::BedrockEvent);
+        match net_packet.data.data {
+            QuicNetworkPacketData::BedrockEvent(ep) => match ep.event {
+                BedrockEvent::JukeboxInsert {
+                    relay_world_uuid, ..
+                } => {
+                    assert_eq!(relay_world_uuid, Some("world-uuid-xyz".to_string()));
+                }
+                other => panic!("expected JukeboxInsert, got {:?}", other),
+            },
+            other => panic!("expected BedrockEvent packet, got {:?}", other),
+        }
+    }
 
     #[test]
     fn parses_play_with_dimension() {

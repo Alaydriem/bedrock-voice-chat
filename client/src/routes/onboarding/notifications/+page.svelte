@@ -1,148 +1,145 @@
 <script lang="ts">
     import "../../../css/app.css";
-    import { onMount } from 'svelte';
+    import { onMount, onDestroy } from 'svelte';
     import Onboarding from '../../../js/app/onboarding';
     import { PermissionType } from 'tauri-plugin-audio-permissions';
-    import { checkPermissionStatus, requestPermissionWithTimeout } from '../../../js/app/utils/permissionHelpers';
-    import { error, info, warn } from "@tauri-apps/plugin-log";
+    import PermissionRequestManager, { type PermissionFlowState } from '../../../js/app/PermissionRequestManager';
 
-    let onboarding: Onboarding;
-    let permissionGranted = false;
-    let permissionDenied = false;
-    let isChecking = false;
-    let permissionError = false;
+    const STATUS_PHRASES = [
+        'Opening the permission prompt…',
+        'Waiting for your response…',
+        'Confirming notification access…',
+        'Almost there…',
+    ];
+    const BRAILLE_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
+    let onboarding: Onboarding | null = null;
+    let manager: PermissionRequestManager | null = null;
+    let unsub: (() => void) | null = null;
+    let completed = false;
+
+    let flowState = $state<PermissionFlowState>('idle');
+    let phraseIndex = $state(0);
+    let spinnerFrame = $state(0);
 
     onMount(async () => {
         onboarding = new Onboarding();
         await onboarding.initialize();
 
-        const state = onboarding.getCurrentState();
-        if (state.notifications) {
+        if (onboarding.getCurrentState().notifications) {
             await onboarding.navigateToNext();
             return;
         }
 
-        // Check current permission status
-        await checkCurrentPermission();
-
-        // If permission already granted, auto-complete and proceed
-        if (permissionGranted) {
-            await onboarding.completeStep('notifications');
-            await onboarding.navigateToNext();
-            return;
-        }
-
+        manager = new PermissionRequestManager(PermissionType.Notification);
+        unsub = manager.state.subscribe((s) => {
+            flowState = s;
+            if (s === 'granted') void handleGranted();
+        });
+        await manager.start();
         onboarding.preloader();
     });
 
-    async function checkCurrentPermission() {
-        try {
-            const response = await checkPermissionStatus(PermissionType.Notification);
-            permissionGranted = response.granted;
-        } catch (err: unknown) {
-            error(`Error checking notification permission: ${String(err)}`);
-            permissionGranted = false;
-        }
+    onDestroy(() => {
+        unsub?.();
+        manager?.destroy();
+    });
+
+    async function handleGranted() {
+        if (completed || !onboarding) return;
+        completed = true;
+        await onboarding.completeStep('notifications');
+        setTimeout(() => onboarding?.navigateToNext(), 500);
     }
 
-    async function handleRequestPermission() {
-        isChecking = true;
-        permissionDenied = false;
-        permissionError = false;
-
-        try {
-            const response = await requestPermissionWithTimeout(
-                PermissionType.Notification,
-                10000 // 10 second timeout
-            );
-
-            if (response.granted) {
-                permissionGranted = true;
-                await onboarding.completeStep('notifications');
-                setTimeout(() => {
-                    onboarding.navigateToNext();
-                }, 500);
-            } else {
-                permissionDenied = true;
-            }
-        } catch (err: unknown) {
-            error(`Error requesting notification permission: ${String(err)}`);
-
-            // On timeout or error, re-check permission status in case it was actually granted
-            try {
-                const statusCheck = await checkPermissionStatus(PermissionType.Notification);
-                if (statusCheck.granted) {
-                    // Permission was actually granted, proceed
-                    permissionGranted = true;
-                    await onboarding.completeStep('notifications');
-                    setTimeout(() => {
-                        onboarding.navigateToNext();
-                    }, 500);
-                    return;
-                }
-            } catch (recheckError: unknown) {
-                error(`Error rechecking permission status: ${String(recheckError)}`);
-            }
-
-            // If we get here, permission was not granted
-            if (err instanceof Error && err.message.includes('timeout')) {
-                permissionError = true;
-            } else {
-                permissionDenied = true;
-            }
-        } finally {
-            isChecking = false;
-        }
+    function handleRequest() {
+        void manager?.requestPermission();
     }
+
+    function handleCancel() {
+        manager?.cancel();
+    }
+
+    $effect(() => {
+        if (flowState !== 'requesting') return;
+        phraseIndex = 0;
+        const phraseId = setInterval(() => {
+            phraseIndex = (phraseIndex + 1) % STATUS_PHRASES.length;
+        }, 1600);
+
+        spinnerFrame = 0;
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const spinnerId = reduceMotion ? null : setInterval(() => {
+            spinnerFrame = (spinnerFrame + 1) % BRAILLE_FRAMES.length;
+        }, 90);
+
+        return () => {
+            clearInterval(phraseId);
+            if (spinnerId) clearInterval(spinnerId);
+        };
+    });
 </script>
 
 <main class="grid w-full place-items-center min-h-dvh bg-slate-50 dark:bg-navy-900 p-4">
-    <div class="card w-full max-w-md p-8">
-        <div class="flex justify-center mb-6">
-            <div class="flex items-center justify-center w-20 h-20 rounded-full {permissionGranted ? 'bg-success/10' : 'bg-slate-200 dark:bg-navy-700'}">
-                <i class="fas {permissionGranted ? 'fa-bell text-success' : 'fa-bell-slash text-slate-600 dark:text-navy-300'} text-3xl"></i>
+    <div class="card w-full max-w-md p-8 text-center">
+        {#if flowState === 'granted'}
+            <div class="bvc-ring bvc-ring--success mx-auto"></div>
+            <h1 class="mt-4 text-2xl font-semibold text-slate-900 dark:text-navy-50">
+                Notifications Enabled
+            </h1>
+            <p class="mt-2 text-slate-600 dark:text-navy-200">
+                Great! You're all set!
+            </p>
+        {:else if flowState === 'requesting'}
+            <div class="bvc-ring mx-auto" role="status" aria-live="polite"></div>
+            <h1 class="mt-4 text-2xl font-semibold text-slate-900 dark:text-navy-50">
+                Requesting Notification Access
+            </h1>
+            <div class="mt-4 flex items-center justify-center gap-2.5 min-h-[22px] font-inter">
+                <span class="bvc-spinner text-primary dark:text-accent-light" aria-hidden="true">{BRAILLE_FRAMES[spinnerFrame]}</span>
+                <span class="bvc-shimmer text-xs+">{STATUS_PHRASES[phraseIndex]}</span>
             </div>
-        </div>
-
-        <div class="text-center">
+            <button
+                type="button"
+                class="mt-5 text-tiny+ text-slate-400 hover:text-slate-500 hover:underline dark:text-navy-300 dark:hover:text-navy-200"
+                onclick={handleCancel}
+            >
+                Cancel
+            </button>
+        {:else}
+            <div class="flex justify-center mb-6">
+                <div class="flex items-center justify-center w-20 h-20 rounded-full bg-slate-200 dark:bg-navy-700">
+                    <i class="fas fa-bell-slash text-slate-600 dark:text-navy-300 text-3xl"></i>
+                </div>
+            </div>
             <h1 class="text-2xl font-semibold mb-4 text-slate-900 dark:text-navy-50">
-                {permissionGranted ? 'Notifications Enabled' : 'Enable Notifications'}
+                Enable Notifications
             </h1>
             <p class="text-slate-600 dark:text-navy-200 mb-6">
-                {#if permissionGranted}
-                    Great! You're all set!
-                {:else}
-                    BVC needs access to create a persistent notifications to allow for microphone recording to work when the app is not in the foreground or when your screen locks.
-                {/if}
+                BVC needs access to create a persistent notifications to allow for microphone recording to work when the app is not in the foreground or when your screen locks.
             </p>
 
-            {#if permissionDenied}
+            {#if flowState === 'denied'}
             <div class="alert bg-warning/10 text-warning border border-warning/20 rounded-lg p-4 mb-6 text-sm">
                 <i class="fas fa-exclamation-triangle mr-2"></i>
-                Please enable notifications in your device settings to continue.
+                We didn't get access. Enable it in your device settings and we'll detect it automatically, or try again.
             </div>
             {/if}
 
-            {#if permissionError}
+            {#if flowState === 'error'}
             <div class="alert bg-error/10 text-error border border-error/20 rounded-lg p-4 mb-6 text-sm">
                 <i class="fas fa-times-circle mr-2"></i>
-                Permission request timed out. Please try again or check your device settings.
+                Something went wrong requesting permission. Please try again or check your device settings.
             </div>
             {/if}
-        </div>
 
-        <button
-            onclick={handleRequestPermission}
-            disabled={isChecking}
-            class="btn w-full bg-primary hover:bg-primary-focus focus:bg-primary-focus active:bg-primary-focus/90 dark:bg-accent dark:hover:bg-accent-focus dark:focus:bg-accent-focus dark:active:bg-accent/90 text-white font-semibold py-3 disabled:opacity-50"
-        >
-            {#if isChecking}
-                <span class="spinner h-5 w-5 mr-2"></span>
-                Checking...
-            {:else}
+            <button
+                onclick={handleRequest}
+                class="btn w-full bg-primary hover:bg-primary-focus focus:bg-primary-focus active:bg-primary-focus/90 dark:bg-accent dark:hover:bg-accent-focus dark:focus:bg-accent-focus dark:active:bg-accent/90 text-white font-semibold py-3"
+            >
                 <i class="fas fa-bell mr-2"></i>
-                Enable Notifications
-            {/if}
-        </button>
+                {flowState === 'denied' || flowState === 'error' ? 'Try again' : 'Enable Notifications'}
+            </button>
+        {/if}
     </div>
 </main>

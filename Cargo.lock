@@ -952,9 +952,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 
 [[package]]
+name = "bedrock-client"
+version = "0.0.1"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.30.9#d31fd95ded851fdba264260649303d25f5231ccd"
+dependencies = [
+ "base64 0.22.1",
+ "bedrock-protocol",
+ "bytes",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-raknet",
+ "tracing",
+]
+
+[[package]]
 name = "bedrock-network"
 version = "0.0.9"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.30.7#7d43717ce444eeb7ffba196a33decdbd56f76e7f"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.30.9#d31fd95ded851fdba264260649303d25f5231ccd"
 dependencies = [
  "bytes",
  "futures-util",
@@ -975,8 +990,8 @@ dependencies = [
 
 [[package]]
 name = "bedrock-protocol"
-version = "26.30.7"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.30.7#7d43717ce444eeb7ffba196a33decdbd56f76e7f"
+version = "26.30.9"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.30.9#d31fd95ded851fdba264260649303d25f5231ccd"
 dependencies = [
  "aes 0.9.1",
  "aes-gcm",
@@ -1014,8 +1029,8 @@ dependencies = [
 
 [[package]]
 name = "bedrock-server"
-version = "0.0.10"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.30.7#7d43717ce444eeb7ffba196a33decdbd56f76e7f"
+version = "0.0.12"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.30.9#d31fd95ded851fdba264260649303d25f5231ccd"
 dependencies = [
  "base64 0.22.1",
  "bedrock-protocol",
@@ -1039,6 +1054,8 @@ dependencies = [
  "audio-gate",
  "audioadapter-buffers",
  "base64 0.22.1",
+ "bedrock-client",
+ "bedrock-server",
  "bwavfile",
  "bytes",
  "chrono",
@@ -1048,8 +1065,10 @@ dependencies = [
  "fern",
  "flume",
  "futures-util",
+ "hound",
  "if-addrs",
  "jni 0.21.1",
+ "libloading 0.8.9",
  "log",
  "moka",
  "nano-wal",
@@ -1066,10 +1085,12 @@ dependencies = [
  "ron",
  "rubato",
  "rustc-hash",
+ "rustls 0.23.40",
  "sentry",
  "sentry-rust-minidump",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "shiguredo_mp4",
  "spmc",
  "tar",
@@ -1081,6 +1102,7 @@ dependencies = [
  "tauri-plugin-fs",
  "tauri-plugin-global-shortcut",
  "tauri-plugin-http",
+ "tauri-plugin-iap",
  "tauri-plugin-keyring",
  "tauri-plugin-log",
  "tauri-plugin-notification",
@@ -1090,6 +1112,7 @@ dependencies = [
  "tauri-plugin-single-instance",
  "tauri-plugin-store",
  "tauri-plugin-updater",
+ "tempfile",
  "tokio",
  "tokio-tungstenite",
  "tracing",
@@ -1313,6 +1336,25 @@ name = "bumpalo"
 version = "3.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
+
+[[package]]
+name = "bvc-client-e2e"
+version = "1.0.0"
+dependencies = [
+ "bedrock-voice-chat-client",
+ "common",
+ "fern",
+ "flume",
+ "log",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-fs",
+ "tauri-plugin-http",
+ "tauri-plugin-opener",
+ "tauri-plugin-os",
+ "tauri-plugin-store",
+]
 
 [[package]]
 name = "bwavfile"
@@ -1843,6 +1885,7 @@ dependencies = [
  "rocket_dyn_templates",
  "rodio",
  "ron",
+ "rustls 0.23.40",
  "rustls-pemfile 2.2.0",
  "s2n-quic",
  "s2n-quic-core",
@@ -1852,12 +1895,14 @@ dependencies = [
  "serde",
  "serde_bytes",
  "serde_json",
+ "sha2 0.10.9",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
  "ts-rs",
  "typetag",
  "webbrowser",
+ "x509-parser 0.18.1",
 ]
 
 [[package]]
@@ -2696,6 +2741,17 @@ dependencies = [
  "precomputed-hash",
  "selectors",
  "tendril",
+]
+
+[[package]]
+name = "dos-date-time"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e6bf3a6a5a5068b83e2bc1251735e040c3c0d54bc0bb829bec86d76eb1197689"
+dependencies = [
+ "chrono",
+ "jiff",
+ "time",
 ]
 
 [[package]]
@@ -4023,6 +4079,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "hound"
+version = "3.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62adaabb884c94955b19907d60019f4e145d091c75345379e70d1ee696f7854f"
+
+[[package]]
 name = "html5ever"
 version = "0.38.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4568,6 +4630,30 @@ dependencies = [
  "gobject-sys",
  "libc",
  "system-deps",
+]
+
+[[package]]
+name = "jiff"
+version = "0.2.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4603d3033e49e2b0e31229fcab20a5d40089c607d975cd9c80551dc69eed9102"
+dependencies = [
+ "jiff-static",
+ "log",
+ "portable-atomic",
+ "portable-atomic-util",
+ "serde_core",
+]
+
+[[package]]
+name = "jiff-static"
+version = "0.2.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "782d32378dddf207193ac91cefb848ad41abb58195c95168e1291227a0832b47"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -5517,6 +5603,19 @@ dependencies = [
  "serde",
  "tauri-winrt-notification",
  "zbus",
+]
+
+[[package]]
+name = "nt-time"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "293dcb75775acfac821c0be754ea8489cc606689f1a23faa11425c0154e5a85c"
+dependencies = [
+ "chrono",
+ "dos-date-time",
+ "jiff",
+ "rand 0.10.1",
+ "time",
 ]
 
 [[package]]
@@ -9292,6 +9391,53 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
+name = "swift-bridge"
+version = "0.1.59"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "384ed39ea10f1cefabb197b7d8e67f0034b15a94ccbb1038b8e020da59bfb0be"
+dependencies = [
+ "once_cell",
+ "swift-bridge-build",
+ "swift-bridge-macro",
+ "tokio",
+]
+
+[[package]]
+name = "swift-bridge-build"
+version = "0.1.59"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "71b36df21e7f8a8b5eeb718d2e71f9cfc308477bfb705981cca705de9767dcb7"
+dependencies = [
+ "proc-macro2",
+ "swift-bridge-ir",
+ "syn 1.0.109",
+ "tempfile",
+]
+
+[[package]]
+name = "swift-bridge-ir"
+version = "0.1.59"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c73bd16155df50708b92306945656e57d62d321290a7db490f299f709fb31c83"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "swift-bridge-macro"
+version = "0.1.59"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a1a13dc0dc875d85341dec5b5344a7d713f20eb5650b71086b27d09a6ece272f"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "swift-bridge-ir",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "swift-rs"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9850,6 +9996,26 @@ dependencies = [
  "tokio",
  "url",
  "urlpattern",
+]
+
+[[package]]
+name = "tauri-plugin-iap"
+version = "0.10.0-rc.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7c5677307f66307c646bd6e056116c51b869ebbe185ba796883a690d5616f977"
+dependencies = [
+ "base64 0.22.1",
+ "log",
+ "nt-time",
+ "serde",
+ "serde_json",
+ "swift-bridge",
+ "swift-bridge-build",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 2.0.18",
+ "windows 0.61.3",
+ "windows-collections 0.2.0",
 ]
 
 [[package]]

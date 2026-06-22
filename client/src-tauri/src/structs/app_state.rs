@@ -19,27 +19,28 @@ pub struct AppState {
     input_audio_device: Option<AudioDevice>,
     output_audio_device: AudioDevice,
     pub current_server: Option<String>,
-    pub api_client: Option<Api>,
-    pub server_pool: Arc<RwLock<HashMap<String, Api>>>,
+    pub(crate) api_client: Option<Api>,
+    pub(crate) server_pool: Arc<RwLock<HashMap<String, Api>>>,
 }
 
 impl AppState {
     pub fn new(store: Arc<Store<Wry>>, app_handle: AppHandle) -> Self {
-        let output_device = AppState::setup_audio_device(
-            AudioDeviceType::OutputDevice,
-            &store,
-        ).unwrap_or_else(|e| {
-            log::error!("Failed to initialize default output device: {}. Using placeholder.", e);
-            AudioDevice {
-                io: AudioDeviceType::OutputDevice,
-                id: "default".to_string(),
-                name: "default".to_string(),
-                host: AudioDeviceHost::try_from(cpal::default_host().id())
-                    .unwrap_or_else(|_| AudioDeviceHost::default()),
-                stream_configs: vec![],
-                display_name: "Default Device".to_string(),
-            }
-        });
+        let output_device = AppState::setup_audio_device(AudioDeviceType::OutputDevice, &store)
+            .unwrap_or_else(|e| {
+                log::error!(
+                    "Failed to initialize default output device: {}. Using placeholder.",
+                    e
+                );
+                AudioDevice {
+                    io: AudioDeviceType::OutputDevice,
+                    id: "default".to_string(),
+                    name: "default".to_string(),
+                    host: AudioDeviceHost::try_from(cpal::default_host().id())
+                        .unwrap_or_else(|_| AudioDeviceHost::default()),
+                    stream_configs: vec![],
+                    display_name: "Default Device".to_string(),
+                }
+            });
 
         Self {
             store: store.clone(),
@@ -67,14 +68,14 @@ impl AppState {
     }
 
     /// Get the API client, returning an error if not initialized
-    pub fn get_api_client(&self) -> Result<&Api, String> {
+    pub(crate) fn get_api_client(&self) -> Result<&Api, String> {
         self.api_client
             .as_ref()
             .ok_or_else(|| "API client not initialized. Please log in first.".to_string())
     }
 
     /// Get API client for a specific server from pool
-    pub async fn get_api_client_for_server(&self, endpoint: &str) -> Result<Api, String> {
+    pub(crate) async fn get_api_client_for_server(&self, endpoint: &str) -> Result<Api, String> {
         let pool = self.server_pool.read().await;
         pool.get(endpoint)
             .cloned()
@@ -174,7 +175,10 @@ impl AppState {
         }
     }
 
-    fn setup_audio_device(io: AudioDeviceType, store: &Arc<Store<Wry>>) -> Result<AudioDevice, String> {
+    fn setup_audio_device(
+        io: AudioDeviceType,
+        store: &Arc<Store<Wry>>,
+    ) -> Result<AudioDevice, String> {
         // Check if stored config exists and has the new `id` field
         let use_stored = match store.get(io.store_key()) {
             Some(s) => {
@@ -216,10 +220,18 @@ impl AppState {
         } else {
             let default_host = cpal::default_host();
             let default_device = match io {
-                AudioDeviceType::InputDevice => default_host.default_input_device()
-                    .ok_or_else(|| "No default input device found. Check your system sound settings.".to_string())?,
-                AudioDeviceType::OutputDevice => default_host.default_output_device()
-                    .ok_or_else(|| "No default output device found. Check your system sound settings.".to_string())?,
+                AudioDeviceType::InputDevice => {
+                    default_host.default_input_device().ok_or_else(|| {
+                        "No default input device found. Check your system sound settings."
+                            .to_string()
+                    })?
+                }
+                AudioDeviceType::OutputDevice => {
+                    default_host.default_output_device().ok_or_else(|| {
+                        "No default output device found. Check your system sound settings."
+                            .to_string()
+                    })?
+                }
             };
 
             let default_configs = match io {

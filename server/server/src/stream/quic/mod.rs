@@ -13,6 +13,7 @@
 mod cache_manager;
 mod client_id_hasher;
 mod connection_id_format;
+mod connection_identity;
 pub(crate) mod connection_registry;
 mod server_input_packet;
 mod stream_manager;
@@ -21,11 +22,11 @@ mod webhook_receiver;
 use crate::config::ApplicationConfig;
 use anyhow;
 use client_id_hasher::ClientIdHasher;
+use common::s2n_quic::{Connection, Server};
 use common::structs::packet::{
     PacketType, PlayerDataPacket, PlayerPositionPacket, QuicNetworkPacket, QuicNetworkPacketData,
 };
 use common::traits::StreamTrait;
-use common::s2n_quic::Server;
 use connection_registry::ConnectionRegistry;
 use std::sync::Arc;
 use stream_manager::{InputStream, OutputStream};
@@ -110,7 +111,9 @@ impl QuicServerManager {
             .with_io(bind_addr.as_str())?
             .with_datagram(dg_endpoint)?;
 
-        let server = if let Some(instance_id) = self.config.server.meridian.as_ref().map(|m| m.instance_id) {
+        let server = if let Some(instance_id) =
+            self.config.server.meridian.as_ref().map(|m| m.instance_id)
+        {
             tracing::info!(instance_id, "Using prefixed connection ID format");
             builder
                 .with_connection_id(PrefixedConnectionIdFormat::new(instance_id))?
@@ -119,14 +122,18 @@ impl QuicServerManager {
             builder.start()?
         };
 
-        let mut webhook_rx = self.webhook_rx.take()
+        let mut webhook_rx = self
+            .webhook_rx
+            .take()
             .ok_or_else(|| anyhow::anyhow!("QUIC server already started"))?;
         let cache_manager = self.cache_manager.clone();
         let connection_registry = self.connection_registry.clone();
         let player_cache = cache_manager.get_player_cache();
         let broadcast_range = self.config.voice.spatial_audio.broadcast_range;
         let deafen_distance = self.config.voice.spatial_audio.deafen_distance;
-        let mut shutdown_rx = self.shutdown_rx.take()
+        let mut shutdown_rx = self
+            .shutdown_rx
+            .take()
             .ok_or_else(|| anyhow::anyhow!("QUIC server already started"))?;
 
         tracing::info!("QUIC server started on {}", bind_addr);
@@ -140,6 +147,7 @@ impl QuicServerManager {
 
                     match packet.packet_type {
                         PacketType::AudioFrame => {
+                            connection_registry.forward_local_to_peers(&packet);
                             connection_registry
                                 .route_audio_frame(&packet, &player_cache, broadcast_range, deafen_distance)
                                 .await;
@@ -178,6 +186,12 @@ impl QuicServerManager {
 
     pub fn get_cache_manager(&self) -> CacheManager {
         self.cache_manager.clone()
+    }
+
+    // Shared connection registry, so the runtime can install the cross-server
+    // relay `PeerManager` on it after construction (`set_peer_manager`).
+    pub(crate) fn get_connection_registry(&self) -> Arc<ConnectionRegistry> {
+        self.connection_registry.clone()
     }
 
     pub fn set_bedrock_event_service(
@@ -268,7 +282,7 @@ impl QuicServerManager {
 
                             registry.unregister(&client_id);
 
-                            match cache_manager.remove_player(&player_id).await {
+                            match cache_manager.remove_player(&player_id, None).await {
                                 Ok(removed_channels) => {
                                     for channel_id in removed_channels {
                                         let leave_packet = common::structs::packet::QuicNetworkPacket {
@@ -317,6 +331,10 @@ impl QuicServerManager {
 
                 let input_registry = connection_registry.clone();
                 let input_cache_manager = cache_manager.clone();
+                // Handle to the accepted connection, so a peer (acceptor) link can
+                // spawn an outbound write pump that sends relayed datagrams BACK on
+                // this same connection, which makes the relay bidirectional.
+                let input_conn = conn_arc.clone();
                 let input_task = tokio::spawn(async move {
                     if let Err(e) = Self::run_input_stream_with_player_callback(
                         input_stream,
@@ -326,6 +344,7 @@ impl QuicServerManager {
                         deafen_distance,
                         input_shutdown_rx,
                         Box::new(output_stream_identity_setter),
+                        input_conn,
                     )
                     .await
                     {
@@ -359,6 +378,7 @@ impl QuicServerManager {
         deafen_distance: f32,
         mut shutdown_rx: oneshot::Receiver<()>,
         player_callback: Box<dyn Fn(String, Vec<u8>) + Send + Sync>,
+        connection: Arc<Connection>,
     ) -> Result<(), anyhow::Error> {
         let (packet_tx, mut packet_rx) = mpsc::unbounded_channel();
         input_stream.set_producer(packet_tx);
@@ -367,6 +387,12 @@ impl QuicServerManager {
 
         let player_cache = cache_manager.get_player_cache();
         let mut has_set_identity = false;
+        // A peer-identity connection (CN = `host:https_port`, issued by
+        // `sign_peer_cert`) is routed to the relay `PeerManager` as an INBOUND
+        // peer link: it registers nothing as a player and every packet it sends
+        // is fed into the relay ingest. A normal player keeps the existing path.
+        // `None` until identity is set.
+        let mut peer_endpoint: Option<String> = None;
 
         loop {
             tokio::select! {
@@ -375,9 +401,73 @@ impl QuicServerManager {
 
                     if !has_set_identity && packet.owner.is_some() {
                         let owner = packet.owner.as_ref().unwrap();
-                        player_callback(owner.name.clone(), owner.client_id.clone());
+                        match connection_identity::ConnectionClassifier::classify(&owner.name) {
+                            connection_identity::ConnectionKind::Peer { endpoint, .. } => {
+                                if let Some(pm) = connection_registry.peer_manager() {
+                                    pm.register_inbound(&endpoint, std::time::Instant::now());
+                                    peer_endpoint = Some(endpoint.clone());
+
+                                    // Drain this acceptor link's outbound queue
+                                    // back onto the accepted connection, so
+                                    // `forward_local`'s per-peer enqueues reach
+                                    // acceptor-accepted peers. Mirrors the
+                                    // dialer's write pump.
+                                    if let Some(mut outbound_rx) =
+                                        pm.take_outbound_receiver(&endpoint)
+                                    {
+                                        let write_conn = connection.clone();
+                                        tokio::spawn(async move {
+                                            while let Some(relayed) = outbound_rx.recv().await {
+                                                if let Ok(bytes) = relayed.packet.to_datagram() {
+                                                    let _ = write_conn.datagram_mut(
+                                                        |dg: &mut common::s2n_quic::provider::datagram::default::Sender| {
+                                                            dg.send_datagram(bytes.into())
+                                                        },
+                                                    );
+                                                }
+                                            }
+                                        });
+                                    }
+
+                                    tracing::info!(
+                                        "Accepted inbound peer connection: {} (relay ingest path)",
+                                        endpoint
+                                    );
+                                } else {
+                                    tracing::warn!(
+                                        "Inbound peer-identity connection {} but no relay manager is wired; dropping",
+                                        endpoint
+                                    );
+                                }
+                            }
+                            connection_identity::ConnectionKind::Player { .. } => {
+                                player_callback(owner.name.clone(), owner.client_id.clone());
+                                tracing::info!(
+                                    "Notified output stream of player identity: {}",
+                                    owner.name
+                                );
+                            }
+                            connection_identity::ConnectionKind::Rejected { identity } => {
+                                // A `server::`-marked identity that is not a
+                                // well-formed endpoint: route it nowhere (fail
+                                // closed) — never the player path, never a peer.
+                                tracing::warn!(
+                                    "Refusing connection with malformed server-peer identity '{}' (fail closed)",
+                                    identity
+                                );
+                            }
+                        }
                         has_set_identity = true;
-                        tracing::info!("Notified output stream of player identity: {}", owner.name);
+                    }
+
+                    // Inbound peer link: route every packet straight into the
+                    // relay ingest (FromPeer) — single-hop, registration
+                    // bypassed. Never touches the local client/broadcast path.
+                    if let Some(endpoint) = &peer_endpoint {
+                        if let Some(pm) = connection_registry.peer_manager() {
+                            pm.ingest(endpoint, packet).await;
+                        }
+                        continue;
                     }
 
                     if let Err(e) = cache_manager.process_packet(packet.clone()).await {
@@ -398,6 +488,10 @@ impl QuicServerManager {
 
                     match updated_packet.packet_type {
                         PacketType::AudioFrame => {
+                            // Local-origin audio: forward to peer servers
+                            // sharing the sender's relay world (single-hop;
+                            // relayed-origin packets never reach this path).
+                            connection_registry.forward_local_to_peers(&updated_packet);
                             connection_registry
                                 .route_audio_frame(&updated_packet, &player_cache, broadcast_range, deafen_distance)
                                 .await;
@@ -415,6 +509,29 @@ impl QuicServerManager {
                                     }),
                                 };
                                 connection_registry.broadcast_to_all(rebroadcast);
+                            }
+                        }
+                        PacketType::PeerPresenceObserved => {
+                            // A local client reported a `!bvcp` code observed in the
+                            // realm. Route it to the asker-side observe handler
+                            // (Flow 1) to redeem against the offering minter and open
+                            // the peer link. Never broadcast onward.
+                            if let QuicNetworkPacketData::PeerPresenceObserved(observed) =
+                                updated_packet.data
+                            {
+                                connection_registry.on_peer_presence_observed(observed.token);
+                            }
+                        }
+                        PacketType::PeerAnnounceObserved => {
+                            // A local client reported a peer `!bvca` announce observed
+                            // in the realm. Record the peer endpoint for the observer's
+                            // world so the offer/forward paths can reach it. Never
+                            // broadcast onward.
+                            if let QuicNetworkPacketData::PeerAnnounceObserved(announce) =
+                                updated_packet.data
+                            {
+                                connection_registry
+                                    .on_peer_announce_observed(announce.hashed_world, announce.endpoint);
                             }
                         }
                         _ => {

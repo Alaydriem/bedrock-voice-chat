@@ -1,0 +1,421 @@
+use crate::AudioPacket;
+use crate::audio::stream::jitter_buffer::EncodedAudioFramePacket;
+use crate::audio::stream::stream_manager::AudioSinkType;
+#[cfg(feature = "bedrock-protocol")]
+use crate::bedrock::AnnounceInjector;
+#[cfg(feature = "bedrock-protocol")]
+use crate::bedrock::JukeboxBeaconCache;
+#[cfg(feature = "bedrock-protocol")]
+use crate::bedrock::JukeboxEjectInjector;
+#[cfg(feature = "bedrock-protocol")]
+use crate::bedrock::PresenceInjector;
+use base64::engine::{Engine, general_purpose};
+#[cfg(feature = "bedrock-protocol")]
+use common::structs::packet::BedrockEventPacket;
+#[cfg(feature = "bedrock-protocol")]
+use common::structs::packet::PeerAnnounceInjectPacket;
+#[cfg(feature = "bedrock-protocol")]
+use common::structs::packet::PeerPresenceInjectPacket;
+use common::traits::player_data::PlayerData;
+use common::{
+    PlayerEnum, RecordingPlayerData,
+    structs::{
+        audio::PlayerGainSettings,
+        network::ConnectionHealth,
+        packet::{
+            AudioFramePacket, ChannelEventPacket, ConnectionEventType, PacketType,
+            PlayerDataPacket, PlayerPresenceEvent, QuicNetworkPacket, ServerErrorPacket,
+            ServerErrorType,
+        },
+    },
+};
+#[cfg(feature = "bedrock-protocol")]
+use common::structs::packet::AudioFrameMetadata;
+#[cfg(feature = "bedrock-protocol")]
+use common::structs::packet::QuicNetworkPacketData;
+use log::{error, info, warn};
+use moka::future::Cache;
+use std::sync::Arc;
+
+pub(crate) struct PacketRouter {
+    producer: flume::Sender<EncodedAudioFramePacket>,
+    metadata: Arc<Cache<String, String>>,
+    players: Arc<moka::sync::Cache<String, PlayerEnum>>,
+    player_gain_cache: Arc<moka::sync::Cache<String, PlayerGainSettings>>,
+    player_presence: Arc<moka::sync::Cache<String, Option<String>>>,
+    player_presence_debounce: Arc<moka::sync::Cache<String, ()>>,
+    client_id_to_player: Arc<moka::sync::Cache<String, String>>,
+    app_handle: tauri::AppHandle,
+    #[cfg(feature = "bedrock-protocol")]
+    beacon_cache: Option<Arc<JukeboxBeaconCache>>,
+    #[cfg(feature = "bedrock-protocol")]
+    eject_injector: Option<Arc<JukeboxEjectInjector>>,
+    #[cfg(feature = "bedrock-protocol")]
+    presence_injector: Option<Arc<PresenceInjector>>,
+    #[cfg(feature = "bedrock-protocol")]
+    announce_injector: Option<Arc<AnnounceInjector>>,
+}
+
+impl PacketRouter {
+    pub fn new(
+        producer: flume::Sender<EncodedAudioFramePacket>,
+        metadata: Arc<Cache<String, String>>,
+        players: Arc<moka::sync::Cache<String, PlayerEnum>>,
+        player_gain_cache: Arc<moka::sync::Cache<String, PlayerGainSettings>>,
+        player_presence: Arc<moka::sync::Cache<String, Option<String>>>,
+        player_presence_debounce: Arc<moka::sync::Cache<String, ()>>,
+        client_id_to_player: Arc<moka::sync::Cache<String, String>>,
+        app_handle: tauri::AppHandle,
+        #[cfg(feature = "bedrock-protocol")] beacon_cache: Option<Arc<JukeboxBeaconCache>>,
+        #[cfg(feature = "bedrock-protocol")] eject_injector: Option<Arc<JukeboxEjectInjector>>,
+        #[cfg(feature = "bedrock-protocol")] presence_injector: Option<Arc<PresenceInjector>>,
+        #[cfg(feature = "bedrock-protocol")] announce_injector: Option<Arc<AnnounceInjector>>,
+    ) -> Self {
+        Self {
+            producer,
+            metadata,
+            players,
+            player_gain_cache,
+            player_presence,
+            player_presence_debounce,
+            client_id_to_player,
+            app_handle,
+            #[cfg(feature = "bedrock-protocol")]
+            beacon_cache,
+            #[cfg(feature = "bedrock-protocol")]
+            eject_injector,
+            #[cfg(feature = "bedrock-protocol")]
+            presence_injector,
+            #[cfg(feature = "bedrock-protocol")]
+            announce_injector,
+        }
+    }
+
+    pub async fn dispatch(&self, packet: AudioPacket) {
+        match packet.data.get_packet_type() {
+            PacketType::AudioFrame => self.handle_audio_data(&packet.data).await,
+            PacketType::PlayerData => self.handle_player_data(&packet.data).await,
+            PacketType::ServerError => self.handle_server_error(&packet.data).await,
+            PacketType::PlayerPresence => self.handle_player_presence(&packet.data).await,
+            PacketType::ChannelEvent => self.handle_channel_event(&packet.data).await,
+            #[cfg(feature = "bedrock-protocol")]
+            PacketType::BedrockEvent => {
+                if let Some(injector) = self.eject_injector.as_ref() {
+                    if let Some(data) = packet.data.get_data() {
+                        let decoded: Result<BedrockEventPacket, ()> = data.to_owned().try_into();
+                        if let Ok(event_packet) = decoded {
+                            injector.handle_packet(&event_packet);
+                        }
+                    }
+                }
+            }
+            #[cfg(feature = "bedrock-protocol")]
+            PacketType::PeerPresenceInject => {
+                if let Some(injector) = self.presence_injector.as_ref() {
+                    if let Some(QuicNetworkPacketData::PeerPresenceInject(inject)) =
+                        packet.data.get_data()
+                    {
+                        let inject: &PeerPresenceInjectPacket = inject;
+                        injector.handle_inject(inject);
+                    }
+                }
+            }
+            #[cfg(feature = "bedrock-protocol")]
+            PacketType::PeerAnnounceInject => {
+                if let Some(injector) = self.announce_injector.as_ref() {
+                    if let Some(QuicNetworkPacketData::PeerAnnounceInject(inject)) =
+                        packet.data.get_data()
+                    {
+                        let inject: &PeerAnnounceInjectPacket = inject;
+                        injector.handle_inject(inject);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Process the player presence event
+    async fn handle_player_presence(&self, data: &QuicNetworkPacket) {
+        let current_player_name = match self.metadata.get("current_player").await {
+            Some(name) => name,
+            None => return,
+        };
+
+        let data: Result<PlayerPresenceEvent, ()> = data.data.to_owned().try_into();
+
+        match data {
+            Ok(data) => {
+                // Ignore events from self
+                if current_player_name.eq(&data.player_name) {
+                    return;
+                }
+
+                let game = self
+                    .players
+                    .get(&data.player_name)
+                    .map(|p| p.get_game().as_str().to_string())
+                    .or_else(|| self.player_presence.get(&data.player_name).flatten());
+
+                match data.event_type {
+                    ConnectionEventType::Connected => {
+                        self.player_presence
+                            .insert(data.player_name.clone(), game.clone());
+
+                        // Only emit if not recently debounced
+                        if self.player_presence_debounce.get(&data.player_name).is_none() {
+                            self.player_presence_debounce
+                                .insert(data.player_name.clone(), ());
+
+                            if let Err(e) = tauri::Emitter::emit(
+                                &self.app_handle,
+                                crate::events::event::player_presence::PLAYER_PRESENCE,
+                                crate::events::event::player_presence::Presence::new(
+                                    data.player_name.clone(),
+                                    String::from("joined"),
+                                    game,
+                                ),
+                            ) {
+                                error!("Failed to emit player presence event: {:?}", e);
+                            }
+                        }
+                    }
+                    ConnectionEventType::Disconnected => {
+                        self.player_presence.remove(&data.player_name);
+                        self.player_presence_debounce.remove(&data.player_name);
+
+                        if let Err(e) = tauri::Emitter::emit(
+                            &self.app_handle,
+                            crate::events::event::player_presence::PLAYER_PRESENCE,
+                            crate::events::event::player_presence::Presence::new(
+                                data.player_name.clone(),
+                                String::from("disconnected"),
+                                game,
+                            ),
+                        ) {
+                            error!("Failed to emit player presence event: {:?}", e);
+                        }
+                    }
+                }
+            }
+            Err(_) => {
+                warn!("Could not decode player data packet");
+            }
+        }
+    }
+
+    // Process channel events (create, delete, join, leave)
+    async fn handle_channel_event(&self, data: &QuicNetworkPacket) {
+        let channel_event: Result<ChannelEventPacket, ()> = data.data.to_owned().try_into();
+
+        match channel_event {
+            Ok(event) => {
+                let event_type = match event.event {
+                    common::structs::channel::ChannelEvents::Create => "create",
+                    common::structs::channel::ChannelEvents::Delete => "delete",
+                    common::structs::channel::ChannelEvents::Join => "join",
+                    common::structs::channel::ChannelEvents::Leave => "leave",
+                    common::structs::channel::ChannelEvents::Rename => "rename",
+                };
+
+                info!(
+                    "Channel event: {} {} in channel {} ({})",
+                    event.name,
+                    event_type,
+                    event.channel,
+                    event.channel_name.as_deref().unwrap_or("unknown")
+                );
+
+                if let Err(e) = tauri::Emitter::emit(
+                    &self.app_handle,
+                    crate::events::event::channel_event::CHANNEL_EVENT,
+                    crate::events::event::channel_event::ChannelEvent::new(
+                        event_type.to_string(),
+                        event.channel,
+                        event.channel_name,
+                        event.creator,
+                        event.name,
+                        event.timestamp,
+                    ),
+                ) {
+                    error!("Failed to emit channel event: {:?}", e);
+                }
+            }
+            Err(_) => {
+                warn!("Could not decode channel event packet");
+            }
+        }
+    }
+
+    /// Processes AudioFramePacket data
+    async fn handle_audio_data(&self, data: &QuicNetworkPacket) {
+        let current_player_name = match self.metadata.get("current_player").await {
+            Some(name) => name,
+            None => return,
+        };
+
+        // Check if this is a new player we haven't seen before
+        if let Some(owner) = &data.owner {
+            let player_name = &owner.name;
+
+            // Skip presence tracking for synthetic jukebox players
+            if !player_name.starts_with(common::consts::audio::JUKEBOX_PLAYER_PREFIX) {
+                // Build client ID to player name mapping for gain control
+                if !player_name.is_empty() && !player_name.eq(&"api") {
+                    let client_id = general_purpose::STANDARD.encode(&owner.client_id);
+                    self.client_id_to_player.insert(client_id, player_name.clone());
+                }
+
+                // Don't emit events for ourselves
+                if !player_name.eq(&current_player_name) && !player_name.is_empty() {
+                    // Resolve game from player_data cache, or preserve existing value in presence cache
+                    let game = self
+                        .players
+                        .get(player_name)
+                        .map(|p| p.get_game().as_str().to_string())
+                        .or_else(|| self.player_presence.get(player_name).flatten());
+
+                    // Always update the presence cache (stores game type alongside presence)
+                    self.player_presence.insert(player_name.clone(), game.clone());
+
+                    // Only emit if not recently debounced
+                    if self.player_presence_debounce.get(player_name).is_none() {
+                        self.player_presence_debounce.insert(player_name.clone(), ());
+
+                        // Emit synthetic presence event for new player detected via audio
+                        if let Err(e) = tauri::Emitter::emit(
+                            &self.app_handle,
+                            crate::events::event::player_presence::PLAYER_PRESENCE,
+                            crate::events::event::player_presence::Presence::new(
+                                player_name.clone(),
+                                String::from("joined"),
+                                game,
+                            ),
+                        ) {
+                            error!("Failed to emit auto-detected player presence event: {:?}", e);
+                        }
+                    }
+                }
+            }
+        }
+
+        let owner = data.owner.clone();
+        let data: Result<AudioFramePacket, ()> = data.data.to_owned().try_into();
+
+        match data {
+            Ok(data) => {
+                #[cfg(feature = "bedrock-protocol")]
+                if let Some(beacon_cache) = self.beacon_cache.as_ref() {
+                    for meta in &data.metadata {
+                        match meta {
+                            AudioFrameMetadata::Jukebox(jb) => {
+                                beacon_cache.observe(
+                                    (&jb.position).into(),
+                                    jb.dimension.clone(),
+                                    &jb.event_id,
+                                );
+                            }
+                        }
+                    }
+                }
+                // Create emitter RecordingPlayerData from packet owner and audio data
+                let emitter = owner
+                    .as_ref()
+                    .map(|o| {
+                        RecordingPlayerData::from_packet_owner(
+                            o,
+                            &data,
+                            self.player_gain_cache.get(&o.name),
+                        )
+                    })
+                    .unwrap_or_else(RecordingPlayerData::unknown);
+
+                // Create listener RecordingPlayerData from current player
+                let listener = self
+                    .players
+                    .get(&current_player_name)
+                    .map(|p| {
+                        RecordingPlayerData::from_player_enum(
+                            &p,
+                            current_player_name.clone(),
+                            self.player_gain_cache.get(&current_player_name),
+                        )
+                    })
+                    .unwrap_or_else(|| RecordingPlayerData::unknown());
+
+                let timestamp = data.timestamp() as u64;
+                let encoded_packet = EncodedAudioFramePacket {
+                    timestamp: timestamp,
+                    sample_rate: data.sample_rate,
+                    data: data.data,
+                    route: AudioSinkType::from_spatial(match data.spatial {
+                        Some(s) => s,
+                        None => true,
+                    }),
+                    emitter,
+                    listener,
+                    buffer_size_ms: 120,
+                    time_between_reports_secs: 30,
+                };
+
+                // Send to playback - recording is now handled post-jitter-buffer in JitterBufferSource
+                #[cfg(feature = "e2e")]
+                crate::testkit::counters::TransportCounters::increment_into_jitter_buffer();
+                match self.producer.send(encoded_packet.clone()) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        warn!("Could not send encoded audio frame packet: {:?}", e);
+                    }
+                }
+            }
+            Err(_) => {
+                warn!("Could not decode audio frame packet");
+            }
+        }
+    }
+
+    // Sender<AudioFrame> is technically as alias of Sender<QuicNetworkPacket> with a nested data
+    // The data we can receive can be _any_ valid QuicNetworkPacket, which is good because
+    // We need the positional information that is pulsed by the server
+    async fn handle_player_data(&self, data: &QuicNetworkPacket) {
+        let data: Result<PlayerDataPacket, ()> = data.data.to_owned().try_into();
+        match data {
+            Ok(data) => {
+                for player in data.players {
+                    let player_name = player.get_name().to_string();
+                    self.players.insert(player_name, player);
+                }
+            }
+            Err(_) => {
+                warn!("Could not decode player data packet");
+            }
+        }
+    }
+
+    async fn handle_server_error(&self, data: &QuicNetworkPacket) {
+        if let Ok(error_packet) = TryInto::<ServerErrorPacket>::try_into(data.data.clone()) {
+            match error_packet.error_type {
+                ServerErrorType::VersionIncompatible {
+                    ref client_version,
+                    ref server_version,
+                } => {
+                    error!(
+                        "Protocol version mismatch: client={}, server={}",
+                        client_version, server_version
+                    );
+                    let health_event = ConnectionHealth::VersionMismatch {
+                        client_version: client_version.clone(),
+                        server_version: server_version.clone(),
+                        client_too_old: true,
+                    };
+                    info!("Emitting connection_health event: {:?}", health_event);
+                    if let Err(e) =
+                        tauri::Emitter::emit(&self.app_handle, "connection_health", health_event)
+                    {
+                        error!("Failed to emit connection_health event: {:?}", e);
+                    }
+                }
+            }
+        }
+    }
+}

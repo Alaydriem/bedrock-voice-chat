@@ -5,7 +5,6 @@ pub mod link_java;
 pub mod minecraft;
 pub mod state;
 
-
 // Re-export HytaleSessionCache from dtos for route mounting
 pub use crate::http::dtos::HytaleSessionCache;
 
@@ -31,6 +30,7 @@ inventory::submit! {
 inventory::submit! {
     RouteSpec {
         prefix: "/api",
+        auto_mount: true,
         spec_fn: || {
             let settings = rocket_okapi::settings::OpenApiSettings::default();
             rocket_okapi::openapi_get_routes_spec![settings:

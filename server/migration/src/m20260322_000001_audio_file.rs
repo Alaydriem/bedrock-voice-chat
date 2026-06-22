@@ -13,19 +13,45 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(AudioFile::Table)
                     .if_not_exists()
-                    .col(ColumnDef::new(AudioFile::Id).string().not_null().primary_key())
+                    .col(
+                        ColumnDef::new(AudioFile::Id)
+                            .string()
+                            .not_null()
+                            .primary_key(),
+                    )
                     .col(ColumnDef::new(AudioFile::UploaderId).integer().not_null())
-                    .col(ColumnDef::new(AudioFile::OriginalFilename).string().not_null())
-                    .col(ColumnDef::new(AudioFile::DurationMs).big_integer().not_null())
-                    .col(ColumnDef::new(AudioFile::FileSizeBytes).big_integer().not_null())
+                    .col(
+                        ColumnDef::new(AudioFile::OriginalFilename)
+                            .string()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(AudioFile::DurationMs)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(AudioFile::FileSizeBytes)
+                            .big_integer()
+                            .not_null(),
+                    )
                     .col(
                         ColumnDef::new(AudioFile::Game)
                             .string()
                             .not_null()
                             .default("minecraft"),
                     )
-                    .col(ColumnDef::new(AudioFile::Deleted).integer().not_null().default(0))
-                    .col(ColumnDef::new(AudioFile::CreatedAt).big_integer().not_null())
+                    .col(
+                        ColumnDef::new(AudioFile::Deleted)
+                            .integer()
+                            .not_null()
+                            .default(0),
+                    )
+                    .col(
+                        ColumnDef::new(AudioFile::CreatedAt)
+                            .big_integer()
+                            .not_null(),
+                    )
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk_audio_file_uploader")

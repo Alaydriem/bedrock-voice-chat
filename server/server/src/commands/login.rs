@@ -1,6 +1,6 @@
 use clap::Parser;
-use common::request::CodeLoginRequest;
 use common::Game;
+use common::request::CodeLoginRequest;
 
 use crate::commands::admin_api_client::AdminApiClient;
 use crate::identity::{Identity, IdentityStore};

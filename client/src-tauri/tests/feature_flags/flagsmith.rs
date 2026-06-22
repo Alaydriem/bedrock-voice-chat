@@ -15,7 +15,10 @@ fn identity_persists_but_build_number_trait_is_transient() {
         .find(|t| t["trait_key"] == serde_json::json!("build_number"))
         .expect("build_number trait");
 
-    assert!(build["trait_value"].is_i64(), "build_number must serialize as an integer");
+    assert!(
+        build["trait_value"].is_i64(),
+        "build_number must serialize as an integer"
+    );
     assert_eq!(build["trait_value"], serde_json::json!(1001084));
     assert_eq!(build["transient"], serde_json::json!(true));
 }

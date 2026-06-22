@@ -2,11 +2,14 @@ import { writable, derived, type Writable, type Readable } from 'svelte/store';
 import { invoke } from '@tauri-apps/api/core';
 import { Store } from '@tauri-apps/plugin-store';
 import { error as logError } from '@tauri-apps/plugin-log';
+import { onPurchaseUpdated } from '@choochmeque/tauri-plugin-iap-api';
 import type { BedrockStatus } from '../../../bindings/BedrockStatus';
 import type { BedrockLogEntry } from '../../../bindings/BedrockLogEntry';
 import type { BedrockConnectionInfo } from '../../../bindings/BedrockConnectionInfo';
 import type { RealmEntry } from '../../../bindings/RealmEntry';
 import type { NetworkInterface } from '../../../bindings/NetworkInterface';
+import type { RealmsGateStatus } from '../../../bindings/RealmsGateStatus';
+import type { IapOffer } from '../../../bindings/IapOffer';
 import type { ProxyServerEntry } from './ProxyServerEntry';
 import { BedrockAuthManager } from './auth/BedrockAuthManager';
 import { BedrockProxyManager } from './proxy/BedrockProxyManager';
@@ -28,7 +31,6 @@ export class BedrockManager {
     private statusMessageStore: Writable<string>;
     public readonly statusMessage: Readable<string>;
 
-    public readonly isEntitled: Readable<boolean>;
     public readonly isAuthenticated: Readable<boolean>;
     public readonly isRestoringAuth: Readable<boolean>;
     public readonly showLoginModal: Readable<boolean>;
@@ -65,14 +67,33 @@ export class BedrockManager {
 
     public readonly canStartProxy: Readable<boolean>;
 
+    private gateStatusStore: Writable<RealmsGateStatus | null>;
+    public readonly gateStatus: Readable<RealmsGateStatus | null>;
+    private offersStore: Writable<IapOffer[]>;
+    public readonly offers: Readable<IapOffer[]>;
+    private offersLoadedStore: Writable<boolean>;
+    public readonly offersLoaded: Readable<boolean>;
+    private gatingModalStore: Writable<RealmsGateStatus | null>;
+    public readonly gatingModal: Readable<RealmsGateStatus | null>;
+
     private initialized = false;
     private store: Store | null = null;
+    private purchaseUnlisten: (() => void) | null = null;
 
     constructor() {
         this.statusMessageStore = writable('');
         this.statusMessage = { subscribe: this.statusMessageStore.subscribe };
 
         const setStatus = (msg: string) => this.statusMessageStore.set(msg);
+
+        this.gateStatusStore = writable(null);
+        this.gateStatus = { subscribe: this.gateStatusStore.subscribe };
+        this.offersStore = writable([]);
+        this.offers = { subscribe: this.offersStore.subscribe };
+        this.offersLoadedStore = writable(false);
+        this.offersLoaded = { subscribe: this.offersLoadedStore.subscribe };
+        this.gatingModalStore = writable(null);
+        this.gatingModal = { subscribe: this.gatingModalStore.subscribe };
 
         this.logsManager = new BedrockLogsManager();
         this.connectionManager = new BedrockConnectionManager(() => this.realmsManager);
@@ -84,6 +105,10 @@ export class BedrockManager {
                 reportError: (raw) => this.connectionManager.setConnectErrorFromInvoke(raw),
                 clearLogs: () => this.logsManager.clearLogs(),
                 clearConnectionError: () => this.connectionManager.clearError(),
+                onGateBlocked: (status) => {
+                    this.gateStatusStore.set(status);
+                    this.gatingModalStore.set(status);
+                },
             },
         );
 
@@ -95,7 +120,6 @@ export class BedrockManager {
             },
         });
 
-        this.isEntitled = this.authManager.isEntitled;
         this.isAuthenticated = this.authManager.isAuthenticated;
         this.isRestoringAuth = this.authManager.isRestoringAuth;
         this.showLoginModal = this.authManager.showLoginModal;
@@ -150,7 +174,6 @@ export class BedrockManager {
         await this.realmsManager.initialize(this.store);
         await this.proxyManager.initialize(this.store);
 
-        await this.authManager.checkEntitlement();
         await this.authManager.restoreAuth();
 
         try {
@@ -201,6 +224,71 @@ export class BedrockManager {
 
     async loadRealms(): Promise<void> {
         return this.realmsManager.loadRealms();
+    }
+
+    // Realms-only IAP init. Called by the Realms Connect page (never by Proxy
+    // Connect, never on the shared restoring path). Resolves the gate from the
+    // cached entitlement immediately, then corrects from a fresh store read and
+    // subscribes to purchase updates in the background so neither can stall the
+    // page.
+    async initializeRealmsAccess(): Promise<void> {
+        await this.refreshGate();
+        void this.refreshEntitlementAndGate();
+        void this.loadOffers();
+        if (!this.purchaseUnlisten) {
+            onPurchaseUpdated(() => {
+                void this.refreshEntitlementAndGate();
+            })
+                .then((listener) => {
+                    this.purchaseUnlisten = () => listener.unregister();
+                })
+                .catch((e) => logError(`onPurchaseUpdated subscription failed: ${e}`));
+        }
+    }
+
+    async refreshGate(): Promise<void> {
+        try {
+            const status = await invoke<RealmsGateStatus>('bedrock_realms_gate');
+            this.gateStatusStore.set(status);
+        } catch (e) {
+            logError(`Gate check failed: ${e}`);
+        }
+    }
+
+    async loadOffers(): Promise<void> {
+        try {
+            const offers = await invoke<IapOffer[]>('iap_list_offers');
+            this.offersStore.set(offers);
+        } catch (e) {
+            logError(`Load offers failed: ${e}`);
+        } finally {
+            this.offersLoadedStore.set(true);
+        }
+    }
+
+    async purchase(productId: string): Promise<boolean> {
+        const ok = await invoke<boolean>('iap_purchase', { productId });
+        await this.refreshEntitlementAndGate();
+        return ok;
+    }
+
+    async restorePurchases(): Promise<boolean> {
+        const ok = await invoke<boolean>('iap_restore');
+        await this.refreshEntitlementAndGate();
+        return ok;
+    }
+
+    private async refreshEntitlementAndGate(): Promise<void> {
+        try {
+            await invoke<boolean>('iap_refresh');
+        } catch (e) {
+            logError(`Entitlement refresh failed: ${e}`);
+        }
+        await this.refreshGate();
+    }
+
+    dismissGatingModal(): void {
+        this.gatingModalStore.set(null);
     }
 
     async refreshRealms(): Promise<void> {
@@ -295,5 +383,9 @@ export class BedrockManager {
         this.authManager.destroy();
         this.logsManager.destroy();
         this.connectionManager.destroy();
+        if (this.purchaseUnlisten) {
+            this.purchaseUnlisten();
+            this.purchaseUnlisten = null;
+        }
     }
 }

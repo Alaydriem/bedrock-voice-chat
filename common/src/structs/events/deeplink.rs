@@ -17,9 +17,6 @@ impl DeepLink {
             .unwrap()
             .as_millis() as i64;
 
-        Self {
-            url,
-            timestamp,
-        }
+        Self { url, timestamp }
     }
 }

@@ -57,12 +57,6 @@
         {#if isActive}
             <div class="flex items-center gap-2">
                 <button
-                    class="btn btn-sm font-medium text-white bg-success hover:bg-success-focus"
-                    disabled
-                >
-                    Connected
-                </button>
-                <button
                     class="btn btn-sm font-medium text-white bg-error hover:bg-error-focus"
                     onclick={onDisconnect}
                 >

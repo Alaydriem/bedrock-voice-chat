@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-use super::server_error_type::ServerErrorType;
 use super::quic_network_packet_data::QuicNetworkPacketData;
+use super::server_error_type::ServerErrorType;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerErrorPacket {

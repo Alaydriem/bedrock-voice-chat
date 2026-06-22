@@ -46,7 +46,12 @@ pub struct Cli {
     pub config_file: String,
 
     /// BVC server URL (used by `login`; admin commands read from the stored identity)
-    #[clap(global = true, long, env = "BVC_SERVER", default_value = "https://127.0.0.1:3000")]
+    #[clap(
+        global = true,
+        long,
+        env = "BVC_SERVER",
+        default_value = "https://127.0.0.1:3000"
+    )]
     pub server_url: String,
 
     /// Active identity selector, format `<gamertag>:<game>`. Falls back to BVC_IDENTITY env or sole-stored-identity

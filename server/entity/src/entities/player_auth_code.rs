@@ -13,6 +13,7 @@ pub struct Model {
     pub player_id: i32,
     pub expires_at: u32,
     pub used: bool,
+    pub ephemeral: bool,
     pub created_at: u32,
     pub updated_at: u32,
 }

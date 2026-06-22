@@ -1,16 +1,20 @@
 mod activity_detector;
 pub mod jitter_buffer;
-mod stream_manager;
+pub(crate) mod stream_manager;
 
 use crate::NetworkPacket;
 use crate::audio::recording::RecordingManager;
 use crate::audio::types::{AudioDevice, AudioDeviceType};
 #[cfg(feature = "bedrock-protocol")]
+use crate::bedrock::AnnounceInjector;
+#[cfg(feature = "bedrock-protocol")]
+use crate::bedrock::BedrockPlayerStateCache;
+#[cfg(feature = "bedrock-protocol")]
 use crate::bedrock::JukeboxBeaconCache;
 #[cfg(feature = "bedrock-protocol")]
 use crate::bedrock::JukeboxEjectInjector;
 #[cfg(feature = "bedrock-protocol")]
-use crate::bedrock::BedrockPlayerStateCache;
+use crate::bedrock::PresenceInjector;
 use anyhow::Error;
 use common::structs::audio::StreamEvent;
 use log::info;
@@ -20,7 +24,7 @@ use tauri::async_runtime::Mutex as TauriMutex;
 use tokio::sync::mpsc;
 
 use super::AudioPacket;
-use stream_manager::{StreamTrait, StreamTraitType};
+use stream_manager::{AudioInputSource, AudioOutputSink, StreamTrait, StreamTraitType};
 
 pub(crate) use activity_detector::ActivityUpdate;
 
@@ -51,6 +55,10 @@ pub(crate) struct AudioStreamManager {
     beacon_cache: Option<Arc<JukeboxBeaconCache>>,
     #[cfg(feature = "bedrock-protocol")]
     eject_injector: Option<Arc<JukeboxEjectInjector>>,
+    #[cfg(feature = "bedrock-protocol")]
+    presence_injector: Option<Arc<PresenceInjector>>,
+    #[cfg(feature = "bedrock-protocol")]
+    announce_injector: Option<Arc<AnnounceInjector>>,
 }
 
 impl AudioStreamManager {
@@ -61,9 +69,54 @@ impl AudioStreamManager {
         consumer: Arc<flume::Receiver<AudioPacket>>,
         app_handle: tauri::AppHandle,
         recording_manager: Option<Arc<TauriMutex<RecordingManager>>>,
-        #[cfg(feature = "bedrock-protocol")] player_state_cache: Option<Arc<BedrockPlayerStateCache>>,
+        #[cfg(feature = "bedrock-protocol")] player_state_cache: Option<
+            Arc<BedrockPlayerStateCache>,
+        >,
         #[cfg(feature = "bedrock-protocol")] beacon_cache: Option<Arc<JukeboxBeaconCache>>,
         #[cfg(feature = "bedrock-protocol")] eject_injector: Option<Arc<JukeboxEjectInjector>>,
+        #[cfg(feature = "bedrock-protocol")] presence_injector: Option<Arc<PresenceInjector>>,
+        #[cfg(feature = "bedrock-protocol")] announce_injector: Option<Arc<AnnounceInjector>>,
+    ) -> Self {
+        Self::new_with_sources(
+            producer,
+            consumer,
+            app_handle,
+            recording_manager,
+            AudioInputSource::Cpal,
+            AudioOutputSink::Rodio,
+            #[cfg(feature = "bedrock-protocol")]
+            player_state_cache,
+            #[cfg(feature = "bedrock-protocol")]
+            beacon_cache,
+            #[cfg(feature = "bedrock-protocol")]
+            eject_injector,
+            #[cfg(feature = "bedrock-protocol")]
+            presence_injector,
+            #[cfg(feature = "bedrock-protocol")]
+            announce_injector,
+        )
+    }
+
+    /// Creates a new audio stream manager with explicitly injected input
+    /// source and output sink, used to swap in fake backends for tests while
+    /// the production `new()` always selects the real Cpal/Rodio backends.
+    /// The injected source/sink are consumed into the initial streams; device
+    /// changes via `init`/`restart`/`reset` always rebuild on the real backend.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_sources(
+        producer: Arc<flume::Sender<NetworkPacket>>,
+        consumer: Arc<flume::Receiver<AudioPacket>>,
+        app_handle: tauri::AppHandle,
+        recording_manager: Option<Arc<TauriMutex<RecordingManager>>>,
+        input_source: AudioInputSource,
+        output_sink: AudioOutputSink,
+        #[cfg(feature = "bedrock-protocol")] player_state_cache: Option<
+            Arc<BedrockPlayerStateCache>,
+        >,
+        #[cfg(feature = "bedrock-protocol")] beacon_cache: Option<Arc<JukeboxBeaconCache>>,
+        #[cfg(feature = "bedrock-protocol")] eject_injector: Option<Arc<JukeboxEjectInjector>>,
+        #[cfg(feature = "bedrock-protocol")] presence_injector: Option<Arc<PresenceInjector>>,
+        #[cfg(feature = "bedrock-protocol")] announce_injector: Option<Arc<AnnounceInjector>>,
     ) -> Self {
         let (recovery_tx, recovery_rx) = mpsc::unbounded_channel::<StreamRecoveryEvent>();
 
@@ -72,6 +125,7 @@ impl AudioStreamManager {
             consumer: consumer.clone(),
             input: StreamTraitType::Input(stream_manager::InputStream::new(
                 None,
+                input_source,
                 producer.clone(),
                 Arc::new(moka::future::Cache::builder().build()),
                 app_handle.clone(),
@@ -83,6 +137,7 @@ impl AudioStreamManager {
             )),
             output: StreamTraitType::Output(stream_manager::OutputStream::new(
                 None,
+                output_sink,
                 consumer.clone(),
                 Arc::new(moka::future::Cache::builder().build()),
                 app_handle.clone(),
@@ -93,6 +148,10 @@ impl AudioStreamManager {
                 beacon_cache.clone(),
                 #[cfg(feature = "bedrock-protocol")]
                 eject_injector.clone(),
+                #[cfg(feature = "bedrock-protocol")]
+                presence_injector.clone(),
+                #[cfg(feature = "bedrock-protocol")]
+                announce_injector.clone(),
             )),
             app_handle: app_handle.clone(),
             recording_manager,
@@ -104,6 +163,10 @@ impl AudioStreamManager {
             beacon_cache,
             #[cfg(feature = "bedrock-protocol")]
             eject_injector,
+            #[cfg(feature = "bedrock-protocol")]
+            presence_injector,
+            #[cfg(feature = "bedrock-protocol")]
+            announce_injector,
         }
     }
 
@@ -159,6 +222,7 @@ impl AudioStreamManager {
             AudioDeviceType::InputDevice => {
                 self.input = StreamTraitType::Input(stream_manager::InputStream::new(
                     Some(device),
+                    stream_manager::AudioInputSource::Cpal,
                     self.producer.clone(),
                     self.input.get_metadata().clone(),
                     self.app_handle.clone(),
@@ -172,6 +236,7 @@ impl AudioStreamManager {
             AudioDeviceType::OutputDevice => {
                 self.output = StreamTraitType::Output(stream_manager::OutputStream::new(
                     Some(device),
+                    stream_manager::AudioOutputSink::Rodio,
                     self.consumer.clone(),
                     self.output.get_metadata().clone(),
                     self.app_handle.clone(),
@@ -182,6 +247,10 @@ impl AudioStreamManager {
                     self.beacon_cache.clone(),
                     #[cfg(feature = "bedrock-protocol")]
                     self.eject_injector.clone(),
+                    #[cfg(feature = "bedrock-protocol")]
+                    self.presence_injector.clone(),
+                    #[cfg(feature = "bedrock-protocol")]
+                    self.announce_injector.clone(),
                 ));
             }
         }
@@ -211,6 +280,7 @@ impl AudioStreamManager {
             AudioDeviceType::InputDevice => {
                 self.input = StreamTraitType::Input(stream_manager::InputStream::new(
                     self.input.get_device(),
+                    stream_manager::AudioInputSource::Cpal,
                     self.producer.clone(),
                     self.input.get_metadata().clone(),
                     self.app_handle.clone(),
@@ -224,6 +294,7 @@ impl AudioStreamManager {
             AudioDeviceType::OutputDevice => {
                 self.output = StreamTraitType::Output(stream_manager::OutputStream::new(
                     self.output.get_device(),
+                    stream_manager::AudioOutputSink::Rodio,
                     self.consumer.clone(),
                     self.output.get_metadata().clone(),
                     self.app_handle.clone(),
@@ -234,6 +305,10 @@ impl AudioStreamManager {
                     self.beacon_cache.clone(),
                     #[cfg(feature = "bedrock-protocol")]
                     self.eject_injector.clone(),
+                    #[cfg(feature = "bedrock-protocol")]
+                    self.presence_injector.clone(),
+                    #[cfg(feature = "bedrock-protocol")]
+                    self.announce_injector.clone(),
                 ));
             }
         };
@@ -336,6 +411,7 @@ impl AudioStreamManager {
 
         self.input = StreamTraitType::Input(stream_manager::InputStream::new(
             None,
+            stream_manager::AudioInputSource::Cpal,
             self.producer.clone(),
             self.input.get_metadata().clone(),
             self.app_handle.clone(),
@@ -349,6 +425,7 @@ impl AudioStreamManager {
         // Recreate output stream, preserving metadata
         self.output = StreamTraitType::Output(stream_manager::OutputStream::new(
             None,
+            stream_manager::AudioOutputSink::Rodio,
             self.consumer.clone(),
             self.output.get_metadata().clone(),
             self.app_handle.clone(),
@@ -359,6 +436,10 @@ impl AudioStreamManager {
             self.beacon_cache.clone(),
             #[cfg(feature = "bedrock-protocol")]
             self.eject_injector.clone(),
+            #[cfg(feature = "bedrock-protocol")]
+            self.presence_injector.clone(),
+            #[cfg(feature = "bedrock-protocol")]
+            self.announce_injector.clone(),
         ));
 
         Ok(())

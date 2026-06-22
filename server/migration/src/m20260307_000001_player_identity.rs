@@ -23,11 +23,7 @@ impl MigrationTrait for Migration {
                             .integer()
                             .not_null(),
                     )
-                    .col(
-                        ColumnDef::new(PlayerIdentity::Alias)
-                            .string()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(PlayerIdentity::Alias).string().not_null())
                     .col(
                         ColumnDef::new(PlayerIdentity::Game)
                             .string()

@@ -12,4 +12,10 @@ pub enum PacketType {
     ServerError,
     HealthCheck,
     BedrockEvent,
+    PeerPresenceInject,
+    PeerPresenceObserved,
+    PeerAnnounceInject,
+    PeerAnnounceObserved,
+    AudioQuery,
+    AudioAvailable,
 }

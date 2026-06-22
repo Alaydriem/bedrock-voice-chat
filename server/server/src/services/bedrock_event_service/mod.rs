@@ -103,14 +103,19 @@ impl BedrockEventService {
                 audio_id,
                 block_pos,
                 dimension,
-                ..
+                player_xuid: _,
+                relay_world_uuid,
             } => {
-                self.on_jukebox_insert(audio_id, block_pos, dimension, packet.world_uuid)
-                    .await
+                self.on_jukebox_insert(
+                    audio_id,
+                    block_pos,
+                    dimension,
+                    packet.world_uuid,
+                    relay_world_uuid,
+                )
+                .await
             }
-            BedrockEvent::JukeboxEject { event_id, .. } => {
-                self.on_jukebox_eject(event_id).await
-            }
+            BedrockEvent::JukeboxEject { event_id, .. } => self.on_jukebox_eject(event_id).await,
             BedrockEvent::PlayerDeath {
                 dimension,
                 last_pos: _,
@@ -133,6 +138,7 @@ impl BedrockEventService {
         block_pos: Coordinate,
         dimension: Dimension,
         world_uuid: String,
+        relay_world_uuid: Option<String>,
     ) -> Result<(), BedrockEventRejection> {
         let request = AudioPlayRequest {
             audio_file_id: audio_id,
@@ -140,6 +146,7 @@ impl BedrockEventService {
                 coordinates: block_pos,
                 dimension,
                 world_uuid,
+                relay_world_uuid,
             }),
         };
 
@@ -151,10 +158,7 @@ impl BedrockEventService {
         Ok(())
     }
 
-    async fn on_jukebox_eject(
-        &self,
-        event_id: String,
-    ) -> Result<(), BedrockEventRejection> {
+    async fn on_jukebox_eject(&self, event_id: String) -> Result<(), BedrockEventRejection> {
         self.playback_service
             .stop_playback(&event_id)
             .await
@@ -170,7 +174,11 @@ impl BedrockEventService {
     ) -> Result<(), BedrockEventRejection> {
         let player = MinecraftPlayer {
             name: player_name,
-            coordinates: Coordinate { x: 0.0, y: 0.0, z: 0.0 },
+            coordinates: Coordinate {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
             orientation: Orientation { x: 0.0, y: 0.0 },
             dimension: Dimension::Death,
             deafen: false,
@@ -182,6 +190,7 @@ impl BedrockEventService {
             },
             alternative_identity: None,
             player_uuid: None,
+            relay_world_uuid: None,
         };
 
         PositionUpdater::broadcast_positions(
@@ -215,6 +224,7 @@ impl BedrockEventService {
             },
             alternative_identity: None,
             player_uuid: None,
+            relay_world_uuid: None,
         };
 
         PositionUpdater::broadcast_positions(
@@ -224,7 +234,6 @@ impl BedrockEventService {
         .await;
         Ok(())
     }
-
 }
 
 #[cfg(test)]
@@ -264,5 +273,4 @@ mod tests {
 
         assert!(healthy);
     }
-
 }

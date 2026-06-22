@@ -22,7 +22,8 @@ impl JukeboxBeaconCache {
     }
 
     pub fn observe(&self, position: BlockCoordinate, dimension: Dimension, event_id: &str) {
-        self.inner.insert((position, dimension), event_id.to_string());
+        self.inner
+            .insert((position, dimension), event_id.to_string());
     }
 
     pub fn resolve_for_eject(
@@ -55,7 +56,9 @@ mod tests {
         let pos = BlockCoordinate::new(12, 64, -7);
         cache.observe(pos, Dimension::Overworld, "evt-abc");
         assert_eq!(
-            cache.resolve_for_eject(pos, Dimension::Overworld).as_deref(),
+            cache
+                .resolve_for_eject(pos, Dimension::Overworld)
+                .as_deref(),
             Some("evt-abc")
         );
         assert!(cache.resolve_for_eject(pos, Dimension::Overworld).is_none());
@@ -78,11 +81,15 @@ mod tests {
         cache.observe(pos, Dimension::Overworld, "evt-overworld");
         cache.observe(pos, Dimension::TheNether, "evt-nether");
         assert_eq!(
-            cache.resolve_for_eject(pos, Dimension::TheNether).as_deref(),
+            cache
+                .resolve_for_eject(pos, Dimension::TheNether)
+                .as_deref(),
             Some("evt-nether")
         );
         assert_eq!(
-            cache.resolve_for_eject(pos, Dimension::Overworld).as_deref(),
+            cache
+                .resolve_for_eject(pos, Dimension::Overworld)
+                .as_deref(),
             Some("evt-overworld")
         );
     }
@@ -91,7 +98,11 @@ mod tests {
     fn floor_handles_negative_coords() {
         use common::structs::game::Coordinate;
         let cache = JukeboxBeaconCache::new();
-        let coord = Coordinate { x: -0.5, y: -10.9, z: -100.1 };
+        let coord = Coordinate {
+            x: -0.5,
+            y: -10.9,
+            z: -100.1,
+        };
         let key = BlockCoordinate::from(&coord);
         cache.observe(key, Dimension::Overworld, "evt-neg");
         assert_eq!(

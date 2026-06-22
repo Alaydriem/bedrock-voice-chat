@@ -21,7 +21,8 @@ impl BedrockLogger {
 
 impl log::Log for BedrockLogger {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
-        LogFilter::log_level_allowed(metadata.level()) && LogFilter::target_matches(metadata.target())
+        LogFilter::log_level_allowed(metadata.level())
+            && LogFilter::target_matches(metadata.target())
     }
 
     fn log(&self, record: &log::Record) {

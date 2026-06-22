@@ -1,5 +1,5 @@
 use common::response::auth::IntrospectResponse;
-use rocket::{http::Status, mtls::Certificate, serde::json::Json, State};
+use rocket::{State, http::Status, mtls::Certificate, serde::json::Json};
 use rocket_okapi::openapi;
 
 use crate::config::Permissions;

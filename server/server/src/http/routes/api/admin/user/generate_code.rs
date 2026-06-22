@@ -36,7 +36,7 @@ pub async fn generate_code(
         })?
         .ok_or(Status::NotFound)?;
 
-    let code = AuthCodeService::generate_code(conn, player_record.id, req.duration)
+    let code = AuthCodeService::generate_code(conn, player_record.id, req.duration, req.ephemeral)
         .await
         .map_err(|e| {
             tracing::error!("generate_code: insert failed: {}", e);

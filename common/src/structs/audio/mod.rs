@@ -9,4 +9,3 @@ pub use format::AudioFormat;
 pub use mute_event::MuteEvent;
 pub use settings::{NoiseGateSettings, PlayerGainSettings, PlayerGainStore};
 pub use stream::{StreamConfig, StreamEvent};
-

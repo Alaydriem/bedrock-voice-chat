@@ -4,8 +4,8 @@ use common::bedrock_protocol::DisconnectReason;
 use log::info;
 
 use crate::bedrock::BedrockEventEmitter;
-use crate::bedrock::proxy::session::{BedrockPacketHandler, PlayerLeaveHandler};
 use crate::bedrock::proxy::session::BedrockSessionState;
+use crate::bedrock::proxy::session::{BedrockPacketHandler, PlayerLeaveHandler};
 
 pub struct DisconnectedHandler<'a> {
     pub player_name: &'a str,

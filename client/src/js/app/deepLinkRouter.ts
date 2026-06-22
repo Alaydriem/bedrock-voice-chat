@@ -2,9 +2,18 @@ import { Store } from '@tauri-apps/plugin-store';
 import { info, error as logError } from '@tauri-apps/plugin-log';
 import { AuthCallbackHandler } from './deepLinkHandlers/authCallbackHandler.ts';
 
+/**
+ * Outcome of handling a deep link.
+ *
+ * - `handled`  the link was fully processed; the pending entry can be cleared.
+ * - `deferred` the handler navigated elsewhere (e.g. to /login) and needs the
+ *              pending entry kept so the destination page can pick it up.
+ */
+export type DeepLinkOutcome = 'handled' | 'deferred';
+
 interface DeepLinkHandler {
     canHandle(url: string): boolean;
-    handle(url: string): Promise<void>;
+    handle(url: string): Promise<DeepLinkOutcome>;
 }
 
 export class DeepLinkRouter {
@@ -27,8 +36,10 @@ export class DeepLinkRouter {
             if (handler.canHandle(url)) {
                 info(`DeepLinkRouter: Handler found for URL`);
                 try {
-                    await handler.handle(url);
-                    await this.clearPending();
+                    const outcome = await handler.handle(url);
+                    if (outcome !== 'deferred') {
+                        await this.clearPending();
+                    }
                     return;
                 } catch (err) {
                     logError(`DeepLinkRouter: Handler failed: ${err}`);

@@ -1,3 +1,4 @@
+use crate::http::openapi::CustomJsonResponse;
 use crate::stream::quic::{CacheManager, WebhookReceiver};
 use common::structs::{
     channel::{Channel, ChannelEvents::Create},
@@ -5,8 +6,7 @@ use common::structs::{
         ChannelEventPacket, PacketOwner, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
     },
 };
-use rocket::{http::Status, mtls::Certificate, serde::json::Json, State};
-use crate::http::openapi::CustomJsonResponse;
+use rocket::{State, http::Status, mtls::Certificate, serde::json::Json};
 use rocket_okapi::openapi;
 
 #[openapi(tag = "Channels")]
@@ -28,10 +28,7 @@ pub async fn channel_create(
     let channel_id = channel.id();
     let channel_name = channel.name.clone();
 
-    cache_manager
-        .get_channel_collection()
-        .insert(channel)
-        .await;
+    cache_manager.get_channel_collection().insert(channel).await;
 
     let packet = QuicNetworkPacket {
         owner: Some(PacketOwner {

@@ -9,77 +9,17 @@
 //! - 403 on gamertag mismatch / already-used code
 //! - 410 (Gone) on expired code
 
-use crate::harness::TestServer;
+use crate::harness::{NcryptfLogin, TestServer};
 
-use base64::Engine;
 use bvc_server_lib::services::AuthCodeService;
-use common::request::CodeLoginRequest;
 use common::Game;
+use common::request::CodeLoginRequest;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
-
-const ENDPOINT: &str = "/api/auth/code";
-
-#[derive(Debug, Clone, serde::Deserialize)]
-struct JsonMessage<T> {
-    status: u16,
-    data: Option<T>,
-    message: Option<String>,
-}
-
-async fn ncryptf_login(
-    env: &TestServer,
-    payload: &CodeLoginRequest,
-) -> anyhow::Result<common::response::LoginResponse> {
-    let ek: common::ncryptflib::ExportableEncryptionKeyData = env
-        .noauth_client()?
-        .get(format!("{}/ncryptf/ek", env.base_url))
-        .send()
-        .await?
-        .json()
-        .await?;
-
-    let kp = common::ncryptflib::Keypair::new();
-
-    let mut headers = reqwest::header::HeaderMap::new();
-    headers.insert("Content-Type", reqwest::header::HeaderValue::from_static("application/json"));
-    headers.insert("Accept", reqwest::header::HeaderValue::from_static("application/vnd.ncryptf+json"));
-    headers.insert(
-        "X-HashId",
-        reqwest::header::HeaderValue::from_str(&ek.hash_id)?,
-    );
-    headers.insert(
-        "X-PubKey",
-        reqwest::header::HeaderValue::from_str(&base64::engine::general_purpose::STANDARD.encode(kp.get_public_key()))?,
-    );
-
-    let resp = env
-        .noauth_client()?
-        .post(format!("{}{}", env.base_url, ENDPOINT))
-        .headers(headers)
-        .json(payload)
-        .send()
-        .await?;
-
-    let status = resp.status();
-    let bytes = resp.bytes().await?;
-    let decoded = base64::engine::general_purpose::STANDARD.decode(&bytes)?;
-
-    let response = common::ncryptflib::Response::from(kp.get_secret_key())?;
-    let decrypted = response.decrypt(decoded, None, None)?;
-
-    let wrapper: JsonMessage<common::response::LoginResponse> = serde_json::from_str(&decrypted)?;
-
-    if !status.is_success() {
-        anyhow::bail!("ncryptf login failed: status={}, message={:?}", wrapper.status, wrapper.message);
-    }
-
-    wrapper.data.ok_or_else(|| anyhow::anyhow!("empty data field"))
-}
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn returns_404_on_unknown_code() {
     let env = TestServer::start().await.unwrap();
-    let result = ncryptf_login(
+    let result = NcryptfLogin::perform(
         &env,
         &CodeLoginRequest {
             gamertag: "Bob".into(),
@@ -102,11 +42,11 @@ async fn returns_login_response_on_valid_code() {
         .unwrap()
         .expect("Bob should exist");
 
-    let code = AuthCodeService::generate_code(&env.db, bob_player.id, 600)
+    let code = AuthCodeService::generate_code(&env.db, bob_player.id, 600, true)
         .await
         .unwrap();
 
-    let response = ncryptf_login(
+    let response = NcryptfLogin::perform(
         &env,
         &CodeLoginRequest {
             gamertag: "Bob".into(),
@@ -123,6 +63,92 @@ async fn returns_login_response_on_valid_code() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn rejects_reused_code() {
+    let env = TestServer::start().await.unwrap();
+    let _ = env.issue_player("Bob", &Game::Minecraft).await.unwrap();
+
+    let bob_player = entity::player::Entity::find()
+        .filter(entity::player::Column::Gamertag.eq("Bob"))
+        .one(&env.db)
+        .await
+        .unwrap()
+        .expect("Bob should exist");
+
+    let code = AuthCodeService::generate_code(&env.db, bob_player.id, 600, true)
+        .await
+        .unwrap();
+
+    // First redemption of a fresh code succeeds.
+    let first = NcryptfLogin::perform(
+        &env,
+        &CodeLoginRequest {
+            gamertag: "Bob".into(),
+            code: code.clone(),
+        },
+    )
+    .await;
+    assert!(
+        first.is_ok(),
+        "first redemption of a fresh code must succeed"
+    );
+
+    // A code is single-use: the same code must not redeem a second time.
+    let second = NcryptfLogin::perform(
+        &env,
+        &CodeLoginRequest {
+            gamertag: "Bob".into(),
+            code,
+        },
+    )
+    .await;
+    assert!(second.is_err(), "an already-used code must be rejected");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn non_ephemeral_code_redeems_more_than_once() {
+    let env = TestServer::start().await.unwrap();
+    let _ = env.issue_player("Bob", &Game::Minecraft).await.unwrap();
+
+    let bob_player = entity::player::Entity::find()
+        .filter(entity::player::Column::Gamertag.eq("Bob"))
+        .one(&env.db)
+        .await
+        .unwrap()
+        .expect("Bob should exist");
+
+    // A non-ephemeral code is reusable until it expires.
+    let code = AuthCodeService::generate_code(&env.db, bob_player.id, 600, false)
+        .await
+        .unwrap();
+
+    let first = NcryptfLogin::perform(
+        &env,
+        &CodeLoginRequest {
+            gamertag: "Bob".into(),
+            code: code.clone(),
+        },
+    )
+    .await;
+    assert!(
+        first.is_ok(),
+        "first redemption of a reusable code must succeed"
+    );
+
+    let second = NcryptfLogin::perform(
+        &env,
+        &CodeLoginRequest {
+            gamertag: "Bob".into(),
+            code,
+        },
+    )
+    .await;
+    assert!(
+        second.is_ok(),
+        "a non-ephemeral code must redeem again before it expires"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn returns_403_on_gamertag_mismatch() {
     let env = TestServer::start().await.unwrap();
     let _ = env.issue_player("Bob", &Game::Minecraft).await.unwrap();
@@ -134,11 +160,11 @@ async fn returns_403_on_gamertag_mismatch() {
         .unwrap()
         .expect("Bob should exist");
 
-    let code = AuthCodeService::generate_code(&env.db, bob_player.id, 600)
+    let code = AuthCodeService::generate_code(&env.db, bob_player.id, 600, true)
         .await
         .unwrap();
 
-    let result = ncryptf_login(
+    let result = NcryptfLogin::perform(
         &env,
         &CodeLoginRequest {
             gamertag: "Alice".into(),

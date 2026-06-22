@@ -1,17 +1,15 @@
-use base64::{engine::general_purpose, Engine as _};
+use base64::{Engine as _, engine::general_purpose};
 
 pub struct GamerpicDecoder;
 
 impl GamerpicDecoder {
     pub fn decode(raw: Option<String>) -> Option<String> {
-        raw.map(|value| {
-            match general_purpose::STANDARD.decode(&value) {
-                Ok(bytes) => match String::from_utf8(bytes) {
-                    Ok(decoded) => Self::extract_url(&decoded).unwrap_or(value),
-                    _ => value,
-                },
-                Err(_) => value,
-            }
+        raw.map(|value| match general_purpose::STANDARD.decode(&value) {
+            Ok(bytes) => match String::from_utf8(bytes) {
+                Ok(decoded) => Self::extract_url(&decoded).unwrap_or(value),
+                _ => value,
+            },
+            Err(_) => value,
         })
     }
 

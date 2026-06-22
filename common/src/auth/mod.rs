@@ -40,6 +40,6 @@ mod hytale;
 mod minecraft;
 mod provider;
 
-pub use provider::{AuthError, AuthResult};
-pub use minecraft::MinecraftAuthProvider;
 pub use hytale::{DeviceFlow, HytaleAuthProvider, PollResult};
+pub use minecraft::MinecraftAuthProvider;
+pub use provider::{AuthError, AuthResult};

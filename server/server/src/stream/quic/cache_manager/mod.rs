@@ -1,12 +1,12 @@
 use crate::services::BedrockEventService;
 use crate::stream::quic::connection_registry::ConnectionRegistry;
 use anyhow::Error;
+use common::PlayerEnum;
 use common::structs::channel::{ChannelCollection, ChannelEvents};
 use common::structs::packet::{
     BedrockEventPacket, ChannelEventPacket, PacketType, PlayerDataPacket, PlayerPositionPacket,
     QuicNetworkPacket,
 };
-use common::PlayerEnum;
 use moka::future::Cache;
 use std::sync::Arc;
 use std::time::Duration;
@@ -48,6 +48,24 @@ impl CacheManager {
 
     pub fn get_player_cache(&self) -> Arc<Cache<String, PlayerEnum>> {
         self.player_cache.clone()
+    }
+
+    // Distinct `relay_world_uuid`s of players currently in the routing cache.
+    // Backs the relay `ActiveWorldsSource` so the background register/lookup
+    // task advertises only the worlds this server is actively hosting clients
+    // in. Lock-light (a snapshot iteration over the moka cache); never on the
+    // audio hot path.
+    pub fn active_relay_worlds(&self) -> Vec<String> {
+        use std::collections::HashSet;
+        let mut seen: HashSet<String> = HashSet::new();
+        for (_, player) in self.player_cache.iter() {
+            if let Some(mc) = player.as_minecraft() {
+                if let Some(world) = &mc.relay_world_uuid {
+                    seen.insert(world.clone());
+                }
+            }
+        }
+        seen.into_iter().collect()
     }
 
     pub fn get_channel_collection(&self) -> Arc<ChannelCollection> {
@@ -141,9 +159,7 @@ impl CacheManager {
                                 );
                             }
                             ChannelEvents::Delete => {
-                                self.channel_collection
-                                    .remove(&channel_data.channel)
-                                    .await;
+                                self.channel_collection.remove(&channel_data.channel).await;
 
                                 if let Some(registry) = &self.connection_registry {
                                     registry.remove_channel(&channel_data.channel);
@@ -203,20 +219,47 @@ impl CacheManager {
         Ok(packet)
     }
 
-    pub async fn remove_player(&self, player_name: &str) -> Result<Vec<String>, Error> {
+    pub async fn remove_player(
+        &self,
+        player_name: &str,
+        game: Option<common::Game>,
+    ) -> Result<Vec<String>, Error> {
+        use common::traits::player_data::PlayerData;
+
+        // Channel membership is keyed by the cert common name (`game:gamertag`),
+        // the same key the channel event handler and `route_audio_frame` use.
+        // The bare gamertag never matches it, so resolve the canonical key from
+        // the caller-supplied game — or, failing that, the cached player's game —
+        // before evicting the entry.
+        let resolved_game = match game {
+            Some(g) => Some(g),
+            None => self
+                .player_cache
+                .get(player_name)
+                .await
+                .map(|player| player.get_game()),
+        };
+
         self.player_cache.remove(player_name).await;
 
+        let membership_key = match &resolved_game {
+            Some(g) => format!("{}:{}", g.as_str(), player_name),
+            None => player_name.to_string(),
+        };
+
         if let Some(registry) = &self.connection_registry {
-            registry.remove_player_channel(player_name);
+            registry.remove_player_channel(&membership_key);
         }
 
-        let removed_channels = self.channel_collection
-            .remove_player_from_all_channels(player_name)
+        let removed_channels = self
+            .channel_collection
+            .remove_player_from_all_channels(&membership_key)
             .await;
 
         tracing::debug!(
-            "Removed player {} from caches on disconnect (was in {} channels)",
+            "Removed player {} (membership key {}) from caches on disconnect (was in {} channels)",
             player_name,
+            membership_key,
             removed_channels.len()
         );
         Ok(removed_channels)

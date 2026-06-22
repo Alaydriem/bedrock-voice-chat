@@ -37,22 +37,20 @@ fn get_cpal_hosts() {
 
 #[test]
 fn get_devices() {
+    // The contract under test is that device enumeration succeeds without
+    // erroring. The device count is NOT asserted: headless CI runners have no
+    // audio hardware, so an empty list is a valid result there.
     let devices = crate::audio::device::get_devices();
     match devices {
         Ok(devices) => {
             for (host, device_list) in devices.iter() {
-                // We should always have _something_
-                assert_ne!(0, device_list.len());
                 for device in device_list {
                     println!("[{}] {} {}", host, device.io.store_key(), device.name);
                 }
             }
         }
-        Err(_) => {
-            assert_eq!(
-                "".to_string(),
-                "No devices available on online hosts".to_string()
-            );
+        Err(()) => {
+            panic!("device enumeration must not error");
         }
     }
 

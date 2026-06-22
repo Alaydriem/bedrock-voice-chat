@@ -34,7 +34,12 @@ impl<T> CustomJsonResponse<T> {
 
 impl<'r, T: serde::Serialize + Send + 'static> Responder<'r, 'static> for CustomJsonResponse<T> {
     fn respond_to(self, request: &'r Request<'_>) -> response::Result<'static> {
-        rocket::response::status::Custom(self.status, self.body.map(Json)).respond_to(request)
+        match self.body {
+            Some(body) => {
+                rocket::response::status::Custom(self.status, Json(body)).respond_to(request)
+            }
+            None => rocket::Response::build().status(self.status).ok(),
+        }
     }
 }
 
@@ -92,9 +97,7 @@ impl<T: serde::Serialize> NcryptfJsonResponse<T> {
     }
 }
 
-impl<'r, T: serde::Serialize + Send + 'static> Responder<'r, 'static>
-    for NcryptfJsonResponse<T>
-{
+impl<'r, T: serde::Serialize + Send + 'static> Responder<'r, 'static> for NcryptfJsonResponse<T> {
     fn respond_to(self, request: &'r Request<'_>) -> response::Result<'static> {
         self.0.respond_to(request)
     }

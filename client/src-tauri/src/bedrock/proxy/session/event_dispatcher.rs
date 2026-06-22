@@ -1,17 +1,20 @@
 use std::sync::Arc;
 
 use common::bedrock_protocol::protocol::event::EventPacket;
+use common::bedrock_protocol::protocol::packets::generated::misc::text::TextPacket;
+use common::bedrock_protocol::protocol::types::generated::TextPacketBody;
 use common::bedrock_protocol::{Direction, Event};
 
 use crate::bedrock::BedrockEventEmitter;
-use crate::bedrock::JukeboxBeaconCache;
 use crate::bedrock::BedrockPlayerStateCache;
+use crate::bedrock::BvcpCodec;
+use crate::bedrock::JukeboxBeaconCache;
+use crate::bedrock::proxy::session::BedrockSessionState;
 use crate::bedrock::proxy::session::{
     BedrockPacketHandler, ChangeDimensionHandler, DisconnectedHandler, DispatchOutcome,
     GameTypeHandler, PlaySoundHandler, PlayerAuthInputHandler, SetHealthHandler, StartGameHandler,
 };
-use crate::bedrock::proxy::session::BedrockSessionState;
-
+use log::info;
 pub struct BedrockSessionEventDispatcher {
     player_name: String,
     beacon_cache: Arc<JukeboxBeaconCache>,
@@ -38,11 +41,25 @@ impl BedrockSessionEventDispatcher {
         }
     }
 
-    pub fn dispatch(
-        &mut self,
-        evt: &Event,
-        state: &mut BedrockSessionState,
-    ) -> DispatchOutcome {
+    fn bvcp_token(packet: &TextPacket) -> Option<String> {
+        let message = match &packet.body {
+            TextPacketBody::MessageOnly(body) => &body.message,
+            TextPacketBody::AuthorAndMessage(body) => &body.message,
+            TextPacketBody::MessageAndParams(body) => &body.message,
+        };
+        BvcpCodec::parse_bvcp(message)
+    }
+
+    fn bvca_endpoint(packet: &TextPacket) -> Option<String> {
+        let message = match &packet.body {
+            TextPacketBody::MessageOnly(body) => &body.message,
+            TextPacketBody::AuthorAndMessage(body) => &body.message,
+            TextPacketBody::MessageAndParams(body) => &body.message,
+        };
+        BvcpCodec::parse_bvca(message)
+    }
+
+    pub fn dispatch(&mut self, evt: &Event, state: &mut BedrockSessionState) -> DispatchOutcome {
         let emitter = self.emitter.as_ref();
         let direction = evt.direction();
         let state_changed = match evt.packet() {
@@ -67,11 +84,13 @@ impl BedrockSessionEventDispatcher {
                 true
             }
             EventPacket::UpdatePlayerGameType(p) => {
+                info!("Received UpdatePlayerGameType: {:?}", p);
                 let gamemode = i64::from(p.player_game_type) as i32;
                 GameTypeHandler.handle(&gamemode, state, emitter);
                 true
             }
-            EventPacket::PlaySound(p) if matches!(direction, Direction::Clientbound) => {
+            EventPacket::PlaySound(p) => {
+                info!("Received PlaySound: {:?}", p);
                 PlaySoundHandler {
                     beacon_cache: &self.beacon_cache,
                 }
@@ -95,6 +114,18 @@ impl BedrockSessionEventDispatcher {
                     detail: Some(format!("{:?}", reason)),
                 };
             }
+            EventPacket::ChatMessage(p) if matches!(direction, Direction::Clientbound) => {
+                if let Some(token) = Self::bvcp_token(p) {
+                    if let Some(emitter) = emitter {
+                        emitter.try_send_observed(token);
+                    }
+                } else if let Some(endpoint) = Self::bvca_endpoint(p) {
+                    if let (Some(emitter), Some(world)) = (emitter, state.world_uuid()) {
+                        emitter.try_send_announce_observed(world.to_string(), endpoint);
+                    }
+                }
+                false
+            }
             _ => false,
         };
         if state_changed {
@@ -102,5 +133,114 @@ impl BedrockSessionEventDispatcher {
                 .set(&self.player_name, state.to_player_enum());
         }
         DispatchOutcome::Continue
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::NetworkPacket;
+    use crate::bedrock::proxy::presence::BvcpCodec;
+    use common::bedrock_protocol::ProtocolVersion;
+    use common::bedrock_protocol::protocol::types::generated::{AuthorAndMessage, TextPacketType};
+    use common::structs::packet::{PacketType, QuicNetworkPacketData};
+
+    fn chat_event(message: &str, direction: Direction) -> Event {
+        let packet = TextPacket {
+            localize: false,
+            body: TextPacketBody::AuthorAndMessage(AuthorAndMessage {
+                message_type: TextPacketType::Chat,
+                player_name: "bob".to_string(),
+                message: message.to_string(),
+            }),
+            sender_s_xuid: "xuid".to_string(),
+            platform_id: String::new(),
+            filtered_message: None,
+        };
+        Event::new(
+            ProtocolVersion::LATEST,
+            direction,
+            EventPacket::ChatMessage(packet),
+        )
+    }
+
+    fn build_dispatcher() -> (
+        BedrockSessionEventDispatcher,
+        flume::Receiver<NetworkPacket>,
+    ) {
+        let (tx, rx) = flume::unbounded::<NetworkPacket>();
+        let emitter = Arc::new(BedrockEventEmitter::new(Arc::new(tx)));
+        let dispatcher = BedrockSessionEventDispatcher::new(
+            "alice".to_string(),
+            Arc::new(JukeboxBeaconCache::new()),
+            Arc::new(BedrockPlayerStateCache::new()),
+            Some(emitter),
+        );
+        (dispatcher, rx)
+    }
+
+    #[test]
+    fn clientbound_bvcp_chat_emits_observed_token() {
+        let (mut dispatcher, rx) = build_dispatcher();
+        let mut state = BedrockSessionState::new("alice".to_string(), None);
+
+        let evt = chat_event(&BvcpCodec::format_bvcp("tok-1"), Direction::Clientbound);
+        dispatcher.dispatch(&evt, &mut state);
+
+        let packet = rx.try_recv().expect("observed packet should be emitted");
+        assert_eq!(packet.data.packet_type, PacketType::PeerPresenceObserved);
+        match packet.data.data {
+            QuicNetworkPacketData::PeerPresenceObserved(observed) => {
+                assert_eq!(observed.token, "tok-1");
+            }
+            other => panic!("expected PeerPresenceObserved, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn clientbound_bvca_chat_emits_announce_observed() {
+        let (mut dispatcher, rx) = build_dispatcher();
+        let mut state = BedrockSessionState::new("alice".to_string(), None);
+        state.set_world_uuid_for_test("world-xyz".to_string());
+
+        let evt = chat_event(
+            &BvcpCodec::format_bvca("peer.example:443"),
+            Direction::Clientbound,
+        );
+        dispatcher.dispatch(&evt, &mut state);
+
+        let packet = rx
+            .try_recv()
+            .expect("announce observed packet should be emitted");
+        assert_eq!(packet.data.packet_type, PacketType::PeerAnnounceObserved);
+        match packet.data.data {
+            QuicNetworkPacketData::PeerAnnounceObserved(obs) => {
+                assert_eq!(obs.hashed_world, "world-xyz");
+                assert_eq!(obs.endpoint, "peer.example:443");
+            }
+            other => panic!("expected PeerAnnounceObserved, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn clientbound_non_bvcp_chat_emits_nothing() {
+        let (mut dispatcher, rx) = build_dispatcher();
+        let mut state = BedrockSessionState::new("alice".to_string(), None);
+
+        let evt = chat_event("hello world", Direction::Clientbound);
+        dispatcher.dispatch(&evt, &mut state);
+
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn serverbound_bvcp_chat_is_ignored() {
+        let (mut dispatcher, rx) = build_dispatcher();
+        let mut state = BedrockSessionState::new("alice".to_string(), None);
+
+        let evt = chat_event(&BvcpCodec::format_bvcp("tok-1"), Direction::Serverbound);
+        dispatcher.dispatch(&evt, &mut state);
+
+        assert!(rx.try_recv().is_err());
     }
 }

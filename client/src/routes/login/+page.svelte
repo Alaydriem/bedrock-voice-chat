@@ -27,9 +27,11 @@
   let loginState = $state<LoginState>('idle');
   let attemptServer = $state("");      // server shown in connecting/error views
   let isHandoff = $state(false);       // success: external auth URL opened
+  let isFinishing = $state(false);     // user returned from the browser; finalizing
   let lastLoginKind = $state<LoginKind>('ms');
   let fidgetIndex = $state(0);
   let spinnerFrame = $state(0);
+  let ringAngle = $state(0);
 
   // Braille spinner frames cycled while connecting, mirroring the indicator
   // CLI tools render when working.
@@ -38,29 +40,90 @@
   // attempt and on cancel so a late-resolving request can't clobber the UI.
   let attemptId = 0;
 
+  // Once the user returns from the external browser we expect the auth callback
+  // to either navigate away (success) or surface an error within this window.
+  // If neither happens the deep link was likely lost, so we fail visibly rather
+  // than stranding the user on a spinner.
+  const FINISH_TIMEOUT_MS = 30000;
+  let finishWatchdog: ReturnType<typeof setTimeout> | null = null;
+  // Tracks a genuine background->foreground transition during handoff. Only a
+  // real app resume (mobile) should start the finishing flow; a desktop window
+  // that merely keeps focus while the browser is open must not.
+  let wasHiddenDuringHandoff = false;
+
   let appInstance: Login | null = $state(null);
   const unsubs: Array<() => void> = [];
 
-  // Cycle the "connecting" status phrases while an attempt is genuinely in
-  // flight. Stops once we hand off to the browser or settle into idle/error.
-  $effect(() => {
-    if (loginState !== 'connecting' || isHandoff) return;
-    fidgetIndex = 0;
-    const phraseId = setInterval(() => {
-      fidgetIndex = (fidgetIndex + 1) % CONNECTING_STATUS_PHRASES.length;
-    }, 1600);
+  function clearFinishWatchdog(): void {
+    if (finishWatchdog !== null) {
+      clearTimeout(finishWatchdog);
+      finishWatchdog = null;
+    }
+  }
 
-    spinnerFrame = 0;
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const spinnerId = reduceMotion ? null : setInterval(() => {
-      spinnerFrame = (spinnerFrame + 1) % BRAILLE_FRAMES.length;
-    }, 90);
+  // Drive the spinner from JS so motion survives Android WebView settings that
+  // suppress CSS animations (reduced-motion / animator duration scale = 0). Runs
+  // while genuinely connecting and while finalizing after the browser handoff.
+  $effect(() => {
+    const moving = loginState === 'connecting' && (!isHandoff || isFinishing);
+    if (!moving) return;
+
+    let tick = 0;
+    const motionId = setInterval(() => {
+      ringAngle = (ringAngle + 14) % 360;
+      tick = (tick + 1) % 3;
+      if (tick === 0) spinnerFrame = (spinnerFrame + 1) % BRAILLE_FRAMES.length;
+    }, 40);
+
+    // The cycling status copy only makes sense before the handoff.
+    let phraseId: ReturnType<typeof setInterval> | null = null;
+    if (!isFinishing) {
+      fidgetIndex = 0;
+      phraseId = setInterval(() => {
+        fidgetIndex = (fidgetIndex + 1) % CONNECTING_STATUS_PHRASES.length;
+      }, 1600);
+    }
 
     return () => {
-      clearInterval(phraseId);
-      if (spinnerId) clearInterval(spinnerId);
+      clearInterval(motionId);
+      if (phraseId) clearInterval(phraseId);
     };
   });
+
+  // Surface an auth-callback failure persisted by the deep-link handler: stop
+  // any finishing/handoff view and drop back to the editable form with a warning.
+  function surfaceAuthError(message: string): void {
+    clearFinishWatchdog();
+    attemptId++;
+    isHandoff = false;
+    isFinishing = false;
+    wasHiddenDuringHandoff = false;
+    loginState = 'idle';
+    appInstance?.reportError(message);
+  }
+
+  function beginFinishing(): void {
+    isFinishing = true;
+    clearFinishWatchdog();
+    finishWatchdog = setTimeout(() => {
+      if (loginState === 'connecting') {
+        isHandoff = false;
+        isFinishing = false;
+        loginState = 'error';
+      }
+    }, FINISH_TIMEOUT_MS);
+  }
+
+  function handleVisibilityChange(): void {
+    if (loginState !== 'connecting' || !isHandoff) return;
+    if (document.visibilityState === 'hidden') {
+      wasHiddenDuringHandoff = true;
+      return;
+    }
+    if (document.visibilityState === 'visible' && wasHiddenDuringHandoff && !isFinishing) {
+      beginFinishing();
+    }
+  }
 
   onMount(() => {
     const instance = new Login();
@@ -77,11 +140,15 @@
       // not be swallowed by the connecting view - drop back to idle so the
       // inline message is actually visible.
       if (v && loginState !== 'idle') {
+        clearFinishWatchdog();
         isHandoff = false;
+        isFinishing = false;
         loginState = 'idle';
       }
     }));
     unsubs.push(instance.serverInputInvalid.subscribe((v) => { serverInputInvalid = v; }));
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     (async () => {
       const pageState = await instance.initializePage();
@@ -92,21 +159,42 @@
         serverInputValue = pageState.prefilledServer;
         isCodeLogin = Login.isCodeLoginInput(serverInputValue);
       }
-      if (pageState.autoReauth) {
+
+      // A callback that completed before this mount (e.g. a cold-started OAuth
+      // return) leaves its error in the store; surface it now.
+      const pendingError = await instance.consumeAuthError();
+      if (pendingError) {
+        surfaceAuthError(pendingError);
+      }
+
+      // Observe failures from a callback that resolves while this page stays
+      // mounted (the warm OAuth return path).
+      const unwatch = await instance.watchAuthError((message) => {
+        instance.consumeAuthError().catch(() => {});
+        surfaceAuthError(message);
+      });
+      unsubs.push(unwatch);
+
+      if (pageState.autoReauth && loginState === 'idle' && !formError) {
         await runLogin('ms');
       }
     })();
   });
 
   onDestroy(() => {
+    clearFinishWatchdog();
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
     for (const unsub of unsubs) unsub();
   });
 
   function applyResult(result: LoginAttemptResult): void {
     switch (result.status) {
       case 'redirecting':
-        // Auth URL opened in the system browser; hold the connecting view.
+        // Auth URL opened in the system browser; hold the connecting view and
+        // arm the return detector so we know when the user comes back.
         isHandoff = true;
+        isFinishing = false;
+        wasHiddenDuringHandoff = false;
         break;
       case 'error':
         attemptServer = result.sanitized;
@@ -148,7 +236,10 @@
     appInstance.clearError();
     attemptServer = appInstance.sanitizeServerUrl(value);
     serverInputValue = attemptServer;
+    clearFinishWatchdog();
     isHandoff = false;
+    isFinishing = false;
+    wasHiddenDuringHandoff = false;
     loginState = 'connecting';
 
     const myAttempt = ++attemptId;
@@ -195,7 +286,10 @@
     attemptId++;
     appInstance?.cancelHytalePolling();
     appInstance?.clearError();
+    clearFinishWatchdog();
     isHandoff = false;
+    isFinishing = false;
+    wasHiddenDuringHandoff = false;
     loginState = 'idle';
     serverInputValue = attemptServer;
   }
@@ -317,7 +411,7 @@
 
           {:else if loginState === 'connecting'}
             <div class="card mt-5 rounded-lg p-5 lg:p-7 text-center" in:fade={{ duration: 220 }} role="status" aria-live="polite">
-              {#if isHandoff}
+              {#if isHandoff && !isFinishing}
                 <div class="bvc-ring bvc-ring--success mx-auto"></div>
                 <p class="mt-4 text-sm font-medium text-slate-600 dark:text-navy-50">
                   Connected — opening sign-in…
@@ -325,8 +419,17 @@
                 <p class="mt-1 text-tiny+ text-slate-400 dark:text-navy-300 font-inter">
                   Continue in the window that just opened.
                 </p>
+              {:else if isFinishing}
+                <div class="bvc-ring mx-auto" style="transform: rotate({ringAngle}deg)"></div>
+                <p class="mt-4 text-sm font-semibold text-slate-600 dark:text-navy-50">
+                  Finishing sign-in…
+                </p>
+                <div class="mt-4 flex items-center justify-center gap-2.5 min-h-[22px] font-inter">
+                  <span class="bvc-spinner text-primary dark:text-accent-light" aria-hidden="true">{BRAILLE_FRAMES[spinnerFrame]}</span>
+                  <span class="text-xs+ text-slate-400 dark:text-navy-300">Completing authentication…</span>
+                </div>
               {:else}
-                <div class="bvc-ring mx-auto"></div>
+                <div class="bvc-ring mx-auto" style="transform: rotate({ringAngle}deg)"></div>
                 <p class="mt-4 text-sm font-semibold text-slate-600 dark:text-navy-50">
                   Connecting to<br />
                   <span class="break-all text-primary dark:text-accent-light">{attemptServer}</span>…
@@ -417,14 +520,9 @@
     border-radius: 9999px;
     border: 3px solid rgb(148 163 184 / 0.35);
     border-top-color: #5f5af6;
-    animation: bvc-spin 0.9s linear infinite;
   }
   .bvc-ring--success {
     border-top-color: #10b981;
-    animation: none;
-  }
-  @keyframes bvc-spin {
-    to { transform: rotate(360deg); }
   }
 
   .bvc-spinner {
@@ -462,7 +560,6 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .bvc-ring { animation-duration: 1.6s; }
     .bvc-shimmer { animation: none; }
     .bvc-shimmer { -webkit-text-fill-color: currentColor; }
   }

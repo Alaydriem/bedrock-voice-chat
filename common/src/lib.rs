@@ -6,14 +6,15 @@ pub mod errors;
 pub use serde::{Deserialize, Serialize};
 
 pub mod consts;
+pub mod game_data;
+pub mod players;
 pub mod request;
 pub mod response;
 #[cfg(feature = "quic")]
 pub mod rustls;
 pub mod structs;
+pub mod tls;
 pub mod traits;
-pub mod players;
-pub mod game_data;
 
 // Re-export error types
 pub use errors::{
@@ -39,13 +40,13 @@ pub use bedrock_protocol;
 pub use bedrock_server;
 
 // Re-export game types for backward compatibility
-pub use structs::game::{Game, Coordinate, Orientation, Player, GameData};
+pub use structs::game::{Coordinate, Game, GameData, Orientation, Player};
 
 // Re-export important types for easy access
 pub use structs::players::PlayerSource;
 pub use structs::recording::{RecordingPlayerData, SessionManifest};
 
 // Re-export new player system types
+pub use game_data::{Dimension, GameDataCollection, HytaleDimension};
 pub use players::{GenericPlayer, HytalePlayer, MinecraftPlayer, PlayerEnum};
-pub use game_data::{GameDataCollection, Dimension, HytaleDimension};
 pub use traits::player_data::{PlayerData as PlayerDataTrait, SpatialPlayer};

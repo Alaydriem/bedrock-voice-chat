@@ -1,5 +1,5 @@
-use anyhow::{anyhow, Error};
-use base64::{engine::general_purpose, Engine as _};
+use anyhow::{Error, anyhow};
+use base64::{Engine as _, engine::general_purpose};
 use serde::{Deserialize, Serialize};
 
 use moka::future::Cache;
@@ -82,14 +82,16 @@ impl QuicNetworkPacket {
                     match data {
                         Ok(mut data) => {
                             if data.sender.is_none() {
-                                if let Some(sender_player) = player_data.get(&self.get_author()).await {
+                                if let Some(sender_player) =
+                                    player_data.get(&self.get_author()).await
+                                {
                                     data.sender = Some(sender_player);
                                     let audio_frame: QuicNetworkPacketData =
                                         QuicNetworkPacketData::AudioFrame(data);
                                     self.data = audio_frame;
                                 }
                             }
-                        },
+                        }
                         Err(_) => {
                             tracing::error!("Could not downcast reference packet to audio frame");
                         }

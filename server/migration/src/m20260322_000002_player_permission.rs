@@ -20,10 +20,26 @@ impl MigrationTrait for Migration {
                             .auto_increment()
                             .primary_key(),
                     )
-                    .col(ColumnDef::new(PlayerPermission::PlayerId).integer().not_null())
-                    .col(ColumnDef::new(PlayerPermission::Permission).string().not_null())
-                    .col(ColumnDef::new(PlayerPermission::Effect).integer().not_null())
-                    .col(ColumnDef::new(PlayerPermission::CreatedAt).big_integer().not_null())
+                    .col(
+                        ColumnDef::new(PlayerPermission::PlayerId)
+                            .integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(PlayerPermission::Permission)
+                            .string()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(PlayerPermission::Effect)
+                            .integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(PlayerPermission::CreatedAt)
+                            .big_integer()
+                            .not_null(),
+                    )
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk_player_permission_player")

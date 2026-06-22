@@ -1,7 +1,7 @@
 use crate::config::Server;
 use rocket::{
-    http::{ContentType, Status},
     State,
+    http::{ContentType, Status},
 };
 
 pub struct AssetsHandler;
@@ -20,15 +20,11 @@ impl AssetsHandler {
 }
 
 #[get("/avatar.png")]
-pub async fn get_avatar(
-    config: &State<Server>,
-) -> Result<(ContentType, Vec<u8>), Status> {
+pub async fn get_avatar(config: &State<Server>) -> Result<(ContentType, Vec<u8>), Status> {
     AssetsHandler::serve(&config.assets_path, "avatar.png").ok_or(Status::NotFound)
 }
 
 #[get("/canvas.png")]
-pub async fn get_canvas(
-    config: &State<Server>,
-) -> Result<(ContentType, Vec<u8>), Status> {
+pub async fn get_canvas(config: &State<Server>) -> Result<(ContentType, Vec<u8>), Status> {
     AssetsHandler::serve(&config.assets_path, "canvas.png").ok_or(Status::NotFound)
 }

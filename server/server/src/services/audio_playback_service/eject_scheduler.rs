@@ -2,11 +2,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
+use common::Coordinate;
 use common::structs::packet::{
     BedrockEvent, BedrockEventDirection, BedrockEventPacket, PacketType, QuicNetworkPacket,
     QuicNetworkPacketData,
 };
-use common::Coordinate;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
@@ -56,7 +56,9 @@ impl EjectScheduler {
 
         let handle = tokio::spawn(async move {
             tokio::time::sleep(duration).await;
-            scheduler.fire(event_id_for_task, world_uuid, block_pos).await;
+            scheduler
+                .fire(event_id_for_task, world_uuid, block_pos)
+                .await;
         });
 
         let mut pending = self.pending.lock().await;
@@ -136,7 +138,11 @@ mod tests {
             .schedule(
                 "evt-1".to_string(),
                 "world-x".to_string(),
-                Coordinate { x: 0.0, y: 0.0, z: 0.0 },
+                Coordinate {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
                 Duration::from_secs(60),
             )
             .await;
@@ -146,9 +152,7 @@ mod tests {
         assert!(pending.is_empty());
     }
 
-    async fn build_bedrock_event_service(
-        webhook: WebhookReceiver,
-    ) -> Arc<BedrockEventService> {
+    async fn build_bedrock_event_service(webhook: WebhookReceiver) -> Arc<BedrockEventService> {
         let db = sea_orm::Database::connect("sqlite::memory:")
             .await
             .expect("in-memory sqlite");
@@ -159,6 +163,8 @@ mod tests {
                 String::new(),
                 tokio_util::sync::CancellationToken::new(),
                 1,
+                None,
+                crate::relay::RelayAudioPuller::new_shared(),
             )),
             webhook,
             conn,

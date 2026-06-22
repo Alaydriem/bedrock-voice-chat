@@ -1,6 +1,6 @@
 use clap::Parser;
-use common::structs::permission::{Permission, PermissionEffect};
 use common::Game;
+use common::structs::permission::{Permission, PermissionEffect};
 use entity::player;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 

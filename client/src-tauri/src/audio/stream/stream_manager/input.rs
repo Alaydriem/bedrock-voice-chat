@@ -1,23 +1,23 @@
 use super::resampler::AudioResampler;
 
 use super::AudioFrame;
+use super::input_core::InputProcessCore;
+use super::source::{AudioInputSource, CaptureConfig};
+use crate::NetworkPacket;
 use crate::audio::recording::{RawRecordingData, RecordingProducer};
-use crate::audio::stream::{RecoverySender, StreamRecoveryEvent};
-use crate::audio::types::{AudioDevice, AudioDeviceCpal, AudioDeviceType, BUFFER_SIZE};
+use crate::audio::stream::RecoverySender;
+use crate::audio::types::{AudioDevice, BUFFER_SIZE};
 #[cfg(feature = "bedrock-protocol")]
 use crate::bedrock::BedrockPlayerStateCache;
-use crate::{NetworkPacket, audio::stream::stream_manager::AudioFrameData};
 use anyhow::anyhow;
 use audio_gate::NoiseGate;
 use common::RecordingPlayerData;
 use common::consts::OPUS_FRAME_DURATION_MS;
 use common::structs::audio::{NoiseGateSettings, StreamEvent};
 use common::structs::packet::{AudioFramePacket, QuicNetworkPacket, QuicNetworkPacketData};
-use log::{debug, error, warn};
+use log::{error, warn};
 use once_cell::sync::Lazy;
 use opus2::Bitrate;
-use rodio::DeviceTrait;
-use rodio::cpal::traits::StreamTrait as CpalStreamTrait;
 use std::{
     sync::{
         Arc, Mutex,
@@ -29,10 +29,11 @@ use tauri_plugin_store::StoreExt;
 use tokio::task::{AbortHandle, JoinHandle};
 
 /// Indicator for if the Input Stream should be muted
-static MUTE_INPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
-static USE_NOISE_GATE: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
-static UPDATE_NOISE_GATE_SETTINGS: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
-static NOISE_GATE_SETTINGS: Lazy<Mutex<serde_json::Value>> = Lazy::new(|| {
+pub(crate) static MUTE_INPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
+pub(crate) static USE_NOISE_GATE: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
+pub(crate) static UPDATE_NOISE_GATE_SETTINGS: Lazy<AtomicBool> =
+    Lazy::new(|| AtomicBool::new(false));
+pub(crate) static NOISE_GATE_SETTINGS: Lazy<Mutex<serde_json::Value>> = Lazy::new(|| {
     Mutex::new(
         serde_json::to_value(NoiseGateSettings::default())
             .expect("Failed to serialize NoiseGateSettings"),
@@ -41,6 +42,7 @@ static NOISE_GATE_SETTINGS: Lazy<Mutex<serde_json::Value>> = Lazy::new(|| {
 
 pub(crate) struct InputStream {
     pub device: Option<AudioDevice>,
+    source: AudioInputSource,
     pub bus: Arc<flume::Sender<NetworkPacket>>,
     jobs: Vec<AbortHandle>,
     shutdown: Arc<AtomicBool>,
@@ -143,8 +145,15 @@ impl common::traits::StreamTrait for InputStream {
                 anyhow!("Cannot start input stream without current_player set in store")
             })?;
 
+        // Resolve capture parameters once for the active source variant. Both
+        // the listener (gate/resampler/core) and the sender (Opus StreamConfig)
+        // derive from this, so neither branches on the source kind.
+        let capture_config = self.source.resolve_config(&self.device)?;
+        let source_sample_rate = capture_config.sample_rate;
+        let source_channels = capture_config.channels;
+
         // Start the audio input listener thread
-        match self.listener(producer, self.shutdown.clone()) {
+        match self.listener(capture_config, producer, self.shutdown.clone()) {
             Ok(job) => jobs.push(job),
             Err(e) => {
                 error!("input listener encountered an error: {:?}", e);
@@ -158,6 +167,8 @@ impl common::traits::StreamTrait for InputStream {
             self.shutdown.clone(),
             current_player_name,
             self.recording_active.clone(),
+            source_sample_rate,
+            source_channels,
         ) {
             Ok(job) => jobs.push(job),
             Err(e) => {
@@ -174,17 +185,20 @@ impl common::traits::StreamTrait for InputStream {
 impl InputStream {
     pub fn new(
         device: Option<AudioDevice>,
+        source: AudioInputSource,
         bus: Arc<flume::Sender<NetworkPacket>>,
         metadata: Arc<moka::future::Cache<String, String>>,
         app_handle: tauri::AppHandle,
         recording_producer: Option<Arc<RecordingProducer>>,
         recording_active: Option<Arc<AtomicBool>>,
         recovery_tx: RecoverySender,
-        #[cfg(feature = "bedrock-protocol")]
-        player_state_cache: Option<Arc<BedrockPlayerStateCache>>,
+        #[cfg(feature = "bedrock-protocol")] player_state_cache: Option<
+            Arc<BedrockPlayerStateCache>,
+        >,
     ) -> Self {
         Self {
             device,
+            source,
             bus,
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),
@@ -199,399 +213,88 @@ impl InputStream {
         }
     }
 
-    // Produces raw PCM data and sends it to the network consumer
+    // Builds the noise gate, resampler, and processing core from the resolved
+    // capture config, then hands the core's push sink to the active source. The
+    // source decides where frames originate — a live cpal callback or the test
+    // bridge — while the gate/resampler/core wiring stays identical for both.
     fn listener(
         &mut self,
+        config: CaptureConfig,
         producer: flume::Sender<AudioFrame>,
         shutdown: Arc<AtomicBool>,
     ) -> Result<JoinHandle<()>, anyhow::Error> {
-        // Clone recovery_tx for use in the thread
         let recovery_tx = self.recovery_tx.clone();
+        let device = self.device.clone();
 
-        match self.device.clone() {
-            Some(device) => match device.get_stream_config() {
-                Ok(stored_config) => {
-                    // Validate stored config against live device - detect Windows sound settings changes
-                    let config = match crate::audio::device::refresh_device_config(&device) {
-                        Some(fresh_configs) if !fresh_configs.is_empty() => {
-                            let fresh_config: rodio::cpal::SupportedStreamConfig =
-                                fresh_configs[0].clone().into();
-                            if fresh_config.sample_rate() != stored_config.sample_rate() {
-                                warn!(
-                                    "Device {} sample rate changed: stored {}Hz, actual {}Hz. Using actual.",
-                                    device.display_name,
-                                    stored_config.sample_rate(),
-                                    fresh_config.sample_rate()
-                                );
-                            }
-                            fresh_config
-                        }
-                        _ => {
-                            warn!(
-                                "Could not refresh device config for {}, using stored config",
-                                device.display_name
-                            );
-                            stored_config
-                        }
-                    };
+        let source = std::mem::replace(&mut self.source, AudioInputSource::Cpal);
 
-                    let cpal_device = device.clone().to_cpal_device();
+        let sample_rate = config.sample_rate;
+        let channels = config.channels;
 
-                    match cpal_device {
-                        Some(cpal_device) => {
-                            // Create oneshot channel for clean shutdown signaling
-                            let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
-                            self.shutdown_tx = Some(shutdown_tx);
+        let settings = NOISE_GATE_SETTINGS.lock().unwrap();
+        let noise_gate_settings =
+            match serde_json::from_value::<NoiseGateSettings>(settings.clone()) {
+                Ok(settings) => settings,
+                Err(_) => NoiseGateSettings::default(),
+            };
+        drop(settings);
 
-                            let _thread_handle = std::thread::Builder::new()
-                                .name("audio-input".into())
-                                .spawn(move || {
-                                // Clone for error handling
-                                let recovery_tx_for_error = recovery_tx.clone();
-                                let shutdown_for_error = shutdown.clone();
-                                // Mobile audio backends (CoreAudio on iOS, AAudio on Android)
-                                // should use the default buffer size, otherwise the
-                                // InputStream may fail to initialize or produce no audio
-                                #[cfg(any(target_os = "ios", target_os = "android"))]
-                                let buffer_size = rodio::cpal::BufferSize::Default;
-
-                                #[cfg(not(any(target_os = "ios", target_os = "android")))]
-                                let buffer_size = rodio::cpal::BufferSize::Fixed(crate::audio::types::BUFFER_SIZE);
-
-                                let cpal_device = cpal_device.clone();
-                                let device = device.clone();
-                                let device_config = rodio::cpal::StreamConfig {
-                                    channels: config.channels(),
-                                    sample_rate: config.sample_rate(),
-                                    buffer_size,
-                                };
-
-                                log::info!("Input Stream Config: {:?} {:?}", config.channels(), config.sample_rate());
-
-                                let settings = NOISE_GATE_SETTINGS.lock().unwrap();
-                                let noise_gate_settings =
-                                    match serde_json::from_value::<NoiseGateSettings>(settings.clone())
-                                    {
-                                        Ok(settings) => settings,
-                                        Err(_) => NoiseGateSettings::default(),
-                                    };
-
-                                let mut gate = NoiseGate::new(
-                                    noise_gate_settings.open_threshold,
-                                    noise_gate_settings.close_threshold,
-                                    device_config.sample_rate as f32,
-                                    match device_config.channels.into() {
-                                        1 => 1,
-                                        2 => 2,
-                                        _ => 2,
-                                    },
-                                    noise_gate_settings.release_rate,
-                                    noise_gate_settings.attack_rate,
-                                    noise_gate_settings.hold_time,
-                                );
-
-                                drop(settings);
-
-                                // Error callback - signals shutdown and triggers recovery
-                                let error_fn = move |error: rodio::cpal::StreamError| {
-                                    error!("Audio stream error (device may have disconnected): {}", error);
-                                    shutdown_for_error.store(true, Ordering::Relaxed);
-
-                                    let _ = recovery_tx_for_error.send(StreamRecoveryEvent::DeviceError {
-                                        device_type: AudioDeviceType::InputDevice,
-                                        error: error.to_string(),
-                                    });
-                                };
-
-                                let callback_count = 0u64;
-                                let mut consecutive_silent_frames: u32 = 0;
-
-                                // Trailing frame count scales with release_rate (20ms per frame at 48kHz)
-                                let mut tail_frame_count: u32 =
-                                    (noise_gate_settings.release_rate / OPUS_FRAME_DURATION_MS as f32)
-                                        .ceil()
-                                        .max(2.0) as u32;
-
-                                // Pre-allocate buffer for in-place processing (dynamically sized for variable buffer sizes)
-                                let mut pcm_buffer: Vec<f32> = vec![0.0; 4096];
-
-                                // Create resampler if device sample rate is not 48 kHz
-                                let mut audio_resampler = match AudioResampler::new_if_needed(device_config.sample_rate) {
-                                    Some(Ok(r)) => {
-                                        warn!(
-                                            "Input device sample rate {} Hz requires resampling to 48 kHz. \
-                                             For optimal performance, use a device that supports 48 kHz natively.",
-                                            device_config.sample_rate
-                                        );
-                                        Some(r)
-                                    }
-                                    Some(Err(e)) => {
-                                        error!("Failed to create audio resampler: {:?}", e);
-                                        None
-                                    }
-                                    None => None,
-                                };
-
-                                let process_fn = move |data: &[f32]| {
-                                    let len = data.len();
-
-                                    if pcm_buffer.len() < len {
-                                        pcm_buffer.resize(len, 0.0);
-                                    }
-
-                                    pcm_buffer[..len].copy_from_slice(data);
-
-                                    // If the noise gate is enabled, process data through it
-                                    if USE_NOISE_GATE.load(Ordering::Relaxed) {
-                                        // If there is a pending update, apply it, then disable the lock check
-                                        if UPDATE_NOISE_GATE_SETTINGS.load(Ordering::Relaxed) {
-                                            let current_settings = NOISE_GATE_SETTINGS.lock().unwrap();
-                                            match serde_json::from_value::<NoiseGateSettings>(
-                                                current_settings.clone(),
-                                            ) {
-                                                Ok(settings) => {
-                                                    log::info!(
-                                                        "Updating noise gate settings: {:?}",
-                                                        settings
-                                                    );
-                                                    gate.update(
-                                                        settings.open_threshold,
-                                                        settings.close_threshold,
-                                                        settings.release_rate,
-                                                        settings.attack_rate,
-                                                        settings.hold_time,
-                                                    );
-
-                                                    tail_frame_count =
-                                                        (settings.release_rate / OPUS_FRAME_DURATION_MS as f32)
-                                                            .ceil()
-                                                            .max(2.0)
-                                                            as u32;
-                                                }
-                                                Err(e) => {
-                                                    warn!("Noise gate settings were asked to update, but failed to deserialize: {}", e);
-                                                }
-                                            };
-                                            drop(current_settings);
-
-                                            UPDATE_NOISE_GATE_SETTINGS.store(false, Ordering::Relaxed);
-                                        }
-
-                                        // Process the frame in-place through the gate
-                                        gate.process_frame(&mut pcm_buffer[..len]);
-                                    }
-
-                                    // Convert to mono if stereo
-                                    let mono_pcm: Vec<f32> = if device_config.channels == 2 {
-                                        pcm_buffer[..len].chunks_exact(2)
-                                            .map(|lr| (lr[0] + lr[1]) / 2.0)
-                                            .collect()
-                                    } else {
-                                        pcm_buffer[..len].to_vec()
-                                    };
-
-                                    // Resample 44.1 kHz → 48 kHz if needed
-                                    let mono_pcm = if let Some(ref mut rs) = audio_resampler {
-                                        rs.process(&mono_pcm)
-                                    } else {
-                                        mono_pcm
-                                    };
-
-                                    let is_silent = mono_pcm.iter().all(|&e| f32::abs(e) == 0.0);
-                                    let is_muted = MUTE_INPUT_STREAM.load(Ordering::Relaxed);
-
-                                    if is_muted {
-                                        // Hard mute: reset state, send nothing
-                                        consecutive_silent_frames = 0;
-                                    } else if !is_silent {
-                                        // Gate is open — real audio, reset counter, send frame
-                                        consecutive_silent_frames = 0;
-
-                                        let captured_at_ms = std::time::SystemTime::now()
-                                            .duration_since(std::time::UNIX_EPOCH)
-                                            .unwrap_or_default()
-                                            .as_millis() as u64;
-
-                                        match producer.try_send(AudioFrame::F32(AudioFrameData {
-                                            pcm: mono_pcm,
-                                            captured_at_ms,
-                                        })) {
-                                            Ok(()) => { }
-                                            Err(_e) => {}
-                                        }
-                                    } else if consecutive_silent_frames < tail_frame_count {
-                                        // Gate just closed — send trailing silence frame
-                                        consecutive_silent_frames += 1;
-
-                                        let captured_at_ms = std::time::SystemTime::now()
-                                            .duration_since(std::time::UNIX_EPOCH)
-                                            .unwrap_or_default()
-                                            .as_millis() as u64;
-
-                                        match producer.try_send(AudioFrame::F32(AudioFrameData {
-                                            pcm: mono_pcm,
-                                            captured_at_ms,
-                                        })) {
-                                            Ok(()) => { }
-                                            Err(_e) => {}
-                                        }
-                                    }
-                                };
-
-                                // Wrap process_fn in Arc<Mutex<>> so it can be shared across fallback attempts
-                                let process_fn = std::sync::Arc::new(std::sync::Mutex::new(process_fn));
-
-                                // Helper to build stream with a given config
-                                let build_stream = |cfg: &rodio::cpal::StreamConfig,
-                                                    process: std::sync::Arc<std::sync::Mutex<dyn FnMut(&[f32]) + Send>>,
-                                                    err_fn: Box<dyn FnMut(rodio::cpal::StreamError) + Send>|
-                                    -> Result<rodio::cpal::Stream, rodio::cpal::BuildStreamError> {
-                                    match config.sample_format() {
-                                        rodio::cpal::SampleFormat::F32 => {
-                                            let process = process.clone();
-                                            cpal_device.build_input_stream(
-                                                cfg,
-                                                move |data: &[f32], _: &rodio::cpal::InputCallbackInfo| {
-                                                    if let Ok(mut pf) = process.lock() {
-                                                        pf(data);
-                                                    }
-                                                },
-                                                err_fn,
-                                                None,
-                                            )
-                                        }
-                                        rodio::cpal::SampleFormat::I32 => {
-                                            let process = process.clone();
-                                            cpal_device.build_input_stream(
-                                                cfg,
-                                                move |data: &[i32], _: &rodio::cpal::InputCallbackInfo| {
-                                                    const SCALE: f32 = 2147483648.0;
-                                                    let f32_data: Vec<f32> = data
-                                                        .iter()
-                                                        .map(|&sample| sample as f32 / SCALE)
-                                                        .collect();
-                                                    if let Ok(mut pf) = process.lock() {
-                                                        pf(&f32_data);
-                                                    }
-                                                },
-                                                err_fn,
-                                                None,
-                                            )
-                                        }
-                                        rodio::cpal::SampleFormat::I16 => {
-                                            let process = process.clone();
-                                            cpal_device.build_input_stream(
-                                                cfg,
-                                                move |data: &[i16], _: &rodio::cpal::InputCallbackInfo| {
-                                                    const SCALE: f32 = 32768.0;
-                                                    let f32_data: Vec<f32> = data
-                                                        .iter()
-                                                        .map(|&sample| sample as f32 / SCALE)
-                                                        .collect();
-                                                    if let Ok(mut pf) = process.lock() {
-                                                        pf(&f32_data);
-                                                    }
-                                                },
-                                                err_fn,
-                                                None,
-                                            )
-                                        }
-                                        _ => {
-                                            Err(rodio::cpal::BuildStreamError::StreamConfigNotSupported)
-                                        }
-                                    }
-                                };
-
-                                // Try building with the requested buffer size first
-                                let stream = build_stream(
-                                    &device_config,
-                                    process_fn.clone(),
-                                    Box::new(error_fn),
-                                );
-
-                                // If StreamConfigNotSupported and we used Fixed buffer, retry with Default
-                                let stream = match stream {
-                                    Err(rodio::cpal::BuildStreamError::StreamConfigNotSupported)
-                                        if device_config.buffer_size != rodio::cpal::BufferSize::Default =>
-                                    {
-                                        warn!(
-                                            "Fixed buffer size not supported for input {}, falling back to default buffer size",
-                                            device.display_name
-                                        );
-                                        let fallback_config = rodio::cpal::StreamConfig {
-                                            buffer_size: rodio::cpal::BufferSize::Default,
-                                            ..device_config
-                                        };
-                                        // Create a new error callback for the retry
-                                        let shutdown_retry = shutdown.clone();
-                                        let recovery_tx_retry = recovery_tx.clone();
-                                        let fallback_error_fn = move |error: rodio::cpal::StreamError| {
-                                            error!("Audio input stream error (device may have disconnected): {}", error);
-                                            shutdown_retry.store(true, Ordering::Relaxed);
-                                            let _ = recovery_tx_retry.send(StreamRecoveryEvent::DeviceError {
-                                                device_type: AudioDeviceType::InputDevice,
-                                                error: error.to_string(),
-                                            });
-                                        };
-                                        build_stream(&fallback_config, process_fn, Box::new(fallback_error_fn))
-                                    }
-                                    other => other,
-                                };
-
-                                match stream {
-                                    Ok(stream) => {
-                                        // Start the stream with proper error handling
-                                        if let Err(e) = stream.play() {
-                                            error!("Failed to start input audio stream: {:?}", e);
-                                            shutdown.store(true, Ordering::Relaxed);
-                                            let _ = recovery_tx.send(StreamRecoveryEvent::DeviceError {
-                                                device_type: AudioDeviceType::InputDevice,
-                                                error: format!("Failed to start input stream: {:?}", e),
-                                            });
-                                            return;
-                                        }
-
-                                        let _ = shutdown_rx.blocking_recv();
-
-                                        if let Err(e) = stream.pause() {
-                                            warn!("Failed to pause stream (may already be stopped): {:?}", e);
-                                        }
-                                        drop(stream);
-                                    }
-                                    Err(e) => {
-                                        error!("{:?}", e);
-                                    }
-                                };
-                            })?;
-
-                            // Return a no-op JoinHandle since the actual work is on the OS thread
-                            // The sender task still runs on tokio and needs a handle
-                            let handle = tokio::spawn(async {});
-                            return Ok(handle);
-                        }
-                        None => {
-                            error!(
-                                "CPAL device not found for {} '{}'. Device may have been disconnected or its ID changed. {:?}",
-                                device.io.store_key(),
-                                device.display_name,
-                                device
-                            );
-                            return Err(anyhow::anyhow!(
-                                "Couldn't retrieve native cpal device for {} {}.",
-                                device.io.store_key(),
-                                device.display_name
-                            ));
-                        }
-                    };
-                }
-                Err(e) => return Err(e),
+        let gate = NoiseGate::new(
+            noise_gate_settings.open_threshold,
+            noise_gate_settings.close_threshold,
+            sample_rate as f32,
+            match channels {
+                1 => 1,
+                2 => 2,
+                _ => 2,
             },
-            None => {
-                return Err(anyhow!(
-                    "InputStream is not initialized with a device! Unable to start stream"
-                ));
+            noise_gate_settings.release_rate,
+            noise_gate_settings.attack_rate,
+            noise_gate_settings.hold_time,
+        );
+
+        // Trailing frame count scales with release_rate (20ms per frame at 48kHz)
+        let tail_frame_count: u32 = (noise_gate_settings.release_rate
+            / OPUS_FRAME_DURATION_MS as f32)
+            .ceil()
+            .max(2.0) as u32;
+
+        // Create resampler if the source sample rate is not 48 kHz
+        let audio_resampler = match AudioResampler::new_if_needed(sample_rate) {
+            Some(Ok(r)) => {
+                warn!(
+                    "Input device sample rate {} Hz requires resampling to 48 kHz. \
+                     For optimal performance, use a device that supports 48 kHz natively.",
+                    sample_rate
+                );
+                Some(r)
             }
+            Some(Err(e)) => {
+                error!("Failed to create audio resampler: {:?}", e);
+                None
+            }
+            None => None,
         };
+
+        // The processing core owns the gate, resampler, buffers, and silence/tail
+        // state. Its push sink is driven directly from the source so the real path
+        // stays callback-driven with no intervening queue.
+        let mut core = InputProcessCore::new(
+            gate,
+            audio_resampler,
+            channels,
+            sample_rate,
+            tail_frame_count,
+            producer,
+        );
+
+        let process = move |data: &[f32]| {
+            core.process(data);
+        };
+
+        let driver = source.drive(config, device, process, shutdown, recovery_tx)?;
+        self.shutdown_tx = driver.shutdown_tx;
+        Ok(driver.handle)
     }
 
     fn sender(
@@ -600,192 +303,160 @@ impl InputStream {
         shutdown: Arc<AtomicBool>,
         current_player_name: String,
         recording_active: Option<Arc<AtomicBool>>,
+        source_sample_rate: u32,
+        source_channels: u16,
     ) -> Result<JoinHandle<()>, anyhow::Error> {
-        match self.device.clone() {
-            Some(device) => {
-                match device.get_stream_config() {
-                    Ok(stored_config) => {
-                        // Validate stored config against live device
-                        let config = match crate::audio::device::refresh_device_config(&device) {
-                            Some(fresh_configs) if !fresh_configs.is_empty() => {
-                                let fresh_config: rodio::cpal::SupportedStreamConfig =
-                                    fresh_configs[0].clone().into();
-                                fresh_config
-                            }
-                            _ => stored_config,
-                        };
-                        // Mobile audio backends (CoreAudio on iOS, AAudio on Android)
-                        // should use the default buffer size
-                        #[cfg(any(target_os = "ios", target_os = "android"))]
-                        let buffer_size = rodio::cpal::BufferSize::Default;
+        // Mobile audio backends (CoreAudio on iOS, AAudio on Android) should use
+        // the default buffer size
+        #[cfg(any(target_os = "ios", target_os = "android"))]
+        let buffer_size = rodio::cpal::BufferSize::Default;
 
-                        #[cfg(not(any(target_os = "ios", target_os = "android")))]
-                        let buffer_size =
-                            rodio::cpal::BufferSize::Fixed(crate::audio::types::BUFFER_SIZE);
+        #[cfg(not(any(target_os = "ios", target_os = "android")))]
+        let buffer_size = rodio::cpal::BufferSize::Fixed(crate::audio::types::BUFFER_SIZE);
 
-                        let original_sample_rate = config.sample_rate();
+        // Force 48 kHz if the source was not 48 kHz; the listener resamples to
+        // match, so the Opus encoder and outgoing packets always run at 48 kHz.
+        let effective_sample_rate = if source_sample_rate != crate::audio::types::OPUS_SAMPLE_RATE {
+            crate::audio::types::OPUS_SAMPLE_RATE
+        } else {
+            source_sample_rate
+        };
 
-                        // Force 48 kHz if device was not 48 kHz
-                        let effective_sample_rate =
-                            if original_sample_rate != crate::audio::types::OPUS_SAMPLE_RATE {
-                                crate::audio::types::OPUS_SAMPLE_RATE
-                            } else {
-                                original_sample_rate
-                            };
+        let device_config = rodio::cpal::StreamConfig {
+            channels: match source_channels {
+                1 => 1,
+                2 => 2,
+                _ => 1,
+            },
+            sample_rate: effective_sample_rate,
+            buffer_size,
+        };
 
-                        let device_config = rodio::cpal::StreamConfig {
-                            channels: match config.channels() {
-                                1 => 1,
-                                2 => 2,
-                                _ => 1,
-                            },
-                            sample_rate: effective_sample_rate,
-                            buffer_size,
-                        };
+        let mut data_stream = Vec::<f32>::new();
 
-                        let mut data_stream = Vec::<f32>::new();
+        // Create the opus encoder
+        let mut encoder = match opus2::Encoder::new(
+            device_config.sample_rate.into(),
+            opus2::Channels::Mono,
+            opus2::Application::Voip,
+        ) {
+            Ok(mut encoder) => {
+                _ = encoder.set_bitrate(Bitrate::Bits(32_000));
 
-                        // Create the opus encoder
-                        let mut encoder = match opus2::Encoder::new(
-                            device_config.sample_rate.into(),
-                            opus2::Channels::Mono,
-                            opus2::Application::Voip,
-                        ) {
-                            Ok(mut encoder) => {
-                                _ = encoder.set_bitrate(Bitrate::Bits(32_000));
-
-                                // Lower complexity on mobile for battery/heat savings
-                                #[cfg(any(target_os = "android", target_os = "ios"))]
-                                {
-                                    _ = encoder.set_complexity(7);
-                                }
-
-                                encoder
-                            }
-                            Err(e) => {
-                                error!("Could not create opus encoder: {}", e.to_string());
-                                return Err(anyhow!("{}", e.to_string()));
-                            }
-                        };
-
-                        let bus = self.bus.clone();
-                        let recording_producer = self.recording_producer.clone();
-                        #[cfg(feature = "bedrock-protocol")]
-                        let player_state_cache = self.player_state_cache.clone();
-
-                        let handle = tokio::spawn(async move {
-                            #[cfg(target_os = "windows")]
-                            {
-                                windows_targets::link!("winmm.dll" "system" fn timeBeginPeriod(uperiod: u32) -> u32);
-                                unsafe {
-                                    timeBeginPeriod(1);
-                                }
-                            }
-                            let tx = bus.clone();
-
-                            let mut first_sample_timestamp_ms: Option<u64> = None;
-
-                            #[allow(irrefutable_let_patterns)]
-                            while let Ok(sample) = consumer.recv_async().await {
-                                if shutdown.load(Ordering::Relaxed) {
-                                    warn!(
-                                        "Audio Input stream, quic sender received shutdown signal, and is now terminating."
-                                    );
-                                    break;
-                                }
-
-                                let sample_data = match sample.f32() {
-                                    Some(sample) => sample,
-                                    None => continue,
-                                };
-
-                                if data_stream.is_empty() {
-                                    first_sample_timestamp_ms = Some(sample_data.captured_at_ms);
-                                }
-
-                                let mut raw_sample = sample_data.pcm;
-
-                                data_stream.append(&mut raw_sample);
-                                while data_stream.len() >= BUFFER_SIZE as usize {
-                                    let sample_to_process: Vec<f32> =
-                                        data_stream.drain(0..BUFFER_SIZE as usize).collect();
-
-                                    let encoded_data = match encoder.encode_vec_float(
-                                        &sample_to_process,
-                                        sample_to_process.len() * 4,
-                                    ) {
-                                        Ok(s) if s.len() > 3 => s,
-                                        _ => continue,
-                                    };
-
-                                    // Check shared recording flag from RecordingManager
-                                    if let Some(ref flag) = recording_active {
-                                        if flag.load(Ordering::SeqCst) {
-                                            if let Some(ref producer) = recording_producer {
-                                                // Use the timestamp from when the first sample was captured
-                                                // This ensures the recording timestamp matches actual capture time
-                                                let recording_data = RawRecordingData::InputData {
-                                                    absolute_timestamp_ms:
-                                                        first_sample_timestamp_ms,
-                                                    opus_data: encoded_data.clone(),
-                                                    sample_rate: device_config.sample_rate,
-                                                    channels: device_config.channels.into(),
-                                                    emitter: RecordingPlayerData::for_input(
-                                                        current_player_name.clone(),
-                                                        // @todo: enrich with spatial data if available in the future
-                                                        // and gain setting
-                                                        None,
-                                                    ),
-                                                };
-
-                                                let _ = producer.try_send(recording_data);
-                                            }
-                                        }
-                                    }
-
-                                    // Reset first sample timestamp after processing this buffer
-                                    // The next buffer will get a new timestamp from the first sample
-                                    if data_stream.is_empty() {
-                                        first_sample_timestamp_ms = None;
-                                    }
-
-                                    let packet = NetworkPacket {
-                                        data: QuicNetworkPacket {
-                                            packet_type:
-                                                common::structs::packet::PacketType::AudioFrame,
-                                            owner: None,
-                                            data: QuicNetworkPacketData::AudioFrame(
-                                                AudioFramePacket::new(
-                                                    encoded_data.clone(),
-                                                    device_config.sample_rate,
-                                                    None,
-                                                    None,
-                                                ),
-                                            ),
-                                        },
-                                    };
-
-                                    if let Err(e) = tx.send_async(packet).await {
-                                        error!(
-                                            "Sending audio frame to Quic network thread failed: {:?}",
-                                            e
-                                        );
-                                    }
-                                }
-                            }
-                        });
-
-                        return Ok(handle);
-                    }
-                    Err(e) => return Err(e),
+                // Lower complexity on mobile for battery/heat savings
+                #[cfg(any(target_os = "android", target_os = "ios"))]
+                {
+                    _ = encoder.set_complexity(7);
                 }
+
+                encoder
             }
-            None => {
-                return Err(anyhow!(
-                    "InputStream is not initialized with a device! Unable to start stream"
-                ));
+            Err(e) => {
+                error!("Could not create opus encoder: {}", e.to_string());
+                return Err(anyhow!("{}", e.to_string()));
             }
         };
+
+        let bus = self.bus.clone();
+        let recording_producer = self.recording_producer.clone();
+        #[cfg(feature = "bedrock-protocol")]
+        let player_state_cache = self.player_state_cache.clone();
+
+        let handle = tokio::spawn(async move {
+            #[cfg(target_os = "windows")]
+            {
+                windows_targets::link!("winmm.dll" "system" fn timeBeginPeriod(uperiod: u32) -> u32);
+                unsafe {
+                    timeBeginPeriod(1);
+                }
+            }
+            let tx = bus.clone();
+
+            let mut first_sample_timestamp_ms: Option<u64> = None;
+
+            #[allow(irrefutable_let_patterns)]
+            while let Ok(sample) = consumer.recv_async().await {
+                if shutdown.load(Ordering::Relaxed) {
+                    warn!(
+                        "Audio Input stream, quic sender received shutdown signal, and is now terminating."
+                    );
+                    break;
+                }
+
+                let sample_data = match sample.f32() {
+                    Some(sample) => sample,
+                    None => continue,
+                };
+
+                if data_stream.is_empty() {
+                    first_sample_timestamp_ms = Some(sample_data.captured_at_ms);
+                }
+
+                let mut raw_sample = sample_data.pcm;
+
+                data_stream.append(&mut raw_sample);
+                while data_stream.len() >= BUFFER_SIZE as usize {
+                    let sample_to_process: Vec<f32> =
+                        data_stream.drain(0..BUFFER_SIZE as usize).collect();
+
+                    let encoded_data = match encoder
+                        .encode_vec_float(&sample_to_process, sample_to_process.len() * 4)
+                    {
+                        Ok(s) if s.len() > 3 => s,
+                        _ => continue,
+                    };
+
+                    // Check shared recording flag from RecordingManager
+                    if let Some(ref flag) = recording_active {
+                        if flag.load(Ordering::SeqCst) {
+                            if let Some(ref producer) = recording_producer {
+                                // Use the timestamp from when the first sample was captured
+                                // This ensures the recording timestamp matches actual capture time
+                                let recording_data = RawRecordingData::InputData {
+                                    absolute_timestamp_ms: first_sample_timestamp_ms,
+                                    opus_data: encoded_data.clone(),
+                                    sample_rate: device_config.sample_rate,
+                                    channels: device_config.channels.into(),
+                                    emitter: RecordingPlayerData::for_input(
+                                        current_player_name.clone(),
+                                        // @todo: enrich with spatial data if available in the future
+                                        // and gain setting
+                                        None,
+                                    ),
+                                };
+
+                                let _ = producer.try_send(recording_data);
+                            }
+                        }
+                    }
+
+                    // Reset first sample timestamp after processing this buffer
+                    // The next buffer will get a new timestamp from the first sample
+                    if data_stream.is_empty() {
+                        first_sample_timestamp_ms = None;
+                    }
+
+                    let packet = NetworkPacket {
+                        data: QuicNetworkPacket {
+                            packet_type: common::structs::packet::PacketType::AudioFrame,
+                            owner: None,
+                            data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
+                                encoded_data.clone(),
+                                device_config.sample_rate,
+                                None,
+                                None,
+                            )),
+                        },
+                    };
+
+                    if let Err(e) = tx.send_async(packet).await {
+                        error!("Sending audio frame to Quic network thread failed: {:?}", e);
+                    }
+                }
+            }
+        });
+
+        Ok(handle)
     }
 
     pub fn toggle(&self, event: StreamEvent) {

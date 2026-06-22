@@ -44,7 +44,13 @@ impl MeridianService {
             .build()?;
 
         client
-            .register(name, &self.hostname, tcp_addr, udp_addr, self.config.instance_id)
+            .register(
+                name,
+                &self.hostname,
+                tcp_addr,
+                udp_addr,
+                self.config.instance_id,
+            )
             .await?;
 
         tracing::info!("Successfully registered with Meridian");

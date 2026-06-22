@@ -2,6 +2,7 @@ use crate::stream::quic::client_id_hasher::ClientIdHasher;
 use crate::stream::quic::{ServerInputPacket, WebhookReceiver};
 use anyhow::Error;
 use bytes::Bytes;
+use common::s2n_quic::Connection;
 use common::structs::packet::{
     ConnectionEventType, PacketOwner, PacketType, PlayerPresenceEvent, QuicNetworkPacket,
     QuicNetworkPacketData, ServerErrorPacket, ServerErrorType,
@@ -13,11 +14,10 @@ use core::{
     task::{Context, Poll},
 };
 use moka::sync::Cache;
-use common::s2n_quic::Connection;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tokio::sync::mpsc;
 
@@ -33,11 +33,11 @@ impl<'c> RecvDatagram<'c> {
 impl<'c> Future for RecvDatagram<'c> {
     type Output = Result<Bytes, anyhow::Error>;
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match self
-            .conn
-            .datagram_mut(|r: &mut common::s2n_quic::provider::datagram::default::Receiver| {
+        match self.conn.datagram_mut(
+            |r: &mut common::s2n_quic::provider::datagram::default::Receiver| {
                 r.poll_recv_datagram(cx)
-            }) {
+            },
+        ) {
             Ok(Poll::Ready(Ok(bytes))) => Poll::Ready(Ok(bytes)),
             Ok(Poll::Ready(Err(e))) => Poll::Ready(Err(anyhow::anyhow!(e))),
             Ok(Poll::Pending) => Poll::Pending,
@@ -200,7 +200,11 @@ impl StreamTrait for InputStream {
                                             );
                                             if !accept {
                                                 if let Some(prev) = last_seen {
-                                                    tracing::trace!("Dropping out-of-order AudioFrame: ts={} <= last_seen={}", ts, prev);
+                                                    tracing::trace!(
+                                                        "Dropping out-of-order AudioFrame: ts={} <= last_seen={}",
+                                                        ts,
+                                                        prev
+                                                    );
                                                 }
                                                 continue; // Drop older/same-timestamp frame
                                             }

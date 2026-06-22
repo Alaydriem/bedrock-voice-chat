@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
 
 use log::warn;
@@ -6,6 +8,7 @@ use tokio::sync::{RwLock, watch};
 
 use super::FlagsmithProvider;
 use super::feature_flag::FeatureFlag;
+use super::flagsmith::FlagsmithFlag;
 
 pub struct FeatureFlagService {
     client: RwLock<Option<open_feature::Client>>,
@@ -16,6 +19,11 @@ pub struct FeatureFlagService {
     install_id: String,
     build_number: i64,
     refresh_interval: Duration,
+    http_client: reqwest::Client,
+    // Shared with the live FlagsmithProvider so an on-demand refresh writes the
+    // same cache the resolvers read. Populated in `initialize`.
+    flag_cache: RwLock<Option<Arc<RwLock<HashMap<String, FlagsmithFlag>>>>>,
+    normalized_url: RwLock<Option<String>>,
 }
 
 impl FeatureFlagService {
@@ -36,6 +44,9 @@ impl FeatureFlagService {
             install_id,
             build_number,
             refresh_interval,
+            http_client: super::flagsmith::pinned_client::FlagsmithPinnedClient::build(),
+            flag_cache: RwLock::new(None),
+            normalized_url: RwLock::new(None),
         }
     }
 
@@ -52,7 +63,13 @@ impl FeatureFlagService {
             self.install_id.clone(),
             self.build_number,
             self.refresh_interval,
+            self.http_client.clone(),
         );
+
+        // Capture the provider's shared cache + normalized URL before it's
+        // moved into OpenFeature, so `refresh` can re-fetch on demand.
+        *self.flag_cache.write().await = Some(provider.cache());
+        *self.normalized_url.write().await = Some(provider.server_url().to_string());
 
         let mut api = OpenFeature::singleton_mut().await;
         api.set_provider(provider).await;
@@ -63,6 +80,33 @@ impl FeatureFlagService {
         drop(guard);
 
         let _ = self.ready_tx.send(true);
+    }
+
+    // On-demand refresh of the flag cache (e.g. a debug "Refresh feature flags"
+    // action). No-op when Flagsmith is disabled.
+    pub async fn refresh(&self) -> Result<(), String> {
+        if self.api_key.is_empty() {
+            return Ok(());
+        }
+        let cache = self.flag_cache.read().await.clone();
+        let url = self.normalized_url.read().await.clone();
+        match (cache, url) {
+            (Some(cache), Some(url)) => {
+                let count = FlagsmithProvider::fetch_flags(
+                    &self.http_client,
+                    &url,
+                    &self.api_key,
+                    &self.install_id,
+                    self.build_number,
+                    &cache,
+                )
+                .await
+                .map_err(|e| e.to_string())?;
+                log::info!("Manually refreshed {} feature flags", count);
+                Ok(())
+            }
+            _ => Err("Feature flags are not initialized yet".to_string()),
+        }
     }
 
     pub async fn is_enabled(&self, flag: &str) -> bool {
@@ -122,10 +166,7 @@ impl FeatureFlagService {
             Some(client) => {
                 let mut context = EvaluationContext::default();
                 context.targeting_key = Some(self.install_id.clone());
-                client
-                    .get_int_value(flag, Some(&context), None)
-                    .await
-                    .ok()
+                client.get_int_value(flag, Some(&context), None).await.ok()
             }
             None => None,
         };

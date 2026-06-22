@@ -17,14 +17,16 @@
 //! ```
 
 use crate::config::ApplicationConfig;
-use crate::runtime::{position_updater, ServerRuntime};
-use crate::services::{AudioPlaybackService, PlayerIdentityService, PlayerRegistrarService};
+use crate::runtime::{ServerRuntime, position_updater};
+use crate::services::{
+    AudioPlaybackService, AuthCodeService, PlayerIdentityService, PlayerRegistrarService,
+};
 use crate::stream::quic::WebhookReceiver;
 
-use common::traits::player_data::PlayerData;
 use common::Game;
+use common::traits::player_data::PlayerData;
 use sea_orm::DatabaseConnection;
-use std::ffi::{c_char, c_int, CStr, CString};
+use std::ffi::{CStr, CString, c_char, c_int};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
@@ -59,6 +61,23 @@ fn set_last_error(msg: &str) {
     });
 }
 
+/// Run an FFI entry point's body, converting any panic into the function's error
+/// sentinel instead of letting it unwind across the C ABI — an unwind out of an
+/// `extern "C"` function aborts the host process (the Java/BDS mod's JVM). On
+/// panic the message is recorded for `bvc_get_last_error` and the sentinel is
+/// returned so the embedder sees a recoverable error rather than a crash.
+macro_rules! ffi_guard {
+    ($name:literal, $sentinel:expr, $body:block) => {
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| $body)) {
+            Ok(value) => value,
+            Err(_) => {
+                set_last_error(concat!("panic in ", $name));
+                $sentinel
+            }
+        }
+    };
+}
+
 /// Platform initialization. Called automatically by `bvc_server_create`.
 /// Kept for backward compatibility — safe to call multiple times.
 #[unsafe(no_mangle)]
@@ -79,6 +98,7 @@ pub extern "C" fn bvc_init() -> c_int {
 /// * `config_json` must be a valid null-terminated UTF-8 string
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut RuntimeHandle {
+    ffi_guard!("bvc_server_create", ptr::null_mut(), {
     if config_json.is_null() {
         set_last_error("config_json is null");
         return ptr::null_mut();
@@ -118,11 +138,25 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
     let audio_playback_service = runtime.get_audio_playback_service();
     let db_conn = runtime.get_db_conn();
 
-    // Create a tokio runtime for the server
-    let tokio_runtime = match tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
+    let mut runtime_builder = tokio::runtime::Builder::new_multi_thread();
+    runtime_builder.enable_all();
+    if let Some(n) = std::env::var("BVC_RUNTIME_WORKER_THREADS")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .filter(|n| *n > 0)
     {
+        runtime_builder.worker_threads(n);
+    }
+
+    if let Some(n) = std::env::var("BVC_RUNTIME_MAX_BLOCKING_THREADS")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .filter(|n| *n > 0)
+    {
+        runtime_builder.max_blocking_threads(n);
+    }
+
+    let tokio_runtime = match runtime_builder.build() {
         Ok(rt) => rt,
         Err(e) => {
             set_last_error(&format!("Failed to create tokio runtime: {}", e));
@@ -143,6 +177,7 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
     });
 
     Box::into_raw(handle)
+    })
 }
 
 /// Start the server. This function BLOCKS until the server stops.
@@ -162,6 +197,7 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
 /// * Must not be called concurrently on the same handle
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn bvc_server_start(handle: *mut RuntimeHandle) -> c_int {
+    ffi_guard!("bvc_server_start", -1, {
     if handle.is_null() {
         set_last_error("handle is null");
         return -1;
@@ -205,6 +241,7 @@ pub unsafe extern "C" fn bvc_server_start(handle: *mut RuntimeHandle) -> c_int {
             -1
         }
     }
+    })
 }
 
 /// Signal the server to stop gracefully.
@@ -223,6 +260,7 @@ pub unsafe extern "C" fn bvc_server_start(handle: *mut RuntimeHandle) -> c_int {
 /// * `handle` must be a valid pointer from `bvc_server_create()`
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn bvc_server_stop(handle: *mut RuntimeHandle) -> c_int {
+    ffi_guard!("bvc_server_stop", -1, {
     if handle.is_null() {
         set_last_error("handle is null");
         return -1;
@@ -235,6 +273,7 @@ pub unsafe extern "C" fn bvc_server_stop(handle: *mut RuntimeHandle) -> c_int {
     handle_ref.shutdown_flag.store(true, Ordering::SeqCst);
     handle_ref.shutdown_notify.notify_one();
     0
+    })
 }
 
 /// Destroy the server handle and free all resources.
@@ -253,6 +292,7 @@ pub unsafe extern "C" fn bvc_server_stop(handle: *mut RuntimeHandle) -> c_int {
 /// * Must not be called while `bvc_server_start()` is running
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn bvc_server_destroy(handle: *mut RuntimeHandle) -> c_int {
+    ffi_guard!("bvc_server_destroy", -1, {
     if handle.is_null() {
         set_last_error("handle is null");
         return -1;
@@ -271,6 +311,7 @@ pub unsafe extern "C" fn bvc_server_destroy(handle: *mut RuntimeHandle) -> c_int
     // Now drop the rest (runtime mutex, etc.)
     drop(handle_box);
     0
+    })
 }
 
 /// Get the last error message.
@@ -353,6 +394,7 @@ pub unsafe extern "C" fn bvc_update_positions(
     handle: *mut RuntimeHandle,
     game_data_json: *const c_char,
 ) -> c_int {
+    ffi_guard!("bvc_update_positions", -1, {
     if handle.is_null() {
         set_last_error("handle is null");
         return -1;
@@ -474,17 +516,23 @@ pub unsafe extern "C" fn bvc_update_positions(
             // Fire-and-forget player registration in background task
             // This ensures bvc_update_positions returns immediately without waiting for DB operations
             tokio::spawn(async move {
-                registrar.process_players(&players_clone, game_type_clone).await;
+                registrar
+                    .process_players(&players_clone, game_type_clone)
+                    .await;
             });
         } else {
-            tracing::warn!("FFI: PlayerRegistrarService not available - player registration skipped");
+            tracing::warn!(
+                "FFI: PlayerRegistrarService not available - player registration skipped"
+            );
         }
 
         // Broadcast positions to QUIC clients (this happens immediately)
-        position_updater::PositionUpdater::broadcast_positions(players, &webhook_receiver_clone).await;
+        position_updater::PositionUpdater::broadcast_positions(players, &webhook_receiver_clone)
+            .await;
     });
 
     0
+    })
 }
 
 #[unsafe(no_mangle)]
@@ -492,6 +540,7 @@ pub unsafe extern "C" fn bvc_audio_play(
     handle: *mut RuntimeHandle,
     play_json: *const c_char,
 ) -> *mut c_char {
+    ffi_guard!("bvc_audio_play", ptr::null_mut(), {
     if handle.is_null() {
         set_last_error("handle is null");
         return ptr::null_mut();
@@ -510,14 +559,13 @@ pub unsafe extern "C" fn bvc_audio_play(
         }
     };
 
-    let request: common::request::AudioPlayRequest =
-        match serde_json::from_str(json_str) {
-            Ok(r) => r,
-            Err(e) => {
-                set_last_error(&format!("Failed to parse play_json: {}", e));
-                return ptr::null_mut();
-            }
-        };
+    let request: common::request::AudioPlayRequest = match serde_json::from_str(json_str) {
+        Ok(r) => r,
+        Err(e) => {
+            set_last_error(&format!("Failed to parse play_json: {}", e));
+            return ptr::null_mut();
+        }
+    };
 
     let handle_ref = unsafe { &*handle };
 
@@ -564,7 +612,9 @@ pub unsafe extern "C" fn bvc_audio_play(
     drop(db_guard);
 
     let result = tokio_rt.block_on(async {
-        audio_service.start_playback(db_conn.as_ref(), request).await
+        audio_service
+            .start_playback(db_conn.as_ref(), request)
+            .await
     });
 
     match result {
@@ -586,6 +636,7 @@ pub unsafe extern "C" fn bvc_audio_play(
             ptr::null_mut()
         }
     }
+    })
 }
 
 #[unsafe(no_mangle)]
@@ -593,6 +644,7 @@ pub unsafe extern "C" fn bvc_audio_stop(
     handle: *mut RuntimeHandle,
     event_id: *const c_char,
 ) -> c_int {
+    ffi_guard!("bvc_audio_stop", -1, {
     if handle.is_null() {
         set_last_error("handle is null");
         return -1;
@@ -638,9 +690,7 @@ pub unsafe extern "C" fn bvc_audio_stop(
     };
     drop(aps_guard);
 
-    let result = tokio_rt.block_on(async {
-        audio_service.stop_playback(event_id_str).await
-    });
+    let result = tokio_rt.block_on(async { audio_service.stop_playback(event_id_str).await });
 
     match result {
         Ok(_) => 0,
@@ -649,4 +699,138 @@ pub unsafe extern "C" fn bvc_audio_stop(
             -1
         }
     }
+    })
+}
+
+/// Provision a player (idempotent create) and return a fresh single-use login
+/// code that a client can later redeem via `code_login`.
+///
+/// # Arguments
+/// * `handle` - Handle from `bvc_server_create()`
+/// * `gamertag` - Player gamertag to provision
+/// * `game` - Game type (e.g. "minecraft", "hytale")
+/// * `ttl_secs` - Lifetime of the generated code in seconds
+///
+/// # Returns
+/// * Pointer to a heap-allocated login code string on success (free via `bvc_free_string`)
+/// * NULL on error (call `bvc_get_last_error()` for details)
+///
+/// # Safety
+/// * `handle` must be a valid pointer from `bvc_server_create()`
+/// * `gamertag` and `game` must be valid null-terminated UTF-8 strings
+/// * Server must be running (after `bvc_server_start()` has been called)
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn bvc_provision_login_code(
+    handle: *mut RuntimeHandle,
+    gamertag: *const c_char,
+    game: *const c_char,
+    ttl_secs: u32,
+) -> *mut c_char {
+    ffi_guard!("bvc_provision_login_code", ptr::null_mut(), {
+    if handle.is_null() {
+        set_last_error("handle is null");
+        return ptr::null_mut();
+    }
+
+    if gamertag.is_null() {
+        set_last_error("gamertag is null");
+        return ptr::null_mut();
+    }
+
+    if game.is_null() {
+        set_last_error("game is null");
+        return ptr::null_mut();
+    }
+
+    let gamertag_str = match unsafe { CStr::from_ptr(gamertag) }.to_str() {
+        Ok(s) => s,
+        Err(e) => {
+            set_last_error(&format!("Invalid UTF-8 in gamertag: {}", e));
+            return ptr::null_mut();
+        }
+    };
+
+    let game_str = match unsafe { CStr::from_ptr(game) }.to_str() {
+        Ok(s) => s,
+        Err(e) => {
+            set_last_error(&format!("Invalid UTF-8 in game: {}", e));
+            return ptr::null_mut();
+        }
+    };
+
+    let game_type = match game_str {
+        "minecraft" => Game::Minecraft,
+        "hytale" => Game::Hytale,
+        other => {
+            set_last_error(&format!("Invalid game '{}'", other));
+            return ptr::null_mut();
+        }
+    };
+
+    let handle_ref = unsafe { &*handle };
+
+    let tokio_rt = match &handle_ref.tokio_runtime {
+        Some(rt) => rt,
+        None => {
+            set_last_error("Tokio runtime not available");
+            return ptr::null_mut();
+        }
+    };
+
+    let pr_guard = match handle_ref.player_registrar.read() {
+        Ok(g) => g,
+        Err(e) => {
+            set_last_error(&format!("Failed to read player_registrar: {}", e));
+            return ptr::null_mut();
+        }
+    };
+
+    let registrar = match pr_guard.as_ref() {
+        Some(r) => r.clone(),
+        None => {
+            set_last_error("Server not started - player_registrar not available");
+            return ptr::null_mut();
+        }
+    };
+    drop(pr_guard);
+
+    let db_guard = match handle_ref.db_conn.read() {
+        Ok(g) => g,
+        Err(e) => {
+            set_last_error(&format!("Failed to read db_conn: {}", e));
+            return ptr::null_mut();
+        }
+    };
+
+    let db_conn = match db_guard.as_ref() {
+        Some(c) => c.clone(),
+        None => {
+            set_last_error("Server not started - db_conn not available");
+            return ptr::null_mut();
+        }
+    };
+    drop(db_guard);
+
+    let result = tokio_rt.block_on(async {
+        let player = registrar
+            .create_player(gamertag_str, &game_type, None)
+            .await?;
+        // FFI-minted codes are single-use (ephemeral), matching prior behavior.
+        AuthCodeService::generate_code(db_conn.as_ref(), player.id, ttl_secs as u64, true).await
+    });
+
+    match result {
+        Ok(code) => match CString::new(code) {
+            Ok(cstr) => cstr.into_raw(),
+            Err(e) => {
+                set_last_error(&format!("Failed to create CString: {}", e));
+                ptr::null_mut()
+            }
+        },
+        Err(e) => {
+            set_last_error(&format!("Provision login code failed: {}", e));
+            ptr::null_mut()
+        }
+    }
+    })
 }

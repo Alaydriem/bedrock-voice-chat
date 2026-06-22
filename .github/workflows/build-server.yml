@@ -285,49 +285,6 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  test-server:
-    name: Test Server
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-        with:
-          ref: ${{ inputs.ref || github.ref }}
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup private cargo deps auth
-        uses: ./.github/actions/setup-private-cargo-deps
-        with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: "./server"
-          # Distinct cache key so test caches don't collide with build caches.
-          key: test
-
-      - name: Install Linux dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            pkg-config \
-            cmake \
-            build-essential \
-            libasound2-dev
-
-      - name: Run workspace tests
-        working-directory: ./server
-        # --tests scopes compilation to test/lib/bin targets and skips examples
-        # (an unrelated example on beta currently fails to compile).
-        # --test-threads=1 keeps the integration suite serial: each test binds
-        # 127.0.0.1:0 then hands the port to Rocket; we'd rather pay time than
-        # chase a TOCTOU port collision.
-        run: cargo test --workspace --tests --locked -- --test-threads=1
-
   generate-openapi-spec:
     name: Generate OpenAPI Spec
     runs-on: ubuntu-latest

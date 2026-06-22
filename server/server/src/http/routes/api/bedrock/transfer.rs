@@ -1,7 +1,7 @@
 use common::request::bedrock::TransferTargetRequest;
 use common::response::bedrock::TransferTargetResponse;
-use rocket::serde::json::Json;
 use rocket::State;
+use rocket::serde::json::Json;
 use rocket_okapi::openapi;
 
 use crate::config::Server;

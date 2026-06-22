@@ -59,11 +59,15 @@ pub(crate) async fn change_audio_device(
     // Input device: init, start, fallback to default on failure
     asm_active.init(input_device.clone()).await;
     if let Err(e) = asm_active.start(input_device.clone().io).await {
-        warn!("Input device '{}' failed: {}. Falling back to default.", input_device.display_name, e);
+        warn!(
+            "Input device '{}' failed: {}. Falling back to default.",
+            input_device.display_name, e
+        );
         drop(asm_active);
         let fallback_result = {
             let mut state = state.lock().await;
-            state.clear_audio_device(AudioDeviceType::InputDevice)
+            state
+                .clear_audio_device(AudioDeviceType::InputDevice)
                 .and_then(|_| state.get_audio_device(AudioDeviceType::InputDevice))
         };
         match fallback_result {
@@ -78,7 +82,10 @@ pub(crate) async fn change_audio_device(
                     EVENT_NOTIFICATION,
                     Notification::new(
                         "Input Device Unavailable".to_string(),
-                        format!("'{}' could not be activated. Switched to default device.", input_device.display_name),
+                        format!(
+                            "'{}' could not be activated. Switched to default device.",
+                            input_device.display_name
+                        ),
                         Some("warning".to_string()),
                         None,
                         None,
@@ -100,11 +107,15 @@ pub(crate) async fn change_audio_device(
     // Output device: init, start, fallback to default on failure
     asm_active.init(output_device.clone()).await;
     if let Err(e) = asm_active.start(output_device.clone().io).await {
-        warn!("Output device '{}' failed: {}. Falling back to default.", output_device.display_name, e);
+        warn!(
+            "Output device '{}' failed: {}. Falling back to default.",
+            output_device.display_name, e
+        );
         drop(asm_active);
         let fallback_result = {
             let mut state = state.lock().await;
-            state.clear_audio_device(AudioDeviceType::OutputDevice)
+            state
+                .clear_audio_device(AudioDeviceType::OutputDevice)
                 .and_then(|_| state.get_audio_device(AudioDeviceType::OutputDevice))
         };
         match fallback_result {
@@ -119,7 +130,10 @@ pub(crate) async fn change_audio_device(
                     EVENT_NOTIFICATION,
                     Notification::new(
                         "Output Device Unavailable".to_string(),
-                        format!("'{}' could not be activated. Switched to default device.", output_device.display_name),
+                        format!(
+                            "'{}' could not be activated. Switched to default device.",
+                            output_device.display_name
+                        ),
                         Some("warning".to_string()),
                         None,
                         None,

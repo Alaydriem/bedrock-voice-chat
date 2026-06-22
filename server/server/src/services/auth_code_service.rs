@@ -1,5 +1,6 @@
 use common::ncryptflib::rocket::Utc;
 use entity::{player, player_auth_code};
+use sea_orm::sea_query::Expr;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter,
 };
@@ -36,6 +37,7 @@ impl AuthCodeService {
         conn: &C,
         player_id: i32,
         duration_secs: u64,
+        ephemeral: bool,
     ) -> Result<String, anyhow::Error> {
         let alphabet: Vec<char> = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".chars().collect();
         let code = nanoid::nanoid!(8, &alphabet);
@@ -48,6 +50,7 @@ impl AuthCodeService {
             player_id: ActiveValue::Set(player_id),
             expires_at: ActiveValue::Set(expires_at),
             used: ActiveValue::Set(false),
+            ephemeral: ActiveValue::Set(ephemeral),
             created_at: ActiveValue::Set(now),
             updated_at: ActiveValue::Set(now),
             ..Default::default()
@@ -83,10 +86,11 @@ impl AuthCodeService {
             return Err(AuthCodeError::CodeExpired);
         }
 
-        // Used check (disabled for now)
-        // if auth_code.used {
-        //     return Err(AuthCodeError::CodeAlreadyUsed);
-        // }
+        // Single-use only applies to ephemeral codes: one already redeemed is
+        // rejected (fast path). A non-ephemeral code is reusable until expiry.
+        if auth_code.ephemeral && auth_code.used {
+            return Err(AuthCodeError::CodeAlreadyUsed);
+        }
 
         // Load the related player
         let player_record = player::Entity::find_by_id(auth_code.player_id)
@@ -105,13 +109,23 @@ impl AuthCodeService {
             _ => return Err(AuthCodeError::GamertagMismatch),
         }
 
-        // Mark as used (disabled for now)
-        // let mut active_model: player_auth_code::ActiveModel = auth_code.into();
-        // active_model.used = ActiveValue::Set(true);
-        // active_model
-        //     .update(conn)
-        //     .await
-        //     .map_err(|e| AuthCodeError::DatabaseError(e.to_string()))?;
+        // Ephemeral codes are atomically consumed: only the redemption that flips
+        // used false->true wins, so a concurrent or repeat redemption updates zero
+        // rows and is rejected (closes the check-then-act race). Non-ephemeral
+        // codes are left intact for reuse until they expire.
+        if auth_code.ephemeral {
+            let consumed = player_auth_code::Entity::update_many()
+                .col_expr(player_auth_code::Column::Used, Expr::value(true))
+                .filter(player_auth_code::Column::Code.eq(code))
+                .filter(player_auth_code::Column::Used.eq(false))
+                .exec(conn)
+                .await
+                .map_err(|e| AuthCodeError::DatabaseError(e.to_string()))?;
+
+            if consumed.rows_affected == 0 {
+                return Err(AuthCodeError::CodeAlreadyUsed);
+            }
+        }
 
         Ok(player_record)
     }

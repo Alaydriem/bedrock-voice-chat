@@ -24,6 +24,7 @@ pub(crate) struct InputStream {
     jobs: Vec<AbortHandle>,
     shutdown: Arc<AtomicBool>,
     pub metadata: Arc<moka::future::Cache<String, String>>,
+    #[allow(unused)]
     app_handle: tauri::AppHandle,
     pub health_state: Arc<HealthMonitorState>,
 }
@@ -75,6 +76,10 @@ impl common::traits::StreamTrait for InputStream {
                             continue;
                         }
 
+                        #[cfg(feature = "e2e")]
+                        if packet.packet_type == PacketType::AudioFrame {
+                            crate::testkit::counters::TransportCounters::increment_from_quic();
+                        }
                         _ = tx.send_async(AudioPacket { data: packet }).await;
                     }
                     Err(e) => {

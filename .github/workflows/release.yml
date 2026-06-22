@@ -222,6 +222,17 @@ jobs:
       ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
     secrets: inherit
 
+  # Workspace tests (common + client + server) at the release ref — gates asset
+  # upload so a release is never cut on a red test suite.
+  tests:
+    name: Tests
+    needs: prepare-release
+    if: needs.prepare-release.outputs.new_release == 'true'
+    uses: ./.github/workflows/tests.yml
+    with:
+      ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
+    secrets: inherit
+
   # Job 4: Build Android (release mode, includes signing)
   build-android:
     name: Build Android (release)
@@ -301,18 +312,6 @@ jobs:
       artifact_run_id: ${{ github.run_id }}
     secrets: inherit
 
-  # Job 10: Build Hytale Plugin
-  build-mod-hytale:
-    name: Build Hytale Plugin
-    needs: [prepare-release, prepare-mods-release]
-    if: needs.prepare-mods-release.outputs.new_release_published == 'true'
-    uses: ./.github/workflows/build-mod-hytale.yml
-    with:
-      version: ${{ needs.prepare-mods-release.outputs.new_release_version }}
-      ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
-      artifact_run_id: ${{ github.run_id }}
-    secrets: inherit
-
   # Job 11: Build BDS Pack
   build-mod-bds:
     name: Build BDS Pack
@@ -327,8 +326,8 @@ jobs:
   # Job 12: Upload client/server release assets to GitHub
   upload-assets:
     name: Upload Release Assets
-    needs: [prepare-release, build-server, build-android, build-ios, build-client, build-macos-client]
-    if: always() && needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false && (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-ios.result == 'success' || needs.build-client.result == 'success' || needs.build-macos-client.result == 'success')
+    needs: [prepare-release, tests, build-server, build-android, build-ios, build-client, build-macos-client]
+    if: always() && needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false && needs.tests.result == 'success' && (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-ios.result == 'success' || needs.build-client.result == 'success' || needs.build-macos-client.result == 'success')
     runs-on: ubuntu-latest
     steps:
       - name: Generate GitHub App token
@@ -554,37 +553,6 @@ jobs:
             1.21.11
           channel: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}
 
-  # Job 15: Publish Hytale to CurseForge
-  publish-curseforge-hytale:
-    name: Publish Hytale to CurseForge
-    needs: [prepare-mods-release, build-mod-hytale, approve-publish]
-    if: needs.approve-publish.result == 'success' && needs.prepare-mods-release.outputs.new_release_published == 'true' && needs.build-mod-hytale.result == 'success'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v5
-        with:
-          name: bedrock-voice-chat-hytale-${{ needs.prepare-mods-release.outputs.new_release_version }}
-          path: ./artifacts
-
-      - name: List artifacts
-        run: ls -la ./artifacts
-
-      - name: Publish to CurseForge
-        uses: itsmeow/curseforge-upload@v3
-        with:
-          token: ${{ secrets.CURSEFORGE_API_TOKEN }}
-          project_id: 1445994
-          game_endpoint: minecraft
-          file_path: ./artifacts/bedrock-voice-chat-hytale-${{ needs.prepare-mods-release.outputs.new_release_version }}.jar
-          changelog: ${{ needs.prepare-mods-release.outputs.new_release_notes }}
-          changelog_type: markdown
-          display_name: Bedrock Voice Chat ${{ needs.prepare-mods-release.outputs.new_release_version }}
-          release_type: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}
-
   # Job 16: Publish BDS to CurseForge
   publish-curseforge-bds:
     name: Publish BDS to CurseForge
@@ -640,8 +608,8 @@ jobs:
   # Job 17: Upload mod artifacts to mods GitHub Release
   upload-mod-release-assets:
     name: Upload Mod Release Assets
-    needs: [prepare-mods-release, build-mod-fabric, build-mod-paper, build-mod-hytale, build-mod-bds]
-    if: always() && needs.prepare-mods-release.outputs.new_release_published == 'true' && inputs.dry_run == false && (needs.build-mod-fabric.result == 'success' || needs.build-mod-paper.result == 'success' || needs.build-mod-hytale.result == 'success' || needs.build-mod-bds.result == 'success')
+    needs: [prepare-mods-release, build-mod-fabric, build-mod-paper, build-mod-bds]
+    if: always() && needs.prepare-mods-release.outputs.new_release_published == 'true' && inputs.dry_run == false && (needs.build-mod-fabric.result == 'success' || needs.build-mod-paper.result == 'success' || needs.build-mod-bds.result == 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -658,13 +626,6 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           name: bedrock-voice-chat-paper-${{ needs.prepare-mods-release.outputs.new_release_version }}
-          path: ./release-files
-
-      - name: Download Hytale artifact
-        if: needs.build-mod-hytale.result == 'success'
-        uses: actions/download-artifact@v5
-        with:
-          name: bedrock-voice-chat-hytale-${{ needs.prepare-mods-release.outputs.new_release_version }}
           path: ./release-files
 
       - name: Download BDS artifact (default)
@@ -693,10 +654,6 @@ jobs:
 
           if [ -f "bedrock-voice-chat-paper-${VERSION}.jar" ]; then
             mv "bedrock-voice-chat-paper-${VERSION}.jar" "bvc-paper-plugin-${VERSION}.jar"
-          fi
-
-          if [ -f "bedrock-voice-chat-hytale-${VERSION}.jar" ]; then
-            mv "bedrock-voice-chat-hytale-${VERSION}.jar" "bvc-hytale-plugin-${VERSION}.jar"
           fi
 
           if [ -f "bedrock-voice-chat-${VERSION}.mcaddon" ]; then

@@ -78,6 +78,8 @@ blake3 = { version = "^1.8" }
 hex = { version = "^0.4" }
 redcon = { version = "^0.1" }
 rocket_cors = { version = "^0.6" }
+rocket-governor = { version = "0.2.0-rc.4" }
+dryoc = { version = "^0.7" }
 semver = { version = "^1.0" }
 dashmap = { version = "^6" }
 cached = { version = "^0.58" }
@@ -91,6 +93,8 @@ rocket_okapi = { version = "0.9", features = ["swagger", "mtls"] }
 inventory = { version = "^0.3" }
 hickory-proto = { workspace = true, optional = true }
 x509-parser = { workspace = true }
+sha2 = { version = "^0.10" }
+rustls = { version = "^0.23", features = ["aws_lc_rs"] }
 
 dirs = { version = "^5" }
 toml = { version = "^0.8" }

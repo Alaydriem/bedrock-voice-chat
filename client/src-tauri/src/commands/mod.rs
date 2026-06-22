@@ -2,9 +2,13 @@ pub(crate) mod about;
 pub(crate) mod analytics;
 pub(crate) mod audio;
 pub(crate) mod audio_library;
+#[cfg(feature = "bedrock-protocol")]
+pub(crate) mod bedrock;
 pub(crate) mod env;
 pub(crate) mod event;
 pub(crate) mod feature_flags;
+#[cfg(feature = "bedrock-protocol")]
+pub(crate) mod iap;
 pub(crate) mod keybinds;
 pub(crate) mod keyring;
 pub(crate) mod network;
@@ -12,5 +16,3 @@ pub(crate) mod recordings;
 #[cfg(desktop)]
 pub(crate) mod updater;
 pub(crate) mod websocket;
-#[cfg(feature = "bedrock-protocol")]
-pub(crate) mod bedrock;

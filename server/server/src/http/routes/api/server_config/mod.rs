@@ -1,6 +1,6 @@
 use common::consts::version::PROTOCOL_VERSION;
 use common::response::ApiConfigResponse;
-use rocket::{serde::json::Json, State};
+use rocket::{State, serde::json::Json};
 use rocket_okapi::openapi;
 
 use crate::config::{Server, Voice};
@@ -17,6 +17,7 @@ inventory::submit! {
 inventory::submit! {
     RouteSpec {
         prefix: "/api",
+        auto_mount: true,
         spec_fn: || {
             let settings = rocket_okapi::settings::OpenApiSettings::default();
             rocket_okapi::openapi_get_routes_spec![settings: get_config]
@@ -26,10 +27,7 @@ inventory::submit! {
 
 #[openapi(tag = "Server")]
 #[get("/config")]
-pub async fn get_config(
-    config: &State<Server>,
-    voice: &State<Voice>,
-) -> Json<ApiConfigResponse> {
+pub async fn get_config(config: &State<Server>, voice: &State<Voice>) -> Json<ApiConfigResponse> {
     Json(ApiConfigResponse {
         status: String::from("Ok"),
         client_id: config.minecraft.client_id.clone(),

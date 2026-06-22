@@ -1,11 +1,14 @@
 pub mod ca_cert;
 pub mod position_updater;
 pub mod state;
-pub use state::RuntimeState;
 use crate::config::ApplicationConfig;
 use crate::http::manager::RocketManager;
-use crate::services::{AudioPlaybackService, BedrockEventService, CertificateService, EjectScheduler, MeridianService, PlayerIdentityService, PlayerRegistrarService};
+use crate::services::{
+    AudioPlaybackService, BedrockEventService, CertificateService, EjectScheduler, MeridianService,
+    PlayerIdentityService, PlayerRegistrarService,
+};
 use crate::stream::quic::{QuicServerManager, WebhookReceiver};
+pub use state::RuntimeState;
 
 use anyhow::anyhow;
 use faccess::PathExt;
@@ -110,10 +113,13 @@ impl ServerRuntime {
         self.setup_logging()?;
 
         info!("Bedrock Voice Chat Server v{}", crate::VERSION);
-        info!("Protocol Version: {}", common::consts::version::PROTOCOL_VERSION);
+        info!(
+            "Protocol Version: {}",
+            common::consts::version::PROTOCOL_VERSION
+        );
 
         // Generate CA certificates
-        self.generate_ca().await?;
+        let (ca_pem, _ca_key_pem) = self.generate_ca().await?;
 
         // Create standalone database connection for FFI and shared services
         let db_conn = self.create_database_connection().await?;
@@ -131,14 +137,18 @@ impl ServerRuntime {
 
         // Store player_registrar for FFI access
         {
-            let mut pr = self.player_registrar.write()
+            let mut pr = self
+                .player_registrar
+                .write()
                 .map_err(|_| anyhow!("player_registrar lock poisoned"))?;
             *pr = Some(player_registrar.clone());
         }
 
         // Store identity_service for FFI access
         {
-            let mut is = self.identity_service.write()
+            let mut is = self
+                .identity_service
+                .write()
                 .map_err(|_| anyhow!("identity_service lock poisoned"))?;
             *is = Some(identity_service.clone());
         }
@@ -147,31 +157,67 @@ impl ServerRuntime {
         let mut quic_manager = QuicServerManager::new(self.config.clone());
         let webhook_receiver = quic_manager.get_webhook_receiver().clone();
         let cache_manager = quic_manager.get_cache_manager();
+        let connection_registry = quic_manager.get_connection_registry();
+
+        // Cross-server voice relay plane. Discovery is decentralized via in-realm
+        // `!bvca` announces — there is no central relay and no discovery routes.
+        // All relay work runs on dedicated tokio tasks, never on the audio hot
+        // path, so there is NO 4th `tokio::select!` arm. Returns the relay HTTP
+        // state (peer store + inject delivery) the Rocket manager mounts the
+        // `/relay/{offer,peer-redeem,peer-link}` routes against.
+        // Shared stream-token cache: the cross-server jukebox responder mints
+        // single-use tokens into the SAME cache the public `/api/audio/stream`
+        // route validates against, so a peer's HTTP pull resolves.
+        let audio_stream_token_cache = crate::services::AudioStreamTokenCache::new();
+
+        let relay_client_state = self.wire_relay_client(
+            &webhook_receiver,
+            &cache_manager,
+            &connection_registry,
+            cert_service.clone(),
+            ca_pem,
+            db_conn.clone(),
+            audio_stream_token_cache.clone(),
+        );
 
         // Store webhook_receiver for FFI position updates
         {
-            let mut wr = self.webhook_receiver.write()
+            let mut wr = self
+                .webhook_receiver
+                .write()
                 .map_err(|_| anyhow!("webhook_receiver lock poisoned"))?;
             *wr = Some(webhook_receiver.clone());
         }
 
-        // Create audio playback service
+        // Create audio playback service. When the relay client is wired, the peer
+        // manager doubles as the cross-server jukebox discovery handle so a local
+        // miss can fetch the `.opus` from a peer; otherwise discovery is absent and
+        // a miss is a hard error.
         let playback_cancel_token = tokio_util::sync::CancellationToken::new();
+        let peer_query: Option<Arc<dyn crate::relay::AudioPeerQuery>> = relay_client_state
+            .as_ref()
+            .map(|relay| relay.peer_manager() as Arc<dyn crate::relay::AudioPeerQuery>);
         let audio_playback_service = Arc::new(AudioPlaybackService::new(
             webhook_receiver.clone(),
             self.config.audio.file_path.clone(),
             playback_cancel_token.clone(),
             self.config.audio.max_concurrent_per_uuid,
+            peer_query,
+            crate::relay::RelayAudioPuller::new_shared(),
         ));
 
         // Store audio_playback_service and db_conn for FFI access
         {
-            let mut aps = self.audio_playback_service.write()
+            let mut aps = self
+                .audio_playback_service
+                .write()
                 .map_err(|_| anyhow!("audio_playback_service lock poisoned"))?;
             *aps = Some(audio_playback_service.clone());
         }
         {
-            let mut dc = self.db_conn.write()
+            let mut dc = self
+                .db_conn
+                .write()
                 .map_err(|_| anyhow!("db_conn lock poisoned"))?;
             *dc = Some(db_conn.clone());
         }
@@ -182,24 +228,21 @@ impl ServerRuntime {
             audio_playback_service.clone(),
             webhook_receiver.clone(),
             db_conn.clone(),
-            self.config.server.bedrock.proxy_event_freshness_threshold_secs,
+            self.config
+                .server
+                .bedrock
+                .proxy_event_freshness_threshold_secs,
         );
         quic_manager.set_bedrock_event_service(bedrock_event_service.clone());
 
-        let eject_scheduler = EjectScheduler::new_shared(
-            bedrock_event_service.clone(),
-            webhook_receiver.clone(),
-        );
+        let eject_scheduler =
+            EjectScheduler::new_shared(bedrock_event_service.clone(), webhook_receiver.clone());
         audio_playback_service.set_eject_scheduler(eject_scheduler);
 
         #[cfg(feature = "bedrock")]
-        let transfer_target_cache = if self.config.server.bedrock.enabled {
-            Some(crate::services::bedrock::TransferTargetCache::new(
-                self.config.server.bedrock.transfer_cache_ttl_secs,
-            ))
-        } else {
-            None
-        };
+        let transfer_target_cache = crate::services::bedrock::TransferTargetCache::new(
+            self.config.server.bedrock.transfer_cache_ttl_secs,
+        );
 
         // Create Rocket manager
         let mut rocket_manager = RocketManager::new(
@@ -211,6 +254,13 @@ impl ServerRuntime {
             audio_playback_service,
             bedrock_event_service,
             cert_service,
+            relay_client_state
+                .as_ref()
+                .map(|relay| relay.server_peer_store()),
+            relay_client_state
+                .as_ref()
+                .map(|relay| relay.inject_delivery()),
+            Some(audio_stream_token_cache),
             #[cfg(feature = "bedrock")]
             transfer_target_cache.clone(),
         );
@@ -223,14 +273,22 @@ impl ServerRuntime {
         let mut transfer_relay = None;
 
         #[cfg(feature = "bedrock")]
-        if self.config.server.bedrock.enabled {
+        {
             use common::traits::StreamTrait;
 
-            let listen_ip: std::net::IpAddr = self.config.server.listen.parse()
+            let listen_ip: std::net::IpAddr = self
+                .config
+                .server
+                .listen
+                .parse()
                 .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED));
 
             let lan_ip = if listen_ip.is_unspecified() {
-                self.config.server.tls.ips.first()
+                self.config
+                    .server
+                    .tls
+                    .ips
+                    .first()
                     .and_then(|ip| ip.parse().ok())
                     .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
             } else {
@@ -246,23 +304,27 @@ impl ServerRuntime {
             }
             dns_service = Some(dns);
 
-            if let Some(ref cache) = transfer_target_cache {
-                let mut relay = crate::services::bedrock::TransferRelayService::new(
-                    self.config.server.bedrock.transfer_port,
-                    cache.clone(),
-                );
-                if let Err(e) = relay.start().await {
-                    tracing::error!("Failed to start bedrock transfer relay: {}", e);
-                }
-                transfer_relay = Some(relay);
+            let mut relay = crate::services::bedrock::TransferRelayService::new(
+                self.config.server.bedrock.transfer_port,
+                transfer_target_cache.clone(),
+            );
+            if let Err(e) = relay.start().await {
+                tracing::error!("Failed to start bedrock transfer relay: {}", e);
             }
+            transfer_relay = Some(relay);
         }
 
         // Register with Meridian if configured
         if let Some(meridian_config) = &self.config.server.meridian {
-            let hostname = meridian_config.host.clone()
+            let hostname = meridian_config
+                .host
+                .clone()
                 .or_else(|| {
-                    self.config.server.tls.names.iter()
+                    self.config
+                        .server
+                        .tls
+                        .names
+                        .iter()
                         .find(|name| name.parse::<std::net::IpAddr>().is_err())
                         .cloned()
                 })
@@ -326,13 +388,102 @@ impl ServerRuntime {
             tracing::error!("Error stopping QUIC server: {}", e);
         }
 
-        // This is unecessary since Rocket will stop when the main function exits
         if let Err(e) = rocket_manager.stop().await {
             tracing::error!("Error stopping Rocket server: {}", e);
         }
 
         self.state = RuntimeState::Stopped;
         Ok(())
+    }
+
+    /// Assemble the cross-server voice relay client plane via `RelayManager`,
+    /// install the peer manager on the connection registry so the QUIC fan-out
+    /// forwards local-origin audio to proven peers, and spawn the relay's
+    /// background + orchestration tasks. No-op unless the relay client builds.
+    /// Returns the manager the runtime retains for the remaining integration
+    /// wires (playback discovery handle + Rocket relay-route state). Everything
+    /// is off the audio hot path (dedicated tasks).
+    fn wire_relay_client(
+        &self,
+        webhook_receiver: &WebhookReceiver,
+        cache_manager: &crate::stream::quic::CacheManager,
+        connection_registry: &Arc<crate::stream::quic::connection_registry::ConnectionRegistry>,
+        cert_service: Arc<CertificateService>,
+        ca_pem: String,
+        db_conn: Arc<DatabaseConnection>,
+        audio_stream_token_cache: crate::services::AudioStreamTokenCache,
+    ) -> Option<Arc<crate::relay::RelayManager>> {
+        use crate::relay::{RelayManager, RelayManagerConfig};
+        use common::structs::relay::RelayEndpoint;
+
+        let self_host = self
+            .config
+            .server
+            .tls
+            .names
+            .iter()
+            .find(|n| n.parse::<std::net::IpAddr>().is_err())
+            .cloned()
+            .or_else(|| self.config.server.tls.ips.first().cloned())
+            .unwrap_or_else(|| "localhost".to_string());
+        // Advertised endpoint is the public HTTPS port; the QUIC datagram port is
+        // divined on demand from the peer's `/api/config` at dial time.
+        let self_endpoint = RelayEndpoint {
+            host: self_host,
+            port: self.config.server.port as u16,
+            primary: false,
+        };
+
+        let relay = match RelayManager::new_shared(RelayManagerConfig {
+            self_endpoint,
+            webhook_receiver: webhook_receiver.clone(),
+            cache_manager: cache_manager.clone(),
+            cert_service,
+            ca_pem,
+            db_conn,
+            audio_storage_path: self.config.audio.file_path.clone(),
+            audio_stream_token_cache,
+            announce_interval: self
+                .config
+                .server
+                .features
+                .relay
+                .announce_interval_secs
+                .map(std::time::Duration::from_secs),
+            orchestration_interval: self
+                .config
+                .server
+                .features
+                .relay
+                .orchestration_interval_secs
+                .map(std::time::Duration::from_secs),
+            idle_timeout: self
+                .config
+                .server
+                .features
+                .relay
+                .idle_timeout_secs
+                .map(std::time::Duration::from_secs),
+        }) {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::error!(
+                    "failed to build relay client, cross-server voice disabled: {}",
+                    e
+                );
+                return None;
+            }
+        };
+
+        connection_registry.set_peer_manager(relay.peer_manager());
+        connection_registry.set_observe_handler(relay.observe_handler());
+        relay.start();
+
+        tracing::info!(
+            "cross-server voice relay client wired (relay url configured); peer dial + presence tasks spawned"
+        );
+
+        Some(relay)
     }
 
     /// Signal the server to stop gracefully
@@ -373,11 +524,17 @@ impl ServerRuntime {
     /// # Returns
     /// * Ok(()) on success
     /// * Err if server not started or webhook_receiver not available
-    pub async fn update_positions(&self, players: Vec<common::PlayerEnum>) -> Result<(), anyhow::Error> {
-        let wr_guard = self.webhook_receiver.read()
+    pub async fn update_positions(
+        &self,
+        players: Vec<common::PlayerEnum>,
+    ) -> Result<(), anyhow::Error> {
+        let wr_guard = self
+            .webhook_receiver
+            .read()
             .map_err(|_| anyhow!("Failed to acquire webhook_receiver lock"))?;
 
-        let webhook_receiver = wr_guard.as_ref()
+        let webhook_receiver = wr_guard
+            .as_ref()
             .ok_or_else(|| anyhow!("Server not started - webhook_receiver not available"))?;
 
         position_updater::PositionUpdater::broadcast_positions(players, webhook_receiver).await;
@@ -422,9 +579,24 @@ impl ServerRuntime {
             }
             "mysql" => format!(
                 "mysql://{}:{}@{}:{}/{}",
-                &self.config.database.username.clone().unwrap_or(String::from("")),
-                &self.config.database.password.clone().unwrap_or(String::from("")),
-                &self.config.database.host.clone().unwrap_or(String::from("127.0.0.1")),
+                &self
+                    .config
+                    .database
+                    .username
+                    .clone()
+                    .unwrap_or(String::from("")),
+                &self
+                    .config
+                    .database
+                    .password
+                    .clone()
+                    .unwrap_or(String::from("")),
+                &self
+                    .config
+                    .database
+                    .host
+                    .clone()
+                    .unwrap_or(String::from("127.0.0.1")),
                 &self.config.database.port.unwrap_or(3306),
                 &self.config.database.database
             ),
@@ -457,14 +629,20 @@ impl ServerRuntime {
         }
 
         let env_filter = match self.config.get_tracing_log_level() {
-            tracing::Level::INFO => "info,hyper=off,rustls=off,rocket::server=off,rocket_http::tls::listener=off",
+            tracing::Level::INFO => {
+                "info,hyper=off,rustls=off,rocket::server=off,rocket_http::tls::listener=off"
+            }
             tracing::Level::DEBUG => "info,rocket_http::tls::listener=off",
             tracing::Level::TRACE => "debug",
-            tracing::Level::ERROR => "error,hyper=off,rustls=off,rocket::server=off,rocket_http::tls::listener=off",
-            tracing::Level::WARN => "warn,hyper=off,rustls=off,rocket::server=off,rocket_http::tls::listener=off",
+            tracing::Level::ERROR => {
+                "error,hyper=off,rustls=off,rocket::server=off,rocket_http::tls::listener=off"
+            }
+            tracing::Level::WARN => {
+                "warn,hyper=off,rustls=off,rocket::server=off,rocket_http::tls::listener=off"
+            }
         };
 
-        subscriber
+        let installed = subscriber
             .with_writer(non_blocking)
             .with_max_level(self.config.get_tracing_log_level())
             .with_level(true)
@@ -473,9 +651,18 @@ impl ServerRuntime {
             .with_env_filter(env_filter)
             .with_ansi(true)
             .compact()
-            .init();
+            .try_init()
+            .is_ok();
 
-        self._logger_guard = Some(guard);
+        if installed {
+            self._logger_guard = Some(guard);
+        } else {
+            // Another runtime in this process already owns the global subscriber,
+            // so drop our worker guard rather than retaining a writer that is
+            // never wired up.
+            self._logger_guard = None;
+        }
+
         Ok(())
     }
 
@@ -488,5 +675,20 @@ impl ServerRuntime {
         let mut san_names = self.config.server.tls.names.clone();
         san_names.append(&mut self.config.server.tls.ips.clone());
         ca_cert::CaCertManager::new(&self.config.server.tls.certs_path).ensure(&san_names)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::ApplicationConfig;
+
+    #[test]
+    fn logging_init_is_idempotent_within_a_process() {
+        let mut first = ServerRuntime::new(ApplicationConfig::default()).unwrap();
+        let mut second = ServerRuntime::new(ApplicationConfig::default()).unwrap();
+
+        first.setup_logging().unwrap();
+        second.setup_logging().unwrap();
     }
 }

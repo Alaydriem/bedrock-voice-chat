@@ -1,0 +1,48 @@
+[package]
+name = "bvc-client-e2e"
+version = "1.0.0"
+description = "Bedrock Voice Chat end-to-end test harness"
+authors = ["Charles R. Portwood II"]
+edition = "2024"
+publish = false
+
+# This is a standalone test artifact, deliberately a SEPARATE crate from the
+# Tauri app (`bedrock-voice-chat-client`). `tauri build` derives the binaries it
+# bundles from the app package's bin targets via `cargo metadata`, ignoring
+# `required-features` — so any bin target in the app crate (even a gated one) is
+# enumerated and breaks the bundle. Keeping the harness in its own package means
+# the app's bundler never sees it. The harness still gets `tauri-build`'s Windows
+# manifest/link args (required to launch a Wry binary) from its own `build.rs`.
+[[bin]]
+name = "bvc_client_e2e"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "^2.4", features = [] }
+
+[dependencies]
+# Package is `bedrock-voice-chat-client`; its lib name is `bvc_client_lib`, which
+# stays the import path in code (`use bvc_client_lib::...`).
+bedrock-voice-chat-client = { path = "../src-tauri", default-features = false, features = ["e2e"] }
+common = { path = "../../common", features = ["quic", "audio", "browser"] }
+
+tauri = { version = "^2", features = ["rustls-tls"] }
+tauri-plugin-opener = { version = "^2" }
+tauri-plugin-fs = { version = "^2" }
+tauri-plugin-http = { version = "^2", default-features = false, features = [
+  "rustls-tls",
+  "charset",
+  "cookies",
+  "http2",
+] }
+tauri-plugin-store = { version = "^2" }
+tauri-plugin-os = { version = "^2" }
+
+serde_json = { version = "^1" }
+flume = { version = "^0.12" }
+fern = { version = "^0.7" }
+log = { version = "^0.4" }
+
+[features]
+default = ["bedrock-protocol"]
+bedrock-protocol = ["bedrock-voice-chat-client/bedrock-protocol"]

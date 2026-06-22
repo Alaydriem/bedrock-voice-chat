@@ -1,12 +1,14 @@
-use crate::structs::app_state::AppState;
-use audio::AudioPacket;
-use audio::AudioStreamManager;
-use audio::recording::RecordingManager;
+// Re-exported for the e2e bin (a separate crate root) which constructs and
+// manages AppState itself rather than reusing the real `run()` setup.
+pub use crate::structs::app_state::AppState;
+pub(crate) use audio::AudioPacket;
+pub(crate) use audio::AudioStreamManager;
+pub(crate) use audio::recording::RecordingManager;
 use common::consts::variant::{Variant, get_variant};
-use flume::{Receiver, Sender};
+pub(crate) use flume::{Receiver, Sender};
 use log::{error, info, warn};
-use network::NetworkPacket;
-use network::NetworkStreamManager;
+pub(crate) use network::NetworkPacket;
+pub(crate) use network::NetworkStreamManager;
 use std::sync::Arc;
 use tauri::Manager;
 use tauri::async_runtime::Mutex;
@@ -18,10 +20,11 @@ use deep_links::DeepLinkHandler;
 
 mod analytics;
 mod api;
-#[cfg(feature = "bedrock-protocol")]
-pub mod bedrock;
+pub mod app_builder;
 pub mod audio;
 mod auth;
+#[cfg(feature = "bedrock-protocol")]
+pub mod bedrock;
 mod commands;
 mod deep_links;
 mod events;
@@ -29,13 +32,23 @@ mod feature_flags;
 pub use feature_flags::flagsmith::FlagsmithProvider;
 #[cfg(feature = "bedrock-protocol")]
 mod iap;
-mod keyring;
 #[cfg(desktop)]
 pub mod keybinds;
+mod keyring;
 mod logging;
 mod network;
 mod structs;
+#[cfg(feature = "e2e")]
+pub mod testkit;
 pub mod websocket;
+
+// Re-exported for the e2e test bin (a separate crate root that can only reach
+// `pub` items). The bridge source/sink live deep under `audio::stream`; surface
+// them here so the harness can construct the Fake audio backend.
+#[cfg(feature = "e2e")]
+pub use crate::audio::stream::stream_manager::sink::CapturingSink;
+#[cfg(feature = "e2e")]
+pub use crate::audio::stream::stream_manager::source::BridgeInputSource;
 
 /// JNI export called from MainActivity.onCreate to populate the global
 /// `ndk_context` static. tao 0.35 (Tauri 2.11) dropped this initialization as
@@ -125,9 +138,7 @@ pub fn run() {
     let bedrock_log_sender = bedrock_log_channel.sender();
 
     #[cfg(feature = "bedrock-protocol")]
-    let bedrock_connect_error_channel = Arc::new(
-        crate::bedrock::BedrockConnectErrorChannel::new(),
-    );
+    let bedrock_connect_error_channel = Arc::new(crate::bedrock::BedrockConnectErrorChannel::new());
 
     builder
         .plugin(
@@ -238,7 +249,7 @@ pub fn run() {
             crate::commands::keybinds::start_keybind_listener,
             // Feature Flags
             crate::commands::feature_flags::get_feature_flag,
-            crate::commands::feature_flags::get_bedrock_connect_enabled,
+            crate::commands::feature_flags::refresh_feature_flags,
             // Audio Library
             crate::commands::audio_library::upload_audio_file,
             crate::commands::audio_library::list_audio_files,
@@ -275,8 +286,6 @@ pub fn run() {
             #[cfg(feature = "bedrock-protocol")]
             crate::commands::bedrock::bedrock_get_position,
             #[cfg(feature = "bedrock-protocol")]
-            crate::commands::bedrock::bedrock_check_entitlement,
-            #[cfg(feature = "bedrock-protocol")]
             crate::commands::bedrock::bedrock_get_status,
             #[cfg(feature = "bedrock-protocol")]
             crate::commands::bedrock::bedrock_cancel_xbox_login,
@@ -286,6 +295,16 @@ pub fn run() {
             crate::commands::bedrock::bedrock_restore_auth,
             #[cfg(feature = "bedrock-protocol")]
             crate::commands::bedrock::bedrock_force_refresh,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_realms_gate,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::iap::iap_list_offers,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::iap::iap_purchase,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::iap::iap_restore,
+            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::iap::iap_refresh,
         ])
         .setup(move |app| {
             let sentry_logger = sentry_logger.clone();
@@ -518,11 +537,46 @@ pub fn run() {
                 let bedrock_state = crate::bedrock::BedrockState::new();
                 let cache = std::sync::Arc::clone(&bedrock_state.player_state_cache);
                 app.manage(Mutex::new(bedrock_state));
-                app.manage(crate::iap::EntitlementService::new(
-                    crate::iap::EntitlementProviderType::Bedrock(
-                        crate::iap::bedrock::Provider::new(app.handle().clone()),
-                    ),
-                ));
+
+                handle.plugin(tauri_plugin_iap::init())?;
+
+                let mut entitlement_providers =
+                    vec![crate::iap::EntitlementProviderType::Store(
+                        crate::iap::store::StoreProvider::new(app.handle().clone()),
+                    )];
+                let mock_iap = option_env!("BVC_MOCK_IAP")
+                    .map(|v| {
+                        matches!(
+                            v.trim().to_ascii_lowercase().as_str(),
+                            "1" | "true" | "yes" | "on"
+                        )
+                    })
+                    .unwrap_or(false);
+                if mock_iap {
+                    log::info!("BVC_MOCK_IAP set — using mock IAP offers for local preview");
+                    entitlement_providers.insert(
+                        0,
+                        crate::iap::EntitlementProviderType::Mock(
+                            crate::iap::mock::MockProvider::new(),
+                        ),
+                    );
+                }
+                app.manage(std::sync::Arc::new(crate::iap::EntitlementService::new(
+                    entitlement_providers,
+                )));
+
+                let refresh_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    use tauri::Manager;
+                    let svc = refresh_handle
+                        .state::<std::sync::Arc<crate::iap::EntitlementService>>()
+                        .inner()
+                        .clone();
+                    if let Err(e) = svc.check_and_refresh().await {
+                        log::warn!("startup entitlement refresh failed: {e}");
+                    }
+                });
+
                 cache
             };
 
@@ -535,53 +589,36 @@ pub fn run() {
             #[cfg(feature = "bedrock-protocol")]
             app.manage(Arc::clone(&bedrock_eject_injector));
             #[cfg(feature = "bedrock-protocol")]
+            let bedrock_presence_injector = crate::bedrock::PresenceInjector::new_shared();
+            #[cfg(feature = "bedrock-protocol")]
+            app.manage(Arc::clone(&bedrock_presence_injector));
+            #[cfg(feature = "bedrock-protocol")]
+            let bedrock_announce_injector = crate::bedrock::AnnounceInjector::new_shared();
+            #[cfg(feature = "bedrock-protocol")]
+            app.manage(Arc::clone(&bedrock_announce_injector));
+            #[cfg(feature = "bedrock-protocol")]
             app.manage(Arc::clone(&bedrock_connect_error_channel));
             #[cfg(feature = "bedrock-protocol")]
             app.manage(Arc::clone(&bedrock_log_channel));
 
-            // This is our audio producer and consumer
-            // The producer is responsible for getting audio from the raw input device, then sending it to the consumer
-            // The consumer lives in the networking thread, consumes the audio, then sends it to the server
-            let (audio_producer, audio_consumer) = flume::bounded::<AudioPacket>(10000);
-            app.manage(Arc::new(audio_producer));
-            app.manage(Arc::new(audio_consumer));
-
-            // This is our network producer and consumer
-            // The producer retrieves data from the raw QUIC stream, then sends it to the consumer
-            // The consumer receives the data, then pushed it to the output device
-            let (quic_producer, quic_consumer) = flume::bounded::<NetworkPacket>(10000);
-            app.manage(Arc::new(quic_producer));
-            app.manage(Arc::new(quic_consumer));
-
-            // This is our RecordingManager
-            // It is responsible for managing recording sessions and owns internal producer/consumer channels
-            // for both the input and output stream
-            let recording_manager = RecordingManager::new(handle.clone());
-            app.manage(Arc::new(Mutex::new(recording_manager)));
-
-            let audio_stream = AudioStreamManager::new(
-                handle.state::<Arc<Sender<NetworkPacket>>>().inner().clone(),
-                handle.state::<Arc<Receiver<AudioPacket>>>().inner().clone(),
-                handle.clone(),
-                Some(handle.state::<Arc<Mutex<RecordingManager>>>().inner().clone()),
+            // Channels, RecordingManager, AudioStreamManager, WebSocket/audio-action
+            // managers, and the NetworkStreamManager are wired identically for the
+            // real app and the test harness via this shared factory. The real app
+            // always selects the Cpal/Rodio backends.
+            crate::app_builder::build_managed_state(
+                app,
+                crate::app_builder::AudioBackend::Real,
                 #[cfg(feature = "bedrock-protocol")]
                 Some(bedrock_player_state_cache),
                 #[cfg(feature = "bedrock-protocol")]
                 Some(Arc::clone(&bedrock_beacon_cache)),
                 #[cfg(feature = "bedrock-protocol")]
                 Some(Arc::clone(&bedrock_eject_injector)),
-            );
-            app.manage(Mutex::new(audio_stream));
-
-            // Initialize WebSocketManager and register the broadcaster
-            let ws_manager = websocket::WebSocketManager::new(handle.clone());
-            let ws_broadcaster = ws_manager.broadcaster();
-            app.manage(ws_broadcaster);
-            app.manage(Mutex::new(ws_manager));
-
-            // AudioActionsManager handles mute, deafen, and recording state changes for both user-initiated actions (keybinds) and API calls
-            let audio_actions = crate::audio::AudioActionsManager::new(handle.clone());
-            app.manage(audio_actions);
+                #[cfg(feature = "bedrock-protocol")]
+                Some(Arc::clone(&bedrock_presence_injector)),
+                #[cfg(feature = "bedrock-protocol")]
+                Some(Arc::clone(&bedrock_announce_injector)),
+            )?;
 
             // KeybindManager listens for global key events and triggers actions in AudioActionsManager for desktop
             #[cfg(desktop)]
@@ -623,16 +660,6 @@ pub fn run() {
                     keybinds::KeybindManager::new(handle.clone(), listener, action_map);
                 app.manage(keybind_manager);
             }
-
-            let network_stream = NetworkStreamManager::new(
-                handle.state::<Arc<Sender<AudioPacket>>>().inner().clone(),
-                handle
-                    .state::<Arc<Receiver<NetworkPacket>>>()
-                    .inner()
-                    .clone(),
-                handle.clone(),
-            );
-            app.manage(Mutex::new(network_stream));
 
             // Event Handlers
             crate::events::Notification::register(app);
