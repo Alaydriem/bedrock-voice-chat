@@ -1,3 +1,11 @@
+# [1.0.0-beta.14](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.13...v1.0.0-beta.14) (2026-06-22)
+
+
+### Features
+
+* flagsmith refactoring for better feature flag control ([#193](https://github.com/Alaydriem/bedrock-voice-chat/issues/193)) ([c407423](https://github.com/Alaydriem/bedrock-voice-chat/commit/c4074231c1350ae83e81082f7e2999de29686751))
+* iap, relay, end-to-end testing ([#195](https://github.com/Alaydriem/bedrock-voice-chat/issues/195)) ([2dd107f](https://github.com/Alaydriem/bedrock-voice-chat/commit/2dd107f29a87b4b0ef7a4702c4f7a6e2b2478066))
+
 # [1.0.0-beta.13](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.12...v1.0.0-beta.13) (2026-06-16)
 
 
