@@ -129,15 +129,9 @@
 
     const mobileHiddenPages = new Set(["recordings.svelte", "audioLibrary.svelte", "websocket.svelte", "keybinds.svelte"]);
 
-    // Hidden until 'feature.bedrock.connect-enabled' resolves true.
-    let hideBedrockSection = $state(true);
-
     let visibleItems = $derived(
         settingsItems.filter(item => {
-            if (hideBedrockSection) {
-                if (item.type === "separator" && item.label === "Minecraft Bedrock") return false;
-                if (item.type === "page" && bedrockPageIds.has(item.id)) return false;
-            }
+            if (!realmsConnectEnabled && item.type === "page" && item.id === "realms_connect.svelte") return false;
             if (isMobile && item.type === "page" && mobileHiddenPages.has(item.id)) return false;
             return true;
         })
@@ -237,13 +231,6 @@
             isMobile = await platformDetector.checkMobile();
         } catch (error) {
             isMobile = false;
-        }
-
-        try {
-            const enabled = await invoke<boolean>("get_bedrock_connect_enabled");
-            hideBedrockSection = !enabled;
-        } catch (error) {
-            hideBedrockSection = true;
         }
 
         try {

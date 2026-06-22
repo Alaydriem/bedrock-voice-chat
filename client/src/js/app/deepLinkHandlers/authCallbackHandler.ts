@@ -1,16 +1,19 @@
 import { Store } from '@tauri-apps/plugin-store';
 import { invoke } from "@tauri-apps/api/core";
 import { info, error as logError } from '@tauri-apps/plugin-log';
-import { platform } from '@tauri-apps/plugin-os';
 import Analytics from '../analytics';
 import { type LoginResponse } from "../../bindings/LoginResponse";
 import { type ServerListEntry } from "../../bindings/ServerListEntry";
+import type { DeepLinkOutcome } from '../deepLinkRouter.ts';
 
 export class AuthCallbackHandler {
     private readonly AUTH_PREFIXES = [
         'bedrock-voice-chat://auth',
         'https://bvc.alaydriem.com/auth'
     ];
+    // Must match Login.LOGIN_ERROR_KEY. Duplicated rather than imported to avoid
+    // a Login -> BVCApp -> deepLinkRouter -> authCallbackHandler -> Login cycle.
+    private readonly LOGIN_ERROR_KEY = "login_error";
     private store: Store;
 
     constructor(store: Store) {
@@ -21,7 +24,7 @@ export class AuthCallbackHandler {
         return this.AUTH_PREFIXES.some(prefix => url.startsWith(prefix));
     }
 
-    async handle(url: string): Promise<void> {
+    async handle(url: string): Promise<DeepLinkOutcome> {
         info(`AuthCallbackHandler: Processing auth callback`);
 
         const parsedUrl = new URL(url);
@@ -36,9 +39,14 @@ export class AuthCallbackHandler {
 
         if (currentPath === "/login") {
             await this.processAuthCallback(url, code, state);
-        } else {
-            window.location.href = "/login";
+            return 'handled';
         }
+
+        // The webview isn't on the login page (e.g. the deep link arrived while
+        // elsewhere in the app). Navigate there and keep the pending entry so
+        // the login page picks the callback up after it loads.
+        window.location.href = "/login";
+        return 'deferred';
     }
 
     private async processAuthCallback(url: string, code: string, state: string): Promise<void> {
@@ -47,7 +55,7 @@ export class AuthCallbackHandler {
 
         if (state !== authStateToken) {
             const errorMsg = `Auth State Mismatch - Expected: ${authStateToken}, Got: ${state}`;
-            this.showLoginError("Authentication failed. Please try again.");
+            await this.showLoginError("Authentication failed. Please try again.");
             throw new Error(errorMsg);
         }
 
@@ -106,9 +114,9 @@ export class AuthCallbackHandler {
             logError(`AuthCallbackHandler: Login failed: ${e}`);
             const errorStr = String(e).toLowerCase();
             if (errorStr.includes("403") || errorStr.includes("forbidden") || errorStr.includes("permission") || errorStr.includes("banned") || errorStr.includes("whitelist")) {
-                this.showLoginError("Access denied. Check with your server operator if you have permissions.");
+                await this.showLoginError("Access denied. Check with your server operator if you have permissions.");
             } else {
-                this.showLoginError("Login failed. Please check your server URL and try again.");
+                await this.showLoginError("Login failed. Please check your server URL and try again.");
             }
             throw e;
         }
@@ -118,15 +126,17 @@ export class AuthCallbackHandler {
         return "bedrock-voice-chat://auth";
     }
 
-    private showLoginError(message: string = "Cannot connect to Bedrock Voice Chat server. Confirm the URL and access permissions with your server operator."): void {
-        const form = document.querySelector("#login-form");
-        const serverUrl = form?.querySelector("#bvc-server-input");
-        const errorMessage = form?.querySelector("#bvc-server-input-error-message");
-
-        serverUrl?.classList.add("border-error");
-        if (errorMessage instanceof HTMLElement) {
-            errorMessage.innerText = message;
-            errorMessage.classList.remove("invisible");
+    /**
+     * Persist a user-facing error so the login page can surface it. The page
+     * observes this store key (live and on mount), so the failure is shown as a
+     * warning whether or not the page is still mounted from the original attempt.
+     */
+    private async showLoginError(message: string): Promise<void> {
+        try {
+            await this.store.set(this.LOGIN_ERROR_KEY, message);
+            await this.store.save();
+        } catch (e) {
+            logError(`AuthCallbackHandler: Failed to persist login error: ${e}`);
         }
     }
 }

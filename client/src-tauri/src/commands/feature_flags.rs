@@ -1,5 +1,4 @@
 use crate::feature_flags::FeatureFlagService;
-use crate::feature_flags::flags::bedrock::BedrockConnectEnabled;
 use std::sync::Arc;
 use tauri::State;
 
@@ -9,13 +8,6 @@ pub(crate) async fn get_feature_flag(
     service: State<'_, Arc<FeatureFlagService>>,
 ) -> Result<bool, String> {
     Ok(service.is_enabled(&flag).await)
-}
-
-#[tauri::command]
-pub(crate) async fn get_bedrock_connect_enabled(
-    service: State<'_, Arc<FeatureFlagService>>,
-) -> Result<bool, String> {
-    Ok(service.get(BedrockConnectEnabled).await)
 }
 
 #[tauri::command]
