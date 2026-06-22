@@ -64,40 +64,15 @@
         ]
       }
     },
-    "/api/gamerpic/{game}/{gamertag}": {
+    "/api/ping": {
       "get": {
         "tags": [
-          "Gamerpic"
+          "Health"
         ],
-        "operationId": "get_gamerpic",
-        "parameters": [
-          {
-            "name": "game",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/Game"
-            }
-          },
-          {
-            "name": "gamertag",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "operationId": "ping_pong",
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GamerpicResponse"
-                }
-              }
-            }
+          "default": {
+            "description": ""
           }
         }
       }
@@ -128,13 +103,33 @@
         }
       }
     },
-    "/api/ping": {
-      "get": {
+    "/api/relay/peer-link": {
+      "post": {
         "tags": [
-          "Health"
+          "Relay"
         ],
-        "operationId": "ping_pong",
+        "operationId": "peer_link_peer_link",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PeerLinkRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PeerLinkResponse"
+                }
+              }
+            }
+          },
           "default": {
             "description": ""
           }
@@ -708,6 +703,44 @@
         }
       }
     },
+    "/api/gamerpic/{game}/{gamertag}": {
+      "get": {
+        "tags": [
+          "Gamerpic"
+        ],
+        "operationId": "get_gamerpic",
+        "parameters": [
+          {
+            "name": "game",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Game"
+            }
+          },
+          {
+            "name": "gamertag",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GamerpicResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/channel/": {
       "get": {
         "tags": [
@@ -991,6 +1024,11 @@
             "default": null,
             "type": "string",
             "nullable": true
+          },
+          "relay_world_uuid": {
+            "default": null,
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -1121,22 +1159,35 @@
           }
         }
       },
-      "GamerpicResponse": {
+      "PeerLinkResponse": {
         "type": "object",
         "required": [
-          "game",
-          "gamertag"
+          "code"
         ],
         "properties": {
-          "gamertag": {
+          "code": {
+            "type": "string"
+          }
+        }
+      },
+      "PeerLinkRequest": {
+        "type": "object",
+        "required": [
+          "hashed_world",
+          "recipient_host",
+          "recipient_port"
+        ],
+        "properties": {
+          "hashed_world": {
             "type": "string"
           },
-          "game": {
-            "$ref": "#/components/schemas/Game"
+          "recipient_host": {
+            "type": "string"
           },
-          "gamerpic": {
-            "type": "string",
-            "nullable": true
+          "recipient_port": {
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0.0
           }
         }
       },
@@ -1197,6 +1248,11 @@
               },
               "world_uuid": {
                 "type": "string"
+              },
+              "relay_world_uuid": {
+                "default": null,
+                "type": "string",
+                "nullable": true
               }
             }
           },
@@ -1429,6 +1485,10 @@
             "type": "integer",
             "format": "uint64",
             "minimum": 0.0
+          },
+          "ephemeral": {
+            "default": true,
+            "type": "boolean"
           }
         }
       },
@@ -1648,7 +1708,8 @@
         "enum": [
           "audio_upload",
           "audio_delete",
-          "admin"
+          "admin",
+          "peer_link"
         ]
       },
       "JsonError": {
@@ -1986,6 +2047,25 @@
           }
         }
       },
+      "GamerpicResponse": {
+        "type": "object",
+        "required": [
+          "game",
+          "gamertag"
+        ],
+        "properties": {
+          "gamertag": {
+            "type": "string"
+          },
+          "game": {
+            "$ref": "#/components/schemas/Game"
+          },
+          "gamerpic": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
       "ChannelEvent": {
         "type": "object",
         "required": [
@@ -2069,12 +2149,12 @@
       "description": "Player position updates from game mods. Used by the Minecraft/Hytale server plugin to push player coordinates for spatial audio calculations."
     },
     {
-      "name": "Gamerpic",
-      "description": "Player avatar/gamerpic retrieval by gamertag and game type."
-    },
-    {
       "name": "Health",
       "description": "Health and readiness probes. Liveness and readiness are unauthenticated for use with Kubernetes."
+    },
+    {
+      "name": "Relay",
+      "description": "Cross-server peering over direct peer HTTPS. Discovery is decentralized via in-realm announces (no central relay); these routes carry the offer / code-redeem / peer-link handshake between two servers that already share a realm."
     },
     {
       "name": "Audio",
@@ -2095,6 +2175,10 @@
     {
       "name": "Server",
       "description": "Server configuration and metadata. Returns connection details, protocol version, and spatial audio settings."
+    },
+    {
+      "name": "Gamerpic",
+      "description": "Player avatar/gamerpic retrieval by gamertag and game type."
     },
     {
       "name": "Channels",
