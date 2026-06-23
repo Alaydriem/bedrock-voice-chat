@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::response::api_config_response::ApiConfigResponse;
+use super::ApiConfigResponse;
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "./../../client/src/js/bindings/")]

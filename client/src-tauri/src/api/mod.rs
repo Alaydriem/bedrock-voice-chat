@@ -36,6 +36,46 @@ impl Api {
         &self.endpoint
     }
 
+    /// Build the connected server's bedrock transfer relay address (`host:port`)
+    /// from this client's endpoint and the transfer port advertised by
+    /// `/api/config`. The host is the server's hostname without scheme or HTTPS
+    /// port; the supplied port is the bedrock transfer port.
+    pub(crate) fn transfer_relay_address(&self, transfer_port: u16) -> String {
+        let host = url::Url::parse(&self.endpoint)
+            .ok()
+            .and_then(|u| u.host_str().map(|s| s.to_string()))
+            .unwrap_or_else(|| {
+                self.endpoint
+                    .replace("https://", "")
+                    .replace("http://", "")
+                    .split(':')
+                    .next()
+                    .unwrap_or(&self.endpoint)
+                    .to_string()
+            });
+        format!("{}:{}", host, transfer_port)
+    }
+
+    /// Fetch `/api/config` and derive the bedrock connection hints for the
+    /// connection menu: the server transfer relay address (`host:port`, present
+    /// only when the relay is enabled) and whether the server's DNS override is
+    /// running. Both fall back to absent/false on a config fetch failure.
+    pub(crate) async fn resolve_bedrock_connection_hints(&self) -> (Option<String>, bool) {
+        match self.get_config().await {
+            Ok(config) => (
+                config
+                    .bedrock
+                    .transfer_port
+                    .map(|port| self.transfer_relay_address(port)),
+                config.bedrock.dns_enabled,
+            ),
+            Err(e) => {
+                error!("Failed to fetch /api/config for bedrock connection hints: {}", e);
+                (None, false)
+            }
+        }
+    }
+
     pub(crate) async fn get_reqwest_client(&self) -> ReqwestClient {
         self.client.get_client(Some(self.endpoint.as_str())).await
     }
@@ -147,6 +187,7 @@ impl Api {
                             protocol_version: String::new(),
                             quic_port: 0,
                             spatial_audio: Default::default(),
+                            bedrock: Default::default(),
                         });
                     }
 

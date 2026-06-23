@@ -1,4 +1,5 @@
 // This file re-exports all binding types for convenience
+export type { ApiConfigBedrock } from './ApiConfigBedrock';
 export type { ApiConfigCheckResponse } from './ApiConfigCheckResponse';
 export type { ApiConfigResponse } from './ApiConfigResponse';
 export type { AudioDevice } from './AudioDevice';

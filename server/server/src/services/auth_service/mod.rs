@@ -20,7 +20,7 @@ use sea_orm::{
 pub use auth_error::AuthError;
 pub use code_login_error::CodeLoginError;
 
-use crate::config::{Features, Server};
+use crate::config::Server;
 use crate::services::auth_code_service::AuthCodeService;
 use crate::services::certificate_service::CertificateService;
 use crate::services::permission_service::PermissionService;
@@ -208,7 +208,6 @@ impl AuthService {
         payload: &CodeLoginRequest,
         config: &Server,
         cert_service: &Arc<CertificateService>,
-        features: &Features,
         perm_config_defaults: std::collections::HashMap<String, bool>,
     ) -> Result<LoginResponse, CodeLoginError> {
         let player_record =

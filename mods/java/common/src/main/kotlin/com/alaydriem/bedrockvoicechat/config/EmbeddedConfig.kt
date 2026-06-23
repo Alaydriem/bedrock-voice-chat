@@ -46,5 +46,8 @@ class EmbeddedConfig {
     @SerializedName(value = "allow-audio-delete", alternate = ["allowAudioDelete"])
     var allowAudioDelete: Boolean = false
 
+    @SerializedName("bedrock")
+    var bedrock: EmbeddedBedrockConfig = EmbeddedBedrockConfig()
+
     fun hasTlsCertificates(): Boolean = tlsCertificate.isNotBlank() && tlsKey.isNotBlank()
 }

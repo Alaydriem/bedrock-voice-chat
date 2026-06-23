@@ -1,3 +1,9 @@
+pub mod bedrock;
+mod check;
+
+pub use bedrock::ApiConfigBedrock;
+pub use check::ApiConfigCheckResponse;
+
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -13,4 +19,6 @@ pub struct ApiConfigResponse {
     pub quic_port: u32,
     #[serde(default)]
     pub spatial_audio: SpatialAudioConfig,
+    #[serde(default)]
+    pub bedrock: ApiConfigBedrock,
 }

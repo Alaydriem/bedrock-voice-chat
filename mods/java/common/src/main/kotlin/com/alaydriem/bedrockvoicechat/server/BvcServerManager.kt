@@ -238,6 +238,20 @@ class BvcServerManager(
                 "minecraft" to mapOf(
                     "access_token" to accessToken,
                     "client_id" to "a17f9693-f01f-4d1d-ad12-1f179478375d"
+                ),
+                "bedrock" to mapOf(
+                    "enabled" to embedded.bedrock.enabled,
+                    "transfer_port" to embedded.bedrock.transferPort,
+                    "transfer_target_port" to embedded.bedrock.transferTargetPort,
+                    "transfer_cache_ttl_secs" to embedded.bedrock.transferCacheTtlSecs,
+                    "proxy_event_freshness_threshold_secs" to embedded.bedrock.proxyEventFreshnessThresholdSecs,
+                    "dns" to mapOf(
+                        "enabled" to embedded.bedrock.dns.enabled,
+                        "port" to embedded.bedrock.dns.port,
+                        "upstream" to embedded.bedrock.dns.upstream,
+                        "override_host" to embedded.bedrock.dns.overrideHost,
+                        "rate_limit_per_sec" to embedded.bedrock.dns.rateLimitPerSec
+                    )
                 )
             ),
             "log" to mapOf(

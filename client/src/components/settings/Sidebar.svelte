@@ -2,6 +2,7 @@
     import { mount, onMount, onDestroy } from "svelte";
     import { invoke } from "@tauri-apps/api/core";
     import type { RealmsGateStatus } from "../../js/bindings/RealmsGateStatus";
+    import type { ApiConfigCheckResponse } from "../../js/bindings/ApiConfigCheckResponse";
     import account from "../../components/settings/pages/account.svelte";
     import audio from "../../components/settings/pages/audio.svelte";
     import keybinds from "../../components/settings/pages/keybinds.svelte";
@@ -23,6 +24,10 @@
     let isMobile = $state(false);
     let currentPageTitle = $state("Account");
     let realmsConnectEnabled = $state(false);
+    // The Bedrock proxy/realms feature set requires the connected BVC server to
+    // run its Bedrock relay. When the server reports bedrock disabled, the whole
+    // "Minecraft Bedrock" section is hidden. Fail-closed: false until confirmed.
+    let serverBedrockEnabled = $state(false);
 
     const platformDetector = new PlatformDetector();
 
@@ -131,6 +136,10 @@
 
     let visibleItems = $derived(
         settingsItems.filter(item => {
+            if (!serverBedrockEnabled) {
+                if (item.type === "page" && bedrockPageIds.has(item.id)) return false;
+                if (item.type === "separator" && item.label === "Minecraft Bedrock") return false;
+            }
             if (!realmsConnectEnabled && item.type === "page" && item.id === "realms_connect.svelte") return false;
             if (isMobile && item.type === "page" && mobileHiddenPages.has(item.id)) return false;
             return true;
@@ -238,6 +247,13 @@
             realmsConnectEnabled = gate.status !== "feature_disabled";
         } catch (e) {
             realmsConnectEnabled = false;
+        }
+
+        try {
+            const check = await invoke<ApiConfigCheckResponse>("api_get_config");
+            serverBedrockEnabled = check.config.bedrock.enabled;
+        } catch (e) {
+            serverBedrockEnabled = false;
         }
     });
 

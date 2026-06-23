@@ -273,7 +273,7 @@ impl ServerRuntime {
         let mut transfer_relay = None;
 
         #[cfg(feature = "bedrock")]
-        {
+        if self.config.server.bedrock.enabled {
             use common::traits::StreamTrait;
 
             let listen_ip: std::net::IpAddr = self
@@ -312,6 +312,10 @@ impl ServerRuntime {
                 tracing::error!("Failed to start bedrock transfer relay: {}", e);
             }
             transfer_relay = Some(relay);
+        } else {
+            tracing::info!(
+                "Bedrock services disabled (server.bedrock.enabled = false); DNS and transfer relay not started"
+            );
         }
 
         // Register with Meridian if configured

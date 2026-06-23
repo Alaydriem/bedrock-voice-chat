@@ -86,13 +86,21 @@ pub(crate) async fn bedrock_start_proxy(
     );
     proxy.start().await.map_err(|e| e.to_string())?;
 
-    let app = app_state.lock().await;
-    if let Err(e) = state
-        .start_keepalive(&app, effective_listen_port, &network_interface)
-        .await
-    {
-        log::warn!("Transfer keepalive failed to start: {}", e);
-    }
+    let server_api = {
+        let app = app_state.lock().await;
+        if let Err(e) = state
+            .start_keepalive(&app, effective_listen_port, &network_interface)
+            .await
+        {
+            log::warn!("Transfer keepalive failed to start: {}", e);
+        }
+        app.api_client.clone()
+    };
+
+    let (server_transfer_relay, server_dns_enabled) = match server_api {
+        Some(api) => api.resolve_bedrock_connection_hints().await,
+        None => (None, false),
+    };
 
     state.proxy = Some(proxy);
     state.proxy_target_host = Some(target_host.clone());
@@ -106,6 +114,8 @@ pub(crate) async fn bedrock_start_proxy(
         backend: BedrockBackendKind::Direct,
         remote_label: format!("{}:{}", target_host, target_port),
         hive_dns_hostname: HIVE_DNS_HOSTNAME.to_string(),
+        server_dns_enabled,
+        server_transfer_relay,
     };
     if let Err(e) = app_handle.emit("bedrock_connection_info", &info) {
         log::warn!("Failed to emit bedrock_connection_info: {}", e);
@@ -222,13 +232,21 @@ pub(crate) async fn bedrock_start_realms(
     );
     realms.start().await.map_err(|e| e.to_string())?;
 
-    let app = app_state.lock().await;
-    if let Err(e) = state
-        .start_keepalive(&app, BEDROCK_LISTEN_PORT, &network_interface)
-        .await
-    {
-        log::warn!("Transfer keepalive failed to start: {}", e);
-    }
+    let server_api = {
+        let app = app_state.lock().await;
+        if let Err(e) = state
+            .start_keepalive(&app, BEDROCK_LISTEN_PORT, &network_interface)
+            .await
+        {
+            log::warn!("Transfer keepalive failed to start: {}", e);
+        }
+        app.api_client.clone()
+    };
+
+    let (server_transfer_relay, server_dns_enabled) = match server_api {
+        Some(api) => api.resolve_bedrock_connection_hints().await,
+        None => (None, false),
+    };
 
     state.realms = Some(realms);
     state.active_realm_id = Some(realm_id);
@@ -241,6 +259,8 @@ pub(crate) async fn bedrock_start_realms(
         backend: BedrockBackendKind::Realm,
         remote_label: realm_name,
         hive_dns_hostname: HIVE_DNS_HOSTNAME.to_string(),
+        server_dns_enabled,
+        server_transfer_relay,
     };
     if let Err(e) = app_handle.emit("bedrock_connection_info", &info) {
         log::warn!("Failed to emit bedrock_connection_info: {}", e);

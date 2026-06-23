@@ -4,7 +4,7 @@ use common::{request::CodeLoginRequest, response::LoginResponse};
 use rocket::{State, http::Status, serde::json::Json};
 use rocket_okapi::openapi;
 
-use crate::config::{Features, Permissions, Server};
+use crate::config::{Permissions, Server};
 use crate::http::dtos::ncryptf::JsonMessage;
 use crate::http::openapi::NcryptfJsonResponse;
 use crate::http::pool::Db;
@@ -17,7 +17,6 @@ pub async fn code_authenticate(
     payload: Json<CodeLoginRequest>,
     config: &State<Server>,
     cert_service: &State<Arc<CertificateService>>,
-    features: &State<Features>,
     perm_config: &State<Permissions>,
 ) -> NcryptfJsonResponse<LoginResponse> {
     let conn = db.into_inner();
@@ -27,7 +26,6 @@ pub async fn code_authenticate(
         &payload.0,
         config.inner(),
         cert_service.inner(),
-        features.inner(),
         perm_config.defaults.clone(),
     )
     .await

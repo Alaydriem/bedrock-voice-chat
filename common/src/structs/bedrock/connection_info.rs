@@ -37,7 +37,21 @@ pub struct BedrockConnectionInfo {
     // - Realm:  the realm display name picked in the UI
     pub remote_label: String,
 
-    // Hive DNS override hint. Always `geo.hivebedrock.network`. Shown to
-    // users who have pointed their device DNS at the BVC server.
+    // Hive DNS override hint. Always `geo.hivebedrock.network`. Only meaningful
+    // when the connected server runs its DNS override service; gated in the UI
+    // by `server_dns_enabled`.
     pub hive_dns_hostname: String,
+
+    // Whether the connected BVC server runs its Bedrock DNS override service
+    // (`bedrock.dns_enabled` from `/api/config`). When false the UI hides the
+    // Hive DNS connection option.
+    #[serde(default)]
+    pub server_dns_enabled: bool,
+
+    // Transfer relay of the connected BVC server, preformatted as `host:port`.
+    // The host is the server the client is connected to; the port is the
+    // server's bedrock transfer port from `/api/config`. Present only when that
+    // server runs the relay. Distinct from `port` (the local proxy listen port).
+    #[serde(default)]
+    pub server_transfer_relay: Option<String>,
 }
