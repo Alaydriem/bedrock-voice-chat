@@ -1,3 +1,10 @@
+# [1.0.0-beta.15](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.14...v1.0.0-beta.15) (2026-06-23)
+
+
+### Bug Fixes
+
+* ux and ui improvements ([0c8b389](https://github.com/Alaydriem/bedrock-voice-chat/commit/0c8b389c7da56ccabfa84e6187a92da667b03f28))
+
 # [1.0.0-beta.14](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.13...v1.0.0-beta.14) (2026-06-22)
 
 
