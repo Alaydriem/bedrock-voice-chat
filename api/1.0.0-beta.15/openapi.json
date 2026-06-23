@@ -1,0 +1,2220 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Bedrock Voice Chat Server API",
+    "description": "Bedrock Voice Chat Server HTTP API",
+    "contact": {
+      "name": "Repository",
+      "url": "https://github.com/alaydriem/bedrock-voice-chat"
+    },
+    "version": "1.0.0-beta.15"
+  },
+  "paths": {
+    "/health/liveness": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "operationId": "liveness_liveness",
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/health/readiness": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "operationId": "readiness_readiness",
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/ping": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "operationId": "ping_pong",
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/relay/peer-link": {
+      "post": {
+        "tags": [
+          "Relay"
+        ],
+        "operationId": "peer_link_peer_link",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PeerLinkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PeerLinkResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/audio/event": {
+      "post": {
+        "tags": [
+          "Audio"
+        ],
+        "operationId": "event_audio_event_play",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AudioPlayRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudioEventResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "MCAccessToken": []
+          }
+        ]
+      }
+    },
+    "/api/audio/event/{event_id}": {
+      "delete": {
+        "tags": [
+          "Audio"
+        ],
+        "operationId": "event_audio_event_stop",
+        "parameters": [
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "MCAccessToken": []
+          }
+        ]
+      }
+    },
+    "/api/audio/file": {
+      "get": {
+        "tags": [
+          "Audio"
+        ],
+        "operationId": "file_audio_file_list",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0,
+              "nullable": true
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0,
+              "nullable": true
+            }
+          },
+          {
+            "name": "sort_by",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "sort_order",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_for_AudioFileResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/audio/file/{file_id}": {
+      "delete": {
+        "tags": [
+          "Audio"
+        ],
+        "operationId": "file_audio_file_delete",
+        "parameters": [
+          {
+            "name": "file_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/admin/user": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "user_create_create_user",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedUserResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "AdminGuard": []
+          }
+        ]
+      }
+    },
+    "/api/admin/user/banish": {
+      "patch": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "user_banish_banish_user",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BanishUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BanishedUserResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "AdminGuard": []
+          }
+        ]
+      }
+    },
+    "/api/admin/user/code": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "user_generate_code_generate_code",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateCodeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneratedCodeResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "AdminGuard": []
+          }
+        ]
+      }
+    },
+    "/api/admin/permission": {
+      "put": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "permission_set_set_permission",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPermissionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "AdminGuard": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "permission_clear_clear_permission",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClearPermissionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "AdminGuard": []
+          }
+        ]
+      }
+    },
+    "/api/admin/permission/{game}/{gamertag}": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "permission_list_list_permissions",
+        "parameters": [
+          {
+            "name": "game",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Game"
+            }
+          },
+          {
+            "name": "gamertag",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionListResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "AdminGuard": []
+          }
+        ]
+      }
+    },
+    "/api/auth/minecraft": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "description": "Authenticates the Player via Xbox Live to grab their gamertag and other identifying information",
+        "operationId": "minecraft_authenticate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonMessage_LoginResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/hytale/start-device-flow": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "description": "Start a new Hytale device code flow Returns session_id and user code for the client to display",
+        "operationId": "hytale_start_device_flow",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonMessage_HytaleDeviceFlowStartResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/hytale/status": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "description": "Poll the status of a Hytale device code flow",
+        "operationId": "hytale_poll_status",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonMessage_HytaleDeviceFlowStatusResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HytaleSessionId": []
+          }
+        ]
+      }
+    },
+    "/api/auth/code": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "operationId": "code_code_authenticate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CodeLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonMessage_LoginResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/introspect": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "operationId": "introspect_introspect",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntrospectResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/auth/link-java": {
+      "post": {
+        "tags": [
+          "Identity"
+        ],
+        "operationId": "link_java_link_java_identity",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkJavaIdentityRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkJavaIdentityResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/auth/state": {
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "operationId": "state_auth_state",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthStateResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config": {
+      "get": {
+        "tags": [
+          "Server"
+        ],
+        "operationId": "get_config",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiConfigResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/position": {
+      "get": {
+        "tags": [
+          "Positions"
+        ],
+        "operationId": "position",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlayerEnum"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "MCAccessToken": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Positions"
+        ],
+        "operationId": "update_position",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GameDataCollection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "MCAccessToken": []
+          }
+        ]
+      }
+    },
+    "/api/gamerpic/{game}/{gamertag}": {
+      "get": {
+        "tags": [
+          "Gamerpic"
+        ],
+        "operationId": "get_gamerpic",
+        "parameters": [
+          {
+            "name": "game",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Game"
+            }
+          },
+          {
+            "name": "gamertag",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GamerpicResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/channel/": {
+      "get": {
+        "tags": [
+          "Channels"
+        ],
+        "operationId": "channel_list",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Channel"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Channels"
+        ],
+        "operationId": "create_channel_create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/channel/{id}": {
+      "put": {
+        "tags": [
+          "Channels"
+        ],
+        "operationId": "event_channel_event",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelEvent"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Channels"
+        ],
+        "operationId": "delete_channel_delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Channels"
+        ],
+        "operationId": "rename_channel_rename",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "PeerLinkResponse": {
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          }
+        }
+      },
+      "PeerLinkRequest": {
+        "type": "object",
+        "required": [
+          "hashed_world",
+          "recipient_host",
+          "recipient_port"
+        ],
+        "properties": {
+          "hashed_world": {
+            "type": "string"
+          },
+          "recipient_host": {
+            "type": "string"
+          },
+          "recipient_port": {
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0.0
+          }
+        }
+      },
+      "AudioEventResponse": {
+        "type": "object",
+        "required": [
+          "duration_ms",
+          "event_id"
+        ],
+        "properties": {
+          "event_id": {
+            "type": "string"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          }
+        }
+      },
+      "AudioPlayRequest": {
+        "type": "object",
+        "required": [
+          "audio_file_id",
+          "game"
+        ],
+        "properties": {
+          "audio_file_id": {
+            "type": "string"
+          },
+          "game": {
+            "$ref": "#/components/schemas/GameAudioContext"
+          }
+        }
+      },
+      "GameAudioContext": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "coordinates",
+              "dimension",
+              "game",
+              "world_uuid"
+            ],
+            "properties": {
+              "game": {
+                "type": "string",
+                "enum": [
+                  "minecraft"
+                ]
+              },
+              "coordinates": {
+                "$ref": "#/components/schemas/Coordinate"
+              },
+              "dimension": {
+                "$ref": "#/components/schemas/Dimension"
+              },
+              "world_uuid": {
+                "type": "string"
+              },
+              "relay_world_uuid": {
+                "default": null,
+                "type": "string",
+                "nullable": true
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "game"
+            ],
+            "properties": {
+              "game": {
+                "type": "string",
+                "enum": [
+                  "hytale"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "Coordinate": {
+        "type": "object",
+        "required": [
+          "x",
+          "y",
+          "z"
+        ],
+        "properties": {
+          "x": {
+            "type": "number",
+            "format": "float"
+          },
+          "y": {
+            "type": "number",
+            "format": "float"
+          },
+          "z": {
+            "type": "number",
+            "format": "float"
+          }
+        }
+      },
+      "Dimension": {
+        "description": "Minecraft-specific structs Minecraft world dimensions",
+        "type": "string",
+        "enum": [
+          "overworld",
+          "the_end",
+          "nether",
+          "death"
+        ]
+      },
+      "PaginatedResponse_for_AudioFileResponse": {
+        "type": "object",
+        "required": [
+          "items",
+          "page",
+          "page_size",
+          "total"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AudioFileResponse"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "page": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "page_size": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          }
+        }
+      },
+      "AudioFileResponse": {
+        "type": "object",
+        "required": [
+          "created_at",
+          "duration_ms",
+          "file_size_bytes",
+          "game",
+          "id",
+          "original_filename",
+          "uploader"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "uploader": {
+            "$ref": "#/components/schemas/UploaderIdentity"
+          },
+          "original_filename": {
+            "type": "string"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "file_size_bytes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "game": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "UploaderIdentity": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "game",
+              "gamertag"
+            ],
+            "properties": {
+              "game": {
+                "type": "string",
+                "enum": [
+                  "minecraft"
+                ]
+              },
+              "gamertag": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "game",
+              "gamertag"
+            ],
+            "properties": {
+              "game": {
+                "type": "string",
+                "enum": [
+                  "hytale"
+                ]
+              },
+              "gamertag": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "CreatedUserResponse": {
+        "type": "object",
+        "required": [
+          "game",
+          "gamertag"
+        ],
+        "properties": {
+          "gamertag": {
+            "type": "string"
+          },
+          "game": {
+            "$ref": "#/components/schemas/Game"
+          }
+        }
+      },
+      "Game": {
+        "type": "string",
+        "enum": [
+          "minecraft",
+          "hytale"
+        ]
+      },
+      "CreateUserRequest": {
+        "type": "object",
+        "required": [
+          "game",
+          "gamertag"
+        ],
+        "properties": {
+          "gamertag": {
+            "type": "string"
+          },
+          "game": {
+            "$ref": "#/components/schemas/Game"
+          }
+        }
+      },
+      "BanishedUserResponse": {
+        "type": "object",
+        "required": [
+          "banished",
+          "game",
+          "gamertag"
+        ],
+        "properties": {
+          "gamertag": {
+            "type": "string"
+          },
+          "game": {
+            "$ref": "#/components/schemas/Game"
+          },
+          "banished": {
+            "type": "boolean"
+          }
+        }
+      },
+      "BanishUserRequest": {
+        "type": "object",
+        "required": [
+          "banish",
+          "game",
+          "gamertag"
+        ],
+        "properties": {
+          "gamertag": {
+            "type": "string"
+          },
+          "game": {
+            "$ref": "#/components/schemas/Game"
+          },
+          "banish": {
+            "type": "boolean"
+          }
+        }
+      },
+      "GeneratedCodeResponse": {
+        "type": "object",
+        "required": [
+          "code",
+          "expires_in_seconds"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "expires_in_seconds": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          }
+        }
+      },
+      "GenerateCodeRequest": {
+        "type": "object",
+        "required": [
+          "duration",
+          "game",
+          "gamertag"
+        ],
+        "properties": {
+          "gamertag": {
+            "type": "string"
+          },
+          "game": {
+            "$ref": "#/components/schemas/Game"
+          },
+          "duration": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          },
+          "ephemeral": {
+            "default": true,
+            "type": "boolean"
+          }
+        }
+      },
+      "SetPermissionRequest": {
+        "type": "object",
+        "required": [
+          "effect",
+          "game",
+          "gamertag",
+          "permission"
+        ],
+        "properties": {
+          "gamertag": {
+            "type": "string"
+          },
+          "game": {
+            "$ref": "#/components/schemas/Game"
+          },
+          "permission": {
+            "type": "string"
+          },
+          "effect": {
+            "$ref": "#/components/schemas/PermissionEffect"
+          }
+        }
+      },
+      "PermissionEffect": {
+        "type": "string",
+        "enum": [
+          "allow",
+          "deny"
+        ]
+      },
+      "ClearPermissionRequest": {
+        "type": "object",
+        "required": [
+          "game",
+          "gamertag",
+          "permission"
+        ],
+        "properties": {
+          "gamertag": {
+            "type": "string"
+          },
+          "game": {
+            "$ref": "#/components/schemas/Game"
+          },
+          "permission": {
+            "type": "string"
+          }
+        }
+      },
+      "PermissionListResponse": {
+        "type": "object",
+        "required": [
+          "entries",
+          "game",
+          "gamertag"
+        ],
+        "properties": {
+          "gamertag": {
+            "type": "string"
+          },
+          "game": {
+            "$ref": "#/components/schemas/Game"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PermissionEntry"
+            }
+          }
+        }
+      },
+      "PermissionEntry": {
+        "type": "object",
+        "required": [
+          "effect",
+          "permission"
+        ],
+        "properties": {
+          "permission": {
+            "type": "string"
+          },
+          "effect": {
+            "$ref": "#/components/schemas/PermissionEffect"
+          }
+        }
+      },
+      "JsonMessage_LoginResponse": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0.0
+          },
+          "data": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LoginResponse"
+              }
+            ],
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/JsonError"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "required": [
+          "certificate",
+          "certificate_ca",
+          "certificate_key",
+          "gamerpic",
+          "gamertag",
+          "keypair",
+          "quic_connect_string",
+          "signature"
+        ],
+        "properties": {
+          "gamerpic": {
+            "type": "string"
+          },
+          "gamertag": {
+            "type": "string"
+          },
+          "keypair": {
+            "$ref": "#/components/schemas/Keypair"
+          },
+          "signature": {
+            "$ref": "#/components/schemas/Keypair"
+          },
+          "certificate": {
+            "type": "string"
+          },
+          "certificate_key": {
+            "type": "string"
+          },
+          "certificate_ca": {
+            "type": "string"
+          },
+          "quic_connect_string": {
+            "type": "string"
+          },
+          "minecraft_username": {
+            "default": null,
+            "type": "string",
+            "nullable": true
+          },
+          "server_permissions": {
+            "default": null,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServerPermissions"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "Keypair": {
+        "type": "object",
+        "required": [
+          "pk",
+          "sk"
+        ],
+        "properties": {
+          "pk": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint8",
+              "minimum": 0.0
+            }
+          },
+          "sk": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint8",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "ServerPermissions": {
+        "type": "object",
+        "required": [
+          "allowed"
+        ],
+        "properties": {
+          "allowed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Permission"
+            }
+          }
+        }
+      },
+      "Permission": {
+        "type": "string",
+        "enum": [
+          "audio_upload",
+          "audio_delete",
+          "admin",
+          "peer_link"
+        ]
+      },
+      "JsonError": {
+        "description": "Error container for JSON responses",
+        "type": "object",
+        "required": [
+          "errors"
+        ],
+        "properties": {
+          "errors": {
+            "description": "Error map of key-value pairs",
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": [
+          "code",
+          "redirect_uri"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "redirect_uri": {
+            "type": "string"
+          }
+        }
+      },
+      "JsonMessage_HytaleDeviceFlowStartResponse": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0.0
+          },
+          "data": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HytaleDeviceFlowStartResponse"
+              }
+            ],
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/JsonError"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "HytaleDeviceFlowStartResponse": {
+        "type": "object",
+        "required": [
+          "expires_in",
+          "interval",
+          "session_id",
+          "user_code",
+          "verification_uri",
+          "verification_uri_complete"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "user_code": {
+            "type": "string"
+          },
+          "verification_uri": {
+            "type": "string"
+          },
+          "verification_uri_complete": {
+            "type": "string"
+          },
+          "expires_in": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "interval": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          }
+        }
+      },
+      "JsonMessage_HytaleDeviceFlowStatusResponse": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0.0
+          },
+          "data": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HytaleDeviceFlowStatusResponse"
+              }
+            ],
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/JsonError"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "HytaleDeviceFlowStatusResponse": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/HytaleAuthStatus"
+          },
+          "login_response": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LoginResponse"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "HytaleAuthStatus": {
+        "type": "string",
+        "enum": [
+          "Pending",
+          "Success",
+          "Expired",
+          "Denied",
+          "Error"
+        ]
+      },
+      "CodeLoginRequest": {
+        "type": "object",
+        "required": [
+          "code",
+          "gamertag"
+        ],
+        "properties": {
+          "gamertag": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          }
+        }
+      },
+      "IntrospectResponse": {
+        "type": "object",
+        "required": [
+          "game",
+          "gamertag",
+          "permissions"
+        ],
+        "properties": {
+          "gamertag": {
+            "type": "string"
+          },
+          "game": {
+            "$ref": "#/components/schemas/Game"
+          },
+          "cert_not_after": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Permission"
+            }
+          }
+        }
+      },
+      "LinkJavaIdentityResponse": {
+        "type": "object",
+        "properties": {
+          "minecraft_username": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "LinkJavaIdentityRequest": {
+        "type": "object",
+        "required": [
+          "client_id",
+          "code",
+          "gamertag",
+          "redirect_uri"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "redirect_uri": {
+            "type": "string"
+          },
+          "client_id": {
+            "type": "string"
+          },
+          "gamertag": {
+            "type": "string"
+          }
+        }
+      },
+      "AuthStateResponse": {
+        "type": "object",
+        "required": [
+          "server_permissions"
+        ],
+        "properties": {
+          "server_permissions": {
+            "$ref": "#/components/schemas/ServerPermissions"
+          },
+          "certificate": {
+            "type": "string",
+            "nullable": true
+          },
+          "certificate_key": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ApiConfigResponse": {
+        "type": "object",
+        "required": [
+          "client_id",
+          "protocol_version",
+          "quic_port",
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "client_id": {
+            "type": "string"
+          },
+          "protocol_version": {
+            "type": "string"
+          },
+          "quic_port": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "spatial_audio": {
+            "default": {
+              "broadcast_range": 48.0,
+              "close_threshold": 12.0,
+              "deafen_distance": 3.0,
+              "falloff_distance": 48.0,
+              "max_attenuation_db": 40.0,
+              "panning_start": 8.0,
+              "steepen_start": 38.0
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SpatialAudioConfig"
+              }
+            ]
+          },
+          "bedrock": {
+            "default": {
+              "dns_enabled": false,
+              "enabled": false,
+              "transfer_port": null
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ApiConfigBedrock"
+              }
+            ]
+          }
+        }
+      },
+      "SpatialAudioConfig": {
+        "type": "object",
+        "properties": {
+          "broadcast_range": {
+            "default": 48.0,
+            "type": "number",
+            "format": "float"
+          },
+          "close_threshold": {
+            "default": 12.0,
+            "type": "number",
+            "format": "float"
+          },
+          "falloff_distance": {
+            "default": 48.0,
+            "type": "number",
+            "format": "float"
+          },
+          "steepen_start": {
+            "default": 38.0,
+            "type": "number",
+            "format": "float"
+          },
+          "deafen_distance": {
+            "default": 3.0,
+            "type": "number",
+            "format": "float"
+          },
+          "panning_start": {
+            "default": 8.0,
+            "type": "number",
+            "format": "float"
+          },
+          "max_attenuation_db": {
+            "default": 40.0,
+            "type": "number",
+            "format": "float"
+          }
+        }
+      },
+      "ApiConfigBedrock": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "default": false,
+            "type": "boolean"
+          },
+          "dns_enabled": {
+            "default": false,
+            "type": "boolean"
+          },
+          "transfer_port": {
+            "default": null,
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0.0,
+            "nullable": true
+          }
+        }
+      },
+      "GameDataCollection": {
+        "type": "object",
+        "required": [
+          "players"
+        ],
+        "properties": {
+          "game": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Game"
+              }
+            ],
+            "nullable": true
+          },
+          "players": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerEnum"
+            }
+          }
+        }
+      },
+      "PlayerEnum": {
+        "description": "Type-safe enum for storing heterogeneous player types Dispatches to game-specific implementations\n\nUses externally tagged serialization (works with postcard). For JSON compatibility with legacy clients, use GameDataCollection's custom deserialization which handles the game field at the collection level.",
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "Minecraft"
+            ],
+            "properties": {
+              "Minecraft": {
+                "$ref": "#/components/schemas/MinecraftPlayer"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "Hytale"
+            ],
+            "properties": {
+              "Hytale": {
+                "$ref": "#/components/schemas/HytalePlayer"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "Generic"
+            ],
+            "properties": {
+              "Generic": {
+                "$ref": "#/components/schemas/GenericPlayer"
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
+      "MinecraftPlayer": {
+        "type": "object",
+        "required": [
+          "coordinates",
+          "deafen",
+          "dimension",
+          "name",
+          "orientation"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "coordinates": {
+            "$ref": "#/components/schemas/Coordinate"
+          },
+          "orientation": {
+            "$ref": "#/components/schemas/Orientation"
+          },
+          "dimension": {
+            "$ref": "#/components/schemas/Dimension"
+          },
+          "deafen": {
+            "type": "boolean"
+          },
+          "spectator": {
+            "default": false,
+            "type": "boolean"
+          },
+          "world_uuid": {
+            "default": null,
+            "type": "string",
+            "nullable": true
+          },
+          "alternative_identity": {
+            "default": null,
+            "type": "string",
+            "nullable": true
+          },
+          "player_uuid": {
+            "default": null,
+            "type": "string",
+            "nullable": true
+          },
+          "relay_world_uuid": {
+            "default": null,
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "Orientation": {
+        "type": "object",
+        "required": [
+          "x",
+          "y"
+        ],
+        "properties": {
+          "x": {
+            "type": "number",
+            "format": "float"
+          },
+          "y": {
+            "type": "number",
+            "format": "float"
+          }
+        }
+      },
+      "HytalePlayer": {
+        "description": "Hytale player with world and dimension-based communication rules",
+        "type": "object",
+        "required": [
+          "coordinates",
+          "name",
+          "orientation"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "coordinates": {
+            "$ref": "#/components/schemas/Coordinate"
+          },
+          "orientation": {
+            "$ref": "#/components/schemas/Orientation"
+          },
+          "world_uuid": {
+            "default": null,
+            "type": "string",
+            "nullable": true
+          },
+          "dimension": {
+            "default": "orbis",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Dimension2"
+              }
+            ]
+          },
+          "deafen": {
+            "default": false,
+            "type": "boolean"
+          },
+          "spectator": {
+            "default": false,
+            "type": "boolean"
+          },
+          "player_uuid": {
+            "default": null,
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "Dimension2": {
+        "description": "Hytale-specific structs Hytale world dimensions",
+        "type": "string",
+        "enum": [
+          "orbis",
+          "death"
+        ]
+      },
+      "GenericPlayer": {
+        "description": "Generic player implementation for games that don't need special spatial logic Uses simple coordinate-based distance calculation without game-specific concepts like dimensions, realms, zones, etc.",
+        "type": "object",
+        "required": [
+          "coordinates",
+          "game",
+          "name",
+          "orientation"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "coordinates": {
+            "$ref": "#/components/schemas/Coordinate"
+          },
+          "orientation": {
+            "$ref": "#/components/schemas/Orientation"
+          },
+          "game": {
+            "$ref": "#/components/schemas/Game"
+          }
+        }
+      },
+      "GamerpicResponse": {
+        "type": "object",
+        "required": [
+          "game",
+          "gamertag"
+        ],
+        "properties": {
+          "gamertag": {
+            "type": "string"
+          },
+          "game": {
+            "$ref": "#/components/schemas/Game"
+          },
+          "gamerpic": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ChannelEvent": {
+        "type": "object",
+        "required": [
+          "event"
+        ],
+        "properties": {
+          "event": {
+            "$ref": "#/components/schemas/ChannelEvents"
+          },
+          "game": {
+            "default": null,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Game"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "ChannelEvents": {
+        "type": "string",
+        "enum": [
+          "Join",
+          "Leave",
+          "Create",
+          "Delete",
+          "Rename"
+        ]
+      },
+      "Channel": {
+        "type": "object",
+        "required": [
+          "creator",
+          "id",
+          "name",
+          "players"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "players": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "creator": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "MCAccessToken": {
+        "description": "Minecraft mod access token",
+        "type": "apiKey",
+        "name": "X-MC-Access-Token",
+        "in": "header"
+      },
+      "AdminGuard": {
+        "description": "Operator mTLS client certificate. Caller must additionally hold the `admin` permission.",
+        "type": "http",
+        "scheme": "mutual"
+      },
+      "HytaleSessionId": {
+        "description": "Hytale device flow session identifier",
+        "type": "apiKey",
+        "name": "X-Session-Id",
+        "in": "header"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Health",
+      "description": "Health and readiness probes. Liveness and readiness are unauthenticated for use with Kubernetes."
+    },
+    {
+      "name": "Relay",
+      "description": "Cross-server peering over direct peer HTTPS. Discovery is decentralized via in-realm announces (no central relay); these routes carry the offer / code-redeem / peer-link handshake between two servers that already share a realm."
+    },
+    {
+      "name": "Audio",
+      "description": "Audio file library and spatial playback events. Upload Ogg/Opus files, trigger positional audio playback in-game, and manage the audio library."
+    },
+    {
+      "name": "Admin",
+      "description": "Operator-only administrative endpoints. Caller must present a valid mTLS certificate AND hold the `admin` permission."
+    },
+    {
+      "name": "Identity",
+      "description": "Player identity management. Retrieve current session state, permissions, and certificate renewal. Link external accounts such as Minecraft Java."
+    },
+    {
+      "name": "Authentication",
+      "description": "OAuth2 authentication via Microsoft (Minecraft) or Hytale device code flow. Returns mTLS certificates and ncryptf keys for subsequent API calls. Interacting with these endpoints REQUIRES ncryptf. non-ncryptf request/response bodies are provided here as sample references."
+    },
+    {
+      "name": "Server",
+      "description": "Server configuration and metadata. Returns connection details, protocol version, and spatial audio settings."
+    },
+    {
+      "name": "Positions",
+      "description": "Player position updates from game mods. Used by the Minecraft/Hytale server plugin to push player coordinates for spatial audio calculations."
+    },
+    {
+      "name": "Gamerpic",
+      "description": "Player avatar/gamerpic retrieval by gamertag and game type."
+    },
+    {
+      "name": "Channels",
+      "description": "Voice channel management. Create, delete, rename, join, and leave channels. Channel membership is broadcast to connected QUIC clients."
+    }
+  ]
+}
