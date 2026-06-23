@@ -7,7 +7,7 @@
       "name": "Repository",
       "url": "https://github.com/alaydriem/bedrock-voice-chat"
     },
-    "version": "1.0.0-beta.14"
+    "version": "1.0.0-beta.15"
   },
   "paths": {
     "/health/liveness": {
