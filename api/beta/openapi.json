@@ -7,76 +7,9 @@
       "name": "Repository",
       "url": "https://github.com/alaydriem/bedrock-voice-chat"
     },
-    "version": "1.0.0-beta.13"
+    "version": "1.0.0-beta.14"
   },
   "paths": {
-    "/api/position": {
-      "get": {
-        "tags": [
-          "Positions"
-        ],
-        "operationId": "position",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/PlayerEnum"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "MCAccessToken": []
-          }
-        ]
-      },
-      "post": {
-        "tags": [
-          "Positions"
-        ],
-        "operationId": "update_position",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GameDataCollection"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "default": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "MCAccessToken": []
-          }
-        ]
-      }
-    },
-    "/api/ping": {
-      "get": {
-        "tags": [
-          "Health"
-        ],
-        "operationId": "ping_pong",
-        "responses": {
-          "default": {
-            "description": ""
-          }
-        }
-      }
-    },
     "/health/liveness": {
       "get": {
         "tags": [
@@ -96,6 +29,19 @@
           "Health"
         ],
         "operationId": "readiness_readiness",
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/ping": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "operationId": "ping_pong",
         "responses": {
           "default": {
             "description": ""
@@ -703,6 +649,60 @@
         }
       }
     },
+    "/api/position": {
+      "get": {
+        "tags": [
+          "Positions"
+        ],
+        "operationId": "position",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlayerEnum"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "MCAccessToken": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Positions"
+        ],
+        "operationId": "update_position",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GameDataCollection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "MCAccessToken": []
+          }
+        ]
+      }
+    },
     "/api/gamerpic/{game}/{gamertag}": {
       "get": {
         "tags": [
@@ -911,254 +911,6 @@
   },
   "components": {
     "schemas": {
-      "GameDataCollection": {
-        "type": "object",
-        "required": [
-          "players"
-        ],
-        "properties": {
-          "game": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Game"
-              }
-            ],
-            "nullable": true
-          },
-          "players": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PlayerEnum"
-            }
-          }
-        }
-      },
-      "Game": {
-        "type": "string",
-        "enum": [
-          "minecraft",
-          "hytale"
-        ]
-      },
-      "PlayerEnum": {
-        "description": "Type-safe enum for storing heterogeneous player types Dispatches to game-specific implementations\n\nUses externally tagged serialization (works with postcard). For JSON compatibility with legacy clients, use GameDataCollection's custom deserialization which handles the game field at the collection level.",
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "Minecraft"
-            ],
-            "properties": {
-              "Minecraft": {
-                "$ref": "#/components/schemas/MinecraftPlayer"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Hytale"
-            ],
-            "properties": {
-              "Hytale": {
-                "$ref": "#/components/schemas/HytalePlayer"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Generic"
-            ],
-            "properties": {
-              "Generic": {
-                "$ref": "#/components/schemas/GenericPlayer"
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
-      },
-      "MinecraftPlayer": {
-        "type": "object",
-        "required": [
-          "coordinates",
-          "deafen",
-          "dimension",
-          "name",
-          "orientation"
-        ],
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "coordinates": {
-            "$ref": "#/components/schemas/Coordinate"
-          },
-          "orientation": {
-            "$ref": "#/components/schemas/Orientation"
-          },
-          "dimension": {
-            "$ref": "#/components/schemas/Dimension"
-          },
-          "deafen": {
-            "type": "boolean"
-          },
-          "spectator": {
-            "default": false,
-            "type": "boolean"
-          },
-          "world_uuid": {
-            "default": null,
-            "type": "string",
-            "nullable": true
-          },
-          "alternative_identity": {
-            "default": null,
-            "type": "string",
-            "nullable": true
-          },
-          "player_uuid": {
-            "default": null,
-            "type": "string",
-            "nullable": true
-          },
-          "relay_world_uuid": {
-            "default": null,
-            "type": "string",
-            "nullable": true
-          }
-        }
-      },
-      "Coordinate": {
-        "type": "object",
-        "required": [
-          "x",
-          "y",
-          "z"
-        ],
-        "properties": {
-          "x": {
-            "type": "number",
-            "format": "float"
-          },
-          "y": {
-            "type": "number",
-            "format": "float"
-          },
-          "z": {
-            "type": "number",
-            "format": "float"
-          }
-        }
-      },
-      "Orientation": {
-        "type": "object",
-        "required": [
-          "x",
-          "y"
-        ],
-        "properties": {
-          "x": {
-            "type": "number",
-            "format": "float"
-          },
-          "y": {
-            "type": "number",
-            "format": "float"
-          }
-        }
-      },
-      "Dimension": {
-        "description": "Minecraft-specific structs Minecraft world dimensions",
-        "type": "string",
-        "enum": [
-          "overworld",
-          "the_end",
-          "nether",
-          "death"
-        ]
-      },
-      "HytalePlayer": {
-        "description": "Hytale player with world and dimension-based communication rules",
-        "type": "object",
-        "required": [
-          "coordinates",
-          "name",
-          "orientation"
-        ],
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "coordinates": {
-            "$ref": "#/components/schemas/Coordinate"
-          },
-          "orientation": {
-            "$ref": "#/components/schemas/Orientation"
-          },
-          "world_uuid": {
-            "default": null,
-            "type": "string",
-            "nullable": true
-          },
-          "dimension": {
-            "default": "orbis",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Dimension2"
-              }
-            ]
-          },
-          "deafen": {
-            "default": false,
-            "type": "boolean"
-          },
-          "spectator": {
-            "default": false,
-            "type": "boolean"
-          },
-          "player_uuid": {
-            "default": null,
-            "type": "string",
-            "nullable": true
-          }
-        }
-      },
-      "Dimension2": {
-        "description": "Hytale-specific structs Hytale world dimensions",
-        "type": "string",
-        "enum": [
-          "orbis",
-          "death"
-        ]
-      },
-      "GenericPlayer": {
-        "description": "Generic player implementation for games that don't need special spatial logic Uses simple coordinate-based distance calculation without game-specific concepts like dimensions, realms, zones, etc.",
-        "type": "object",
-        "required": [
-          "coordinates",
-          "game",
-          "name",
-          "orientation"
-        ],
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "coordinates": {
-            "$ref": "#/components/schemas/Coordinate"
-          },
-          "orientation": {
-            "$ref": "#/components/schemas/Orientation"
-          },
-          "game": {
-            "$ref": "#/components/schemas/Game"
-          }
-        }
-      },
       "PeerLinkResponse": {
         "type": "object",
         "required": [
@@ -1270,6 +1022,38 @@
               }
             }
           }
+        ]
+      },
+      "Coordinate": {
+        "type": "object",
+        "required": [
+          "x",
+          "y",
+          "z"
+        ],
+        "properties": {
+          "x": {
+            "type": "number",
+            "format": "float"
+          },
+          "y": {
+            "type": "number",
+            "format": "float"
+          },
+          "z": {
+            "type": "number",
+            "format": "float"
+          }
+        }
+      },
+      "Dimension": {
+        "description": "Minecraft-specific structs Minecraft world dimensions",
+        "type": "string",
+        "enum": [
+          "overworld",
+          "the_end",
+          "nether",
+          "death"
         ]
       },
       "PaginatedResponse_for_AudioFileResponse": {
@@ -1396,6 +1180,13 @@
             "$ref": "#/components/schemas/Game"
           }
         }
+      },
+      "Game": {
+        "type": "string",
+        "enum": [
+          "minecraft",
+          "hytale"
+        ]
       },
       "CreateUserRequest": {
         "type": "object",
@@ -2004,6 +1795,18 @@
                 "$ref": "#/components/schemas/SpatialAudioConfig"
               }
             ]
+          },
+          "bedrock": {
+            "default": {
+              "dns_enabled": false,
+              "enabled": false,
+              "transfer_port": null
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ApiConfigBedrock"
+              }
+            ]
           }
         }
       },
@@ -2044,6 +1847,235 @@
             "default": 40.0,
             "type": "number",
             "format": "float"
+          }
+        }
+      },
+      "ApiConfigBedrock": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "default": false,
+            "type": "boolean"
+          },
+          "dns_enabled": {
+            "default": false,
+            "type": "boolean"
+          },
+          "transfer_port": {
+            "default": null,
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0.0,
+            "nullable": true
+          }
+        }
+      },
+      "GameDataCollection": {
+        "type": "object",
+        "required": [
+          "players"
+        ],
+        "properties": {
+          "game": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Game"
+              }
+            ],
+            "nullable": true
+          },
+          "players": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerEnum"
+            }
+          }
+        }
+      },
+      "PlayerEnum": {
+        "description": "Type-safe enum for storing heterogeneous player types Dispatches to game-specific implementations\n\nUses externally tagged serialization (works with postcard). For JSON compatibility with legacy clients, use GameDataCollection's custom deserialization which handles the game field at the collection level.",
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "Minecraft"
+            ],
+            "properties": {
+              "Minecraft": {
+                "$ref": "#/components/schemas/MinecraftPlayer"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "Hytale"
+            ],
+            "properties": {
+              "Hytale": {
+                "$ref": "#/components/schemas/HytalePlayer"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "Generic"
+            ],
+            "properties": {
+              "Generic": {
+                "$ref": "#/components/schemas/GenericPlayer"
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
+      "MinecraftPlayer": {
+        "type": "object",
+        "required": [
+          "coordinates",
+          "deafen",
+          "dimension",
+          "name",
+          "orientation"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "coordinates": {
+            "$ref": "#/components/schemas/Coordinate"
+          },
+          "orientation": {
+            "$ref": "#/components/schemas/Orientation"
+          },
+          "dimension": {
+            "$ref": "#/components/schemas/Dimension"
+          },
+          "deafen": {
+            "type": "boolean"
+          },
+          "spectator": {
+            "default": false,
+            "type": "boolean"
+          },
+          "world_uuid": {
+            "default": null,
+            "type": "string",
+            "nullable": true
+          },
+          "alternative_identity": {
+            "default": null,
+            "type": "string",
+            "nullable": true
+          },
+          "player_uuid": {
+            "default": null,
+            "type": "string",
+            "nullable": true
+          },
+          "relay_world_uuid": {
+            "default": null,
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "Orientation": {
+        "type": "object",
+        "required": [
+          "x",
+          "y"
+        ],
+        "properties": {
+          "x": {
+            "type": "number",
+            "format": "float"
+          },
+          "y": {
+            "type": "number",
+            "format": "float"
+          }
+        }
+      },
+      "HytalePlayer": {
+        "description": "Hytale player with world and dimension-based communication rules",
+        "type": "object",
+        "required": [
+          "coordinates",
+          "name",
+          "orientation"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "coordinates": {
+            "$ref": "#/components/schemas/Coordinate"
+          },
+          "orientation": {
+            "$ref": "#/components/schemas/Orientation"
+          },
+          "world_uuid": {
+            "default": null,
+            "type": "string",
+            "nullable": true
+          },
+          "dimension": {
+            "default": "orbis",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Dimension2"
+              }
+            ]
+          },
+          "deafen": {
+            "default": false,
+            "type": "boolean"
+          },
+          "spectator": {
+            "default": false,
+            "type": "boolean"
+          },
+          "player_uuid": {
+            "default": null,
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "Dimension2": {
+        "description": "Hytale-specific structs Hytale world dimensions",
+        "type": "string",
+        "enum": [
+          "orbis",
+          "death"
+        ]
+      },
+      "GenericPlayer": {
+        "description": "Generic player implementation for games that don't need special spatial logic Uses simple coordinate-based distance calculation without game-specific concepts like dimensions, realms, zones, etc.",
+        "type": "object",
+        "required": [
+          "coordinates",
+          "game",
+          "name",
+          "orientation"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "coordinates": {
+            "$ref": "#/components/schemas/Coordinate"
+          },
+          "orientation": {
+            "$ref": "#/components/schemas/Orientation"
+          },
+          "game": {
+            "$ref": "#/components/schemas/Game"
           }
         }
       },
@@ -2145,10 +2177,6 @@
   },
   "tags": [
     {
-      "name": "Positions",
-      "description": "Player position updates from game mods. Used by the Minecraft/Hytale server plugin to push player coordinates for spatial audio calculations."
-    },
-    {
       "name": "Health",
       "description": "Health and readiness probes. Liveness and readiness are unauthenticated for use with Kubernetes."
     },
@@ -2175,6 +2203,10 @@
     {
       "name": "Server",
       "description": "Server configuration and metadata. Returns connection details, protocol version, and spatial audio settings."
+    },
+    {
+      "name": "Positions",
+      "description": "Player position updates from game mods. Used by the Minecraft/Hytale server plugin to push player coordinates for spatial audio calculations."
     },
     {
       "name": "Gamerpic",
