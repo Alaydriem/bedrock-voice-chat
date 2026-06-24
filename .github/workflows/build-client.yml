@@ -24,6 +24,11 @@ on:
         required: false
         default: ''
         type: string
+      store_release:
+        description: 'Official Microsoft Store release: pin the MSIX 4th version part to 0. Non-store builds draw an incremental revision.'
+        required: false
+        default: false
+        type: boolean
   workflow_dispatch:
     inputs:
       build_mode:
@@ -259,19 +264,42 @@ jobs:
           retention-days: 90
           if-no-files-found: error
 
+      - name: Compute MSIX revision key (non-store release only)
+        id: msixrev
+        if: github.event_name != 'pull_request' && inputs.build_mode == 'release' && inputs.store_release != true
+        shell: bash
+        run: |
+          VERSION=$(node -pe "require('./client/src-tauri/tauri.conf.json').version")
+          NUMERIC="${VERSION%%-*}"
+          echo "key=windows-build-number-$NUMERIC" >> "$GITHUB_OUTPUT"
+          echo "MSIX counter key: windows-build-number-$NUMERIC (from $VERSION)"
+
+      - name: Get Windows MSIX build number (non-store release only)
+        id: msixbuild
+        if: github.event_name != 'pull_request' && inputs.build_mode == 'release' && inputs.store_release != true
+        uses: ./.github/actions/get-build-number
+        with:
+          redis_url: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          redis_token: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          key: ${{ steps.msixrev.outputs.key }}
+          record_ledger: 'false'
+
       - name: Build MSIX package (release only)
         if: github.event_name != 'pull_request' && inputs.build_mode == 'release'
         working-directory: ./client
         shell: powershell
         run: |
+          $rev = "${{ steps.msixbuild.outputs.build_number }}"
+          # Store releases skip the counter step, leaving this empty -> pinned to 0.
+          if (-not $rev) { $rev = "0" }
           $version = (Get-Content src-tauri/tauri.conf.json | ConvertFrom-Json).version
           if ($version -match '^\d+\.\d+\.\d+$') {
-            $msixVersion = "$version.0"
+            $msixVersion = "$version.$rev"
           } else {
             # semver with pre-release suffix (e.g. 1.0.510-beta.11) — MSIX requires 4-part numeric.
             # Strip the suffix; Store cares about the numeric ordering, not the channel label.
             $numeric = ($version -split '-')[0]
-            $msixVersion = "$numeric.0"
+            $msixVersion = "$numeric.$rev"
           }
           Write-Host "Packaging MSIX at version $msixVersion (from $version)"
 

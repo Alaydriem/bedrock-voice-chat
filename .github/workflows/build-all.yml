@@ -270,8 +270,8 @@ jobs:
   # Deploy OpenAPI docs to GitHub Pages (branch pushes only)
   deploy-openapi-docs:
     name: Deploy OpenAPI Docs (${{ github.ref_name }})
-    needs: [changes, build-server]
-    if: github.event_name == 'push' && needs.build-server.result == 'success'
+    needs: [changes, build-server, deploy-docs]
+    if: always() && github.event_name == 'push' && needs.build-server.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write

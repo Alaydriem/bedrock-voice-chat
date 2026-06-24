@@ -91,12 +91,27 @@
   border-top-color: #5f5af6;
   animation: bvc-spin 0.9s linear infinite;
 }
-.bvc-ring--success {
-  border-top-color: #10b981;
-  animation: none;
-}
 @keyframes bvc-spin {
   to { transform: rotate(360deg); }
+}
+
+.bvc-badge {
+  width: 46px;
+  height: 46px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  animation: bvc-badge-pop 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.bvc-badge--success {
+  background-color: #10b981;
+  color: #ffffff;
+}
+@keyframes bvc-badge-pop {
+  0% { transform: scale(0.6); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
 }
 
 .bvc-spinner {
@@ -135,6 +150,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .bvc-ring { animation-duration: 1.6s; }
+  .bvc-badge { animation: none; }
   .bvc-shimmer { animation: none; }
   .bvc-shimmer { -webkit-text-fill-color: currentColor; }
 }

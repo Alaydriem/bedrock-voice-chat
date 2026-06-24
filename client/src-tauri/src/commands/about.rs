@@ -16,6 +16,7 @@ pub struct AppInfo {
     pub protocol_version: String,
     pub build_commit: String,
     pub build_variant: String,
+    pub build_number: String,
 }
 
 #[tauri::command]
@@ -25,6 +26,7 @@ pub(crate) fn get_app_info() -> AppInfo {
         protocol_version: common::consts::version::PROTOCOL_VERSION.to_string(),
         build_commit: env!("BUILD_COMMIT").to_string(),
         build_variant: get_variant(),
+        build_number: option_env!("APP_BUILD_NUMBER").unwrap_or("local").to_string(),
     }
 }
 

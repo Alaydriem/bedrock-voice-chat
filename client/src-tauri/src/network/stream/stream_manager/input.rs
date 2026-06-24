@@ -12,9 +12,17 @@ use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
+use std::time::{Duration, Instant};
 use tokio::task::AbortHandle;
 
 use super::HealthMonitorState;
+
+const DECODE_ERROR_LOG_INTERVAL: Duration = Duration::from_secs(30);
+
+// Datagrams are TLS-integrity-protected, so a decode failure is never corruption,
+// it is a wire-format mismatch. This many in a row with zero successful decodes in
+// between means the peer speaks an incompatible protocol and the connection is dead.
+const DECODE_ERROR_FATAL_THRESHOLD: u32 = 10;
 
 /// The InputStream consumes audio packets from the server
 /// Then sends it to the AudioStreamManager::OutputStream
@@ -61,6 +69,9 @@ impl common::traits::StreamTrait for InputStream {
         let health_state = self.health_state.clone();
         jobs.push(tokio::spawn(async move {
             log::info!("Started network recv stream.");
+            let mut decode_errors: u64 = 0;
+            let mut consecutive_decode_errors: u32 = 0;
+            let mut last_decode_error_log: Option<Instant> = None;
             while let Ok(bytes) = recv_one_datagram(&connection).await {
                 if shutdown.load(Ordering::Relaxed) {
                     info!("Network stream input handler stopped.");
@@ -68,6 +79,7 @@ impl common::traits::StreamTrait for InputStream {
                 }
                 match QuicNetworkPacket::from_datagram(&bytes) {
                     Ok(packet) => {
+                        consecutive_decode_errors = 0;
                         health_state.on_packet_received();
 
                         if packet.packet_type == PacketType::HealthCheck {
@@ -83,7 +95,30 @@ impl common::traits::StreamTrait for InputStream {
                         _ = tx.send_async(AudioPacket { data: packet }).await;
                     }
                     Err(e) => {
-                        error!("Couldn't decode datagram packet. {:?}", e);
+                        decode_errors += 1;
+                        consecutive_decode_errors += 1;
+                        let should_log = last_decode_error_log
+                            .map(|t| t.elapsed() >= DECODE_ERROR_LOG_INTERVAL)
+                            .unwrap_or(true);
+                        if should_log {
+                            // A sustained run of these almost always means a client/server protocol mismatch
+                            error!(
+                                "Couldn't decode datagram packet ({} failure(s) in the last interval, likely a client/server version mismatch). {:?}",
+                                decode_errors, e
+                            );
+                            decode_errors = 0;
+                            last_decode_error_log = Some(Instant::now());
+                        }
+
+                        if consecutive_decode_errors >= DECODE_ERROR_FATAL_THRESHOLD {
+                            error!(
+                                "Aborting connection: {} consecutive undecodable datagrams indicate an incompatible server protocol.",
+                                consecutive_decode_errors
+                            );
+                            health_state.signal_protocol_error();
+                            shutdown.store(true, Ordering::SeqCst);
+                            break;
+                        }
                     }
                 }
             }

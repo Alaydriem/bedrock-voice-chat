@@ -10,6 +10,9 @@ pub struct HealthMonitorState {
     awaiting_response: AtomicBool,
     /// Number of consecutive health check failures
     failure_count: AtomicU32,
+    /// Set when datagrams can no longer be decoded, i.e. the peer speaks an
+    /// incompatible protocol and the connection must be torn down
+    protocol_error: AtomicBool,
 }
 
 impl HealthMonitorState {
@@ -23,7 +26,18 @@ impl HealthMonitorState {
             last_packet_received: AtomicU64::new(now),
             awaiting_response: AtomicBool::new(false),
             failure_count: AtomicU32::new(0),
+            protocol_error: AtomicBool::new(false),
         }
+    }
+
+    /// Flag the connection as unrecoverable due to a protocol mismatch
+    pub fn signal_protocol_error(&self) {
+        self.protocol_error.store(true, Ordering::SeqCst);
+    }
+
+    /// Whether a protocol mismatch has been detected on this connection
+    pub fn has_protocol_error(&self) -> bool {
+        self.protocol_error.load(Ordering::SeqCst)
     }
 
     /// Called when any packet is received from the server
@@ -88,6 +102,7 @@ impl HealthMonitorState {
         self.on_packet_received();
         self.awaiting_response.store(false, Ordering::Relaxed);
         self.failure_count.store(0, Ordering::Relaxed);
+        self.protocol_error.store(false, Ordering::SeqCst);
     }
 }
 

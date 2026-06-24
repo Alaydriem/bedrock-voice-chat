@@ -83,7 +83,7 @@
 <main class="grid w-full place-items-center min-h-dvh bg-slate-50 dark:bg-navy-900 p-4">
     <div class="card w-full max-w-md p-8 text-center">
         {#if flowState === 'granted'}
-            <div class="bvc-ring bvc-ring--success mx-auto"></div>
+            <div class="bvc-badge bvc-badge--success mx-auto"><i class="fa-solid fa-check"></i></div>
             <h1 class="mt-4 text-2xl font-semibold text-slate-900 dark:text-navy-50">
                 Microphone Access Granted
             </h1>

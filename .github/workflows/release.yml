@@ -272,6 +272,7 @@ jobs:
       ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
       version: ${{ needs.prepare-release.outputs.new_version }}
       build_number: ${{ needs.prepare-release.outputs.build_number }}
+      store_release: true
     secrets: inherit
 
   # Job 6: Build macOS client (release mode, signed + TestFlight upload)
@@ -513,7 +514,7 @@ jobs:
           loaders: |-
             fabric
           game-versions: |-
-            1.21.11
+            26.2
           channel: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}
 
   # Job 14: Publish Paper to Modrinth
@@ -550,7 +551,7 @@ jobs:
             spigot
             bukkit
           game-versions: |-
-            1.21.11
+            26.2
           channel: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}
 
   # Job 16: Publish BDS to CurseForge
@@ -569,17 +570,10 @@ jobs:
           name: bedrock-voice-chat-bds-${{ needs.prepare-mods-release.outputs.new_release_version }}
           path: ./artifacts
 
-      - name: Download BDS artifact (no-net)
-        uses: actions/download-artifact@v5
-        with:
-          name: bedrock-voice-chat-bds-no-net-${{ needs.prepare-mods-release.outputs.new_release_version }}
-          path: ./artifacts
-
       - name: List artifacts
         run: ls -la ./artifacts
 
       - name: Publish full pack to CurseForge
-        id: upload-full
         uses: itsmeow/curseforge-upload@v3
         with:
           token: ${{ secrets.CURSEFORGE_API_TOKEN }}
@@ -590,19 +584,6 @@ jobs:
           changelog_type: markdown
           display_name: Bedrock Voice Chat ${{ needs.prepare-mods-release.outputs.new_release_version }}
           game_versions: Bedrock
-          release_type: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}
-
-      - name: Publish no-net pack as additional file
-        uses: itsmeow/curseforge-upload@v3
-        with:
-          token: ${{ secrets.CURSEFORGE_API_TOKEN }}
-          project_id: 1445992
-          game_endpoint: minecraft
-          file_path: ./artifacts/bedrock-voice-chat-no-net-${{ needs.prepare-mods-release.outputs.new_release_version }}.mcaddon
-          changelog: ${{ needs.prepare-mods-release.outputs.new_release_notes }}
-          changelog_type: markdown
-          display_name: Bedrock Voice Chat ${{ needs.prepare-mods-release.outputs.new_release_version }} (Realms + No-Net Servers)
-          parent_file_id: ${{ steps.upload-full.outputs.id }}
           release_type: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}
 
   # Job 17: Upload mod artifacts to mods GitHub Release
@@ -782,8 +763,8 @@ jobs:
   # Post-approval: Deploy versioned AsyncAPI docs to GitHub Pages
   deploy-docs:
     name: Deploy WebSocket Docs (v${{ needs.prepare-release.outputs.new_version }})
-    needs: [prepare-release, build-client, approve-publish]
-    if: needs.approve-publish.result == 'success'
+    needs: [prepare-release, build-client, approve-publish, deploy-updater-manifest]
+    if: always() && needs.approve-publish.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -811,8 +792,8 @@ jobs:
   # Post-approval: Deploy versioned OpenAPI docs to GitHub Pages
   deploy-openapi-docs:
     name: Deploy OpenAPI Docs (v${{ needs.prepare-release.outputs.new_version }})
-    needs: [prepare-release, build-server, approve-publish]
-    if: needs.approve-publish.result == 'success'
+    needs: [prepare-release, build-server, approve-publish, deploy-docs]
+    if: always() && needs.approve-publish.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -854,8 +835,8 @@ jobs:
   # Post-approval: Update version on GitHub Pages landing page (beta only for now)
   update-gh-pages-version:
     name: Update GitHub Pages Version
-    needs: [prepare-release, approve-publish]
-    if: needs.approve-publish.result == 'success' && contains(needs.prepare-release.outputs.new_version, '-beta')
+    needs: [prepare-release, approve-publish, deploy-openapi-docs]
+    if: always() && needs.approve-publish.result == 'success' && contains(needs.prepare-release.outputs.new_version, '-beta')
     runs-on: ubuntu-latest
     steps:
       - name: Generate GitHub App token

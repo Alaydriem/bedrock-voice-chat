@@ -28,8 +28,7 @@
       servers = value;
     });
 
-    instance.initialize();
-    instance.showPreloader();
+    instance.initialize().catch(() => instance.showPreloader());
     document.querySelector("body")?.classList.remove("has-min-sidebar");
   });
 

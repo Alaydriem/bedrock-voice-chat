@@ -32,6 +32,10 @@ mod feature_flags;
 pub use feature_flags::flagsmith::FlagsmithProvider;
 #[cfg(feature = "bedrock-protocol")]
 mod iap;
+// Re-exported for the integration test crate (a separate crate root that can
+// only reach `pub` items) to cover the store price-selection fallback.
+#[cfg(feature = "bedrock-protocol")]
+pub use crate::iap::store::StoreProvider;
 #[cfg(desktop)]
 pub mod keybinds;
 mod keyring;
@@ -109,6 +113,11 @@ pub fn run() {
             ..Default::default()
         },
     ));
+
+    sentry::configure_scope(|scope| {
+        scope.set_tag("version", env!("CARGO_PKG_VERSION"));
+        scope.set_tag("build_number", option_env!("APP_BUILD_NUMBER").unwrap_or("local"));
+    });
 
     #[cfg(desktop)]
     let _minidump = sentry_rust_minidump::init(&sentry_guard)

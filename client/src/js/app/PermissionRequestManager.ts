@@ -75,7 +75,18 @@ export default class PermissionRequestManager {
 			if (myAttempt !== this.attemptId || this.destroyed || this.isGranted) return;
 			const message = err instanceof Error ? err.message : String(err);
 			if (message.toLowerCase().includes('timeout')) {
-				info(`Permission request timed out for ${this.permissionType}; continuing to poll`);
+				// The native request never resolved (common on Android, where a
+				// denial often yields no value). Resolve from the authoritative
+				// status instead of leaving the view on a perpetual spinner; a
+				// later grant via device settings is still caught by the poller.
+				info(`Permission request timed out for ${this.permissionType}; resolving from status check`);
+				const granted = await this.safeCheck();
+				if (myAttempt !== this.attemptId || this.destroyed || this.isGranted) return;
+				if (granted) {
+					this.markGranted();
+				} else {
+					this.setState('denied');
+				}
 				return;
 			}
 			logError(`Permission request failed for ${this.permissionType}: ${message}`);

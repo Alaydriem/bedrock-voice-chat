@@ -178,6 +178,14 @@ impl ConnectionHealthManager {
                 break;
             }
 
+            if health_state.has_protocol_error() {
+                log::error!(
+                    "Datagram decode failures indicate an incompatible server protocol; tearing down connection"
+                );
+                Self::emit_version_mismatch(&server_url, &app_handle).await;
+                break;
+            }
+
             if health_state.should_send_health_check(health_config.threshold) {
                 log::trace!("Sending health check packet");
 
@@ -290,6 +298,72 @@ impl ConnectionHealthManager {
 
         log::error!("Failed to reconnect after {} attempts", config.max_attempts);
         let _ = app_handle.emit("connection_health", ConnectionHealth::Failed);
+    }
+
+    /// Emit a VersionMismatch event for a connection that has been proven
+    /// incompatible by datagram decode failures. The server version is fetched
+    /// from `/api/config` for diagnostics; the mismatch is emitted regardless of
+    /// what the semantic version comparison reports, because the decode failure
+    /// is already authoritative proof the wire formats differ.
+    async fn emit_version_mismatch(server_url: &str, app_handle: &tauri::AppHandle) {
+        let (server_version, client_too_old) = Self::fetch_server_version(server_url).await;
+        log::warn!(
+            "Protocol mismatch confirmed: client={}, server={}, client_too_old={}",
+            PROTOCOL_VERSION,
+            server_version,
+            client_too_old
+        );
+        let _ = app_handle.emit(
+            "connection_health",
+            ConnectionHealth::VersionMismatch {
+                client_version: PROTOCOL_VERSION.to_string(),
+                server_version,
+                client_too_old,
+            },
+        );
+    }
+
+    /// Fetch the server's advertised protocol version from `/api/config`,
+    /// returning the version string and whether this client is the older side.
+    /// Falls back to `("unknown", false)` when the config cannot be read.
+    async fn fetch_server_version(server_url: &str) -> (String, bool) {
+        #[allow(unused_mut)]
+        let mut builder = common::reqwest::Client::builder().timeout(Duration::from_secs(5));
+
+        #[cfg(dev)]
+        {
+            builder = builder.danger_accept_invalid_certs(true);
+        }
+
+        let client = match builder.build() {
+            Ok(c) => c,
+            Err(_) => return ("unknown".to_string(), false),
+        };
+
+        let base_url = if server_url.starts_with("http://") || server_url.starts_with("https://") {
+            server_url.to_string()
+        } else {
+            format!("https://{}", server_url)
+        };
+
+        let url = format!("{}/api/config", base_url);
+
+        let body = match client.get(&url).send().await {
+            Ok(resp) if resp.status().is_success() => match resp.text().await {
+                Ok(text) => text,
+                Err(_) => return ("unknown".to_string(), false),
+            },
+            _ => return ("unknown".to_string(), false),
+        };
+
+        match serde_json::from_str::<ApiConfigResponse>(&body) {
+            Ok(config) => {
+                let server_version = config.protocol_version.clone();
+                let check = ApiConfigCheckResponse::from_config(config, PROTOCOL_VERSION);
+                (server_version, check.client_too_old)
+            }
+            Err(_) => ("unknown".to_string(), false),
+        }
     }
 
     /// Probe the server's HTTP endpoint to check availability and version compatibility

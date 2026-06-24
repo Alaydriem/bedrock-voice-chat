@@ -21,6 +21,11 @@ export class DeepLinkRouter {
     private readonly PENDING_KEY = "pending_deep_link";
     private store: Store;
 
+    // URLs already routed by this instance. Both the live `deep-link-received`
+    // event and processPending() can deliver the same URL; a single-use OAuth
+    // code must be redeemed exactly once. Entries are never removed.
+    private routedUrls: Set<string> = new Set();
+
     constructor(store: Store) {
         this.store = store;
         this.handlers.push(new AuthCallbackHandler(store));
@@ -31,6 +36,12 @@ export class DeepLinkRouter {
      */
     async route(url: string): Promise<void> {
         info(`DeepLinkRouter: Routing URL: ${url}`);
+
+        if (this.routedUrls.has(url)) {
+            info(`DeepLinkRouter: URL already routed this session, skipping`);
+            return;
+        }
+        this.routedUrls.add(url);
 
         for (const handler of this.handlers) {
             if (handler.canHandle(url)) {

@@ -4,7 +4,7 @@ import { Store } from '@tauri-apps/plugin-store';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { getVersion } from '@tauri-apps/api/app';
 import { invoke } from '@tauri-apps/api/core';
-import { writable, type Writable, type Readable } from 'svelte/store';
+import { writable, derived, get, type Writable, type Readable } from 'svelte/store';
 import BVCApp from './BVCApp.ts';
 import Analytics from './analytics';
 import PlatformDetector from './utils/PlatformDetector.ts';
@@ -48,6 +48,26 @@ export const CONNECTING_STATUS_PHRASES: readonly string[] = [
   'Almost there…',
 ];
 
+/**
+ * Braille spinner frames cycled beneath the connecting view, mirroring the
+ * indicator CLI tools render when working. Presentation-only; the login view
+ * imports this to drive its JS spinner fallback.
+ */
+export const BRAILLE_FRAMES: readonly string[] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
+/**
+ * Connection-flow view state the login page renders: the editable form
+ * (`idle`), the spinner/handoff view (`connecting`), or the connection-error
+ * card (`error`).
+ */
+export type LoginState = 'idle' | 'connecting' | 'error';
+
+/**
+ * Which sign-in path an attempt uses. `ms` opens the Microsoft OAuth flow in
+ * the external browser; `hytale` starts the device-code flow.
+ */
+export type LoginKind = 'ms' | 'hytale';
+
 export default class Login extends BVCApp {
   private static readonly CODE_LOGIN_PATTERN = /^(https?:\/\/)?code@/;
 
@@ -56,6 +76,17 @@ export default class Login extends BVCApp {
   // observes this key so failures surface as a warning instead of leaving the
   // user on a frozen "connecting" view.
   static readonly LOGIN_ERROR_KEY = "login_error";
+
+  // Once the user returns from the external browser we expect the auth callback
+  // to either navigate away (success) or surface an error within this window. If
+  // neither happens the deep link was likely lost, so we fail visibly rather
+  // than stranding the user on a spinner.
+  private static readonly FINISH_TIMEOUT_MS = 30000;
+
+  // External help links surfaced on the connection-error view.
+  private static readonly WIKI_URL = "https://github.com/alaydriem/bedrock-voice-chat";
+  private static readonly DISCORD_URL = "https://discord.gg/WGXy5kBP9E";
+  private static readonly PRIVACY_URL = "https://raw.githubusercontent.com/Alaydriem/bedrock-voice-chat/refs/heads/master/PRIVACY_STATEMENT.md";
 
   readonly CONFIG_ENDPOINT = "/api/config";
   readonly AUTH_ENDPOINT = "/api/auth";
@@ -67,11 +98,32 @@ export default class Login extends BVCApp {
   private appVersionStore: Writable<string>;
   private formErrorStore: Writable<string>;
   private serverInputInvalidStore: Writable<boolean>;
+  private serverInputStore: Writable<string>;
+  private loginStateStore: Writable<LoginState>;
+  private attemptServerStore: Writable<string>;
+  private isHandoffStore: Writable<boolean>;
+  private isFinishingStore: Writable<boolean>;
 
   public readonly isMobileReadable: Readable<boolean>;
   public readonly appVersionReadable: Readable<string>;
   public readonly formError: Readable<string>;
   public readonly serverInputInvalid: Readable<boolean>;
+  public readonly serverInput: Readable<string>;
+  public readonly isCodeLogin: Readable<boolean>;
+  public readonly loginState: Readable<LoginState>;
+  public readonly attemptServer: Readable<string>;
+  public readonly isHandoff: Readable<boolean>;
+  public readonly isFinishing: Readable<boolean>;
+
+  // Monotonic token identifying the current attempt. Bumped on each new attempt
+  // and on cancel so a late-resolving request can't clobber the UI.
+  private attemptId = 0;
+  private lastLoginKind: LoginKind = 'ms';
+  // Tracks a genuine background->foreground transition during handoff. Only a
+  // real app resume (mobile) should start the finishing flow; a desktop window
+  // that merely keeps focus while the browser is open must not.
+  private wasHiddenDuringHandoff = false;
+  private finishWatchdog: ReturnType<typeof setTimeout> | null = null;
 
   private platformDetector: PlatformDetector;
 
@@ -81,10 +133,21 @@ export default class Login extends BVCApp {
     this.appVersionStore = writable('');
     this.formErrorStore = writable('');
     this.serverInputInvalidStore = writable(false);
+    this.serverInputStore = writable('');
+    this.loginStateStore = writable<LoginState>('idle');
+    this.attemptServerStore = writable('');
+    this.isHandoffStore = writable(false);
+    this.isFinishingStore = writable(false);
     this.isMobileReadable = { subscribe: this.isMobileStore.subscribe };
     this.appVersionReadable = { subscribe: this.appVersionStore.subscribe };
     this.formError = { subscribe: this.formErrorStore.subscribe };
     this.serverInputInvalid = { subscribe: this.serverInputInvalidStore.subscribe };
+    this.serverInput = { subscribe: this.serverInputStore.subscribe };
+    this.isCodeLogin = derived(this.serverInputStore, (value) => Login.isCodeLoginInput(value));
+    this.loginState = { subscribe: this.loginStateStore.subscribe };
+    this.attemptServer = { subscribe: this.attemptServerStore.subscribe };
+    this.isHandoff = { subscribe: this.isHandoffStore.subscribe };
+    this.isFinishing = { subscribe: this.isFinishingStore.subscribe };
     this.platformDetector = new PlatformDetector();
   }
 
@@ -235,6 +298,17 @@ export default class Login extends BVCApp {
   public reportError(message: string): void {
     this.formErrorStore.set(message);
     this.serverInputInvalidStore.set(true);
+
+    // A non-empty error arriving mid-flow (e.g. a Hytale device-flow poll
+    // expiring or being denied after we've handed off to the browser) must not
+    // be swallowed by the connecting view - drop back to idle so the inline
+    // message is actually visible.
+    if (get(this.loginStateStore) !== 'idle') {
+      this.clearFinishWatchdog();
+      this.isHandoffStore.set(false);
+      this.isFinishingStore.set(false);
+      this.loginStateStore.set('idle');
+    }
   }
 
   /**
@@ -244,6 +318,202 @@ export default class Login extends BVCApp {
    */
   public cancelHytalePolling(): void {
     this.stopHytalePolling();
+  }
+
+  public setServerInput(value: string): void {
+    this.serverInputStore.set(value);
+  }
+
+  public blurServerInput(): void {
+    const value = get(this.serverInputStore);
+    if (value.trim()) {
+      this.serverInputStore.set(this.sanitizeServerUrl(value));
+    }
+  }
+
+  public navigateCodeLogin(): void {
+    window.location.href = this.handleCodeLoginNavigate(get(this.serverInputStore));
+  }
+
+  /**
+   * Drive an attempt through the idle -> connecting -> redirect/error flow.
+   * Code-login input short-circuits to a same-window navigation; everything
+   * else validates, flips to the connecting view, and applies the outcome -
+   * guarded by an attempt token so a stale request can't clobber a newer one.
+   */
+  async runLogin(kind: LoginKind): Promise<void> {
+    if (get(this.loginStateStore) === 'connecting') return;
+
+    this.lastLoginKind = kind;
+    const value = get(this.loginStateStore) === 'error'
+      ? get(this.attemptServerStore)
+      : get(this.serverInputStore);
+
+    // Code-login navigates away in the same window - never enter the connecting
+    // view (otherwise the 'navigating' result would strand us on the spinner).
+    if (Login.isCodeLoginInput(value)) {
+      window.location.href = this.handleCodeLoginNavigate(value);
+      return;
+    }
+
+    // Validate before flipping to the connecting view so bad/empty input shows
+    // the inline error without a connecting flicker.
+    const validation = this.validateServerUrl(value);
+    if (!validation.valid) {
+      this.reportError(validation.error || "Please enter a valid server URL");
+      this.loginStateStore.set('idle');
+      return;
+    }
+
+    this.clearError();
+    const sanitized = this.sanitizeServerUrl(value);
+    this.attemptServerStore.set(sanitized);
+    this.serverInputStore.set(sanitized);
+    this.clearFinishWatchdog();
+    this.isHandoffStore.set(false);
+    this.isFinishingStore.set(false);
+    this.wasHiddenDuringHandoff = false;
+    this.loginStateStore.set('connecting');
+
+    const myAttempt = ++this.attemptId;
+    const result = kind === 'hytale'
+      ? await this.loginWithHytale(value)
+      : await this.login(value);
+
+    // The user cancelled (or started a fresh attempt) while this one was in
+    // flight - don't reapply its result. Undo any polling it may have kicked off.
+    if (myAttempt !== this.attemptId) {
+      this.cancelHytalePolling();
+      return;
+    }
+
+    this.applyResult(result);
+  }
+
+  async tryAgain(): Promise<void> {
+    await this.runLogin(this.lastLoginKind);
+  }
+
+  /**
+   * Auto-reauthenticate via Microsoft on page load when requested, but only if
+   * the page is still idle and no error is showing (a pending auth-callback
+   * failure surfaced on mount must not be steamrolled by a fresh attempt).
+   */
+  async attemptAutoReauth(): Promise<void> {
+    if (get(this.loginStateStore) === 'idle' && !get(this.formErrorStore)) {
+      await this.runLogin('ms');
+    }
+  }
+
+  /**
+   * Manual escape from the connecting/handoff view (e.g. the user closed the
+   * external sign-in window without finishing, or chose a different server).
+   * Stops any Hytale polling and clears transient errors before returning to
+   * the editable idle form.
+   */
+  public returnToIdle(): void {
+    this.attemptId++;
+    this.cancelHytalePolling();
+    this.clearError();
+    this.clearFinishWatchdog();
+    this.isHandoffStore.set(false);
+    this.isFinishingStore.set(false);
+    this.wasHiddenDuringHandoff = false;
+    this.loginStateStore.set('idle');
+    this.serverInputStore.set(get(this.attemptServerStore));
+  }
+
+  /**
+   * Surface an auth-callback failure persisted by the deep-link handler: stop
+   * any finishing/handoff view and drop back to the editable form with a
+   * warning.
+   */
+  public surfaceAuthError(message: string): void {
+    this.clearFinishWatchdog();
+    this.attemptId++;
+    this.isHandoffStore.set(false);
+    this.isFinishingStore.set(false);
+    this.wasHiddenDuringHandoff = false;
+    this.loginStateStore.set('idle');
+    this.reportError(message);
+  }
+
+  /**
+   * Register the visibility tracking that detects the user's return from the
+   * external sign-in browser. Returns an unlisten the caller invokes on
+   * teardown.
+   */
+  public attachVisibilityTracking(): () => void {
+    document.addEventListener('visibilitychange', this.handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+  }
+
+  public openWiki(): Promise<void> {
+    return openUrl(Login.WIKI_URL);
+  }
+
+  public openDiscord(): Promise<void> {
+    return openUrl(Login.DISCORD_URL);
+  }
+
+  public openPrivacyNotice(): Promise<void> {
+    return openUrl(Login.PRIVACY_URL);
+  }
+
+  public teardownLoginFlow(): void {
+    this.clearFinishWatchdog();
+    this.stopHytalePolling();
+  }
+
+  private applyResult(result: LoginAttemptResult): void {
+    switch (result.status) {
+      case 'redirecting':
+        // Auth URL opened in the system browser; hold the connecting view and
+        // arm the return detector so we know when the user comes back.
+        this.isHandoffStore.set(true);
+        this.isFinishingStore.set(false);
+        this.wasHiddenDuringHandoff = false;
+        break;
+      case 'error':
+        this.attemptServerStore.set(result.sanitized);
+        this.loginStateStore.set('error');
+        break;
+      case 'invalid':
+        this.loginStateStore.set('idle');
+        break;
+      case 'navigating':
+        break;
+    }
+  }
+
+  private handleVisibilityChange = (): void => {
+    if (get(this.loginStateStore) !== 'connecting' || !get(this.isHandoffStore)) return;
+    if (document.visibilityState === 'hidden') {
+      this.wasHiddenDuringHandoff = true;
+      return;
+    }
+    if (document.visibilityState === 'visible' && this.wasHiddenDuringHandoff && !get(this.isFinishingStore)) {
+      this.beginFinishing();
+    }
+  };
+
+  private beginFinishing(): void {
+    this.isFinishingStore.set(true);
+    this.clearFinishWatchdog();
+    this.finishWatchdog = setTimeout(() => {
+      if (get(this.loginStateStore) === 'connecting') {
+        this.isHandoffStore.set(false);
+        this.isFinishingStore.set(false);
+        this.loginStateStore.set('error');
+      }
+    }, Login.FINISH_TIMEOUT_MS);
+  }
+
+  private clearFinishWatchdog(): void {
+    if (this.finishWatchdog !== null) {
+      clearTimeout(this.finishWatchdog);
+      this.finishWatchdog = null;
+    }
   }
 
   async login(rawValue: string): Promise<LoginAttemptResult> {
