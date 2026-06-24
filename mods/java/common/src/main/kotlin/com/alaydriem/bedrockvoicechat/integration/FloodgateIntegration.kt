@@ -51,7 +51,6 @@ class FloodgateIntegration {
             val isFloodgate = apiClass.getMethod("isFloodgatePlayer", UUID::class.java)
             val floodgateResult = isFloodgate.invoke(api, playerUuid)
             if (floodgateResult != true) {
-                log.info("isFloodgatePlayer({}) returned {} — not stripping prefix", playerUuid, floodgateResult)
                 return null
             }
 

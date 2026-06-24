@@ -4,28 +4,28 @@ import com.alaydriem.bedrockvoicechat.fabric.audio.JukeboxListener
 import com.mojang.brigadier.Command
 import com.mojang.brigadier.arguments.StringArgumentType
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback
-import net.minecraft.command.argument.EntityArgumentType
-import net.minecraft.command.permission.Permission
-import net.minecraft.command.permission.PermissionLevel
-import net.minecraft.component.DataComponentTypes
-import net.minecraft.server.command.CommandManager
-import net.minecraft.text.Text
+import net.minecraft.commands.Commands
+import net.minecraft.commands.arguments.EntityArgument
+import net.minecraft.core.component.DataComponents
+import net.minecraft.network.chat.Component
+import net.minecraft.server.permissions.Permission
+import net.minecraft.server.permissions.PermissionLevel
 
 object DiscCommand {
     fun register() {
         CommandRegistrationCallback.EVENT.register { dispatcher, _, _ ->
             dispatcher.register(
-                CommandManager.literal("bvc")
+                Commands.literal("bvc")
                     .then(
-                        CommandManager.literal("disc")
+                        Commands.literal("disc")
                             .then(
-                                CommandManager.argument("audio_id", StringArgumentType.greedyString())
+                                Commands.argument("audio_id", StringArgumentType.greedyString())
                                     .executes { ctx ->
                                         val audioId = StringArgumentType.getString(ctx, "audio_id")
                                         val player = ctx.source.player
                                         if (player == null) {
-                                            ctx.source.sendError(
-                                                Text.literal(
+                                            ctx.source.sendFailure(
+                                                Component.literal(
                                                     "/bvc disc must be run by a player. Use /bvc give <player> <audio_id> from the console."
                                                 )
                                             )
@@ -33,14 +33,14 @@ object DiscCommand {
                                         }
 
                                         val disc = JukeboxListener.createBvcDisc(audioId)
-                                        disc.set(DataComponentTypes.CUSTOM_NAME, Text.literal("BVC: $audioId"))
+                                        disc.set(DataComponents.CUSTOM_NAME, Component.literal("BVC: $audioId"))
 
-                                        if (!player.inventory.insertStack(disc)) {
-                                            player.dropItem(disc, false)
+                                        if (!player.inventory.add(disc)) {
+                                            player.drop(disc, false)
                                         }
 
-                                        ctx.source.sendFeedback(
-                                            { Text.literal("Gave BVC audio disc: $audioId") },
+                                        ctx.source.sendSuccess(
+                                            { Component.literal("Gave BVC audio disc: $audioId") },
                                             true
                                         )
 
@@ -49,34 +49,34 @@ object DiscCommand {
                             )
                     )
                     .then(
-                        CommandManager.literal("give")
-                            .requires { it.permissions.hasPermission(Permission.Level(PermissionLevel.GAMEMASTERS)) }
+                        Commands.literal("give")
+                            .requires { it.permissions().hasPermission(Permission.HasCommandLevel(PermissionLevel.GAMEMASTERS)) }
                             .then(
-                                CommandManager.argument("target", EntityArgumentType.players())
+                                Commands.argument("target", EntityArgument.players())
                                     .then(
-                                        CommandManager.argument("audio_id", StringArgumentType.greedyString())
+                                        Commands.argument("audio_id", StringArgumentType.greedyString())
                                             .executes { ctx ->
                                                 val audioId = StringArgumentType.getString(ctx, "audio_id")
-                                                val targets = EntityArgumentType.getPlayers(ctx, "target")
+                                                val targets = EntityArgument.getPlayers(ctx, "target")
                                                 if (targets.isEmpty()) {
-                                                    ctx.source.sendError(Text.literal("No matching player found"))
+                                                    ctx.source.sendFailure(Component.literal("No matching player found"))
                                                     return@executes 0
                                                 }
 
                                                 for (target in targets) {
                                                     val disc = JukeboxListener.createBvcDisc(audioId)
                                                     disc.set(
-                                                        DataComponentTypes.CUSTOM_NAME,
-                                                        Text.literal("BVC: $audioId")
+                                                        DataComponents.CUSTOM_NAME,
+                                                        Component.literal("BVC: $audioId")
                                                     )
-                                                    if (!target.inventory.insertStack(disc)) {
-                                                        target.dropItem(disc, false)
+                                                    if (!target.inventory.add(disc)) {
+                                                        target.drop(disc, false)
                                                     }
                                                 }
 
-                                                ctx.source.sendFeedback(
+                                                ctx.source.sendSuccess(
                                                     {
-                                                        Text.literal(
+                                                        Component.literal(
                                                             "Gave BVC audio disc '$audioId' to ${targets.size} player(s)"
                                                         )
                                                     },

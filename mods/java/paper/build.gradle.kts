@@ -11,16 +11,17 @@ base {
 
 dependencies {
     // Paper API (provided at runtime)
-    compileOnly("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:26.2.build.+")
 
     // Common module - will be shadowed
     implementation(project(":common"))
 
-    // Test dependencies - MockBukkit for event simulation
-    testImplementation("org.mockbukkit.mockbukkit:mockbukkit-v1.21:4.0.0")
-    testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
-    testImplementation(kotlin("test"))
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    // Test dependencies - MockBukkit simulates a Paper 26.1.2 server; it ships no paper-api,
+    // so a matched paper-api is provided on the test classpath (one minor behind the 26.2 ship target)
+    testImplementation("io.papermc.paper:paper-api:26.1.2.build.+")
+    testImplementation("org.mockbukkit.mockbukkit:mockbukkit-v26.1.2:4.113.2")
+    testImplementation("org.junit.jupiter:junit-jupiter:6.1.0")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.1.0")
 }
 
 tasks.test {

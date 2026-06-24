@@ -107,23 +107,8 @@ class PaperAudioPlayerManager(
         ejectTasks.remove(locationKey)
         val state = activePlaybacks.remove(locationKey) ?: return
         state.eventId?.let { audioEventSender.stop(it) }
-
-        val parts = locationKey.split(":")
-        if (parts.size < 4) return
-        val worldUuid = parts[0]
-        val x = parts[1].toIntOrNull() ?: return
-        val y = parts[2].toIntOrNull() ?: return
-        val z = parts[3].toIntOrNull() ?: return
-
-        val world = plugin.server.worlds.firstOrNull { it.uid.toString() == worldUuid } ?: return
-        val block = world.getBlockAt(x, y, z)
-        val jukebox = block.state as? org.bukkit.block.Jukebox ?: return
-        if (!jukebox.hasRecord()) return
-        val disc = jukebox.record.clone()
-        JukeboxListener.restoreJukeboxPlayable(disc)
-        jukebox.setRecord(null)
-        jukebox.update(true)
-        world.dropItemNaturally(block.location.add(0.5, 1.0, 0.5), disc)
+        // Playback ended: stop audio and unlock. The disc stays in the jukebox (matching vanilla)
+        // so a hopper below collects it via normal extraction, or the player right-clicks to eject.
     }
 
     override fun shutdown() {
