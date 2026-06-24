@@ -1,0 +1,13 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.alaydriem.bvc.client",
+      "sha256_cert_fingerprints": [
+        "83:1C:3F:48:0B:47:8A:45:4E:0B:F0:7D:8D:88:20:20:86:9B:25:54:CD:EE:BE:5F:F8:D4:FB:C8:A5:9A:0E:AA",
+        "F5:25:30:72:81:1C:83:B5:23:AB:08:E7:CA:81:90:FD:B9:EA:34:D5:A1:78:C9:4D:B6:BD:21:B6:4D:D4:0D:EE"
+      ]
+    }
+  }
+]
