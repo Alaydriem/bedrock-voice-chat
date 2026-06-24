@@ -9,7 +9,8 @@ import type { DeepLinkOutcome } from '../deepLinkRouter.ts';
 export class AuthCallbackHandler {
     private readonly AUTH_PREFIXES = [
         'bedrock-voice-chat://auth',
-        'https://bvc.alaydriem.com/auth'
+        'https://bvc.alaydriem.com/auth',
+        'https://www.bedrockvoicechat.com/auth'
     ];
     // Must match Login.LOGIN_ERROR_KEY. Duplicated rather than imported to avoid
     // a Login -> BVCApp -> deepLinkRouter -> authCallbackHandler -> Login cycle.

@@ -60,6 +60,16 @@
           "scheme": [
             "bedrock-voice-chat"
           ]
+        },
+        {
+          "scheme": [
+            "https"
+          ],
+          "host": "www.bedrockvoicechat.com",
+          "pathPrefix": [
+            "/discord/callback"
+          ],
+          "appLink": true
         }
       ],
       "desktop": {

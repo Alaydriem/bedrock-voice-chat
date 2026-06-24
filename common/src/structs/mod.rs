@@ -3,6 +3,7 @@ pub mod audio;
 pub mod bedrock;
 pub mod channel;
 pub mod config;
+pub mod discord;
 pub mod events;
 pub mod game;
 pub mod iap;
@@ -21,6 +22,7 @@ pub use analytics::{AnalyticsEvent, AnalyticsEventData};
 pub use audio::{
     AudioDevice, AudioDeviceHost, AudioDeviceType, AudioFormat, MuteEvent, StreamConfig,
 };
+pub use discord::DiscordLinkStatus;
 pub use events::DeepLink;
 pub use game::{Coordinate, Game, GameData, Orientation, Player, UploaderIdentity};
 pub use network::ConnectionHealth;

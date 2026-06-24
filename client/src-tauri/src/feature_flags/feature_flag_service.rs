@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::RwLock as StdRwLock;
 use std::time::Duration;
 
 use log::warn;
@@ -9,6 +10,7 @@ use tokio::sync::{RwLock, watch};
 use super::FlagsmithProvider;
 use super::feature_flag::FeatureFlag;
 use super::flagsmith::FlagsmithFlag;
+use crate::discord::DiscordTraitState;
 
 pub struct FeatureFlagService {
     client: RwLock<Option<open_feature::Client>>,
@@ -24,6 +26,9 @@ pub struct FeatureFlagService {
     // same cache the resolvers read. Populated in `initialize`.
     flag_cache: RwLock<Option<Arc<RwLock<HashMap<String, FlagsmithFlag>>>>>,
     normalized_url: RwLock<Option<String>>,
+    // Shared with the FlagsmithProvider; carries the linked Discord roles that
+    // become identity traits. Seeded at startup, updated on link/unlink.
+    discord_state: Arc<StdRwLock<DiscordTraitState>>,
 }
 
 impl FeatureFlagService {
@@ -47,6 +52,7 @@ impl FeatureFlagService {
             http_client: super::flagsmith::pinned_client::FlagsmithPinnedClient::build(),
             flag_cache: RwLock::new(None),
             normalized_url: RwLock::new(None),
+            discord_state: Arc::new(StdRwLock::new(DiscordTraitState::new())),
         }
     }
 
@@ -64,6 +70,7 @@ impl FeatureFlagService {
             self.build_number,
             self.refresh_interval,
             self.http_client.clone(),
+            self.discord_state.clone(),
         );
 
         // Capture the provider's shared cache + normalized URL before it's
@@ -90,6 +97,7 @@ impl FeatureFlagService {
         }
         let cache = self.flag_cache.read().await.clone();
         let url = self.normalized_url.read().await.clone();
+        let roles = self.effective_roles_now();
         match (cache, url) {
             (Some(cache), Some(url)) => {
                 let count = FlagsmithProvider::fetch_flags(
@@ -98,6 +106,7 @@ impl FeatureFlagService {
                     &self.api_key,
                     &self.install_id,
                     self.build_number,
+                    &roles,
                     &cache,
                 )
                 .await
@@ -107,6 +116,44 @@ impl FeatureFlagService {
             }
             _ => Err("Feature flags are not initialized yet".to_string()),
         }
+    }
+
+    fn now_secs() -> i64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0)
+    }
+
+    fn effective_roles_now(&self) -> Vec<String> {
+        self.current_effective_roles(Self::now_secs())
+    }
+
+    // Write the linked Discord roles without refreshing flags. Used at startup
+    // before the provider initializes, so the first identity POST carries them.
+    pub fn seed_discord_roles(&self, roles: Vec<String>, last_sync: Option<i64>) {
+        if let Ok(mut s) = self.discord_state.write() {
+            s.roles = roles;
+            s.last_sync = last_sync;
+        }
+    }
+
+    // Update the linked Discord roles and immediately re-fetch flags so gating
+    // re-evaluates without a restart.
+    pub async fn update_discord_roles(
+        &self,
+        roles: Vec<String>,
+        last_sync: Option<i64>,
+    ) -> Result<(), String> {
+        self.seed_discord_roles(roles, last_sync);
+        self.refresh().await
+    }
+
+    pub fn current_effective_roles(&self, now_secs: i64) -> Vec<String> {
+        self.discord_state
+            .read()
+            .map(|s| s.effective_roles(now_secs))
+            .unwrap_or_default()
     }
 
     pub async fn is_enabled(&self, flag: &str) -> bool {

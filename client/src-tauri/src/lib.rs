@@ -27,8 +27,11 @@ mod auth;
 pub mod bedrock;
 mod commands;
 mod deep_links;
+pub mod discord;
+pub use discord::{DiscordLinkService, DiscordOAuth, DiscordRoleClient, DiscordTraitState};
 mod events;
 mod feature_flags;
+pub use feature_flags::FeatureFlagService;
 pub use feature_flags::flagsmith::FlagsmithProvider;
 #[cfg(feature = "bedrock-protocol")]
 mod iap;
@@ -259,6 +262,13 @@ pub fn run() {
             // Feature Flags
             crate::commands::feature_flags::get_feature_flag,
             crate::commands::feature_flags::refresh_feature_flags,
+            // Discord linking
+            crate::commands::discord::discord_status,
+            #[cfg(desktop)]
+            crate::commands::discord::discord_link,
+            #[cfg(desktop)]
+            crate::commands::discord::discord_resync,
+            crate::commands::discord::discord_unlink,
             // Audio Library
             crate::commands::audio_library::upload_audio_file,
             crate::commands::audio_library::list_audio_files,
@@ -430,6 +440,19 @@ pub fn run() {
                 )
             );
             app.manage(feature_flag_service.clone());
+
+            let discord_link_service = crate::discord::DiscordLinkService::new_shared(
+                option_env!("DISCORD_CLIENT_ID").unwrap_or("").to_string(),
+                option_env!("DISCORD_GUILD_ID").unwrap_or("").to_string(),
+                option_env!("DISCORD_REDIRECT_URI").unwrap_or("").to_string(),
+                reqwest::Client::new(),
+                feature_flag_service.clone(),
+                app.handle().clone(),
+            );
+            // Seed cached roles before the first flag fetch so the identity POST
+            // carries them.
+            discord_link_service.load_persisted();
+            app.manage(discord_link_service);
 
             let ffs = feature_flag_service.clone();
             tauri::async_runtime::spawn(async move {

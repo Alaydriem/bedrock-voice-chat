@@ -4,6 +4,7 @@ pub(crate) mod audio;
 pub(crate) mod audio_library;
 #[cfg(feature = "bedrock-protocol")]
 pub(crate) mod bedrock;
+pub(crate) mod discord;
 pub(crate) mod env;
 pub(crate) mod event;
 pub(crate) mod feature_flags;

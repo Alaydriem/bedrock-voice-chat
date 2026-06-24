@@ -46,6 +46,19 @@ fn main() {
         println!("cargo:rustc-env=APP_BUILD_NUMBER={}", build_number);
     }
 
+    println!("cargo:rerun-if-env-changed=DISCORD_CLIENT_ID");
+    if let Ok(v) = std::env::var("DISCORD_CLIENT_ID") {
+        println!("cargo:rustc-env=DISCORD_CLIENT_ID={}", v);
+    }
+    println!("cargo:rerun-if-env-changed=DISCORD_GUILD_ID");
+    if let Ok(v) = std::env::var("DISCORD_GUILD_ID") {
+        println!("cargo:rustc-env=DISCORD_GUILD_ID={}", v);
+    }
+    println!("cargo:rerun-if-env-changed=DISCORD_REDIRECT_URI");
+    if let Ok(v) = std::env::var("DISCORD_REDIRECT_URI") {
+        println!("cargo:rustc-env=DISCORD_REDIRECT_URI={}", v);
+    }
+
     println!("cargo:rerun-if-env-changed=BVC_MOCK_IAP");
     if let Ok(mock_iap) = std::env::var("BVC_MOCK_IAP") {
         println!("cargo:rustc-env=BVC_MOCK_IAP={}", mock_iap);
