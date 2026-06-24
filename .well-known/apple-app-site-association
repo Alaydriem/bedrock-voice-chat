@@ -1,0 +1,8 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      { "appID": "7FQ67ZVXXG.com.alaydriem.bvc.client", "paths": ["/discord/callback*", "/auth/login*"] }
+    ]
+  }
+}
