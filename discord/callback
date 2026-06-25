@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Linking Discord…</title>
+</head>
+<body>
+  <p>Returning to Bedrock Voice Chat…</p>
+  <p>If the app doesn't reopen automatically, switch back to it — your Discord link will complete.</p>
+  <script>
+    // Discord implicit-grant returns the token in the URL fragment. Move it into
+    // the app's custom scheme so the deep-link plugin routes it to the client.
+    (function () {
+      var params = location.hash ? location.hash.slice(1) : location.search.slice(1);
+      if (params) {
+        location.replace("bedrock-voice-chat://discord-callback?" + params);
+      }
+    })();
+  </script>
+</body>
+</html>
