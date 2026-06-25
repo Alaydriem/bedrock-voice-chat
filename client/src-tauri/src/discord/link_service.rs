@@ -120,21 +120,47 @@ impl DiscordLinkService {
         Self::build_status(&roles, last_sync, Self::now_secs(), self.is_configured())
     }
 
-    #[cfg(desktop)]
-    pub async fn link(&self) -> Result<DiscordLinkStatus, DiscordLinkError> {
+    // Unified for desktop and mobile: open the default browser to Discord, then
+    // complete when the redirect returns via the trampoline → custom-scheme
+    // deep link (see `complete_link`). The `state` is persisted to validate the
+    // returning callback.
+    pub async fn begin_link(&self) -> Result<(), DiscordLinkError> {
         if !self.is_configured() {
             return Err(DiscordLinkError::NotConfigured);
         }
-        let state = uuid::Uuid::new_v4().as_simple().to_string();
+        let state = DiscordOAuth::generate_state();
+        let store = self
+            .app
+            .store("store.json")
+            .map_err(|e| DiscordLinkError::Http(e.to_string()))?;
+        store.set("discord_oauth_state", serde_json::json!(state.clone()));
+        store.save().map_err(|e| DiscordLinkError::Http(e.to_string()))?;
         let authorize_url =
             DiscordOAuth::authorize_url(&self.client_id, &self.redirect_uri, &state);
-        let fragment =
-            DiscordOAuth::open_window(self.app.clone(), authorize_url, self.redirect_uri.clone())
-                .await?;
-        let (token, returned_state) = DiscordOAuth::parse_fragment(&fragment)?;
-        if returned_state != state {
+        DiscordOAuth::open_external(&self.app, &authorize_url)
+    }
+
+    pub async fn resync(&self) -> Result<(), DiscordLinkError> {
+        self.begin_link().await
+    }
+
+    pub async fn complete_link(
+        &self,
+        fragment: &str,
+    ) -> Result<DiscordLinkStatus, DiscordLinkError> {
+        let (token, returned_state) = DiscordOAuth::parse_fragment(fragment)?;
+        let store = self
+            .app
+            .store("store.json")
+            .map_err(|e| DiscordLinkError::Http(e.to_string()))?;
+        let expected = store
+            .get("discord_oauth_state")
+            .and_then(|v| v.as_str().map(String::from));
+        if Some(returned_state) != expected {
             return Err(DiscordLinkError::StateMismatch);
         }
+        let _ = store.delete("discord_oauth_state");
+        let _ = store.save();
         let roles = DiscordRoleClient::fetch_role_ids(&self.http, &token, &self.guild_id).await?;
         let now = Self::now_secs();
         self.write_persisted(&roles, Some(now))?;
@@ -142,11 +168,6 @@ impl DiscordLinkService {
             warn!("Discord: flag refresh after link failed: {e}");
         }
         Ok(Self::build_status(&roles, Some(now), now, true))
-    }
-
-    #[cfg(desktop)]
-    pub async fn resync(&self) -> Result<DiscordLinkStatus, DiscordLinkError> {
-        self.link().await
     }
 
     pub async fn unlink(&self) -> Result<DiscordLinkStatus, DiscordLinkError> {

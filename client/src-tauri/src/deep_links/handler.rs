@@ -11,7 +11,10 @@ pub trait DeepLinkHandler {
 
 impl DeepLinkHandler for DeepLink {
     fn handle(&self, app: &AppHandle) -> Result<(), String> {
-        log::info!("Rust: Handling deep link: {}", self.url);
+        log::info!(
+            "Rust: Handling deep link: {}",
+            crate::deep_links::UrlRedactor::for_log(&self.url)
+        );
 
         // Clone what we need for the async block
         let app_handle = app.clone();
@@ -23,7 +26,9 @@ impl DeepLinkHandler for DeepLink {
                 Ok(store) => {
                     store.set(
                         "pending_deep_link",
-                        serde_json::json!(deep_link.url.clone()),
+                        serde_json::json!(crate::deep_links::UrlRedactor::for_storage(
+                            &deep_link.url
+                        )),
                     );
                     match store.save() {
                         Ok(_) => {

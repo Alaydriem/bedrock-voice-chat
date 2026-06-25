@@ -131,6 +131,7 @@
 
     onDestroy(() => {
         if (variantClickTimer) clearTimeout(variantClickTimer);
+        window.removeEventListener("discord-link-updated", loadDiscord);
     });
 
     async function handleExportLogs() {
@@ -168,6 +169,7 @@
             error(`Failed to get app info: ${e}`);
         }
         await loadDiscord();
+        window.addEventListener("discord-link-updated", loadDiscord);
         isReady = true;
     });
 </script>

@@ -52,3 +52,20 @@ fn empty_roles_send_only_build_number() {
     assert_eq!(traits.len(), 1);
     assert_eq!(traits[0]["trait_key"], serde_json::json!("build_number"));
 }
+
+#[test]
+fn category_role_emits_raw_id_label_and_umbrella() {
+    // A Sponsor source role emits the fine-grained id trait, the consolidated
+    // category label, and the umbrella — all as transient traits.
+    let roles = vec!["1447055535294906440".to_string()];
+    let body = FlagsmithProvider::build_identity_body("install-abc", 7, &roles);
+    let keys: Vec<&str> = body["traits"]
+        .as_array()
+        .expect("traits array")
+        .iter()
+        .map(|t| t["trait_key"].as_str().unwrap_or(""))
+        .collect();
+    assert!(keys.contains(&"discord-role-1447055535294906440"));
+    assert!(keys.contains(&"discord-role-sponsor"));
+    assert!(keys.contains(&"discord-role-supporter-any"));
+}

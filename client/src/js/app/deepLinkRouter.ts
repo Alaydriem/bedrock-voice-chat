@@ -1,6 +1,7 @@
 import { Store } from '@tauri-apps/plugin-store';
 import { info, error as logError } from '@tauri-apps/plugin-log';
 import { AuthCallbackHandler } from './deepLinkHandlers/authCallbackHandler.ts';
+import { DiscordCallbackHandler } from './deepLinkHandlers/discordCallbackHandler.ts';
 
 /**
  * Outcome of handling a deep link.
@@ -29,13 +30,14 @@ export class DeepLinkRouter {
     constructor(store: Store) {
         this.store = store;
         this.handlers.push(new AuthCallbackHandler(store));
+        this.handlers.push(new DiscordCallbackHandler());
     }
 
     /**
      * Route a deep link URL to the appropriate handler
      */
     async route(url: string): Promise<void> {
-        info(`DeepLinkRouter: Routing URL: ${url}`);
+        info(`DeepLinkRouter: Routing URL: ${url.split(/[?#]/)[0]}`);
 
         if (this.routedUrls.has(url)) {
             info(`DeepLinkRouter: URL already routed this session, skipping`);

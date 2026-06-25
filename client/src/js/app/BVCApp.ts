@@ -48,7 +48,7 @@ export default class BVCApp extends App {
      */
     private setupDeepLinkListener(): void {
         listen<DeepLink>('deep-link-received', (event) => {
-            info(`BVCApp: Received deep-link-received event: ${event.payload.url}`);
+            info(`BVCApp: Received deep-link-received event: ${event.payload.url.split(/[?#]/)[0]}`);
             this.handleDeepLinkEvent(event.payload.url).catch((err) => {
                 logError(`BVCApp: Failed to handle deep link event: ${err}`);
             });

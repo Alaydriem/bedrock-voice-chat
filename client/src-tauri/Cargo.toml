@@ -32,6 +32,7 @@ log = { version = "^0.4" }
 anyhow = { version = "^1" }
 spmc = { version = "^0.3" }
 rand = { version = "^0.10" }
+strum = { version = "0.26", features = ["derive"] }
 rodio = { version = "0.22.2" }
 bytes = { version = "^1.11.1" }
 async-mutex = { version = "^1.4" }

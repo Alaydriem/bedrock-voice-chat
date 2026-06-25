@@ -104,6 +104,13 @@ impl FlagsmithProvider {
                 "transient": true
             }));
         }
+        for label in crate::discord::RoleCategory::labels_for(discord_roles) {
+            traits.push(serde_json::json!({
+                "trait_key": format!("discord-role-{}", label),
+                "trait_value": true,
+                "transient": true
+            }));
+        }
         serde_json::json!({ "identifier": install_id, "traits": traits })
     }
 

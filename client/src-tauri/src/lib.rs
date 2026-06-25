@@ -28,7 +28,9 @@ pub mod bedrock;
 mod commands;
 mod deep_links;
 pub mod discord;
-pub use discord::{DiscordLinkService, DiscordOAuth, DiscordRoleClient, DiscordTraitState};
+pub use discord::{
+    DiscordLinkService, DiscordOAuth, DiscordRoleClient, DiscordTraitState, RoleCategory,
+};
 mod events;
 mod feature_flags;
 pub use feature_flags::FeatureFlagService;
@@ -264,10 +266,9 @@ pub fn run() {
             crate::commands::feature_flags::refresh_feature_flags,
             // Discord linking
             crate::commands::discord::discord_status,
-            #[cfg(desktop)]
             crate::commands::discord::discord_link,
-            #[cfg(desktop)]
             crate::commands::discord::discord_resync,
+            crate::commands::discord::discord_complete_link,
             crate::commands::discord::discord_unlink,
             // Audio Library
             crate::commands::audio_library::upload_audio_file,
@@ -515,7 +516,10 @@ pub fn run() {
             app.deep_link().on_open_url(move |event| {
                 info!("on_open_url callback fired");
                 for url in event.urls() {
-                    info!("Processing deep link URL from on_open_url: {}", url);
+                    info!(
+                        "Processing deep link URL from on_open_url: {}",
+                        crate::deep_links::UrlRedactor::for_log(url.as_str())
+                    );
                     let deep_link = DeepLink::new(url.to_string());
                     if let Err(e) = deep_link.handle(&app_handle) {
                         error!("Failed to handle deep link: {}", e);

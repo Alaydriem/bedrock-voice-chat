@@ -18,6 +18,13 @@ impl DiscordOAuth {
         url.to_string()
     }
 
+    // CSRF state: 256 bits of CSPRNG entropy, URL-safe base64. Stronger than a
+    // v4 UUID (122 bits) and the right shape for a security token.
+    pub fn generate_state() -> String {
+        use base64::Engine;
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(rand::random::<[u8; 32]>())
+    }
+
     pub fn parse_fragment(fragment: &str) -> Result<(String, String), DiscordLinkError> {
         let mut token = None;
         let mut state = None;
@@ -37,60 +44,15 @@ impl DiscordOAuth {
     }
 }
 
-#[cfg(desktop)]
 impl DiscordOAuth {
-    // Embedded webview that intercepts the navigation to `redirect_uri` and
-    // returns the raw URL fragment (containing the implicit-grant access_token).
-    // Mirrors crate::auth::mc_oauth_window::McOauthWindow.
-    pub async fn open_window(
-        app: tauri::AppHandle,
-        authorize_url: String,
-        redirect_uri: String,
-    ) -> Result<String, DiscordLinkError> {
-        use tauri::{Manager, Url, webview::WebviewWindowBuilder};
-        use tokio::sync::oneshot;
-
-        let (tx, rx) = oneshot::channel::<String>();
-        let tx = std::sync::Mutex::new(Some(tx));
-
-        let url: Url = authorize_url
-            .parse()
-            .map_err(|e| DiscordLinkError::Http(format!("invalid authorize URL: {e}")))?;
-
-        let label = format!("discord-oauth-{}", uuid::Uuid::new_v4().as_simple());
-        for (_, w) in app.webview_windows() {
-            if w.label().starts_with("discord-oauth-") {
-                let _ = w.destroy();
-            }
-        }
-
-        let close_handle = app.clone();
-        let close_label = label.clone();
-        let redirect = redirect_uri.clone();
-
-        let builder = WebviewWindowBuilder::new(&app, &label, tauri::WebviewUrl::External(url))
-            .on_navigation(move |url: &Url| {
-                if url.as_str().starts_with(&redirect) {
-                    let fragment = url.fragment().unwrap_or("").to_string();
-                    if let Some(sender) = tx.lock().unwrap().take() {
-                        let _ = sender.send(fragment);
-                    }
-                    if let Some(w) = close_handle.get_webview_window(&close_label) {
-                        let _ = w.destroy();
-                    }
-                    return false;
-                }
-                true
-            })
-            .title("Link Discord")
-            .inner_size(500.0, 750.0)
-            .center()
-            .resizable(true);
-
-        builder
-            .build()
-            .map_err(|e| DiscordLinkError::Http(format!("failed to open OAuth window: {e}")))?;
-
-        rx.await.map_err(|_| DiscordLinkError::WindowClosed)
+    // Opens the authorize URL in the default browser. The redirect lands on the
+    // hosted trampoline page, which bounces to `bedrock-voice-chat://discord-callback`;
+    // the deep-link plugin then routes it to DiscordLinkService::complete_link.
+    // Identical on desktop and mobile.
+    pub fn open_external(app: &tauri::AppHandle, authorize_url: &str) -> Result<(), DiscordLinkError> {
+        use tauri_plugin_opener::OpenerExt;
+        app.opener()
+            .open_url(authorize_url.to_string(), None::<String>)
+            .map_err(|e| DiscordLinkError::Http(e.to_string()))
     }
 }
