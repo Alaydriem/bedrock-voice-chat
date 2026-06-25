@@ -3,6 +3,7 @@ use std::sync::Arc;
 use common::errors::DiscordLinkError;
 use common::structs::DiscordLinkStatus;
 use log::{info, warn};
+use tauri::Emitter;
 use tauri_plugin_store::StoreExt;
 
 use crate::discord::trait_state::CACHE_TTL_SECS;
@@ -73,6 +74,12 @@ impl DiscordLinkService {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs() as i64)
             .unwrap_or(0)
+    }
+
+    // Signals any active page that feature flags were refreshed so flag-gated UI
+    // re-evaluates without a restart.
+    fn emit_flags_updated(&self) {
+        let _ = self.app.emit("feature-flags-updated", ());
     }
 
     // (roles, last_sync) read from the persisted store.
@@ -167,6 +174,7 @@ impl DiscordLinkService {
         if let Err(e) = self.flags.update_discord_roles(roles.clone(), Some(now)).await {
             warn!("Discord: flag refresh after link failed: {e}");
         }
+        self.emit_flags_updated();
         Ok(Self::build_status(&roles, Some(now), now, true))
     }
 
@@ -175,6 +183,7 @@ impl DiscordLinkService {
         if let Err(e) = self.flags.update_discord_roles(Vec::new(), None).await {
             warn!("Discord: flag refresh after unlink failed: {e}");
         }
+        self.emit_flags_updated();
         Ok(Self::build_status(&[], None, Self::now_secs(), self.is_configured()))
     }
 }

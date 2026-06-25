@@ -1,6 +1,7 @@
 <script lang="ts">
     import { mount, onMount, onDestroy } from "svelte";
     import { invoke } from "@tauri-apps/api/core";
+    import { listen, type UnlistenFn } from "@tauri-apps/api/event";
     import type { RealmsGateStatus } from "../../js/bindings/RealmsGateStatus";
     import type { ApiConfigCheckResponse } from "../../js/bindings/ApiConfigCheckResponse";
     import account from "../../components/settings/pages/account.svelte";
@@ -24,6 +25,19 @@
     let isMobile = $state(false);
     let currentPageTitle = $state("Account");
     let realmsConnectEnabled = $state(false);
+    let flagsUnlisten: UnlistenFn | null = null;
+
+    // Re-evaluates the Realms Connect master flag. Run on mount and whenever the
+    // backend signals feature flags changed (e.g. after a Discord re-sync), so
+    // flag-gated UI appears without a restart.
+    async function refreshRealmsGate() {
+        try {
+            const gate = await invoke<RealmsGateStatus>("bedrock_realms_gate");
+            realmsConnectEnabled = gate.status !== "feature_disabled";
+        } catch (e) {
+            realmsConnectEnabled = false;
+        }
+    }
     // The Bedrock proxy/realms feature set requires the connected BVC server to
     // run its Bedrock relay. When the server reports bedrock disabled, the whole
     // "Minecraft Bedrock" section is hidden. Fail-closed: false until confirmed.
@@ -242,12 +256,10 @@
             isMobile = false;
         }
 
-        try {
-            const gate = await invoke<RealmsGateStatus>("bedrock_realms_gate");
-            realmsConnectEnabled = gate.status !== "feature_disabled";
-        } catch (e) {
-            realmsConnectEnabled = false;
-        }
+        await refreshRealmsGate();
+        flagsUnlisten = await listen("feature-flags-updated", () => {
+            refreshRealmsGate();
+        });
 
         try {
             const check = await invoke<ApiConfigCheckResponse>("api_get_config");
@@ -259,6 +271,7 @@
 
     onDestroy(() => {
         bedrockManager?.destroy();
+        if (flagsUnlisten) flagsUnlisten();
     });
 </script>
 
