@@ -6,6 +6,7 @@
     import { Store } from "@tauri-apps/plugin-store";
     import Analytics from "../../../js/app/analytics";
     import PlatformDetector from "../../../js/app/utils/PlatformDetector.ts";
+    import FeatureFlagService from "../../../js/app/services/FeatureFlagService.ts";
     import type { DiscordLinkStatus } from "../../../js/bindings/DiscordLinkStatus";
 
     interface AppInfo {
@@ -22,6 +23,8 @@
         description: string;
         icon: string;
     }
+
+    const featureFlagService = new FeatureFlagService();
 
     const links: AboutLink[] = [
         {
@@ -119,7 +122,7 @@
         isRefreshingFlags = true;
         refreshFlagsMessage = "";
         try {
-            await invoke("refresh_feature_flags");
+            await featureFlagService.refresh();
             refreshFlagsMessage = "Feature flags refreshed.";
         } catch (e) {
             refreshFlagsMessage = `Refresh failed: ${e}`;

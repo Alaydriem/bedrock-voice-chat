@@ -1097,6 +1097,7 @@ dependencies = [
  "tar",
  "tauri",
  "tauri-build",
+ "tauri-plugin-age-signals",
  "tauri-plugin-audio-permissions",
  "tauri-plugin-deep-link",
  "tauri-plugin-dialog",
@@ -9903,6 +9904,20 @@ dependencies = [
  "serde_json",
  "tauri-utils",
  "walkdir",
+]
+
+[[package]]
+name = "tauri-plugin-age-signals"
+version = "0.1.0"
+source = "git+https://github.com/charlesportwoodii/tauri-plugin_age-signals#99989386bd35e1ceac67f5f6f8e263aff421e72f"
+dependencies = [
+ "log",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-plugin",
+ "tauri-plugin-log",
+ "thiserror 2.0.18",
 ]
 
 [[package]]

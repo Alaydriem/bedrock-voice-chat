@@ -186,6 +186,7 @@ pub fn run() {
                 .build()
         )
         .plugin(tauri_plugin_audio_permissions::init())
+        .plugin(tauri_plugin_age_signals::init())
         .plugin(tauri_plugin_keyring::init())
         //.plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
@@ -264,6 +265,7 @@ pub fn run() {
             // Feature Flags
             crate::commands::feature_flags::get_feature_flag,
             crate::commands::feature_flags::refresh_feature_flags,
+            crate::commands::feature_flags::get_age_signals_enabled,
             // Discord linking
             crate::commands::discord::discord_status,
             crate::commands::discord::discord_link,

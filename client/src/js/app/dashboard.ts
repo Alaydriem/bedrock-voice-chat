@@ -10,6 +10,8 @@ import BVCApp from "./BVCApp";
 import Sidebar from "./components/dashboard/sidebar.ts";
 import Onboarding from './onboarding';
 import PlatformDetector from './utils/PlatformDetector';
+import AgeGateService from './services/AgeGateService';
+import FeatureFlagService from './services/FeatureFlagService';
 import ImageCache from './components/imageCache';
 import ImageCacheOptions from './components/imageCacheOptions';
 
@@ -46,12 +48,38 @@ export default class Dashboard extends BVCApp {
     private currentServerCredentials: LoginResponse | null = null;
     private popperProfile: any = null;
     private onboarding: Onboarding | undefined;
+    private ageGate = new AgeGateService(new FeatureFlagService());
 
     // Manager instances for dependency injection
     public playerManager: PlayerManager | undefined;
     public channelManager: ChannelManager | undefined;
     public audioActivityManager: AudioActivityManager | undefined;
     public platformDetector: PlatformDetector | undefined;
+
+    // Per-server age gate. Fetches the server's declared minimum age from
+    // /api/config and asks AgeGateService for a decision. Fail-open: any error,
+    // an absent minimum, or a disabled global flag returns false (not blocked).
+    private async isAgeBlocked(server: string, credentials: LoginResponse | null): Promise<boolean> {
+        if (!credentials) {
+            return false;
+        }
+        try {
+            await invoke("api_initialize_client", {
+                endpoint: server,
+                cert: credentials.certificate_ca,
+                pem: credentials.certificate + credentials.certificate_key,
+            });
+            const config = await invoke<ApiConfigCheckResponse>("api_get_config", { server });
+            const ageMinimum = config?.config?.age?.minimum ?? null;
+            if (ageMinimum == null) {
+                return false;
+            }
+            return (await this.ageGate.evaluate(ageMinimum)) === "block";
+        } catch (e) {
+            warn(`Age gate check failed, proceeding: ${e}`);
+            return false;
+        }
+    }
 
     async initialize() {
         this.store = await Store.load("store.json", {
@@ -146,6 +174,11 @@ export default class Dashboard extends BVCApp {
                 this.currentServerCredentials = await invoke<LoginResponse>("get_credentials", { server: currentServer });
             } catch (e) {
                 warn("Failed to refresh server state, using cached permissions");
+            }
+
+            if (await this.isAgeBlocked(currentServer, this.currentServerCredentials)) {
+                window.location.href = "/error?code=AGE01";
+                return;
             }
 
             const isInputStreamStopped = await invoke("is_stopped", { device: "InputDevice" }).then((stopped) => stopped as boolean);

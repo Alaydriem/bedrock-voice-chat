@@ -90,6 +90,7 @@ open-feature = { version = "0.3", features = ["serde_json"] }
 shiguredo_mp4 = { version = "2026.1.0" }
 if-addrs = { workspace = true, optional = true }
 tauri-plugin-iap = { version = "=0.10.0-rc.1" }
+tauri-plugin-age-signals = { git = "https://github.com/charlesportwoodii/tauri-plugin_age-signals" }
 
 # Desktop Targets
 [target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]

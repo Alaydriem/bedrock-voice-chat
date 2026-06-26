@@ -1,6 +1,8 @@
+pub mod age;
 pub mod bedrock;
 mod check;
 
+pub use age::ApiConfigAge;
 pub use bedrock::ApiConfigBedrock;
 pub use check::ApiConfigCheckResponse;
 
@@ -21,4 +23,6 @@ pub struct ApiConfigResponse {
     pub spatial_audio: SpatialAudioConfig,
     #[serde(default)]
     pub bedrock: ApiConfigBedrock,
+    #[serde(default)]
+    pub age: ApiConfigAge,
 }

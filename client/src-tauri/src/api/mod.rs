@@ -188,6 +188,7 @@ impl Api {
                             quic_port: 0,
                             spatial_audio: Default::default(),
                             bedrock: Default::default(),
+                            age: Default::default(),
                         });
                     }
 
