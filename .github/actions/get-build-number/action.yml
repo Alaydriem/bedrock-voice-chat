@@ -8,6 +8,14 @@ inputs:
   redis_token:
     description: 'Upstash Redis REST API token'
     required: true
+  key:
+    description: 'Redis counter key to increment (e.g. windows-build-number-1.0.510)'
+    required: false
+    default: 'build-number'
+  record_ledger:
+    description: 'Whether to record this increment in the global build ledger and publish builds.json. Set to false for auxiliary counters.'
+    required: false
+    default: 'true'
   sha:
     description: 'Git commit SHA for this build'
     required: false
@@ -43,7 +51,7 @@ runs:
       shell: bash
       run: |
         RESPONSE=$(curl -s -H "Authorization: Bearer ${{ inputs.redis_token }}" \
-          "${{ inputs.redis_url }}/incr/build-number")
+          "${{ inputs.redis_url }}/incr/${{ inputs.key }}")
         BUILD_NUMBER=$(echo "$RESPONSE" | jq -r '.result')
         if [ -z "$BUILD_NUMBER" ] || [ "$BUILD_NUMBER" = "null" ]; then
           echo "::error::Failed to get build number from Redis"
@@ -54,6 +62,7 @@ runs:
         echo "Build number: $BUILD_NUMBER"
 
     - name: Record build in Redis
+      if: ${{ inputs.record_ledger == 'true' }}
       shell: bash
       env:
         BUILD_NUMBER: ${{ steps.incr.outputs.build_number }}
@@ -86,7 +95,7 @@ runs:
         fi
 
     - name: Publish builds.json to gh-pages
-      if: ${{ inputs.token != '' }}
+      if: ${{ inputs.record_ledger == 'true' && inputs.token != '' }}
       shell: bash
       env:
         BUILD_NUMBER: ${{ steps.incr.outputs.build_number }}

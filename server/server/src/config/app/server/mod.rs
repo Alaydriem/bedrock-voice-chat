@@ -1,3 +1,4 @@
+pub mod age;
 pub mod bedrock;
 pub mod features;
 pub mod meridian;
@@ -5,6 +6,7 @@ pub mod minecraft;
 pub mod relay;
 pub mod tls;
 
+pub use age::Age;
 pub use bedrock::BedrockConfig;
 pub use bedrock::BedrockDnsConfig;
 pub use features::Features;
@@ -49,6 +51,8 @@ pub struct Server {
     pub meridian: Option<Meridian>,
     #[serde(default)]
     pub bedrock: BedrockConfig,
+    #[serde(default)]
+    pub age: Age,
 }
 
 impl Default for Server {
@@ -63,6 +67,7 @@ impl Default for Server {
             features: Features::default(),
             meridian: None,
             bedrock: BedrockConfig::default(),
+            age: Age::default(),
         }
     }
 }

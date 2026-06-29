@@ -1,65 +1,33 @@
 <script lang="ts">
   import "../../css/app.css";
-  import Login, { CONNECTING_STATUS_PHRASES } from "../../js/app/login.ts";
-  import type { LoginAttemptResult } from "../../js/app/login.ts";
+  import Login, { CONNECTING_STATUS_PHRASES, BRAILLE_FRAMES, type LoginState } from "../../js/app/login.ts";
   import { onMount, onDestroy } from 'svelte';
   import { fade } from 'svelte/transition';
-  import { openUrl } from '@tauri-apps/plugin-opener';
-
-  // External help links surfaced on the connection-error view.
-  const WIKI_URL = "https://github.com/alaydriem/bedrock-voice-chat";
-  const DISCORD_URL = "https://discord.gg/WGXy5kBP9E";
-
-  type LoginState = 'idle' | 'connecting' | 'error';
-  type LoginKind = 'ms' | 'hytale';
-
-  let isMobile = $state(false);
-  let appVersion = $state("");
-  let formError = $state("");
-  let serverInputInvalid = $state(false);
-  let isCodeLogin = $state(false);
-  let isAddServer = $state(false);
-  let backHref = $state("/dashboard");
-  let backLabel = $state("Back to Dashboard");
-  let serverInputValue = $state("");
-
-  // Connection flow state machine.
-  let loginState = $state<LoginState>('idle');
-  let attemptServer = $state("");      // server shown in connecting/error views
-  let isHandoff = $state(false);       // success: external auth URL opened
-  let isFinishing = $state(false);     // user returned from the browser; finalizing
-  let lastLoginKind = $state<LoginKind>('ms');
-  let fidgetIndex = $state(0);
-  let spinnerFrame = $state(0);
-  let ringAngle = $state(0);
-
-  // Braille spinner frames cycled while connecting, mirroring the indicator
-  // CLI tools render when working.
-  const BRAILLE_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-  // Monotonic token identifying the current attempt. Bumped on each new
-  // attempt and on cancel so a late-resolving request can't clobber the UI.
-  let attemptId = 0;
-
-  // Once the user returns from the external browser we expect the auth callback
-  // to either navigate away (success) or surface an error within this window.
-  // If neither happens the deep link was likely lost, so we fail visibly rather
-  // than stranding the user on a spinner.
-  const FINISH_TIMEOUT_MS = 30000;
-  let finishWatchdog: ReturnType<typeof setTimeout> | null = null;
-  // Tracks a genuine background->foreground transition during handoff. Only a
-  // real app resume (mobile) should start the finishing flow; a desktop window
-  // that merely keeps focus while the browser is open must not.
-  let wasHiddenDuringHandoff = false;
 
   let appInstance: Login | null = $state(null);
   const unsubs: Array<() => void> = [];
 
-  function clearFinishWatchdog(): void {
-    if (finishWatchdog !== null) {
-      clearTimeout(finishWatchdog);
-      finishWatchdog = null;
-    }
-  }
+  // View mirrors of the manager's stores.
+  let isMobile = $state(false);
+  let appVersion = $state("");
+  let formError = $state("");
+  let serverInputInvalid = $state(false);
+  let serverInputValue = $state("");
+  let isCodeLogin = $state(false);
+  let loginState = $state<LoginState>('idle');
+  let attemptServer = $state("");
+  let isHandoff = $state(false);
+  let isFinishing = $state(false);
+
+  // Page chrome resolved once on mount.
+  let isAddServer = $state(false);
+  let backHref = $state("/dashboard");
+  let backLabel = $state("Back to Dashboard");
+
+  // Presentation-only animation state for the connecting view.
+  let fidgetIndex = $state(0);
+  let spinnerFrame = $state(0);
+  let ringAngle = $state(0);
 
   // Drive the spinner from JS so motion survives Android WebView settings that
   // suppress CSS animations (reduced-motion / animator duration scale = 0). Runs
@@ -90,41 +58,6 @@
     };
   });
 
-  // Surface an auth-callback failure persisted by the deep-link handler: stop
-  // any finishing/handoff view and drop back to the editable form with a warning.
-  function surfaceAuthError(message: string): void {
-    clearFinishWatchdog();
-    attemptId++;
-    isHandoff = false;
-    isFinishing = false;
-    wasHiddenDuringHandoff = false;
-    loginState = 'idle';
-    appInstance?.reportError(message);
-  }
-
-  function beginFinishing(): void {
-    isFinishing = true;
-    clearFinishWatchdog();
-    finishWatchdog = setTimeout(() => {
-      if (loginState === 'connecting') {
-        isHandoff = false;
-        isFinishing = false;
-        loginState = 'error';
-      }
-    }, FINISH_TIMEOUT_MS);
-  }
-
-  function handleVisibilityChange(): void {
-    if (loginState !== 'connecting' || !isHandoff) return;
-    if (document.visibilityState === 'hidden') {
-      wasHiddenDuringHandoff = true;
-      return;
-    }
-    if (document.visibilityState === 'visible' && wasHiddenDuringHandoff && !isFinishing) {
-      beginFinishing();
-    }
-  }
-
   onMount(() => {
     const instance = new Login();
     appInstance = instance;
@@ -133,22 +66,16 @@
 
     unsubs.push(instance.isMobileReadable.subscribe((v) => { isMobile = v; }));
     unsubs.push(instance.appVersionReadable.subscribe((v) => { appVersion = v; }));
-    unsubs.push(instance.formError.subscribe((v) => {
-      formError = v;
-      // A non-empty error arriving mid-flow (e.g. a Hytale device-flow poll
-      // expiring or being denied after we've handed off to the browser) must
-      // not be swallowed by the connecting view - drop back to idle so the
-      // inline message is actually visible.
-      if (v && loginState !== 'idle') {
-        clearFinishWatchdog();
-        isHandoff = false;
-        isFinishing = false;
-        loginState = 'idle';
-      }
-    }));
+    unsubs.push(instance.formError.subscribe((v) => { formError = v; }));
     unsubs.push(instance.serverInputInvalid.subscribe((v) => { serverInputInvalid = v; }));
+    unsubs.push(instance.serverInput.subscribe((v) => { serverInputValue = v; }));
+    unsubs.push(instance.isCodeLogin.subscribe((v) => { isCodeLogin = v; }));
+    unsubs.push(instance.loginState.subscribe((v) => { loginState = v; }));
+    unsubs.push(instance.attemptServer.subscribe((v) => { attemptServer = v; }));
+    unsubs.push(instance.isHandoff.subscribe((v) => { isHandoff = v; }));
+    unsubs.push(instance.isFinishing.subscribe((v) => { isFinishing = v; }));
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    unsubs.push(instance.attachVisibilityTracking());
 
     (async () => {
       const pageState = await instance.initializePage();
@@ -156,158 +83,38 @@
       backHref = pageState.backHref;
       backLabel = pageState.backLabel;
       if (pageState.prefilledServer) {
-        serverInputValue = pageState.prefilledServer;
-        isCodeLogin = Login.isCodeLoginInput(serverInputValue);
+        instance.setServerInput(pageState.prefilledServer);
       }
 
       // A callback that completed before this mount (e.g. a cold-started OAuth
       // return) leaves its error in the store; surface it now.
       const pendingError = await instance.consumeAuthError();
       if (pendingError) {
-        surfaceAuthError(pendingError);
+        instance.surfaceAuthError(pendingError);
       }
 
       // Observe failures from a callback that resolves while this page stays
       // mounted (the warm OAuth return path).
       const unwatch = await instance.watchAuthError((message) => {
         instance.consumeAuthError().catch(() => {});
-        surfaceAuthError(message);
+        instance.surfaceAuthError(message);
       });
       unsubs.push(unwatch);
 
-      if (pageState.autoReauth && loginState === 'idle' && !formError) {
-        await runLogin('ms');
+      if (pageState.autoReauth) {
+        await instance.attemptAutoReauth();
       }
     })();
   });
 
   onDestroy(() => {
-    clearFinishWatchdog();
-    document.removeEventListener('visibilitychange', handleVisibilityChange);
+    appInstance?.teardownLoginFlow();
     for (const unsub of unsubs) unsub();
   });
 
-  function applyResult(result: LoginAttemptResult): void {
-    switch (result.status) {
-      case 'redirecting':
-        // Auth URL opened in the system browser; hold the connecting view and
-        // arm the return detector so we know when the user comes back.
-        isHandoff = true;
-        isFinishing = false;
-        wasHiddenDuringHandoff = false;
-        break;
-      case 'error':
-        attemptServer = result.sanitized;
-        loginState = 'error';
-        break;
-      case 'invalid':
-        // Inline validation error is already shown; stay on idle.
-        loginState = 'idle';
-        break;
-      case 'navigating':
-        // Same-window navigation in progress; nothing to do.
-        break;
-    }
-  }
-
-  async function runLogin(kind: LoginKind): Promise<void> {
-    if (!appInstance || loginState === 'connecting') return;
-
-    lastLoginKind = kind;
-    const value = loginState === 'error' ? attemptServer : serverInputValue;
-
-    // Code-login navigates away in the same window - handle it like the
-    // dedicated button and never enter the connecting view (otherwise the
-    // 'navigating' result would leave us stuck on the spinner).
-    if (Login.isCodeLoginInput(value)) {
-      window.location.href = appInstance.handleCodeLoginNavigate(value);
-      return;
-    }
-
-    // Validate before flipping to the connecting view so bad/empty input shows
-    // the inline error without a connecting flicker.
-    const validation = appInstance.validateServerUrl(value);
-    if (!validation.valid) {
-      appInstance.reportError(validation.error || "Please enter a valid server URL");
-      loginState = 'idle';
-      return;
-    }
-
-    appInstance.clearError();
-    attemptServer = appInstance.sanitizeServerUrl(value);
-    serverInputValue = attemptServer;
-    clearFinishWatchdog();
-    isHandoff = false;
-    isFinishing = false;
-    wasHiddenDuringHandoff = false;
-    loginState = 'connecting';
-
-    const myAttempt = ++attemptId;
-    const result = kind === 'hytale'
-      ? await appInstance.loginWithHytale(value)
-      : await appInstance.login(value);
-
-    // The user cancelled (or started a fresh attempt) while this one was in
-    // flight - don't reapply its result. Undo any polling it may have kicked off.
-    if (myAttempt !== attemptId) {
-      appInstance.cancelHytalePolling();
-      return;
-    }
-
-    applyResult(result);
-  }
-
-  async function handleSubmit(event?: Event) {
+  function handleSubmit(event?: Event) {
     event?.preventDefault();
-    await runLogin('ms');
-  }
-
-  async function handleHytaleLogin(event: Event) {
-    event.preventDefault();
-    await runLogin('hytale');
-  }
-
-  async function handleTryAgain() {
-    await runLogin(lastLoginKind);
-  }
-
-  function handleDifferentServer() {
-    returnToIdle();
-  }
-
-  // Manual escape from the connecting/handoff view (e.g. the user closed the
-  // external sign-in window without finishing). Stops any Hytale polling and
-  // clears transient errors before returning to the editable idle form.
-  function handleCancelConnecting() {
-    returnToIdle();
-  }
-
-  function returnToIdle() {
-    attemptId++;
-    appInstance?.cancelHytalePolling();
-    appInstance?.clearError();
-    clearFinishWatchdog();
-    isHandoff = false;
-    isFinishing = false;
-    wasHiddenDuringHandoff = false;
-    loginState = 'idle';
-    serverInputValue = attemptServer;
-  }
-
-  function handleServerInputChange(value: string) {
-    serverInputValue = value;
-    isCodeLogin = Login.isCodeLoginInput(value);
-  }
-
-  function handleServerInputBlur() {
-    if (serverInputValue.trim() && appInstance) {
-      serverInputValue = appInstance.sanitizeServerUrl(serverInputValue);
-    }
-  }
-
-  function handleCodeLoginClick() {
-    if (!appInstance) return;
-    window.location.href = appInstance.handleCodeLoginNavigate(serverInputValue);
+    appInstance?.runLogin('ms');
   }
 </script>
 
@@ -364,8 +171,8 @@
                       spellcheck="false"
                       autocomplete="url"
                       value={serverInputValue}
-                      oninput={(e) => handleServerInputChange((e.currentTarget as HTMLInputElement).value)}
-                      onblur={handleServerInputBlur}
+                      oninput={(e) => appInstance?.setServerInput((e.currentTarget as HTMLInputElement).value)}
+                      onblur={() => appInstance?.blurServerInput()}
                     />
                   </label>
                   <span class="text-tiny+ text-error mt-2 block {formError ? '' : 'invisible'}">
@@ -376,7 +183,7 @@
                   <button
                     type="button"
                     class="btn mt-5 w-full bg-primary font-medium text-white hover:bg-primary-focus focus:bg-primary-focus active:bg-primary-focus/90 dark:bg-accent dark:hover:bg-accent-focus dark:focus:bg-accent-focus dark:active:bg-accent/90"
-                    onclick={handleCodeLoginClick}
+                    onclick={() => appInstance?.navigateCodeLogin()}
                   >
                     Login with Code
                   </button>
@@ -396,14 +203,6 @@
                       <span class="px-3 text-slate-400 dark:text-navy-300 text-sm">or</span>
                       <hr class="flex-grow border-slate-300 dark:border-navy-450" />
                     </div>
-                    <button type="button" class="btn w-full" onclick={handleHytaleLogin}>
-                      <img
-                        src="/images/hytale-login-button.svg"
-                        alt="Sign in with Hytale"
-                        width="215"
-                        height="41"
-                      />
-                    </button>
                   {/if}
                 {/if}
               </div>
@@ -412,7 +211,7 @@
           {:else if loginState === 'connecting'}
             <div class="card mt-5 rounded-lg p-5 lg:p-7 text-center" in:fade={{ duration: 220 }} role="status" aria-live="polite">
               {#if isHandoff && !isFinishing}
-                <div class="bvc-ring bvc-ring--success mx-auto"></div>
+                <div class="bvc-badge bvc-badge--success mx-auto"><i class="fa-solid fa-check"></i></div>
                 <p class="mt-4 text-sm font-medium text-slate-600 dark:text-navy-50">
                   Connected — opening sign-in…
                 </p>
@@ -442,7 +241,7 @@
               <button
                 type="button"
                 class="mt-5 text-tiny+ text-slate-400 hover:text-slate-500 hover:underline dark:text-navy-300 dark:hover:text-navy-200"
-                onclick={handleCancelConnecting}
+                onclick={() => appInstance?.returnToIdle()}
               >
                 Cancel
               </button>
@@ -465,14 +264,14 @@
               <button
                 type="button"
                 class="btn mt-5 w-full bg-primary font-medium text-white hover:bg-primary-focus focus:bg-primary-focus active:bg-primary-focus/90 dark:bg-accent dark:hover:bg-accent-focus dark:focus:bg-accent-focus dark:active:bg-accent/90"
-                onclick={handleTryAgain}
+                onclick={() => appInstance?.tryAgain()}
               >
                 Try again
               </button>
               <button
                 type="button"
                 class="btn mt-3 w-full border border-slate-300 font-medium text-slate-800 hover:bg-slate-150 focus:bg-slate-150 active:bg-slate-150/80 dark:border-navy-450 dark:text-navy-50 dark:hover:bg-navy-500 dark:focus:bg-navy-500 dark:active:bg-navy-500/90"
-                onclick={handleDifferentServer}
+                onclick={() => appInstance?.returnToIdle()}
               >
                 Connect to a different server
               </button>
@@ -483,14 +282,14 @@
                   <button
                     type="button"
                     class="inline-flex items-center gap-1.5 text-xs text-primary hover:underline dark:text-accent-light"
-                    onclick={() => openUrl(WIKI_URL)}
+                    onclick={() => appInstance?.openWiki()}
                   >
                     <i class="fa-solid fa-book"></i> Read the wiki
                   </button>
                   <button
                     type="button"
                     class="inline-flex items-center gap-1.5 text-xs text-primary hover:underline dark:text-accent-light"
-                    onclick={() => openUrl(DISCORD_URL)}
+                    onclick={() => appInstance?.openDiscord()}
                   >
                     <i class="fa-brands fa-discord"></i> Ask on Discord
                   </button>
@@ -503,7 +302,7 @@
             <button
               type="button"
               class="hover:text-slate-500 dark:hover:text-navy-200 hover:underline cursor-pointer"
-              onclick={() => openUrl("https://raw.githubusercontent.com/Alaydriem/bedrock-voice-chat/refs/heads/master/PRIVACY_STATEMENT.md")}
+              onclick={() => appInstance?.openPrivacyNotice()}
             >Privacy Notice</button>
             {#if appVersion}
               <span class="mt-2">v{appVersion}</span>
@@ -520,9 +319,6 @@
     border-radius: 9999px;
     border: 3px solid rgb(148 163 184 / 0.35);
     border-top-color: #5f5af6;
-  }
-  .bvc-ring--success {
-    border-top-color: #10b981;
   }
 
   .bvc-spinner {

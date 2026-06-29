@@ -6,12 +6,15 @@
     import { Store } from "@tauri-apps/plugin-store";
     import Analytics from "../../../js/app/analytics";
     import PlatformDetector from "../../../js/app/utils/PlatformDetector.ts";
+    import FeatureFlagService from "../../../js/app/services/FeatureFlagService.ts";
+    import type { DiscordLinkStatus } from "../../../js/bindings/DiscordLinkStatus";
 
     interface AppInfo {
         app_version: string;
         protocol_version: string;
         build_commit: string;
         build_variant: string;
+        build_number: string;
     }
 
     interface AboutLink {
@@ -20,6 +23,8 @@
         description: string;
         icon: string;
     }
+
+    const featureFlagService = new FeatureFlagService();
 
     const links: AboutLink[] = [
         {
@@ -61,6 +66,31 @@
     let isRefreshingFlags = $state(false);
     let refreshFlagsMessage = $state("");
 
+    let discord: DiscordLinkStatus | null = $state(null);
+    let discordBusy = $state(false);
+    let discordError = $state("");
+
+    async function loadDiscord() {
+        try {
+            discord = await invoke<DiscordLinkStatus>("discord_status");
+        } catch (e) {
+            error(`Failed to get Discord status: ${e}`);
+        }
+    }
+
+    async function discordAction(cmd: "discord_link" | "discord_resync" | "discord_unlink") {
+        discordBusy = true;
+        discordError = "";
+        try {
+            discord = await invoke<DiscordLinkStatus>(cmd);
+        } catch (e) {
+            discordError = String(e);
+            error(`${cmd} failed: ${e}`);
+        } finally {
+            discordBusy = false;
+        }
+    }
+
     async function handleVariantClick() {
         variantClickCount++;
 
@@ -92,7 +122,7 @@
         isRefreshingFlags = true;
         refreshFlagsMessage = "";
         try {
-            await invoke("refresh_feature_flags");
+            await featureFlagService.refresh();
             refreshFlagsMessage = "Feature flags refreshed.";
         } catch (e) {
             refreshFlagsMessage = `Refresh failed: ${e}`;
@@ -104,6 +134,7 @@
 
     onDestroy(() => {
         if (variantClickTimer) clearTimeout(variantClickTimer);
+        window.removeEventListener("discord-link-updated", loadDiscord);
     });
 
     async function handleExportLogs() {
@@ -140,6 +171,8 @@
         } catch (e) {
             error(`Failed to get app info: ${e}`);
         }
+        await loadDiscord();
+        window.addEventListener("discord-link-updated", loadDiscord);
         isReady = true;
     });
 </script>
@@ -169,6 +202,10 @@
             <div class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-slate-50 dark:hover:bg-navy-600">
                 <span class="text-sm font-medium text-slate-700 dark:text-navy-100">Build Commit</span>
                 <span class="text-sm text-slate-500 dark:text-navy-300 font-mono">{appInfo.build_commit}</span>
+            </div>
+            <div class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-slate-50 dark:hover:bg-navy-600">
+                <span class="text-sm font-medium text-slate-700 dark:text-navy-100">Build Number</span>
+                <span class="text-sm text-slate-500 dark:text-navy-300 font-mono">{appInfo.build_number}</span>
             </div>
             <div class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-slate-50 dark:hover:bg-navy-600">
                 <span class="text-sm font-medium text-slate-700 dark:text-navy-100">Build Variant</span>
@@ -259,6 +296,62 @@
             </div>
         </div>
     </div>
+
+    <!-- Discord Role Features -->
+    {#if discord?.configured}
+    <div class="card px-5 pb-4 sm:px-5">
+        <div class="my-3 flex flex-col">
+            <h2 class="font-medium tracking-wide text-slate-700 dark:text-navy-100 lg:text-base pb-2">
+                Enable Additional Features via Linked Discord Role
+            </h2>
+            <p class="text-sm leading-6">
+                Link your Discord account to unlock features tied to your server roles.
+            </p>
+        </div>
+
+        <div class="mt-2 space-y-2">
+            {#if discord.linked && !discord.expired}
+                <p class="text-sm text-slate-500 dark:text-navy-300">
+                    Linked · {discord.role_count} role{discord.role_count === 1 ? "" : "s"}
+                </p>
+            {:else if discord.linked && discord.expired}
+                <p class="text-sm text-warning">Discord roles expired — re-sync to restore features.</p>
+            {:else}
+                <p class="text-sm text-slate-500 dark:text-navy-300">Not linked.</p>
+            {/if}
+
+            <div class="flex gap-2">
+                {#if !discord.linked}
+                    <button
+                        class="btn bg-primary font-medium text-white hover:bg-primary-focus dark:bg-accent dark:hover:bg-accent-focus"
+                        onclick={() => discordAction("discord_link")}
+                        disabled={discordBusy}
+                    >
+                        {discordBusy ? "Linking…" : "Link Discord"}
+                    </button>
+                {:else}
+                    <button
+                        class="btn bg-primary font-medium text-white hover:bg-primary-focus dark:bg-accent dark:hover:bg-accent-focus"
+                        onclick={() => discordAction("discord_resync")}
+                        disabled={discordBusy}
+                    >
+                        {discordBusy ? "Re-syncing…" : "Re-sync"}
+                    </button>
+                    <button
+                        class="btn border border-slate-300 font-medium dark:border-navy-450"
+                        onclick={() => discordAction("discord_unlink")}
+                        disabled={discordBusy}
+                    >
+                        Unlink
+                    </button>
+                {/if}
+            </div>
+            {#if discordError}
+                <p class="text-xs text-error">{discordError}</p>
+            {/if}
+        </div>
+    </div>
+    {/if}
 
     <!-- Diagnostics -->
     {#if !isMobile}

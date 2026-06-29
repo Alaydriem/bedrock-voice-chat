@@ -17,7 +17,9 @@ export default class Splash extends BVCApp {
   }
 
   async initialize() {
-    await this.initializeDeepLinks();
+    if (await this.initializeDeepLinks()) {
+      return;
+    }
     await this.update();
   }
 

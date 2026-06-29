@@ -9,6 +9,7 @@ pub(crate) use value::FlagsmithFlagValue;
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::RwLock as StdRwLock;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -20,6 +21,7 @@ use open_feature::{
 use tokio::sync::RwLock;
 
 use self::identity_response::FlagsmithIdentityResponse;
+use crate::discord::DiscordTraitState;
 
 pub struct FlagsmithProvider {
     metadata: ProviderMetadata,
@@ -30,6 +32,7 @@ pub struct FlagsmithProvider {
     refresh_interval: Duration,
     http_client: reqwest::Client,
     cache: Arc<RwLock<HashMap<String, FlagsmithFlag>>>,
+    discord_state: Arc<StdRwLock<DiscordTraitState>>,
 }
 
 impl FlagsmithProvider {
@@ -40,6 +43,7 @@ impl FlagsmithProvider {
         build_number: i64,
         refresh_interval: Duration,
         http_client: reqwest::Client,
+        discord_state: Arc<StdRwLock<DiscordTraitState>>,
     ) -> Self {
         let normalized_url = if server_url.ends_with("/api/v1/") {
             server_url
@@ -58,7 +62,21 @@ impl FlagsmithProvider {
             refresh_interval,
             http_client,
             cache: Arc::new(RwLock::new(HashMap::new())),
+            discord_state,
         }
+    }
+
+    // Snapshot the currently-effective Discord role IDs (30-day rule applied),
+    // dropping the read guard before any await.
+    fn effective_roles_now(discord_state: &StdRwLock<DiscordTraitState>) -> Vec<String> {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+        discord_state
+            .read()
+            .map(|s| s.effective_roles(now))
+            .unwrap_or_default()
     }
 
     pub(crate) fn cache(&self) -> Arc<RwLock<HashMap<String, FlagsmithFlag>>> {
@@ -69,13 +87,31 @@ impl FlagsmithProvider {
         &self.server_url
     }
 
-    pub fn build_identity_body(install_id: &str, build_number: i64) -> serde_json::Value {
-        serde_json::json!({
-            "identifier": install_id,
-            "traits": [
-                { "trait_key": "build_number", "trait_value": build_number, "transient": true }
-            ]
-        })
+    pub fn build_identity_body(
+        install_id: &str,
+        build_number: i64,
+        discord_roles: &[String],
+    ) -> serde_json::Value {
+        let mut traits = vec![serde_json::json!({
+            "trait_key": "build_number",
+            "trait_value": build_number,
+            "transient": true
+        })];
+        for role in discord_roles {
+            traits.push(serde_json::json!({
+                "trait_key": format!("discord-role-{}", role),
+                "trait_value": true,
+                "transient": true
+            }));
+        }
+        for label in crate::discord::RoleCategory::labels_for(discord_roles) {
+            traits.push(serde_json::json!({
+                "trait_key": format!("discord-role-{}", label),
+                "trait_value": true,
+                "transient": true
+            }));
+        }
+        serde_json::json!({ "identifier": install_id, "traits": traits })
     }
 
     // Fetch the identity's flags and replace the cache. Shared by the initial
@@ -88,14 +124,25 @@ impl FlagsmithProvider {
         api_key: &str,
         install_id: &str,
         build_number: i64,
+        discord_roles: &[String],
         cache: &RwLock<HashMap<String, FlagsmithFlag>>,
     ) -> Result<usize, anyhow::Error> {
         let url = format!("{}identities/", server_url);
+
+        let trait_summary: Vec<String> = std::iter::once(format!("build_number={}", build_number))
+            .chain(discord_roles.iter().map(|r| format!("discord-role-{}", r)))
+            .collect();
+        info!(
+            "Flagsmith identity POST: id={} traits=[{}]",
+            install_id,
+            trait_summary.join(", ")
+        );
+
         let response = http_client
             .post(&url)
             .header("X-Environment-Key", api_key)
             .header("Content-Type", "application/json")
-            .json(&Self::build_identity_body(install_id, build_number))
+            .json(&Self::build_identity_body(install_id, build_number, discord_roles))
             .send()
             .await?;
 
@@ -120,12 +167,14 @@ impl FlagsmithProvider {
     }
 
     async fn refresh(&self) -> Result<(), anyhow::Error> {
+        let roles = Self::effective_roles_now(&self.discord_state);
         let count = Self::fetch_flags(
             &self.http_client,
             &self.server_url,
             &self.api_key,
             &self.install_id,
             self.build_number,
+            &roles,
             &self.cache,
         )
         .await?;
@@ -172,18 +221,21 @@ impl FeatureProvider for FlagsmithProvider {
         let install_id = self.install_id.clone();
         let build_number = self.build_number;
         let refresh_interval = self.refresh_interval;
+        let discord_state = self.discord_state.clone();
 
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(refresh_interval);
             interval.tick().await;
             loop {
                 interval.tick().await;
+                let roles = FlagsmithProvider::effective_roles_now(&discord_state);
                 match FlagsmithProvider::fetch_flags(
                     &http_client,
                     &server_url,
                     &api_key,
                     &install_id,
                     build_number,
+                    &roles,
                     &cache,
                 )
                 .await
@@ -312,6 +364,7 @@ mod tests {
             0,
             Duration::from_secs(3600),
             reqwest::Client::new(),
+            std::sync::Arc::new(std::sync::RwLock::new(crate::discord::DiscordTraitState::new())),
         )
     }
 

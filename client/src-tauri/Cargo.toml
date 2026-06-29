@@ -32,6 +32,7 @@ log = { version = "^0.4" }
 anyhow = { version = "^1" }
 spmc = { version = "^0.3" }
 rand = { version = "^0.10" }
+strum = { version = "0.26", features = ["derive"] }
 rodio = { version = "0.22.2" }
 bytes = { version = "^1.11.1" }
 async-mutex = { version = "^1.4" }
@@ -89,6 +90,7 @@ open-feature = { version = "0.3", features = ["serde_json"] }
 shiguredo_mp4 = { version = "2026.1.0" }
 if-addrs = { workspace = true, optional = true }
 tauri-plugin-iap = { version = "=0.10.0-rc.1" }
+tauri-plugin-age-signals = { git = "https://github.com/charlesportwoodii/tauri-plugin_age-signals" }
 
 # Desktop Targets
 [target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]

@@ -1,5 +1,5 @@
 use common::consts::version::PROTOCOL_VERSION;
-use common::response::{ApiConfigBedrock, ApiConfigResponse};
+use common::response::{ApiConfigAge, ApiConfigBedrock, ApiConfigResponse};
 use rocket::{State, serde::json::Json};
 use rocket_okapi::openapi;
 
@@ -51,5 +51,6 @@ pub async fn get_config(config: &State<Server>, voice: &State<Voice>) -> Json<Ap
         quic_port: config.quic_port,
         spatial_audio: voice.spatial_audio.clone(),
         bedrock,
+        age: ApiConfigAge::from_minimum(config.age.minimum),
     })
 }

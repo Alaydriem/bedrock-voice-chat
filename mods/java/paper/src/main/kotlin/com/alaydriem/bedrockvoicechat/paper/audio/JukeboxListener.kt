@@ -139,33 +139,59 @@ class JukeboxListener(
 
     @EventHandler
     fun onInventoryMoveItem(event: InventoryMoveItemEvent) {
+        val sourceHolder = event.source.holder
+        if (sourceHolder is Jukebox) {
+            val sourceBlock = sourceHolder.block
+            val sourceKey = audioPlayerManager.locationKey(
+                sourceBlock.world.uid.toString(), sourceBlock.x, sourceBlock.y, sourceBlock.z
+            )
+            if (audioPlayerManager.hasActivePlayback(sourceKey)) {
+                event.isCancelled = true
+            } else {
+                val moving = event.item
+                if (moving.type == Material.MUSIC_DISC_5 && isBvcDisc(moving)) {
+                    restoreJukeboxPlayable(moving)
+                    event.item = moving
+                }
+            }
+            return
+        }
+
         val destination = event.destination
         val holder = destination.holder as? Jukebox ?: return
         val item = event.item
         if (item.type != Material.MUSIC_DISC_5 || !isBvcDisc(item)) return
 
         val block = holder.block
-        val audioId = getAudioId(item) ?: return
         val world = block.world
+        val key = audioPlayerManager.locationKey(world.uid.toString(), block.x, block.y, block.z)
 
-        plugin.server.scheduler.runTaskLater(plugin, Runnable {
-            val state = block.state as? Jukebox ?: return@Runnable
-            if (!state.hasRecord()) return@Runnable
-            val record = state.record
-            if (!isBvcDisc(record)) return@Runnable
+        val state = block.state as? Jukebox ?: return
+        if (state.hasRecord() || audioPlayerManager.hasActivePlayback(key)) {
+            event.isCancelled = true
+            return
+        }
 
-            record.unsetData(DataComponentTypes.JUKEBOX_PLAYABLE)
-            state.setRecord(record)
-            state.update(true)
+        val audioId = getAudioId(item) ?: return
 
-            val worldUuid = world.uid.toString()
-            val dimensionId = getDimensionId(world)
-            audioPlayerManager.startPlayback(
-                audioId, dimensionId,
-                block.x.toDouble(), block.y.toDouble(), block.z.toDouble(),
-                worldUuid
-            )
-        }, 1L)
+        // Take over the insertion. A BVC disc must keep JUKEBOX_PLAYABLE to satisfy the hopper's
+        // canPlaceItem check, but letting vanilla insert it would start the disc's own song. So cancel
+        // the vanilla move, place a no-playable copy ourselves, consume one disc from the hopper, and
+        // drive the audio through BVC.
+        event.isCancelled = true
+
+        val disc = item.clone().apply { amount = 1 }
+        disc.unsetData(DataComponentTypes.JUKEBOX_PLAYABLE)
+        state.setRecord(disc)
+        state.update(true)
+
+        event.source.removeItem(item.clone().apply { amount = 1 })
+
+        audioPlayerManager.startPlayback(
+            audioId, getDimensionId(world),
+            block.x.toDouble(), block.y.toDouble(), block.z.toDouble(),
+            world.uid.toString()
+        )
     }
 
     @EventHandler
@@ -174,9 +200,13 @@ class JukeboxListener(
         if (block.type != Material.JUKEBOX) return
 
         val jukebox = block.state as? Jukebox
-        if (jukebox != null && jukebox.hasRecord() && isBvcDisc(jukebox.record)) {
-            restoreJukeboxPlayable(jukebox.record)
-            jukebox.update(true)
+        if (jukebox != null && jukebox.hasRecord()) {
+            val record = jukebox.record
+            if (isBvcDisc(record)) {
+                restoreJukeboxPlayable(record)
+                jukebox.setRecord(record)
+                jukebox.update(true)
+            }
         }
 
         val key = audioPlayerManager.locationKey(

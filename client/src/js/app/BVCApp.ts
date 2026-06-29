@@ -16,7 +16,7 @@ interface AudioStreamRecoveryPayload {
 }
 
 export default class BVCApp extends App {
-    private deepLinkRouter: DeepLinkRouter | null = null;
+    private deepLinkRouterPromise: Promise<DeepLinkRouter> | null = null;
     private deepLinkUnlisten: UnlistenFn | null = null;
     private connectionHealthUnlisten: UnlistenFn | null = null;
     private audioRecoveryUnlisten: UnlistenFn | null = null;
@@ -48,7 +48,7 @@ export default class BVCApp extends App {
      */
     private setupDeepLinkListener(): void {
         listen<DeepLink>('deep-link-received', (event) => {
-            info(`BVCApp: Received deep-link-received event: ${event.payload.url}`);
+            info(`BVCApp: Received deep-link-received event: ${event.payload.url.split(/[?#]/)[0]}`);
             this.handleDeepLinkEvent(event.payload.url).catch((err) => {
                 logError(`BVCApp: Failed to handle deep link event: ${err}`);
             });
@@ -107,53 +107,65 @@ export default class BVCApp extends App {
     }
 
     /**
+     * Get or create the deep link router (cached). A single shared promise
+     * ensures the live `deep-link-received` path and initializeDeepLinks() use
+     * the same router instance, so its per-session de-dup applies across both.
+     */
+    private getRouter(): Promise<DeepLinkRouter> {
+        if (!this.deepLinkRouterPromise) {
+            this.deepLinkRouterPromise = (async () => {
+                const store = await this.getStore();
+                return new DeepLinkRouter(store);
+            })();
+        }
+        return this.deepLinkRouterPromise;
+    }
+
+    /**
      * Handle deep link event asynchronously
      */
     private async handleDeepLinkEvent(url: string): Promise<void> {
         try {
-            // Lazy load router with injected store
-            if (!this.deepLinkRouter) {
-                const store = await this.getStore();
-                this.deepLinkRouter = new DeepLinkRouter(store);
-            }
-
-            await this.deepLinkRouter.route(url);
+            const router = await this.getRouter();
+            await router.route(url);
         } catch (err) {
             logError(`BVCApp: Error routing deep link: ${err}`);
-            if (this.deepLinkRouter) {
-                await this.deepLinkRouter.clearPending();
+            try {
+                const router = await this.getRouter();
+                await router.clearPending();
+            } catch (clearErr) {
+                logError(`BVCApp: Failed to clear pending deep link: ${clearErr}`);
             }
         }
     }
 
     /**
-     * Public method to check for pending deep links
-     * Called from page's initialize() method
+     * Process any pending deep link. Called from a page's initialize().
+     * Returns true when a pending link was routed (the handler is navigating),
+     * so the caller can skip its own navigation rather than override it.
      */
-    async initializeDeepLinks(): Promise<void> {
+    async initializeDeepLinks(): Promise<boolean> {
         if (this.initialized) {
             info('BVCApp: Deep links already initialized');
-            return;
+            return false;
         }
+        this.initialized = true;
 
         info('BVCApp: Initializing deep links, checking for pending');
 
         try {
-            // Create router with cached store
-            if (!this.deepLinkRouter) {
-                const store = await this.getStore();
-                this.deepLinkRouter = new DeepLinkRouter(store);
-            }
-
-            await this.deepLinkRouter.processPending();
+            const router = await this.getRouter();
+            return await router.processPending();
         } catch (err) {
             logError(`BVCApp: Error processing pending deep link: ${err}`);
-            if (this.deepLinkRouter) {
-                await this.deepLinkRouter.clearPending();
+            try {
+                const router = await this.getRouter();
+                await router.clearPending();
+            } catch (clearErr) {
+                logError(`BVCApp: Failed to clear pending deep link: ${clearErr}`);
             }
+            return false;
         }
-
-        this.initialized = true;
     }
 
     /**

@@ -16,8 +16,8 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents
-import net.minecraft.server.network.ServerPlayerEntity
-import net.minecraft.server.world.ServerWorld
+import net.minecraft.server.level.ServerPlayer
+import net.minecraft.server.level.ServerLevel
 import org.slf4j.LoggerFactory
 
 class FabricMod : ModInitializer {
@@ -85,12 +85,12 @@ class FabricMod : ModInitializer {
 
             // Capture phantom data before removePlayer() clears state
             val phantom = if (sender != null) {
-                val worldUuid = playerDataProvider.getWorldUuid(player.entityWorld as ServerWorld)
+                val worldUuid = playerDataProvider.getWorldUuid(player.level() as ServerLevel)
                 PlayerData.disconnected(
                     name = canonicalName,
                     dimension = Dimension.Minecraft.DEATH,
                     worldUuid = worldUuid,
-                    playerUuid = player.uuid.toString()
+                    playerUuid = player.getUUID().toString()
                 )
             } else null
 
@@ -104,7 +104,7 @@ class FabricMod : ModInitializer {
         }
 
         ServerLivingEntityEvents.AFTER_DEATH.register { entity, _ ->
-            if (entity is ServerPlayerEntity) {
+            if (entity is ServerPlayer) {
                 playerDataProvider.markDead(entity)
             }
         }

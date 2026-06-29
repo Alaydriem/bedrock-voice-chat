@@ -34,7 +34,9 @@ export default class Server extends BVCApp {
   }
 
   async initialize() {
-    await this.initializeDeepLinks();
+    if (await this.initializeDeepLinks()) {
+      return;
+    }
 
     const serverList = await this.serverListStore.getServerList();
 
@@ -69,7 +71,11 @@ export default class Server extends BVCApp {
       }
     }
 
+    // Reveal the selection UI only once we know we are staying on this page.
+    // Every branch above either redirects or returns, keeping the preloader
+    // overlay up so a single-server auto-redirect never flashes the grid.
     this.serversStore.set(serverList);
+    this.showPreloader();
   }
 
   async refreshAll(): Promise<void> {

@@ -200,6 +200,22 @@
         style: 'secondary'
       }
     },
+    'AGE01': {
+      code: 'AGE01',
+      title: 'We need a grown-ups help to get started',
+      message: "To use Bedrock Voice Chat, a parent or guardian needs to turn it on for your device. Ask them to help you unlock it -- then you're good to go!",
+      icon: 'fa-solid fa-user-shield',
+      primaryAction: {
+        label: 'Choose Different Server',
+        url: '/server',
+        style: 'primary'
+      },
+      secondaryAction: {
+        label: 'How do I unlock this?',
+        url: 'https://github.com/Alaydriem/bedrock-voice-chat/wiki/Age-Signals-&-Declared-Age-Ranges',
+        style: 'secondary'
+      }
+    },
     // Default error (used when code is not found or not provided)
     'DEFAULT': {
       code: 'ERROR',

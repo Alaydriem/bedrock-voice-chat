@@ -1,7 +1,9 @@
 use async_trait::async_trait;
 use parking_lot::RwLock;
 use tauri::AppHandle;
-use tauri_plugin_iap::{IapExt, PurchaseRequest, PurchaseStateValue, RestorePurchasesRequest};
+use tauri_plugin_iap::{
+    IapExt, Product, PurchaseRequest, PurchaseStateValue, RestorePurchasesRequest,
+};
 
 use common::consts::bedrock::BEDROCK_KEYRING_KEY_ENTITLEMENT;
 use common::consts::iap::{PRODUCT_TYPE_SUBS, REALMS_PRODUCT_IDS};
@@ -75,6 +77,23 @@ impl StoreProvider {
             paid_through,
         })
     }
+
+    // Android leaves the top-level `formatted_price` unset for subscriptions and
+    // reports the price only under `subscription_offer_details`; iOS, macOS, and
+    // Windows populate the top-level field directly. Prefer the top-level price
+    // and fall back to the recurring (last) pricing phase of the first offer so
+    // the upsell shows a price on every platform.
+    pub fn display_price(product: &Product) -> Option<String> {
+        if let Some(price) = &product.formatted_price {
+            return Some(price.clone());
+        }
+        product
+            .subscription_offer_details
+            .as_ref()
+            .and_then(|offers| offers.first())
+            .and_then(|offer| offer.pricing_phases.last())
+            .map(|phase| phase.formatted_price.clone())
+    }
 }
 
 #[async_trait]
@@ -108,11 +127,14 @@ impl EntitlementProvider for StoreProvider {
         };
         products
             .into_iter()
-            .map(|p| IapOffer {
-                product_id: p.product_id,
-                title: p.title,
-                description: p.description,
-                formatted_price: p.formatted_price,
+            .map(|p| {
+                let formatted_price = Self::display_price(&p);
+                IapOffer {
+                    product_id: p.product_id,
+                    title: p.title,
+                    description: p.description,
+                    formatted_price,
+                }
             })
             .collect()
     }

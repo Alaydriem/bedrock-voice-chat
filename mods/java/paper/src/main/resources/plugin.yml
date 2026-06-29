@@ -1,7 +1,7 @@
 name: BedrockVoiceChat
 version: ${version}
 main: com.alaydriem.bedrockvoicechat.paper.PaperPlugin
-api-version: "1.21"
+api-version: "26.2"
 description: Server-side player position tracking for proximity voice chat
 authors:
   - Charles R. Portwood II (Alaydriem)

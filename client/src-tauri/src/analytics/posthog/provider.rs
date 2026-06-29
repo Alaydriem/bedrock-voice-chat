@@ -12,6 +12,7 @@ pub struct Provider {
     host: String,
     api_key: String,
     app_version: String,
+    app_build: String,
     os: String,
     is_debug: bool,
 }
@@ -26,6 +27,7 @@ impl Provider {
             host,
             api_key,
             app_version: env!("CARGO_PKG_VERSION").to_string(),
+            app_build: option_env!("APP_BUILD_NUMBER").unwrap_or("local").to_string(),
             os: std::env::consts::OS.to_string(),
             is_debug: cfg!(debug_assertions),
         }
@@ -41,6 +43,7 @@ impl Provider {
             session_id: session_id.to_string(),
             os: self.os.clone(),
             app_version: self.app_version.clone(),
+            app_build: self.app_build.clone(),
             is_debug: self.is_debug,
             connected_server: event.connected_server.clone(),
             player_display: event.player_display.clone(),

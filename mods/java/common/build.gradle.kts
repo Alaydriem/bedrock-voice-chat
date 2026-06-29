@@ -26,7 +26,7 @@ dependencies {
     compileOnly("org.slf4j:slf4j-api:2.0.9")
 
     // Floodgate API for Geyser/Bedrock player detection (optional at runtime)
-    compileOnly("org.geysermc.floodgate:api:2.2.3-SNAPSHOT")
+    compileOnly("org.geysermc.floodgate:api:2.2.5-SNAPSHOT")
 }
 
 // Native library bundling configuration

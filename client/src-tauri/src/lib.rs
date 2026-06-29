@@ -27,11 +27,20 @@ mod auth;
 pub mod bedrock;
 mod commands;
 mod deep_links;
+pub mod discord;
+pub use discord::{
+    DiscordLinkService, DiscordOAuth, DiscordRoleClient, DiscordTraitState, RoleCategory,
+};
 mod events;
 mod feature_flags;
+pub use feature_flags::FeatureFlagService;
 pub use feature_flags::flagsmith::FlagsmithProvider;
 #[cfg(feature = "bedrock-protocol")]
 mod iap;
+// Re-exported for the integration test crate (a separate crate root that can
+// only reach `pub` items) to cover the store price-selection fallback.
+#[cfg(feature = "bedrock-protocol")]
+pub use crate::iap::store::StoreProvider;
 #[cfg(desktop)]
 pub mod keybinds;
 mod keyring;
@@ -110,6 +119,11 @@ pub fn run() {
         },
     ));
 
+    sentry::configure_scope(|scope| {
+        scope.set_tag("version", env!("CARGO_PKG_VERSION"));
+        scope.set_tag("build_number", option_env!("APP_BUILD_NUMBER").unwrap_or("local"));
+    });
+
     #[cfg(desktop)]
     let _minidump = sentry_rust_minidump::init(&sentry_guard)
         .map_err(|e| warn!("Minidump crash reporter failed to initialize: {e}"))
@@ -172,6 +186,7 @@ pub fn run() {
                 .build()
         )
         .plugin(tauri_plugin_audio_permissions::init())
+        .plugin(tauri_plugin_age_signals::init())
         .plugin(tauri_plugin_keyring::init())
         //.plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
@@ -250,6 +265,13 @@ pub fn run() {
             // Feature Flags
             crate::commands::feature_flags::get_feature_flag,
             crate::commands::feature_flags::refresh_feature_flags,
+            crate::commands::feature_flags::get_age_signals_enabled,
+            // Discord linking
+            crate::commands::discord::discord_status,
+            crate::commands::discord::discord_link,
+            crate::commands::discord::discord_resync,
+            crate::commands::discord::discord_complete_link,
+            crate::commands::discord::discord_unlink,
             // Audio Library
             crate::commands::audio_library::upload_audio_file,
             crate::commands::audio_library::list_audio_files,
@@ -422,6 +444,19 @@ pub fn run() {
             );
             app.manage(feature_flag_service.clone());
 
+            let discord_link_service = crate::discord::DiscordLinkService::new_shared(
+                option_env!("DISCORD_CLIENT_ID").unwrap_or("").to_string(),
+                option_env!("DISCORD_GUILD_ID").unwrap_or("").to_string(),
+                option_env!("DISCORD_REDIRECT_URI").unwrap_or("").to_string(),
+                reqwest::Client::new(),
+                feature_flag_service.clone(),
+                app.handle().clone(),
+            );
+            // Seed cached roles before the first flag fetch so the identity POST
+            // carries them.
+            discord_link_service.load_persisted();
+            app.manage(discord_link_service);
+
             let ffs = feature_flag_service.clone();
             tauri::async_runtime::spawn(async move {
                 ffs.initialize().await;
@@ -483,7 +518,10 @@ pub fn run() {
             app.deep_link().on_open_url(move |event| {
                 info!("on_open_url callback fired");
                 for url in event.urls() {
-                    info!("Processing deep link URL from on_open_url: {}", url);
+                    info!(
+                        "Processing deep link URL from on_open_url: {}",
+                        crate::deep_links::UrlRedactor::for_log(url.as_str())
+                    );
                     let deep_link = DeepLink::new(url.to_string());
                     if let Err(e) = deep_link.handle(&app_handle) {
                         error!("Failed to handle deep link: {}", e);

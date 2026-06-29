@@ -2,7 +2,7 @@ use bvc_client_lib::FlagsmithProvider;
 
 #[test]
 fn identity_persists_but_build_number_trait_is_transient() {
-    let body = FlagsmithProvider::build_identity_body("install-abc", 1001084);
+    let body = FlagsmithProvider::build_identity_body("install-abc", 1001084, &[]);
 
     assert!(
         body.get("transient").is_none() || body["transient"] == serde_json::json!(false),
@@ -21,4 +21,51 @@ fn identity_persists_but_build_number_trait_is_transient() {
     );
     assert_eq!(build["trait_value"], serde_json::json!(1001084));
     assert_eq!(build["transient"], serde_json::json!(true));
+}
+
+#[test]
+fn discord_roles_become_transient_role_traits() {
+    let roles = vec!["111".to_string(), "222".to_string()];
+    let body = FlagsmithProvider::build_identity_body("install-abc", 7, &roles);
+    let traits = body["traits"].as_array().expect("traits array");
+
+    for id in ["111", "222"] {
+        let key = format!("discord-role-{}", id);
+        let t = traits
+            .iter()
+            .find(|t| t["trait_key"] == serde_json::json!(key))
+            .unwrap_or_else(|| panic!("missing trait {}", key));
+        assert_eq!(t["trait_value"], serde_json::json!(true));
+        assert_eq!(t["transient"], serde_json::json!(true));
+    }
+    assert!(
+        traits
+            .iter()
+            .any(|t| t["trait_key"] == serde_json::json!("build_number"))
+    );
+}
+
+#[test]
+fn empty_roles_send_only_build_number() {
+    let body = FlagsmithProvider::build_identity_body("install-abc", 7, &[]);
+    let traits = body["traits"].as_array().expect("traits array");
+    assert_eq!(traits.len(), 1);
+    assert_eq!(traits[0]["trait_key"], serde_json::json!("build_number"));
+}
+
+#[test]
+fn category_role_emits_raw_id_label_and_umbrella() {
+    // A Sponsor source role emits the fine-grained id trait, the consolidated
+    // category label, and the umbrella — all as transient traits.
+    let roles = vec!["1447055535294906440".to_string()];
+    let body = FlagsmithProvider::build_identity_body("install-abc", 7, &roles);
+    let keys: Vec<&str> = body["traits"]
+        .as_array()
+        .expect("traits array")
+        .iter()
+        .map(|t| t["trait_key"].as_str().unwrap_or(""))
+        .collect();
+    assert!(keys.contains(&"discord-role-1447055535294906440"));
+    assert!(keys.contains(&"discord-role-sponsor"));
+    assert!(keys.contains(&"discord-role-supporter-any"));
 }
