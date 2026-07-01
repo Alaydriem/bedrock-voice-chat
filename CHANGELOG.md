@@ -1,3 +1,10 @@
+# [1.0.0-beta.16](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.15...v1.0.0-beta.16) (2026-07-01)
+
+
+### Features
+
+* java 26.2 + beta.15 fixes ([#198](https://github.com/Alaydriem/bedrock-voice-chat/issues/198)) ([84d862b](https://github.com/Alaydriem/bedrock-voice-chat/commit/84d862b55530e32043f791a68917c2af24d42da8)), closes [#162](https://github.com/Alaydriem/bedrock-voice-chat/issues/162)
+
 # [1.0.0-beta.15](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.14...v1.0.0-beta.15) (2026-06-23)
 
 
