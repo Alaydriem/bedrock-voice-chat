@@ -38,12 +38,22 @@
       "infoPlist": "./Info.macos.plist",
       "hardenedRuntime": true
     },
+    "linux": {
+      "deb": {
+        "depends": [
+          "libasound2"
+        ]
+      }
+    },
+    "category": "SocialNetworking",
     "createUpdaterArtifacts": true,
     "resources": [],
     "active": true,
     "targets": [
       "app",
-      "nsis"
+      "nsis",
+      "appimage",
+      "deb"
     ],
     "icon": [
       "icons/32x32.png",

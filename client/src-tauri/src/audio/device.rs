@@ -14,45 +14,43 @@ use rodio::cpal::{
 /// On mobile platforms this should be????
 pub(crate) fn get_cpal_hosts() -> Result<Vec<rodio::cpal::platform::Host>, anyhow::Error> {
     let mut hosts: Vec<cpal::platform::Host> = Vec::new();
+
+    let mut platforms = Vec::<HostId>::new();
     #[cfg(target_os = "windows")]
     {
-        match cpal::host_from_id(HostId::Wasapi) {
-            Ok(host) => hosts.push(host),
-            Err(e) => {
-                error!("{}", e.to_string());
-                return Err(anyhow!("Could not initialize WASAPI Audio Host."));
-            }
-        }
-
-        match cpal::host_from_id(HostId::Asio) {
-            Ok(host) => hosts.push(host),
-            Err(_) => {
-                warn!(
-                    "ASIO host either couldn't be initialized, or isn't available on this system."
-                );
-            }
-        }
+        platforms.push(HostId::Wasapi);
+        platforms.push(HostId::Asio);
     }
 
     #[cfg(any(target_os = "macos", target_os = "ios"))]
     {
-        match cpal::host_from_id(HostId::CoreAudio) {
-            Ok(host) => hosts.push(host),
-            Err(e) => {
-                error!("{}", e.to_string());
-                return Err(anyhow!("Could not initialize CoreAudio Audio Host."));
-            }
-        };
+        platforms.push(HostId::CoreAudio);
     }
 
     #[cfg(any(target_os = "android"))]
     {
-        match cpal::host_from_id(HostId::AAudio) {
+        platforms.push(HostId::AAudio);
+    }
+
+    #[cfg(any(
+        target_os = "linux",
+        target_os = "dragonfly",
+        target_os = "freebsd",
+        target_os = "netbsd"
+    ))]
+    {
+        platforms.push(HostId::Alsa);
+    }
+
+
+    for platform in platforms {
+        match cpal::host_from_id(platform) {
             Ok(host) => hosts.push(host),
             Err(e) => {
                 error!("{}", e.to_string());
                 return Err(anyhow!(
-                    "Could not initialize AAudio Audio Host for Android."
+                    "Could not initialize {} Audio Host for this platform.",
+                    platform.name()
                 ));
             }
         };

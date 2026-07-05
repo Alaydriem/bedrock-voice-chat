@@ -507,10 +507,14 @@ pub fn run() {
 
             let handle = app.handle().clone();
 
-            // Register deep links for Desktop targets
+            // Register deep links for Desktop targets. Best-effort: on Linux this
+            // shells out to the xdg desktop tooling, which may be absent (minimal or
+            // WSL environments), so a failure here must not abort startup.
             #[cfg(any(windows, target_os = "linux"))]
             {
-                app.deep_link().register_all()?;
+                if let Err(e) = app.deep_link().register_all() {
+                    warn!("Deep link registration failed; deep links may not work: {}", e);
+                }
             }
 
             // Register event handler for incoming deep links (when app is already running)

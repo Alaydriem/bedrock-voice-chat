@@ -84,6 +84,22 @@ if (macSig) {
   };
 }
 
+const linuxX64Sig = readSig('bvc-client-linux-x86_64.AppImage.sig');
+if (linuxX64Sig) {
+  platforms['linux-x86_64'] = {
+    signature: linuxX64Sig,
+    url: `${baseUrl}/bvc-client-linux-x86_64.AppImage`
+  };
+}
+
+const linuxArm64Sig = readSig('bvc-client-linux-aarch64.AppImage.sig');
+if (linuxArm64Sig) {
+  platforms['linux-aarch64'] = {
+    signature: linuxArm64Sig,
+    url: `${baseUrl}/bvc-client-linux-aarch64.AppImage`
+  };
+}
+
 if (Object.keys(platforms).length === 0) {
   console.error('No platform signatures found in ' + releaseFilesDir);
   process.exit(1);

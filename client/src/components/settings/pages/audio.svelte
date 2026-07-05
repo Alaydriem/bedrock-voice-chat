@@ -1,73 +1,19 @@
 <script lang="ts">
     import { onMount } from "svelte";
-    import { invoke } from "@tauri-apps/api/core";
-    import { Store } from '@tauri-apps/plugin-store';
     import AudioDeviceSelector from '../../audio/AudioDeviceSelector.svelte';
     import NoiseGateSettings from '../../audio/NoiseGateSettings.svelte';
-    import PlatformDetector from "../../../js/app/utils/PlatformDetector.ts";
-    import Analytics from "../../../js/app/analytics";
-    import type { KeybindConfig } from "../../../js/bindings/KeybindConfig.ts";
-    import type { VoiceMode } from "../../../js/bindings/VoiceMode.ts";
+    import { AudioSettingsManager } from "../../../js/app/managers/settings/AudioSettingsManager";
 
-    let store: Store | undefined = $state(undefined);
-    let isReady = $state(false);
-    let isMobile = $state(false);
-    let voiceMode: VoiceMode = $state("openMic");
-    let panningIntensity = $state(80);
+    const manager = new AudioSettingsManager();
 
-    async function handlePanningIntensityChange(value: number) {
-        panningIntensity = value;
-        if (!store) return;
-        const normalized = value / 100;
-        await store.set("panning_intensity", normalized);
-        await store.save();
-        await invoke("update_stream_metadata", {
-            key: "panning_intensity",
-            value: normalized.toString(),
-            device: "OutputDevice",
-        });
-    }
+    const store = manager.store;
+    const isReady = manager.isReady;
+    const isMobile = manager.isMobile;
+    const voiceMode = manager.voiceMode;
+    const panningIntensity = manager.panningIntensity;
 
-    async function handleVoiceModeChange(mode: VoiceMode) {
-        voiceMode = mode;
-        if (!store) return;
-
-        const saved = await store.get<KeybindConfig>("keybinds");
-        const config: KeybindConfig = {
-            toggleMute: saved?.toggleMute ?? "ControlLeft+BracketLeft",
-            toggleDeafen: saved?.toggleDeafen ?? "ControlLeft+BracketRight",
-            toggleRecording: saved?.toggleRecording ?? "ControlLeft+Backslash",
-            pushToTalk: saved?.pushToTalk ?? "Backquote",
-            voiceMode: mode,
-        };
-        await store.set("keybinds", config);
-        await store.save();
-        await invoke('start_keybind_listener', { config });
-        Analytics.track("VoiceModeChanged", { mode });
-    }
-
-    onMount(async () => {
-        store = await Store.load("store.json", {
-            autoSave: false,
-            defaults: {}
-        });
-
-        const platformDetector = new PlatformDetector();
-        isMobile = await platformDetector.checkMobile();
-
-        // Load panning intensity
-        const savedPanning = await store.get<number>("panning_intensity");
-        if (savedPanning !== null && savedPanning !== undefined) {
-            panningIntensity = Math.round(savedPanning * 100);
-        }
-
-        // Load voice mode from keybinds config
-        const saved = await store.get<KeybindConfig>("keybinds");
-        if (saved?.voiceMode) {
-            voiceMode = saved.voiceMode;
-        }
-
-        isReady = true;
+    onMount(() => {
+        manager.initialize();
     });
 </script>
 
@@ -86,14 +32,14 @@
             </p>
         </div>
 
-        {#if isReady}
+        {#if $isReady}
         <!-- Audio device selector component -->
         <AudioDeviceSelector
             layoutMode="horizontal"
             containerClass="hidden md:flex mb-4 -mx-2"
             deviceContainerClass="mt-5 flex-1 px-5"
             showLoadingText={false}
-            {store}
+            store={$store}
             eventScope="#audio-settings-page"
         />
 
@@ -117,11 +63,11 @@
                 min="0"
                 max="100"
                 step="5"
-                value={panningIntensity}
-                oninput={(e: Event) => handlePanningIntensityChange(parseInt((e.target as HTMLInputElement).value))}
+                value={$panningIntensity}
+                oninput={(e: Event) => manager.handlePanningIntensityChange(parseInt((e.target as HTMLInputElement).value))}
                 class="flex-1 h-1.5 rounded-full appearance-none cursor-pointer bg-slate-200 dark:bg-navy-500 accent-primary dark:accent-accent"
             />
-            <span class="text-xs text-slate-500 dark:text-navy-300 w-8 text-right">{panningIntensity}%</span>
+            <span class="text-xs text-slate-500 dark:text-navy-300 w-8 text-right">{$panningIntensity}%</span>
         </div>
 
         <div class="my-4 h-px bg-slate-200 dark:bg-navy-500"></div>
@@ -142,10 +88,10 @@
             toggleStyle="switch"
             knobsContainerClass="pt-5 pb-5 flex flex-row justify-evenly"
             showDescription={false}
-            {store}
+            store={$store}
         />
 
-        {#if !isMobile}
+        {#if !$isMobile}
         <div class="my-4 h-px bg-slate-200 dark:bg-navy-500"></div>
 
         <div class="my-3 flex h-8n flex-col">
@@ -165,8 +111,8 @@
                     type="radio"
                     name="voiceMode"
                     value="openMic"
-                    checked={voiceMode === "openMic"}
-                    onchange={() => handleVoiceModeChange("openMic")}
+                    checked={$voiceMode === "openMic"}
+                    onchange={() => manager.handleVoiceModeChange("openMic")}
                     class="form-radio is-basic h-5 w-5 rounded-full border-slate-300/70 bg-slate-100 checked:border-primary checked:bg-primary hover:border-primary focus:border-primary dark:border-navy-400 dark:bg-navy-700 dark:checked:border-accent dark:checked:bg-accent dark:hover:border-accent dark:focus:border-accent"
                 />
                 <div>
@@ -179,8 +125,8 @@
                     type="radio"
                     name="voiceMode"
                     value="pushToTalk"
-                    checked={voiceMode === "pushToTalk"}
-                    onchange={() => handleVoiceModeChange("pushToTalk")}
+                    checked={$voiceMode === "pushToTalk"}
+                    onchange={() => manager.handleVoiceModeChange("pushToTalk")}
                     class="form-radio is-basic h-5 w-5 rounded-full border-slate-300/70 bg-slate-100 checked:border-primary checked:bg-primary hover:border-primary focus:border-primary dark:border-navy-400 dark:bg-navy-700 dark:checked:border-accent dark:checked:bg-accent dark:hover:border-accent dark:focus:border-accent"
                 />
                 <div>

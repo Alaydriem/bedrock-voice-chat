@@ -1,5 +1,6 @@
+use common::structs::app::AppInfo;
 use log::info;
-use serde::{Deserialize, Serialize};
+use std::env;
 use std::fs;
 use std::sync::Arc;
 use tauri::async_runtime::Mutex;
@@ -9,15 +10,6 @@ use tauri_plugin_opener::OpenerExt;
 use crate::commands::env::get_variant;
 use crate::logging::{SentryLogger, Telemetry};
 use crate::structs::app_state::AppState;
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct AppInfo {
-    pub app_version: String,
-    pub protocol_version: String,
-    pub build_commit: String,
-    pub build_variant: String,
-    pub build_number: String,
-}
 
 #[tauri::command]
 pub(crate) fn get_app_info() -> AppInfo {
