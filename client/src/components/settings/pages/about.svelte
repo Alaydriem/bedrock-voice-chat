@@ -55,20 +55,16 @@
                 <span class="text-sm text-slate-500 dark:text-navy-300 font-mono">{$appInfo.build_commit}</span>
             </div>
             <div class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-slate-50 dark:hover:bg-navy-600">
-<<<<<<< Updated upstream
+
                 <span class="text-sm font-medium text-slate-700 dark:text-navy-100">Build Number</span>
                 <span class="text-sm text-slate-500 dark:text-navy-300 font-mono">{appInfo.build_number}</span>
             </div>
             <div class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-slate-50 dark:hover:bg-navy-600">
-=======
-<<<<<<< Updated upstream
-=======
+
                 <span class="text-sm font-medium text-slate-700 dark:text-navy-100">Build Number</span>
                 <span class="text-sm text-slate-500 dark:text-navy-300 font-mono">{$appInfo.build_number}</span>
             </div>
             <div class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-slate-50 dark:hover:bg-navy-600">
->>>>>>> Stashed changes
->>>>>>> Stashed changes
                 <span class="text-sm font-medium text-slate-700 dark:text-navy-100">Build Variant</span>
                 <span
                     class="badge {$appInfo.build_variant === 'dev' ? 'bg-warning text-white' : 'bg-success text-white'} cursor-pointer select-none"
@@ -158,15 +154,8 @@
         </div>
     </div>
 
-<<<<<<< Updated upstream
-    <!-- Discord Role Features -->
-    {#if discord?.configured}
-=======
-<<<<<<< Updated upstream
-=======
     <!-- Discord Role Features -->
     {#if $discord?.configured}
->>>>>>> Stashed changes
     <div class="card px-5 pb-4 sm:px-5">
         <div class="my-3 flex flex-col">
             <h2 class="font-medium tracking-wide text-slate-700 dark:text-navy-100 lg:text-base pb-2">
@@ -178,34 +167,17 @@
         </div>
 
         <div class="mt-2 space-y-2">
-<<<<<<< Updated upstream
-            {#if discord.linked && !discord.expired}
-                <p class="text-sm text-slate-500 dark:text-navy-300">
-                    Linked · {discord.role_count} role{discord.role_count === 1 ? "" : "s"}
-                </p>
-            {:else if discord.linked && discord.expired}
-=======
             {#if $discord.linked && !$discord.expired}
                 <p class="text-sm text-slate-500 dark:text-navy-300">
                     Linked · {$discord.role_count} role{$discord.role_count === 1 ? "" : "s"}
                 </p>
             {:else if $discord.linked && $discord.expired}
->>>>>>> Stashed changes
                 <p class="text-sm text-warning">Discord roles expired — re-sync to restore features.</p>
             {:else}
                 <p class="text-sm text-slate-500 dark:text-navy-300">Not linked.</p>
             {/if}
 
             <div class="flex gap-2">
-<<<<<<< Updated upstream
-                {#if !discord.linked}
-                    <button
-                        class="btn bg-primary font-medium text-white hover:bg-primary-focus dark:bg-accent dark:hover:bg-accent-focus"
-                        onclick={() => discordAction("discord_link")}
-                        disabled={discordBusy}
-                    >
-                        {discordBusy ? "Linking…" : "Link Discord"}
-=======
                 {#if !$discord.linked}
                     <button
                         class="btn bg-primary font-medium text-white hover:bg-primary-focus dark:bg-accent dark:hover:bg-accent-focus"
@@ -213,22 +185,10 @@
                         disabled={$discordBusy}
                     >
                         {$discordBusy ? "Linking…" : "Link Discord"}
->>>>>>> Stashed changes
                     </button>
                 {:else}
                     <button
                         class="btn bg-primary font-medium text-white hover:bg-primary-focus dark:bg-accent dark:hover:bg-accent-focus"
-<<<<<<< Updated upstream
-                        onclick={() => discordAction("discord_resync")}
-                        disabled={discordBusy}
-                    >
-                        {discordBusy ? "Re-syncing…" : "Re-sync"}
-                    </button>
-                    <button
-                        class="btn border border-slate-300 font-medium dark:border-navy-450"
-                        onclick={() => discordAction("discord_unlink")}
-                        disabled={discordBusy}
-=======
                         onclick={() => manager.discordAction("discord_resync")}
                         disabled={$discordBusy}
                     >
@@ -238,28 +198,18 @@
                         class="btn border border-slate-300 font-medium dark:border-navy-450"
                         onclick={() => manager.discordAction("discord_unlink")}
                         disabled={$discordBusy}
->>>>>>> Stashed changes
                     >
                         Unlink
                     </button>
                 {/if}
             </div>
-<<<<<<< Updated upstream
-            {#if discordError}
-                <p class="text-xs text-error">{discordError}</p>
-=======
             {#if $discordError}
                 <p class="text-xs text-error">{$discordError}</p>
->>>>>>> Stashed changes
             {/if}
         </div>
     </div>
     {/if}
 
-<<<<<<< Updated upstream
-=======
->>>>>>> Stashed changes
->>>>>>> Stashed changes
     <!-- Diagnostics -->
     {#if !$isMobile}
     <div class="card px-5 pb-4 sm:px-5">

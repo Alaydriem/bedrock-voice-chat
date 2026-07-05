@@ -1,12 +1,5 @@
 <script lang="ts">
     import { mount, onMount, onDestroy } from "svelte";
-<<<<<<< Updated upstream
-    import { invoke } from "@tauri-apps/api/core";
-    import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-    import type { RealmsGateStatus } from "../../js/bindings/RealmsGateStatus";
-    import type { ApiConfigCheckResponse } from "../../js/bindings/ApiConfigCheckResponse";
-=======
->>>>>>> Stashed changes
     import account from "../../components/settings/pages/account.svelte";
     import audio from "../../components/settings/pages/audio.svelte";
     import keybinds from "../../components/settings/pages/keybinds.svelte";
