@@ -159,6 +159,17 @@ impl ServerRuntime {
         let cache_manager = quic_manager.get_cache_manager();
         let connection_registry = quic_manager.get_connection_registry();
 
+        // Gauges are pushed into the service by ConnectionRegistry on change; the only
+        // periodic work is the channel reaper, run as an arm of the main event loop
+        // below (structured cancellation — no detached task). The boot ping is emitted
+        // inside new_shared. posthog_handle is awaited on shutdown for a final flush.
+        let (metrics, posthog_handle) = crate::services::MetricsService::new_shared(
+            self.config.server.features.telemetry,
+            &self.config.server.tls.certs_path,
+            &self.config.server.tls.certificate,
+        );
+        connection_registry.set_metrics(metrics.clone());
+
         // Cross-server voice relay plane. Discovery is decentralized via in-realm
         // `!bvca` announces — there is no central relay and no discovery routes.
         // All relay work runs on dedicated tokio tasks, never on the audio hot
@@ -261,6 +272,7 @@ impl ServerRuntime {
                 .as_ref()
                 .map(|relay| relay.inject_delivery()),
             Some(audio_stream_token_cache),
+            metrics.clone(),
             #[cfg(feature = "bedrock")]
             transfer_target_cache.clone(),
         );
@@ -350,24 +362,48 @@ impl ServerRuntime {
         let _shutdown_flag = self.shutdown_flag.clone();
         let shutdown_notify = self.shutdown_notify.clone();
 
-        // Main event loop
-        // Note: CTRL+C handling is done by the host process (Java/CLI), not here
-        tokio::select! {
-            result = quic_manager.start() => {
-                match result {
-                    Ok(_) => tracing::info!("QUIC server stopped normally"),
-                    Err(e) => tracing::error!("QUIC server error: {}", e),
+        // Main event loop: run QUIC + Rocket until one stops or shutdown is requested,
+        // with the low-cadence channel reaper as a structured arm. On exit the pinned
+        // futures drop (structured cancellation) — no detached task, no separate
+        // shutdown wiring for the periodic work.
+        // Note: CTRL+C handling is done by the host process (Java/CLI), not here.
+        {
+        let quic = quic_manager.start();
+        let rocket = rocket_manager.start();
+        tokio::pin!(quic, rocket);
+        let mut reap_interval = tokio::time::interval(std::time::Duration::from_secs(60));
+        loop {
+            tokio::select! {
+                result = &mut quic => {
+                    match result {
+                        Ok(_) => tracing::info!("QUIC server stopped normally"),
+                        Err(e) => tracing::error!("QUIC server error: {}", e),
+                    }
+                    break;
+                }
+                result = &mut rocket => {
+                    match result {
+                        Ok(_) => tracing::info!("Rocket server stopped normally"),
+                        Err(e) => tracing::error!("Rocket server error: {}", e),
+                    }
+                    break;
+                }
+                _ = shutdown_notify.notified() => {
+                    tracing::info!("Shutdown requested, shutting down...");
+                    break;
+                }
+                _ = reap_interval.tick() => {
+                    connection_registry.reap_stale_channels();
                 }
             }
-            result = rocket_manager.start() => {
-                match result {
-                    Ok(_) => tracing::info!("Rocket server stopped normally"),
-                    Err(e) => tracing::error!("Rocket server error: {}", e),
-                }
-            }
-            _ = shutdown_notify.notified() => {
-                tracing::info!("Shutdown requested via flag, shutting down...");
-            }
+        }
+        }
+
+        // Final PostHog flush: signal the drain and await it briefly so buffered fleet
+        // events are sent before teardown.
+        metrics.begin_posthog_drain();
+        if let Some(handle) = posthog_handle {
+            let _ = tokio::time::timeout(std::time::Duration::from_secs(5), handle).await;
         }
 
         // Always stop QUIC regardless of which branch exited

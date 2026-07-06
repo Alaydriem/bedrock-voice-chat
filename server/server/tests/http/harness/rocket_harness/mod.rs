@@ -49,6 +49,11 @@ impl RocketHarness {
         let server_state = config.server.clone();
         let permissions = config.permissions.clone();
         let features = config.server.features.clone();
+        let (metrics, _posthog) = bvc_server_lib::services::MetricsService::new_shared(
+            false,
+            &config.server.tls.certs_path,
+            &config.server.tls.certificate,
+        );
 
         let cache = cached::TimedCache::with_lifespan_and_refresh(
             std::time::Duration::from_secs(3600),
@@ -69,10 +74,12 @@ impl RocketHarness {
             .manage(permissions)
             .manage(cert_service)
             .manage(cache_wrapper)
+            .manage(metrics)
             .attach(AppDb::init())
             .mount("/ncryptf", ncryptf_routes)
             .mount("/api/admin", admin_routes)
-            .mount("/api", auth_routes);
+            .mount("/api", auth_routes)
+            .mount("/metrics", routes![routes::metrics::metrics]);
 
         if mount_relay {
             // Cross-server peering routes (offer / peer-redeem / peer-link). They

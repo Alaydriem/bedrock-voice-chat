@@ -6,6 +6,7 @@ repository = "https://github.com/alaydriem/bedrock-voice-chat"
 version = "1.0.0-beta.16"
 edition = "2024"
 build = "build.rs"
+autotests = false
 
 [lib]
 name = "bvc_server_lib"
@@ -15,6 +16,14 @@ crate-type = ["rlib", "cdylib", "staticlib"]
 [[bin]]
 name = "bvc-server"
 path = "src/main.rs"
+
+[[test]]
+name = "integration"
+path = "tests/integration.rs"
+
+[[test]]
+name = "http"
+path = "tests/http/main.rs"
 
 [features]
 default = []
@@ -33,6 +42,7 @@ sea-orm = { workspace = true }
 sea-orm-rocket = { workspace = true }
 clap = { workspace = true }
 time = { version = "^0.3.47", features = ["std"] }
+chrono = { version = "^0.4", features = ["serde"] }
 tokio = { version = "^1", features = ["full"] }
 rocket = { version = "^0.5", default-features = false, features = [
     "http2",
@@ -94,6 +104,10 @@ inventory = { version = "^0.3" }
 hickory-proto = { workspace = true, optional = true }
 x509-parser = { workspace = true }
 sha2 = { version = "^0.10" }
+metrics = { version = "^0.24" }
+metrics-util = { version = "^0.20" }
+metrics-exporter-prometheus = { version = "^0.18", default-features = false }
+metrics-exporter-dogstatsd = { version = "^0.9" }
 rustls = { version = "^0.23", features = ["aws_lc_rs"] }
 
 dirs = { version = "^5" }

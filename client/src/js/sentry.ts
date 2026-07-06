@@ -1,13 +1,6 @@
 import * as Sentry from "@sentry/browser";
 import { invoke } from "@tauri-apps/api/core";
-
-interface AppInfo {
-    app_version: string;
-    protocol_version: string;
-    build_commit: string;
-    build_variant: string;
-    build_number: string;
-}
+import type { AppInfo } from "./bindings/AppInfo";
 
 export class SentryManager {
     static initialize(): void {

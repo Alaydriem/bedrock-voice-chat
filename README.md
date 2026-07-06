@@ -59,4 +59,15 @@ Bedrock Voice Chat has 3 components
 
 All 3 components are mandatory. Be sure to checkout the Wiki for more information: https://github.com/Alaydriem/bedrock-voice-chat/wiki
 
+## Telemetry & Metrics
+
+The Bedrock Voice Chat server exposes operational metrics and, optionally, sends anonymous aggregate usage data.
+
+- **Local metrics (always on):**
+  - **Prometheus** — scrape `GET /metrics` (served on the same port as the HTTP API).
+  - **statsd / dogstatsd** — pushed over UDP to `127.0.0.1:8125` (fail-open; if no agent is listening, packets are simply dropped).
+  - Metrics include connected players, active channels, players in channels, and connect/disconnect/channel-join/leave counts. No player identity is ever included.
+
+- **Fleet usage telemetry (opt-out):** when `server.features.telemetry = true` (the default), the server sends **anonymous, aggregate** events — a one-time `server_started` ping plus player connect/disconnect and channel join/leave events — to the project's PostHog. These carry **no player identity** (gamertag, UUID, or name); events are grouped only by an anonymous per-deployment id derived from your CA certificate. Set `telemetry = false` in your config's `features {}` block to disable all outbound telemetry (local `/metrics` and statsd remain available).
+
 

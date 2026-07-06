@@ -1,132 +1,18 @@
 <script lang="ts">
-    import { onMount, onDestroy } from "svelte";
-    import { invoke } from "@tauri-apps/api/core";
-    import { Store } from '@tauri-apps/plugin-store';
-    import Analytics from "../../../js/app/analytics";
-    import { error, info, warn } from "@tauri-apps/plugin-log";
+    import { onMount } from "svelte";
+    import { WebSocketSettingsManager } from "../../../js/app/managers/settings/WebSocketSettingsManager";
 
-    interface WebSocketConfig {
-        enabled: boolean;
-        localhost_only: boolean;
-        port: number;
-        key: string;
-    }
+    const manager = new WebSocketSettingsManager();
 
-    let store: Store | undefined = $state(undefined);
-    let isReady = $state(false);
+    const isReady = manager.isReady;
+    const localhostOnly = manager.localhostOnly;
+    const websocketPort = manager.websocketPort;
+    const authKey = manager.authKey;
+    const isRunning = manager.isRunning;
 
-    // Settings state
-    let localhostOnly = $state(true);
-    let websocketPort = $state("9595");
-    let authKey = $state("");
-    let isRunning = $state(false);
-
-    onMount(async () => {
-        store = await Store.load("store.json", {
-            autoSave: false,
-            defaults: {}
-        });
-
-        // Load saved config from single key
-        const config = await store.get<WebSocketConfig>("websocket_server");
-        if (config) {
-            localhostOnly = config.localhost_only ?? true;
-            websocketPort = config.port?.toString() || "9595";
-            authKey = config.key || "";
-        }
-
-        // Check status
-        try {
-            isRunning = await invoke('is_websocket_running');
-        } catch (e) {
-            error(`Failed to check WebSocket server status: ${e}`);
-        }
-
-        isReady = true;
+    onMount(() => {
+        manager.initialize();
     });
-
-    async function saveConfig(enabled: boolean) {
-        const config: WebSocketConfig = {
-            enabled,
-            localhost_only: localhostOnly,
-            port: parseInt(websocketPort),
-            key: authKey
-        };
-        await store?.set("websocket_server", config);
-        await store?.save();
-
-        // Update the manager's config
-        await invoke('update_websocket_config', { config });
-    }
-
-    async function restartServerIfRunning() {
-        if (!isRunning) return;
-        try {
-            await invoke('stop_websocket_server');
-            await invoke('start_websocket_server');
-        } catch (e) {
-            error(`Failed to restart WebSocket server: ${e}`);
-            isRunning = false;
-        }
-    }
-
-    async function handleLocalhostToggle() {
-        localhostOnly = !localhostOnly;
-        await saveConfig(isRunning);
-        await restartServerIfRunning();
-    }
-
-    async function handlePortChange(event: Event) {
-        websocketPort = (event.target as HTMLInputElement).value;
-        await saveConfig(isRunning);
-        await restartServerIfRunning();
-    }
-
-    async function handleKeyChange(event: Event) {
-        authKey = (event.target as HTMLInputElement).value;
-        await saveConfig(isRunning);
-        await restartServerIfRunning();
-    }
-
-    async function handleGenerateKey() {
-        try {
-            authKey = await invoke<string>('generate_encryption_key');
-            await saveConfig(isRunning);
-            await restartServerIfRunning();
-        } catch (e) {
-            error(`Failed to generate encryption key: ${e}`);
-        }
-    }
-
-    async function handleToggleServer() {
-        if (isRunning) {
-            await stopServer();
-        } else {
-            await startServer();
-        }
-    }
-
-    async function startServer() {
-        try {
-            await saveConfig(true);
-            await invoke('start_websocket_server');
-            isRunning = true;
-            Analytics.track("WebsocketServerToggled", { enabled: 1 });
-        } catch (e) {
-            error(`Failed to start WebSocket server: ${e}`);
-        }
-    }
-
-    async function stopServer() {
-        try {
-            await invoke('stop_websocket_server');
-            isRunning = false;
-            await saveConfig(false);
-            Analytics.track("WebsocketServerToggled", { enabled: 0 });
-        } catch (e) {
-            error(`Failed to stop WebSocket server: ${e}`);
-        }
-    }
 </script>
 
 <div class="grid grid-cols-1 gap-4 sm:gap-5 lg:gap-6 pt-4 md:pt-0">
@@ -140,20 +26,20 @@
             </p>
         </div>
 
-        {#if isReady}
+        {#if $isReady}
         <div class="space-y-4">
             <div class="flex items-center justify-between">
                 <div>
                     <span class="text-sm font-medium">Restrict to Localhost</span>
                     <p class="text-xs text-slate-500 dark:text-navy-300 mt-0.5">
-                        {localhostOnly ? "127.0.0.1 (localhost only)" : "0.0.0.0 (all interfaces)"}
+                        {$localhostOnly ? "127.0.0.1 (localhost only)" : "0.0.0.0 (all interfaces)"}
                     </p>
                 </div>
                 <label class="inline-flex items-center space-x-2 cursor-pointer">
                     <input
                         type="checkbox"
-                        checked={localhostOnly}
-                        onchange={handleLocalhostToggle}
+                        checked={$localhostOnly}
+                        onchange={() => manager.handleLocalhostToggle()}
                         class="form-switch h-5 w-10 rounded-full bg-slate-300 before:rounded-full before:bg-slate-50
                                checked:bg-primary checked:before:bg-white dark:bg-navy-900 dark:before:bg-navy-300
                                dark:checked:bg-accent dark:checked:before:bg-white"
@@ -165,8 +51,8 @@
                 <span class="text-sm font-medium">Port</span>
                 <input
                     type="text"
-                    value={websocketPort}
-                    onchange={handlePortChange}
+                    value={$websocketPort}
+                    onchange={(e) => manager.handlePortChange((e.target as HTMLInputElement).value)}
                     class="form-input mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2
                            hover:border-slate-400 focus:border-primary dark:border-navy-450 dark:bg-navy-700"
                     placeholder="9595"
@@ -178,8 +64,8 @@
                 <div class="flex gap-2 mt-1.5">
                     <input
                         type="text"
-                        value={authKey}
-                        onchange={handleKeyChange}
+                        value={$authKey}
+                        onchange={(e) => manager.handleKeyChange((e.target as HTMLInputElement).value)}
                         class="form-input flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2
                                hover:border-slate-400 focus:border-primary dark:border-navy-450 dark:bg-navy-700"
                         placeholder="Enter authentication key"
@@ -187,7 +73,7 @@
                     <button
                         class="btn bg-primary font-medium text-white hover:bg-primary-focus
                                dark:bg-accent dark:hover:bg-accent-focus"
-                        onclick={handleGenerateKey}
+                        onclick={() => manager.handleGenerateKey()}
                     >
                         Generate
                     </button>
@@ -199,7 +85,7 @@
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2">
                     <span class="text-sm font-medium">Enable WebSocket Server</span>
-                    {#if isRunning}
+                    {#if $isRunning}
                         <span class="badge bg-success text-white">Running</span>
                     {:else}
                         <span class="badge bg-slate-300 text-slate-700 dark:bg-navy-500 text-warning">Stopped</span>
@@ -208,8 +94,8 @@
                 <label class="inline-flex items-center space-x-2 cursor-pointer">
                     <input
                         type="checkbox"
-                        checked={isRunning}
-                        onchange={handleToggleServer}
+                        checked={$isRunning}
+                        onchange={() => manager.handleToggleServer()}
                         class="form-switch h-5 w-10 rounded-full bg-slate-300 before:rounded-full before:bg-slate-50
                                checked:bg-primary checked:before:bg-white dark:bg-navy-900 dark:before:bg-navy-300
                                dark:checked:bg-accent dark:checked:before:bg-white"

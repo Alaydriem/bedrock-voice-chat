@@ -10,6 +10,7 @@ use tokio::sync::{RwLock, watch};
 use super::FlagsmithProvider;
 use super::feature_flag::FeatureFlag;
 use super::flagsmith::FlagsmithFlag;
+use crate::analytics::AnalyticsService;
 use crate::discord::DiscordTraitState;
 
 pub struct FeatureFlagService {
@@ -29,6 +30,10 @@ pub struct FeatureFlagService {
     // Shared with the FlagsmithProvider; carries the linked Discord roles that
     // become identity traits. Seeded at startup, updated on link/unlink.
     discord_state: Arc<StdRwLock<DiscordTraitState>>,
+    // Optional so contexts without analytics (embedded bedrock server, tests)
+    // construct the service without it. When present, every flag fetch emits a
+    // FlagsmithFlagsFetched event.
+    analytics: Option<Arc<AnalyticsService>>,
 }
 
 impl FeatureFlagService {
@@ -38,6 +43,7 @@ impl FeatureFlagService {
         install_id: String,
         build_number: i64,
         refresh_interval: Duration,
+        analytics: Option<Arc<AnalyticsService>>,
     ) -> Self {
         let (ready_tx, ready_rx) = watch::channel(false);
         Self {
@@ -53,6 +59,7 @@ impl FeatureFlagService {
             flag_cache: RwLock::new(None),
             normalized_url: RwLock::new(None),
             discord_state: Arc::new(StdRwLock::new(DiscordTraitState::new())),
+            analytics,
         }
     }
 
@@ -71,6 +78,7 @@ impl FeatureFlagService {
             self.refresh_interval,
             self.http_client.clone(),
             self.discord_state.clone(),
+            self.analytics.clone(),
         );
 
         // Capture the provider's shared cache + normalized URL before it's
@@ -108,6 +116,7 @@ impl FeatureFlagService {
                     self.build_number,
                     &roles,
                     &cache,
+                    self.analytics.as_ref(),
                 )
                 .await
                 .map_err(|e| e.to_string())?;

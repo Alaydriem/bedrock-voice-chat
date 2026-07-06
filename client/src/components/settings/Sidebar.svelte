@@ -1,9 +1,5 @@
 <script lang="ts">
     import { mount, onMount, onDestroy } from "svelte";
-    import { invoke } from "@tauri-apps/api/core";
-    import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-    import type { RealmsGateStatus } from "../../js/bindings/RealmsGateStatus";
-    import type { ApiConfigCheckResponse } from "../../js/bindings/ApiConfigCheckResponse";
     import account from "../../components/settings/pages/account.svelte";
     import audio from "../../components/settings/pages/audio.svelte";
     import keybinds from "../../components/settings/pages/keybinds.svelte";
@@ -13,8 +9,7 @@
     import proxy_connect from "../../components/settings/pages/proxy_connect.svelte";
     import realms_connect from "../../components/settings/pages/realms_connect.svelte";
     import about from "../../components/settings/pages/about.svelte";
-    import PlatformDetector from "../../js/app/utils/PlatformDetector.ts";
-    import { BedrockManager } from "../../js/app/managers/bedrock/BedrockManager";
+    import { SettingsSidebarManager } from "../../js/app/managers/settings/SettingsSidebarManager";
 
     interface Props {
         activePage?: string;
@@ -22,38 +17,13 @@
 
     let { activePage = "account.svelte" }: Props = $props();
 
-    let isMobile = $state(false);
-    let currentPageTitle = $state("Account");
-    let realmsConnectEnabled = $state(false);
-    let flagsUnlisten: UnlistenFn | null = null;
+    const manager = new SettingsSidebarManager();
 
-    // Re-evaluates the Realms Connect master flag. Run on mount and whenever the
-    // backend signals feature flags changed (e.g. after a Discord re-sync), so
-    // flag-gated UI appears without a restart.
-    async function refreshRealmsGate() {
-        try {
-            const gate = await invoke<RealmsGateStatus>("bedrock_realms_gate");
-            realmsConnectEnabled = gate.status !== "feature_disabled";
-        } catch (e) {
-            realmsConnectEnabled = false;
-        }
-    }
-    // The Bedrock proxy/realms feature set requires the connected BVC server to
-    // run its Bedrock relay. When the server reports bedrock disabled, the whole
-    // "Minecraft Bedrock" section is hidden. Fail-closed: false until confirmed.
-    let serverBedrockEnabled = $state(false);
-
-    const platformDetector = new PlatformDetector();
-
-    let bedrockManager: BedrockManager | null = null;
-    const bedrockPageIds = new Set(["proxy_connect.svelte", "realms_connect.svelte"]);
-
-    function getBedrockManager(): BedrockManager {
-        if (!bedrockManager) {
-            bedrockManager = new BedrockManager();
-        }
-        return bedrockManager;
-    }
+    const isMobile = manager.isMobile;
+    const currentPageTitle = manager.currentPageTitle;
+    const activePageId = manager.activePage;
+    const realmsConnectEnabled = manager.realmsConnectEnabled;
+    const serverBedrockEnabled = manager.serverBedrockEnabled;
 
     type SidebarItem =
         | { type: "page"; id: string; title: string; icon: string; component: any }
@@ -150,12 +120,12 @@
 
     let visibleItems = $derived(
         settingsItems.filter(item => {
-            if (!serverBedrockEnabled) {
-                if (item.type === "page" && bedrockPageIds.has(item.id)) return false;
+            if (!$serverBedrockEnabled) {
+                if (item.type === "page" && manager.isBedrockPage(item.id)) return false;
                 if (item.type === "separator" && item.label === "Minecraft Bedrock") return false;
             }
-            if (!realmsConnectEnabled && item.type === "page" && item.id === "realms_connect.svelte") return false;
-            if (isMobile && item.type === "page" && mobileHiddenPages.has(item.id)) return false;
+            if (!$realmsConnectEnabled && item.type === "page" && item.id === "realms_connect.svelte") return false;
+            if ($isMobile && item.type === "page" && mobileHiddenPages.has(item.id)) return false;
             return true;
         })
     );
@@ -171,8 +141,8 @@
         const pageConfig = getPageConfig(page);
         if (pageConfig) {
             const props: Record<string, unknown> = {};
-            if (bedrockPageIds.has(page)) {
-                props.bedrockManager = getBedrockManager();
+            if (manager.isBedrockPage(page)) {
+                props.bedrockManager = manager.getBedrockManager();
             }
             mount(pageConfig.component, { target, props });
         } else {
@@ -183,14 +153,9 @@
     function handlePageNavigation(pageId: string) {
         const pageConfig = getPageConfig(pageId);
         if (!pageConfig) return;
-        // Block Realms Connect when its feature flag is off (it also renders
-        // the subscription upsell internally when the user isn't entitled).
-        if (pageId === "realms_connect.svelte" && !realmsConnectEnabled) {
-            return;
-        }
+        if (!manager.canNavigateTo(pageId)) return;
 
-        activePage = pageId;
-        currentPageTitle = pageConfig.title;
+        manager.setActivePage(pageId, pageConfig.title);
 
         const mainElement = document.querySelector("main.settings-main-content");
         if (mainElement) {
@@ -239,39 +204,18 @@
         }
     }
 
-    onMount(async () => {
+    onMount(() => {
         const mainElement = document.querySelector("main.settings-main-content");
         if (mainElement) {
             mountPage(activePage, mainElement);
         }
 
-        const pageConfig = getPageConfig(activePage);
-        if (pageConfig) {
-            currentPageTitle = pageConfig.title;
-        }
-
-        try {
-            isMobile = await platformDetector.checkMobile();
-        } catch (error) {
-            isMobile = false;
-        }
-
-        await refreshRealmsGate();
-        flagsUnlisten = await listen("feature-flags-updated", () => {
-            refreshRealmsGate();
-        });
-
-        try {
-            const check = await invoke<ApiConfigCheckResponse>("api_get_config");
-            serverBedrockEnabled = check.config.bedrock.enabled;
-        } catch (e) {
-            serverBedrockEnabled = false;
-        }
+        const initialTitle = getPageConfig(activePage)?.title ?? "Account";
+        manager.initialize(activePage, initialTitle);
     });
 
     onDestroy(() => {
-        bedrockManager?.destroy();
-        if (flagsUnlisten) flagsUnlisten();
+        manager.destroy();
     });
 </script>
 
@@ -285,7 +229,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
         </svg>
     </button>
-    <h1 class="font-medium text-slate-800 dark:text-navy-100">{currentPageTitle}</h1>
+    <h1 class="font-medium text-slate-800 dark:text-navy-100">{$currentPageTitle}</h1>
     <div class="size-11"></div>
 </div>
 
@@ -337,11 +281,11 @@
                             <li class="nav-item">
                                 <button
                                     class="settings-nav-button flex w-full items-center space-x-3 py-3 px-4 text-left tracking-wide outline-hidden transition-all duration-300 ease-in-out rounded-lg hover:bg-slate-100 focus:bg-slate-100 dark:hover:bg-navy-600 dark:focus:bg-navy-600 min-h-[44px] md:min-h-0 relative overflow-hidden
-                                        {activePage === item.id ? 'bg-primary/10 text-primary dark:bg-accent/15 dark:text-accent-light' : 'text-slate-600 hover:text-slate-800 dark:text-navy-200 dark:hover:text-navy-50'}"
+                                        {$activePageId === item.id ? 'bg-primary/10 text-primary dark:bg-accent/15 dark:text-accent-light' : 'text-slate-600 hover:text-slate-800 dark:text-navy-200 dark:hover:text-navy-50'}"
                                     onclick={() => handlePageNavigation(item.id)}
                                     aria-label="Navigate to {item.title}"
                                 >
-                                    <div class="flex-shrink-0 text-slate-400 transition-colors {activePage === item.id ? 'text-primary dark:text-accent-light' : ''}">
+                                    <div class="flex-shrink-0 text-slate-400 transition-colors {$activePageId === item.id ? 'text-primary dark:text-accent-light' : ''}">
                                         {@html item.icon}
                                     </div>
                                     <span class="font-medium">{item.title}</span>

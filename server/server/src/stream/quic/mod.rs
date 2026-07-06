@@ -14,7 +14,7 @@ mod cache_manager;
 mod client_id_hasher;
 mod connection_id_format;
 mod connection_identity;
-pub(crate) mod connection_registry;
+pub mod connection_registry;
 mod server_input_packet;
 mod stream_manager;
 mod webhook_receiver;

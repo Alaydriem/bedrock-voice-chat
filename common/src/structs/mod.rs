@@ -1,5 +1,6 @@
 pub mod age_gate;
 pub mod analytics;
+pub mod app;
 pub mod audio;
 pub mod bedrock;
 pub mod channel;

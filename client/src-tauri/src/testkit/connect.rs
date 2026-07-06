@@ -275,6 +275,7 @@ impl Connector {
             String::new(),
             0,
             std::time::Duration::from_secs(3600),
+            None,
         ))
     }
 

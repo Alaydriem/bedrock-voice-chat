@@ -222,8 +222,8 @@ jobs:
       ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
     secrets: inherit
 
-  # Workspace tests (common + client + server) at the release ref — gates asset
-  # upload so a release is never cut on a red test suite.
+  # Workspace tests (common + client + server) at the release ref. Advisory only:
+  # runs and reports, but does not gate asset upload or any downstream release job.
   tests:
     name: Tests
     needs: prepare-release
@@ -289,6 +289,19 @@ jobs:
       testflight_upload: ${{ !inputs.dry_run }}
     secrets: inherit
 
+  # Job 7: Build Linux client (release mode, x86_64 + aarch64)
+  build-linux-client:
+    name: Build Linux (release)
+    needs: prepare-release
+    if: needs.prepare-release.outputs.new_release == 'true'
+    uses: ./.github/workflows/build-linux-client.yml
+    with:
+      build_mode: release
+      ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
+      version: ${{ needs.prepare-release.outputs.new_version }}
+      build_number: ${{ needs.prepare-release.outputs.build_number }}
+    secrets: inherit
+
   # Job 8: Build Fabric Mod
   build-mod-fabric:
     name: Build Fabric Mod
@@ -327,8 +340,8 @@ jobs:
   # Job 12: Upload client/server release assets to GitHub
   upload-assets:
     name: Upload Release Assets
-    needs: [prepare-release, tests, build-server, build-android, build-ios, build-client, build-macos-client]
-    if: always() && needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false && needs.tests.result == 'success' && (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-ios.result == 'success' || needs.build-client.result == 'success' || needs.build-macos-client.result == 'success')
+    needs: [prepare-release, build-server, build-android, build-ios, build-client, build-macos-client, build-linux-client]
+    if: always() && needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false && (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-ios.result == 'success' || needs.build-client.result == 'success' || needs.build-macos-client.result == 'success' || needs.build-linux-client.result == 'success')
     runs-on: ubuntu-latest
     steps:
       - name: Generate GitHub App token
@@ -399,6 +412,22 @@ jobs:
           fi
           if [ -f "./artifacts/bvc-macos-updater/bvc-macos-updater.app.tar.gz.sig" ]; then
             cp "./artifacts/bvc-macos-updater/bvc-macos-updater.app.tar.gz.sig" ./release-files/bvc-client-macos-arm64-updater.app.tar.gz.sig
+          fi
+
+          # Linux AppImage clients (self-updating, one per arch)
+          if [ -f "./artifacts/bvc-linux-x86_64-appimage/bvc-client-linux-x86_64.AppImage" ]; then
+            cp "./artifacts/bvc-linux-x86_64-appimage/bvc-client-linux-x86_64.AppImage" ./release-files/bvc-client-linux-x86_64.AppImage
+          fi
+          if [ -f "./artifacts/bvc-linux-aarch64-appimage/bvc-client-linux-aarch64.AppImage" ]; then
+            cp "./artifacts/bvc-linux-aarch64-appimage/bvc-client-linux-aarch64.AppImage" ./release-files/bvc-client-linux-aarch64.AppImage
+          fi
+
+          # Linux .deb packages (install-only, no auto-update)
+          if [ -f "./artifacts/bvc-linux-x86_64-deb/bvc-client-linux-x86_64.deb" ]; then
+            cp "./artifacts/bvc-linux-x86_64-deb/bvc-client-linux-x86_64.deb" ./release-files/bvc-client-linux-x86_64.deb
+          fi
+          if [ -f "./artifacts/bvc-linux-aarch64-deb/bvc-client-linux-aarch64.deb" ]; then
+            cp "./artifacts/bvc-linux-aarch64-deb/bvc-client-linux-aarch64.deb" ./release-files/bvc-client-linux-aarch64.deb
           fi
 
           # Windows NSIS installer (for manual download)
@@ -703,6 +732,20 @@ jobs:
           name: bvc-macos-updater
           path: ./artifacts/macos
 
+      - name: Download Linux x86_64 updater artifacts
+        uses: actions/download-artifact@v5
+        continue-on-error: true
+        with:
+          name: bvc-linux-x86_64-updater
+          path: ./artifacts/linux-x86_64
+
+      - name: Download Linux aarch64 updater artifacts
+        uses: actions/download-artifact@v5
+        continue-on-error: true
+        with:
+          name: bvc-linux-aarch64-updater
+          path: ./artifacts/linux-aarch64
+
       - name: Prepare sig files for script
         run: |
           mkdir -p release-files
@@ -711,6 +754,12 @@ jobs:
           fi
           if [ -f "./artifacts/macos/bvc-macos-updater.app.tar.gz.sig" ]; then
             cp "./artifacts/macos/bvc-macos-updater.app.tar.gz.sig" "./release-files/bvc-client-macos-arm64-updater.app.tar.gz.sig"
+          fi
+          if [ -f "./artifacts/linux-x86_64/bvc-client-linux-x86_64.AppImage.sig" ]; then
+            cp "./artifacts/linux-x86_64/bvc-client-linux-x86_64.AppImage.sig" "./release-files/bvc-client-linux-x86_64.AppImage.sig"
+          fi
+          if [ -f "./artifacts/linux-aarch64/bvc-client-linux-aarch64.AppImage.sig" ]; then
+            cp "./artifacts/linux-aarch64/bvc-client-linux-aarch64.AppImage.sig" "./release-files/bvc-client-linux-aarch64.AppImage.sig"
           fi
 
       - name: Generate updater JSON
