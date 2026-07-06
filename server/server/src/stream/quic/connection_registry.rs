@@ -5,23 +5,32 @@ use common::traits::player_data::PlayerData;
 use dashmap::DashMap;
 use moka::future::Cache;
 use std::sync::{Arc, OnceLock};
+use std::time::Instant;
 use tokio::sync::mpsc;
 
 use crate::relay::{ObservedCodeHandler, PeerManager, RelayedPacket};
+use crate::services::MetricsService;
 
-pub(crate) enum RoutedPacket {
+pub enum RoutedPacket {
     Serialized(Bytes),
 }
 
 pub(crate) struct ConnectionEntry {
     pub player_name: String,
     pub tx: mpsc::Sender<RoutedPacket>,
+    pub connected_at: Instant,
 }
 
-pub(crate) struct ConnectionRegistry {
+pub struct ConnectionRegistry {
     connections: DashMap<Vec<u8>, ConnectionEntry>,
     // player_name -> channel_id (one channel per player)
     player_channel: DashMap<String, String>,
+    // Emits connect/disconnect counters + events. Installed after construction,
+    // mirroring the peer_manager / observe_handler OnceLock pattern.
+    metrics: OnceLock<Arc<MetricsService>>,
+    // Consecutive reap sweeps each stale channel-membership key has been absent for.
+    // Drives the grace-period reaper (`reap_stale_channels`).
+    channel_absent_ticks: DashMap<String, u32>,
     // Optional cross-server relay fan-out. When present, LOCAL-origin packets
     // are forwarded to peer servers sharing the sender's relay world. Packets
     // that arrived FROM a peer are not routed through here (single-hop); the
@@ -47,7 +56,102 @@ impl ConnectionRegistry {
             player_channel: DashMap::new(),
             peer_manager: OnceLock::new(),
             observe_handler: OnceLock::new(),
+            metrics: OnceLock::new(),
+            channel_absent_ticks: DashMap::new(),
         }
+    }
+
+    // Installs the metrics service. Set once; a later install is ignored.
+    pub fn set_metrics(&self, metrics: Arc<MetricsService>) {
+        let _ = self.metrics.set(metrics);
+    }
+
+    fn active_player_count(&self) -> i64 {
+        self.connections.len() as i64
+    }
+
+    // The set of currently-connected players, by bare gamertag. Channel membership
+    // legitimately outlives a QUIC drop (until the reaper runs), so gauges that must
+    // reflect *current* usage filter player_channel against this set. player_channel
+    // keys are the cert CN (`game:gamertag`); connections store the bare gamertag, so
+    // callers match on the post-`:` portion of the key.
+    fn live_player_names(&self) -> std::collections::HashSet<String> {
+        self.connections
+            .iter()
+            .map(|e| e.value().player_name.clone())
+            .collect()
+    }
+
+    fn active_channel_count(&self) -> i64 {
+        let live = self.live_player_names();
+        let distinct: std::collections::HashSet<String> = self
+            .player_channel
+            .iter()
+            .filter(|e| {
+                let bare = e.key().split_once(':').map(|(_, b)| b).unwrap_or(e.key());
+                live.contains(bare)
+            })
+            .map(|e| e.value().clone())
+            .collect();
+        distinct.len() as i64
+    }
+
+    fn players_in_channels(&self) -> i64 {
+        let live = self.live_player_names();
+        self.player_channel
+            .iter()
+            .filter(|e| {
+                let bare = e.key().split_once(':').map(|(_, b)| b).unwrap_or(e.key());
+                live.contains(bare)
+            })
+            .count() as i64
+    }
+
+    // Pushes current gauge values into the metrics service after any change to
+    // connections or channel membership, so /metrics + statsd reflect live state
+    // without a polling task. No-op until the metrics service is installed.
+    fn push_gauges(&self) {
+        if let Some(m) = self.metrics.get() {
+            m.set_active_players(self.active_player_count());
+            m.set_active_channels(self.active_channel_count());
+            m.set_players_in_channels(self.players_in_channels());
+        }
+    }
+
+    // Raw player_channel size, for observing the reaper's effect in tests.
+    pub fn channel_membership_count(&self) -> usize {
+        self.player_channel.len()
+    }
+
+    // Grace-period reaper, called on a low cadence from the main event loop. A channel
+    // membership whose player has been absent for REAP_GRACE_SWEEPS consecutive sweeps
+    // (past the reconnect window) is purged — bounding player_channel growth without
+    // evicting players mid-reconnect.
+    pub fn reap_stale_channels(&self) {
+        const REAP_GRACE_SWEEPS: u32 = 2;
+        let live = self.live_player_names();
+        self.channel_absent_ticks
+            .retain(|k, _| self.player_channel.contains_key(k));
+
+        let mut purge: Vec<String> = Vec::new();
+        for e in self.player_channel.iter() {
+            let key = e.key();
+            let bare = key.split_once(':').map(|(_, b)| b).unwrap_or(key);
+            if live.contains(bare) {
+                self.channel_absent_ticks.remove(key);
+            } else {
+                let mut n = self.channel_absent_ticks.entry(key.clone()).or_insert(0);
+                *n += 1;
+                if *n >= REAP_GRACE_SWEEPS {
+                    purge.push(key.clone());
+                }
+            }
+        }
+        for key in purge {
+            self.player_channel.remove(&key);
+            self.channel_absent_ticks.remove(&key);
+        }
+        self.push_gauges();
     }
 
     // Installs the cross-server relay manager. Set once; a later install is
@@ -139,18 +243,38 @@ impl ConnectionRegistry {
             player_name,
             self.connections.len() + 1
         );
-        self.connections
-            .insert(client_id, ConnectionEntry { player_name, tx });
+        let replaced = self.connections.insert(
+            client_id,
+            ConnectionEntry {
+                player_name,
+                tx,
+                connected_at: Instant::now(),
+            },
+        );
+        if let Some(metrics) = self.metrics.get() {
+            // A reconnect reusing the same client_id overwrites the prior entry;
+            // close out that session first so connect/disconnect counters and
+            // session durations stay balanced.
+            if let Some(old) = replaced {
+                metrics.record_disconnect(old.connected_at.elapsed());
+            }
+            metrics.record_connect();
+        }
+        self.push_gauges();
     }
 
     pub fn unregister(&self, client_id: &[u8]) {
         if let Some((_, entry)) = self.connections.remove(client_id) {
             self.player_channel.remove(&entry.player_name);
+            if let Some(metrics) = self.metrics.get() {
+                metrics.record_disconnect(entry.connected_at.elapsed());
+            }
             tracing::info!(
                 "Unregistered connection for player: {} (connections: {})",
                 entry.player_name,
                 self.connections.len()
             );
+            self.push_gauges();
         }
     }
 
@@ -191,14 +315,17 @@ impl ConnectionRegistry {
 
     pub fn update_player_channel(&self, player_name: String, channel_id: String) {
         self.player_channel.insert(player_name, channel_id);
+        self.push_gauges();
     }
 
     pub fn remove_player_channel(&self, player_name: &str) {
         self.player_channel.remove(player_name);
+        self.push_gauges();
     }
 
     pub fn remove_channel(&self, channel_id: &str) {
         self.player_channel.retain(|_, v| v != channel_id);
+        self.push_gauges();
     }
 
     // Builds the `game:gamertag` key used to index `player_channel`.

@@ -1,5 +1,7 @@
 use crate::http::openapi::CustomJsonResponse;
+use crate::services::MetricsService;
 use crate::stream::quic::{CacheManager, WebhookReceiver};
+use std::sync::Arc;
 use common::structs::{
     channel::{
         ChannelEvent,
@@ -19,6 +21,7 @@ pub async fn channel_event(
     cache_manager: &State<CacheManager>,
     id: &str,
     webhook_receiver: &State<WebhookReceiver>,
+    metrics: &State<Arc<MetricsService>>,
     event: Json<ChannelEvent>,
 ) -> CustomJsonResponse<bool> {
     let user = match identity.subject().common_name() {
@@ -59,11 +62,13 @@ pub async fn channel_event(
     match event.event {
         Join => {
             channel_collection.add_player_to_channel(&user, id).await;
+            metrics.record_channel_join();
         }
         Leave => {
             channel_collection
                 .remove_player_from_channel(&user, id)
                 .await;
+            metrics.record_channel_leave();
         }
         _ => {}
     }

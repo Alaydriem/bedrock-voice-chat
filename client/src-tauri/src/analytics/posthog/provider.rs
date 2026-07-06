@@ -78,7 +78,7 @@ impl AnalyticsProvider for Provider {
         let url = format!("{}/batch/", self.host);
 
         for chunk in events.chunks(25) {
-            let batch: Vec<CaptureEvent> = chunk
+            let batch: Vec<CaptureEvent<CaptureEventProperties>> = chunk
                 .iter()
                 .map(|e| CaptureEvent {
                     event: e.event.name().to_string(),

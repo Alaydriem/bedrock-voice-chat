@@ -31,6 +31,7 @@ pub struct RocketManager {
     audio_stream_token_cache: AudioStreamTokenCache,
     server_peer_store: Option<Arc<crate::relay::ServerPeerStore>>,
     relay_inject_delivery: Option<Arc<dyn crate::relay::LocalInjectDelivery>>,
+    metrics: Arc<crate::services::MetricsService>,
     #[cfg(feature = "bedrock")]
     transfer_target_cache: crate::services::bedrock::TransferTargetCache,
 }
@@ -48,6 +49,7 @@ impl RocketManager {
         server_peer_store: Option<Arc<crate::relay::ServerPeerStore>>,
         relay_inject_delivery: Option<Arc<dyn crate::relay::LocalInjectDelivery>>,
         audio_stream_token_cache: Option<AudioStreamTokenCache>,
+        metrics: Arc<crate::services::MetricsService>,
         #[cfg(feature = "bedrock")]
         transfer_target_cache: crate::services::bedrock::TransferTargetCache,
     ) -> Self {
@@ -65,6 +67,7 @@ impl RocketManager {
                 .unwrap_or_else(AudioStreamTokenCache::new),
             server_peer_store,
             relay_inject_delivery,
+            metrics,
             #[cfg(feature = "bedrock")]
             transfer_target_cache,
         }
@@ -120,7 +123,8 @@ impl RocketManager {
                     .manage(self.config.permissions.clone())
                     .manage(self.config.audio.clone())
                     .manage(self.hytale_session_cache.clone())
-                    .manage(self.audio_stream_token_cache.clone());
+                    .manage(self.audio_stream_token_cache.clone())
+                    .manage(self.metrics.clone());
 
                 #[cfg(feature = "bedrock")]
                 {
@@ -159,7 +163,8 @@ impl RocketManager {
                         "/assets",
                         routes![routes::assets::get_avatar, routes::assets::get_canvas,],
                     )
-                    .mount("/ncryptf", routes![routes::ncryptf::ncryptf_ek_route]);
+                    .mount("/ncryptf", routes![routes::ncryptf::ncryptf_ek_route])
+                    .mount("/metrics", routes![routes::metrics::metrics]);
 
                 for (prefix, route_list) in crate::http::openapi::OpenApiSpec::routes() {
                     rocket = rocket.mount(prefix, route_list);
