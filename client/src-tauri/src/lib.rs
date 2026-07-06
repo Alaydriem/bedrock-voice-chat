@@ -418,7 +418,11 @@ pub fn run() {
                 });
             }
 
-            let install_id = match store.get("install_id").and_then(|v| v.as_str().map(String::from)) {
+            let stored_install_id = store
+                .get("install_id")
+                .and_then(|v| v.as_str().map(String::from))
+                .filter(|id| !id.is_empty() && id != &uuid::Uuid::nil().to_string());
+            let install_id = match stored_install_id {
                 Some(id) => id,
                 None => {
                     let id = uuid::Uuid::now_v7().to_string();
@@ -428,39 +432,6 @@ pub fn run() {
                 }
             };
             log::info!("Platform ID: {}", install_id);
-
-            let feature_flag_service = Arc::new(
-                feature_flags::FeatureFlagService::new(
-                    option_env!("FLAGSMITH_KEY").unwrap_or("").to_string(),
-                    option_env!("FLAGSMITH_SERVER")
-                        .unwrap_or("https://flagsmith.bedrockvoicechat.com")
-                        .to_string(),
-                    install_id.clone(),
-                    option_env!("APP_BUILD_NUMBER")
-                        .and_then(|s| s.parse::<i64>().ok())
-                        .unwrap_or(0),
-                    std::time::Duration::from_secs(3600),
-                )
-            );
-            app.manage(feature_flag_service.clone());
-
-            let discord_link_service = crate::discord::DiscordLinkService::new_shared(
-                option_env!("DISCORD_CLIENT_ID").unwrap_or("").to_string(),
-                option_env!("DISCORD_GUILD_ID").unwrap_or("").to_string(),
-                option_env!("DISCORD_REDIRECT_URI").unwrap_or("").to_string(),
-                reqwest::Client::new(),
-                feature_flag_service.clone(),
-                app.handle().clone(),
-            );
-            // Seed cached roles before the first flag fetch so the identity POST
-            // carries them.
-            discord_link_service.load_persisted();
-            app.manage(discord_link_service);
-
-            let ffs = feature_flag_service.clone();
-            tauri::async_runtime::spawn(async move {
-                ffs.initialize().await;
-            });
 
             // Analytics service with provider pattern
             let mut analytics_service = analytics::AnalyticsService::new(
@@ -491,6 +462,40 @@ pub fn run() {
             let analytics_service = Arc::new(analytics_service);
             analytics_service.set_user(&install_id);
             analytics_service.track(common::structs::AnalyticsEvent::AppStarted, None);
+
+            let feature_flag_service = Arc::new(
+                feature_flags::FeatureFlagService::new(
+                    option_env!("FLAGSMITH_KEY").unwrap_or("").to_string(),
+                    option_env!("FLAGSMITH_SERVER")
+                        .unwrap_or("https://flagsmith.bedrockvoicechat.com")
+                        .to_string(),
+                    install_id.clone(),
+                    option_env!("APP_BUILD_NUMBER")
+                        .and_then(|s| s.parse::<i64>().ok())
+                        .unwrap_or(0),
+                    std::time::Duration::from_secs(3600),
+                    Some(analytics_service.clone()),
+                )
+            );
+            app.manage(feature_flag_service.clone());
+
+            let discord_link_service = crate::discord::DiscordLinkService::new_shared(
+                option_env!("DISCORD_CLIENT_ID").unwrap_or("").to_string(),
+                option_env!("DISCORD_GUILD_ID").unwrap_or("").to_string(),
+                option_env!("DISCORD_REDIRECT_URI").unwrap_or("").to_string(),
+                reqwest::Client::new(),
+                feature_flag_service.clone(),
+                app.handle().clone(),
+            );
+            // Seed cached roles before the first flag fetch so the identity POST
+            // carries them.
+            discord_link_service.load_persisted();
+            app.manage(discord_link_service);
+
+            let ffs = feature_flag_service.clone();
+            tauri::async_runtime::spawn(async move {
+                ffs.initialize().await;
+            });
 
             let flush_analytics = analytics_service.clone();
             tauri::async_runtime::spawn(async move {

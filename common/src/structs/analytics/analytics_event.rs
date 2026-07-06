@@ -33,6 +33,10 @@ pub enum AnalyticsEvent {
     RealmsPurchaseCompleted,
     RealmsPurchaseFailed,
     RealmsRestoreInvoked,
+    DiscordAccountLinked,
+    DiscordAccountUnlinked,
+    DiscordAccountResynced,
+    FlagsmithFlagsFetched,
 }
 
 impl AnalyticsEvent {
@@ -67,6 +71,10 @@ impl AnalyticsEvent {
             Self::RealmsPurchaseCompleted => "RealmsPurchaseCompleted",
             Self::RealmsPurchaseFailed => "RealmsPurchaseFailed",
             Self::RealmsRestoreInvoked => "RealmsRestoreInvoked",
+            Self::DiscordAccountLinked => "DiscordAccountLinked",
+            Self::DiscordAccountUnlinked => "DiscordAccountUnlinked",
+            Self::DiscordAccountResynced => "DiscordAccountResynced",
+            Self::FlagsmithFlagsFetched => "FlagsmithFlagsFetched",
         }
     }
 }

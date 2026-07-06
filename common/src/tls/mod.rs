@@ -1,3 +1,3 @@
-pub mod spki_pinning_verifier;
+pub mod lets_encrypt_root_store;
 
-pub use spki_pinning_verifier::SpkiPinningVerifier;
+pub use lets_encrypt_root_store::LetsEncryptRootStore;

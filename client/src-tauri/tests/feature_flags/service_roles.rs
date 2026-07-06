@@ -11,6 +11,7 @@ fn svc() -> FeatureFlagService {
         "install-x".to_string(),
         0,
         Duration::from_secs(3600),
+        None,
     )
 }
 

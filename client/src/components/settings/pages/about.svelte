@@ -55,12 +55,6 @@
                 <span class="text-sm text-slate-500 dark:text-navy-300 font-mono">{$appInfo.build_commit}</span>
             </div>
             <div class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-slate-50 dark:hover:bg-navy-600">
-
-                <span class="text-sm font-medium text-slate-700 dark:text-navy-100">Build Number</span>
-                <span class="text-sm text-slate-500 dark:text-navy-300 font-mono">{appInfo.build_number}</span>
-            </div>
-            <div class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-slate-50 dark:hover:bg-navy-600">
-
                 <span class="text-sm font-medium text-slate-700 dark:text-navy-100">Build Number</span>
                 <span class="text-sm text-slate-500 dark:text-navy-300 font-mono">{$appInfo.build_number}</span>
             </div>

@@ -21,7 +21,9 @@ use open_feature::{
 use tokio::sync::RwLock;
 
 use self::identity_response::FlagsmithIdentityResponse;
+use crate::analytics::AnalyticsService;
 use crate::discord::DiscordTraitState;
+use common::structs::{AnalyticsEvent, AnalyticsEventData};
 
 pub struct FlagsmithProvider {
     metadata: ProviderMetadata,
@@ -33,6 +35,7 @@ pub struct FlagsmithProvider {
     http_client: reqwest::Client,
     cache: Arc<RwLock<HashMap<String, FlagsmithFlag>>>,
     discord_state: Arc<StdRwLock<DiscordTraitState>>,
+    analytics: Option<Arc<AnalyticsService>>,
 }
 
 impl FlagsmithProvider {
@@ -44,6 +47,7 @@ impl FlagsmithProvider {
         refresh_interval: Duration,
         http_client: reqwest::Client,
         discord_state: Arc<StdRwLock<DiscordTraitState>>,
+        analytics: Option<Arc<AnalyticsService>>,
     ) -> Self {
         let normalized_url = if server_url.ends_with("/api/v1/") {
             server_url
@@ -63,6 +67,7 @@ impl FlagsmithProvider {
             http_client,
             cache: Arc::new(RwLock::new(HashMap::new())),
             discord_state,
+            analytics,
         }
     }
 
@@ -126,6 +131,7 @@ impl FlagsmithProvider {
         build_number: i64,
         discord_roles: &[String],
         cache: &RwLock<HashMap<String, FlagsmithFlag>>,
+        analytics: Option<&Arc<AnalyticsService>>,
     ) -> Result<usize, anyhow::Error> {
         let url = format!("{}identities/", server_url);
 
@@ -163,7 +169,15 @@ impl FlagsmithProvider {
             );
             c.insert(flag.feature.name.clone(), flag);
         }
-        Ok(c.len())
+        let count = c.len();
+        drop(c);
+        if let Some(analytics) = analytics {
+            analytics.track(
+                AnalyticsEvent::FlagsmithFlagsFetched,
+                Some(AnalyticsEventData::new().insert("count", count as i64)),
+            );
+        }
+        Ok(count)
     }
 
     async fn refresh(&self) -> Result<(), anyhow::Error> {
@@ -176,6 +190,7 @@ impl FlagsmithProvider {
             self.build_number,
             &roles,
             &self.cache,
+            self.analytics.as_ref(),
         )
         .await?;
         info!(
@@ -222,6 +237,7 @@ impl FeatureProvider for FlagsmithProvider {
         let build_number = self.build_number;
         let refresh_interval = self.refresh_interval;
         let discord_state = self.discord_state.clone();
+        let analytics = self.analytics.clone();
 
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(refresh_interval);
@@ -237,6 +253,7 @@ impl FeatureProvider for FlagsmithProvider {
                     build_number,
                     &roles,
                     &cache,
+                    analytics.as_ref(),
                 )
                 .await
                 {
@@ -365,6 +382,7 @@ mod tests {
             Duration::from_secs(3600),
             reqwest::Client::new(),
             std::sync::Arc::new(std::sync::RwLock::new(crate::discord::DiscordTraitState::new())),
+            None,
         )
     }
 
