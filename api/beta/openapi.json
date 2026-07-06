@@ -7,67 +7,9 @@
       "name": "Repository",
       "url": "https://github.com/alaydriem/bedrock-voice-chat"
     },
-    "version": "1.0.0-beta.15"
+    "version": "1.0.0-beta.16"
   },
   "paths": {
-    "/api/config": {
-      "get": {
-        "tags": [
-          "Server"
-        ],
-        "operationId": "get_config",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiConfigResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/gamerpic/{game}/{gamertag}": {
-      "get": {
-        "tags": [
-          "Gamerpic"
-        ],
-        "operationId": "get_gamerpic",
-        "parameters": [
-          {
-            "name": "game",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/Game"
-            }
-          },
-          {
-            "name": "gamertag",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GamerpicResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/position": {
       "get": {
         "tags": [
@@ -289,78 +231,6 @@
         }
       }
     },
-    "/health/liveness": {
-      "get": {
-        "tags": [
-          "Health"
-        ],
-        "operationId": "liveness_liveness",
-        "responses": {
-          "default": {
-            "description": ""
-          }
-        }
-      }
-    },
-    "/health/readiness": {
-      "get": {
-        "tags": [
-          "Health"
-        ],
-        "operationId": "readiness_readiness",
-        "responses": {
-          "default": {
-            "description": ""
-          }
-        }
-      }
-    },
-    "/api/ping": {
-      "get": {
-        "tags": [
-          "Health"
-        ],
-        "operationId": "ping_pong",
-        "responses": {
-          "default": {
-            "description": ""
-          }
-        }
-      }
-    },
-    "/api/relay/peer-link": {
-      "post": {
-        "tags": [
-          "Relay"
-        ],
-        "operationId": "peer_link_peer_link",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PeerLinkRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PeerLinkResponse"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": ""
-          }
-        }
-      }
-    },
     "/api/audio/event": {
       "post": {
         "tags": [
@@ -507,6 +377,136 @@
           }
         ],
         "responses": {
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/config": {
+      "get": {
+        "tags": [
+          "Server"
+        ],
+        "operationId": "get_config",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiConfigResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/gamerpic/{game}/{gamertag}": {
+      "get": {
+        "tags": [
+          "Gamerpic"
+        ],
+        "operationId": "get_gamerpic",
+        "parameters": [
+          {
+            "name": "game",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Game"
+            }
+          },
+          {
+            "name": "gamertag",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GamerpicResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/liveness": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "operationId": "liveness_liveness",
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/health/readiness": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "operationId": "readiness_readiness",
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/ping": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "operationId": "ping_pong",
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/relay/peer-link": {
+      "post": {
+        "tags": [
+          "Relay"
+        ],
+        "operationId": "peer_link_peer_link",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PeerLinkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PeerLinkResponse"
+                }
+              }
+            }
+          },
           "default": {
             "description": ""
           }
@@ -911,167 +911,6 @@
   },
   "components": {
     "schemas": {
-      "ApiConfigResponse": {
-        "type": "object",
-        "required": [
-          "client_id",
-          "protocol_version",
-          "quic_port",
-          "status"
-        ],
-        "properties": {
-          "status": {
-            "type": "string"
-          },
-          "client_id": {
-            "type": "string"
-          },
-          "protocol_version": {
-            "type": "string"
-          },
-          "quic_port": {
-            "type": "integer",
-            "format": "uint32",
-            "minimum": 0.0
-          },
-          "spatial_audio": {
-            "default": {
-              "broadcast_range": 48.0,
-              "close_threshold": 12.0,
-              "deafen_distance": 3.0,
-              "falloff_distance": 48.0,
-              "max_attenuation_db": 40.0,
-              "panning_start": 8.0,
-              "steepen_start": 38.0
-            },
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/SpatialAudioConfig"
-              }
-            ]
-          },
-          "bedrock": {
-            "default": {
-              "dns_enabled": false,
-              "enabled": false,
-              "transfer_port": null
-            },
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ApiConfigBedrock"
-              }
-            ]
-          },
-          "age": {
-            "default": {
-              "minimum": null
-            },
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ApiConfigAge"
-              }
-            ]
-          }
-        }
-      },
-      "SpatialAudioConfig": {
-        "type": "object",
-        "properties": {
-          "broadcast_range": {
-            "default": 48.0,
-            "type": "number",
-            "format": "float"
-          },
-          "close_threshold": {
-            "default": 12.0,
-            "type": "number",
-            "format": "float"
-          },
-          "falloff_distance": {
-            "default": 48.0,
-            "type": "number",
-            "format": "float"
-          },
-          "steepen_start": {
-            "default": 38.0,
-            "type": "number",
-            "format": "float"
-          },
-          "deafen_distance": {
-            "default": 3.0,
-            "type": "number",
-            "format": "float"
-          },
-          "panning_start": {
-            "default": 8.0,
-            "type": "number",
-            "format": "float"
-          },
-          "max_attenuation_db": {
-            "default": 40.0,
-            "type": "number",
-            "format": "float"
-          }
-        }
-      },
-      "ApiConfigBedrock": {
-        "type": "object",
-        "properties": {
-          "enabled": {
-            "default": false,
-            "type": "boolean"
-          },
-          "dns_enabled": {
-            "default": false,
-            "type": "boolean"
-          },
-          "transfer_port": {
-            "default": null,
-            "type": "integer",
-            "format": "uint16",
-            "minimum": 0.0,
-            "nullable": true
-          }
-        }
-      },
-      "ApiConfigAge": {
-        "type": "object",
-        "properties": {
-          "minimum": {
-            "default": null,
-            "type": "integer",
-            "format": "uint8",
-            "minimum": 0.0,
-            "nullable": true
-          }
-        }
-      },
-      "GamerpicResponse": {
-        "type": "object",
-        "required": [
-          "game",
-          "gamertag"
-        ],
-        "properties": {
-          "gamertag": {
-            "type": "string"
-          },
-          "game": {
-            "$ref": "#/components/schemas/Game"
-          },
-          "gamerpic": {
-            "type": "string",
-            "nullable": true
-          }
-        }
-      },
-      "Game": {
-        "type": "string",
-        "enum": [
-          "minecraft",
-          "hytale"
-        ]
-      },
       "GameDataCollection": {
         "type": "object",
         "required": [
@@ -1093,6 +932,13 @@
             }
           }
         }
+      },
+      "Game": {
+        "type": "string",
+        "enum": [
+          "minecraft",
+          "hytale"
+        ]
       },
       "PlayerEnum": {
         "description": "Type-safe enum for storing heterogeneous player types Dispatches to game-specific implementations\n\nUses externally tagged serialization (works with postcard). For JSON compatibility with legacy clients, use GameDataCollection's custom deserialization which handles the game field at the collection level.",
@@ -1369,38 +1215,6 @@
           }
         }
       },
-      "PeerLinkResponse": {
-        "type": "object",
-        "required": [
-          "code"
-        ],
-        "properties": {
-          "code": {
-            "type": "string"
-          }
-        }
-      },
-      "PeerLinkRequest": {
-        "type": "object",
-        "required": [
-          "hashed_world",
-          "recipient_host",
-          "recipient_port"
-        ],
-        "properties": {
-          "hashed_world": {
-            "type": "string"
-          },
-          "recipient_host": {
-            "type": "string"
-          },
-          "recipient_port": {
-            "type": "integer",
-            "format": "uint16",
-            "minimum": 0.0
-          }
-        }
-      },
       "AudioEventResponse": {
         "type": "object",
         "required": [
@@ -1591,6 +1405,192 @@
             }
           }
         ]
+      },
+      "ApiConfigResponse": {
+        "type": "object",
+        "required": [
+          "client_id",
+          "protocol_version",
+          "quic_port",
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "client_id": {
+            "type": "string"
+          },
+          "protocol_version": {
+            "type": "string"
+          },
+          "quic_port": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "spatial_audio": {
+            "default": {
+              "broadcast_range": 48.0,
+              "close_threshold": 12.0,
+              "deafen_distance": 3.0,
+              "falloff_distance": 48.0,
+              "max_attenuation_db": 40.0,
+              "panning_start": 8.0,
+              "steepen_start": 38.0
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SpatialAudioConfig"
+              }
+            ]
+          },
+          "bedrock": {
+            "default": {
+              "dns_enabled": false,
+              "enabled": false,
+              "transfer_port": null
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ApiConfigBedrock"
+              }
+            ]
+          },
+          "age": {
+            "default": {
+              "minimum": null
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ApiConfigAge"
+              }
+            ]
+          }
+        }
+      },
+      "SpatialAudioConfig": {
+        "type": "object",
+        "properties": {
+          "broadcast_range": {
+            "default": 48.0,
+            "type": "number",
+            "format": "float"
+          },
+          "close_threshold": {
+            "default": 12.0,
+            "type": "number",
+            "format": "float"
+          },
+          "falloff_distance": {
+            "default": 48.0,
+            "type": "number",
+            "format": "float"
+          },
+          "steepen_start": {
+            "default": 38.0,
+            "type": "number",
+            "format": "float"
+          },
+          "deafen_distance": {
+            "default": 3.0,
+            "type": "number",
+            "format": "float"
+          },
+          "panning_start": {
+            "default": 8.0,
+            "type": "number",
+            "format": "float"
+          },
+          "max_attenuation_db": {
+            "default": 40.0,
+            "type": "number",
+            "format": "float"
+          }
+        }
+      },
+      "ApiConfigBedrock": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "default": false,
+            "type": "boolean"
+          },
+          "dns_enabled": {
+            "default": false,
+            "type": "boolean"
+          },
+          "transfer_port": {
+            "default": null,
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0.0,
+            "nullable": true
+          }
+        }
+      },
+      "ApiConfigAge": {
+        "type": "object",
+        "properties": {
+          "minimum": {
+            "default": null,
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0.0,
+            "nullable": true
+          }
+        }
+      },
+      "GamerpicResponse": {
+        "type": "object",
+        "required": [
+          "game",
+          "gamertag"
+        ],
+        "properties": {
+          "gamertag": {
+            "type": "string"
+          },
+          "game": {
+            "$ref": "#/components/schemas/Game"
+          },
+          "gamerpic": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "PeerLinkResponse": {
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          }
+        }
+      },
+      "PeerLinkRequest": {
+        "type": "object",
+        "required": [
+          "hashed_world",
+          "recipient_host",
+          "recipient_port"
+        ],
+        "properties": {
+          "hashed_world": {
+            "type": "string"
+          },
+          "recipient_host": {
+            "type": "string"
+          },
+          "recipient_port": {
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0.0
+          }
+        }
       },
       "CreatedUserResponse": {
         "type": "object",
@@ -2199,20 +2199,24 @@
   },
   "tags": [
     {
-      "name": "Server",
-      "description": "Server configuration and metadata. Returns connection details, protocol version, and spatial audio settings."
-    },
-    {
-      "name": "Gamerpic",
-      "description": "Player avatar/gamerpic retrieval by gamertag and game type."
-    },
-    {
       "name": "Positions",
       "description": "Player position updates from game mods. Used by the Minecraft/Hytale server plugin to push player coordinates for spatial audio calculations."
     },
     {
       "name": "Channels",
       "description": "Voice channel management. Create, delete, rename, join, and leave channels. Channel membership is broadcast to connected QUIC clients."
+    },
+    {
+      "name": "Audio",
+      "description": "Audio file library and spatial playback events. Upload Ogg/Opus files, trigger positional audio playback in-game, and manage the audio library."
+    },
+    {
+      "name": "Server",
+      "description": "Server configuration and metadata. Returns connection details, protocol version, and spatial audio settings."
+    },
+    {
+      "name": "Gamerpic",
+      "description": "Player avatar/gamerpic retrieval by gamertag and game type."
     },
     {
       "name": "Health",
@@ -2223,20 +2227,16 @@
       "description": "Cross-server peering over direct peer HTTPS. Discovery is decentralized via in-realm announces (no central relay); these routes carry the offer / code-redeem / peer-link handshake between two servers that already share a realm."
     },
     {
-      "name": "Audio",
-      "description": "Audio file library and spatial playback events. Upload Ogg/Opus files, trigger positional audio playback in-game, and manage the audio library."
-    },
-    {
       "name": "Admin",
       "description": "Operator-only administrative endpoints. Caller must present a valid mTLS certificate AND hold the `admin` permission."
     },
     {
-      "name": "Identity",
-      "description": "Player identity management. Retrieve current session state, permissions, and certificate renewal. Link external accounts such as Minecraft Java."
-    },
-    {
       "name": "Authentication",
       "description": "OAuth2 authentication via Microsoft (Minecraft) or Hytale device code flow. Returns mTLS certificates and ncryptf keys for subsequent API calls. Interacting with these endpoints REQUIRES ncryptf. non-ncryptf request/response bodies are provided here as sample references."
+    },
+    {
+      "name": "Identity",
+      "description": "Player identity management. Retrieve current session state, permissions, and certificate renewal. Link external accounts such as Minecraft Java."
     }
   ]
 }
