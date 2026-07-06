@@ -1,3 +1,10 @@
+# [1.0.0-beta.17](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.16...v1.0.0-beta.17) (2026-07-06)
+
+
+### Features
+
+* linux support ([#201](https://github.com/Alaydriem/bedrock-voice-chat/issues/201)) ([c2c5dbd](https://github.com/Alaydriem/bedrock-voice-chat/commit/c2c5dbd7224f2eb4e3d4948819eacdd64fb7bca3))
+
 # [1.0.0-beta.16](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.15...v1.0.0-beta.16) (2026-07-01)
 
 
