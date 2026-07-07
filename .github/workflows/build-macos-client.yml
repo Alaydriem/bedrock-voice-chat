@@ -115,6 +115,9 @@ jobs:
           POSTHOG_HOST=${{ secrets.POSTHOG_HOST }}
           FLAGSMITH_KEY=${{ secrets.FLAGSMITH_KEY }}
           FLAGSMITH_SERVER=${{ secrets.FLAGSMITH_SERVER }}
+          DISCORD_CLIENT_ID=${{ secrets.DISCORD_CLIENT_ID }}
+          DISCORD_GUILD_ID=${{ secrets.DISCORD_GUILD_ID }}
+          DISCORD_REDIRECT_URI=${{ secrets.DISCORD_REDIRECT_URI }}
           APP_BUILD_NUMBER=${{ inputs.build_number }}
           ENVEOF
 
