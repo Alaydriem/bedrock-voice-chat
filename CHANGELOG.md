@@ -1,3 +1,10 @@
+# [1.0.0-beta.19](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.18...v1.0.0-beta.19) (2026-07-07)
+
+
+### Bug Fixes
+
+* ios entitlements ([44146fe](https://github.com/Alaydriem/bedrock-voice-chat/commit/44146feacf1227464167a9ffe59c8bb535475826))
+
 # [1.0.0-beta.18](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.17...v1.0.0-beta.18) (2026-07-07)
 
 
