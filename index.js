@@ -1,8 +1,8 @@
 // initialization
 
 // ---- Version config (update this when releasing) ----
-const BVC_VERSION = "1.0.0-beta.16"
-const BVC_MODS_VERSION = "mods-v1.0.0-beta.16"
+const BVC_VERSION = "1.0.0-beta.17"
+const BVC_MODS_VERSION = "mods-v1.0.0-beta.17"
 
 // Populate all version references on page load
 document.querySelectorAll("[data-bvc-version]").forEach(el => {
