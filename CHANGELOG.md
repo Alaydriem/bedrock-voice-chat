@@ -1,3 +1,10 @@
+# [1.0.0-beta.18](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.17...v1.0.0-beta.18) (2026-07-07)
+
+
+### Bug Fixes
+
+* add missing discord .env variables ([21527b8](https://github.com/Alaydriem/bedrock-voice-chat/commit/21527b85e5e8686de19041f97e45cbf929448ae2))
+
 # [1.0.0-beta.17](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.16...v1.0.0-beta.17) (2026-07-06)
 
 
