@@ -132,6 +132,7 @@ jobs:
             libasound2-dev \
             libssl-dev \
             libfuse2 \
+            xdg-utils \
             patchelf \
             build-essential \
             curl \
