@@ -1,6 +1,6 @@
 use std::ffi::{CStr, CString};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
@@ -124,12 +124,28 @@ impl EmbeddedServer {
     }
 
     /// Load the server cdylib from its default location in the server workspace
-    /// target dir. The cdylib must already be built
-    /// (`cargo build -p bedrock-voice-chat-server` in `server/`).
+    /// target dir, caching the handle for the life of the process. The cdylib
+    /// must already be built (`cargo build -p bedrock-voice-chat-server` in
+    /// `server/`).
+    ///
+    /// The cache is load-bearing, not an optimization: `bvc_server_destroy`
+    /// bounds its tokio shutdown with a timeout, so runtime threads can briefly
+    /// outlive destroy. If the last `Arc<ServerLibrary>` dropped during test
+    /// teardown, libloading would `FreeLibrary` the DLL and unmap code those
+    /// threads are still executing — an intermittent STATUS_ACCESS_VIOLATION
+    /// (0xc0000005). Holding the library in a process-lifetime static keeps the
+    /// DLL mapped until process exit, which terminates lingering threads before
+    /// the loader unmaps anything — the same load-once-never-unload contract
+    /// production embedders (JVM/BDS) follow.
     pub fn load_library() -> Arc<ServerLibrary> {
-        Self::constrain_runtime();
-        let path = ServerLibrary::default_lib_path();
-        ServerLibrary::load(&path).expect("load server cdylib")
+        static LIBRARY: OnceLock<Arc<ServerLibrary>> = OnceLock::new();
+        LIBRARY
+            .get_or_init(|| {
+                Self::constrain_runtime();
+                let path = ServerLibrary::default_lib_path();
+                ServerLibrary::load(&path).expect("load server cdylib")
+            })
+            .clone()
     }
 
     /// Cap each embedded server's tokio pools for the test process. Production /

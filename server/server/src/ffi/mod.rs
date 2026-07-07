@@ -280,6 +280,11 @@ pub unsafe extern "C" fn bvc_server_stop(handle: *mut RuntimeHandle) -> c_int {
 ///
 /// Call this after `bvc_server_start()` returns.
 ///
+/// The tokio runtime shutdown is bounded by a timeout, so runtime threads may
+/// briefly outlive this call. Embedders must therefore keep the library loaded
+/// for the remainder of the process — unloading it (e.g. `FreeLibrary`/`dlclose`)
+/// after destroy can unmap code a straggler thread is still executing.
+///
 /// # Arguments
 /// * `handle` - Handle from `bvc_server_create()`
 ///
