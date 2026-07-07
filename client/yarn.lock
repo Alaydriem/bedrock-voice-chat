@@ -2025,13 +2025,13 @@ tapable@^2.3.3:
   resolved "https://registry.yarnpkg.com/tapable/-/tapable-2.3.3.tgz#5da7c9992c46038221267985ab28421a8879f160"
   integrity sha512-uxc/zpqFg6x7C8vOE7lh6Lbda8eEL9zmVm/PLeTPBRhh1xCgdWaQ+J1CUieGpIfm2HdtsUpRv+HshiasBMcc6A==
 
-"tauri-plugin-age-signals@git+https://github.com/charlesportwoodii/tauri-plugin_age-signals.git":
+"tauri-plugin-age-signals@git+https://github.com/charlesportwoodii/tauri-plugin_age-signals.git#master":
   version "0.1.0"
-  resolved "git+https://github.com/charlesportwoodii/tauri-plugin_age-signals.git#99989386bd35e1ceac67f5f6f8e263aff421e72f"
+  resolved "git+https://github.com/charlesportwoodii/tauri-plugin_age-signals.git#6f89d3df8bfc812d55e09b835fc91ea47aa97cc5"
   dependencies:
     "@tauri-apps/api" "^2"
 
-"tauri-plugin-audio-permissions@git+https://github.com/charlesportwoodii/tauri-plugin-audio-permissions.git":
+"tauri-plugin-audio-permissions@git+https://github.com/charlesportwoodii/tauri-plugin-audio-permissions.git#master":
   version "0.1.2"
   resolved "git+https://github.com/charlesportwoodii/tauri-plugin-audio-permissions.git#02780911ecf880bc6d8a9c8ab22be2f0ca9da956"
   dependencies:
