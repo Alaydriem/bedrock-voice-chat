@@ -24,8 +24,8 @@
     }
 </script>
 
-<main class="grid w-full place-items-center min-h-dvh bg-slate-50 dark:bg-navy-900 p-4">
-    <div class="card w-full max-w-md p-8">
+<main class="flex w-full h-full overflow-y-auto bg-slate-50 dark:bg-navy-900 p-4">
+    <div class="card w-full max-w-md p-8 m-auto">
         <div class="flex justify-center mb-8">
             <div class="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 dark:bg-accent/10">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-primary dark:text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
