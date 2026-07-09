@@ -25,8 +25,8 @@
     }
 </script>
 
-<main class="grid w-full place-items-center min-h-dvh bg-slate-50 dark:bg-navy-900 p-4">
-    <div class="card w-full max-w-md p-8">
+<main class="flex w-full h-full overflow-y-auto bg-slate-50 dark:bg-navy-900 p-4">
+    <div class="card w-full max-w-md p-8 m-auto">
         <div class="flex justify-center mb-8">
             <img src="/images/app-logo-transparent.png" alt="Bedrock Voice Chat" class="h-20" />
         </div>
@@ -51,7 +51,7 @@
                     <i class="fas fa-check-circle text-success mt-1 mr-3"></i>
                     <div>
                         <p class="font-semibold text-slate-800 dark:text-navy-100">Record Your Sessions</p>
-                        <p class="text-sm text-slate-600 dark:text-navy-300">Record your audion sessions with a click of a button, then export each audio track for use later.</p>
+                        <p class="text-sm text-slate-600 dark:text-navy-300">Record your audio sessions with a click of a button, then export each audio track for use later.</p>
                     </div>
                 </div>
                 <div class="flex items-start">

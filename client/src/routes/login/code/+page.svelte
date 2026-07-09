@@ -16,9 +16,9 @@
 
 <div
   id="root"
-  class="min-h-dvh cloak flex items-center justify-center pb-20 bg-slate-50 dark:bg-navy-900"
+  class="h-full overflow-y-auto cloak flex bg-slate-50 dark:bg-navy-900"
 >
-  <main class="w-full">
+  <main class="w-full m-auto py-8">
     <div class="w-full max-w-[26rem] mx-auto p-4 sm:px-5">
       <div class="text-center">
         <img
