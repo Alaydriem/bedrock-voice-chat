@@ -99,6 +99,63 @@ async fn proxy_two_players_in_range_hear_each_other() {
     }
 }
 
+/// A bvc:ctl: control action rides the same PlaySound bus as jukebox commands.
+/// This is a NON-DISRUPTION guard: firing control actions through the live proxy
+/// mid-conversation must not perturb the voice pipeline. It deliberately does NOT
+/// assert the action was emitted — a bvc:ctl: name also fails jukebox parse, so this
+/// scenario alone cannot distinguish "intercepted and emitted" from "ignored". The
+/// emission contract (bvc:ctl: -> ServerBound ClientAction) is pinned separately by
+/// the play_sound unit test `bvc_ctl_emits_serverbound_client_action_for_the_session_player`.
+#[tokio::test(flavor = "multi_thread")]
+async fn proxy_bvc_ctl_does_not_disrupt_proximity_audio() {
+    for v in ProtocolMatrix::last_two() {
+        let mut w = ProxyWorld::boot(v, &["Alice", "Bob"]).await;
+
+        for _ in 0..5 {
+            w.upstream.drive_position("Alice", 0.0, 64.0, 0.0).await;
+            w.upstream.drive_position("Bob", 1.0, 64.0, 0.0).await;
+            tokio::time::sleep(Duration::from_millis(120)).await;
+        }
+
+        // Fire a self-action and a group-action through the real proxy. Both are
+        // consumed inline (serverbound ClientAction); neither reaches the client.
+        w.upstream.play_ctl("Alice", "mute:1").await;
+        w.upstream.play_ctl("Alice", "group:create").await;
+
+        let alice_pcm = ALICE.voice(2);
+        let bob_pcm = BOB.voice(2);
+        w.proc("Alice").feed_tone(&alice_pcm, 48_000);
+        w.proc("Bob").feed_tone(&bob_pcm, 48_000);
+
+        std::thread::sleep(Duration::from_millis(4_500));
+        let cap_a = w.proc("Alice").drain_captured();
+        let cap_b = w.proc("Bob").drain_captured();
+
+        let (a_sent, a_fq, _) = w.proc("Alice").stats();
+        let (b_sent, b_fq, _) = w.proc("Bob").stats();
+
+        let mono_a = Signal::to_mono(&cap_a);
+        let mono_b = Signal::to_mono(&cap_b);
+
+        eprintln!(
+            "[proxy/ctl {v}] a_sent={a_sent} a_fq={a_fq} b_sent={b_sent} b_fq={b_fq}",
+        );
+
+        w.shutdown();
+
+        assert!(a_sent > 0 && b_sent > 0, "[{v}] both produce input frames");
+        assert!(a_fq > 0 && b_fq > 0, "[{v}] both receive frames from QUIC");
+        assert!(
+            Scale::hears(&mono_b, ALICE),
+            "[{v}] Bob still hears Alice after control actions (C-major triad)"
+        );
+        assert!(
+            Scale::hears(&mono_a, BOB),
+            "[{v}] Alice still hears Bob after control actions (A-major triad)"
+        );
+    }
+}
+
 /// Proximity gate has two sides: in-range delivers, out-of-range does not.
 ///
 /// Phase 1 co-locates Alice and Bob 1 block apart and proves Bob receives QUIC

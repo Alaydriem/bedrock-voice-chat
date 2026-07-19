@@ -5,7 +5,10 @@ import { AudioComponentRegistry } from './audio/components';
 import { ChatEjectListener } from './audio/chat_eject_listener';
 import { ChatPresenceListener } from './audio/chat_presence_listener';
 import { DiscCommand } from './commands/mod';
+import { ControlCommands } from './commands/control';
 import { NetAudioSender, NoNetAudioSender } from './audio/sender';
+import { NetControlSender, NoNetControlSender } from './control/sender';
+import type { ControlSender } from './control/sender';
 import { httpClient } from './net';
 import { serverAdminConfig } from './config';
 
@@ -71,17 +74,24 @@ chatPresenceListener.register();
 
 DiscCommand.register();
 
+// Resolved once the sender selection below runs; the commands read it lazily.
+let controlSender: ControlSender | null = null;
+ControlCommands.register(() => controlSender);
+
 serverAdminConfig
   .ensureLoaded()
   .then(() => httpClient.ensureLoaded())
   .then((available) => {
     if (!available) {
       audioManager.setSender(new NoNetAudioSender());
+      controlSender = new NoNetControlSender();
       console.warn(
         '[BVC] HTTP unavailable; using no-net jukebox bus (position polling and HTTP disc events disabled)',
       );
       return;
     }
+
+    controlSender = new NetControlSender(serverAdminConfig);
 
     audioManager.setSender(
       new NetAudioSender(

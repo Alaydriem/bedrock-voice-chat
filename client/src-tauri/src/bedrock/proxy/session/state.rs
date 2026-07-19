@@ -159,7 +159,7 @@ impl BedrockSessionState {
         matches!(gamemode, 3 | 4 | 6)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "e2e"))]
     pub fn set_world_uuid_for_test(&mut self, uuid: String) {
         self.world_uuid = Some(uuid);
     }

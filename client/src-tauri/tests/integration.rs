@@ -1,3 +1,5 @@
+#[cfg(feature = "bedrock-protocol")]
+mod bedrock;
 mod discord;
 mod feature_flags;
 mod harness;

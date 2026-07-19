@@ -128,6 +128,20 @@ impl FakeBedrockUpstream {
             .expect("send PlaySound eject");
     }
 
+    /// Control-plane action (bvc:ctl:<action>) carried on the PlaySound bus. The
+    /// proxy consumes it silently and emits a serverbound ClientAction; nothing is
+    /// forwarded to the client. `ctl` is the action grammar after the prefix, e.g.
+    /// "mute:1" or "group:create".
+    pub async fn play_ctl(&mut self, name: &str, ctl: &str) {
+        let pkt = Self::play_packet(&format!("bvc:ctl:{ctl}"), 0, 0, 0);
+        self.conns
+            .get_mut(name)
+            .expect("known player")
+            .send_packet(&pkt)
+            .await
+            .expect("send PlaySound ctl");
+    }
+
     /// Realm fan-out for the relay presence proof: drain any pending serverbound
     /// packets on every connection, and for each `!bvcp <token>` chat the proxy
     /// injected, re-emit it clientbound (a Chat TextPacket) to EVERY connection —

@@ -113,8 +113,11 @@ impl TestServer {
         config.server.assets_path = assets_path.to_string_lossy().into_owned();
         config.server.minecraft.access_token = "test-mc-token".to_string();
 
+        let identity_service =
+            bvc_server_lib::services::PlayerIdentityService::new(Arc::new(db.clone()));
         let server_task =
-            RocketHarness::launch(config, cert_service.clone(), relay_enabled).await?;
+            RocketHarness::launch(config, cert_service.clone(), identity_service, relay_enabled)
+                .await?;
 
         // Poll until the server accepts connections (the introspect probe expects 401
         // because the probe client has no client cert; we treat any HTTP response as ready).

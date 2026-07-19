@@ -24,6 +24,7 @@ import type { NoiseGateSettings } from '../bindings/NoiseGateSettings.ts';
 import type { PlayerGainStore } from '../bindings/PlayerGainStore.ts';
 import type { ApiConfigCheckResponse } from '../bindings/ApiConfigCheckResponse.ts';
 import type { ServerListEntry } from '../bindings/ServerListEntry.ts';
+import type { WebSocketConfig } from './managers/settings/WebSocketConfig';
 
 import {
   checkPermission,
@@ -139,15 +140,18 @@ export default class Dashboard extends BVCApp {
 
         // Start the websocket server if on desktop and is enabled
         if (!await this.platformDetector.checkMobile()) {
-            await invoke<boolean>('is_websocket_running').then(async (isRunning) => {
-                if (!isRunning) {
-                    await invoke('start_websocket_server').catch((e) => {
-                        error(`Error starting WebSocket server: ${e}`);
-                    });
-                }
-            }).catch((e) => {
-                error(`Error auto-starting WebSocket server: ${e}`);
-            });
+            const websocketConfig = await this.store.get<WebSocketConfig>("websocket_server");
+            if (websocketConfig?.enabled) {
+                await invoke<boolean>('is_websocket_running').then(async (isRunning) => {
+                    if (!isRunning) {
+                        await invoke('start_websocket_server').catch((e) => {
+                            error(`Error starting WebSocket server: ${e}`);
+                        });
+                    }
+                }).catch((e) => {
+                    error(`Error auto-starting WebSocket server: ${e}`);
+                });
+            }
 
             // Start keybind listener with saved config
             const keybindConfig = await this.store!.get<KeybindConfig>("keybinds") ?? {

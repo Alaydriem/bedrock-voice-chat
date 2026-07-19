@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
 use common::PlayerEnum;
+use common::structs::control::ClientAction;
 use common::structs::packet::{
-    BedrockEvent, BedrockEventDirection, BedrockEventPacket, PacketType,
-    PeerAnnounceObservedPacket, PeerPresenceObservedPacket, PlayerPositionPacket,
+    BedrockEvent, BedrockEventDirection, BedrockEventPacket, ClientActionPacket, PacketDirection,
+    PacketType, PeerAnnounceObservedPacket, PeerPresenceObservedPacket, PlayerPositionPacket,
     QuicNetworkPacket, QuicNetworkPacketData,
 };
 use log::{trace, warn};
@@ -15,7 +16,7 @@ pub struct BedrockEventEmitter {
 }
 
 impl BedrockEventEmitter {
-    pub(crate) fn new(tx: Arc<flume::Sender<NetworkPacket>>) -> Self {
+    pub fn new(tx: Arc<flume::Sender<NetworkPacket>>) -> Self {
         Self { tx }
     }
 
@@ -40,6 +41,27 @@ impl BedrockEventEmitter {
             }
             Err(flume::TrySendError::Disconnected(_)) => {
                 warn!("Network packet channel disconnected; dropping bedrock event");
+            }
+        }
+    }
+
+    pub fn try_send_client_action(&self, action: ClientAction) {
+        let ca_packet = ClientActionPacket::new(action, PacketDirection::ServerBound);
+        let packet = NetworkPacket {
+            data: QuicNetworkPacket {
+                packet_type: PacketType::ClientAction,
+                owner: None,
+                data: QuicNetworkPacketData::ClientAction(ca_packet),
+            },
+        };
+
+        match self.tx.try_send(packet) {
+            Ok(()) => trace!("Bedrock control action queued for QUIC transport"),
+            Err(flume::TrySendError::Full(_)) => {
+                warn!("Network packet queue full; dropping control action");
+            }
+            Err(flume::TrySendError::Disconnected(_)) => {
+                warn!("Network packet channel disconnected; dropping control action");
             }
         }
     }

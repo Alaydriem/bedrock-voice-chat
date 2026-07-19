@@ -76,6 +76,23 @@ class HttpRequestHandler(
             }
     }
 
+    fun controlAsync(clientActionJson: String) {
+        val request = jsonRequestBuilder("$serverUrl/api/control")
+            .POST(HttpRequest.BodyPublishers.ofString(clientActionJson))
+            .build()
+
+        httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+            .thenAccept { response ->
+                if (response.statusCode() !in 200..299) {
+                    LOGGER.warn("BVC server returned error on control: {} - {}", response.statusCode(), response.body())
+                }
+            }
+            .exceptionally { ex ->
+                LOGGER.error("Failed to send control action: {}", ex.message)
+                null
+            }
+    }
+
     fun audioStopAsync(eventId: String) {
         val request = requestBuilder("$serverUrl/api/audio/event/$eventId")
             .DELETE()

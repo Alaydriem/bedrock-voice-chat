@@ -13,7 +13,7 @@ use anyhow::{Result, anyhow};
 use bvc_server_lib::config::ApplicationConfig;
 use bvc_server_lib::http::pool::AppDb;
 use bvc_server_lib::http::routes;
-use bvc_server_lib::services::CertificateService;
+use bvc_server_lib::services::{CertificateService, PlayerIdentityService};
 use common::ncryptflib as ncryptf;
 use rocket::routes;
 use sea_orm_rocket::Database;
@@ -26,6 +26,7 @@ impl RocketHarness {
     pub async fn launch(
         config: ApplicationConfig,
         cert_service: Arc<CertificateService>,
+        identity_service: PlayerIdentityService,
         mount_relay: bool,
     ) -> Result<tokio::task::JoinHandle<()>> {
         let figment = config
@@ -84,6 +85,7 @@ impl RocketHarness {
         let mut rocket = rocket::custom(figment)
             .manage(control_cache_manager)
             .manage(control_webhook)
+            .manage(identity_service)
             .manage(server_state)
             .manage(features)
             .manage(permissions)

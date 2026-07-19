@@ -173,6 +173,17 @@ class BvcServerManager(
     }
 
     /**
+     * Submit an in-game control action via FFI.
+     * @param json JSON string matching the common ClientAction structure
+     * @return true on success
+     */
+    @Synchronized
+    fun clientAction(json: String): Boolean {
+        val h = handle ?: return false
+        return BvcNative.clientAction(h, json) == 0
+    }
+
+    /**
      * Stop the embedded BVC server gracefully.
      * Synchronized to prevent double-free race condition.
      */

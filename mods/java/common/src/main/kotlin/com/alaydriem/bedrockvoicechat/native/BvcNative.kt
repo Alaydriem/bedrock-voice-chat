@@ -26,6 +26,7 @@ object BvcNative {
         fun bvc_update_positions(handle: Pointer, gameDataJson: String): Int
         fun bvc_audio_play(handle: Pointer, playJson: String): Pointer?
         fun bvc_audio_stop(handle: Pointer, eventId: String): Int
+        fun bvc_client_action(handle: Pointer, actionJson: String): Int
         fun bvc_free_string(ptr: Pointer)
         fun bvc_get_last_error(): String?
         fun bvc_version(): String
@@ -249,6 +250,21 @@ object BvcNative {
         val result = getLib().bvc_audio_stop(handle, eventId)
         if (result != 0) {
             logger.warn("Failed to stop audio playback: {}", getLastError())
+        }
+        return result
+    }
+
+    /**
+     * Submit an in-game control action via FFI.
+     *
+     * @param handle Server handle from createServer
+     * @param actionJson JSON string matching the common ClientAction structure
+     * @return 0 on success, -1 on error
+     */
+    fun clientAction(handle: Pointer, actionJson: String): Int {
+        val result = getLib().bvc_client_action(handle, actionJson)
+        if (result != 0) {
+            logger.warn("Failed to send control action: {}", getLastError())
         }
         return result
     }

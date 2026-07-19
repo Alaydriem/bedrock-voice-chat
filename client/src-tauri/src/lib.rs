@@ -7,7 +7,7 @@ pub(crate) use audio::recording::RecordingManager;
 use common::consts::variant::{Variant, get_variant};
 pub(crate) use flume::{Receiver, Sender};
 use log::{error, info, warn};
-pub(crate) use network::NetworkPacket;
+pub use network::NetworkPacket;
 pub(crate) use network::NetworkStreamManager;
 use std::sync::Arc;
 use tauri::Manager;
@@ -136,10 +136,14 @@ pub fn run() {
     #[cfg(desktop)]
     {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            let _ = app
-                .get_webview_window("main")
-                .expect("no main window")
-                .set_focus();
+            // The main window may not exist yet (slow startup) or may already be
+            // destroyed (shutdown); a relaunch during either window must not panic.
+            match app.get_webview_window("main") {
+                Some(window) => {
+                    let _ = window.set_focus();
+                }
+                None => warn!("Second instance launched but no main window exists to focus"),
+            }
         }));
         builder = builder.plugin(tauri_plugin_dialog::init());
     }

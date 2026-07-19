@@ -93,6 +93,7 @@ impl BedrockSessionEventDispatcher {
                 info!("Received PlaySound: {:?}", p);
                 PlaySoundHandler {
                     beacon_cache: &self.beacon_cache,
+                    player_name: &self.player_name,
                 }
                 .handle(p, state, emitter);
                 false

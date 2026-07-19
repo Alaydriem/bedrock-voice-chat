@@ -2,11 +2,12 @@ package com.alaydriem.bedrockvoicechat.paper.commands
 
 import com.mojang.brigadier.Command
 import com.mojang.brigadier.arguments.StringArgumentType
+import com.mojang.brigadier.builder.LiteralArgumentBuilder
+import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
 import io.papermc.paper.command.brigadier.argument.ArgumentTypes
 import io.papermc.paper.command.brigadier.argument.resolvers.selector.PlayerSelectorArgumentResolver
 import io.papermc.paper.datacomponent.DataComponentTypes
-import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents
 import net.kyori.adventure.text.Component
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
@@ -21,10 +22,8 @@ class DiscCommand(private val plugin: JavaPlugin) {
     private val isBvcDiscKey = NamespacedKey(plugin, "is_bvc_disc")
     private val audioIdKey = NamespacedKey(plugin, "audio_id")
 
-    fun register() {
-        plugin.lifecycleManager.registerEventHandler(LifecycleEvents.COMMANDS) { event ->
-            event.registrar().register(
-                Commands.literal("bvc")
+    fun addTo(bvc: LiteralArgumentBuilder<CommandSourceStack>) {
+        bvc
                     .then(
                         Commands.literal("disc")
                             .requires { it.sender.hasPermission("bvc.disc") }
@@ -79,10 +78,6 @@ class DiscCommand(private val plugin: JavaPlugin) {
                                     )
                             )
                     )
-                    .build(),
-                "Bedrock Voice Chat commands"
-            )
-        }
     }
 
     private fun giveDisc(player: Player, audioId: String) {
