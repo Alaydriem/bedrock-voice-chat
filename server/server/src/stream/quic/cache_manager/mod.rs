@@ -1,41 +1,59 @@
+mod cache_trait;
+mod player_cache;
+mod player_preference_cache;
+mod player_state_cache;
+
+pub use cache_trait::CacheTrait;
+pub use player_cache::PlayerCache;
+pub use player_preference_cache::PlayerPreferenceCache;
+pub use player_state_cache::PlayerStateCache;
+
 use crate::services::BedrockEventService;
 use crate::stream::quic::connection_registry::ConnectionRegistry;
 use anyhow::Error;
-use common::PlayerEnum;
 use common::structs::channel::{ChannelCollection, ChannelEvents};
+use common::structs::control::PreferenceKey;
 use common::structs::packet::{
     BedrockEventPacket, ChannelEventPacket, PacketType, PlayerDataPacket, PlayerPositionPacket,
-    QuicNetworkPacket,
+    PlayerPreferencePacket, QueryStatePacket, QuicNetworkPacket,
 };
-use moka::future::Cache;
 use std::sync::Arc;
-use std::time::Duration;
 
 #[derive(Clone)]
 pub struct CacheManager {
-    player_cache: Arc<Cache<String, PlayerEnum>>,
+    players: PlayerCache,
     channel_collection: Arc<ChannelCollection>,
     connection_registry: Option<Arc<ConnectionRegistry>>,
     bedrock_event_service: Option<Arc<BedrockEventService>>,
+    player_state: PlayerStateCache,
+    preferences: PlayerPreferenceCache,
 }
 
 impl CacheManager {
     pub fn new() -> Self {
-        let player_cache = Arc::new(
-            Cache::builder()
-                .time_to_live(Duration::from_secs(300))
-                .max_capacity(256)
-                .build(),
-        );
-
-        let channel_collection = Arc::new(ChannelCollection::new(100));
-
         Self {
-            player_cache,
-            channel_collection,
+            players: PlayerCache::new(),
+            channel_collection: Arc::new(ChannelCollection::new(100)),
             connection_registry: None,
             bedrock_event_service: None,
+            player_state: PlayerStateCache::new(),
+            preferences: PlayerPreferenceCache::new(),
         }
+    }
+
+    /// The position/identity cache.
+    pub fn players(&self) -> &PlayerCache {
+        &self.players
+    }
+
+    /// The player self-state cache (`get`/`set`/`delete` via `CacheTrait`).
+    pub fn player_state(&self) -> &PlayerStateCache {
+        &self.player_state
+    }
+
+    /// The per-player preference cache (`CacheTrait` + `get_scoped`/`evict_owner`).
+    pub fn preferences(&self) -> &PlayerPreferenceCache {
+        &self.preferences
     }
 
     pub(crate) fn set_connection_registry(&mut self, registry: Arc<ConnectionRegistry>) {
@@ -46,30 +64,12 @@ impl CacheManager {
         self.bedrock_event_service = Some(service);
     }
 
-    pub fn get_player_cache(&self) -> Arc<Cache<String, PlayerEnum>> {
-        self.player_cache.clone()
-    }
-
-    // Distinct `relay_world_uuid`s of players currently in the routing cache.
-    // Backs the relay `ActiveWorldsSource` so the background register/lookup
-    // task advertises only the worlds this server is actively hosting clients
-    // in. Lock-light (a snapshot iteration over the moka cache); never on the
-    // audio hot path.
-    pub fn active_relay_worlds(&self) -> Vec<String> {
-        use std::collections::HashSet;
-        let mut seen: HashSet<String> = HashSet::new();
-        for (_, player) in self.player_cache.iter() {
-            if let Some(mc) = player.as_minecraft() {
-                if let Some(world) = &mc.relay_world_uuid {
-                    seen.insert(world.clone());
-                }
-            }
-        }
-        seen.into_iter().collect()
-    }
-
     pub fn get_channel_collection(&self) -> Arc<ChannelCollection> {
         self.channel_collection.clone()
+    }
+
+    pub fn get_connection_registry(&self) -> Option<Arc<ConnectionRegistry>> {
+        self.connection_registry.clone()
     }
 
     pub async fn process_packet(&self, packet: QuicNetworkPacket) -> Result<(), Error> {
@@ -80,7 +80,7 @@ impl CacheManager {
                     if let Ok(pos) = data {
                         let author = packet.get_author();
                         if !author.is_empty() {
-                            self.player_cache.insert(author, pos.player).await;
+                            self.players.set(author, pos.player).await;
                         }
                     }
                 }
@@ -92,8 +92,8 @@ impl CacheManager {
                         for player in player_data.players {
                             use common::traits::player_data::PlayerData;
                             let player_name = player.get_name().to_string();
-                            self.player_cache
-                                .insert(player_name.clone(), player.clone())
+                            self.players
+                                .set(player_name.clone(), player.clone())
                                 .await;
                             tracing::debug!("Updated player position cache for: {}", player_name);
                         }
@@ -200,6 +200,46 @@ impl CacheManager {
                     }
                 }
             }
+            PacketType::QueryState => {
+                if let Some(data) = packet.get_data() {
+                    let data: Result<QueryStatePacket, ()> = data.to_owned().try_into();
+                    if let Ok(qs) = data {
+                        // A client may only report its OWN state; anchor to the
+                        // connection identity so it can't poison another player's.
+                        let author = packet.get_author();
+                        if qs.state.id == author {
+                            self.player_state.set(qs.state.id.clone(), qs.state).await;
+                        } else {
+                            tracing::warn!(
+                                "Dropping QueryState: id {} != author {}",
+                                qs.state.id,
+                                author
+                            );
+                        }
+                    }
+                }
+            }
+            PacketType::PlayerPreference => {
+                if let Some(data) = packet.get_data() {
+                    let data: Result<PlayerPreferencePacket, ()> = data.to_owned().try_into();
+                    if let Ok(pp) = data {
+                        let author = packet.get_author();
+                        if pp.preference.owner == author {
+                            let key = PreferenceKey::new(
+                                pp.preference.owner.clone(),
+                                pp.preference.target.clone(),
+                            );
+                            self.preferences.set(key, pp.preference).await;
+                        } else {
+                            tracing::warn!(
+                                "Dropping PlayerPreference: owner {} != author {}",
+                                pp.preference.owner,
+                                author
+                            );
+                        }
+                    }
+                }
+            }
             _ => {}
         }
         Ok(())
@@ -210,7 +250,7 @@ impl CacheManager {
         mut packet: QuicNetworkPacket,
     ) -> Result<QuicNetworkPacket, Error> {
         if packet.packet_type == PacketType::AudioFrame {
-            packet.update_coordinates(self.player_cache.clone()).await;
+            packet.update_coordinates(self.players.inner_arc()).await;
             tracing::debug!(
                 "Updated coordinates for AudioFrame packet from player: {}",
                 packet.get_author()
@@ -234,16 +274,21 @@ impl CacheManager {
         let resolved_game = match game {
             Some(g) => Some(g),
             None => self
-                .player_cache
-                .get(player_name)
+                .players
+                .get(&player_name.to_string())
                 .await
                 .map(|player| player.get_game()),
         };
 
-        self.player_cache.remove(player_name).await;
+        self.players.delete(&player_name.to_string()).await;
+
+        // Evict this player's control-plane state so a disconnected player's mute/
+        // record status and per-player prefs stop being served.
+        self.player_state.delete(&player_name.to_string()).await;
+        self.preferences.evict_owner(player_name).await;
 
         let membership_key = match &resolved_game {
-            Some(g) => format!("{}:{}", g.as_str(), player_name),
+            Some(g) => g.membership_key(player_name),
             None => player_name.to_string(),
         };
 

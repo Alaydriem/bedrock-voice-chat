@@ -38,6 +38,13 @@ impl Game {
             Game::Hytale => "hytale",
         }
     }
+
+    // The channel-membership / cert-CN key for a player: `game:gamertag`
+    // (e.g. "minecraft:Alice"). This is the single source of truth for the key
+    // form that ChannelCollection, player_channel, and the control routes share.
+    pub fn membership_key(&self, gamertag: &str) -> String {
+        format!("{}:{}", self.as_str(), gamertag)
+    }
 }
 
 impl fmt::Display for Game {

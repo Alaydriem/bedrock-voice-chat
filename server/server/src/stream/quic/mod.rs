@@ -32,7 +32,7 @@ use std::sync::Arc;
 use stream_manager::{InputStream, OutputStream};
 use tokio::sync::{mpsc, oneshot};
 
-pub use cache_manager::CacheManager;
+pub use cache_manager::{CacheManager, CacheTrait, PlayerPreferenceCache, PlayerStateCache};
 pub use connection_id_format::PrefixedConnectionIdFormat;
 pub use server_input_packet::ServerInputPacket;
 pub use webhook_receiver::WebhookReceiver;
@@ -128,7 +128,7 @@ impl QuicServerManager {
             .ok_or_else(|| anyhow::anyhow!("QUIC server already started"))?;
         let cache_manager = self.cache_manager.clone();
         let connection_registry = self.connection_registry.clone();
-        let player_cache = cache_manager.get_player_cache();
+        let player_cache = cache_manager.players().inner_arc();
         let broadcast_range = self.config.voice.spatial_audio.broadcast_range;
         let deafen_distance = self.config.voice.spatial_audio.deafen_distance;
         let mut shutdown_rx = self
@@ -151,6 +151,13 @@ impl QuicServerManager {
                             connection_registry
                                 .route_audio_frame(&packet, &player_cache, broadcast_range, deafen_distance)
                                 .await;
+                        }
+                        PacketType::QueryState
+                        | PacketType::PlayerPreference
+                        | PacketType::ClientAction => {
+                            // QueryState/PlayerPreference are cached in
+                            // cache_manager; ClientAction has no serverbound handler
+                            // yet (Phase 3). None are broadcast.
                         }
                         _ => {
                             connection_registry.broadcast_to_all(packet);
@@ -385,7 +392,7 @@ impl QuicServerManager {
 
         let stream_task = tokio::spawn(async move { input_stream.start().await });
 
-        let player_cache = cache_manager.get_player_cache();
+        let player_cache = cache_manager.players().inner_arc();
         let mut has_set_identity = false;
         // A peer-identity connection (CN = `host:https_port`, issued by
         // `sign_peer_cert`) is routed to the relay `PeerManager` as an INBOUND
@@ -533,6 +540,14 @@ impl QuicServerManager {
                                 connection_registry
                                     .on_peer_announce_observed(announce.hashed_world, announce.endpoint);
                             }
+                        }
+                        PacketType::QueryState
+                        | PacketType::PlayerPreference
+                        | PacketType::ClientAction => {
+                            // QueryState/PlayerPreference are cached in
+                            // cache_manager.process_packet. A serverbound
+                            // ClientAction has no handler yet (the no-net proxy
+                            // path is wired in Phase 3). None are ever broadcast.
                         }
                         _ => {
                             connection_registry.broadcast_to_all(updated_packet);

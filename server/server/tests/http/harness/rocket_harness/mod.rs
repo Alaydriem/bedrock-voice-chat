@@ -68,7 +68,22 @@ impl RocketHarness {
         let cert_service_for_relay = cert_service.clone();
         let relay_certs_path = config.server.tls.certs_path.clone();
 
+        // Control-plane state: a CacheManager (channel collection + state/pref caches)
+        // and a WebhookReceiver whose queue is drained so `send_packet` fan-outs
+        // succeed (the tests assert the HTTP surface, not the QUIC broadcast).
+        let control_cache_manager = bvc_server_lib::stream::quic::CacheManager::new();
+        let (webhook_tx, mut webhook_rx) = tokio::sync::mpsc::unbounded_channel();
+        tokio::spawn(async move { while webhook_rx.recv().await.is_some() {} });
+        let control_webhook = bvc_server_lib::stream::quic::WebhookReceiver::new(webhook_tx);
+        let control_routes = routes![
+            routes::api::control::control,
+            routes::api::state::get_state,
+            routes::api::state::get_preferences,
+        ];
+
         let mut rocket = rocket::custom(figment)
+            .manage(control_cache_manager)
+            .manage(control_webhook)
             .manage(server_state)
             .manage(features)
             .manage(permissions)
@@ -79,6 +94,7 @@ impl RocketHarness {
             .mount("/ncryptf", ncryptf_routes)
             .mount("/api/admin", admin_routes)
             .mount("/api", auth_routes)
+            .mount("/api", control_routes)
             .mount("/metrics", routes![routes::metrics::metrics]);
 
         if mount_relay {

@@ -5,6 +5,7 @@ pub mod audio;
 pub mod bedrock;
 pub mod channel;
 pub mod config;
+pub mod control;
 pub mod discord;
 pub mod events;
 pub mod game;

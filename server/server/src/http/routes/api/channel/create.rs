@@ -1,11 +1,6 @@
 use crate::http::openapi::CustomJsonResponse;
+use crate::services::ChannelMembershipService;
 use crate::stream::quic::{CacheManager, WebhookReceiver};
-use common::structs::{
-    channel::{Channel, ChannelEvents::Create},
-    packet::{
-        ChannelEventPacket, PacketOwner, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
-    },
-};
 use rocket::{State, http::Status, mtls::Certificate, serde::json::Json};
 use rocket_okapi::openapi;
 
@@ -24,30 +19,13 @@ pub async fn channel_create(
         }
     };
 
-    let channel = Channel::new(name.0.clone(), user.clone());
-    let channel_id = channel.id();
-    let channel_name = channel.name.clone();
-
-    cache_manager.get_channel_collection().insert(channel).await;
-
-    let packet = QuicNetworkPacket {
-        owner: Some(PacketOwner {
-            name: String::from("channel_api"),
-            client_id: vec![0u8; 0],
-        }),
-        packet_type: PacketType::ChannelEvent,
-        data: QuicNetworkPacketData::ChannelEvent(ChannelEventPacket::new_full(
-            Create,
-            user.clone(),
-            channel_id.clone(),
-            Some(channel_name),
-            Some(user.clone()),
-        )),
-    };
-
-    if let Err(e) = webhook_receiver.send_packet(packet).await {
-        tracing::error!("Failed to send channel create packet to QUIC server: {}", e);
-    }
+    let channel_id = ChannelMembershipService::create(
+        &cache_manager.get_channel_collection(),
+        webhook_receiver.inner(),
+        name.0.clone(),
+        user,
+    )
+    .await;
 
     CustomJsonResponse::ok(channel_id)
 }

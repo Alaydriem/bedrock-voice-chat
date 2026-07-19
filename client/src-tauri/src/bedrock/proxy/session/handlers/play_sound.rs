@@ -39,6 +39,7 @@ impl<'a> PlaySoundHandler<'a> {
             PlaySoundPacketAny::V897(p) => &p.position,
             PlaySoundPacketAny::V944(p) => &p.position,
             PlaySoundPacketAny::V975(p) => &p.position,
+            PlaySoundPacketAny::V2169(p) => &p.position,
         }
     }
 

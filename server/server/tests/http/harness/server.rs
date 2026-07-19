@@ -111,6 +111,7 @@ impl TestServer {
         config.server.tls.key = server_key_path.to_string_lossy().into_owned();
         config.server.tls.certs_path = certs_path.to_string_lossy().into_owned();
         config.server.assets_path = assets_path.to_string_lossy().into_owned();
+        config.server.minecraft.access_token = "test-mc-token".to_string();
 
         let server_task =
             RocketHarness::launch(config, cert_service.clone(), relay_enabled).await?;

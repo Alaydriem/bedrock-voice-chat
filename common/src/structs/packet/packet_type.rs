@@ -18,4 +18,7 @@ pub enum PacketType {
     PeerAnnounceObserved,
     AudioQuery,
     AudioAvailable,
+    ClientAction,
+    QueryState,
+    PlayerPreference,
 }

@@ -92,6 +92,7 @@ impl TransferRelayService {
                                         server_address: target.host.clone(),
                                         server_port: target.port,
                                         reload_world: false,
+                                        gatherings_configuration: None,
                                     };
                                     if let Err(e) = conn.send_packet(&transfer).await {
                                         tracing::error!("Failed to send TransferPacket to {}: {}", player_name, e);
