@@ -9,6 +9,7 @@
 
 use crate::harness::TestServer;
 
+use bvc_server_lib::http::guards::RELAY_CODE_RATE_PER_MINUTE;
 use common::structs::relay::OfferRequest;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -23,10 +24,10 @@ async fn offer_is_rate_limited_per_ip() {
         asker_public_key: vec![7u8; 32],
     };
 
-    // The quota is 3/min/IP. A fresh burst allows 3; the 4th sequential request
-    // from the same IP must be throttled.
+    // A fresh burst allows the full per-minute quota; the next sequential
+    // request from the same IP must be throttled.
     let mut statuses = Vec::new();
-    for _ in 0..4 {
+    for _ in 0..(RELAY_CODE_RATE_PER_MINUTE + 1) {
         let resp = client
             .post(format!("{}/api/relay/offer", env.base_url))
             .json(&body)
