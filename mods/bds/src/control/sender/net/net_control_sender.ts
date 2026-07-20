@@ -3,7 +3,7 @@ import { httpClient } from '../../../net';
 import type { ServerAdminConfig } from '../../../config';
 import type { ControlAction } from '../../action';
 import { ControlCodec } from '../../codec';
-import type { ControlSender } from '../control_sender';
+import type { ControlSender, ControlSendResult } from '../control_sender';
 
 // Net mode: POST the ClientAction to the BVC server. The actor is attributed from
 // the in-game player who ran the command (the token gates the route so players
@@ -15,7 +15,7 @@ export class NetControlSender implements ControlSender {
 
   constructor(private readonly config: ServerAdminConfig) {}
 
-  async send(action: ControlAction, actor: Player): Promise<void> {
+  async send(action: ControlAction, actor: Player): Promise<ControlSendResult> {
     const body = JSON.stringify(
       ControlCodec.toClientActionJson(action, actor.name),
     );
@@ -36,12 +36,27 @@ export class NetControlSender implements ControlSender {
       const ok = !!response && response.status >= 200 && response.status < 300;
       if (ok) {
         this.markReachable();
-      } else {
-        const detail = response ? `status ${response.status}` : 'no response';
-        this.markUnreachable(detail);
+        // The control route replies with the new group's share code (a JSON
+        // string) for CreateGroup and `null` for everything else.
+        return { ok, groupCode: this.parseGroupCode(response.body) };
       }
+      const detail = response ? `status ${response.status}` : 'no response';
+      this.markUnreachable(detail);
+      return { ok: false };
     } catch (e) {
       this.markUnreachable(e instanceof Error ? e.message : String(e));
+      return { ok: false };
+    }
+  }
+
+  private parseGroupCode(body: string): string | undefined {
+    try {
+      const parsed: unknown = JSON.parse(body);
+      return typeof parsed === 'string' && parsed.length > 0
+        ? parsed
+        : undefined;
+    } catch {
+      return undefined;
     }
   }
 

@@ -12,7 +12,8 @@ use std::sync::Arc;
 use tauri::Manager;
 use tauri_plugin_store::StoreExt;
 
-use bvc_client_lib::app_builder::{AudioBackend, build_managed_state};
+use bvc_client_lib::app_builder::AppBuilder;
+use bvc_client_lib::audio::AudioBackend;
 use bvc_client_lib::testkit::bridge::{Frame, InMsg, OutMsg};
 use bvc_client_lib::testkit::connect::Connector;
 use bvc_client_lib::{BridgeInputSource, CapturingSink};
@@ -126,7 +127,7 @@ fn main() {
                 app.manage(Connector::connect_error_channel());
             }
 
-            build_managed_state(
+            AppBuilder::build_managed_state(
                 app,
                 backend.take().expect("backend taken once"),
                 #[cfg(feature = "bedrock-protocol")]
@@ -140,6 +141,28 @@ fn main() {
                 #[cfg(feature = "bedrock-protocol")]
                 Some(Arc::clone(&harness_announce_injector)),
             )?;
+
+            // Self-state reporter: poll the client's audio-control state and emit
+            // OutMsg::State on change, so the orchestrator can assert control effects
+            // (e.g. a ClientBound ClientAction muting the actor).
+            let state_handle = handle.clone();
+            tauri::async_runtime::spawn(async move {
+                let actions = bvc_client_lib::audio::AudioActionsManager::new(state_handle);
+                let mut last: Option<(bool, bool, bool)> = None;
+                loop {
+                    let s = actions.query_state().await;
+                    let cur = (s.muted, s.deafened, s.recording);
+                    if last != Some(cur) {
+                        last = Some(cur);
+                        StdoutBridge::emit(&OutMsg::State {
+                            muted: s.muted,
+                            deafened: s.deafened,
+                            recording: s.recording,
+                        });
+                    }
+                    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+                }
+            });
 
             // Capture-drain thread: post-mix PCM out to stdout as it arrives.
             let cap_rx = cap_rx.take().expect("cap_rx taken once");

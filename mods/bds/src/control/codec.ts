@@ -32,6 +32,12 @@ export class ControlCodec {
     }
   }
 
+  // The panel's scoped snapshot request (no-net): the proxy answers with !bvcs:
+  // rides for the self-state plus the named targets' preferences.
+  static encodeSync(targets: string[]): string {
+    return `${ControlCodec.PREFIX}sync:${targets.join(',')}`;
+  }
+
   static toClientActionJson(a: ControlAction, actorId: string): unknown {
     return { id: actorId, action: ControlCodec.actionJson(a) };
   }

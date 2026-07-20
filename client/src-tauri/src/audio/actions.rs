@@ -7,7 +7,7 @@ use tauri::async_runtime::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_store::StoreExt;
 
-pub(crate) struct AudioActionsManager {
+pub struct AudioActionsManager {
     app_handle: AppHandle,
 }
 
@@ -65,6 +65,47 @@ impl AudioActionsManager {
         }
     }
 
+    /// Drive a device to `desired`, flipping only if it differs — the check and the
+    /// toggle happen under a single `AudioStreamManager` lock so an idempotent
+    /// `set_mute(dev, true)` can't race the desktop-app / Stream-Deck toggle surfaces.
+    pub async fn set_mute(&self, device: AudioDeviceType, desired: bool) -> bool {
+        let asm = self.app_handle.state::<Mutex<AudioStreamManager>>();
+        let mut asm = asm.lock().await;
+        if asm.mute_status(&device).await.unwrap_or(false) != desired {
+            let _ = asm.toggle(&device, StreamEvent::Mute).await;
+        }
+        let status = asm.mute_status(&device).await.unwrap_or(false);
+        drop(asm);
+
+        let mute_event = MuteEvent::from(&device);
+        self.app_handle.emit(&mute_event.to_string(), status).ok();
+        status
+    }
+
+    /// Drive recording to `desired`, starting/stopping only if it differs — the
+    /// check and the transition happen under a single `RecordingManager` lock.
+    pub async fn set_recording(&self, desired: bool) -> Result<bool, anyhow::Error> {
+        let recording_manager = self.app_handle.state::<Arc<Mutex<RecordingManager>>>();
+        let mut manager = recording_manager.lock().await;
+
+        if manager.is_recording() == desired {
+            return Ok(desired);
+        }
+        if desired {
+            let current_player = self
+                .app_handle
+                .store("store.json")
+                .ok()
+                .and_then(|store| store.get("current_player"))
+                .and_then(|v| v.as_str().map(String::from))
+                .ok_or_else(|| anyhow::anyhow!("No current player"))?;
+            manager.start_recording(current_player).await?;
+        } else {
+            manager.stop_recording().await?;
+        }
+        Ok(desired)
+    }
+
     /// Query current muted/deafened/recording state as a DTO.
     pub async fn query_state(&self) -> crate::websocket::StateData {
         let asm = self.app_handle.state::<Mutex<AudioStreamManager>>();
@@ -98,5 +139,11 @@ impl AudioActionsManager {
             .app_handle
             .state::<crate::websocket::WebSocketBroadcaster>();
         broadcaster.broadcast_state(state);
+
+        // Every mute/deafen/record surface funnels through here; nudge the
+        // control-plane reporter so the server cache mirrors the change.
+        if let Some(bus) = self.app_handle.try_state::<crate::control::ControlStateBus>() {
+            bus.self_state();
+        }
     }
 }

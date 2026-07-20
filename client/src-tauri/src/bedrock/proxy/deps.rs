@@ -4,8 +4,9 @@ use super::connect_error_channel::BedrockConnectErrorChannel;
 use super::event_emitter::BedrockEventEmitter;
 use super::jukebox::{JukeboxBeaconCache, JukeboxEjectInjector};
 use super::player_state_cache::BedrockPlayerStateCache;
-use super::presence::{AnnounceInjector, PresenceInjector};
+use super::presence::{AnnounceInjector, PresenceInjector, QueryStateInjector};
 use crate::bedrock::ProtocolGatingService;
+use crate::control::{ControlActionSender, ControlStateBus};
 
 // Shared service dependencies every BedrockProxyManager needs regardless of
 // backend. Required at construction so the Direct and Realm connect paths
@@ -19,9 +20,13 @@ pub(crate) struct ProxyDeps {
     pub(crate) eject_injector: Arc<JukeboxEjectInjector>,
     pub(crate) presence_injector: Arc<PresenceInjector>,
     pub(crate) announce_injector: Arc<AnnounceInjector>,
+    pub(crate) control_tx: ControlActionSender,
+    pub(crate) query_state_injector: Arc<QueryStateInjector>,
+    pub(crate) state_bus: ControlStateBus,
 }
 
 impl ProxyDeps {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         player_state_cache: Arc<BedrockPlayerStateCache>,
         gating: Arc<ProtocolGatingService>,
@@ -31,6 +36,9 @@ impl ProxyDeps {
         eject_injector: Arc<JukeboxEjectInjector>,
         presence_injector: Arc<PresenceInjector>,
         announce_injector: Arc<AnnounceInjector>,
+        control_tx: ControlActionSender,
+        query_state_injector: Arc<QueryStateInjector>,
+        state_bus: ControlStateBus,
     ) -> Self {
         Self {
             player_state_cache,
@@ -41,6 +49,9 @@ impl ProxyDeps {
             eject_injector,
             presence_injector,
             announce_injector,
+            control_tx,
+            query_state_injector,
+            state_bus,
         }
     }
 }

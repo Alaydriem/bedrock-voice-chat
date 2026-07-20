@@ -26,6 +26,7 @@ mod auth;
 #[cfg(feature = "bedrock-protocol")]
 pub mod bedrock;
 mod commands;
+pub mod control;
 mod deep_links;
 pub mod discord;
 pub use discord::{
@@ -121,7 +122,10 @@ pub fn run() {
 
     sentry::configure_scope(|scope| {
         scope.set_tag("version", env!("CARGO_PKG_VERSION"));
-        scope.set_tag("build_number", option_env!("APP_BUILD_NUMBER").unwrap_or("local"));
+        scope.set_tag(
+            "build_number",
+            option_env!("APP_BUILD_NUMBER").unwrap_or("local"),
+        );
     });
 
     #[cfg(desktop)]
@@ -656,9 +660,9 @@ pub fn run() {
             // managers, and the NetworkStreamManager are wired identically for the
             // real app and the test harness via this shared factory. The real app
             // always selects the Cpal/Rodio backends.
-            crate::app_builder::build_managed_state(
+            crate::app_builder::AppBuilder::build_managed_state(
                 app,
-                crate::app_builder::AudioBackend::Real,
+                crate::audio::AudioBackend::Real,
                 #[cfg(feature = "bedrock-protocol")]
                 Some(bedrock_player_state_cache),
                 #[cfg(feature = "bedrock-protocol")]

@@ -20,6 +20,8 @@ pub struct BedrockSessionEventDispatcher {
     beacon_cache: Arc<JukeboxBeaconCache>,
     player_state_cache: Arc<BedrockPlayerStateCache>,
     emitter: Option<Arc<BedrockEventEmitter>>,
+    control_tx: crate::control::ControlActionSender,
+    state_bus: crate::control::ControlStateBus,
     last_known_health: Option<i32>,
     player_auth_input_seen: bool,
 }
@@ -30,12 +32,16 @@ impl BedrockSessionEventDispatcher {
         beacon_cache: Arc<JukeboxBeaconCache>,
         player_state_cache: Arc<BedrockPlayerStateCache>,
         emitter: Option<Arc<BedrockEventEmitter>>,
+        control_tx: crate::control::ControlActionSender,
+        state_bus: crate::control::ControlStateBus,
     ) -> Self {
         Self {
             player_name,
             beacon_cache,
             player_state_cache,
             emitter,
+            control_tx,
+            state_bus,
             last_known_health: None,
             player_auth_input_seen: false,
         }
@@ -89,11 +95,15 @@ impl BedrockSessionEventDispatcher {
                 GameTypeHandler.handle(&gamemode, state, emitter);
                 true
             }
-            EventPacket::PlaySound(p) => {
+            // The bvc: buses are server-authored (/playsound is clientbound);
+            // like the ChatMessage arm, ignore the serverbound direction.
+            EventPacket::PlaySound(p) if matches!(direction, Direction::Clientbound) => {
                 info!("Received PlaySound: {:?}", p);
                 PlaySoundHandler {
                     beacon_cache: &self.beacon_cache,
                     player_name: &self.player_name,
+                    control_tx: self.control_tx.clone(),
+                    state_bus: self.state_bus.clone(),
                 }
                 .handle(p, state, emitter);
                 false
@@ -176,6 +186,8 @@ mod tests {
             Arc::new(JukeboxBeaconCache::new()),
             Arc::new(BedrockPlayerStateCache::new()),
             Some(emitter),
+            crate::control::ControlActionSender::channel().0,
+            crate::control::ControlStateBus::new(),
         );
         (dispatcher, rx)
     }

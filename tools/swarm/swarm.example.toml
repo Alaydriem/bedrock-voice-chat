@@ -1,0 +1,66 @@
+# swarm.toml — one file drives an entire distributed load run over LXD.
+# Copy to swarm.toml, edit, then: `swarm controller --config swarm.toml`
+#
+# Topology: run the BVC server AND this controller on one machine (e.g. the
+# dev box). The bot load runs in ephemeral LXD containers on separate Linux
+# home servers, so the load generators never steal CPU from the server under
+# test.
+
+# BVC server under test — reachable from the LXD containers over the LAN.
+server = "https://192.168.1.5:8444"
+
+# Server CA cert (PEM). Its CONTENTS are embedded into each container's job, so
+# containers need no cert files. Omit if the server cert is publicly trusted.
+ca = "certs/ca.crt"
+
+# Admin mTLS identity — used ONLY on the controller for minting bot players +
+# codes. Never leaves this machine.
+admin_cert = "certs/admin.crt"
+admin_key  = "certs/admin.key"
+
+# The server's Minecraft mod access token (server config `minecraft.access_token`).
+# Agents send it as `X-MC-Access-Token` when POSTing bot positions. Required —
+# without valid positions the server routes zero audio to the bots.
+access_token = "REPLACE_WITH_SERVER_MOD_ACCESS_TOKEN"
+
+prefix = "SwarmBot"
+group_size = 5
+duration_secs = 120
+
+# Prebuilt LINUX binaries on THIS (controller) machine. The controller pushes
+# them into every container. Build them on a Linux box / CI:
+#   cargo build -p bvc-client-e2e --release
+#   cargo build -p bvc-swarm --release
+# then copy the two Linux artifacts here.
+client_bin = "artifacts/linux/bvc_client_e2e"
+swarm_bin  = "artifacts/linux/swarm"
+
+# ---- LXD-wide settings --------------------------------------------------------
+[lxd]
+# Client identity trusted by every LXD daemon below
+# (`lxc config trust add <this-cert>` on each host).
+client_cert = "certs/lxd-client.crt"
+client_key  = "certs/lxd-client.key"
+# Container image alias + cloud-init installing the bot runtime deps.
+image = "24.04"
+cloud_init = "tools/swarm/cloud-init.yaml"
+
+# ---- Targets: one [[target]] per physical LXD host ---------------------------
+# The controller launches `containers` ephemeral containers on each, each
+# running the agent for `bots_per_container` bots. `containers = 1` is the
+# per-host model; set `bots_per_container = group_size` for one voice group per
+# container. Total bots = sum over targets of containers * bots_per_container.
+
+[[target]]
+name = "home-a"
+endpoint = "https://192.168.1.10:8443"
+# The daemon's server cert for TLS pinning; omit to accept its self-signed cert.
+server_cert = "certs/lxd-a.crt"
+containers = 3
+bots_per_container = 10
+
+[[target]]
+name = "home-b"
+endpoint = "https://192.168.1.11:8443"
+containers = 2
+bots_per_container = 10

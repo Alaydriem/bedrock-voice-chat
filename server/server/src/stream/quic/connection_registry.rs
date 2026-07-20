@@ -383,6 +383,8 @@ impl ConnectionRegistry {
         broadcast_range: f32,
         deafen_distance: f32,
     ) {
+        let route_started = Instant::now();
+
         let sender_name = match &packet.owner {
             Some(owner) => &owner.name,
             None => return,
@@ -540,6 +542,9 @@ impl ConnectionRegistry {
             match tx.try_send(RoutedPacket::Serialized(bytes_to_send.clone())) {
                 Ok(()) => {}
                 Err(mpsc::error::TrySendError::Full(_)) => {
+                    if let Some(m) = self.metrics.get() {
+                        m.record_audio_route_drop();
+                    }
                     tracing::debug!(
                         "Dropping audio packet for player {} (channel full)",
                         recipient_name,
@@ -553,6 +558,10 @@ impl ConnectionRegistry {
 
         for key in dead_keys {
             self.unregister(&key);
+        }
+
+        if let Some(m) = self.metrics.get() {
+            m.record_audio_route(route_started.elapsed());
         }
     }
 }

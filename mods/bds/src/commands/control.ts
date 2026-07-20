@@ -15,8 +15,11 @@ import type { ControlSender } from '../control/sender';
 export class ControlCommands {
   // The sender is resolved asynchronously (after config load), but commands must be
   // registered during startup — so the sender is provided lazily and read at
-  // invocation time.
-  static register(getSender: () => ControlSender | null): void {
+  // invocation time. `openPanel` opens the DDUI control panel for bare /bvc:panel.
+  static register(
+    getSender: () => ControlSender | null,
+    openPanel: (player: Player) => void,
+  ): void {
     system.beforeEvents.startup.subscribe((event) => {
       const registry = event.customCommandRegistry;
 
@@ -40,10 +43,46 @@ export class ControlCommands {
         }
         const acting = player as Player;
         system.run(() => {
-          void sender.send(action, acting);
+          void (async () => {
+            const result = await sender.send(action, acting);
+            // The share code is the whole point of group-create; surface it (or
+            // the failure) to the player instead of discarding the reply.
+            if (action.kind === 'group-create') {
+              if (result.groupCode) {
+                acting.sendMessage(
+                  `§a[BVC] Group created — share code: §f${result.groupCode}`,
+                );
+              } else if (!result.ok) {
+                acting.sendMessage('§c[BVC] Group create failed; try again');
+              }
+            } else if (!result.ok) {
+              acting.sendMessage('§c[BVC] Action failed; try again');
+            }
+          })();
         });
         return { status: CustomCommandStatus.Success };
       };
+
+      registry.registerCommand(
+        {
+          name: 'bvc:panel',
+          description: 'Open the BVC voice control panel',
+          cheatsRequired: false,
+          permissionLevel: CommandPermissionLevel.Any,
+        },
+        (origin: CustomCommandOrigin) => {
+          const player = origin.sourceEntity;
+          if (!player || player.typeId !== 'minecraft:player') {
+            return {
+              status: CustomCommandStatus.Failure,
+              message: 'This command can only be run by a player',
+            };
+          }
+          const acting = player as Player;
+          system.run(() => openPanel(acting));
+          return { status: CustomCommandStatus.Success };
+        },
+      );
 
       const boolParam = (name: string) => ({
         name,

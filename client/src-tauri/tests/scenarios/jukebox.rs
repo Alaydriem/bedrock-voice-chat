@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use bvc_client_lib::testkit::signal::Signal;
 
-use crate::harness::jukebox_fixture::{A_NOTES, BM_NOTES, JukeboxFixture};
+use crate::harness::jukebox_fixture::{BM_NOTES, C_NOTES, JukeboxFixture};
 use crate::harness::jukebox_world::JukeboxWorld;
 use crate::harness::note_energy::NoteEnergy;
 
@@ -313,14 +313,14 @@ async fn concurrent_jukeboxes_no_cross_bleed() {
 
     let fixture_dir = tempfile::tempdir().expect("fixture dir");
     let bm = JukeboxFixture::bm_wav(fixture_dir.path(), "bm", 2);
-    let amaj = JukeboxFixture::a_major_wav(fixture_dir.path(), "amaj", 2);
+    let cmaj = JukeboxFixture::c_major_wav(fixture_dir.path(), "cmaj", 2);
     let (bm_id, bm_dur) = w
         .alice
         .upload_audio(bm.to_str().unwrap(), "minecraft", Duration::from_secs(20))
         .expect("upload Bm");
-    let (amaj_id, amaj_dur) = w
+    let (cmaj_id, cmaj_dur) = w
         .alice
-        .upload_audio(amaj.to_str().unwrap(), "minecraft", Duration::from_secs(20))
+        .upload_audio(cmaj.to_str().unwrap(), "minecraft", Duration::from_secs(20))
         .expect("upload A-major");
 
     let site_a = (0.0_f32, 64.0, 0.0);
@@ -339,10 +339,10 @@ async fn concurrent_jukeboxes_no_cross_bleed() {
         .jukebox_play(&bm_id, site_a.0, site_a.1, site_a.2)
         .await;
     w.server
-        .jukebox_play(&amaj_id, site_b.0, site_b.1, site_b.2)
+        .jukebox_play(&cmaj_id, site_b.0, site_b.1, site_b.2)
         .await;
 
-    let window = Duration::from_millis(bm_dur.max(amaj_dur) as u64 + 1_500);
+    let window = Duration::from_millis(bm_dur.max(cmaj_dur) as u64 + 1_500);
     let cap_a = w.alice.collect_captured(window);
     let cap_b = w.bob.collect_captured(Duration::from_millis(200));
 
@@ -364,11 +364,11 @@ async fn concurrent_jukeboxes_no_cross_bleed() {
         "Alice must hear the Bm progression"
     );
     assert!(
-        NoteEnergy::all_absent(&mono_a, &A_NOTES),
+        NoteEnergy::all_absent(&mono_a, &C_NOTES),
         "Alice must NOT hear the A-major progression"
     );
     assert!(
-        NoteEnergy::all_present(&mono_b, &A_NOTES),
+        NoteEnergy::all_present(&mono_b, &C_NOTES),
         "Bob must hear the A-major progression"
     );
     assert!(

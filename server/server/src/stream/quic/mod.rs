@@ -141,8 +141,12 @@ impl QuicServerManager {
         tokio::select! {
             _ = async {
                 while let Some(packet) = webhook_rx.recv().await {
-                    if let Err(e) = cache_manager.process_packet(packet.clone()).await {
-                        tracing::error!("Failed to process packet in cache manager: {}", e);
+                    // process_packet has no AudioFrame arm; skipping it avoids a
+                    // full packet clone (audio payload included) per frame.
+                    if packet.packet_type != PacketType::AudioFrame {
+                        if let Err(e) = cache_manager.process_packet(packet.clone()).await {
+                            tracing::error!("Failed to process packet in cache manager: {}", e);
+                        }
                     }
 
                     match packet.packet_type {
@@ -477,8 +481,12 @@ impl QuicServerManager {
                         continue;
                     }
 
-                    if let Err(e) = cache_manager.process_packet(packet.clone()).await {
-                        tracing::error!("Failed to process packet in cache manager: {}", e);
+                    // process_packet has no AudioFrame arm; skipping it avoids a
+                    // full packet clone (audio payload included) per frame.
+                    if packet.packet_type != PacketType::AudioFrame {
+                        if let Err(e) = cache_manager.process_packet(packet.clone()).await {
+                            tracing::error!("Failed to process packet in cache manager: {}", e);
+                        }
                     }
 
                     let updated_packet = if packet.packet_type == PacketType::AudioFrame {

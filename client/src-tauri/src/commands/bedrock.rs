@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use tauri::Emitter;
+use tauri::Manager;
 use tauri::State;
 use tauri::async_runtime::Mutex;
 
@@ -24,6 +25,7 @@ use crate::bedrock::{
     AnnounceInjector, BedrockAuthService, BedrockKeyringService, BedrockState, JukeboxBeaconCache,
     JukeboxEjectInjector, PresenceInjector, ProtocolGatingService, ProxyDeps,
 };
+use crate::control::ControlActionSender;
 use crate::feature_flags::FeatureFlagService;
 use crate::iap::EntitlementService;
 use crate::structs::app_state::AppState;
@@ -76,6 +78,15 @@ pub(crate) async fn bedrock_start_proxy(
         Arc::clone(eject_injector.inner()),
         Arc::clone(presence_injector.inner()),
         Arc::clone(announce_injector.inner()),
+        app_handle.state::<ControlActionSender>().inner().clone(),
+        app_handle
+            .state::<Arc<crate::bedrock::QueryStateInjector>>()
+            .inner()
+            .clone(),
+        app_handle
+            .state::<crate::control::ControlStateBus>()
+            .inner()
+            .clone(),
     );
     let mut proxy = BedrockProxyManager::new_direct(
         target_host.clone(),
@@ -220,6 +231,15 @@ pub(crate) async fn bedrock_start_realms(
         Arc::clone(eject_injector.inner()),
         Arc::clone(presence_injector.inner()),
         Arc::clone(announce_injector.inner()),
+        app_handle.state::<ControlActionSender>().inner().clone(),
+        app_handle
+            .state::<Arc<crate::bedrock::QueryStateInjector>>()
+            .inner()
+            .clone(),
+        app_handle
+            .state::<crate::control::ControlStateBus>()
+            .inner()
+            .clone(),
     );
     let mut realms = BedrockProxyManager::new_realm(
         realm_id,

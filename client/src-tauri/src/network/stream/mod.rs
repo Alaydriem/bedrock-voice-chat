@@ -9,6 +9,7 @@ use common::structs::packet::PacketOwner;
 use std::error::Error;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tauri::Manager;
 use stream_manager::StreamTrait;
 use stream_manager::StreamTraitType;
 
@@ -117,12 +118,27 @@ impl NetworkStreamManager {
         self.input.start().await?;
         self.output.start().await?;
         self.health_manager
-            .start(conn_arc, Some(packet_owner), server_url);
+            .start(conn_arc, Some(packet_owner.clone()), server_url);
+
+        // The control plane reports as this connection's identity (the same
+        // name the OutputStream stamps as packet owner). Publish it, then nudge
+        // a full snapshot so a fresh player's server-side state is never empty.
+        if let Some(identity) = self
+            .app_handle
+            .try_state::<Arc<crate::control::ConnectionIdentity>>()
+        {
+            identity.set(Some(packet_owner.name.clone()));
+        }
+        if let Some(bus) = self.app_handle.try_state::<crate::control::ControlStateBus>() {
+            bus.self_state();
+            bus.preferences();
+        }
 
         Ok(())
     }
 
     pub async fn stop(&mut self) -> Result<(), anyhow::Error> {
+        self.clear_connection_identity();
         self.health_manager.stop();
         self.input.stop().await?;
         self.output.stop().await?;
@@ -130,7 +146,19 @@ impl NetworkStreamManager {
         Ok(())
     }
 
+    // A stopped stream must not keep reporting as the old connection; the
+    // reporter skips reports while no identity is published.
+    fn clear_connection_identity(&self) {
+        if let Some(identity) = self
+            .app_handle
+            .try_state::<Arc<crate::control::ConnectionIdentity>>()
+        {
+            identity.set(None);
+        }
+    }
+
     pub async fn reset(&mut self) -> Result<(), anyhow::Error> {
+        self.clear_connection_identity();
         self.health_manager.stop();
         let (_, _) = tokio::join!(self.input.stop(), self.output.stop());
         self.health_manager.reset();

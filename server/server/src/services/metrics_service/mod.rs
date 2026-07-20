@@ -122,6 +122,10 @@ impl MetricsService {
                     Metric::SessionDurationSeconds.name(),
                     "Player voice session duration in seconds"
                 );
+                describe_histogram!(
+                    Metric::AudioRouteDurationSeconds.name(),
+                    "Per-frame route_audio_frame duration in seconds"
+                );
                 gauge!(Metric::BuildInfo.name(), "version" => env!("CARGO_PKG_VERSION")).set(1.0);
 
                 handle
@@ -192,6 +196,20 @@ impl MetricsService {
     pub fn record_channel_leave(&self) {
         counter!(Metric::ChannelLeavesTotal.name()).increment(1);
         self.emit(TelemetryEvent::ChannelLeft { at: Utc::now() });
+    }
+
+    // Per-frame routing cost on the audio hot path. Counter + histogram record
+    // is lock-free and nanosecond-scale, three orders of magnitude below the
+    // route work itself. No PostHog event: per-frame volume, no fleet value.
+    pub fn record_audio_route(&self, duration: Duration) {
+        counter!(Metric::AudioFramesRoutedTotal.name()).increment(1);
+        histogram!(Metric::AudioRouteDurationSeconds.name()).record(duration.as_secs_f64());
+    }
+
+    // A recipient's bounded output queue was full and the frame was dropped for
+    // them — the first user-audible routing failure mode under load.
+    pub fn record_audio_route_drop(&self) {
+        counter!(Metric::AudioRouteRecipientDropsTotal.name()).increment(1);
     }
 
     pub fn set_active_players(&self, value: i64) {

@@ -10,6 +10,9 @@ pub enum Metric {
     PlayersInChannels,
     ChannelJoinsTotal,
     ChannelLeavesTotal,
+    AudioFramesRoutedTotal,
+    AudioRouteDurationSeconds,
+    AudioRouteRecipientDropsTotal,
     BuildInfo,
 }
 
@@ -24,18 +27,23 @@ impl Metric {
             Metric::PlayersInChannels => "bvc_players_in_channels",
             Metric::ChannelJoinsTotal => "bvc_channel_joins_total",
             Metric::ChannelLeavesTotal => "bvc_channel_leaves_total",
+            Metric::AudioFramesRoutedTotal => "bvc_audio_frames_routed_total",
+            Metric::AudioRouteDurationSeconds => "bvc_audio_route_duration_seconds",
+            Metric::AudioRouteRecipientDropsTotal => "bvc_audio_route_recipient_drops_total",
             Metric::BuildInfo => "bvc_build_info",
         }
     }
 
     /// Counter families that must be pre-registered at 0 so an idle server's
     /// `/metrics` shows them (metrics-rs registers lazily on first emission).
-    pub fn counters() -> [Metric; 4] {
+    pub fn counters() -> [Metric; 6] {
         [
             Metric::PlayerConnectionsTotal,
             Metric::PlayerDisconnectionsTotal,
             Metric::ChannelJoinsTotal,
             Metric::ChannelLeavesTotal,
+            Metric::AudioFramesRoutedTotal,
+            Metric::AudioRouteRecipientDropsTotal,
         ]
     }
 }

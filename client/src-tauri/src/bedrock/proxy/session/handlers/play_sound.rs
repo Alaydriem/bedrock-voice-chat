@@ -15,16 +15,18 @@ use crate::bedrock::JukeboxBeaconCache;
 use crate::bedrock::proxy::session::BedrockPacketHandler;
 use crate::bedrock::proxy::session::BedrockSessionState;
 
-// Wire contract with the BDS mod's NoNetAudioSender (mods/bds/src/audio/sender/protocol.ts).
-// Keep these prefixes in sync with JukeboxBusProtocol.PLAY / EJECT.
+// Wire contract with the BDS mod's NoNetAudioSender (mods/bds/src/audio/sender/protocol.ts)
 const PLAY: &str = "bvc:play:";
 const EJECT: &str = "bvc:eject:";
-// Control-plane action bus. The action grammar + decode live in common's CtlCodec.
 const CTL: &str = "bvc:ctl:";
 
 pub struct PlaySoundHandler<'a> {
     pub beacon_cache: &'a JukeboxBeaconCache,
     pub player_name: &'a str,
+    pub control_tx: crate::control::ControlActionSender,
+    // Carries the panel's bvc:ctl:sync snapshot requests to the reporter, which
+    // answers them with !bvcs: rides through the QueryStateInjector.
+    pub state_bus: crate::control::ControlStateBus,
 }
 
 impl<'a> PlaySoundHandler<'a> {
@@ -83,15 +85,30 @@ impl<'a> BedrockPacketHandler for PlaySoundHandler<'a> {
         };
 
         let name = packet.name();
-        // bvc:ctl:<action> is a control-plane action, not a sound: emit it to the BVC
-        // server as a ServerBound ClientAction and forward nothing to the client. The
-        // actor is this session's authenticated player.
+        // bvc:ctl:<action> is a control-plane action, not a sound (nothing forwarded to
+        // the client). Group actions must reach the server, so they ride ServerBound.
+        // Self/preference actions are applied LOCALLY — pushed onto the control-action
+        // channel for the app-level consumer, no server round-trip. The actor is this
+        // session's player.
         if name.starts_with(CTL) {
-            if let Some(CtlMessage::Action(action)) = CtlCodec::decode(name) {
-                emitter.try_send_client_action(ClientAction {
-                    id: self.player_name.to_string(),
-                    action,
-                });
+            match CtlCodec::decode(name) {
+                Some(CtlMessage::Action(action)) => {
+                    if action.is_group_action() {
+                        emitter.try_send_client_action(ClientAction {
+                            id: self.player_name.to_string(),
+                            action,
+                        });
+                    } else {
+                        self.control_tx.send(action);
+                    }
+                }
+                Some(CtlMessage::Sync { targets }) => {
+                    // Only the BVC addon's panel emits sync — its arrival proves
+                    // this world runs the addon, so !bvcs: rides are safe to inject.
+                    state.arm_bvcs();
+                    self.state_bus.sync(targets);
+                }
+                None => {}
             }
             return;
         }

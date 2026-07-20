@@ -11,11 +11,15 @@ use crate::bedrock::JukeboxEjectInjector;
 use crate::bedrock::PresenceInjector;
 use base64::engine::{Engine, general_purpose};
 #[cfg(feature = "bedrock-protocol")]
+use common::structs::packet::AudioFrameMetadata;
+#[cfg(feature = "bedrock-protocol")]
 use common::structs::packet::BedrockEventPacket;
 #[cfg(feature = "bedrock-protocol")]
 use common::structs::packet::PeerAnnounceInjectPacket;
 #[cfg(feature = "bedrock-protocol")]
 use common::structs::packet::PeerPresenceInjectPacket;
+#[cfg(feature = "bedrock-protocol")]
+use common::structs::packet::QuicNetworkPacketData;
 use common::traits::player_data::PlayerData;
 use common::{
     PlayerEnum, RecordingPlayerData,
@@ -29,10 +33,6 @@ use common::{
         },
     },
 };
-#[cfg(feature = "bedrock-protocol")]
-use common::structs::packet::AudioFrameMetadata;
-#[cfg(feature = "bedrock-protocol")]
-use common::structs::packet::QuicNetworkPacketData;
 use log::{error, info, warn};
 use moka::future::Cache;
 use std::sync::Arc;
@@ -131,6 +131,23 @@ impl PacketRouter {
                     }
                 }
             }
+            PacketType::ClientAction => {
+                if let Some(common::structs::packet::QuicNetworkPacketData::ClientAction(p)) =
+                    packet.data.get_data()
+                {
+                    if p.direction == common::structs::packet::PacketDirection::ClientBound {
+                        // Hand the action to the app-level consumer over the
+                        // control channel; try_state so contexts wired without
+                        // build_managed_state simply drop it.
+                        if let Some(tx) = tauri::Manager::try_state::<
+                            crate::control::ControlActionSender,
+                        >(&self.app_handle)
+                        {
+                            tx.send(p.action.action.clone());
+                        }
+                    }
+                }
+            }
             _ => {}
         }
     }
@@ -163,7 +180,11 @@ impl PacketRouter {
                             .insert(data.player_name.clone(), game.clone());
 
                         // Only emit if not recently debounced
-                        if self.player_presence_debounce.get(&data.player_name).is_none() {
+                        if self
+                            .player_presence_debounce
+                            .get(&data.player_name)
+                            .is_none()
+                        {
                             self.player_presence_debounce
                                 .insert(data.player_name.clone(), ());
 
@@ -263,7 +284,8 @@ impl PacketRouter {
                 // Build client ID to player name mapping for gain control
                 if !player_name.is_empty() && !player_name.eq(&"api") {
                     let client_id = general_purpose::STANDARD.encode(&owner.client_id);
-                    self.client_id_to_player.insert(client_id, player_name.clone());
+                    self.client_id_to_player
+                        .insert(client_id, player_name.clone());
                 }
 
                 // Don't emit events for ourselves
@@ -276,11 +298,13 @@ impl PacketRouter {
                         .or_else(|| self.player_presence.get(player_name).flatten());
 
                     // Always update the presence cache (stores game type alongside presence)
-                    self.player_presence.insert(player_name.clone(), game.clone());
+                    self.player_presence
+                        .insert(player_name.clone(), game.clone());
 
                     // Only emit if not recently debounced
                     if self.player_presence_debounce.get(player_name).is_none() {
-                        self.player_presence_debounce.insert(player_name.clone(), ());
+                        self.player_presence_debounce
+                            .insert(player_name.clone(), ());
 
                         // Emit synthetic presence event for new player detected via audio
                         if let Err(e) = tauri::Emitter::emit(
@@ -292,7 +316,10 @@ impl PacketRouter {
                                 game,
                             ),
                         ) {
-                            error!("Failed to emit auto-detected player presence event: {:?}", e);
+                            error!(
+                                "Failed to emit auto-detected player presence event: {:?}",
+                                e
+                            );
                         }
                     }
                 }

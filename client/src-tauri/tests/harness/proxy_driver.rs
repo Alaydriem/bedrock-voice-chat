@@ -11,7 +11,7 @@ use common::bedrock_protocol::protocol::codec::PacketDecode;
 use common::bedrock_protocol::protocol::packets::PacketHeader;
 use common::bedrock_protocol::protocol::packets::generated::ids;
 use common::bedrock_protocol::protocol::packets::generated::misc::play_sound::{
-    PlaySoundPacketAny, PlaySoundPacketV975,
+    PlaySoundPacketAny, PlaySoundPacketV975, PlaySoundPacketV2169,
 };
 use common::bedrock_protocol::protocol::packets::generated::misc::text::TextPacket;
 use common::bedrock_protocol::protocol::types::generated::TextPacketBody;
@@ -108,7 +108,7 @@ impl FakeBedrockUpstream {
         z: i32,
         dim: &str,
     ) {
-        let pkt = Self::play_packet(&format!("bvc:play:{audio_id}:{dim}"), x, y, z);
+        let pkt = self.play_packet(&format!("bvc:play:{audio_id}:{dim}"), x, y, z);
         self.conns
             .get_mut(name)
             .expect("known player")
@@ -119,7 +119,7 @@ impl FakeBedrockUpstream {
 
     /// Jukebox eject (bvc:eject) at a world block position.
     pub async fn eject(&mut self, name: &str, x: i32, y: i32, z: i32, dim: &str) {
-        let pkt = Self::play_packet(&format!("bvc:eject:{dim}"), x, y, z);
+        let pkt = self.play_packet(&format!("bvc:eject:{dim}"), x, y, z);
         self.conns
             .get_mut(name)
             .expect("known player")
@@ -128,12 +128,13 @@ impl FakeBedrockUpstream {
             .expect("send PlaySound eject");
     }
 
-    /// Control-plane action (bvc:ctl:<action>) carried on the PlaySound bus. The
-    /// proxy consumes it silently and emits a serverbound ClientAction; nothing is
-    /// forwarded to the client. `ctl` is the action grammar after the prefix, e.g.
-    /// "mute:1" or "group:create".
+    /// Control-plane action (bvc:ctl:<action>) carried on the PlaySound bus; the
+    /// proxy consumes it silently and nothing is forwarded to the client. Group
+    /// actions ride ServerBound to the BVC server; self/preference actions are
+    /// applied locally via the control-action channel. `ctl` is the action grammar
+    /// after the prefix, e.g. "mute:1" or "group:create".
     pub async fn play_ctl(&mut self, name: &str, ctl: &str) {
-        let pkt = Self::play_packet(&format!("bvc:ctl:{ctl}"), 0, 0, 0);
+        let pkt = self.play_packet(&format!("bvc:ctl:{ctl}"), 0, 0, 0);
         self.conns
             .get_mut(name)
             .expect("known player")
@@ -188,17 +189,7 @@ impl FakeBedrockUpstream {
     /// carrying one. A real realm rebroadcasts all chat; this mirrors that for the
     /// BVC control lines. Non-TEXT and non-bvc chat return None.
     fn bvc_message_from_sub(version: ProtocolVersion, sub: Bytes) -> Option<String> {
-        let mut buf = sub;
-        let id = PacketHeader::read(&mut buf).ok()?;
-        if id != ids::TEXT {
-            return None;
-        }
-        let text = TextPacket::decode_for(version, &mut buf).ok()?;
-        let message = match text.body {
-            TextPacketBody::MessageOnly(b) => b.message,
-            TextPacketBody::AuthorAndMessage(b) => b.message,
-            TextPacketBody::MessageAndParams(b) => b.message,
-        };
+        let message = Self::chat_message_from_sub(version, sub)?;
         if message.starts_with("!bvcp ") || message.starts_with("!bvca ") {
             Some(message)
         } else {
@@ -206,19 +197,83 @@ impl FakeBedrockUpstream {
         }
     }
 
-    /// Build a `PlaySoundPacketAny::V975` for any peer version >= V975 (including
-    /// V1001). The `versioned_codec_dispatch!` macro routes `version >= V975` to
-    /// `V975Codec`, which correctly encodes only the `V975` variant; constructing
-    /// any other variant at that codec would silently fall back to a default-zero
-    /// packet. Position follows the Bedrock 1/8-block fixed-point convention: the
-    /// wire value is world_coord * 8 (handler divides by 8 to recover block coords).
-    fn play_packet(name: &str, x: i32, y: i32, z: i32) -> PlaySoundPacketAny {
-        PlaySoundPacketAny::V975(PlaySoundPacketV975 {
-            name: name.to_string(),
-            position: BlockPos::new(x * 8, y * 8, z * 8),
-            volume: 1.0,
-            pitch: 1.0,
-            server_sound_handle: None,
+    /// Extract any chat message from a serverbound sub-packet, if it is a TEXT
+    /// packet. Non-TEXT sub-packets return None.
+    fn chat_message_from_sub(version: ProtocolVersion, sub: Bytes) -> Option<String> {
+        let mut buf = sub;
+        let id = PacketHeader::read(&mut buf).ok()?;
+        if id != ids::TEXT {
+            return None;
+        }
+        let text = TextPacket::decode_for(version, &mut buf).ok()?;
+        Some(match text.body {
+            TextPacketBody::MessageOnly(b) => b.message,
+            TextPacketBody::AuthorAndMessage(b) => b.message,
+            TextPacketBody::MessageAndParams(b) => b.message,
         })
+    }
+
+    /// Await a serverbound `!bvcs:` state-ride chat from `name`'s proxy session
+    /// that passes `pred`, draining that connection's serverbound stream until
+    /// one arrives or `timeout` elapses.
+    pub async fn await_bvcs<F>(
+        &mut self,
+        name: &str,
+        pred: F,
+        timeout: Duration,
+    ) -> Option<String>
+    where
+        F: Fn(&str) -> bool,
+    {
+        let version = self.version;
+        let deadline = tokio::time::Instant::now() + timeout;
+        let conn = self.conns.get_mut(name).expect("known player");
+        loop {
+            let now = tokio::time::Instant::now();
+            if now >= deadline {
+                return None;
+            }
+            match tokio::time::timeout(deadline - now, conn.recv_raw()).await {
+                Ok(Ok(subs)) => {
+                    for sub in subs {
+                        if let Some(m) = Self::chat_message_from_sub(version, sub) {
+                            if m.starts_with("!bvcs:") && pred(&m) {
+                                return Some(m);
+                            }
+                        }
+                    }
+                }
+                // Timeout or a closed upstream stream: no ride observed.
+                _ => return None,
+            }
+        }
+    }
+
+    /// Build the PlaySound variant matching the negotiated peer version. The
+    /// `versioned_codec_dispatch!` macro routes each version to its own codec, and
+    /// a codec silently encodes a DEFAULT-ZERO packet (empty name) for any other
+    /// variant — so the variant must track the version or the proxy sees garbage.
+    /// Position follows the Bedrock 1/8-block fixed-point convention: the wire
+    /// value is world_coord * 8 (handler divides by 8 to recover block coords).
+    fn play_packet(&self, name: &str, x: i32, y: i32, z: i32) -> PlaySoundPacketAny {
+        let position = BlockPos::new(x * 8, y * 8, z * 8);
+        if self.version >= ProtocolVersion::V2169 {
+            PlaySoundPacketAny::V2169(PlaySoundPacketV2169 {
+                name: name.to_string(),
+                position,
+                volume: 1.0,
+                pitch: 1.0,
+                loop_count: 0,
+                server_sound_handle: None,
+            })
+        } else {
+            PlaySoundPacketAny::V975(PlaySoundPacketV975 {
+                name: name.to_string(),
+                position,
+                volume: 1.0,
+                pitch: 1.0,
+                server_sound_handle: None,
+            })
+        }
     }
 }

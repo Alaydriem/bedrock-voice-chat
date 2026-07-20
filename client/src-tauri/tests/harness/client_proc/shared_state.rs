@@ -18,4 +18,7 @@ pub(super) struct SharedState {
     pub(super) proxy_listen: Option<u16>,
     pub(super) captured: Vec<f32>,
     pub(super) stats: Option<(u64, u64, u64)>,
+    // Latest self audio-control state from OutMsg::State (input mute / output
+    // deafen / recording). `None` until the bin reports its first snapshot.
+    pub(super) control_state: Option<(bool, bool, bool)>,
 }

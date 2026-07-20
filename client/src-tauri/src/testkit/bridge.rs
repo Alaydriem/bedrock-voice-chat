@@ -105,6 +105,14 @@ pub enum OutMsg {
         frames_from_quic: u64,
         frames_into_jitter_buffer: u64,
     },
+    // The client's self audio-control state (input mute / output deafen / recording).
+    // Emitted whenever it changes so the orchestrator can assert control effects
+    // (e.g. a ClientBound ClientAction muting the actor).
+    State {
+        muted: bool,
+        deafened: bool,
+        recording: bool,
+    },
 }
 
 // Upper bound on a single frame so a corrupt length prefix cannot trigger a
