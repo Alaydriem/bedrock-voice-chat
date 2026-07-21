@@ -101,7 +101,8 @@ class PaperPlugin : JavaPlugin(), Listener {
         // Register a single /bvc root so disc/give and the control subcommands share
         // one registration rather than relying on the registrar merging duplicate roots.
         val discCommands = DiscCommand(this)
-        val ctlCommands = controlSender?.let { ControlCommands(it) }
+        val ctlCommands =
+            controlSender?.let { ControlCommands(it, playerDataProvider::resolveCanonicalName) }
         lifecycleManager.registerEventHandler(LifecycleEvents.COMMANDS) { event ->
             val bvc = Commands.literal("bvc")
             discCommands.addTo(bvc)

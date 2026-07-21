@@ -9,6 +9,7 @@ import { StateCacheStore } from './state/cache_store';
 import { NetStateSource, NoNetStateSource } from './state/state_source';
 import type { PanelFeed } from './state/state_source';
 import { ControlPanel } from './ui/panel';
+import { PanelTestConfig } from './ui/panel_test';
 import { DiscCommand } from './commands/mod';
 import { ControlCommands } from './commands/control';
 import { NetAudioSender, NoNetAudioSender } from './audio/sender';
@@ -95,14 +96,17 @@ DiscCommand.register();
 // Resolved once the sender selection below runs; the commands read it lazily.
 let controlSender: ControlSender | null = null;
 let panelFeed: PanelFeed | null = null;
+const panelTestConfig = new PanelTestConfig();
 const controlPanel = new ControlPanel(
   () => controlSender,
   stateCacheStore,
   () => panelFeed,
+  panelTestConfig,
 );
 ControlCommands.register(
   () => controlSender,
   (player) => controlPanel.open(player),
+  panelTestConfig,
 );
 
 serverAdminConfig

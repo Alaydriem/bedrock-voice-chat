@@ -1,5 +1,6 @@
 import { writable, derived, get, type Writable, type Readable } from 'svelte/store';
 import { invoke } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { info, error, debug, warn } from '@tauri-apps/plugin-log';
 import type { PlayerGainSettings } from '../../bindings/PlayerGainSettings';
 import type { PlayerGainStore } from '../../bindings/PlayerGainStore';
@@ -25,6 +26,7 @@ export class PlayerManager {
     private playersMapStore: Writable<Map<string, PlayerData>>;
     private currentUserStore: Writable<string>;
     private store: Store;
+    private gainStoreUnlisten: UnlistenFn | null = null;
 
     // Readonly exports for components
     public readonly playersMap: Readable<Map<string, PlayerData>>;
@@ -369,6 +371,24 @@ export class PlayerManager {
             });
         } catch (err) {
             error(`PlayerManager: Failed to update player gain store: ${err}`);
+        }
+    }
+
+    /**
+     * Subscribe to backend-initiated gain-store changes (in-game control
+     * actions): the backend mutates the persisted store directly, so the
+     * reactive map must be re-seeded for the player cards to re-render.
+     */
+    async listenForBackendUpdates(): Promise<void> {
+        this.gainStoreUnlisten = await listen('player_gain_store_updated', () => {
+            void this.loadFromPersistentStore();
+        });
+    }
+
+    cleanup(): void {
+        if (this.gainStoreUnlisten) {
+            this.gainStoreUnlisten();
+            this.gainStoreUnlisten = null;
         }
     }
 

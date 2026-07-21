@@ -1,8 +1,10 @@
 package com.alaydriem.bedrockvoicechat.native
 
+import com.alaydriem.bedrockvoicechat.control.ControlSendResult
 import com.sun.jna.Library
 import com.sun.jna.Native
 import com.sun.jna.Pointer
+import com.sun.jna.ptr.PointerByReference
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.nio.file.Files
@@ -26,7 +28,7 @@ object BvcNative {
         fun bvc_update_positions(handle: Pointer, gameDataJson: String): Int
         fun bvc_audio_play(handle: Pointer, playJson: String): Pointer?
         fun bvc_audio_stop(handle: Pointer, eventId: String): Int
-        fun bvc_client_action(handle: Pointer, actionJson: String): Int
+        fun bvc_client_action(handle: Pointer, actionJson: String, groupCodeOut: PointerByReference?): Int
         fun bvc_free_string(ptr: Pointer)
         fun bvc_get_last_error(): String?
         fun bvc_version(): String
@@ -259,14 +261,21 @@ object BvcNative {
      *
      * @param handle Server handle from createServer
      * @param actionJson JSON string matching the common ClientAction structure
-     * @return 0 on success, -1 on error
+     * @return the outcome; groupCode carries the share code after a successful CreateGroup
      */
-    fun clientAction(handle: Pointer, actionJson: String): Int {
-        val result = getLib().bvc_client_action(handle, actionJson)
+    fun clientAction(handle: Pointer, actionJson: String): ControlSendResult {
+        val codeOut = PointerByReference()
+        val result = getLib().bvc_client_action(handle, actionJson, codeOut)
         if (result != 0) {
             logger.warn("Failed to send control action: {}", getLastError())
+            return ControlSendResult(false)
         }
-        return result
+        val ptr = codeOut.value ?: return ControlSendResult(true)
+        try {
+            return ControlSendResult(true, ptr.getString(0))
+        } finally {
+            getLib().bvc_free_string(ptr)
+        }
     }
 
     /**

@@ -79,7 +79,7 @@ class FabricMod : ModInitializer {
 
         JukeboxListener(audioPlayerManager!!, playerDataProvider::getWorldUuid).register()
         DiscCommand.register()
-        controlSender?.let { ControlCommands.register(it) }
+        ControlCommands.register(controlSender, playerDataProvider::resolveCanonicalName)
 
         ServerPlayConnectionEvents.JOIN.register { handler, _, _ ->
             playerDataProvider.addPlayer(handler.player)

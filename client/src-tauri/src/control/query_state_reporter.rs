@@ -23,6 +23,13 @@ use crate::bedrock::QueryStateInjector;
 // (~5 waves/second), so slider drags and rapid toggles don't flood the server.
 const DEBOUNCE_WINDOW: Duration = Duration::from_millis(200);
 
+// Event-driven reports alone cannot heal state the receiver lost: a server
+// restart wipes the control caches, QueryState/PlayerPreference ride lossy
+// QUIC datagrams, and a BDS reload drops its panel caches. Every interval the
+// full state re-pushes unconditionally (the preference diff is cleared so
+// unchanged entries go out again), bounding any de-sync to one period.
+const RESYNC_INTERVAL: Duration = Duration::from_secs(30);
+
 /// Pushes the client's live audio-control state to the server and the no-net
 /// panel: on every `ControlStateSignal` it assembles the self-state
 /// (mute/deafen/record) and/or the changed per-player preferences from the
@@ -59,15 +66,29 @@ impl QueryStateReporter {
     }
 
     /// Consume the control-state bus until every sender is dropped, coalescing
-    /// signal bursts within `DEBOUNCE_WINDOW` into a single report wave.
+    /// signal bursts within `DEBOUNCE_WINDOW` into a single report wave and
+    /// re-pushing the full state every `RESYNC_INTERVAL` regardless of events.
     pub async fn run(mut self, mut rx: broadcast::Receiver<ControlStateSignal>) {
+        let mut resync = tokio::time::interval(RESYNC_INTERVAL);
+        resync.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        // An interval's first tick resolves immediately; consume it so startup
+        // does not report before anything is connected.
+        resync.tick().await;
         loop {
             let mut wave = ReportWave::default();
-            match rx.recv().await {
-                Ok(signal) => wave.fold(signal),
-                // Missed signals could have been either kind; send everything.
-                Err(broadcast::error::RecvError::Lagged(_)) => wave.fold_all(),
-                Err(broadcast::error::RecvError::Closed) => return,
+            tokio::select! {
+                received = rx.recv() => match received {
+                    Ok(signal) => wave.fold(signal),
+                    // Missed signals could have been either kind; send everything.
+                    Err(broadcast::error::RecvError::Lagged(_)) => wave.fold_all(),
+                    Err(broadcast::error::RecvError::Closed) => return,
+                },
+                _ = resync.tick() => {
+                    // Full re-push: clearing the diff forces every preference
+                    // out again, not just changed ones.
+                    self.last_prefs.clear();
+                    wave.fold_all();
+                }
             }
 
             let deadline = tokio::time::Instant::now() + DEBOUNCE_WINDOW;

@@ -2,6 +2,7 @@
 /// `CacheManager`) implements this over its own key/value types, so callers get the
 /// same `get`/`set`/`delete` shape everywhere. Concrete caches may add domain
 /// helpers (e.g. scoped or owner-wide operations) beyond this base.
+#[allow(async_fn_in_trait)]
 pub trait CacheTrait {
     type Key;
     type Value;

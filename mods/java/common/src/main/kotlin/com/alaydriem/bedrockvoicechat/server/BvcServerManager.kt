@@ -3,6 +3,7 @@ package com.alaydriem.bedrockvoicechat.server
 import com.alaydriem.bedrockvoicechat.api.ConfigProvider
 import com.alaydriem.bedrockvoicechat.config.EmbeddedConfig
 import com.alaydriem.bedrockvoicechat.config.ModConfig
+import com.alaydriem.bedrockvoicechat.control.ControlSendResult
 import com.alaydriem.bedrockvoicechat.native.BvcNative
 import com.google.gson.Gson
 import com.sun.jna.Pointer
@@ -175,12 +176,12 @@ class BvcServerManager(
     /**
      * Submit an in-game control action via FFI.
      * @param json JSON string matching the common ClientAction structure
-     * @return true on success
+     * @return the outcome; groupCode carries the share code after a successful CreateGroup
      */
     @Synchronized
-    fun clientAction(json: String): Boolean {
-        val h = handle ?: return false
-        return BvcNative.clientAction(h, json) == 0
+    fun clientAction(json: String): ControlSendResult {
+        val h = handle ?: return ControlSendResult(false)
+        return BvcNative.clientAction(h, json)
     }
 
     /**

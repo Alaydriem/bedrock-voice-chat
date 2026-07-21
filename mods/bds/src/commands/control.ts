@@ -11,6 +11,7 @@ import type {
 } from '@minecraft/server';
 import type { ControlAction } from '../control/action';
 import type { ControlSender } from '../control/sender';
+import type { PanelTestConfig } from '../ui/panel_test';
 
 export class ControlCommands {
   // The sender is resolved asynchronously (after config load), but commands must be
@@ -19,6 +20,7 @@ export class ControlCommands {
   static register(
     getSender: () => ControlSender | null,
     openPanel: (player: Player) => void,
+    panelTest: PanelTestConfig,
   ): void {
     system.beforeEvents.startup.subscribe((event) => {
       const registry = event.customCommandRegistry;
@@ -193,6 +195,26 @@ export class ControlCommands {
         },
         (origin: CustomCommandOrigin) =>
           dispatch(origin, { kind: 'group-leave' }),
+      );
+
+      // Operator-only layout testing: pads the volumes view with synthetic
+      // rows so it can be exercised without that many real nearby players.
+      registry.registerCommand(
+        {
+          name: 'bvc:paneltest',
+          description:
+            'Pad the volumes view with synthetic players (0 to clear)',
+          cheatsRequired: false,
+          permissionLevel: CommandPermissionLevel.GameDirectors,
+          mandatoryParameters: [intParam('count')],
+        },
+        (_origin: CustomCommandOrigin, count: number) => {
+          panelTest.set(count);
+          return {
+            status: CustomCommandStatus.Success,
+            message: `Volumes view padded with ${panelTest.count} synthetic players`,
+          };
+        },
       );
     });
   }

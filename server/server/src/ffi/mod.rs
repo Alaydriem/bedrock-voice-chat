@@ -714,12 +714,20 @@ pub unsafe extern "C" fn bvc_audio_stop(
 /// Submit an in-game control action (embedded mode). Parses a `ClientAction` and
 /// routes it: self/preference actions deliver ClientBound to the actor's own
 /// connection; group actions mutate `ChannelCollection` + fan `ChannelEvent`.
+///
+/// `group_code_out`, when non-null, receives a heap string holding the new group's
+/// share code after a successful `CreateGroup` (free via `bvc_free_string`) and is
+/// set to null for every other action or on error.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn bvc_client_action(
     handle: *mut RuntimeHandle,
     action_json: *const c_char,
+    group_code_out: *mut *mut c_char,
 ) -> c_int {
     ffi_guard!("bvc_client_action", -1, {
+    if !group_code_out.is_null() {
+        unsafe { *group_code_out = ptr::null_mut() };
+    }
     if handle.is_null() {
         set_last_error("handle is null");
         return -1;
@@ -815,7 +823,18 @@ pub unsafe extern "C" fn bvc_client_action(
         let result = tokio_rt
             .block_on(async { svc.route_group(&action.action, &actor_cn, &channels, &webhook).await });
         match result {
-            Ok(_) => 0,
+            Ok(created) => {
+                if let (Some(code), false) = (created, group_code_out.is_null()) {
+                    match CString::new(code) {
+                        Ok(cstr) => unsafe { *group_code_out = cstr.into_raw() },
+                        Err(e) => {
+                            set_last_error(&format!("Failed to create CString: {}", e));
+                            return -1;
+                        }
+                    }
+                }
+                0
+            }
             Err(e) => {
                 set_last_error(&format!("route_group failed: {}", e));
                 -1
@@ -824,7 +843,16 @@ pub unsafe extern "C" fn bvc_client_action(
     } else {
         match cache_manager.get_connection_registry() {
             Some(registry) => {
-                svc.route_self(&action, &action.id, &registry);
+                tokio_rt.block_on(async {
+                    svc.route_self_with_echo(
+                        &action,
+                        &action.id,
+                        &registry,
+                        cache_manager.player_state(),
+                        cache_manager.preferences(),
+                    )
+                    .await
+                });
                 0
             }
             None => {

@@ -67,7 +67,14 @@ pub async fn control(
     } else {
         match cache_manager.get_connection_registry() {
             Some(registry) => {
-                svc.route_self(&action, &action.id, registry.as_ref());
+                svc.route_self_with_echo(
+                    &action,
+                    &action.id,
+                    registry.as_ref(),
+                    cache_manager.player_state(),
+                    cache_manager.preferences(),
+                )
+                .await;
                 CustomJsonResponse::ok(None)
             }
             None => CustomJsonResponse::error(Status::ServiceUnavailable),

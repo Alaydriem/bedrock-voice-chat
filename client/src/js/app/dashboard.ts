@@ -262,6 +262,7 @@ export default class Dashboard extends BVCApp {
             const serverUrl = currentServer || '';
 
             this.playerManager = new PlayerManager(this.store, currentUser);
+            await this.playerManager.listenForBackendUpdates();
             this.channelManager = new ChannelManager(this.playerManager, this.store, serverUrl);
 
             // Initialize AudioActivityManager (independent)
@@ -600,7 +601,9 @@ export default class Dashboard extends BVCApp {
             if (this.audioActivityManager) {
                 this.audioActivityManager.destroy();
             }
-            // PlayerManager doesn't need explicit cleanup currently
+            if (this.playerManager) {
+                this.playerManager.cleanup();
+            }
         } catch (err) {
             error(`Error cleaning up managers: ${err}`);
         }

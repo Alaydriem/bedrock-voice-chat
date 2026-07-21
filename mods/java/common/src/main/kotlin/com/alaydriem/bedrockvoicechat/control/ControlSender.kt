@@ -16,16 +16,27 @@ class ControlSender(
         private val logger = LoggerFactory.getLogger("BVC Control")
     }
 
-    fun send(action: ControlAction, actorId: String) {
+    /**
+     * Routes the action; [onResult] (optional) receives the outcome — synchronously
+     * for the FFI path, from the HTTP client's executor for the external path.
+     */
+    fun send(action: ControlAction, actorId: String, onResult: ((ControlSendResult) -> Unit)? = null) {
         val json = action.toClientActionJson(actorId)
         when {
             embeddedServer != null && embeddedServer.isRunning -> {
-                if (!embeddedServer.clientAction(json)) {
+                val result = embeddedServer.clientAction(json)
+                if (!result.ok) {
                     logger.warn("Failed to send control action via FFI")
                 }
+                onResult?.invoke(result)
             }
-            httpHandler != null -> httpHandler.controlAsync(json)
-            else -> logger.warn("No control sender available (neither embedded nor HTTP configured)")
+            httpHandler != null -> httpHandler.controlAsync(json) { ok, groupCode ->
+                onResult?.invoke(ControlSendResult(ok, groupCode))
+            }
+            else -> {
+                logger.warn("No control sender available (neither embedded nor HTTP configured)")
+                onResult?.invoke(ControlSendResult(false))
+            }
         }
     }
 }

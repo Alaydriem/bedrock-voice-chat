@@ -1,8 +1,8 @@
 use common::structs::audio::{PlayerGainSettings, PlayerGainStore};
 use common::structs::control::ClientActionType;
 use log::warn;
-use tauri::Manager;
 use tauri::async_runtime::Mutex;
+use tauri::{Emitter, Manager};
 use tauri_plugin_store::StoreExt;
 
 use crate::audio::AudioActionsManager;
@@ -112,6 +112,15 @@ impl ControlActionsManager {
             store.set("player_gain_store", value);
             let _ = store.save();
         }
+
+        // The dashboard's player cards read the store reactively only on its own
+        // writes; nudge them so a control-plane change renders, not just plays.
+        self.app_handle
+            .emit(
+                crate::events::event::player_gain_store::PLAYER_GAIN_STORE_UPDATED,
+                (),
+            )
+            .ok();
 
         let asm = self.app_handle.state::<Mutex<AudioStreamManager>>();
         let mut asm = asm.lock().await;

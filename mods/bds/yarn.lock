@@ -255,15 +255,15 @@
   dependencies:
     "@minecraft/server-admin" "1.0.0-beta.11940b24"
 
-"@minecraft/server-ui@2.1.0-beta.1.26.21-stable":
-  version "2.1.0-beta.1.26.21-stable"
-  resolved "https://registry.yarnpkg.com/@minecraft/server-ui/-/server-ui-2.1.0-beta.1.26.21-stable.tgz#1630527791caa1a5f3f627496b547c5b3a65e636"
-  integrity sha512-7HLABf+fpKQ+XPM4wG1Z8e3lcKqXv1kYM69cWwKN9vcCifh6sKmFY0RkiSm5RBrnGoAQdF200hGOGWoU3+t6NA==
+"@minecraft/server-ui@2.2.0-beta.1.26.33-stable":
+  version "2.2.0-beta.1.26.33-stable"
+  resolved "https://registry.yarnpkg.com/@minecraft/server-ui/-/server-ui-2.2.0-beta.1.26.33-stable.tgz#9d1da8e1aabff6bd869690943138a71abad1baeb"
+  integrity sha512-scXcAIBeiCAHk9+HtkSKsQ+Y+xfYW4ixl5c8m+78GeEznFwcKzLr3n5/eapIlX4MosAVn4pYNKqrvLBzgihUtg==
 
-"@minecraft/server@2.8.0-beta.1.26.21-stable":
-  version "2.8.0-beta.1.26.21-stable"
-  resolved "https://registry.yarnpkg.com/@minecraft/server/-/server-2.8.0-beta.1.26.21-stable.tgz#476f3945198d9cb0967aa54a553779ebd3635eeb"
-  integrity sha512-HdR2EjmleJBBuaXH4iEobdXh7dcuWtV8AIZn2Kd+UkvlBPc4iIPSqXaEt7nqOk0tyhbKfRs/X3aoVtAMHW+kmQ==
+"@minecraft/server@2.9.0-beta.1.26.33-stable":
+  version "2.9.0-beta.1.26.33-stable"
+  resolved "https://registry.yarnpkg.com/@minecraft/server/-/server-2.9.0-beta.1.26.33-stable.tgz#665b77e4b9b5765f0096905e8d01d6ee4652748e"
+  integrity sha512-7SfTtqTEdvvnrSd9JsTBnOtcfE2SnwoH0rVBRVHUBXOJ+n/w25CvHHDnc9PHN84V8a4s+OR9nNe0xybmdLp5zA==
 
 "@pkgjs/parseargs@^0.11.0":
   version "0.11.0"

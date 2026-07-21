@@ -1,16 +1,19 @@
 import { system } from '@minecraft/server';
 import type { Player } from '@minecraft/server';
-import { CustomForm, MessageBox, Observable } from '@minecraft/server-ui';
+import {
+  CustomForm,
+  ObservableBoolean,
+  ObservableString,
+} from '@minecraft/server-ui';
 import { DataDrivenScreenClosedReason } from '@minecraft/server-ui';
 import type { ControlSender } from '../control/sender';
 import type { StateCacheStore } from '../state/cache_store';
+import type { StateCache } from '../state/state_cache';
 import type { PanelFeed } from '../state/state_source';
+import { FormShow } from './form_show';
+import type { PanelTestConfig } from './panel_test';
 import { PlayerVolumesView } from './player_list';
 
-// The chat screen the /bvc command was typed into may still be closing when the
-// form first shows; retry a few times before giving up.
-const USER_BUSY_RETRIES = 5;
-const USER_BUSY_RETRY_TICKS = 10;
 // If no snapshot lands in this window the panel stops claiming "Syncing…".
 const SYNC_TIMEOUT_TICKS = 40;
 
@@ -24,6 +27,7 @@ export class ControlPanel {
     private readonly getSender: () => ControlSender | null,
     private readonly cacheStore: StateCacheStore,
     private readonly getFeed: () => PanelFeed | null,
+    private readonly panelTest: PanelTestConfig,
   ) {}
 
   open(player: Player): void {
@@ -37,12 +41,20 @@ export class ControlPanel {
 
   private async session(player: Player, sender: ControlSender): Promise<void> {
     const cache = this.cacheStore.for(player.name);
-    const volumes = new PlayerVolumesView(sender, cache);
 
     // The feed's preference fetches stay scoped to what is actually displayed:
-    // the volumes view swaps in its row targets while it is open.
+    // the volumes view swaps in its page's targets while it is open.
     let displayedTargets: string[] = cache.adjustedTargets();
     const feed = this.getFeed();
+    const volumes = new PlayerVolumesView(
+      sender,
+      cache,
+      (targets) => {
+        displayedTargets = targets;
+        feed?.start(player, cache, () => displayedTargets);
+      },
+      this.panelTest,
+    );
     feed?.start(player, cache, () => displayedTargets);
 
     const syncTimeout = system.runTimeout(() => {
@@ -52,9 +64,9 @@ export class ControlPanel {
     }, SYNC_TIMEOUT_TICKS);
 
     const unsubscribes: Array<() => void> = [];
-    const subscribe = <T extends string | number | boolean>(
-      observable: Observable<T>,
-      onPlayerChange: (value: T) => void,
+    const subscribe = (
+      observable: ObservableBoolean,
+      onPlayerChange: (value: boolean) => void,
     ): void => {
       // Two independent echo guards, because the beta API does not document
       // subscriber-dispatch timing: the syncing bracket suppresses echoes when
@@ -75,13 +87,15 @@ export class ControlPanel {
     };
 
     subscribe(cache.muted, (on) => {
+      cache.markPending('muted', on);
       void sender.send({ kind: 'mute', on }, player);
     });
     subscribe(cache.deafened, (on) => {
+      cache.markPending('deafened', on);
       void sender.send({ kind: 'deafen', on }, player);
     });
 
-    const recordLabel = Observable.create<string>(
+    const recordLabel = new ObservableString(
       cache.recording.getData() ? 'Stop recording' : 'Start recording',
     );
     const recordListener = cache.recording.subscribe((recording) => {
@@ -89,10 +103,28 @@ export class ControlPanel {
     });
     unsubscribes.push(() => cache.recording.unsubscribe(recordListener));
 
-    const joinCode = Observable.create<string>('', { clientWritable: true });
+    // Seeded with the current group's code: the text field is the only DDUI
+    // widget whose text a player can select and copy, so it doubles as the
+    // "share my group" surface.
+    const joinCode = new ObservableString(cache.group ?? '', {
+      clientWritable: true,
+    });
+    // The seed above races the first snapshot (cache.group may still be null on
+    // the first open); backfill the field once state rides in, but never clobber
+    // something the player typed.
+    const codeBackfill = cache.status.subscribe(() => {
+      const group = cache.group;
+      if (group && joinCode.getData() === '') {
+        joinCode.setData(group);
+      }
+    });
+    unsubscribes.push(() => cache.status.unsubscribe(codeBackfill));
 
     let reopenAfterVolumes = false;
-    const form = CustomForm.create(player, 'BVC Voice Controls')
+    // A MessageBox cannot show over an open form (UserBusy, no selection), so
+    // the record confirmation runs after this panel closes.
+    let confirmRecordAfterClose = false;
+    const form = new CustomForm(player, 'BVC Voice Controls')
       .label(cache.status)
       .divider()
       .toggle('Muted', cache.muted, { disabled: cache.controlsLocked })
@@ -100,16 +132,24 @@ export class ControlPanel {
       .button(
         recordLabel,
         () => {
-          void this.onRecordPressed(player, sender, cache.recording.getData());
+          if (cache.recording.getData()) {
+            cache.markPending('recording', false);
+            void sender.send({ kind: 'record', on: false }, player);
+            return;
+          }
+          confirmRecordAfterClose = true;
+          form.close();
         },
         { disabled: cache.controlsLocked },
       )
       .divider()
       .button('Create group', () => {
-        void this.onCreateGroup(player, sender, cache.status);
+        void this.onCreateGroup(player, sender, cache.status, joinCode);
       })
       .textField('Group code', joinCode, {
-        description: 'Paste a share code, then press Join',
+        description: cache.group
+          ? 'Your current group code — copy it to share, or paste another and press Join'
+          : 'Paste a share code, then press Join',
       })
       .button('Join group', () => {
         const code = joinCode.getData().trim();
@@ -131,16 +171,13 @@ export class ControlPanel {
       })
       .closeButton();
 
-    const closedReason = await this.showWithRetry(form);
+    const closedReason = await FormShow.withRetry(form);
 
     if (
       reopenAfterVolumes &&
-      closedReason === DataDrivenScreenClosedReason.ServerClose
+      closedReason === DataDrivenScreenClosedReason.ServerClosed
     ) {
-      const rows = volumes.rows(player);
-      displayedTargets = rows.map((r) => r.target);
-      feed?.start(player, cache, () => displayedTargets);
-      await volumes.show(player, rows);
+      await volumes.show(player);
     }
 
     system.clearRun(syncTimeout);
@@ -149,35 +186,56 @@ export class ControlPanel {
     }
     feed?.stop(player.name);
 
-    if (reopenAfterVolumes) {
-      // Back out of the volumes view into a fresh panel.
-      this.open(player);
+    if (closedReason === DataDrivenScreenClosedReason.ServerClosed) {
+      if (confirmRecordAfterClose) {
+        await this.confirmStartRecording(player, sender, cache);
+      }
+      if (reopenAfterVolumes || confirmRecordAfterClose) {
+        // Back out of the volumes view / record confirmation into a fresh panel.
+        this.open(player);
+      }
     }
   }
 
-  private async onRecordPressed(
+  private async confirmStartRecording(
     player: Player,
     sender: ControlSender,
-    recording: boolean,
+    cache: StateCache,
   ): Promise<void> {
-    if (recording) {
-      await sender.send({ kind: 'record', on: false }, player);
+    // The confirmation is a CustomForm whose Start button fires a server-side
+    // callback — the same mechanism as the panel's own buttons — so confirming
+    // never depends on reading a selection index out of a close result.
+    let confirmed = false;
+    const form = new CustomForm(player, 'Start recording?')
+      .label('This records your voice session on your desktop app.')
+      .button('Start', () => {
+        confirmed = true;
+        form.close();
+      })
+      .closeButton();
+    const reason = await FormShow.withRetry(form);
+    if (reason === DataDrivenScreenClosedReason.UserBusy) {
+      player.sendMessage(
+        '§c[BVC] Could not open the recording confirmation; try again',
+      );
       return;
     }
-    const result = await MessageBox.create(player, 'Start recording?')
-      .body('This records your voice session on your desktop app.')
-      .button1('Start')
-      .button2('Cancel')
-      .show();
-    if (result.selection === 0) {
-      await sender.send({ kind: 'record', on: true }, player);
+    if (!confirmed) {
+      return;
+    }
+    cache.markPending('recording', true);
+    const result = await sender.send({ kind: 'record', on: true }, player);
+    if (!result.ok) {
+      cache.markPending('recording', false);
+      player.sendMessage('§c[BVC] Recording failed to start; try again');
     }
   }
 
   private async onCreateGroup(
     player: Player,
     sender: ControlSender,
-    status: Observable<string>,
+    status: ObservableString,
+    joinCode: ObservableString,
   ): Promise<void> {
     const result = await sender.send({ kind: 'group-create' }, player);
     if (!result.ok) {
@@ -186,29 +244,12 @@ export class ControlPanel {
     }
     if (result.groupCode) {
       status.setData(`Group: ${result.groupCode}`);
+      // Land the code in the copyable text field, not just the status label.
+      joinCode.setData(result.groupCode);
       player.sendMessage(
         `§a[BVC] Group created — share code: §f${result.groupCode}`,
       );
     }
   }
 
-  private async showWithRetry(
-    form: CustomForm,
-  ): Promise<DataDrivenScreenClosedReason> {
-    let reason = await form.show();
-    for (
-      let attempt = 0;
-      reason === DataDrivenScreenClosedReason.UserBusy &&
-      attempt < USER_BUSY_RETRIES;
-      attempt++
-    ) {
-      await this.wait(USER_BUSY_RETRY_TICKS);
-      reason = await form.show();
-    }
-    return reason;
-  }
-
-  private wait(ticks: number): Promise<void> {
-    return new Promise((resolve) => system.runTimeout(resolve, ticks));
-  }
 }
