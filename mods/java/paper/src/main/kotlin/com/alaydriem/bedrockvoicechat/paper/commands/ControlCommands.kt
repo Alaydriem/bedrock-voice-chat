@@ -13,6 +13,7 @@ import io.papermc.paper.command.brigadier.Commands
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.event.ClickEvent
 import net.kyori.adventure.text.event.HoverEvent
+import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 
 // The actor id must be the CANONICAL name — the same identity the position path
@@ -54,13 +55,9 @@ class ControlCommands(
                 Commands.literal("volume").then(
                     Commands.argument("player", StringArgumentType.string()).then(
                         Commands.argument("level", IntegerArgumentType.integer(0, 100)).executes { ctx ->
-                            dispatch(
-                                ctx,
-                                ControlAction.Volume(
-                                    StringArgumentType.getString(ctx, "player"),
-                                    IntegerArgumentType.getInteger(ctx, "level")
-                                )
-                            )
+                            dispatchTargeted(ctx, StringArgumentType.getString(ctx, "player")) { target ->
+                                ControlAction.Volume(target, IntegerArgumentType.getInteger(ctx, "level"))
+                            }
                         }
                     )
                 )
@@ -69,13 +66,9 @@ class ControlCommands(
                 Commands.literal("hear").then(
                     Commands.argument("player", StringArgumentType.string()).then(
                         Commands.argument("on", BoolArgumentType.bool()).executes { ctx ->
-                            dispatch(
-                                ctx,
-                                ControlAction.Hear(
-                                    StringArgumentType.getString(ctx, "player"),
-                                    BoolArgumentType.getBool(ctx, "on")
-                                )
-                            )
+                            dispatchTargeted(ctx, StringArgumentType.getString(ctx, "player")) { target ->
+                                ControlAction.Hear(target, BoolArgumentType.getBool(ctx, "on"))
+                            }
                         }
                     )
                 )
@@ -100,6 +93,23 @@ class ControlCommands(
                         }
                     )
             )
+    }
+
+    // Per-player preferences key on the target's CANONICAL gamertag everywhere
+    // downstream (the desktop gain store, the sink's name remap, the player
+    // cards) — like the actor, a typed target must resolve to a real online
+    // player and pass through the same canonical-name mapping, never raw text.
+    private fun dispatchTargeted(
+        ctx: CommandContext<CommandSourceStack>,
+        typed: String,
+        build: (String) -> ControlAction,
+    ): Int {
+        val resolved = Bukkit.getOnlinePlayers().firstOrNull { it.name.equals(typed, ignoreCase = true) }
+        if (resolved == null) {
+            ctx.source.sender.sendMessage(Component.text("[BVC] Unknown player: $typed"))
+            return 0
+        }
+        return dispatch(ctx, build(canonicalName(resolved)))
     }
 
     private fun dispatch(ctx: CommandContext<CommandSourceStack>, action: ControlAction): Int {

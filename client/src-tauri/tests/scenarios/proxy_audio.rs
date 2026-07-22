@@ -49,6 +49,19 @@ async fn proxy_two_players_in_range_hear_each_other() {
             tokio::time::sleep(Duration::from_millis(120)).await;
         }
 
+        // The dashboard's player cards appear off the player_presence Tauri
+        // event; Alice's client must observe Bob join at the webview boundary.
+        assert!(
+            w.proc("Alice")
+                .await_ui_event(
+                    "player_presence",
+                    |p| p.contains("Bob") && p.contains("joined"),
+                    Duration::from_secs(10),
+                )
+                .is_ok(),
+            "[{v}] Alice must receive Bob's player_presence render trigger"
+        );
+
         // Queue both feeds back-to-back. feed_tone writes frames to stdin without
         // sleeping; the bin's FrameClock paces them to QUIC at a real 20 ms cadence.
         // Disjoint scales (ALICE = C-major, BOB = A-major) make Scale::hears() unambiguous.

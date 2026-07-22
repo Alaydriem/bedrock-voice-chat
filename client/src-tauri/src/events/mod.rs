@@ -1,4 +1,4 @@
-pub(crate) mod event;
+pub mod event;
 
 #[allow(unused_imports)]
 pub(crate) use crate::events::event::channel_event::ChannelEvent;

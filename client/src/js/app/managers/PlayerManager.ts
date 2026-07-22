@@ -1,6 +1,7 @@
 import { writable, derived, get, type Writable, type Readable } from 'svelte/store';
 import { invoke } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import type { UnlistenFn } from '@tauri-apps/api/event';
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { info, error, debug, warn } from '@tauri-apps/plugin-log';
 import type { PlayerGainSettings } from '../../bindings/PlayerGainSettings';
 import type { PlayerGainStore } from '../../bindings/PlayerGainStore';
@@ -27,11 +28,26 @@ export class PlayerManager {
     private currentUserStore: Writable<string>;
     private store: Store;
     private gainStoreUnlisten: UnlistenFn | null = null;
+    private visibilityHandler: (() => void) | null = null;
+    private reseedInterval: ReturnType<typeof setInterval> | null = null;
 
     // Readonly exports for components
     public readonly playersMap: Readable<Map<string, PlayerData>>;
     public readonly currentUser: Readable<string>;
     public readonly activePlayers: Readable<PlayerData[]>;
+
+    /**
+     * Canonical map/store key for a player. Cards arrive from three sources
+     * with two name forms: proximity presence and get_current_players use the
+     * bare gamertag, while channel membership uses the CN form
+     * ("minecraft:Bob"). The persisted gain store, the sink's name remap, and
+     * the control plane all key on the BARE gamertag — so every name entering
+     * this manager is normalized here, or the same player forks into two map
+     * entries and a freshly group-added card never reacts to gain updates.
+     */
+    private static key(name: string): string {
+        return GameNameUtils.stripPrefix(name);
+    }
 
     constructor(store: Store, currentUser: string = '') {
         // Initialize internal stores
@@ -74,6 +90,7 @@ export class PlayerManager {
      */
     add(name: string, settings?: PlayerGainSettings): boolean {
         try {
+            name = PlayerManager.key(name);
             const playerSettings = settings || { gain: 1.0, muted: false };
 
             this.playersMapStore.update(map => {
@@ -96,6 +113,7 @@ export class PlayerManager {
      */
     remove(name: string): boolean {
         try {
+            name = PlayerManager.key(name);
             this.playersMapStore.update(map => {
                 const removed = map.delete(name);
                 return new Map(map);
@@ -112,6 +130,7 @@ export class PlayerManager {
      */
     update(name: string, settings: Partial<PlayerGainSettings>): boolean {
         try {
+            name = PlayerManager.key(name);
             this.playersMapStore.update(map => {
                 const player = map.get(name);
                 if (player) {
@@ -134,7 +153,7 @@ export class PlayerManager {
      */
     has(name: string): boolean {
         const currentMap = get(this.playersMapStore);
-        return currentMap.has(name);
+        return currentMap.has(PlayerManager.key(name));
     }
 
     /**
@@ -142,7 +161,7 @@ export class PlayerManager {
      */
     get(name: string): PlayerData | undefined {
         const currentMap = get(this.playersMapStore);
-        return currentMap.get(name);
+        return currentMap.get(PlayerManager.key(name));
     }
 
     /**
@@ -179,7 +198,7 @@ export class PlayerManager {
 
         try {
             const playerGainStore = await this.store.get("player_gain_store") as PlayerGainStore || {};
-            const settings = playerGainStore[playerName] || { gain: 1.0, muted: false };
+            const settings = playerGainStore[PlayerManager.key(playerName)] || { gain: 1.0, muted: false };
             return settings;
         } catch (err) {
             error(`PlayerManager: Failed to load settings for ${playerName}: ${err}`);
@@ -193,6 +212,7 @@ export class PlayerManager {
      */
     async addPlayerSource(name: string, source: PlayerSource, settings?: PlayerGainSettings, gamerpic?: string, game?: string): Promise<boolean> {
         try {
+            name = PlayerManager.key(name);
             // Load settings if not provided
             const playerSettings = settings || await this.loadPlayerSettings(name);
 
@@ -231,6 +251,7 @@ export class PlayerManager {
      * Update a player's gamerpic
      */
     updatePlayerGamepic(name: string, gamerpic: string): void {
+        name = PlayerManager.key(name);
         this.playersMapStore.update(map => {
             const player = map.get(name);
             if (player) {
@@ -246,7 +267,7 @@ export class PlayerManager {
      */
     removePlayerSource(name: string, source: PlayerSource): boolean {
         try {
-
+            name = PlayerManager.key(name);
             this.playersMapStore.update(map => {
                 const existing = map.get(name);
                 if (existing) {
@@ -349,6 +370,9 @@ export class PlayerManager {
         if (!this.store) return;
 
         try {
+            // The persisted store keys on the bare gamertag — the same key the
+            // sink's name remap and the control plane use.
+            playerName = PlayerManager.key(playerName);
             // Get current store
             let playerGainStore = await this.store.get("player_gain_store") as PlayerGainStore || {};
 
@@ -378,17 +402,58 @@ export class PlayerManager {
      * Subscribe to backend-initiated gain-store changes (in-game control
      * actions): the backend mutates the persisted store directly, so the
      * reactive map must be re-seeded for the player cards to re-render.
+     *
+     * The event alone is not enough on mobile: Android suspends the webview
+     * whenever the app is not the actively-watched foreground surface, and a
+     * Tauri event delivered during that window is one-shot and lost while the
+     * backend keeps applying audio state underneath. The cards must CONVERGE,
+     * not just react — re-seed on returning to the foreground and on a slow
+     * backstop interval, so a missed event costs seconds of staleness, never
+     * a permanently wrong card.
      */
     async listenForBackendUpdates(): Promise<void> {
-        this.gainStoreUnlisten = await listen('player_gain_store_updated', () => {
+        // Idempotent: the dashboard's cold-start path tears listeners down via
+        // cleanup() mid-initialize and must be able to re-register safely.
+        this.cleanup();
+        // Webview-scoped listen, NOT the global `listen` from api/event: on
+        // Android, backend emits reliably reach webview-scoped listeners (the
+        // mute/deafen buttons' working pattern) while global-target listeners
+        // can miss them; desktop delivers both.
+        this.gainStoreUnlisten = await getCurrentWebviewWindow().listen(
+            'player_gain_store_updated',
+            () => {
+                debug('PlayerManager: player_gain_store_updated received; re-seeding cards');
+                void this.loadFromPersistentStore();
+            },
+        );
+
+        this.visibilityHandler = () => {
+            if (document.visibilityState === 'visible') {
+                debug('PlayerManager: webview foregrounded; re-seeding cards');
+                void this.loadFromPersistentStore();
+            }
+        };
+        document.addEventListener('visibilitychange', this.visibilityHandler);
+
+        this.reseedInterval = setInterval(() => {
             void this.loadFromPersistentStore();
-        });
+        }, PlayerManager.RESEED_BACKSTOP_MS);
     }
+
+    private static readonly RESEED_BACKSTOP_MS = 10_000;
 
     cleanup(): void {
         if (this.gainStoreUnlisten) {
             this.gainStoreUnlisten();
             this.gainStoreUnlisten = null;
+        }
+        if (this.visibilityHandler) {
+            document.removeEventListener('visibilitychange', this.visibilityHandler);
+            this.visibilityHandler = null;
+        }
+        if (this.reseedInterval) {
+            clearInterval(this.reseedInterval);
+            this.reseedInterval = null;
         }
     }
 
@@ -401,9 +466,12 @@ export class PlayerManager {
         try {
             const playerGainStore = await this.store.get("player_gain_store") as PlayerGainStore || {};
 
-            // Update settings for existing players
+            // Update settings for existing players. Store keys are normalized
+            // too: entries written before key canonicalization may carry the
+            // CN-prefixed form.
             this.playersMapStore.update(map => {
-                for (const [playerName, settings] of Object.entries(playerGainStore)) {
+                for (const [storeKey, settings] of Object.entries(playerGainStore)) {
+                    const playerName = PlayerManager.key(storeKey);
                     const player = map.get(playerName);
                     if (player && settings) {
                         player.settings = settings;

@@ -113,6 +113,22 @@ pub enum OutMsg {
         deafened: bool,
         recording: bool,
     },
+    // The backend announced a player_gain_store change — the same event the
+    // dashboard's player cards re-render on. Carries the persisted store as
+    // JSON at that moment, so the orchestrator can assert both that the event
+    // fired and what state a card would render.
+    GainStoreUpdated {
+        store_json: String,
+    },
+    // A frontend-facing Tauri event observed at the webview boundary, forwarded
+    // verbatim (name + raw JSON payload). These are the render triggers the
+    // desktop UI consumes; scenarios assert them so a broken contract (event
+    // not fired, renamed, or malformed payload) fails e2e instead of waiting
+    // for manual QA.
+    UiEvent {
+        event: String,
+        payload: String,
+    },
 }
 
 // Upper bound on a single frame so a corrupt length prefix cannot trigger a

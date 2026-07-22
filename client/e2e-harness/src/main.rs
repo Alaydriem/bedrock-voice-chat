@@ -164,6 +164,50 @@ fn main() {
                 }
             });
 
+            // Forward the gain-store-updated event — the one the dashboard's
+            // player cards re-render on — with the store contents at that
+            // moment, so the orchestrator can assert the render trigger and the
+            // state a card would show.
+            let gain_handle = handle.clone();
+            tauri::Listener::listen(
+                &handle.clone(),
+                bvc_client_lib::events::event::player_gain_store::PLAYER_GAIN_STORE_UPDATED,
+                move |_| {
+                    use tauri_plugin_store::StoreExt;
+                    let store_json = gain_handle
+                        .store("store.json")
+                        .ok()
+                        .and_then(|store| store.get("player_gain_store"))
+                        .map(|v| v.to_string())
+                        .unwrap_or_else(|| "{}".to_string());
+                    StdoutBridge::emit(&OutMsg::GainStoreUpdated { store_json });
+                },
+            );
+
+            // Forward the remaining frontend-facing control/UI events verbatim.
+            // Every name here must match a `listen()` call in the desktop
+            // frontend — these are the render triggers the webview consumes,
+            // surfaced so scenarios can assert them at the boundary.
+            // (audio-activity is deliberately absent: it fires at speech rate
+            // and would flood the bridge.)
+            const FORWARDED_UI_EVENTS: &[&str] = &[
+                "mute:input",
+                "mute:output",
+                "channel_event",
+                "player_presence",
+                "recording:started",
+                "recording:stopped",
+            ];
+            for name in FORWARDED_UI_EVENTS {
+                let event_name = (*name).to_string();
+                tauri::Listener::listen(&handle.clone(), *name, move |event| {
+                    StdoutBridge::emit(&OutMsg::UiEvent {
+                        event: event_name.clone(),
+                        payload: event.payload().to_string(),
+                    });
+                });
+            }
+
             // Capture-drain thread: post-mix PCM out to stdout as it arrives.
             let cap_rx = cap_rx.take().expect("cap_rx taken once");
             std::thread::spawn(move || {

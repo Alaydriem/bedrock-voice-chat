@@ -1,5 +1,6 @@
 import {
   system,
+  world,
   Player,
   CommandPermissionLevel,
   CustomCommandParamType,
@@ -143,12 +144,17 @@ export class ControlCommands {
           permissionLevel: CommandPermissionLevel.Any,
           mandatoryParameters: [strParam('player'), intParam('level')],
         },
-        (origin: CustomCommandOrigin, player: string, level: number) =>
-          dispatch(origin, {
+        (origin: CustomCommandOrigin, player: string, level: number) => {
+          const target = ControlCommands.resolveTarget(player);
+          if (!target) {
+            return ControlCommands.unknownPlayer(player);
+          }
+          return dispatch(origin, {
             kind: 'volume',
-            target: player,
+            target,
             value: Math.max(0, Math.min(100, level)),
-          }),
+          });
+        },
       );
 
       registry.registerCommand(
@@ -159,8 +165,13 @@ export class ControlCommands {
           permissionLevel: CommandPermissionLevel.Any,
           mandatoryParameters: [strParam('player'), boolParam('on')],
         },
-        (origin: CustomCommandOrigin, player: string, on: boolean) =>
-          dispatch(origin, { kind: 'hear', target: player, on }),
+        (origin: CustomCommandOrigin, player: string, on: boolean) => {
+          const target = ControlCommands.resolveTarget(player);
+          if (!target) {
+            return ControlCommands.unknownPlayer(player);
+          }
+          return dispatch(origin, { kind: 'hear', target, on });
+        },
       );
 
       registry.registerCommand(
@@ -217,5 +228,27 @@ export class ControlCommands {
         },
       );
     });
+  }
+
+  // Per-player preferences key on the target's EXACT gamertag everywhere
+  // downstream (the desktop gain store, the sink's name remap, the player
+  // cards) — a typed name must resolve to a real online player's exact name,
+  // never pass through raw. This is what makes the CLI land on the same path
+  // the DDUI volumes view uses (whose rows are always exact names).
+  private static resolveTarget(typed: string): string | null {
+    const lowered = typed.toLowerCase();
+    for (const p of world.getAllPlayers()) {
+      if (p.name.toLowerCase() === lowered) {
+        return p.name;
+      }
+    }
+    return null;
+  }
+
+  private static unknownPlayer(typed: string): CustomCommandResult {
+    return {
+      status: CustomCommandStatus.Failure,
+      message: `Unknown player: ${typed}`,
+    };
   }
 }

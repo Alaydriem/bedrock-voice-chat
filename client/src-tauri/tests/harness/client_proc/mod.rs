@@ -163,6 +163,14 @@ impl ClientProc {
                             reader_state.lock().unwrap().stats =
                                 Some((frames_sent, frames_from_quic, frames_into_jitter_buffer));
                         }
+                        Ok(OutMsg::UiEvent { event, payload }) => {
+                            reader_state.lock().unwrap().ui_events.push((event, payload));
+                        }
+                        Ok(OutMsg::GainStoreUpdated { store_json }) => {
+                            if let Ok(v) = serde_json::from_str(&store_json) {
+                                reader_state.lock().unwrap().gain_store = Some(v);
+                            }
+                        }
                         Ok(OutMsg::State {
                             muted,
                             deafened,
@@ -208,6 +216,64 @@ impl ClientProc {
             if Instant::now() >= deadline {
                 return Err(format!(
                     "timed out waiting for muted=={want} after {timeout:?}"
+                ));
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    /// Block until the persisted `player_gain_store` snapshot carried by the
+    /// card-render event (`OutMsg::GainStoreUpdated`) satisfies `pred`, or
+    /// `timeout` elapses. Never satisfied if the event never fires — this is
+    /// the render-trigger assertion, not a store poll.
+    pub fn await_gain_store<F>(&self, pred: F, timeout: Duration) -> Result<serde_json::Value, String>
+    where
+        F: Fn(&serde_json::Value) -> bool,
+    {
+        let deadline = Instant::now() + timeout;
+        loop {
+            if let Some(store) = self.state.lock().unwrap().gain_store.clone() {
+                if pred(&store) {
+                    return Ok(store);
+                }
+            }
+            if Instant::now() >= deadline {
+                return Err(format!(
+                    "timed out waiting for a matching gain-store event after {timeout:?}"
+                ));
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    /// Block until the bin has observed frontend-facing Tauri event `event`
+    /// with a payload satisfying `pred`, or `timeout` elapses. Returns the
+    /// matching payload. This asserts the RENDER TRIGGER the webview consumes,
+    /// at the boundary — not the DOM it produces.
+    pub fn await_ui_event<F>(
+        &self,
+        event: &str,
+        pred: F,
+        timeout: Duration,
+    ) -> Result<String, String>
+    where
+        F: Fn(&str) -> bool,
+    {
+        let deadline = Instant::now() + timeout;
+        loop {
+            {
+                let state = self.state.lock().unwrap();
+                if let Some((_, payload)) = state
+                    .ui_events
+                    .iter()
+                    .find(|(name, payload)| name == event && pred(payload))
+                {
+                    return Ok(payload.clone());
+                }
+            }
+            if Instant::now() >= deadline {
+                return Err(format!(
+                    "timed out waiting for ui event {event} after {timeout:?}"
                 ));
             }
             std::thread::sleep(Duration::from_millis(10));

@@ -32,7 +32,7 @@ pub mod discord;
 pub use discord::{
     DiscordLinkService, DiscordOAuth, DiscordRoleClient, DiscordTraitState, RoleCategory,
 };
-mod events;
+pub mod events;
 mod feature_flags;
 pub use feature_flags::FeatureFlagService;
 pub use feature_flags::flagsmith::FlagsmithProvider;

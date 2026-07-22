@@ -22,11 +22,11 @@
       "minecraft:geometry": "minecraft:geometry.full_block",
       "minecraft:material_instances": {
         "*": {
-          "texture": "bvc_audio_player",
+          "texture": "jukebox_side",
           "render_method": "opaque"
         },
         "up": {
-          "texture": "bvc_audio_player_top",
+          "texture": "jukebox_top",
           "render_method": "opaque"
         }
       },

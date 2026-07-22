@@ -68,6 +68,33 @@ impl ControlActionsManager {
         }
     }
 
+    /// Resolves a control-action target onto the exact key the audio pipeline
+    /// tracks. Preferences key on exact gamertags everywhere downstream (the
+    /// sink's name→client-id remap, the dashboard's player cards), so a case-
+    /// or game-prefix-variant target must land on the canonical name — never
+    /// fork a ghost entry that plays no audio and renders nowhere. An exact hit
+    /// wins; otherwise the first candidate matching case-insensitively with
+    /// game prefixes stripped. Candidates are ordered by authority (tracked
+    /// voice names before store keys). An unknown target passes through
+    /// unchanged — the entry parks until that player is tracked.
+    pub fn canonicalize_target(target: &str, candidates: &[&str]) -> String {
+        if candidates.iter().any(|c| *c == target) {
+            return target.to_string();
+        }
+        let norm = |s: &str| {
+            s.split_once(':')
+                .map(|(_, bare)| bare)
+                .unwrap_or(s)
+                .to_ascii_lowercase()
+        };
+        let wanted = norm(target);
+        candidates
+            .iter()
+            .find(|c| norm(c) == wanted)
+            .map(|c| (*c).to_string())
+            .unwrap_or_else(|| target.to_string())
+    }
+
     /// Upsert one player's gain/mute into the persisted `player_gain_store` and feed
     /// the `player_gain_store` metadata channel — the same path the dashboard UI
     /// uses (the name→client-id remap + SinkManager update happen downstream). Reads
@@ -85,6 +112,20 @@ impl ControlActionsManager {
             .get("player_gain_store")
             .and_then(|v| serde_json::from_value(v).ok())
             .unwrap_or_default();
+
+        // Currently tracked voice names are the authoritative key form; the
+        // existing store keys come second.
+        let tracked: Vec<String> = {
+            let asm = self.app_handle.state::<Mutex<AudioStreamManager>>();
+            let asm = asm.lock().await;
+            asm.get_current_players().into_keys().collect()
+        };
+        let candidates: Vec<&str> = tracked
+            .iter()
+            .map(String::as_str)
+            .chain(gains.0.keys().map(String::as_str))
+            .collect();
+        let target = Self::canonicalize_target(target, &candidates);
 
         let entry = gains
             .0
@@ -115,24 +156,33 @@ impl ControlActionsManager {
 
         // The dashboard's player cards read the store reactively only on its own
         // writes; nudge them so a control-plane change renders, not just plays.
+        // The payload is the canonical target — the store is the source of
+        // truth, but a named payload traces cleanly in device logs.
         self.app_handle
             .emit(
                 crate::events::event::player_gain_store::PLAYER_GAIN_STORE_UPDATED,
-                (),
+                &target,
             )
             .ok();
 
+        // The name→client-id remap that drives the SinkManager lives in the
+        // OUTPUT stream's metadata handler (playback gains); the input stream
+        // has no player_gain_store arm — feeding it there parks the update in a
+        // cache and no audio ever changes. Same device the dashboard UI targets.
         let asm = self.app_handle.state::<Mutex<AudioStreamManager>>();
         let mut asm = asm.lock().await;
         if let Err(e) = asm
             .metadata(
                 "player_gain_store".to_string(),
                 serialized,
-                &AudioDeviceType::InputDevice,
+                &AudioDeviceType::OutputDevice,
             )
             .await
         {
             warn!("ControlActionsManager: player_gain_store metadata feed failed: {e}");
         }
+        log::debug!(
+            "ControlActionsManager: gain applied target={target} volume={volume:?} muted={muted:?}"
+        );
     }
 }

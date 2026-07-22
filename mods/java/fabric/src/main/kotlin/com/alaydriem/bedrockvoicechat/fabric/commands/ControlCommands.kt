@@ -51,13 +51,12 @@ object ControlCommands {
                         Commands.literal("volume").then(
                             Commands.argument("player", StringArgumentType.string()).then(
                                 Commands.argument("level", IntegerArgumentType.integer(0, 100)).executes { ctx ->
-                                    dispatch(
+                                    dispatchTargeted(
                                         ctx, sender, canonicalName,
-                                        ControlAction.Volume(
-                                            StringArgumentType.getString(ctx, "player"),
-                                            IntegerArgumentType.getInteger(ctx, "level")
-                                        )
-                                    )
+                                        StringArgumentType.getString(ctx, "player")
+                                    ) { target ->
+                                        ControlAction.Volume(target, IntegerArgumentType.getInteger(ctx, "level"))
+                                    }
                                 }
                             )
                         )
@@ -66,13 +65,12 @@ object ControlCommands {
                         Commands.literal("hear").then(
                             Commands.argument("player", StringArgumentType.string()).then(
                                 Commands.argument("on", BoolArgumentType.bool()).executes { ctx ->
-                                    dispatch(
+                                    dispatchTargeted(
                                         ctx, sender, canonicalName,
-                                        ControlAction.Hear(
-                                            StringArgumentType.getString(ctx, "player"),
-                                            BoolArgumentType.getBool(ctx, "on")
-                                        )
-                                    )
+                                        StringArgumentType.getString(ctx, "player")
+                                    ) { target ->
+                                        ControlAction.Hear(target, BoolArgumentType.getBool(ctx, "on"))
+                                    }
                                 }
                             )
                         )
@@ -102,6 +100,26 @@ object ControlCommands {
                     )
             )
         }
+    }
+
+    // Per-player preferences key on the target's CANONICAL gamertag everywhere
+    // downstream (the desktop gain store, the sink's name remap, the player
+    // cards) — like the actor, a typed target must resolve to a real online
+    // player and pass through the same canonical-name mapping, never raw text.
+    private fun dispatchTargeted(
+        ctx: CommandContext<CommandSourceStack>,
+        sender: ControlSender,
+        canonicalName: (ServerPlayer) -> String,
+        typed: String,
+        build: (String) -> ControlAction
+    ): Int {
+        val resolved = ctx.source.server.playerList.players
+            .firstOrNull { it.gameProfile.name.equals(typed, ignoreCase = true) }
+        if (resolved == null) {
+            ctx.source.sendFailure(Component.literal("[BVC] Unknown player: $typed"))
+            return 0
+        }
+        return dispatch(ctx, sender, canonicalName, build(canonicalName(resolved)))
     }
 
     private fun dispatch(

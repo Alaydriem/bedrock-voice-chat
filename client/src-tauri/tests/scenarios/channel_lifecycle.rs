@@ -60,6 +60,16 @@ async fn channel_membership_governs_audio_through_join_leave_rejoin_disband() {
         .expect("Alice reports the joined channel id");
 
     let bob = ClientProc::spawn("Bob", &bob_code, &url, "lifecycle");
+    // The dashboard's channel UI renders off the channel_event Tauri event; the
+    // join fan-out must reach the webview boundary with the joined channel id.
+    alice
+        .await_ui_event(
+            "channel_event",
+            |p| p.contains("\"join\"") && p.contains(&channel_id),
+            Duration::from_secs(10),
+        )
+        .expect("the channel_event join render trigger must fire on Alice");
+
     bob.await_connected(Duration::from_secs(30))
         .expect("Bob connects + joins lifecycle");
 

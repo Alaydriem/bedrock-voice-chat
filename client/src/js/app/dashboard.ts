@@ -235,6 +235,15 @@ export default class Dashboard extends BVCApp {
                     await this.audioActivityManager.initialize();
                 }
 
+                // shutdown() also unregistered PlayerManager's gain-store
+                // listener; without re-registering, every COLD start ships a
+                // dashboard whose player cards never react to in-game
+                // volume/hear changes (warm re-entries skip this branch, which
+                // is why navigating away and back "fixed" it).
+                if (this.playerManager) {
+                    await this.playerManager.listenForBackendUpdates();
+                }
+
                 // Update notification
                 await updateNotification({
                     title: "Bedrock Voice Chat",

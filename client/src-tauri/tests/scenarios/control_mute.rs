@@ -47,4 +47,10 @@ async fn client_action_setmuted_mutes_the_actor() {
     alice
         .await_muted(true, Duration::from_secs(5))
         .expect("Alice's input device must be muted after the ClientBound ClientAction");
+
+    // The dashboard renders mute state off the mute:input Tauri event — the
+    // control-plane apply must fire it, not just flip the stream.
+    alice
+        .await_ui_event("mute:input", |p| p == "true", Duration::from_secs(5))
+        .expect("the mute:input render trigger must fire for the delivered SetMuted");
 }
