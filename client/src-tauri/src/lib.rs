@@ -7,7 +7,7 @@ pub(crate) use audio::recording::RecordingManager;
 use common::consts::variant::{Variant, get_variant};
 pub(crate) use flume::{Receiver, Sender};
 use log::{error, info, warn};
-pub(crate) use network::NetworkPacket;
+pub use network::NetworkPacket;
 pub(crate) use network::NetworkStreamManager;
 use std::sync::Arc;
 use tauri::Manager;
@@ -26,12 +26,13 @@ mod auth;
 #[cfg(feature = "bedrock-protocol")]
 pub mod bedrock;
 mod commands;
+pub mod control;
 mod deep_links;
 pub mod discord;
 pub use discord::{
     DiscordLinkService, DiscordOAuth, DiscordRoleClient, DiscordTraitState, RoleCategory,
 };
-mod events;
+pub mod events;
 mod feature_flags;
 pub use feature_flags::FeatureFlagService;
 pub use feature_flags::flagsmith::FlagsmithProvider;
@@ -121,7 +122,10 @@ pub fn run() {
 
     sentry::configure_scope(|scope| {
         scope.set_tag("version", env!("CARGO_PKG_VERSION"));
-        scope.set_tag("build_number", option_env!("APP_BUILD_NUMBER").unwrap_or("local"));
+        scope.set_tag(
+            "build_number",
+            option_env!("APP_BUILD_NUMBER").unwrap_or("local"),
+        );
     });
 
     #[cfg(desktop)]
@@ -136,10 +140,14 @@ pub fn run() {
     #[cfg(desktop)]
     {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            let _ = app
-                .get_webview_window("main")
-                .expect("no main window")
-                .set_focus();
+            // The main window may not exist yet (slow startup) or may already be
+            // destroyed (shutdown); a relaunch during either window must not panic.
+            match app.get_webview_window("main") {
+                Some(window) => {
+                    let _ = window.set_focus();
+                }
+                None => warn!("Second instance launched but no main window exists to focus"),
+            }
         }));
         builder = builder.plugin(tauri_plugin_dialog::init());
     }
@@ -652,9 +660,9 @@ pub fn run() {
             // managers, and the NetworkStreamManager are wired identically for the
             // real app and the test harness via this shared factory. The real app
             // always selects the Cpal/Rodio backends.
-            crate::app_builder::build_managed_state(
+            crate::app_builder::AppBuilder::build_managed_state(
                 app,
-                crate::app_builder::AudioBackend::Real,
+                crate::audio::AudioBackend::Real,
                 #[cfg(feature = "bedrock-protocol")]
                 Some(bedrock_player_state_cache),
                 #[cfg(feature = "bedrock-protocol")]

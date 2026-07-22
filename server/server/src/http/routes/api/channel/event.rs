@@ -1,7 +1,6 @@
 use crate::http::openapi::CustomJsonResponse;
-use crate::services::MetricsService;
+use crate::services::{ChannelMembershipService, MetricsService};
 use crate::stream::quic::{CacheManager, WebhookReceiver};
-use std::sync::Arc;
 use common::structs::{
     channel::{
         ChannelEvent,
@@ -13,6 +12,7 @@ use common::structs::{
 };
 use rocket::{State, http::Status, mtls::Certificate, serde::json::Json};
 use rocket_okapi::openapi;
+use std::sync::Arc;
 
 #[openapi(tag = "Channels")]
 #[put("/<id>", data = "<event>")]
@@ -34,61 +34,58 @@ pub async fn channel_event(
     let event = event.0;
     let channel_collection = cache_manager.get_channel_collection();
 
-    match channel_collection.get(id).await {
-        Some(_) => {}
-        None => {
-            if event.event.eq(&Delete) {
-                let packet = QuicNetworkPacket {
-                    owner: Some(PacketOwner {
-                        name: String::from("channel_api"),
-                        client_id: vec![0u8; 0],
-                    }),
-                    packet_type: PacketType::ChannelEvent,
-                    data: QuicNetworkPacketData::ChannelEvent(ChannelEventPacket::new(
-                        event.event,
-                        user,
-                        id.to_string(),
-                    )),
-                };
-
-                send_channel_event(packet, webhook_receiver).await;
-                return CustomJsonResponse::ok(true);
-            } else {
-                return CustomJsonResponse::custom(Status::BadRequest, Some(false));
-            }
+    // Existence guard (unchanged): a Delete on a missing channel still fans a
+    // Delete; any other event on a missing channel is a bad request.
+    if channel_collection.get(id).await.is_none() {
+        if event.event.eq(&Delete) {
+            send_channel_event(channel_packet(Delete, user, id), webhook_receiver).await;
+            return CustomJsonResponse::ok(true);
         }
-    };
+        return CustomJsonResponse::custom(Status::BadRequest, Some(false));
+    }
 
     match event.event {
         Join => {
-            channel_collection.add_player_to_channel(&user, id).await;
+            ChannelMembershipService::join(&channel_collection, webhook_receiver.inner(), user, id)
+                .await;
             metrics.record_channel_join();
         }
         Leave => {
-            channel_collection
-                .remove_player_from_channel(&user, id)
-                .await;
+            ChannelMembershipService::leave(
+                &channel_collection,
+                webhook_receiver.inner(),
+                user,
+                id,
+                false,
+            )
+            .await;
             metrics.record_channel_leave();
         }
-        _ => {}
+        other => {
+            send_channel_event(channel_packet(other, user, id), webhook_receiver).await;
+        }
     }
 
-    let packet = QuicNetworkPacket {
+    CustomJsonResponse::ok(true)
+}
+
+fn channel_packet(
+    event: common::structs::channel::ChannelEvents,
+    user: String,
+    id: &str,
+) -> QuicNetworkPacket {
+    QuicNetworkPacket {
         owner: Some(PacketOwner {
             name: String::from("channel_api"),
             client_id: vec![0u8; 0],
         }),
         packet_type: PacketType::ChannelEvent,
         data: QuicNetworkPacketData::ChannelEvent(ChannelEventPacket::new(
-            event.event,
+            event,
             user,
             id.to_string(),
         )),
-    };
-
-    send_channel_event(packet, webhook_receiver).await;
-
-    CustomJsonResponse::ok(true)
+    }
 }
 
 async fn send_channel_event(packet: QuicNetworkPacket, webhook_receiver: &State<WebhookReceiver>) {

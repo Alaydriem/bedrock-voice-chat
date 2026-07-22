@@ -243,11 +243,6 @@
     wrap-ansi "^8.1.0"
     wrap-ansi-cjs "npm:wrap-ansi@^7.0.0"
 
-"@minecraft/common@^1.0.0":
-  version "1.3.0"
-  resolved "https://registry.yarnpkg.com/@minecraft/common/-/common-1.3.0.tgz#ddda1609b83278f35e6b5b9d6565044a27d7f803"
-  integrity sha512-GLT8USFhvEyeTTFHZAgszbrnoT007hmXmK+aO4l+2A1up9/zwZ+4e8R8F0KcKrCWDjLEqkOJtPow0hQCcNJ++Q==
-
 "@minecraft/server-admin@1.0.0-beta.11940b24", "@minecraft/server-admin@^1.0.0-beta":
   version "1.0.0-beta.11940b24"
   resolved "https://registry.yarnpkg.com/@minecraft/server-admin/-/server-admin-1.0.0-beta.11940b24.tgz#9c37bbeb41cf6bb65e60a819f82b19ade1ae0f36"
@@ -260,23 +255,15 @@
   dependencies:
     "@minecraft/server-admin" "1.0.0-beta.11940b24"
 
-"@minecraft/server-ui@^2.0.0":
-  version "2.0.0"
-  resolved "https://registry.yarnpkg.com/@minecraft/server-ui/-/server-ui-2.0.0.tgz#2b2019843df9d7033e20668c1737a5543f9ae332"
-  integrity sha512-K1xFK1OEJSNfIgyRElaoxDTW/nbEqjBp1YnUdyPCs4kGDglwoXNyFz3wzMOkvT04CJXSifZGcTJeWda4C6OkXw==
-  dependencies:
-    "@minecraft/common" "^1.0.0"
-    "@minecraft/server" "^2.0.0"
+"@minecraft/server-ui@2.2.0-beta.1.26.33-stable":
+  version "2.2.0-beta.1.26.33-stable"
+  resolved "https://registry.yarnpkg.com/@minecraft/server-ui/-/server-ui-2.2.0-beta.1.26.33-stable.tgz#9d1da8e1aabff6bd869690943138a71abad1baeb"
+  integrity sha512-scXcAIBeiCAHk9+HtkSKsQ+Y+xfYW4ixl5c8m+78GeEznFwcKzLr3n5/eapIlX4MosAVn4pYNKqrvLBzgihUtg==
 
-"@minecraft/server@2.8.0-beta.1.26.21-stable":
-  version "2.8.0-beta.1.26.21-stable"
-  resolved "https://registry.yarnpkg.com/@minecraft/server/-/server-2.8.0-beta.1.26.21-stable.tgz#476f3945198d9cb0967aa54a553779ebd3635eeb"
-  integrity sha512-HdR2EjmleJBBuaXH4iEobdXh7dcuWtV8AIZn2Kd+UkvlBPc4iIPSqXaEt7nqOk0tyhbKfRs/X3aoVtAMHW+kmQ==
-
-"@minecraft/server@^2.0.0":
-  version "2.7.0"
-  resolved "https://registry.yarnpkg.com/@minecraft/server/-/server-2.7.0.tgz#f3b92eb373b63e83a5018d40c76596cdb3abde70"
-  integrity sha512-2gI80wxSBQ/U6JvGVYVDlbbSOywU8WPy6b5lvfetkWCKU+c//7UdY6dDAU2DkKmR/DzxmPqyy7YAKXwGJduRWQ==
+"@minecraft/server@2.9.0-beta.1.26.33-stable":
+  version "2.9.0-beta.1.26.33-stable"
+  resolved "https://registry.yarnpkg.com/@minecraft/server/-/server-2.9.0-beta.1.26.33-stable.tgz#665b77e4b9b5765f0096905e8d01d6ee4652748e"
+  integrity sha512-7SfTtqTEdvvnrSd9JsTBnOtcfE2SnwoH0rVBRVHUBXOJ+n/w25CvHHDnc9PHN84V8a4s+OR9nNe0xybmdLp5zA==
 
 "@pkgjs/parseargs@^0.11.0":
   version "0.11.0"

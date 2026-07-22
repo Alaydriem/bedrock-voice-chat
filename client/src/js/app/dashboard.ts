@@ -24,6 +24,7 @@ import type { NoiseGateSettings } from '../bindings/NoiseGateSettings.ts';
 import type { PlayerGainStore } from '../bindings/PlayerGainStore.ts';
 import type { ApiConfigCheckResponse } from '../bindings/ApiConfigCheckResponse.ts';
 import type { ServerListEntry } from '../bindings/ServerListEntry.ts';
+import type { WebSocketConfig } from './managers/settings/WebSocketConfig';
 
 import {
   checkPermission,
@@ -139,15 +140,18 @@ export default class Dashboard extends BVCApp {
 
         // Start the websocket server if on desktop and is enabled
         if (!await this.platformDetector.checkMobile()) {
-            await invoke<boolean>('is_websocket_running').then(async (isRunning) => {
-                if (!isRunning) {
-                    await invoke('start_websocket_server').catch((e) => {
-                        error(`Error starting WebSocket server: ${e}`);
-                    });
-                }
-            }).catch((e) => {
-                error(`Error auto-starting WebSocket server: ${e}`);
-            });
+            const websocketConfig = await this.store.get<WebSocketConfig>("websocket_server");
+            if (websocketConfig?.enabled) {
+                await invoke<boolean>('is_websocket_running').then(async (isRunning) => {
+                    if (!isRunning) {
+                        await invoke('start_websocket_server').catch((e) => {
+                            error(`Error starting WebSocket server: ${e}`);
+                        });
+                    }
+                }).catch((e) => {
+                    error(`Error auto-starting WebSocket server: ${e}`);
+                });
+            }
 
             // Start keybind listener with saved config
             const keybindConfig = await this.store!.get<KeybindConfig>("keybinds") ?? {
@@ -231,6 +235,15 @@ export default class Dashboard extends BVCApp {
                     await this.audioActivityManager.initialize();
                 }
 
+                // shutdown() also unregistered PlayerManager's gain-store
+                // listener; without re-registering, every COLD start ships a
+                // dashboard whose player cards never react to in-game
+                // volume/hear changes (warm re-entries skip this branch, which
+                // is why navigating away and back "fixed" it).
+                if (this.playerManager) {
+                    await this.playerManager.listenForBackendUpdates();
+                }
+
                 // Update notification
                 await updateNotification({
                     title: "Bedrock Voice Chat",
@@ -258,6 +271,7 @@ export default class Dashboard extends BVCApp {
             const serverUrl = currentServer || '';
 
             this.playerManager = new PlayerManager(this.store, currentUser);
+            await this.playerManager.listenForBackendUpdates();
             this.channelManager = new ChannelManager(this.playerManager, this.store, serverUrl);
 
             // Initialize AudioActivityManager (independent)
@@ -596,7 +610,9 @@ export default class Dashboard extends BVCApp {
             if (this.audioActivityManager) {
                 this.audioActivityManager.destroy();
             }
-            // PlayerManager doesn't need explicit cleanup currently
+            if (this.playerManager) {
+                this.playerManager.cleanup();
+            }
         } catch (err) {
             error(`Error cleaning up managers: ${err}`);
         }

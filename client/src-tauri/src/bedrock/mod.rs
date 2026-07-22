@@ -11,7 +11,8 @@ pub(crate) use proxy::ProxyDeps;
 pub use proxy::{
     AnnounceInjector, BedrockConnectErrorChannel, BedrockEventEmitter, BedrockPlayerStateCache,
     BedrockProxyManager, BvcpCodec, DiscNbt, JukeboxBeaconCache, JukeboxEjectInjector,
-    PendingAnnounce, PendingEject, PendingInject, PresenceInjector,
+    PendingAnnounce, PendingEject, PendingInject, PendingQueryState, PresenceInjector,
+    QueryStateInjector,
 };
 pub use state::BedrockState;
 pub use transfer_keep_alive::TransferKeepAlive;

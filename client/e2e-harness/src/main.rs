@@ -12,7 +12,8 @@ use std::sync::Arc;
 use tauri::Manager;
 use tauri_plugin_store::StoreExt;
 
-use bvc_client_lib::app_builder::{AudioBackend, build_managed_state};
+use bvc_client_lib::app_builder::AppBuilder;
+use bvc_client_lib::audio::AudioBackend;
 use bvc_client_lib::testkit::bridge::{Frame, InMsg, OutMsg};
 use bvc_client_lib::testkit::connect::Connector;
 use bvc_client_lib::{BridgeInputSource, CapturingSink};
@@ -126,7 +127,7 @@ fn main() {
                 app.manage(Connector::connect_error_channel());
             }
 
-            build_managed_state(
+            AppBuilder::build_managed_state(
                 app,
                 backend.take().expect("backend taken once"),
                 #[cfg(feature = "bedrock-protocol")]
@@ -140,6 +141,72 @@ fn main() {
                 #[cfg(feature = "bedrock-protocol")]
                 Some(Arc::clone(&harness_announce_injector)),
             )?;
+
+            // Self-state reporter: poll the client's audio-control state and emit
+            // OutMsg::State on change, so the orchestrator can assert control effects
+            // (e.g. a ClientBound ClientAction muting the actor).
+            let state_handle = handle.clone();
+            tauri::async_runtime::spawn(async move {
+                let actions = bvc_client_lib::audio::AudioActionsManager::new(state_handle);
+                let mut last: Option<(bool, bool, bool)> = None;
+                loop {
+                    let s = actions.query_state().await;
+                    let cur = (s.muted, s.deafened, s.recording);
+                    if last != Some(cur) {
+                        last = Some(cur);
+                        StdoutBridge::emit(&OutMsg::State {
+                            muted: s.muted,
+                            deafened: s.deafened,
+                            recording: s.recording,
+                        });
+                    }
+                    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+                }
+            });
+
+            // Forward the gain-store-updated event — the one the dashboard's
+            // player cards re-render on — with the store contents at that
+            // moment, so the orchestrator can assert the render trigger and the
+            // state a card would show.
+            let gain_handle = handle.clone();
+            tauri::Listener::listen(
+                &handle.clone(),
+                bvc_client_lib::events::event::player_gain_store::PLAYER_GAIN_STORE_UPDATED,
+                move |_| {
+                    use tauri_plugin_store::StoreExt;
+                    let store_json = gain_handle
+                        .store("store.json")
+                        .ok()
+                        .and_then(|store| store.get("player_gain_store"))
+                        .map(|v| v.to_string())
+                        .unwrap_or_else(|| "{}".to_string());
+                    StdoutBridge::emit(&OutMsg::GainStoreUpdated { store_json });
+                },
+            );
+
+            // Forward the remaining frontend-facing control/UI events verbatim.
+            // Every name here must match a `listen()` call in the desktop
+            // frontend — these are the render triggers the webview consumes,
+            // surfaced so scenarios can assert them at the boundary.
+            // (audio-activity is deliberately absent: it fires at speech rate
+            // and would flood the bridge.)
+            const FORWARDED_UI_EVENTS: &[&str] = &[
+                "mute:input",
+                "mute:output",
+                "channel_event",
+                "player_presence",
+                "recording:started",
+                "recording:stopped",
+            ];
+            for name in FORWARDED_UI_EVENTS {
+                let event_name = (*name).to_string();
+                tauri::Listener::listen(&handle.clone(), *name, move |event| {
+                    StdoutBridge::emit(&OutMsg::UiEvent {
+                        event: event_name.clone(),
+                        payload: event.payload().to_string(),
+                    });
+                });
+            }
 
             // Capture-drain thread: post-mix PCM out to stdout as it arrives.
             let cap_rx = cap_rx.take().expect("cap_rx taken once");

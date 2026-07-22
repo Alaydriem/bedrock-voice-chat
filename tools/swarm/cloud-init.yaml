@@ -1,0 +1,14 @@
+#cloud-config
+# Provisions an LXD container to run headless bvc_client_e2e bots.
+# Package names target Ubuntu 24.04 (noble); adjust for other images.
+# The controller pushes the binaries and job separately, then execs the agent
+# under xvfb-run (the Wry/GTK client links a display library even with its
+# window cleared; a virtual display avoids an immediate exit on some images).
+package_update: true
+packages:
+  - libwebkit2gtk-4.1-0
+  - libgtk-3-0t64
+  - libasound2t64
+  - libssl3
+  - ca-certificates
+  - xvfb

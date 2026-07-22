@@ -1,0 +1,33 @@
+# Standalone workspace — deliberately NOT part of the root workspace, mirroring
+# the server crate, so this tool's dependencies never enter the client's
+# feature/version resolution.
+[workspace]
+
+[package]
+name = "bvc-swarm"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Distributed load-test orchestrator for BVC voice servers."
+
+[[bin]]
+name = "swarm"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1", features = [
+    "rt-multi-thread",
+    "macros",
+    "process",
+    "io-util",
+    "io-std",
+    "time",
+    "sync",
+] }
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+anyhow = "1"
+thiserror = "2"

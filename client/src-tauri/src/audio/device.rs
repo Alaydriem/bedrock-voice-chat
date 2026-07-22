@@ -148,34 +148,49 @@ pub fn get_devices() -> Result<HashMap<String, Vec<AudioDevice>>, ()> {
 pub fn refresh_device_config(
     device: &AudioDevice,
 ) -> Option<Vec<crate::audio::types::StreamConfig>> {
-    let hosts = get_cpal_hosts().ok()?;
+    // Initialize only this device's host. Requiring every platform host to
+    // initialize (get_cpal_hosts) lets an unrelated failure — e.g. a broken
+    // ASIO driver — block a WASAPI refresh and force a stale stored config.
+    let host_id: HostId = device.host.clone().into();
+    let host = match cpal::host_from_id(host_id) {
+        Ok(host) => host,
+        Err(e) => {
+            warn!(
+                "Could not initialize {} host to refresh config for {}: {}",
+                host_id.name(),
+                device.display_name,
+                e
+            );
+            return None;
+        }
+    };
 
-    for host in hosts {
-        if AudioDeviceHost::try_from(host.id()).ok()? != device.host {
+    let devices_iter = match device.io {
+        AudioDeviceType::InputDevice => host.input_devices().ok()?,
+        AudioDeviceType::OutputDevice => host.output_devices().ok()?,
+    };
+
+    for cpal_device in devices_iter {
+        if cpal_device.id().ok().map(|id| id.to_string()) != Some(device.id.clone()) {
             continue;
         }
 
-        let devices_iter = match device.io {
-            AudioDeviceType::InputDevice => host.input_devices().ok()?,
-            AudioDeviceType::OutputDevice => host.output_devices().ok()?,
+        // A transient error querying one device must not abort the refresh;
+        // keep scanning in case the id matches another enumeration entry.
+        let configs: Vec<SupportedStreamConfigRange> = match device.io {
+            AudioDeviceType::InputDevice => match cpal_device.supported_input_configs() {
+                Ok(cfg) => cfg.collect(),
+                Err(_) => continue,
+            },
+            AudioDeviceType::OutputDevice => match cpal_device.supported_output_configs() {
+                Ok(cfg) => cfg.collect(),
+                Err(_) => continue,
+            },
         };
 
-        for cpal_device in devices_iter {
-            if cpal_device.id().ok().map(|id| id.to_string()) == Some(device.id.clone()) {
-                let configs: Vec<SupportedStreamConfigRange> = match device.io {
-                    AudioDeviceType::InputDevice => {
-                        cpal_device.supported_input_configs().ok()?.collect()
-                    }
-                    AudioDeviceType::OutputDevice => {
-                        cpal_device.supported_output_configs().ok()?.collect()
-                    }
-                };
-
-                let stream_configs = AudioDevice::to_stream_config(configs);
-                if !stream_configs.is_empty() {
-                    return Some(stream_configs);
-                }
-            }
+        let stream_configs = AudioDevice::to_stream_config(configs);
+        if !stream_configs.is_empty() {
+            return Some(stream_configs);
         }
     }
     None

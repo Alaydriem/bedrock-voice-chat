@@ -19,6 +19,11 @@ pub struct BedrockSessionState {
     sneaking: bool,
     crawling: bool,
     spectator: bool,
+    // Set once this session has decoded a bvc:ctl:sync — proof the BDS world
+    // runs the BVC addon (only its panel emits sync). !bvcs: rides are injected
+    // only into armed sessions; on a modless server nothing cancels the chat,
+    // so an unarmed ride would broadcast the player's audio state publicly.
+    bvcs_armed: bool,
 }
 
 impl BedrockSessionState {
@@ -37,7 +42,16 @@ impl BedrockSessionState {
             sneaking: false,
             crawling: false,
             spectator: false,
+            bvcs_armed: false,
         }
+    }
+
+    pub fn arm_bvcs(&mut self) {
+        self.bvcs_armed = true;
+    }
+
+    pub fn bvcs_armed(&self) -> bool {
+        self.bvcs_armed
     }
 
     pub fn apply_start_game(&mut self, p: &StartGamePacket) {
@@ -159,7 +173,7 @@ impl BedrockSessionState {
         matches!(gamemode, 3 | 4 | 6)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "e2e"))]
     pub fn set_world_uuid_for_test(&mut self, uuid: String) {
         self.world_uuid = Some(uuid);
     }

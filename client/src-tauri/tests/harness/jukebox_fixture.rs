@@ -4,11 +4,16 @@ use bvc_client_lib::testkit::signal::Signal;
 
 /// Bm progression note set (B3, D4, F#4). Asserted present for jukebox A.
 pub const BM_NOTES: [f32; 3] = [246.94, 293.66, 369.99];
-/// High A-major progression note set (A5, C#6, E6). Asserted present for jukebox
-/// B. Deliberately a high register, well separated from BM_NOTES, because the
-/// single-bin Goertzel leaks heavily between near frequencies — separation keeps
-/// the cross-bleed assertion (one set present, the other absent) unambiguous.
-pub const A_NOTES: [f32; 3] = [880.00, 1108.73, 1318.51];
+/// High C-major progression note set (C6, E6, G6). Asserted present for jukebox
+/// B. Two constraints picked these: a high register well separated from
+/// BM_NOTES (the single-bin Goertzel leaks heavily between near frequencies),
+/// and — critically — no bin may sit on a HARMONIC of the other scale's notes.
+/// The previous A-major set failed that: A5 (880.00) is 3×D4 (880.98) and C#6
+/// (1108.73) is 3×F#4 (1109.97), so codec/pipeline nonlinearity put the Bm
+/// track's own 3rd-harmonic energy into the "absent" bins, right at the 1%
+/// threshold (flaky). A is the fifth of D and C# the fifth of F#, so every A/C#
+/// octave collides; C-E-G clears every Bm harmonic through the 8th by ≥58 Hz.
+pub const C_NOTES: [f32; 3] = [1046.50, 1318.51, 1567.98];
 
 pub struct JukeboxFixture;
 
@@ -40,9 +45,9 @@ impl JukeboxFixture {
         path
     }
 
-    /// Builds the A-major progression (the "different" one) for the concurrent case.
-    pub fn a_major_wav(dir: &Path, name: &str, repeats: u32) -> PathBuf {
-        let pcm = Signal::progression(&A_NOTES, &A_NOTES, 0.4, 0.6, repeats, 48_000);
+    /// Builds the C-major progression (the "different" one) for the concurrent case.
+    pub fn c_major_wav(dir: &Path, name: &str, repeats: u32) -> PathBuf {
+        let pcm = Signal::progression(&C_NOTES, &C_NOTES, 0.4, 0.6, repeats, 48_000);
         let path = dir.join(format!("{name}.wav"));
         Self::write_wav_48k_mono(&pcm, &path);
         path

@@ -1,11 +1,13 @@
 package com.alaydriem.bedrockvoicechat.fabric
 
 import com.alaydriem.bedrockvoicechat.audio.AudioEventSender
+import com.alaydriem.bedrockvoicechat.control.ControlSender
 import com.alaydriem.bedrockvoicechat.dto.Dimension
 import com.alaydriem.bedrockvoicechat.dto.Payload
 import com.alaydriem.bedrockvoicechat.dto.PlayerData
 import com.alaydriem.bedrockvoicechat.fabric.audio.FabricAudioPlayerManager
 import com.alaydriem.bedrockvoicechat.fabric.audio.JukeboxListener
+import com.alaydriem.bedrockvoicechat.fabric.commands.ControlCommands
 import com.alaydriem.bedrockvoicechat.fabric.commands.DiscCommand
 import com.alaydriem.bedrockvoicechat.native.PositionSender
 import com.alaydriem.bedrockvoicechat.network.HttpRequestHandler
@@ -48,6 +50,8 @@ class FabricMod : ModInitializer {
         minimumPlayers = config.minimumPlayers
         playerDataProvider = FabricPlayerDataProvider()
 
+        var controlSender: ControlSender? = null
+
         if (config.useEmbeddedServer) {
             embeddedServer = BvcServerManager(config, configProvider)
             if (!embeddedServer!!.start()) {
@@ -59,6 +63,7 @@ class FabricMod : ModInitializer {
             positionSender = PositionSender(null, embeddedServer)
             val audioEventSender = AudioEventSender(null, embeddedServer)
             audioPlayerManager = FabricAudioPlayerManager(audioEventSender)
+            controlSender = ControlSender(null, embeddedServer)
 
             val embedded = config.embeddedConfig
             logger.info("Bedrock Voice Chat using embedded server (QUIC port: {})", embedded?.quicPort ?: 8443)
@@ -67,12 +72,14 @@ class FabricMod : ModInitializer {
             positionSender = PositionSender(httpHandler, null)
             val audioEventSender = AudioEventSender(httpHandler, null)
             audioPlayerManager = FabricAudioPlayerManager(audioEventSender)
+            controlSender = ControlSender(httpHandler, null)
 
             logger.info("Bedrock Voice Chat will connect to: {}", config.bvcServer)
         }
 
         JukeboxListener(audioPlayerManager!!, playerDataProvider::getWorldUuid).register()
         DiscCommand.register()
+        ControlCommands.register(controlSender, playerDataProvider::resolveCanonicalName)
 
         ServerPlayConnectionEvents.JOIN.register { handler, _, _ ->
             playerDataProvider.addPlayer(handler.player)

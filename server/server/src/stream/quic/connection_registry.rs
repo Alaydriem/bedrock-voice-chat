@@ -23,6 +23,9 @@ pub(crate) struct ConnectionEntry {
 
 pub struct ConnectionRegistry {
     connections: DashMap<Vec<u8>, ConnectionEntry>,
+    // player_name (bare gamertag) -> client_id, for O(1) point-to-point delivery
+    // (`send_to_player`) without scanning all connections.
+    name_index: DashMap<String, Vec<u8>>,
     // player_name -> channel_id (one channel per player)
     player_channel: DashMap<String, String>,
     // Emits connect/disconnect counters + events. Installed after construction,
@@ -53,6 +56,7 @@ impl ConnectionRegistry {
     pub fn new() -> Self {
         Self {
             connections: DashMap::new(),
+            name_index: DashMap::new(),
             player_channel: DashMap::new(),
             peer_manager: OnceLock::new(),
             observe_handler: OnceLock::new(),
@@ -243,6 +247,7 @@ impl ConnectionRegistry {
             player_name,
             self.connections.len() + 1
         );
+        self.name_index.insert(player_name.clone(), client_id.clone());
         let replaced = self.connections.insert(
             client_id,
             ConnectionEntry {
@@ -265,6 +270,10 @@ impl ConnectionRegistry {
 
     pub fn unregister(&self, client_id: &[u8]) {
         if let Some((_, entry)) = self.connections.remove(client_id) {
+            // Only clear the index if it still points at THIS connection — a
+            // reconnect that already reused the name must not be evicted here.
+            self.name_index
+                .remove_if(&entry.player_name, |_, v| v.as_slice() == client_id);
             self.player_channel.remove(&entry.player_name);
             if let Some(metrics) = self.metrics.get() {
                 metrics.record_disconnect(entry.connected_at.elapsed());
@@ -313,6 +322,38 @@ impl ConnectionRegistry {
         }
     }
 
+    // Delivers a single packet to one connected player (by bare gamertag) via the
+    // O(1) name index. Returns whether a live connection received it; a closed
+    // sender is reaped. Used by the control plane to route a ClientBound action to
+    // its authenticated actor.
+    pub fn send_to_player(&self, player_name: &str, packet: &QuicNetworkPacket) -> bool {
+        let client_id = match self.name_index.get(player_name) {
+            Some(id) => id.value().clone(),
+            None => return false,
+        };
+        // Clone the sender and drop the DashMap ref before any send/unregister to
+        // avoid holding a shard lock across a potential `unregister`.
+        let tx = match self.connections.get(&client_id) {
+            Some(entry) => entry.value().tx.clone(),
+            None => return false,
+        };
+        let bytes = match packet.to_datagram() {
+            Ok(b) => Bytes::from(b),
+            Err(e) => {
+                tracing::error!("Failed to serialize packet for {}: {}", player_name, e);
+                return false;
+            }
+        };
+        match tx.try_send(RoutedPacket::Serialized(bytes)) {
+            Ok(()) => true,
+            Err(mpsc::error::TrySendError::Full(_)) => false,
+            Err(mpsc::error::TrySendError::Closed(_)) => {
+                self.unregister(&client_id);
+                false
+            }
+        }
+    }
+
     pub fn update_player_channel(&self, player_name: String, channel_id: String) {
         self.player_channel.insert(player_name, channel_id);
         self.push_gauges();
@@ -332,7 +373,7 @@ impl ConnectionRegistry {
     // The player_channel map is written by the channel event handler using the
     // cert CN, which is always in `game:gamertag` form (e.g. "minecraft:Alice").
     fn channel_key(game: common::structs::game::Game, name: &str) -> String {
-        format!("{}:{}", game.as_str(), name)
+        game.membership_key(name)
     }
 
     pub async fn route_audio_frame(
@@ -342,6 +383,8 @@ impl ConnectionRegistry {
         broadcast_range: f32,
         deafen_distance: f32,
     ) {
+        let route_started = Instant::now();
+
         let sender_name = match &packet.owner {
             Some(owner) => &owner.name,
             None => return,
@@ -499,6 +542,9 @@ impl ConnectionRegistry {
             match tx.try_send(RoutedPacket::Serialized(bytes_to_send.clone())) {
                 Ok(()) => {}
                 Err(mpsc::error::TrySendError::Full(_)) => {
+                    if let Some(m) = self.metrics.get() {
+                        m.record_audio_route_drop();
+                    }
                     tracing::debug!(
                         "Dropping audio packet for player {} (channel full)",
                         recipient_name,
@@ -512,6 +558,10 @@ impl ConnectionRegistry {
 
         for key in dead_keys {
             self.unregister(&key);
+        }
+
+        if let Some(m) = self.metrics.get() {
+            m.record_audio_route(route_started.elapsed());
         }
     }
 }

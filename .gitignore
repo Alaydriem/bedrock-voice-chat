@@ -17,3 +17,4 @@ upload-keystore.jks
 *.pem
 docs
 openapi.json
+*.dmp

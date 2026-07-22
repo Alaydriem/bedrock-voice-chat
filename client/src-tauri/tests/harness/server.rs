@@ -375,6 +375,169 @@ impl EmbeddedServer {
         );
     }
 
+    /// Submit a self-action over the real HTTP control plane (`POST /api/control`),
+    /// exactly as a mod does — actor attributed by `gamertag`, gated by the MC token.
+    /// Drives `SetMuted` so the harness can assert the actor's client applied it.
+    pub async fn post_control_setmuted(&self, gamertag: &str, muted: bool) {
+        let url = format!("https://127.0.0.1:{}/api/control", self.rocket_port);
+        let body = serde_json::json!({
+            "id": gamertag,
+            "action": { "SetMuted": muted },
+        });
+        let client = reqwest::Client::builder()
+            .danger_accept_invalid_certs(true)
+            .build()
+            .expect("build control client");
+        let resp = client
+            .post(&url)
+            .header("X-MC-Access-Token", "test-token")
+            .json(&body)
+            .send()
+            .await
+            .expect("POST /api/control");
+        assert!(
+            resp.status().is_success(),
+            "control setmuted failed: {}",
+            resp.status()
+        );
+    }
+
+    /// Submit a per-player volume preference over the control plane
+    /// (`POST /api/control` with a `SetVolume` action), actor attributed by `gamertag`.
+    pub async fn post_control_setvolume(&self, gamertag: &str, target: &str, volume: f32) {
+        let url = format!("https://127.0.0.1:{}/api/control", self.rocket_port);
+        let body = serde_json::json!({
+            "id": gamertag,
+            "action": { "SetVolume": { "target": target, "volume": volume } },
+        });
+        let client = reqwest::Client::builder()
+            .danger_accept_invalid_certs(true)
+            .build()
+            .expect("build control client");
+        let resp = client
+            .post(&url)
+            .header("X-MC-Access-Token", "test-token")
+            .json(&body)
+            .send()
+            .await
+            .expect("POST /api/control");
+        assert!(
+            resp.status().is_success(),
+            "control setvolume failed: {}",
+            resp.status()
+        );
+    }
+
+    /// Read a player's cached self-state (`GET /api/state?id=`). `None` until the
+    /// client's QueryState reporter has seeded the cache.
+    pub async fn get_state(&self, gamertag: &str) -> Option<serde_json::Value> {
+        let url = format!(
+            "https://127.0.0.1:{}/api/state?id={}",
+            self.rocket_port, gamertag
+        );
+        let client = reqwest::Client::builder()
+            .danger_accept_invalid_certs(true)
+            .build()
+            .expect("build state client");
+        let resp = client
+            .get(&url)
+            .header("X-MC-Access-Token", "test-token")
+            .send()
+            .await
+            .expect("GET /api/state");
+        assert!(
+            resp.status().is_success(),
+            "get state failed: {}",
+            resp.status()
+        );
+        let text = resp.text().await.unwrap_or_default();
+        match serde_json::from_str::<serde_json::Value>(&text) {
+            Ok(serde_json::Value::Null) | Err(_) => None,
+            Ok(v) => Some(v),
+        }
+    }
+
+    /// Poll `/api/state` until `pred` passes or `timeout` elapses; returns the
+    /// matching state, or `None` on timeout.
+    pub async fn await_state<F>(
+        &self,
+        gamertag: &str,
+        pred: F,
+        timeout: std::time::Duration,
+    ) -> Option<serde_json::Value>
+    where
+        F: Fn(&serde_json::Value) -> bool,
+    {
+        let deadline = std::time::Instant::now() + timeout;
+        loop {
+            if let Some(state) = self.get_state(gamertag).await {
+                if pred(&state) {
+                    return Some(state);
+                }
+            }
+            if std::time::Instant::now() >= deadline {
+                return None;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+        }
+    }
+
+    /// Read the owner's cached per-player preferences scoped to `targets`
+    /// (`GET /api/preferences?owner=&targets=`, comma-separated targets).
+    pub async fn get_preferences(&self, owner: &str, targets: &str) -> Vec<serde_json::Value> {
+        let url = format!(
+            "https://127.0.0.1:{}/api/preferences?owner={}&targets={}",
+            self.rocket_port, owner, targets
+        );
+        let client = reqwest::Client::builder()
+            .danger_accept_invalid_certs(true)
+            .build()
+            .expect("build preferences client");
+        let resp = client
+            .get(&url)
+            .header("X-MC-Access-Token", "test-token")
+            .send()
+            .await
+            .expect("GET /api/preferences");
+        assert!(
+            resp.status().is_success(),
+            "get preferences failed: {}",
+            resp.status()
+        );
+        resp.json::<Vec<serde_json::Value>>().await.unwrap_or_default()
+    }
+
+    /// Poll `/api/preferences` until the owner's preference for `target` passes
+    /// `pred` or `timeout` elapses; returns the matching preference.
+    pub async fn await_preference<F>(
+        &self,
+        owner: &str,
+        target: &str,
+        pred: F,
+        timeout: std::time::Duration,
+    ) -> Option<serde_json::Value>
+    where
+        F: Fn(&serde_json::Value) -> bool,
+    {
+        let deadline = std::time::Instant::now() + timeout;
+        loop {
+            if let Some(pref) = self
+                .get_preferences(owner, target)
+                .await
+                .into_iter()
+                .find(|p| p["target"] == serde_json::Value::String(target.to_string()))
+            {
+                if pred(&pref) {
+                    return Some(pref);
+                }
+            }
+            if std::time::Instant::now() >= deadline {
+                return None;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+        }
+    }
+
     /// Read the library's thread-local last-error string.
     fn last_error(lib: &ServerLibrary) -> String {
         let ptr = unsafe { (lib.last_error)() };

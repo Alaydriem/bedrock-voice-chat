@@ -955,7 +955,7 @@ checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 [[package]]
 name = "bedrock-client"
 version = "0.0.1"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.30.9#d31fd95ded851fdba264260649303d25f5231ccd"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.40.1#6f2d9756434bfd68c289e09ab6593b1068a8c253"
 dependencies = [
  "base64 0.22.1",
  "bedrock-protocol",
@@ -970,7 +970,7 @@ dependencies = [
 [[package]]
 name = "bedrock-network"
 version = "0.0.9"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.30.9#d31fd95ded851fdba264260649303d25f5231ccd"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.40.1#6f2d9756434bfd68c289e09ab6593b1068a8c253"
 dependencies = [
  "bytes",
  "futures-util",
@@ -991,8 +991,8 @@ dependencies = [
 
 [[package]]
 name = "bedrock-protocol"
-version = "26.30.9"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.30.9#d31fd95ded851fdba264260649303d25f5231ccd"
+version = "26.40.1"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.40.1#6f2d9756434bfd68c289e09ab6593b1068a8c253"
 dependencies = [
  "aes 0.9.1",
  "aes-gcm",
@@ -1031,7 +1031,7 @@ dependencies = [
 [[package]]
 name = "bedrock-server"
 version = "0.0.12"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.30.9#d31fd95ded851fdba264260649303d25f5231ccd"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.40.1#6f2d9756434bfd68c289e09ab6593b1068a8c253"
 dependencies = [
  "base64 0.22.1",
  "bedrock-protocol",
@@ -1357,6 +1357,7 @@ dependencies = [
  "tauri-plugin-opener",
  "tauri-plugin-os",
  "tauri-plugin-store",
+ "tokio",
 ]
 
 [[package]]

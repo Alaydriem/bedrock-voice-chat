@@ -4,6 +4,8 @@ mod boot;
 mod channel_disconnect_stale;
 mod channel_lifecycle;
 mod connect;
+mod control_mute;
+mod control_state_report;
 mod jukebox;
 mod library;
 mod provision;

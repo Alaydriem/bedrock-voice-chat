@@ -1,0 +1,29 @@
+server = "https://local.bedrockvc.stream:443"
+ca = "C:/Users/charl/projects/bvc/certificates/ca.crt"
+admin_cert = "C:/Users/charl/projects/bvc/tools/swarm/certs/admin.crt"
+admin_key  = "C:/Users/charl/projects/bvc/tools/swarm/certs/admin.key"
+access_token = "CFCU15OQ1xzhfRTJuZora1TWmBGePvsp"
+prefix = "SwarmBot"
+group_size = 50
+duration_secs = 150
+
+client_bin = "C:/Users/charl/projects/bvc/target/release/bvc_client_e2e"
+swarm_bin  = "C:/Users/charl/projects/bvc/tools/swarm/target/release/swarm"
+
+[lxd]
+client_cert = "C:/Users/charl/projects/bvc/tools/swarm/lxd-client.crt"
+client_key  = "C:/Users/charl/projects/bvc/tools/swarm/lxd-client.key"
+image = "26.04"
+cloud_init = "C:/Users/charl/projects/bvc/tools/swarm/cloud-init.yaml"
+
+[[target]]
+name = "balminuel"
+endpoint = "https://10.57.2.3:8443"
+containers = 1
+bots_per_container = 50
+
+[[target]]
+name = "vaya"
+endpoint = "https://10.57.2.6:8443"
+containers = 1
+bots_per_container = 50

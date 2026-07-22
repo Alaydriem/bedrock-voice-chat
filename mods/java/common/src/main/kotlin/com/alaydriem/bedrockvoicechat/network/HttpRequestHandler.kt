@@ -76,6 +76,40 @@ class HttpRequestHandler(
             }
     }
 
+    /**
+     * POSTs a ClientAction; [onResult] (optional) receives the outcome and — for a
+     * successful CreateGroup — the new group's share code, invoked from the HTTP
+     * client's executor thread.
+     */
+    fun controlAsync(clientActionJson: String, onResult: ((ok: Boolean, groupCode: String?) -> Unit)? = null) {
+        val request = jsonRequestBuilder("$serverUrl/api/control")
+            .POST(HttpRequest.BodyPublishers.ofString(clientActionJson))
+            .build()
+
+        httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+            .thenAccept { response ->
+                val ok = response.statusCode() in 200..299
+                if (!ok) {
+                    LOGGER.warn("BVC server returned error on control: {} - {}", response.statusCode(), response.body())
+                }
+                onResult?.invoke(ok, if (ok) parseGroupCode(response.body()) else null)
+            }
+            .exceptionally { ex ->
+                LOGGER.error("Failed to send control action: {}", ex.message)
+                onResult?.invoke(false, null)
+                null
+            }
+    }
+
+    // The control route replies with the new group's share code (a bare JSON
+    // string) for CreateGroup and `null` for everything else.
+    private fun parseGroupCode(body: String): String? = try {
+        val element = com.google.gson.JsonParser.parseString(body)
+        if (element.isJsonPrimitive && element.asJsonPrimitive.isString) element.asString else null
+    } catch (_: Exception) {
+        null
+    }
+
     fun audioStopAsync(eventId: String) {
         val request = requestBuilder("$serverUrl/api/audio/event/$eventId")
             .DELETE()

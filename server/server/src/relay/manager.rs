@@ -110,7 +110,7 @@ impl RelayManager {
 
         let active_worlds: Arc<dyn ActiveWorldsSource> = {
             let cm = cache_manager.clone();
-            Arc::new(FnActiveWorldsSource(move || cm.active_relay_worlds()))
+            Arc::new(FnActiveWorldsSource(move || cm.players().relay_worlds()))
         };
 
         // Realm injection delivery, shared by the `/relay/offer` route's code

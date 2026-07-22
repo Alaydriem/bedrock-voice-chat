@@ -28,6 +28,7 @@ pub struct ServerRuntime {
     shutdown_notify: Arc<tokio::sync::Notify>,
     /// Webhook receiver for sending position updates directly (populated after start)
     webhook_receiver: Arc<RwLock<Option<WebhookReceiver>>>,
+    cache_manager: Arc<RwLock<Option<crate::stream::quic::CacheManager>>>,
     /// Player registrar for handling player registration (populated after start)
     player_registrar: Arc<RwLock<Option<PlayerRegistrarService>>>,
     /// Player identity service for cross-platform name resolution (populated after start)
@@ -46,6 +47,7 @@ impl ServerRuntime {
             shutdown_flag: Arc::new(AtomicBool::new(false)),
             shutdown_notify: Arc::new(tokio::sync::Notify::new()),
             webhook_receiver: Arc::new(RwLock::new(None)),
+            cache_manager: Arc::new(RwLock::new(None)),
             player_registrar: Arc::new(RwLock::new(None)),
             identity_service: Arc::new(RwLock::new(None)),
             audio_playback_service: Arc::new(RwLock::new(None)),
@@ -198,6 +200,15 @@ impl ServerRuntime {
                 .write()
                 .map_err(|_| anyhow!("webhook_receiver lock poisoned"))?;
             *wr = Some(webhook_receiver.clone());
+        }
+
+        // Store cache_manager for FFI control-plane routing.
+        {
+            let mut cm = self
+                .cache_manager
+                .write()
+                .map_err(|_| anyhow!("cache_manager lock poisoned"))?;
+            *cm = Some(cache_manager.clone());
         }
 
         // Create audio playback service. When the relay client is wired, the peer
@@ -535,6 +546,11 @@ impl ServerRuntime {
     /// Get a clone of the webhook receiver Arc for external use
     pub fn get_webhook_receiver(&self) -> Arc<RwLock<Option<WebhookReceiver>>> {
         self.webhook_receiver.clone()
+    }
+
+    /// Get a clone of the cache manager Arc for external use (FFI control plane)
+    pub fn get_cache_manager(&self) -> Arc<RwLock<Option<crate::stream::quic::CacheManager>>> {
+        self.cache_manager.clone()
     }
 
     /// Get a clone of the player registrar Arc for external use (FFI)

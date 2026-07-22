@@ -28,6 +28,17 @@ pub(crate) enum AudioInputSource {
 }
 
 impl AudioInputSource {
+    // WASAPI surfaces rejected stream parameters as a BackendSpecific error
+    // (e.g. E_INVALIDARG 0x80070057) rather than StreamConfigNotSupported;
+    // both mean the requested config was refused, not that the device is gone.
+    fn is_config_rejection(error: &rodio::cpal::BuildStreamError) -> bool {
+        matches!(
+            error,
+            rodio::cpal::BuildStreamError::StreamConfigNotSupported
+                | rodio::cpal::BuildStreamError::BackendSpecific { .. }
+        )
+    }
+
     // Resolves capture parameters for the active variant. The cpal path reads the
     // live device (validating the stored config against the hardware); the fake
     // path reports the bridge's own rate/channels with an f32 sample format.
@@ -56,13 +67,29 @@ impl AudioInputSource {
                         }
                         fresh_config
                     }
-                    _ => {
-                        warn!(
-                            "Could not refresh device config for {}, using stored config",
-                            device.display_name
-                        );
-                        stored_config
-                    }
+                    // The stored snapshot is the last resort: a live default
+                    // config reflects what the endpoint accepts right now,
+                    // while the snapshot can predate a Windows format change.
+                    _ => match device
+                        .clone()
+                        .to_cpal_device()
+                        .and_then(|d| d.default_input_config().ok())
+                    {
+                        Some(live_config) => {
+                            warn!(
+                                "Could not refresh device config for {}, using live default config",
+                                device.display_name
+                            );
+                            live_config
+                        }
+                        None => {
+                            warn!(
+                                "Could not refresh device config for {}, using stored config",
+                                device.display_name
+                            );
+                            stored_config
+                        }
+                    },
                 };
 
                 // Mobile audio backends (CoreAudio on iOS, AAudio on Android)
@@ -237,14 +264,15 @@ impl AudioInputSource {
 
                 let stream = build_stream(&device_config, process.clone(), Box::new(error_fn));
 
-                // If StreamConfigNotSupported and we used Fixed buffer, retry with Default
+                // If the config was rejected and we used a Fixed buffer, retry with Default
                 let stream = match stream {
-                    Err(rodio::cpal::BuildStreamError::StreamConfigNotSupported)
-                        if device_config.buffer_size != rodio::cpal::BufferSize::Default =>
+                    Err(e)
+                        if Self::is_config_rejection(&e)
+                            && device_config.buffer_size != rodio::cpal::BufferSize::Default =>
                     {
                         warn!(
-                            "Fixed buffer size not supported for input {}, falling back to default buffer size",
-                            device.display_name
+                            "Input stream config rejected for {} ({:?}), falling back to default buffer size",
+                            device.display_name, e
                         );
                         let fallback_config = rodio::cpal::StreamConfig {
                             buffer_size: rodio::cpal::BufferSize::Default,
@@ -285,7 +313,15 @@ impl AudioInputSource {
                         drop(stream);
                     }
                     Err(e) => {
-                        error!("{:?}", e);
+                        // A stream that never opened must trigger the same
+                        // recovery path as one that died at runtime; otherwise
+                        // the client sits connected with a silently dead mic.
+                        error!("Failed to build input audio stream: {:?}", e);
+                        shutdown.store(true, Ordering::Relaxed);
+                        let _ = recovery_tx.send(StreamRecoveryEvent::DeviceError {
+                            device_type: AudioDeviceType::InputDevice,
+                            error: format!("Failed to build input stream: {:?}", e),
+                        });
                     }
                 };
             })?;

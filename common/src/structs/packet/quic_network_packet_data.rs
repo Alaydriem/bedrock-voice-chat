@@ -3,6 +3,9 @@ use serde::{Deserialize, Serialize};
 use super::audio_frame_packet::AudioFramePacket;
 use super::bedrock_event_packet::BedrockEventPacket;
 use super::channel_event_packet::ChannelEventPacket;
+use super::client_action_packet::ClientActionPacket;
+use super::player_preference_packet::PlayerPreferencePacket;
+use super::query_state_packet::QueryStatePacket;
 use super::collection_packet::CollectionPacket;
 use super::debug_packet::DebugPacket;
 use super::health_check_packet::HealthCheckPacket;
@@ -34,4 +37,7 @@ pub enum QuicNetworkPacketData {
     PeerAnnounceObserved(PeerAnnounceObservedPacket),
     AudioQuery(AudioQuery),
     AudioAvailable(AudioAvailable),
+    ClientAction(ClientActionPacket),
+    QueryState(QueryStatePacket),
+    PlayerPreference(PlayerPreferencePacket),
 }

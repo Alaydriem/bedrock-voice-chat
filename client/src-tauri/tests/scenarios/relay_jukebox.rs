@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use bvc_client_lib::testkit::signal::Signal;
 
-use crate::harness::jukebox_fixture::{A_NOTES, BM_NOTES, JukeboxFixture};
+use crate::harness::jukebox_fixture::{BM_NOTES, C_NOTES, JukeboxFixture};
 use crate::harness::note_energy::NoteEnergy;
 use crate::harness::protocol_matrix::ProtocolMatrix;
 use crate::harness::proxy_scale::ALICE;
@@ -294,7 +294,7 @@ async fn relay_jukebox_two_simultaneous_each_hears_only_their_own() {
         let (id2, _dur2) = w
             .proc("Bob")
             .upload_audio(
-                JukeboxFixture::a_major_wav(dir.path(), "s2", 3)
+                JukeboxFixture::c_major_wav(dir.path(), "s2", 3)
                     .to_str()
                     .unwrap(),
                 "minecraft",
@@ -346,10 +346,25 @@ async fn relay_jukebox_two_simultaneous_each_hears_only_their_own() {
             a_fq1 - a_fq0,
             b_fq1 - b_fq0,
             NoteEnergy::all_present(&mono_a, &BM_NOTES),
-            NoteEnergy::all_absent(&mono_a, &A_NOTES),
-            NoteEnergy::all_present(&mono_b, &A_NOTES),
+            NoteEnergy::all_absent(&mono_a, &C_NOTES),
+            NoteEnergy::all_present(&mono_b, &C_NOTES),
             NoteEnergy::all_absent(&mono_b, &BM_NOTES),
         );
+        // Per-bin fractions: distinguishes real cross-delivery (all three of the
+        // other scale's notes present) from spectral bleed (energy only in bins
+        // near the local scale's harmonics).
+        for (who, mono) in [("alice", &mono_a), ("bob", &mono_b)] {
+            let f = |freq: f32| Signal::tone_energy_fraction(mono, 48_000, freq);
+            eprintln!(
+                "[relay/C3 {v}] {who} bm(B3={:.4} D4={:.4} F#4={:.4}) c(C6={:.4} E6={:.4} G6={:.4})",
+                f(BM_NOTES[0]),
+                f(BM_NOTES[1]),
+                f(BM_NOTES[2]),
+                f(C_NOTES[0]),
+                f(C_NOTES[1]),
+                f(C_NOTES[2]),
+            );
+        }
 
         w.shutdown();
 
@@ -367,11 +382,11 @@ async fn relay_jukebox_two_simultaneous_each_hears_only_their_own() {
             "[{v}] Alice hears her own S1"
         );
         assert!(
-            NoteEnergy::all_absent(&mono_a, &A_NOTES),
+            NoteEnergy::all_absent(&mono_a, &C_NOTES),
             "[{v}] Alice does NOT hear Bob's S2 (out of range)"
         );
         assert!(
-            NoteEnergy::all_present(&mono_b, &A_NOTES),
+            NoteEnergy::all_present(&mono_b, &C_NOTES),
             "[{v}] Bob hears his own S2"
         );
         assert!(

@@ -49,6 +49,19 @@ async fn proxy_two_players_in_range_hear_each_other() {
             tokio::time::sleep(Duration::from_millis(120)).await;
         }
 
+        // The dashboard's player cards appear off the player_presence Tauri
+        // event; Alice's client must observe Bob join at the webview boundary.
+        assert!(
+            w.proc("Alice")
+                .await_ui_event(
+                    "player_presence",
+                    |p| p.contains("Bob") && p.contains("joined"),
+                    Duration::from_secs(10),
+                )
+                .is_ok(),
+            "[{v}] Alice must receive Bob's player_presence render trigger"
+        );
+
         // Queue both feeds back-to-back. feed_tone writes frames to stdin without
         // sleeping; the bin's FrameClock paces them to QUIC at a real 20 ms cadence.
         // Disjoint scales (ALICE = C-major, BOB = A-major) make Scale::hears() unambiguous.
@@ -95,6 +108,166 @@ async fn proxy_two_players_in_range_hear_each_other() {
         assert!(
             Scale::hears(&mono_b, ALICE),
             "[{v}] Bob hears Alice (C-major triad)"
+        );
+    }
+}
+
+/// No-net local shortcut: a bvc:ctl: SELF action driven through the proxy is applied
+/// LOCALLY by the `ControlActionsManager` (no server round-trip). Alice sends
+/// `bvc:ctl:mute:1` on the proxy PlaySound bus; her own client's input device must
+/// become muted, proving the proxy applies self-actions in-process.
+#[tokio::test(flavor = "multi_thread")]
+async fn proxy_ctl_mute_local() {
+    for v in ProtocolMatrix::last_two() {
+        let mut w = ProxyWorld::boot(v, &["Alice"]).await;
+
+        for _ in 0..3 {
+            w.upstream.drive_position("Alice", 0.0, 64.0, 0.0).await;
+            tokio::time::sleep(Duration::from_millis(120)).await;
+        }
+
+        assert!(
+            w.proc("Alice")
+                .await_muted(false, Duration::from_secs(5))
+                .is_ok(),
+            "[{v}] Alice starts unmuted"
+        );
+
+        // Self control action over the no-net path (proxy consumes + applies locally).
+        w.upstream.play_ctl("Alice", "mute:1").await;
+
+        assert!(
+            w.proc("Alice")
+                .await_muted(true, Duration::from_secs(5))
+                .is_ok(),
+            "[{v}] Alice's input device must be muted by the no-net local shortcut"
+        );
+
+        w.shutdown();
+    }
+}
+
+/// No-net reverse ride: `!bvcs:` state chat is injected ONLY into sessions that
+/// proved the BDS world runs the BVC addon (a `bvc:ctl:sync` was decoded) — on
+/// a modless server nothing would cancel the chat, so an unarmed ride would
+/// broadcast the player's audio state publicly. Once armed, the sync answers
+/// with a snapshot ride and subsequent local changes keep riding.
+#[tokio::test(flavor = "multi_thread")]
+async fn proxy_bvcs_reverse_ride_reports_state_only_after_sync_arms() {
+    for v in ProtocolMatrix::last_two() {
+        let mut w = ProxyWorld::boot(v, &["Alice"]).await;
+
+        for _ in 0..3 {
+            w.upstream.drive_position("Alice", 0.0, 64.0, 0.0).await;
+            tokio::time::sleep(Duration::from_millis(120)).await;
+        }
+
+        // A state change BEFORE any sync must NOT ride — the session is unarmed
+        // (this world has shown no evidence of the BVC addon).
+        w.upstream.play_ctl("Alice", "mute:1").await;
+        assert!(
+            w.proc("Alice")
+                .await_muted(true, Duration::from_secs(5))
+                .is_ok(),
+            "[{v}] Alice's input device must be muted by the no-net local shortcut"
+        );
+        let leaked = w
+            .upstream
+            .await_bvcs("Alice", |m| m.contains(":q:"), Duration::from_secs(3))
+            .await;
+        assert!(
+            leaked.is_none(),
+            "[{v}] no !bvcs: ride may reach an unarmed session (public-chat leak): {leaked:?}"
+        );
+
+        // The panel's sync request arms the session and answers with a snapshot.
+        w.upstream.play_ctl("Alice", "sync:").await;
+        let snapshot = w
+            .upstream
+            .await_bvcs(
+                "Alice",
+                |m| m.contains(":q:") && m.contains("m=1"),
+                Duration::from_secs(10),
+            )
+            .await;
+        assert!(
+            snapshot.is_some(),
+            "[{v}] a bvc:ctl:sync request must arm the session and ride a snapshot"
+        );
+
+        // Subsequent local changes ride live into the armed session.
+        w.upstream.play_ctl("Alice", "mute:0").await;
+        let change_ride = w
+            .upstream
+            .await_bvcs(
+                "Alice",
+                |m| m.contains(":q:") && m.contains("m=0"),
+                Duration::from_secs(10),
+            )
+            .await;
+        assert!(
+            change_ride.is_some(),
+            "[{v}] a local state change must ride into the armed session"
+        );
+
+        w.shutdown();
+    }
+}
+
+/// A bvc:ctl: control action rides the same PlaySound bus as jukebox commands.
+/// This is a NON-DISRUPTION guard: firing control actions through the live proxy
+/// mid-conversation must not perturb the voice pipeline. The self action is
+/// `mute:0` — it exercises the local-apply path without silencing anyone (Alice
+/// is already unmuted); a `mute:1` here would legitimately stop her input, which
+/// is the `proxy_ctl_mute_local` scenario's contract, not this one's. It
+/// deliberately does NOT assert routing — that contract is pinned by the
+/// play_sound unit tests (group -> ServerBound ClientAction, self -> control
+/// channel).
+#[tokio::test(flavor = "multi_thread")]
+async fn proxy_bvc_ctl_does_not_disrupt_proximity_audio() {
+    for v in ProtocolMatrix::last_two() {
+        let mut w = ProxyWorld::boot(v, &["Alice", "Bob"]).await;
+
+        for _ in 0..5 {
+            w.upstream.drive_position("Alice", 0.0, 64.0, 0.0).await;
+            w.upstream.drive_position("Bob", 1.0, 64.0, 0.0).await;
+            tokio::time::sleep(Duration::from_millis(120)).await;
+        }
+
+        // Fire a self-action and a group-action through the real proxy. Both are
+        // consumed by the proxy; neither reaches the client. The self action is a
+        // no-op unmute so the pipeline under test keeps flowing.
+        w.upstream.play_ctl("Alice", "mute:0").await;
+        w.upstream.play_ctl("Alice", "group:create").await;
+
+        let alice_pcm = ALICE.voice(2);
+        let bob_pcm = BOB.voice(2);
+        w.proc("Alice").feed_tone(&alice_pcm, 48_000);
+        w.proc("Bob").feed_tone(&bob_pcm, 48_000);
+
+        std::thread::sleep(Duration::from_millis(4_500));
+        let cap_a = w.proc("Alice").drain_captured();
+        let cap_b = w.proc("Bob").drain_captured();
+
+        let (a_sent, a_fq, _) = w.proc("Alice").stats();
+        let (b_sent, b_fq, _) = w.proc("Bob").stats();
+
+        let mono_a = Signal::to_mono(&cap_a);
+        let mono_b = Signal::to_mono(&cap_b);
+
+        eprintln!("[proxy/ctl {v}] a_sent={a_sent} a_fq={a_fq} b_sent={b_sent} b_fq={b_fq}",);
+
+        w.shutdown();
+
+        assert!(a_sent > 0 && b_sent > 0, "[{v}] both produce input frames");
+        assert!(a_fq > 0 && b_fq > 0, "[{v}] both receive frames from QUIC");
+        assert!(
+            Scale::hears(&mono_b, ALICE),
+            "[{v}] Bob still hears Alice after control actions (C-major triad)"
+        );
+        assert!(
+            Scale::hears(&mono_a, BOB),
+            "[{v}] Alice still hears Bob after control actions (A-major triad)"
         );
     }
 }

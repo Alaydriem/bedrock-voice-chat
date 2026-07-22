@@ -28,7 +28,7 @@ impl DnsService {
         }
     }
 
-    fn build_rate_limiter(rate_limit_per_sec: u32) -> Cache<IpAddr, Arc<RateLimitEntry>> {
+    fn build_rate_limiter() -> Cache<IpAddr, Arc<RateLimitEntry>> {
         Cache::builder()
             .time_to_live(Duration::from_secs(1))
             .max_capacity(10_000)
@@ -111,7 +111,7 @@ impl DnsService {
         rate_limit: u32,
         mut shutdown_rx: watch::Receiver<bool>,
     ) {
-        let rate_limiter = Self::build_rate_limiter(rate_limit);
+        let rate_limiter = Self::build_rate_limiter();
         let mut buf = vec![0u8; 4096];
         loop {
             tokio::select! {
@@ -162,7 +162,7 @@ impl DnsService {
         rate_limit: u32,
         mut shutdown_rx: watch::Receiver<bool>,
     ) {
-        let rate_limiter = Self::build_rate_limiter(rate_limit);
+        let rate_limiter = Self::build_rate_limiter();
         loop {
             tokio::select! {
                 result = listener.accept() => {

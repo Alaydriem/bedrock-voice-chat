@@ -20,6 +20,7 @@ use common::structs::audio::StreamEvent;
 use log::info;
 use std::sync::Arc;
 use tauri::Emitter;
+use tauri::Manager;
 use tauri::async_runtime::Mutex as TauriMutex;
 use tokio::sync::mpsc;
 
@@ -364,6 +365,14 @@ impl AudioStreamManager {
         value: String,
         device: &AudioDeviceType,
     ) -> Result<(), Error> {
+        // Both the dashboard UI and the ControlActionsManager feed per-player gain
+        // changes through this key; nudge the control-plane reporter so the
+        // server's preference cache mirrors the persisted store.
+        if key == "player_gain_store" {
+            if let Some(bus) = self.app_handle.try_state::<crate::control::ControlStateBus>() {
+                bus.preferences();
+            }
+        }
         match device {
             AudioDeviceType::InputDevice => self.input.metadata(key, value).await,
             AudioDeviceType::OutputDevice => self.output.metadata(key, value).await,

@@ -1,6 +1,7 @@
 package com.alaydriem.bedrockvoicechat.paper
 
 import com.alaydriem.bedrockvoicechat.audio.AudioEventSender
+import com.alaydriem.bedrockvoicechat.control.ControlSender
 import com.alaydriem.bedrockvoicechat.dto.Dimension
 import com.alaydriem.bedrockvoicechat.dto.Payload
 import com.alaydriem.bedrockvoicechat.dto.PlayerData
@@ -8,8 +9,11 @@ import com.alaydriem.bedrockvoicechat.native.PositionSender
 import com.alaydriem.bedrockvoicechat.network.HttpRequestHandler
 import com.alaydriem.bedrockvoicechat.paper.audio.JukeboxListener
 import com.alaydriem.bedrockvoicechat.paper.audio.PaperAudioPlayerManager
+import com.alaydriem.bedrockvoicechat.paper.commands.ControlCommands
 import com.alaydriem.bedrockvoicechat.paper.commands.DiscCommand
 import com.alaydriem.bedrockvoicechat.server.BvcServerManager
+import io.papermc.paper.command.brigadier.Commands
+import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.entity.PlayerDeathEvent
@@ -30,10 +34,12 @@ class PaperPlugin : JavaPlugin(), Listener {
     private var embeddedServer: BvcServerManager? = null
     private var positionSender: PositionSender? = null
     private var audioEventSender: AudioEventSender? = null
+    private var controlSender: ControlSender? = null
     private var audioPlayerManager: PaperAudioPlayerManager? = null
     private var tickTask: BukkitTask? = null
     private var minimumPlayers = 1
 
+    @Suppress("UnstableApiUsage")
     override fun onEnable() {
         logger.info("Initializing Bedrock Voice Chat")
 
@@ -65,6 +71,7 @@ class PaperPlugin : JavaPlugin(), Listener {
             // Embedded mode: use FFI directly, no HTTP handler needed
             positionSender = PositionSender(null, embeddedServer)
             audioEventSender = AudioEventSender(null, embeddedServer)
+            controlSender = ControlSender(null, embeddedServer)
 
             val embedded = config.embeddedConfig
             logger.info("Bedrock Voice Chat using embedded server (QUIC port: ${embedded?.quicPort ?: 8443})")
@@ -73,6 +80,7 @@ class PaperPlugin : JavaPlugin(), Listener {
             val httpHandler = HttpRequestHandler(config.bvcServer!!, config.accessToken!!)
             positionSender = PositionSender(httpHandler, null)
             audioEventSender = AudioEventSender(httpHandler, null)
+            controlSender = ControlSender(httpHandler, null)
 
             logger.info("Bedrock Voice Chat will connect to: ${config.bvcServer}")
         }
@@ -90,8 +98,17 @@ class PaperPlugin : JavaPlugin(), Listener {
         // Register jukebox listener for BVC disc playback
         server.pluginManager.registerEvents(JukeboxListener(audioPlayerManager!!, this), this)
 
-        // Register /bvc disc command
-        DiscCommand(this).register()
+        // Register a single /bvc root so disc/give and the control subcommands share
+        // one registration rather than relying on the registrar merging duplicate roots.
+        val discCommands = DiscCommand(this)
+        val ctlCommands =
+            controlSender?.let { ControlCommands(it, playerDataProvider::resolveCanonicalName) }
+        lifecycleManager.registerEventHandler(LifecycleEvents.COMMANDS) { event ->
+            val bvc = Commands.literal("bvc")
+            discCommands.addTo(bvc)
+            ctlCommands?.addTo(bvc)
+            event.registrar().register(bvc.build(), "Bedrock Voice Chat commands")
+        }
 
         // Schedule tick task every 5 ticks (250ms at 20 TPS)
         tickTask = server.scheduler.runTaskTimer(this, Runnable { tick() }, 0L, 5L)

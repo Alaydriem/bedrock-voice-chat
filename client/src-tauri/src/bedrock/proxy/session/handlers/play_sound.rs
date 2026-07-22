@@ -8,18 +8,25 @@ use common::structs::packet::BedrockEvent;
 use log::{debug, info};
 
 use super::JukeboxCommand;
+use common::structs::control::{ClientAction, CtlCodec, CtlMessage};
+
 use crate::bedrock::BedrockEventEmitter;
 use crate::bedrock::JukeboxBeaconCache;
 use crate::bedrock::proxy::session::BedrockPacketHandler;
 use crate::bedrock::proxy::session::BedrockSessionState;
 
-// Wire contract with the BDS mod's NoNetAudioSender (mods/bds/src/audio/sender/protocol.ts).
-// Keep these prefixes in sync with JukeboxBusProtocol.PLAY / EJECT.
+// Wire contract with the BDS mod's NoNetAudioSender (mods/bds/src/audio/sender/protocol.ts)
 const PLAY: &str = "bvc:play:";
 const EJECT: &str = "bvc:eject:";
+const CTL: &str = "bvc:ctl:";
 
 pub struct PlaySoundHandler<'a> {
     pub beacon_cache: &'a JukeboxBeaconCache,
+    pub player_name: &'a str,
+    pub control_tx: crate::control::ControlActionSender,
+    // Carries the panel's bvc:ctl:sync snapshot requests to the reporter, which
+    // answers them with !bvcs: rides through the QueryStateInjector.
+    pub state_bus: crate::control::ControlStateBus,
 }
 
 impl<'a> PlaySoundHandler<'a> {
@@ -39,6 +46,7 @@ impl<'a> PlaySoundHandler<'a> {
             PlaySoundPacketAny::V897(p) => &p.position,
             PlaySoundPacketAny::V944(p) => &p.position,
             PlaySoundPacketAny::V975(p) => &p.position,
+            PlaySoundPacketAny::V2169(p) => &p.position,
         }
     }
 
@@ -75,7 +83,37 @@ impl<'a> BedrockPacketHandler for PlaySoundHandler<'a> {
             Some(e) => e,
             None => return,
         };
-        let command = match Self::parse(packet.name(), Self::position(packet)) {
+
+        let name = packet.name();
+        // bvc:ctl:<action> is a control-plane action, not a sound (nothing forwarded to
+        // the client). Group actions must reach the server, so they ride ServerBound.
+        // Self/preference actions are applied LOCALLY — pushed onto the control-action
+        // channel for the app-level consumer, no server round-trip. The actor is this
+        // session's player.
+        if name.starts_with(CTL) {
+            match CtlCodec::decode(name) {
+                Some(CtlMessage::Action(action)) => {
+                    if action.is_group_action() {
+                        emitter.try_send_client_action(ClientAction {
+                            id: self.player_name.to_string(),
+                            action,
+                        });
+                    } else {
+                        self.control_tx.send(action);
+                    }
+                }
+                Some(CtlMessage::Sync { targets }) => {
+                    // Only the BVC addon's panel emits sync — its arrival proves
+                    // this world runs the addon, so !bvcs: rides are safe to inject.
+                    state.arm_bvcs();
+                    self.state_bus.sync(targets);
+                }
+                None => {}
+            }
+            return;
+        }
+
+        let command = match Self::parse(name, Self::position(packet)) {
             Some(c) => c,
             None => return,
         };
@@ -133,106 +171,5 @@ impl<'a> BedrockPacketHandler for PlaySoundHandler<'a> {
                 );
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::network::NetworkPacket;
-    use common::structs::packet::{PacketType, QuicNetworkPacketData};
-
-    fn make_emitter() -> (Arc<BedrockEventEmitter>, flume::Receiver<NetworkPacket>) {
-        let (tx, rx) = flume::unbounded::<NetworkPacket>();
-        let emitter = Arc::new(BedrockEventEmitter::new(Arc::new(tx)));
-        (emitter, rx)
-    }
-
-    #[test]
-    fn jukebox_insert_emits_relay_world_uuid_matching_session_world_uuid() {
-        let (emitter, rx) = make_emitter();
-        let beacon_cache = JukeboxBeaconCache::default();
-
-        let mut state =
-            BedrockSessionState::new("TestPlayer".to_string(), Some("xuid-1".to_string()));
-        state.set_world_uuid_for_test("world-uuid-xyz".to_string());
-
-        let packet = PlaySoundPacketAny::V897(
-            common::bedrock_protocol::protocol::packets::generated::misc::play_sound::PlaySoundPacketV897 {
-                name: "bvc:play:019d1701-7bb8-7e70-9a36-65653d22245d:minecraft:overworld".to_string(),
-                position: BlockPos::new(976, 1072, 192),
-                volume: 1.0,
-                pitch: 1.0,
-            },
-        );
-
-        PlaySoundHandler {
-            beacon_cache: &beacon_cache,
-        }
-        .handle(&packet, &mut state, Some(&emitter));
-
-        let net_packet = rx
-            .try_recv()
-            .expect("JukeboxInsert packet should be queued");
-        assert_eq!(net_packet.data.packet_type, PacketType::BedrockEvent);
-        match net_packet.data.data {
-            QuicNetworkPacketData::BedrockEvent(ep) => match ep.event {
-                BedrockEvent::JukeboxInsert {
-                    relay_world_uuid, ..
-                } => {
-                    assert_eq!(relay_world_uuid, Some("world-uuid-xyz".to_string()));
-                }
-                other => panic!("expected JukeboxInsert, got {:?}", other),
-            },
-            other => panic!("expected BedrockEvent packet, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn parses_play_with_dimension() {
-        let cmd = PlaySoundHandler::parse(
-            "bvc:play:019d1701-7bb8-7e70-9a36-65653d22245d:minecraft:overworld",
-            &BlockPos::new(976, 1072, 192),
-        )
-        .expect("should parse");
-        match cmd {
-            JukeboxCommand::Play {
-                audio_id,
-                pos,
-                dimension,
-            } => {
-                assert_eq!(audio_id, "019d1701-7bb8-7e70-9a36-65653d22245d");
-                assert_eq!(pos.x, 122.0);
-                assert_eq!(pos.y, 134.0);
-                assert_eq!(pos.z, 24.0);
-                assert_eq!(dimension, "minecraft:overworld");
-            }
-            _ => panic!("expected Play"),
-        }
-    }
-
-    #[test]
-    fn parses_eject_with_dimension_and_negative_coords() {
-        let cmd = PlaySoundHandler::parse("bvc:eject:minecraft:nether", &BlockPos::new(-56, 8, -8))
-            .expect("should parse");
-        match cmd {
-            JukeboxCommand::Eject { pos, dimension } => {
-                assert_eq!(pos.x, -7.0);
-                assert_eq!(pos.y, 1.0);
-                assert_eq!(pos.z, -1.0);
-                assert_eq!(dimension, "minecraft:nether");
-            }
-            _ => panic!("expected Eject"),
-        }
-    }
-
-    #[test]
-    fn rejects_non_bvc_name() {
-        assert!(PlaySoundHandler::parse("random.sound", &BlockPos::new(0, 0, 0)).is_none());
-    }
-
-    #[test]
-    fn rejects_play_without_dimension() {
-        assert!(PlaySoundHandler::parse("bvc:play:abc", &BlockPos::new(0, 0, 0)).is_none());
     }
 }

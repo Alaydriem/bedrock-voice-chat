@@ -40,6 +40,8 @@ pub struct RuntimeHandle {
     shutdown_notify: Arc<tokio::sync::Notify>,
     /// Webhook receiver for position updates - accessible without locking runtime mutex
     webhook_receiver: Arc<RwLock<Option<WebhookReceiver>>>,
+    /// Cache manager for FFI control-plane routing - accessible without locking runtime mutex
+    cache_manager: Arc<RwLock<Option<crate::stream::quic::CacheManager>>>,
     /// Player registrar for player registration - accessible without locking runtime mutex
     player_registrar: Arc<RwLock<Option<PlayerRegistrarService>>>,
     /// Player identity service for cross-platform name resolution - accessible without locking runtime mutex
@@ -133,6 +135,7 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
     let shutdown_flag = runtime.shutdown_flag();
     let shutdown_notify = runtime.shutdown_notify();
     let webhook_receiver = runtime.get_webhook_receiver();
+    let cache_manager = runtime.get_cache_manager();
     let player_registrar = runtime.get_player_registrar();
     let identity_service = runtime.get_identity_service();
     let audio_playback_service = runtime.get_audio_playback_service();
@@ -170,6 +173,7 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
         shutdown_flag,
         shutdown_notify,
         webhook_receiver,
+        cache_manager,
         player_registrar,
         identity_service,
         audio_playback_service,
@@ -702,6 +706,159 @@ pub unsafe extern "C" fn bvc_audio_stop(
         Err(e) => {
             set_last_error(&format!("Audio stop failed: {}", e));
             -1
+        }
+    }
+    })
+}
+
+/// Submit an in-game control action (embedded mode). Parses a `ClientAction` and
+/// routes it: self/preference actions deliver ClientBound to the actor's own
+/// connection; group actions mutate `ChannelCollection` + fan `ChannelEvent`.
+///
+/// `group_code_out`, when non-null, receives a heap string holding the new group's
+/// share code after a successful `CreateGroup` (free via `bvc_free_string`) and is
+/// set to null for every other action or on error.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn bvc_client_action(
+    handle: *mut RuntimeHandle,
+    action_json: *const c_char,
+    group_code_out: *mut *mut c_char,
+) -> c_int {
+    ffi_guard!("bvc_client_action", -1, {
+    if !group_code_out.is_null() {
+        unsafe { *group_code_out = ptr::null_mut() };
+    }
+    if handle.is_null() {
+        set_last_error("handle is null");
+        return -1;
+    }
+    if action_json.is_null() {
+        set_last_error("action_json is null");
+        return -1;
+    }
+
+    let json = match unsafe { CStr::from_ptr(action_json) }.to_str() {
+        Ok(s) => s,
+        Err(e) => {
+            set_last_error(&format!("Invalid UTF-8 in action_json: {}", e));
+            return -1;
+        }
+    };
+
+    let mut action: common::structs::control::ClientAction = match serde_json::from_str(json) {
+        Ok(a) => a,
+        Err(e) => {
+            set_last_error(&format!("Invalid ClientAction JSON: {}", e));
+            return -1;
+        }
+    };
+
+    let handle_ref = unsafe { &*handle };
+
+    let tokio_rt = match &handle_ref.tokio_runtime {
+        Some(rt) => rt,
+        None => {
+            set_last_error("Tokio runtime not available");
+            return -1;
+        }
+    };
+
+    let cache_manager = {
+        let g = match handle_ref.cache_manager.read() {
+            Ok(g) => g,
+            Err(e) => {
+                set_last_error(&format!("Failed to read cache_manager: {}", e));
+                return -1;
+            }
+        };
+        match g.as_ref() {
+            Some(cm) => cm.clone(),
+            None => {
+                set_last_error("Server not started - cache_manager not available");
+                return -1;
+            }
+        }
+    };
+
+    // Resolve the in-game name to its canonical gamertag (Floodgate/Java aliases)
+    // before routing, matching the position ingress so control actions key on the
+    // same identity the voice plane uses.
+    let identity_service = {
+        let g = match handle_ref.identity_service.read() {
+            Ok(g) => g,
+            Err(e) => {
+                set_last_error(&format!("Failed to read identity_service: {}", e));
+                return -1;
+            }
+        };
+        g.as_ref().cloned()
+    };
+    if let Some(id_service) = identity_service {
+        let resolved =
+            tokio_rt.block_on(async { id_service.resolve_name(&action.id, &common::Game::Minecraft).await });
+        action.id = resolved;
+    }
+
+    let svc = crate::services::ClientActionService::new();
+
+    if action.action.is_group_action() {
+        let webhook = {
+            let g = match handle_ref.webhook_receiver.read() {
+                Ok(g) => g,
+                Err(e) => {
+                    set_last_error(&format!("Failed to read webhook_receiver: {}", e));
+                    return -1;
+                }
+            };
+            match g.as_ref() {
+                Some(w) => w.clone(),
+                None => {
+                    set_last_error("Server not started - webhook_receiver not available");
+                    return -1;
+                }
+            }
+        };
+        let channels = cache_manager.get_channel_collection();
+        let actor_cn = common::Game::Minecraft.membership_key(&action.id);
+        let result = tokio_rt
+            .block_on(async { svc.route_group(&action.action, &actor_cn, &channels, &webhook).await });
+        match result {
+            Ok(created) => {
+                if let (Some(code), false) = (created, group_code_out.is_null()) {
+                    match CString::new(code) {
+                        Ok(cstr) => unsafe { *group_code_out = cstr.into_raw() },
+                        Err(e) => {
+                            set_last_error(&format!("Failed to create CString: {}", e));
+                            return -1;
+                        }
+                    }
+                }
+                0
+            }
+            Err(e) => {
+                set_last_error(&format!("route_group failed: {}", e));
+                -1
+            }
+        }
+    } else {
+        match cache_manager.get_connection_registry() {
+            Some(registry) => {
+                tokio_rt.block_on(async {
+                    svc.route_self_with_echo(
+                        &action,
+                        &action.id,
+                        &registry,
+                        cache_manager.player_state(),
+                        cache_manager.preferences(),
+                    )
+                    .await
+                });
+                0
+            }
+            None => {
+                set_last_error("connection_registry not available");
+                -1
+            }
         }
     }
     })

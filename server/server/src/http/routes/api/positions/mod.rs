@@ -92,7 +92,7 @@ pub async fn position(
     _access_token: MCAccessToken,
     cache_manager: &State<CacheManager>,
 ) -> Json<Vec<common::PlayerEnum>> {
-    let player_cache = cache_manager.get_player_cache();
+    let player_cache = cache_manager.players().inner_arc();
 
     let mut players = Vec::new();
 

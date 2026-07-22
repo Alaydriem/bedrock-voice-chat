@@ -8,6 +8,6 @@ pub struct RelayOfferRateLimit;
 
 impl<'r> RocketGovernable<'r> for RelayOfferRateLimit {
     fn quota(_method: Method, _route_name: &str) -> Quota {
-        Quota::per_minute(Self::nonzero(3u32))
+        Quota::per_minute(Self::nonzero(super::RELAY_CODE_RATE_PER_MINUTE))
     }
 }

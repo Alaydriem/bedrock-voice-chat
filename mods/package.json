@@ -6,7 +6,8 @@
   "license": "BSD-3-Clause",
   "scripts": {
     "dev-build": "node dev-build.js",
-    "dev-build-all": "node dev-build.js --all"
+    "dev-build-all": "node dev-build.js --all",
+    "dev-server": "node dev-server.js"
   },
   "engines": {
     "node": ">=18.0.0"
