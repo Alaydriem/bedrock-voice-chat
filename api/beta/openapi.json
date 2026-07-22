@@ -231,6 +231,78 @@
         }
       }
     },
+    "/api/ping": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "operationId": "ping_pong",
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/health/liveness": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "operationId": "liveness_liveness",
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/health/readiness": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "operationId": "readiness_readiness",
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/relay/peer-link": {
+      "post": {
+        "tags": [
+          "Relay"
+        ],
+        "operationId": "peer_link_peer_link",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PeerLinkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PeerLinkResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
     "/api/audio/event": {
       "post": {
         "tags": [
@@ -403,6 +475,88 @@
         }
       }
     },
+    "/api/state": {
+      "get": {
+        "tags": [
+          "Control"
+        ],
+        "operationId": "get_state",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryState",
+                  "nullable": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "MCAccessToken": []
+          }
+        ]
+      }
+    },
+    "/api/preferences": {
+      "get": {
+        "tags": [
+          "Control"
+        ],
+        "operationId": "get_preferences",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "targets",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlayerPreference"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "MCAccessToken": []
+          }
+        ]
+      }
+    },
     "/api/gamerpic/{game}/{gamertag}": {
       "get": {
         "tags": [
@@ -441,56 +595,17 @@
         }
       }
     },
-    "/health/liveness": {
-      "get": {
-        "tags": [
-          "Health"
-        ],
-        "operationId": "liveness_liveness",
-        "responses": {
-          "default": {
-            "description": ""
-          }
-        }
-      }
-    },
-    "/health/readiness": {
-      "get": {
-        "tags": [
-          "Health"
-        ],
-        "operationId": "readiness_readiness",
-        "responses": {
-          "default": {
-            "description": ""
-          }
-        }
-      }
-    },
-    "/api/ping": {
-      "get": {
-        "tags": [
-          "Health"
-        ],
-        "operationId": "ping_pong",
-        "responses": {
-          "default": {
-            "description": ""
-          }
-        }
-      }
-    },
-    "/api/relay/peer-link": {
+    "/api/control": {
       "post": {
         "tags": [
-          "Relay"
+          "Control"
         ],
-        "operationId": "peer_link_peer_link",
+        "operationId": "control",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PeerLinkRequest"
+                "$ref": "#/components/schemas/ClientAction"
               }
             }
           },
@@ -502,15 +617,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PeerLinkResponse"
+                  "type": "string",
+                  "nullable": true
                 }
               }
             }
-          },
-          "default": {
-            "description": ""
           }
-        }
+        },
+        "security": [
+          {
+            "MCAccessToken": []
+          }
+        ]
       }
     },
     "/api/admin/user": {
@@ -1215,6 +1333,38 @@
           }
         }
       },
+      "PeerLinkResponse": {
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          }
+        }
+      },
+      "PeerLinkRequest": {
+        "type": "object",
+        "required": [
+          "hashed_world",
+          "recipient_host",
+          "recipient_port"
+        ],
+        "properties": {
+          "hashed_world": {
+            "type": "string"
+          },
+          "recipient_host": {
+            "type": "string"
+          },
+          "recipient_port": {
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0.0
+          }
+        }
+      },
       "AudioEventResponse": {
         "type": "object",
         "required": [
@@ -1541,6 +1691,57 @@
           }
         }
       },
+      "QueryState": {
+        "type": "object",
+        "required": [
+          "deafened",
+          "id",
+          "muted",
+          "recording"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "muted": {
+            "type": "boolean"
+          },
+          "deafened": {
+            "type": "boolean"
+          },
+          "recording": {
+            "type": "boolean"
+          },
+          "current_group": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "PlayerPreference": {
+        "type": "object",
+        "required": [
+          "muted",
+          "owner",
+          "target",
+          "volume"
+        ],
+        "properties": {
+          "owner": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "volume": {
+            "type": "number",
+            "format": "float"
+          },
+          "muted": {
+            "type": "boolean"
+          }
+        }
+      },
       "GamerpicResponse": {
         "type": "object",
         "required": [
@@ -1560,37 +1761,136 @@
           }
         }
       },
-      "PeerLinkResponse": {
+      "ClientAction": {
         "type": "object",
         "required": [
-          "code"
+          "action",
+          "id"
         ],
         "properties": {
-          "code": {
+          "id": {
             "type": "string"
+          },
+          "action": {
+            "$ref": "#/components/schemas/ClientActionType"
           }
         }
       },
-      "PeerLinkRequest": {
-        "type": "object",
-        "required": [
-          "hashed_world",
-          "recipient_host",
-          "recipient_port"
-        ],
-        "properties": {
-          "hashed_world": {
-            "type": "string"
+      "ClientActionType": {
+        "oneOf": [
+          {
+            "type": "string",
+            "enum": [
+              "CreateGroup",
+              "LeaveGroup"
+            ]
           },
-          "recipient_host": {
-            "type": "string"
+          {
+            "type": "object",
+            "required": [
+              "SetMuted"
+            ],
+            "properties": {
+              "SetMuted": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
           },
-          "recipient_port": {
-            "type": "integer",
-            "format": "uint16",
-            "minimum": 0.0
+          {
+            "type": "object",
+            "required": [
+              "SetDeafened"
+            ],
+            "properties": {
+              "SetDeafened": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "SetRecording"
+            ],
+            "properties": {
+              "SetRecording": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "SetVolume"
+            ],
+            "properties": {
+              "SetVolume": {
+                "type": "object",
+                "required": [
+                  "target",
+                  "volume"
+                ],
+                "properties": {
+                  "target": {
+                    "type": "string"
+                  },
+                  "volume": {
+                    "type": "number",
+                    "format": "float"
+                  }
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "SetHeard"
+            ],
+            "properties": {
+              "SetHeard": {
+                "type": "object",
+                "required": [
+                  "muted",
+                  "target"
+                ],
+                "properties": {
+                  "target": {
+                    "type": "string"
+                  },
+                  "muted": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "JoinGroup"
+            ],
+            "properties": {
+              "JoinGroup": {
+                "type": "object",
+                "required": [
+                  "channel"
+                ],
+                "properties": {
+                  "channel": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "additionalProperties": false
           }
-        }
+        ]
       },
       "CreatedUserResponse": {
         "type": "object",
@@ -2207,6 +2507,14 @@
       "description": "Voice channel management. Create, delete, rename, join, and leave channels. Channel membership is broadcast to connected QUIC clients."
     },
     {
+      "name": "Health",
+      "description": "Health and readiness probes. Liveness and readiness are unauthenticated for use with Kubernetes."
+    },
+    {
+      "name": "Relay",
+      "description": "Cross-server peering over direct peer HTTPS. Discovery is decentralized via in-realm announces (no central relay); these routes carry the offer / code-redeem / peer-link handshake between two servers that already share a realm."
+    },
+    {
       "name": "Audio",
       "description": "Audio file library and spatial playback events. Upload Ogg/Opus files, trigger positional audio playback in-game, and manage the audio library."
     },
@@ -2219,12 +2527,8 @@
       "description": "Player avatar/gamerpic retrieval by gamertag and game type."
     },
     {
-      "name": "Health",
-      "description": "Health and readiness probes. Liveness and readiness are unauthenticated for use with Kubernetes."
-    },
-    {
-      "name": "Relay",
-      "description": "Cross-server peering over direct peer HTTPS. Discovery is decentralized via in-realm announces (no central relay); these routes carry the offer / code-redeem / peer-link handshake between two servers that already share a realm."
+      "name": "Control",
+      "description": "In-game audio control plane. The mod submits ClientActions on behalf of the authenticated in-game player (X-MC-Access-Token)."
     },
     {
       "name": "Admin",
