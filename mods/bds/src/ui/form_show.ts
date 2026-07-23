@@ -11,7 +11,7 @@ const USER_BUSY_RETRY_TICKS = 10;
 /// and every volumes page so back-to-back form navigation survives teardown lag.
 export class FormShow {
   static async withRetry(form: CustomForm): Promise<DataDrivenScreenClosedReason> {
-    let reason = await form.show();
+    let reason = await FormShow.showOrClosed(form);
     for (
       let attempt = 0;
       reason === DataDrivenScreenClosedReason.UserBusy &&
@@ -19,9 +19,23 @@ export class FormShow {
       attempt++
     ) {
       await FormShow.wait(USER_BUSY_RETRY_TICKS);
-      reason = await form.show();
+      reason = await FormShow.showOrClosed(form);
     }
     return reason;
+  }
+
+  // show() REJECTS (PlayerLeftError / ServerShutdownError) when the viewer
+  // disconnects with the form open. That is a normal way for a session to end
+  // — fold it into ClientClosed so callers run their teardown instead of
+  // leaking an unhandled rejection (and their subscriptions with it).
+  private static async showOrClosed(
+    form: CustomForm,
+  ): Promise<DataDrivenScreenClosedReason> {
+    try {
+      return await form.show();
+    } catch {
+      return DataDrivenScreenClosedReason.ClientClosed;
+    }
   }
 
   private static wait(ticks: number): Promise<void> {

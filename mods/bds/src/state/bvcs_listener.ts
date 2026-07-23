@@ -1,4 +1,4 @@
-import { world } from '@minecraft/server';
+import { system, world } from '@minecraft/server';
 import type { ChatSendBeforeEvent } from '@minecraft/server';
 import { BvcsCodec } from './bvcs_codec';
 import type { StateCache } from './state_cache';
@@ -16,32 +16,40 @@ export class BvcsListener {
       if (!BvcsCodec.isBvcs(ev.message)) {
         return;
       }
+      // Cancelling must happen synchronously inside the before-event; the
+      // apply must NOT: before-event handlers run in restricted (read-only)
+      // execution where native Observable setData/getData throw. Hop to a
+      // normal tick before touching the cache (same pattern as the jukebox
+      // chat listeners).
       ev.cancel = true;
 
       const msg = BvcsCodec.decode(ev.message);
       if (!msg) {
         return;
       }
+      const sender = ev.sender.name;
 
-      const cache = this.cacheFor(ev.sender.name);
-      if (msg.kind === 'q') {
-        cache.applyQueryState({
-          id: ev.sender.name,
-          muted: msg.muted,
-          deafened: msg.deafened,
-          recording: msg.recording,
-          current_group: msg.group,
-        });
-      } else {
-        cache.applyPreferences([
-          {
-            owner: ev.sender.name,
-            target: msg.target,
-            volume: msg.volume,
-            muted: !msg.heard,
-          },
-        ]);
-      }
+      system.run(() => {
+        const cache = this.cacheFor(sender);
+        if (msg.kind === 'q') {
+          cache.applyQueryState({
+            id: sender,
+            muted: msg.muted,
+            deafened: msg.deafened,
+            recording: msg.recording,
+            current_group: msg.group,
+          });
+        } else {
+          cache.applyPreferences([
+            {
+              owner: sender,
+              target: msg.target,
+              volume: msg.volume,
+              muted: !msg.heard,
+            },
+          ]);
+        }
+      });
     };
   }
 

@@ -310,6 +310,8 @@ pub fn run() {
             #[cfg(feature = "bedrock-protocol")]
             crate::commands::bedrock::bedrock_xbox_login,
             #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_list_protocol_versions,
+            #[cfg(feature = "bedrock-protocol")]
             crate::commands::bedrock::bedrock_list_interfaces,
             #[cfg(feature = "bedrock-protocol")]
             crate::commands::bedrock::bedrock_list_realms,

@@ -18,6 +18,11 @@ export interface PanelFeed {
   start(player: Player, cache: StateCache, targets: () => string[]): void;
   // Keyed by name so a disconnect (no live Player handle) can also stop it.
   stop(playerName: string): void;
+  // Whether this feed delivers a trustworthy current_group. Net mode reads the
+  // server-authoritative overlay from /api/state; the no-net reverse ride
+  // cannot (the desktop reporter has no channel state and always sends
+  // current_group=null), so the panel must not gate Leave on it there.
+  tracksCurrentGroup(): boolean;
 }
 
 // Net mode: poll GET /api/state and the scoped GET /api/preferences while the
@@ -93,6 +98,10 @@ export class NetStateSource implements PanelFeed {
     }
   }
 
+  tracksCurrentGroup(): boolean {
+    return true;
+  }
+
   private parseState(body: string): QueryState | null {
     try {
       const parsed: unknown = JSON.parse(body);
@@ -162,4 +171,8 @@ export class NoNetStateSource implements PanelFeed {
   }
 
   stop(_playerName: string): void {}
+
+  tracksCurrentGroup(): boolean {
+    return false;
+  }
 }

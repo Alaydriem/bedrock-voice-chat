@@ -256,6 +256,7 @@ impl ServerRuntime {
                 .proxy_event_freshness_threshold_secs,
         );
         quic_manager.set_bedrock_event_service(bedrock_event_service.clone());
+        quic_manager.set_control_webhook_receiver(webhook_receiver.clone());
 
         let eject_scheduler =
             EjectScheduler::new_shared(bedrock_event_service.clone(), webhook_receiver.clone());
@@ -686,15 +687,15 @@ impl ServerRuntime {
 
         let env_filter = match self.config.get_tracing_log_level() {
             tracing::Level::INFO => {
-                "info,hyper=off,rustls=off,rocket::server=off,rocket_http::tls::listener=off"
+                "info,hyper=off,rustls=off,rocket::server=off,rocket_http::tls::listener=off,metrics_exporter_dogstatsd::forwarder=off"
             }
             tracing::Level::DEBUG => "info,rocket_http::tls::listener=off",
             tracing::Level::TRACE => "debug",
             tracing::Level::ERROR => {
-                "error,hyper=off,rustls=off,rocket::server=off,rocket_http::tls::listener=off"
+                "error,hyper=off,rustls=off,rocket::server=off,rocket_http::tls::listener=off,metrics_exporter_dogstatsd::forwarder=off"
             }
             tracing::Level::WARN => {
-                "warn,hyper=off,rustls=off,rocket::server=off,rocket_http::tls::listener=off"
+                "warn,hyper=off,rustls=off,rocket::server=off,rocket_http::tls::listener=off,metrics_exporter_dogstatsd::forwarder=off"
             }
         };
 

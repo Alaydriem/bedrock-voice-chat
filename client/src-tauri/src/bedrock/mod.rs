@@ -1,10 +1,14 @@
+pub mod advertised_version_resolver;
 pub mod auth;
 pub mod gating;
+pub mod protocol_version_catalog;
 pub mod proxy;
 pub mod state;
 pub mod transfer_keep_alive;
 
+pub use advertised_version_resolver::AdvertisedVersionResolver;
 pub use auth::{BedrockAuthService, BedrockKeyringService};
+pub use protocol_version_catalog::ProtocolVersionCatalog;
 pub use gating::ProtocolGatingService;
 pub use gating::RealmsConnectGatingService;
 pub(crate) use proxy::ProxyDeps;

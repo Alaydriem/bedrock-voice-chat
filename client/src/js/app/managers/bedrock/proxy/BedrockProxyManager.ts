@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { Store } from '@tauri-apps/plugin-store';
 import { info, error as logError } from '@tauri-apps/plugin-log';
 import type { NetworkInterface } from '../../../../bindings/NetworkInterface';
+import type { ProtocolVersionOption } from '../../../../bindings/ProtocolVersionOption';
 import type { ProxyServerEntry } from '../ProxyServerEntry';
 import type { BedrockProxyManagerCallbacks } from './BedrockProxyManagerCallbacks';
 import type { ProxyStatusSnapshot } from './ProxyStatusSnapshot';
@@ -144,7 +145,16 @@ export class BedrockProxyManager {
         }
     }
 
-    async startProxy(): Promise<void> {
+    async listProtocolVersions(): Promise<ProtocolVersionOption[]> {
+        try {
+            return await invoke<ProtocolVersionOption[]>('bedrock_list_protocol_versions');
+        } catch (e) {
+            logError(`Failed to load protocol versions: ${e}`);
+            return [];
+        }
+    }
+
+    async startProxy(advertisedProtocol?: number | null): Promise<void> {
         this.isProxyLoadingStore.set(true);
         try {
             try {
@@ -159,6 +169,7 @@ export class BedrockProxyManager {
                 targetPort,
                 listenPort: get(this.listenPortStore),
                 networkInterface: get(this.selectedInterfaceStore),
+                advertisedProtocol: advertisedProtocol ?? null,
             });
             this.proxyRunningStore.set(true);
             info(`Bedrock proxy started: ${targetHost}:${targetPort}`);
@@ -180,12 +191,18 @@ export class BedrockProxyManager {
         }
     }
 
-    async addProxyServer(name: string, host: string, port: number): Promise<ProxyServerEntry> {
+    async addProxyServer(
+        name: string,
+        host: string,
+        port: number,
+        protocolVersion?: number,
+    ): Promise<ProxyServerEntry> {
         const entry: ProxyServerEntry = {
             id: crypto.randomUUID(),
             name: name.trim(),
             host: host.trim(),
             port,
+            ...(protocolVersion !== undefined ? { protocolVersion } : {}),
         };
         this.proxyServersStore.update((current) => [...current, entry]);
         await this.persistProxyServers();
@@ -201,6 +218,9 @@ export class BedrockProxyManager {
                           ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
                           ...(patch.host !== undefined ? { host: patch.host.trim() } : {}),
                           ...(patch.port !== undefined ? { port: patch.port } : {}),
+                          ...('protocolVersion' in patch
+                              ? { protocolVersion: patch.protocolVersion }
+                              : {}),
                       }
                     : s,
             ),
@@ -239,7 +259,7 @@ export class BedrockProxyManager {
         this.serverHostStore.set(entry.host);
         this.serverPortStore.set(entry.port);
         this.activeProxyIdStore.set(entry.id);
-        await this.startProxy();
+        await this.startProxy(entry.protocolVersion ?? null);
         if (!get(this.proxyRunningStore)) {
             this.activeProxyIdStore.set(null);
         }

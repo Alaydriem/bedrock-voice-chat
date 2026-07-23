@@ -5,14 +5,14 @@ use tauri::Manager;
 use tauri::State;
 use tauri::async_runtime::Mutex;
 
-use common::bedrock_protocol::RealmsApi;
+use common::bedrock_protocol::{RealmsApi, RealmsEnvironment};
 use common::consts::bedrock::{
     BEDROCK_KEYRING_KEY_REFRESH_TOKEN, BEDROCK_KEYRING_KEY_XUID, BEDROCK_LISTEN_PORT,
     XBOX_CLIENT_ID,
 };
 use common::structs::bedrock::{
     BedrockBackendKind, BedrockConnectionInfo, BedrockStatus, HIVE_DNS_HOSTNAME, NetworkInterface,
-    RealmEntry,
+    ProtocolVersionOption, RealmEntry,
 };
 use common::traits::StreamTrait;
 
@@ -22,8 +22,9 @@ use crate::bedrock::BedrockConnectErrorChannel;
 use crate::bedrock::BedrockEventEmitter;
 use crate::bedrock::BedrockProxyManager;
 use crate::bedrock::{
-    AnnounceInjector, BedrockAuthService, BedrockKeyringService, BedrockState, JukeboxBeaconCache,
-    JukeboxEjectInjector, PresenceInjector, ProtocolGatingService, ProxyDeps,
+    AdvertisedVersionResolver, AnnounceInjector, BedrockAuthService, BedrockKeyringService,
+    BedrockState, JukeboxBeaconCache, JukeboxEjectInjector, PresenceInjector, ProtocolGatingService,
+    ProtocolVersionCatalog, ProxyDeps,
 };
 use crate::control::ControlActionSender;
 use crate::feature_flags::FeatureFlagService;
@@ -37,6 +38,7 @@ pub(crate) async fn bedrock_start_proxy(
     target_port: u16,
     listen_port: Option<u16>,
     network_interface: String,
+    advertised_protocol: Option<u32>,
     state: State<'_, Mutex<BedrockState>>,
     app_state: State<'_, Mutex<AppState>>,
     quic_producer: State<'_, Arc<flume::Sender<NetworkPacket>>>,
@@ -88,11 +90,13 @@ pub(crate) async fn bedrock_start_proxy(
             .inner()
             .clone(),
     );
+    let advertised_version = AdvertisedVersionResolver::proxy(advertised_protocol);
     let mut proxy = BedrockProxyManager::new_direct(
         target_host.clone(),
         target_port,
         effective_listen_port,
         Arc::clone(auth_manager),
+        advertised_version,
         deps,
     );
     proxy.start().await.map_err(|e| e.to_string())?;
@@ -241,6 +245,7 @@ pub(crate) async fn bedrock_start_realms(
             .inner()
             .clone(),
     );
+    let advertised_version = AdvertisedVersionResolver::realms(flag_service.inner()).await;
     let mut realms = BedrockProxyManager::new_realm(
         realm_id,
         BEDROCK_LISTEN_PORT,
@@ -248,6 +253,7 @@ pub(crate) async fn bedrock_start_realms(
         user_hash,
         access_token,
         realms_api,
+        advertised_version,
         deps,
     );
     realms.start().await.map_err(|e| e.to_string())?;
@@ -316,7 +322,7 @@ pub(crate) async fn bedrock_xbox_login(
     }
 
     let app = app_handle.clone();
-    let auth_future = RealmsApi::authenticate(XBOX_CLIENT_ID, move |code, url| {
+    let auth_future = RealmsApi::authenticate(XBOX_CLIENT_ID, RealmsEnvironment::Retail, move |code, url| {
         log::info!("Xbox device code: {} at {}", code, url);
         let _ = app.emit(
             "bedrock-device-code",
@@ -373,7 +379,7 @@ pub(crate) async fn bedrock_restore_auth(
     };
     let stored_xuid = keyring.load(BEDROCK_KEYRING_KEY_XUID);
 
-    let result = RealmsApi::authenticate_refresh(XBOX_CLIENT_ID, &refresh_token)
+    let result = RealmsApi::authenticate_refresh(XBOX_CLIENT_ID, &refresh_token, RealmsEnvironment::Retail)
         .await
         .map_err(|e| {
             keyring.clear();
@@ -422,7 +428,7 @@ pub(crate) async fn bedrock_force_refresh(
     };
 
     let (api, xbl_token, user_hash, access_token, new_refresh_token) =
-        RealmsApi::authenticate_refresh(XBOX_CLIENT_ID, &refresh_token)
+        RealmsApi::authenticate_refresh(XBOX_CLIENT_ID, &refresh_token, RealmsEnvironment::Retail)
             .await
             .map_err(|e| e.to_string())?;
 
@@ -490,6 +496,11 @@ pub(crate) async fn bedrock_xbox_logout(
 
     BedrockKeyringService::new(&app_handle).clear();
     Ok(())
+}
+
+#[tauri::command(async)]
+pub(crate) async fn bedrock_list_protocol_versions() -> Result<Vec<ProtocolVersionOption>, String> {
+    Ok(ProtocolVersionCatalog::released())
 }
 
 #[tauri::command(async)]

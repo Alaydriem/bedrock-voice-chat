@@ -159,9 +159,10 @@ impl QuicServerManager {
                         PacketType::QueryState
                         | PacketType::PlayerPreference
                         | PacketType::ClientAction => {
-                            // QueryState/PlayerPreference are cached in
-                            // cache_manager; ClientAction has no serverbound handler
-                            // yet (Phase 3). None are broadcast.
+                            // All three are consumed by cache_manager's
+                            // process_packet (QueryState/PlayerPreference are
+                            // cached; serverbound group ClientActions route
+                            // through ClientActionService). None are broadcast.
                         }
                         _ => {
                             connection_registry.broadcast_to_all(packet);
@@ -210,6 +211,12 @@ impl QuicServerManager {
         service: Arc<crate::services::BedrockEventService>,
     ) {
         self.cache_manager.set_bedrock_event_service(service);
+    }
+
+    /// Wires the fan-out sender for serverbound group ClientActions (the no-net
+    /// control path); without it they are logged and dropped.
+    pub fn set_control_webhook_receiver(&mut self, webhook: WebhookReceiver) {
+        self.cache_manager.set_webhook_receiver(webhook);
     }
 
     pub fn get_webhook_receiver(&self) -> &WebhookReceiver {
@@ -552,10 +559,10 @@ impl QuicServerManager {
                         PacketType::QueryState
                         | PacketType::PlayerPreference
                         | PacketType::ClientAction => {
-                            // QueryState/PlayerPreference are cached in
-                            // cache_manager.process_packet. A serverbound
-                            // ClientAction has no handler yet (the no-net proxy
-                            // path is wired in Phase 3). None are ever broadcast.
+                            // All three are consumed by cache_manager's
+                            // process_packet (QueryState/PlayerPreference are
+                            // cached; serverbound group ClientActions route
+                            // through ClientActionService). None are broadcast.
                         }
                         _ => {
                             connection_registry.broadcast_to_all(updated_packet);
