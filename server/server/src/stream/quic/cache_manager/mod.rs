@@ -8,14 +8,17 @@ pub use player_cache::PlayerCache;
 pub use player_preference_cache::PlayerPreferenceCache;
 pub use player_state_cache::PlayerStateCache;
 
-use crate::services::BedrockEventService;
+use crate::services::{BedrockEventService, ClientActionService};
 use crate::stream::quic::connection_registry::ConnectionRegistry;
+use crate::stream::quic::webhook_receiver::WebhookReceiver;
 use anyhow::Error;
+use common::Game;
 use common::structs::channel::{ChannelCollection, ChannelEvents};
 use common::structs::control::PreferenceKey;
 use common::structs::packet::{
-    BedrockEventPacket, ChannelEventPacket, PacketType, PlayerDataPacket, PlayerPositionPacket,
-    PlayerPreferencePacket, QueryStatePacket, QuicNetworkPacket,
+    BedrockEventPacket, ChannelEventPacket, ClientActionPacket, PacketDirection, PacketType,
+    PlayerDataPacket, PlayerPositionPacket, PlayerPreferencePacket, QueryStatePacket,
+    QuicNetworkPacket,
 };
 use std::sync::Arc;
 
@@ -25,6 +28,9 @@ pub struct CacheManager {
     channel_collection: Arc<ChannelCollection>,
     connection_registry: Option<Arc<ConnectionRegistry>>,
     bedrock_event_service: Option<Arc<BedrockEventService>>,
+    // Fan-out sender for group ClientActions arriving ServerBound over QUIC
+    // (the no-net path); the HTTP control route receives its own via State.
+    webhook_receiver: Option<WebhookReceiver>,
     player_state: PlayerStateCache,
     preferences: PlayerPreferenceCache,
 }
@@ -36,6 +42,7 @@ impl CacheManager {
             channel_collection: Arc::new(ChannelCollection::new(100)),
             connection_registry: None,
             bedrock_event_service: None,
+            webhook_receiver: None,
             player_state: PlayerStateCache::new(),
             preferences: PlayerPreferenceCache::new(),
         }
@@ -62,6 +69,10 @@ impl CacheManager {
 
     pub fn set_bedrock_event_service(&mut self, service: Arc<BedrockEventService>) {
         self.bedrock_event_service = Some(service);
+    }
+
+    pub fn set_webhook_receiver(&mut self, webhook: WebhookReceiver) {
+        self.webhook_receiver = Some(webhook);
     }
 
     pub fn get_channel_collection(&self) -> Arc<ChannelCollection> {
@@ -238,6 +249,49 @@ impl CacheManager {
                             );
                         }
                     }
+                }
+            }
+            PacketType::ClientAction => {
+                let Some(data) = packet.get_data() else {
+                    return Ok(());
+                };
+                let Ok(ca): Result<ClientActionPacket, ()> = data.to_owned().try_into() else {
+                    return Ok(());
+                };
+                // ClientBound copies are routed to clients, never consumed here.
+                if ca.direction != PacketDirection::ServerBound {
+                    return Ok(());
+                }
+                // The wire id is untrusted: anchor the actor to the connection
+                // author, the same guard QueryState/PlayerPreference use.
+                let author = packet.get_author();
+                if !ca.action.action.is_group_action() {
+                    // Self/preference actions apply on the actor's own client
+                    // (the no-net proxy shortcut); nothing to do server-side.
+                    tracing::debug!(
+                        "Ignoring serverbound non-group ClientAction from {author}"
+                    );
+                    return Ok(());
+                }
+                let Some(webhook) = &self.webhook_receiver else {
+                    tracing::warn!(
+                        "Received serverbound group ClientAction but no webhook receiver is wired up"
+                    );
+                    return Ok(());
+                };
+                let actor_cn = Game::Minecraft.membership_key(&author);
+                match ClientActionService::new()
+                    .route_group(&ca.action.action, &actor_cn, &self.channel_collection, webhook)
+                    .await
+                {
+                    Ok(created) => {
+                        if let Some(code) = created {
+                            tracing::info!("Group {code} created via QUIC control by {author}");
+                        }
+                    }
+                    // route_group only errors on a JoinGroup miss (unknown share
+                    // code) — a client mistake, not a server fault.
+                    Err(e) => tracing::info!("route_group (QUIC) rejected for {author}: {e}"),
                 }
             }
             _ => {}

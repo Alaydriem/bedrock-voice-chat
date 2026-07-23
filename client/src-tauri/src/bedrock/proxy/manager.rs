@@ -5,7 +5,8 @@ use std::time::Duration;
 
 use bytes::BytesMut;
 use common::bedrock_protocol::{
-    AuthInfo, AuthManager, Bytes, DisconnectPacket, Proxy, ProxyConfig, RealmConfig, Session,
+    AdvertisedVersion, AuthInfo, AuthManager, Bytes, DisconnectPacket, Proxy, ProxyConfig,
+    RealmConfig, Session,
     protocol::batch::BatchCodec,
     protocol::codec::PacketEncode,
     protocol::packets::generated::misc::text::TextPacket,
@@ -41,6 +42,7 @@ use crate::bedrock::proxy::session::BedrockSessionState;
 pub struct BedrockProxyManager {
     listen_port: u16,
     backend: Option<Backend>,
+    advertised_version: AdvertisedVersion,
     deps: ProxyDeps,
     jobs: Vec<AbortHandle>,
     shutdown: Arc<AtomicBool>,
@@ -54,6 +56,7 @@ impl BedrockProxyManager {
         target_port: u16,
         listen_port: u16,
         auth_manager: Arc<AuthManager>,
+        advertised_version: AdvertisedVersion,
         deps: ProxyDeps,
     ) -> Self {
         Self {
@@ -63,6 +66,7 @@ impl BedrockProxyManager {
                 target_port,
                 auth_manager,
             }),
+            advertised_version,
             deps,
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),
@@ -78,6 +82,7 @@ impl BedrockProxyManager {
         user_hash: String,
         access_token: String,
         realms_api: common::bedrock_protocol::RealmsApi,
+        advertised_version: AdvertisedVersion,
         deps: ProxyDeps,
     ) -> Self {
         let auth = AuthInfo::xbl_token_with_access(xbl_token, user_hash, access_token);
@@ -85,6 +90,7 @@ impl BedrockProxyManager {
         Self {
             listen_port,
             backend: Some(Backend::Realm { realm_config, auth }),
+            advertised_version,
             deps,
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),
@@ -165,6 +171,7 @@ impl BedrockProxyManager {
         let control_tx = self.deps.control_tx.clone();
         let query_state_injector = Arc::clone(&self.deps.query_state_injector);
         let state_bus = self.deps.state_bus.clone();
+        let advertised_version = self.advertised_version.clone();
 
         let handle = tokio::spawn(async move {
             let bind_addr: SocketAddr = match format!("0.0.0.0:{}", listen_port).parse() {
@@ -188,6 +195,43 @@ impl BedrockProxyManager {
                 ),
             };
 
+            // Resolve the direct backend hostname before binding: a Direct
+            // backend's address doubles as the proxy's `backend_probe_addr`,
+            // which the listener needs at construction so
+            // `AdvertisedVersion::Auto` can sniff and mirror the upstream
+            // version. Realm backends have no probe address — the Realms API
+            // resolves the live world address inside dial_realm — so this
+            // stays `None` for them.
+            let direct_target_addr: Option<SocketAddr> = match &backend {
+                Backend::Direct {
+                    target_host,
+                    target_port,
+                    ..
+                } => {
+                    match tokio::net::lookup_host(format!("{}:{}", target_host, target_port)).await
+                    {
+                        Ok(mut addrs) => match addrs.next() {
+                            Some(addr) => Some(addr),
+                            None => {
+                                error!(
+                                    "Bedrock listener could not resolve {}:{} — no addresses returned",
+                                    target_host, target_port
+                                );
+                                return;
+                            }
+                        },
+                        Err(e) => {
+                            error!(
+                                "Bedrock listener failed to resolve {}:{}: {}",
+                                target_host, target_port, e
+                            );
+                            return;
+                        }
+                    }
+                }
+                Backend::Realm { .. } => None,
+            };
+
             let config = ProxyConfig {
                 bind: bind_addr,
                 realm: proxy_config_realm,
@@ -198,6 +242,8 @@ impl BedrockProxyManager {
                      Check the BVC client for details, then try again."
                         .to_string(),
                 ),
+                advertised_version,
+                backend_probe_addr: direct_target_addr,
                 ..Default::default()
             };
 
@@ -236,38 +282,6 @@ impl BedrockProxyManager {
                         .track(AnalyticsEvent::BedrockRealmStarted, Some(data));
                 }
             }
-
-            // Resolve the direct backend hostname once. Realm backends don't need this —
-            // the Realms API resolves the live world address inside dial_realm.
-            let direct_target_addr: Option<SocketAddr> = match &backend {
-                Backend::Direct {
-                    target_host,
-                    target_port,
-                    ..
-                } => {
-                    match tokio::net::lookup_host(format!("{}:{}", target_host, target_port)).await
-                    {
-                        Ok(mut addrs) => match addrs.next() {
-                            Some(addr) => Some(addr),
-                            None => {
-                                error!(
-                                    "Bedrock listener could not resolve {}:{} — no addresses returned",
-                                    target_host, target_port
-                                );
-                                return;
-                            }
-                        },
-                        Err(e) => {
-                            error!(
-                                "Bedrock listener failed to resolve {}:{}: {}",
-                                target_host, target_port, e
-                            );
-                            return;
-                        }
-                    }
-                }
-                Backend::Realm { .. } => None,
-            };
 
             // WarmPool only makes sense for Direct backends. Upstream's
             // `dial_realm` requires a client GameVersion (extracted from the
@@ -979,6 +993,7 @@ mod tests {
             65535,
             port,
             Arc::clone(&auth_mgr),
+            AdvertisedVersion::Auto,
             build_deps(),
         );
 
@@ -1009,6 +1024,7 @@ mod tests {
             65535,
             port,
             auth_mgr,
+            AdvertisedVersion::Auto,
             build_deps(),
         );
         mgr2.start().await.expect("second start on same port");

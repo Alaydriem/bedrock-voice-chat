@@ -243,6 +243,7 @@ impl Connector {
             upstream_port,
             Some(listen_port),
             "127.0.0.1".to_string(),
+            None,
             handle.state::<Mutex<BedrockState>>(),
             handle.state::<Mutex<AppState>>(),
             handle.state::<Arc<flume::Sender<crate::NetworkPacket>>>(),

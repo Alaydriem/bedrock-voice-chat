@@ -2,6 +2,8 @@ pub mod event;
 pub mod metric;
 pub mod posthog;
 
+use std::io::ErrorKind;
+use std::net::{SocketAddr, UdpSocket};
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
@@ -22,6 +24,8 @@ const POSTHOG_KEY: Option<&str> = option_env!("POSTHOG_KEY");
 const POSTHOG_HOST: Option<&str> = option_env!("POSTHOG_HOST");
 const DEFAULT_POSTHOG_HOST: &str = "https://us.i.posthog.com";
 const EVENT_CHANNEL_CAPACITY: usize = 1024;
+const STATSD_ADDR: &str = "127.0.0.1:8125";
+const STATSD_PROBE_TIMEOUT: Duration = Duration::from_millis(150);
 
 pub struct MetricsService {
     prometheus: PrometheusHandle,
@@ -97,15 +101,23 @@ impl MetricsService {
                 let handle = recorder.handle();
 
                 let mut fanout = FanoutBuilder::default().add_recorder(recorder);
-                match DogStatsDBuilder::default().build() {
-                    Ok(dogstatsd) => {
-                        fanout = fanout.add_recorder(dogstatsd);
-                        tracing::info!("statsd/dogstatsd metrics export enabled (127.0.0.1:8125)");
+                if Self::statsd_agent_reachable(STATSD_ADDR) {
+                    match DogStatsDBuilder::default()
+                        .with_remote_address(STATSD_ADDR)
+                        .and_then(|b| b.build())
+                    {
+                        Ok(dogstatsd) => {
+                            fanout = fanout.add_recorder(dogstatsd);
+                            tracing::info!("statsd/dogstatsd metrics export enabled ({STATSD_ADDR})");
+                        }
+                        Err(e) => tracing::warn!(
+                            "statsd exporter unavailable ({e}); exposing Prometheus /metrics only"
+                        ),
                     }
-                    Err(e) => tracing::warn!(
-                        "statsd exporter unavailable ({}); exposing Prometheus /metrics only",
-                        e
-                    ),
+                } else {
+                    tracing::warn!(
+                        "no statsd agent reachable at {STATSD_ADDR}; statsd export disabled (Prometheus /metrics still available)"
+                    );
                 }
 
                 if metrics::set_global_recorder(fanout.build()).is_err() {
@@ -131,6 +143,45 @@ impl MetricsService {
                 handle
             })
             .clone()
+    }
+
+    // One-shot startup probe for a statsd/dogstatsd agent. A connected UDP socket
+    // to a *rejecting* port surfaces the port-unreachable ICMP as a connection
+    // error on a following syscall — the origin of the forwarder's repeated
+    // "Failed to send payload" errors. Probing once here lets a hard-blocked port
+    // disable statsd with a single warning instead of erroring every flush. A
+    // silently dropped or genuinely idle port yields no ICMP, so it reads as
+    // reachable and statsd stays on (a real agent harmlessly discards the probe).
+    fn statsd_agent_reachable(addr: &str) -> bool {
+        let target: SocketAddr = match addr.parse() {
+            Ok(a) => a,
+            Err(_) => return false,
+        };
+        let bind = if target.is_ipv4() { "0.0.0.0:0" } else { "[::]:0" };
+        let socket = match UdpSocket::bind(bind) {
+            Ok(s) => s,
+            Err(_) => return false,
+        };
+        if socket.connect(target).is_err() {
+            return false;
+        }
+        let _ = socket.set_read_timeout(Some(STATSD_PROBE_TIMEOUT));
+
+        let _ = socket.send(&[]);
+        let mut buf = [0u8; 8];
+        if Self::is_unreachable(socket.recv(&mut buf)) {
+            return false;
+        }
+        !Self::is_unreachable(socket.send(&[]))
+    }
+
+    // The refusal arrives as ConnectionRefused on Unix and ConnectionReset on
+    // Windows; either means the port actively rejected the datagram.
+    fn is_unreachable<T>(result: std::io::Result<T>) -> bool {
+        matches!(
+            result,
+            Err(e) if matches!(e.kind(), ErrorKind::ConnectionRefused | ErrorKind::ConnectionReset)
+        )
     }
 
     // server_id groups all fleet events by deployment. The CA is required for the server

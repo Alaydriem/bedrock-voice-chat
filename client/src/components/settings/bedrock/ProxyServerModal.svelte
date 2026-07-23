@@ -1,6 +1,8 @@
 <script lang="ts">
+    import { onMount } from "svelte";
     import type { BedrockManager } from "../../../js/app/managers/bedrock/BedrockManager";
     import type { ProxyServerEntry } from "../../../js/app/managers/bedrock/ProxyServerEntry";
+    import type { ProtocolVersionOption } from "../../../js/bindings/ProtocolVersionOption";
 
     interface Props {
         bedrockManager: BedrockManager;
@@ -13,8 +15,15 @@
     let name = $state(initial?.name ?? "");
     let host = $state(initial?.host ?? "");
     let port = $state(initial?.port ?? 19132);
+    // Empty string means Auto; otherwise the raw protocol number as a string.
+    let protocolVersion = $state<string>(initial?.protocolVersion?.toString() ?? "");
+    let protocolOptions = $state<ProtocolVersionOption[]>([]);
     let saving = $state(false);
     let error = $state("");
+
+    onMount(async () => {
+        protocolOptions = await bedrockManager.listProtocolVersions();
+    });
 
     let isValid = $derived(
         name.trim().length > 0 &&
@@ -28,11 +37,17 @@
         }
         saving = true;
         error = "";
+        const selectedProtocol = protocolVersion === "" ? undefined : Number(protocolVersion);
         try {
             if (initial) {
-                await bedrockManager.updateProxyServer(initial.id, { name, host, port });
+                await bedrockManager.updateProxyServer(initial.id, {
+                    name,
+                    host,
+                    port,
+                    protocolVersion: selectedProtocol,
+                });
             } else {
-                await bedrockManager.addProxyServer(name, host, port);
+                await bedrockManager.addProxyServer(name, host, port, selectedProtocol);
             }
             onClose();
         } catch (e) {
@@ -100,6 +115,24 @@
                     min="1"
                     max="65535"
                 />
+            </label>
+
+            <label class="block">
+                <span class="text-xs+ font-medium text-slate-700 dark:text-navy-100">Advertised Version</span>
+                <select
+                    class="form-select mt-1.5 w-full rounded-lg border border-slate-300 bg-transparent px-3 py-2
+                           hover:border-slate-400 focus:border-primary dark:border-navy-450 dark:bg-navy-700
+                           dark:hover:border-navy-400 dark:focus:border-accent"
+                    bind:value={protocolVersion}
+                >
+                    <option value="">Auto (match server)</option>
+                    {#each protocolOptions as opt (opt.protocol)}
+                        <option value={opt.protocol.toString()}>{opt.label}</option>
+                    {/each}
+                </select>
+                <span class="mt-1 block text-xs text-slate-400 dark:text-navy-300">
+                    Which Minecraft version this server advertises to clients. Auto mirrors the real server.
+                </span>
             </label>
 
             {#if error}

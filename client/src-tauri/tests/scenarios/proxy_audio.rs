@@ -147,6 +147,97 @@ async fn proxy_ctl_mute_local() {
     }
 }
 
+/// No-net group actions must round-trip: `bvc:ctl:group:create` rides
+/// ServerBound through the proxy to the BVC server (the sole owner of group
+/// membership), which creates the group, joins the actor, and fans the
+/// ChannelEvent back — observable in `/api/state`'s server-derived
+/// current_group overlay AND at the client's channel_event render trigger.
+#[tokio::test(flavor = "multi_thread")]
+async fn proxy_ctl_group_create_reaches_server() {
+    for v in ProtocolMatrix::last_two() {
+        let mut w = ProxyWorld::boot(v, &["Alice"]).await;
+
+        for _ in 0..3 {
+            w.upstream.drive_position("Alice", 0.0, 64.0, 0.0).await;
+            tokio::time::sleep(Duration::from_millis(120)).await;
+        }
+
+        // The connect snapshot seeds /api/state; no group yet.
+        let initial = w
+            .server
+            .await_state("Alice", |s| s["current_group"].is_null(), Duration::from_secs(10))
+            .await;
+        assert!(initial.is_some(), "[{v}] Alice starts with no group");
+
+        w.upstream.play_ctl("Alice", "group:create").await;
+
+        let grouped = w
+            .server
+            .await_state(
+                "Alice",
+                |s| s["current_group"].is_string(),
+                Duration::from_secs(10),
+            )
+            .await;
+        assert!(
+            grouped.is_some(),
+            "[{v}] a no-net group:create must create + join a group on the server"
+        );
+        assert!(
+            w.proc("Alice")
+                .await_ui_event(
+                    "channel_event",
+                    |p| p.contains("\"join\""),
+                    Duration::from_secs(10),
+                )
+                .is_ok(),
+            "[{v}] the fanned ChannelEvent must reach Alice's client render trigger"
+        );
+
+        w.shutdown();
+    }
+}
+
+/// No-net per-player preferences apply LOCALLY through the proxy shortcut:
+/// `bvc:ctl:vol` / `bvc:ctl:hear` must land in the persisted gain store under
+/// the target's key and fire the player-card render event — no server
+/// round-trip involved.
+#[tokio::test(flavor = "multi_thread")]
+async fn proxy_ctl_volume_and_hear_apply_locally() {
+    for v in ProtocolMatrix::last_two() {
+        let mut w = ProxyWorld::boot(v, &["Alice"]).await;
+
+        for _ in 0..3 {
+            w.upstream.drive_position("Alice", 0.0, 64.0, 0.0).await;
+            tokio::time::sleep(Duration::from_millis(120)).await;
+        }
+
+        w.upstream.play_ctl("Alice", "vol:Bob:40").await;
+        assert!(
+            w.proc("Alice")
+                .await_gain_store(
+                    |s| s["Bob"]["gain"].as_f64().is_some_and(|g| (g - 0.4).abs() < 1e-6),
+                    Duration::from_secs(10),
+                )
+                .is_ok(),
+            "[{v}] no-net vol must persist Bob's gain and fire the card-render event"
+        );
+
+        w.upstream.play_ctl("Alice", "hear:Bob:0").await;
+        assert!(
+            w.proc("Alice")
+                .await_gain_store(
+                    |s| s["Bob"]["muted"] == serde_json::Value::Bool(true),
+                    Duration::from_secs(10),
+                )
+                .is_ok(),
+            "[{v}] no-net hear:0 must persist Bob's mute and fire the card-render event"
+        );
+
+        w.shutdown();
+    }
+}
+
 /// No-net reverse ride: `!bvcs:` state chat is injected ONLY into sessions that
 /// proved the BDS world runs the BVC addon (a `bvc:ctl:sync` was decoded) — on
 /// a modless server nothing would cancel the chat, so an unarmed ride would

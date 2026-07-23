@@ -31,6 +31,12 @@ export class ControlPanel {
   ) {}
 
   open(player: Player): void {
+    // The reopen paths below re-enter after awaits (volumes view, record
+    // confirmation); a player who disconnected in that window is invalid and
+    // reading player.name would throw. Bail before touching it.
+    if (!player.isValid) {
+      return;
+    }
     const sender = this.getSender();
     if (!sender) {
       player.sendMessage('§c[BVC] Still starting up; try again in a moment');
@@ -46,6 +52,11 @@ export class ControlPanel {
     // the volumes view swaps in its page's targets while it is open.
     let displayedTargets: string[] = cache.adjustedTargets();
     const feed = this.getFeed();
+    // Leave is gated on known group membership only when the feed actually
+    // tracks it (net). No-net cannot know the group, so keep Leave always
+    // clickable there and let a stray leave be a harmless server-side no-op.
+    const leaveDisabled: ObservableBoolean | boolean =
+      (feed?.tracksCurrentGroup() ?? true) ? cache.noGroup : false;
     const volumes = new PlayerVolumesView(
       sender,
       cache,
@@ -162,7 +173,7 @@ export class ControlPanel {
         () => {
           void sender.send({ kind: 'group-leave' }, player);
         },
-        { disabled: cache.noGroup },
+        { disabled: leaveDisabled },
       )
       .divider()
       .button('Player volumes…', () => {
@@ -190,7 +201,10 @@ export class ControlPanel {
       if (confirmRecordAfterClose) {
         await this.confirmStartRecording(player, sender, cache);
       }
-      if (reopenAfterVolumes || confirmRecordAfterClose) {
+      if (
+        (reopenAfterVolumes || confirmRecordAfterClose) &&
+        player.isValid
+      ) {
         // Back out of the volumes view / record confirmation into a fresh panel.
         this.open(player);
       }

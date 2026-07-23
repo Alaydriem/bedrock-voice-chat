@@ -8,6 +8,7 @@ import type { BedrockLogEntry } from '../../../bindings/BedrockLogEntry';
 import type { BedrockConnectionInfo } from '../../../bindings/BedrockConnectionInfo';
 import type { RealmEntry } from '../../../bindings/RealmEntry';
 import type { NetworkInterface } from '../../../bindings/NetworkInterface';
+import type { ProtocolVersionOption } from '../../../bindings/ProtocolVersionOption';
 import type { RealmsGateStatus } from '../../../bindings/RealmsGateStatus';
 import type { IapOffer } from '../../../bindings/IapOffer';
 import type { ProxyServerEntry } from './ProxyServerEntry';
@@ -331,16 +332,25 @@ export class BedrockManager {
         this.realmsManager.reset();
     }
 
-    async startProxy(): Promise<void> {
-        return this.proxyManager.startProxy();
+    async startProxy(advertisedProtocol?: number | null): Promise<void> {
+        return this.proxyManager.startProxy(advertisedProtocol);
+    }
+
+    async listProtocolVersions(): Promise<ProtocolVersionOption[]> {
+        return this.proxyManager.listProtocolVersions();
     }
 
     async stopProxy(): Promise<void> {
         return this.proxyManager.stopProxy();
     }
 
-    async addProxyServer(name: string, host: string, port: number): Promise<ProxyServerEntry> {
-        return this.proxyManager.addProxyServer(name, host, port);
+    async addProxyServer(
+        name: string,
+        host: string,
+        port: number,
+        protocolVersion?: number,
+    ): Promise<ProxyServerEntry> {
+        return this.proxyManager.addProxyServer(name, host, port, protocolVersion);
     }
 
     async updateProxyServer(id: string, patch: Partial<Omit<ProxyServerEntry, 'id'>>): Promise<void> {
