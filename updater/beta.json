@@ -1,23 +1,23 @@
 {
-  "version": "1.0.519",
-  "notes": "Release 1.0.0-beta.19",
-  "pub_date": "2026-07-07T15:34:17.451Z",
+  "version": "1.0.520",
+  "notes": "Release 1.0.0-beta.20",
+  "pub_date": "2026-07-24T04:16:52.099Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTOUhUa3dSYjRpVWxlbExuMU9MRStteHlENUI5akFIOENYUVRhY0Vwa3pEUUl3T0FaTGlOQXc2TWtycEh6OHNubXd6NThydlUwemxEbGlpL2Rlc3pBVncyTXNEU0JRMGdZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzNDM3NTA4CWZpbGU6QmVkcm9jayBWb2ljZSBDaGF0XzEuMC41MTlfeDY0LXNldHVwLmV4ZQpjUjlVZCtlZ1FqVXZ2QkRRVEo5QWV0QUxOZm10VXI1bjMrR3JNWU1SSFAvVVBKVzZhbWFLa2FqMXQwbEFISDdKaFZ3aDlFd1dEMHFSTTFLZUkzem1EQT09Cg==",
-      "url": "https://github.com/Alaydriem/bedrock-voice-chat/releases/download/v1.0.0-beta.19/bvc-client-windows-x64-updater.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTOUhUa3dSYjRpVWhNNEh4SHRMaGNKVTBHdy91OC9DUHIvbW9STlhaVnBuOWxxZ1krR1g4ZEFNWkdpaTRIVTMvYmVSVjBTNnBxQkNzbDNETGxtYnJtN1poK3dkVjZGcHdjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0ODU2OTE5CWZpbGU6QmVkcm9jayBWb2ljZSBDaGF0XzEuMC41MjBfeDY0LXNldHVwLmV4ZQpScFk1OWszSnl2ZkNQMXpWTkRXK2JRSVI2RzhNTkFMajNTRVI1cm9ZdThtQ3QyUG5tQ3NEaU52M2M3TlBSbzdQL255VTRlRGdrNGFYaG5wMjd4bXFEdz09Cg==",
+      "url": "https://github.com/Alaydriem/bedrock-voice-chat/releases/download/v1.0.0-beta.20/bvc-client-windows-x64-updater.exe"
     },
     "darwin-aarch64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTOUhUa3dSYjRpVXNUdCs1aHdlMHkzMUlyVG8wS0d0VnRDVG5OYkdzcWk3c296aC9OWEs1am1jL0lIVzJLa3VycG01ancxR2JycDRwUWtYYVBCNkFaSTNpQ2xXUVB0Z0FnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzNDM4MTg4CWZpbGU6YnZjLW1hY29zLXVwZGF0ZXIuYXBwLnRhci5negpSbkVFeXNLRUJPRElkcWJrdDFPUkVmcDFNR1lsd2s0RHE4dmdiTUl2bS9ySjNMWFpLOEYxQ3k5czIvRWtjbjcwUzkzOVlOTHNyRk1xdlFZWHVLVExBQT09Cg==",
-      "url": "https://github.com/Alaydriem/bedrock-voice-chat/releases/download/v1.0.0-beta.19/bvc-client-macos-arm64-updater.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTOUhUa3dSYjRpVXRTem9IQ0R1MUc2VXRJeVZxR0JRMmRYNkZlaGw1Z2dPRnRSRGZWQzA2L21RNW9uYmE5V1c1TTVLTUtSRThhZUp6MGFDNmxnS1dZOU4zbk41d2pJbWdrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0ODU2NjQyCWZpbGU6YnZjLW1hY29zLXVwZGF0ZXIuYXBwLnRhci5negpLSVdFUnBZKzVtdmx5S09jT0gzTy9pMTdKQ2VhWE5tZGhISWxGanRsaDZpQkdUUEdMYjIwV09qa2NCdFNiK21KNU1lU2NGYjVseUR6bkozakpkMlFCdz09Cg==",
+      "url": "https://github.com/Alaydriem/bedrock-voice-chat/releases/download/v1.0.0-beta.20/bvc-client-macos-arm64-updater.app.tar.gz"
     },
     "linux-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTOUhUa3dSYjRpVWo4L1dwbWExbjN5bVBpVGR6TTlCR05VdFEyU3VmMWYzbGpTOUZIR1V4RGlYUEZ0RnZoUm9WeERhcFIvTXJjT1VmUWtmc2lsYzduMS9uMXRCUGJFR3dBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzNDM3NDExCWZpbGU6QmVkcm9jayBWb2ljZSBDaGF0XzEuMC41MTlfYW1kNjQuQXBwSW1hZ2UKUXQ4KzZON1lHZUFLUVhwTllnMi9Qd1RqSTdnNnBrZUVjR1hRM3k1RzJWZmpTbU9uUmszUG1ubWg1OVhnWTRITmhONWRaanFzUS80dVZhQXd4eHdQQ1E9PQo=",
-      "url": "https://github.com/Alaydriem/bedrock-voice-chat/releases/download/v1.0.0-beta.19/bvc-client-linux-x86_64.AppImage"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTOUhUa3dSYjRpVWpVRWs4YjFZN2g2MlE1UUgwN2hWaW5ERUNYcW9FQ0kzclhMQkxTUXZmQ0gxTHl4QXQyV25OTWgxRTBZV3prVUFaaXI4QzBLS2FrRVFkby9KOTNMZXdjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0ODU2Nzc5CWZpbGU6QmVkcm9jayBWb2ljZSBDaGF0XzEuMC41MjBfYW1kNjQuQXBwSW1hZ2UKc3BsWTFwU1FOK3Uva3Y4MWgrNmsxYUxaUHFIR2RtOUU0NGtLcDRVd3VCOHNITmFWeVNZYkQ3OHFoMWFWWmRocFoxZ3FlRjFpRWNnS0ZOYUxkU0lGQmc9PQo=",
+      "url": "https://github.com/Alaydriem/bedrock-voice-chat/releases/download/v1.0.0-beta.20/bvc-client-linux-x86_64.AppImage"
     },
     "linux-aarch64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTOUhUa3dSYjRpVWkxekxyMkZSU3lBY3EyU1hsYm82bTRmbmNZWWsxTytqbEthQnY1TW1FNGFRbVB3R1B2aGJJaW5LN0w1ZnRPc3REODVCRHV4N2NndUJNOXhxTTNIY3dFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzNDM3Mzk0CWZpbGU6QmVkcm9jayBWb2ljZSBDaGF0XzEuMC41MTlfYWFyY2g2NC5BcHBJbWFnZQoyQzNYUHpFcHh6OUhlMjdWb0hYaHVQNmNBK1NxRm5tY2RnZHNkODNBS1FkMEZBMXIxU1hoaUJmYjhQY3FJcCszcEQzLy9IZjBIc3p5NDQvem01WkVEZz09Cg==",
-      "url": "https://github.com/Alaydriem/bedrock-voice-chat/releases/download/v1.0.0-beta.19/bvc-client-linux-aarch64.AppImage"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTOUhUa3dSYjRpVXYwYVA1aThTZWFyckc1YkpWZjRrRGpXWDBzZTB2ZnBheUgyOURrSXNmdy9OLy9DNUtuL29iMTROY3JyNDlISlExSDFqYWJHQ3JwaEJEVG95MFNyU2drPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0ODU2ODk0CWZpbGU6QmVkcm9jayBWb2ljZSBDaGF0XzEuMC41MjBfYWFyY2g2NC5BcHBJbWFnZQpXa2FYdzJHS0hpbjFMTnVnZ3lFZDBjYlFnVjVtR2dic0xuM3lJaHJCVlFHdk9mcHo3R0hqeGlvOXlVRzlZSnhwN0dWU3dUd3I1REVRSFFHejdKVDRBdz09Cg==",
+      "url": "https://github.com/Alaydriem/bedrock-voice-chat/releases/download/v1.0.0-beta.20/bvc-client-linux-aarch64.AppImage"
     }
   }
 }
