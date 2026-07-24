@@ -787,7 +787,7 @@ dependencies = [
 
 [[package]]
 name = "bedrock-voice-chat-server"
-version = "1.0.0-beta.19"
+version = "1.0.0-beta.20"
 dependencies = [
  "anyhow",
  "apple-native-keyring-store",

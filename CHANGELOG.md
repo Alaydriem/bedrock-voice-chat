@@ -1,3 +1,16 @@
+# [1.0.0-beta.20](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.19...v1.0.0-beta.20) (2026-07-24)
+
+
+### Bug Fixes
+
+* no-net implementation audio sync ([#216](https://github.com/Alaydriem/bedrock-voice-chat/issues/216)) ([694751e](https://github.com/Alaydriem/bedrock-voice-chat/commit/694751e39cf1397194791dae93e588397eb20a2a)), closes [#213](https://github.com/Alaydriem/bedrock-voice-chat/issues/213)
+* ui element for the onboarding page lacked vertical scrolling ([#212](https://github.com/Alaydriem/bedrock-voice-chat/issues/212)) ([897c8ec](https://github.com/Alaydriem/bedrock-voice-chat/commit/897c8ecbb8c9641a5bbb8337358fb0f13493ef07)), closes [#211](https://github.com/Alaydriem/bedrock-voice-chat/issues/211)
+
+
+### Features
+
+* in-game audio controls ([#215](https://github.com/Alaydriem/bedrock-voice-chat/issues/215)) ([eef0458](https://github.com/Alaydriem/bedrock-voice-chat/commit/eef045843357d156805f1bd560dd066d1b6ae3bb)), closes [#204](https://github.com/Alaydriem/bedrock-voice-chat/issues/204) [#205](https://github.com/Alaydriem/bedrock-voice-chat/issues/205)
+
 # [1.0.0-beta.19](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.18...v1.0.0-beta.19) (2026-07-07)
 
 
