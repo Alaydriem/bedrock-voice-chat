@@ -1,8 +1,15 @@
+mod send_error;
+mod state;
+
+pub(crate) use send_error::SendError;
+
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use once_cell::sync::Lazy;
+
+use state::BreakerState;
 
 const FAILURE_THRESHOLD: u32 = 5;
 const BASE_COOLDOWN: Duration = Duration::from_secs(15);
@@ -12,28 +19,11 @@ const MAX_BACKOFF_SHIFT: u32 = 5;
 static REGISTRY: Lazy<Mutex<HashMap<String, Arc<EndpointBreaker>>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
-/// Outcome of a request routed through the endpoint breaker. `Open` means the
-/// breaker short-circuited before touching the network; `Transport` carries a
-/// genuine send failure that was already recorded against the breaker.
-pub(crate) enum SendError {
-    Open,
-    Transport(common::reqwest::Error),
-}
-
-struct BreakerState {
-    consecutive_failures: u32,
-    open_until: Option<Instant>,
-    open_streak: u32,
-    half_open: bool,
-}
-
 pub(crate) struct EndpointBreaker {
     state: Mutex<BreakerState>,
 }
 
-pub(crate) struct CircuitBreaker;
-
-impl CircuitBreaker {
+impl EndpointBreaker {
     /// Return the shared breaker for an endpoint. Breakers live in a process-global
     /// registry keyed by endpoint so they survive the frequent re-creation of the
     /// `Api`/`Client` structs (each `api_initialize_client` builds fresh ones).
@@ -44,17 +34,10 @@ impl CircuitBreaker {
             .or_insert_with(|| Arc::new(EndpointBreaker::new()))
             .clone()
     }
-}
 
-impl EndpointBreaker {
     fn new() -> Self {
         Self {
-            state: Mutex::new(BreakerState {
-                consecutive_failures: 0,
-                open_until: None,
-                open_streak: 0,
-                half_open: false,
-            }),
+            state: Mutex::new(BreakerState::new()),
         }
     }
 

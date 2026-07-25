@@ -1,3 +1,8 @@
+mod decision;
+mod window_state;
+
+pub(crate) use decision::ThrottleDecision;
+
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -5,19 +10,10 @@ use std::time::{Duration, Instant};
 use log::Record;
 use moka::sync::Cache;
 
+use window_state::WindowState;
+
 const THROTTLE_WINDOW: Duration = Duration::from_secs(30);
 const THROTTLE_CAPACITY: u64 = 512;
-
-pub(crate) enum ThrottleDecision {
-    Emit { suppressed: u32 },
-    Suppress,
-}
-
-struct WindowState {
-    window_start: Instant,
-    emitted: bool,
-    suppressed: u32,
-}
 
 pub(crate) struct LogThrottle {
     window: Duration,
@@ -50,13 +46,9 @@ impl LogThrottle {
         let fingerprint = Self::fingerprint(record);
         let now = Instant::now();
 
-        let state = self.states.get_with(fingerprint, || {
-            Arc::new(Mutex::new(WindowState {
-                window_start: now,
-                emitted: false,
-                suppressed: 0,
-            }))
-        });
+        let state = self
+            .states
+            .get_with(fingerprint, || Arc::new(Mutex::new(WindowState::new(now))));
 
         let mut state = state.lock().unwrap();
 

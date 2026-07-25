@@ -41,7 +41,7 @@ impl Api {
         &self,
         request: common::reqwest::RequestBuilder,
     ) -> Result<common::reqwest::Response, circuit_breaker::SendError> {
-        let breaker = circuit_breaker::CircuitBreaker::for_endpoint(&self.endpoint);
+        let breaker = circuit_breaker::EndpointBreaker::for_endpoint(&self.endpoint);
         if !breaker.allow() {
             return Err(circuit_breaker::SendError::Open);
         }

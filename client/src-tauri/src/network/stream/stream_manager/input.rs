@@ -75,22 +75,7 @@ impl common::traits::StreamTrait for InputStream {
             let mut decode_errors: u64 = 0;
             let mut consecutive_decode_errors: u32 = 0;
             let mut last_decode_error_log: Option<Instant> = None;
-            loop {
-                let bytes = match recv_one_datagram(&connection).await {
-                    Ok(bytes) => bytes,
-                    Err(failure) => {
-                        if Self::is_refused(&failure, &connection) {
-                            error!(
-                                "Server refused this connection's identity; not retrying. Sign in again if your credentials were revoked."
-                            );
-                            health_state.signal_unauthorized();
-                        } else {
-                            info!("Network recv stream ended: {}", failure);
-                        }
-                        break;
-                    }
-                };
-
+            while let Some(bytes) = Self::recv_next(&connection, &health_state).await {
                 if shutdown.load(Ordering::Relaxed) {
                     info!("Network stream input handler stopped.");
                     break;
@@ -149,6 +134,26 @@ impl common::traits::StreamTrait for InputStream {
 }
 
 impl InputStream {
+    /// Receive the next datagram, or `None` when the recv stream has ended. A server
+    /// refusal of this connection's identity is signalled to the health monitor
+    /// before ending so the reconnect loop stops instead of re-dialing.
+    async fn recv_next(connection: &Connection, health_state: &HealthMonitorState) -> Option<Bytes> {
+        match recv_one_datagram(connection).await {
+            Ok(bytes) => Some(bytes),
+            Err(failure) => {
+                if Self::is_refused(&failure, connection) {
+                    error!(
+                        "Server refused this connection's identity; not retrying. Sign in again if your credentials were revoked."
+                    );
+                    health_state.signal_unauthorized();
+                } else {
+                    info!("Network recv stream ended: {}", failure);
+                }
+                None
+            }
+        }
+    }
+
     /// Whether the server refused this connection's identity.
     ///
     /// The close code surfaces on two different places depending on timing: the
