@@ -1,5 +1,6 @@
 pub mod age;
 pub mod bedrock;
+pub mod cors;
 pub mod features;
 pub mod meridian;
 pub mod minecraft;
@@ -9,6 +10,7 @@ pub mod tls;
 pub use age::Age;
 pub use bedrock::BedrockConfig;
 pub use bedrock::BedrockDnsConfig;
+pub use cors::Cors;
 pub use features::Features;
 pub use meridian::Meridian;
 pub use minecraft::Minecraft;
@@ -44,6 +46,8 @@ pub struct Server {
     pub assets_path: String,
     #[serde(default)]
     pub tls: Tls,
+    #[serde(default)]
+    pub cors: Cors,
     pub minecraft: Minecraft,
     #[serde(default)]
     pub features: Features,
@@ -63,6 +67,7 @@ impl Default for Server {
             quic_port: default_quic_port(),
             assets_path: default_assets_path(),
             tls: Tls::default(),
+            cors: Cors::default(),
             minecraft: Minecraft::default(),
             features: Features::default(),
             meridian: None,

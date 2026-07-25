@@ -23,13 +23,16 @@
         'Reconnecting': 'bg-yellow-500 animate-pulse',
         'Disconnected': 'bg-red-500',
         'Failed': 'bg-red-500',
-        'VersionMismatch': 'bg-red-500'
+        'VersionMismatch': 'bg-red-500',
+        'Unauthorized': 'bg-red-500'
     }[health.status];
 
     $: tooltip = health.status === 'Reconnecting'
         ? `Reconnecting (attempt ${health.attempt})...`
         : health.status === 'VersionMismatch'
         ? 'Version mismatch - update required'
+        : health.status === 'Unauthorized'
+        ? 'Connection refused - sign in again'
         : health.status;
 </script>
 

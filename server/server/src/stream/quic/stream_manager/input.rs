@@ -70,13 +70,21 @@ pub(crate) struct InputStream {
 impl InputStream {
     const LARGE_JUMP_FORWARD_MS: i64 = 3_000;
 
+    // Hard cap on the per-sender last-seen timestamp cache. The key is the
+    // client-supplied client_id, so without a capacity a client cycling through
+    // unique ids could grow this without bound. Benchmarked concurrency headroom
+    // is ~10K clients; 100K bounds memory far above that.
+    const LAST_SEEN_MAX_CAPACITY: u64 = 100_000;
+
     pub fn new(
         connection: Option<Arc<Connection>>,
         producer: Option<mpsc::UnboundedSender<ServerInputPacket>>,
     ) -> Self {
-        // 15-minute time-to-idle per earlier plan
+        // 15-minute idle eviction plus a hard capacity so an untrusted stream of
+        // unique client_ids cannot exhaust memory.
         let last_seen_ts = Cache::builder()
             .time_to_idle(Duration::from_secs(15 * 60))
+            .max_capacity(Self::LAST_SEEN_MAX_CAPACITY)
             .build();
 
         Self {

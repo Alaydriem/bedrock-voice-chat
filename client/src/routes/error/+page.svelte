@@ -184,6 +184,22 @@
         style: 'secondary'
       }
     },
+    'AUTH01': {
+      code: 'AUTH01',
+      title: 'Connection Refused',
+      message: 'The server refused this connection because it could not verify your identity. Your certificate may have been revoked or reissued. Sign in again to get fresh credentials.',
+      icon: 'fa-solid fa-user-shield',
+      primaryAction: {
+        label: 'Sign In Again',
+        url: '/login',
+        style: 'primary'
+      },
+      secondaryAction: {
+        label: 'Choose Different Server',
+        url: '/server',
+        style: 'secondary'
+      }
+    },
     'UPD01': {
       code: 'UPD01',
       title: 'Update Available',

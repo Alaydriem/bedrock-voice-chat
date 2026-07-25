@@ -98,15 +98,21 @@ impl RocketManager {
                 let cache = Arc::new(Mutex::new(cache));
                 let cache_wrapper = ncryptf::rocket::CacheWrapper::TimedCache(cache);
 
+                let cors_config = &self.config.server.cors;
+                let allowed_origins = if cors_config.allowed_origins.is_empty() {
+                    AllowedOrigins::all()
+                } else {
+                    AllowedOrigins::some_exact(&cors_config.allowed_origins)
+                };
                 let cors = CorsOptions::default()
-                    .allowed_origins(AllowedOrigins::all())
+                    .allowed_origins(allowed_origins)
                     .allowed_methods(
                         vec![Method::Get, Method::Post, Method::Patch]
                             .into_iter()
                             .map(From::from)
                             .collect(),
                     )
-                    .allow_credentials(true);
+                    .allow_credentials(cors_config.allow_credentials);
 
                 let mut rocket = rocket::custom(figment)
                     .manage(cache_wrapper)

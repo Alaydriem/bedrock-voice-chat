@@ -1,4 +1,5 @@
 use bytes::Bytes;
+use common::Game;
 use common::PlayerEnum;
 use common::structs::packet::{QuicNetworkPacket, QuicNetworkPacketData};
 use common::traits::player_data::PlayerData;
@@ -17,6 +18,11 @@ pub enum RoutedPacket {
 
 pub(crate) struct ConnectionEntry {
     pub player_name: String,
+    // The game from this connection's mTLS certificate CN. Channel membership keys
+    // are `game:gamertag`, so holding it here lets membership be resolved from the
+    // authenticated identity instead of from position data the player may not have
+    // sent yet.
+    pub game: Game,
     pub tx: mpsc::Sender<RoutedPacket>,
     pub connected_at: Instant,
 }
@@ -240,6 +246,7 @@ impl ConnectionRegistry {
         &self,
         client_id: Vec<u8>,
         player_name: String,
+        game: Game,
         tx: mpsc::Sender<RoutedPacket>,
     ) {
         tracing::info!(
@@ -252,6 +259,7 @@ impl ConnectionRegistry {
             client_id,
             ConnectionEntry {
                 player_name,
+                game,
                 tx,
                 connected_at: Instant::now(),
             },
@@ -376,6 +384,16 @@ impl ConnectionRegistry {
         game.membership_key(name)
     }
 
+    // The authenticated game for a live connection, by player name. `None` when the
+    // name has no connection — a server-injected sender such as a jukebox, or a
+    // player who has already disconnected.
+    fn connection_game(&self, player_name: &str) -> Option<Game> {
+        let client_id = self.name_index.get(player_name)?.value().clone();
+        self.connections
+            .get(&client_id)
+            .map(|entry| entry.value().game.clone())
+    }
+
     pub async fn route_audio_frame(
         &self,
         packet: &QuicNetworkPacket,
@@ -404,11 +422,16 @@ impl ConnectionRegistry {
             None => player_cache.get(sender_name).await,
         };
 
-        // Derive the channel-membership key for the sender only when a game is
-        // known. Falls back to None (proximity-only) when the sender has not yet
-        // appeared in the position cache.
-        let sender_channel: Option<String> = sender_player.as_ref().and_then(|sp| {
-            let key = Self::channel_key(sp.get_game(), sender_name);
+        // The sender's game comes from its authenticated certificate when it has a
+        // live connection, so channel membership resolves even before the player has
+        // sent a position. Server-injected senders (jukebox, webhook, relayed peer
+        // audio) have no connection, so they fall back to the game on the packet.
+        let sender_game: Option<Game> = self
+            .connection_game(sender_name)
+            .or_else(|| sender_player.as_ref().map(|sp| sp.get_game()));
+
+        let sender_channel: Option<String> = sender_game.and_then(|game| {
+            let key = Self::channel_key(game, sender_name);
             self.player_channel.get(&key).map(|r| r.clone())
         });
 
@@ -445,13 +468,14 @@ impl ConnectionRegistry {
         }
 
         // Snapshot connections to release DashMap shard locks before any .await
-        let snapshot: Vec<(Vec<u8>, String, mpsc::Sender<RoutedPacket>)> = self
+        let snapshot: Vec<(Vec<u8>, String, Game, mpsc::Sender<RoutedPacket>)> = self
             .connections
             .iter()
             .map(|entry| {
                 (
                     entry.key().clone(),
                     entry.value().player_name.clone(),
+                    entry.value().game.clone(),
                     entry.value().tx.clone(),
                 )
             })
@@ -459,22 +483,20 @@ impl ConnectionRegistry {
 
         let mut dead_keys: Vec<Vec<u8>> = Vec::new();
 
-        for (client_id, recipient_name, tx) in &snapshot {
+        for (client_id, recipient_name, recipient_game, tx) in &snapshot {
             if recipient_name == sender_name {
                 continue;
             }
 
-            // Resolve the recipient's PlayerEnum; needed both for the channel-key
-            // derivation and for the proximity spatial check below.
-            let recipient_player = match player_cache.get(recipient_name).await {
-                Some(player) => player,
-                None => continue,
-            };
+            // Position data is required only by the proximity branch below, so a
+            // recipient that has not sent one is still eligible for channel audio.
+            let recipient_player = player_cache.get(recipient_name).await;
 
-            // Build channel-membership key for the recipient using their game
-            // prefix, matching the cert-CN format written by the channel handler.
+            // The recipient's game comes from its authenticated certificate, which is
+            // held on the connection being routed to, so its channel key resolves
+            // without position data.
             let recipient_channel: Option<String> = {
-                let key = Self::channel_key(recipient_player.get_game(), recipient_name);
+                let key = Self::channel_key(recipient_game.clone(), recipient_name);
                 self.player_channel.get(&key).map(|r| r.clone())
             };
 
@@ -504,12 +526,18 @@ impl ConnectionRegistry {
                     None => continue,
                 }
             } else {
+                // Proximity is the only branch that needs coordinates, so both sides
+                // must have reported a position to be compared at all.
                 let sp = match &sender_player {
                     Some(p) => p,
                     None => continue,
                 };
+                let rp = match &recipient_player {
+                    Some(p) => p,
+                    None => continue,
+                };
 
-                if sp.get_game() != recipient_player.get_game() {
+                if sp.get_game() != rp.get_game() {
                     continue;
                 }
 
@@ -519,7 +547,7 @@ impl ConnectionRegistry {
                     broadcast_range
                 };
 
-                if let Err(e) = sp.can_communicate_with(&recipient_player, effective_range) {
+                if let Err(e) = sp.can_communicate_with(rp, effective_range) {
                     tracing::debug!(
                         "Audio packet {} -> {} rejected: {}",
                         sender_name,

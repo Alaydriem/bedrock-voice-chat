@@ -3,8 +3,9 @@ pub(crate) mod commands;
 use common::request::LinkJavaIdentityRequest;
 use common::response::ApiConfigResponse;
 use common::response::LinkJavaIdentityResponse;
-use log::error;
+use log::{error, warn};
 mod channel;
+mod circuit_breaker;
 mod client;
 mod gamerpic;
 
@@ -30,6 +31,36 @@ impl Api {
 
     async fn get_client(&self, fqdn: Option<&str>) -> ReqwestClient {
         self.client.get_client(fqdn).await
+    }
+
+    /// Send a prepared request through this endpoint's circuit breaker. While the
+    /// breaker is open the request short-circuits without touching the network;
+    /// otherwise the outcome (reachable response or transport failure) is recorded
+    /// so the breaker can open or close accordingly.
+    async fn send(
+        &self,
+        request: common::reqwest::RequestBuilder,
+    ) -> Result<common::reqwest::Response, circuit_breaker::SendError> {
+        let breaker = circuit_breaker::CircuitBreaker::for_endpoint(&self.endpoint);
+        if !breaker.allow() {
+            return Err(circuit_breaker::SendError::Open);
+        }
+
+        match request.send().await {
+            Ok(response) => {
+                breaker.on_success();
+                Ok(response)
+            }
+            Err(e) => {
+                if breaker.on_transport_failure() {
+                    warn!(
+                        "Repeated connection failures to {}; backing off further requests",
+                        self.endpoint
+                    );
+                }
+                Err(circuit_breaker::SendError::Transport(e))
+            }
+        }
     }
 
     pub(crate) fn endpoint(&self) -> &str {
@@ -90,12 +121,13 @@ impl Api {
         // Reconstruct full URL with resolved IP address
         let url = format!("{}/api/ping", self.endpoint);
 
-        match client.get(url).headers(headers).send().await {
+        match self.send(client.get(url).headers(headers)).await {
             Ok(response) => match response.status() {
                 StatusCode::OK => Ok(()),
                 _ => Err(false),
             },
-            Err(e) => {
+            Err(circuit_breaker::SendError::Open) => Err(false),
+            Err(circuit_breaker::SendError::Transport(e)) => {
                 error!("Unable to connect to BVC Server: {} {}", self.endpoint, e);
                 let mut source = e.source();
                 while let Some(cause) = source {
@@ -128,11 +160,8 @@ impl Api {
             gamertag,
         };
 
-        match client
-            .post(url)
-            .headers(headers)
-            .json(&payload)
-            .send()
+        match self
+            .send(client.post(url).headers(headers).json(&payload))
             .await
         {
             Ok(response) => match response.status() {
@@ -146,7 +175,10 @@ impl Api {
                 }
                 status => Err(format!("Server returned status: {}", status)),
             },
-            Err(e) => {
+            Err(circuit_breaker::SendError::Open) => {
+                Err("Server temporarily unreachable; backing off".to_string())
+            }
+            Err(circuit_breaker::SendError::Transport(e)) => {
                 error!("Failed to link Java identity: {}", e);
                 Err(format!("Connection failed: {}", e))
             }
@@ -162,7 +194,7 @@ impl Api {
 
         let url = format!("{}/api/config", self.endpoint);
 
-        match client.get(url).headers(headers).send().await {
+        match self.send(client.get(url).headers(headers)).await {
             Ok(response) => match response.status() {
                 StatusCode::OK => {
                     let body = response
@@ -196,7 +228,10 @@ impl Api {
                 }
                 status => Err(format!("Server returned status: {}", status)),
             },
-            Err(e) => {
+            Err(circuit_breaker::SendError::Open) => {
+                Err("Server temporarily unreachable; backing off".to_string())
+            }
+            Err(circuit_breaker::SendError::Transport(e)) => {
                 error!(
                     "Unable to get config from BVC Server: {} {}",
                     self.endpoint, e

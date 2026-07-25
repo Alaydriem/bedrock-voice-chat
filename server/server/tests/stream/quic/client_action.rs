@@ -2,6 +2,7 @@ use bvc_server_lib::services::ClientActionService;
 use bvc_server_lib::stream::quic::WebhookReceiver;
 use bvc_server_lib::stream::quic::connection_registry::{ConnectionRegistry, RoutedPacket};
 use bvc_server_lib::stream::quic::{CacheTrait, PlayerPreferenceCache, PlayerStateCache};
+use common::Game;
 use common::structs::channel::{Channel, ChannelCollection};
 use common::structs::control::{ClientAction, ClientActionType, PreferenceKey, QueryState};
 use common::structs::packet::{PacketType, QuicNetworkPacket, QuicNetworkPacketData};
@@ -22,8 +23,8 @@ fn route_self_delivers_to_actor_name_ignoring_wire_id() {
     let registry = ConnectionRegistry::new();
     let (tx_a, mut rx_a) = mpsc::channel(4);
     let (tx_b, mut rx_b) = mpsc::channel(4);
-    registry.register(b"alice".to_vec(), "Alice".to_string(), tx_a);
-    registry.register(b"bob".to_vec(), "Bob".to_string(), tx_b);
+    registry.register(b"alice".to_vec(), "Alice".to_string(), Game::Minecraft, tx_a);
+    registry.register(b"bob".to_vec(), "Bob".to_string(), Game::Minecraft, tx_b);
 
     let svc = ClientActionService::new();
     // The wire id says Bob, but the supplied actor is Alice — routing follows Alice.
@@ -69,7 +70,7 @@ fn reported_state(id: &str) -> QueryState {
 async fn delivered_self_action_echoes_into_reported_state() {
     let registry = ConnectionRegistry::new();
     let (tx, _rx) = mpsc::channel(4);
-    registry.register(b"alice".to_vec(), "Alice".to_string(), tx);
+    registry.register(b"alice".to_vec(), "Alice".to_string(), Game::Minecraft, tx);
     let player_state = PlayerStateCache::new();
     let preferences = PlayerPreferenceCache::new();
     player_state
@@ -133,7 +134,7 @@ async fn undelivered_self_action_leaves_reported_state_untouched() {
 async fn echo_never_fabricates_self_state_for_unreported_player() {
     let registry = ConnectionRegistry::new();
     let (tx, _rx) = mpsc::channel(4);
-    registry.register(b"alice".to_vec(), "Alice".to_string(), tx);
+    registry.register(b"alice".to_vec(), "Alice".to_string(), Game::Minecraft, tx);
     let player_state = PlayerStateCache::new();
     let preferences = PlayerPreferenceCache::new();
 
@@ -162,7 +163,7 @@ async fn echo_never_fabricates_self_state_for_unreported_player() {
 async fn delivered_preference_actions_upsert_into_preference_cache() {
     let registry = ConnectionRegistry::new();
     let (tx, _rx) = mpsc::channel(8);
-    registry.register(b"alice".to_vec(), "Alice".to_string(), tx);
+    registry.register(b"alice".to_vec(), "Alice".to_string(), Game::Minecraft, tx);
     let player_state = PlayerStateCache::new();
     let preferences = PlayerPreferenceCache::new();
     let svc = ClientActionService::new();
@@ -210,7 +211,7 @@ async fn delivered_preference_actions_upsert_into_preference_cache() {
 async fn echoed_volume_is_clamped_to_client_range() {
     let registry = ConnectionRegistry::new();
     let (tx, _rx) = mpsc::channel(4);
-    registry.register(b"alice".to_vec(), "Alice".to_string(), tx);
+    registry.register(b"alice".to_vec(), "Alice".to_string(), Game::Minecraft, tx);
     let player_state = PlayerStateCache::new();
     let preferences = PlayerPreferenceCache::new();
     let svc = ClientActionService::new();
@@ -509,7 +510,7 @@ async fn join_current_group_is_a_noop() {
 async fn one_actor_routes_both_self_delivery_and_group_membership() {
     let registry = ConnectionRegistry::new();
     let (tx, mut rx) = mpsc::channel(4);
-    registry.register(b"alice".to_vec(), "Alice".to_string(), tx);
+    registry.register(b"alice".to_vec(), "Alice".to_string(), Game::Minecraft, tx);
     let channels = ChannelCollection::new(64);
     let (webhook, mut _wrx) = test_webhook();
     let svc = ClientActionService::new();

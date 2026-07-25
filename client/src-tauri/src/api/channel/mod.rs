@@ -4,6 +4,7 @@ use common::reqwest::{
     StatusCode,
     header::{HeaderMap, HeaderValue},
 };
+use crate::api::circuit_breaker::SendError;
 use log::error;
 use serde_json::json;
 use std::error::Error;
@@ -20,7 +21,7 @@ impl Api {
         let url = format!("{}/api/channel", self.endpoint);
         let body = json!(name);
 
-        match client.post(url).headers(headers).json(&body).send().await {
+        match self.send(client.post(url).headers(headers).json(&body)).await {
             Ok(response) => match response.status() {
                 StatusCode::OK => match response.json::<String>().await {
                     Ok(channel_id) => Ok(channel_id),
@@ -34,7 +35,10 @@ impl Api {
                     Err(format!("Request failed with status: {}", status))
                 }
             },
-            Err(e) => {
+            Err(SendError::Open) => {
+                Err("Server temporarily unreachable; backing off".to_string())
+            }
+            Err(SendError::Transport(e)) => {
                 error!("Failed to create channel: {}", e);
                 let mut source = e.source();
                 while let Some(cause) = source {
@@ -55,7 +59,7 @@ impl Api {
 
         let url = format!("{}/api/channel/{}", self.endpoint, channel_id);
 
-        match client.delete(url).headers(headers).send().await {
+        match self.send(client.delete(url).headers(headers)).await {
             Ok(response) => match response.status() {
                 StatusCode::OK => Ok(true),
                 StatusCode::UNAUTHORIZED => {
@@ -71,7 +75,10 @@ impl Api {
                     Err(format!("Request failed with status: {}", status))
                 }
             },
-            Err(e) => {
+            Err(SendError::Open) => {
+                Err("Server temporarily unreachable; backing off".to_string())
+            }
+            Err(SendError::Transport(e)) => {
                 error!("Failed to delete channel: {}", e);
                 let mut source = e.source();
                 while let Some(cause) = source {
@@ -94,7 +101,7 @@ impl Api {
 
         let url = format!("{}/api/channel", self.endpoint);
 
-        match client.get(url).headers(headers).send().await {
+        match self.send(client.get(url).headers(headers)).await {
             Ok(response) => match response.status() {
                 StatusCode::OK => {
                     match response
@@ -113,7 +120,10 @@ impl Api {
                     Err(format!("Request failed with status: {}", status))
                 }
             },
-            Err(e) => {
+            Err(SendError::Open) => {
+                Err("Server temporarily unreachable; backing off".to_string())
+            }
+            Err(SendError::Transport(e)) => {
                 error!("Failed to list channels: {}", e);
                 let mut source = e.source();
                 while let Some(cause) = source {
@@ -137,7 +147,7 @@ impl Api {
 
         let url = format!("{}/api/channel?id={}", self.endpoint, channel_id);
 
-        match client.get(url).headers(headers).send().await {
+        match self.send(client.get(url).headers(headers)).await {
             Ok(response) => match response.status() {
                 StatusCode::OK => {
                     match response
@@ -163,7 +173,10 @@ impl Api {
                     Err(format!("Request failed with status: {}", status))
                 }
             },
-            Err(e) => {
+            Err(SendError::Open) => {
+                Err("Server temporarily unreachable; backing off".to_string())
+            }
+            Err(SendError::Transport(e)) => {
                 error!("Failed to get channel: {}", e);
                 let mut source = e.source();
                 while let Some(cause) = source {
@@ -190,7 +203,7 @@ impl Api {
         let url = format!("{}/api/channel/{}", self.endpoint, channel_id);
         let body = json!(name);
 
-        match client.patch(url).headers(headers).json(&body).send().await {
+        match self.send(client.patch(url).headers(headers).json(&body)).await {
             Ok(response) => match response.status() {
                 StatusCode::OK => Ok(true),
                 StatusCode::UNAUTHORIZED => {
@@ -206,7 +219,10 @@ impl Api {
                     Err(format!("Request failed with status: {}", status))
                 }
             },
-            Err(e) => {
+            Err(SendError::Open) => {
+                Err("Server temporarily unreachable; backing off".to_string())
+            }
+            Err(SendError::Transport(e)) => {
                 error!("Failed to rename channel: {}", e);
                 let mut source = e.source();
                 while let Some(cause) = source {
@@ -232,7 +248,7 @@ impl Api {
 
         let url = format!("{}/api/channel/{}", self.endpoint, channel_id);
 
-        match client.put(url).headers(headers).json(&event).send().await {
+        match self.send(client.put(url).headers(headers).json(&event)).await {
             Ok(response) => match response.status() {
                 StatusCode::OK => Ok(true),
                 StatusCode::BAD_REQUEST => {
@@ -248,7 +264,10 @@ impl Api {
                     Err(format!("Request failed with status: {}", status))
                 }
             },
-            Err(e) => {
+            Err(SendError::Open) => {
+                Err("Server temporarily unreachable; backing off".to_string())
+            }
+            Err(SendError::Transport(e)) => {
                 error!("Failed to send channel event: {}", e);
                 let mut source = e.source();
                 while let Some(cause) = source {

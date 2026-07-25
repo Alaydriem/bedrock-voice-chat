@@ -83,7 +83,14 @@ impl CacheManager {
         self.connection_registry.clone()
     }
 
-    pub async fn process_packet(&self, packet: QuicNetworkPacket) -> Result<(), Error> {
+    // `authenticated_game` is the game from the sender's mTLS certificate CN, or
+    // `None` for server-injected packets that arrive without a certificate (the
+    // webhook path). It is only consulted where a membership key must be built.
+    pub async fn process_packet(
+        &self,
+        packet: QuicNetworkPacket,
+        authenticated_game: Option<common::Game>,
+    ) -> Result<(), Error> {
         match packet.packet_type {
             PacketType::PlayerPosition => {
                 if let Some(data) = packet.get_data() {
@@ -279,7 +286,13 @@ impl CacheManager {
                     );
                     return Ok(());
                 };
-                let actor_cn = Game::Minecraft.membership_key(&author);
+                // The game comes from the authenticated certificate, so a Hytale
+                // actor is keyed as `hytale:name` rather than being assumed to be
+                // Minecraft. Falls back to Minecraft only for callers with no
+                // certificate context.
+                let actor_cn = authenticated_game
+                    .unwrap_or(Game::Minecraft)
+                    .membership_key(&author);
                 match ClientActionService::new()
                     .route_group(&ca.action.action, &actor_cn, &self.channel_collection, webhook)
                     .await

@@ -48,6 +48,24 @@ impl RoutingFixture {
         }
     }
 
+    // An audio frame from a sender that carries NO PlayerEnum: what a client emits
+    // before it has any position, i.e. it joined a channel but not the game yet.
+    pub fn audio_packet_without_position(sender_name: &str) -> QuicNetworkPacket {
+        QuicNetworkPacket {
+            packet_type: PacketType::AudioFrame,
+            owner: Some(PacketOwner {
+                name: sender_name.to_string(),
+                client_id: vec![1],
+            }),
+            data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
+                vec![0u8; 160],
+                48000,
+                None,
+                Some(true),
+            )),
+        }
+    }
+
     pub async fn player_cache(players: &[PlayerEnum]) -> Arc<Cache<String, PlayerEnum>> {
         let cache: Arc<Cache<String, PlayerEnum>> = Arc::new(Cache::builder().build());
         for p in players {

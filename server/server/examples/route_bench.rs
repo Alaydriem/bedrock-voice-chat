@@ -128,7 +128,7 @@ impl RouteBench {
 
             let (tx, mut rx) = mpsc::channel::<RoutedPacket>(500);
             self.registry
-                .register(vec![i as u8, (i >> 8) as u8], Self::player_name(i), tx);
+                .register(vec![i as u8, (i >> 8) as u8], Self::player_name(i), common::Game::Minecraft, tx);
 
             let delivered = self.delivered.clone();
             tokio::spawn(async move {
