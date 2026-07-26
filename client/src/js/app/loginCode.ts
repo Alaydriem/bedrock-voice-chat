@@ -4,6 +4,7 @@ import BVCApp from './BVCApp.ts';
 import type { LoginResponse } from '../bindings/LoginResponse';
 import type { Game } from '../bindings/Game';
 import type { ServerListEntry } from '../bindings/ServerListEntry';
+import { ServerListStore } from './services/ServerListStore';
 
 export default class LoginCode extends BVCApp {
     private serverUrl = "";
@@ -69,6 +70,7 @@ export default class LoginCode extends BVCApp {
             }
             await store.set("server_list", serverList);
             await store.save();
+            ServerListStore.mirrorServerCount(serverList);
 
             info("Code login successful, navigating to onboarding");
             window.location.href = "/onboarding/welcome";

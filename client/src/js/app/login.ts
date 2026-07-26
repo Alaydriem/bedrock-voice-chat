@@ -5,6 +5,8 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { getVersion } from '@tauri-apps/api/app';
 import { invoke } from '@tauri-apps/api/core';
 import { writable, derived, get, type Writable, type Readable } from 'svelte/store';
+import { stopForegroundService, isServiceRunning } from 'tauri-plugin-audio-permissions';
+import { ServerListStore } from './services/ServerListStore';
 import BVCApp from './BVCApp.ts';
 import Analytics from './analytics';
 import PlatformDetector from './utils/PlatformDetector.ts';
@@ -163,13 +165,17 @@ export default class Login extends BVCApp {
     this.isMobileStore.set(await this.platformDetector.checkMobile());
     this.appVersionStore.set(await getVersion());
 
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('logout') === 'true') {
+      await this.escapeHatchLogout();
+    }
+
     await invoke('reset_asm').catch(() => {});
     await invoke('reset_nsm').catch(() => {});
 
     await this.initialize();
     this.preloader();
 
-    const urlParams = new URLSearchParams(window.location.search);
     const isAddServer = urlParams.has('addserver');
 
     let backHref = '/dashboard';
@@ -186,6 +192,55 @@ export default class Login extends BVCApp {
     const autoReauth = urlParams.has('server') && urlParams.get('reauth') === 'true';
 
     return { isAddServer, backHref, backLabel, prefilledServer, autoReauth };
+  }
+
+  // Bounds each escape-hatch teardown step. The user reached the hatch
+  // because a subsystem hung; an unbounded teardown of that same subsystem
+  // would strand them here a second time.
+  private static readonly ESCAPE_LOGOUT_STEP_TIMEOUT_MS = 5000;
+
+  private withEscapeTimeout<T>(work: Promise<T>, label: string): Promise<T> {
+    return Promise.race([
+      work,
+      new Promise<T>((_, reject) =>
+        setTimeout(
+          () => reject(new Error(`${label} timed out`)),
+          Login.ESCAPE_LOGOUT_STEP_TIMEOUT_MS,
+        ),
+      ),
+    ]);
+  }
+
+  /**
+   * Signs the user out after arriving from the preloader escape hatch
+   * (`/login?logout=true`). The originating page hung mid-init, so audio and
+   * network streams may still be running; stop them best-effort before
+   * clearing credentials.
+   */
+  private async escapeHatchLogout(): Promise<void> {
+    // Strip the parameter first so a refresh during a wedged teardown lands
+    // on a clean login page instead of re-entering the same hang.
+    window.history.replaceState({}, '', '/login');
+
+    try { await this.withEscapeTimeout(invoke("stop_audio_device", { device: "InputDevice" }), "stop input"); } catch (_) {}
+    try { await this.withEscapeTimeout(invoke("stop_audio_device", { device: "OutputDevice" }), "stop output"); } catch (_) {}
+    try { await this.withEscapeTimeout(invoke("stop_network_stream"), "stop network"); } catch (_) {}
+
+    if (await this.platformDetector.checkMobile()) {
+      try {
+        const status = await this.withEscapeTimeout(isServiceRunning(), "service status");
+        if (status.running) {
+          await this.withEscapeTimeout(stopForegroundService(), "stop service");
+        }
+      } catch (_) {}
+    }
+
+    try {
+      Analytics.track("Logout");
+      await this.withEscapeTimeout(invoke("logout"), "logout");
+    } catch (e) {
+      warn(`Escape hatch logout failed: ${e}`);
+    }
   }
 
   handleCodeLoginNavigate(rawValue: string): string {
@@ -695,6 +750,7 @@ export default class Login extends BVCApp {
         servers.push({ server: server, player: loginResponse.gamertag, game: "hytale" });
       }
       await store.set("server_list", servers);
+      ServerListStore.mirrorServerCount(servers);
 
       await store.delete("hytale_session_id");
       await store.save();

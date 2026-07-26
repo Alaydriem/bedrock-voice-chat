@@ -4,6 +4,7 @@ import { info, error as logError } from '@tauri-apps/plugin-log';
 import Analytics from '../analytics';
 import { type LoginResponse } from "../../bindings/LoginResponse";
 import { type ServerListEntry } from "../../bindings/ServerListEntry";
+import { ServerListStore } from '../services/ServerListStore';
 import type { DeepLinkOutcome } from '../deepLinkRouter.ts';
 
 export class AuthCallbackHandler {
@@ -95,12 +96,15 @@ export class AuthCallbackHandler {
                     });
                 }
                 await this.store.set("server_list", serverList);
+                ServerListStore.mirrorServerCount(serverList);
             } else {
-                await this.store.set("server_list", [{
+                const serverList: ServerListEntry[] = [{
                     "server": authStateEndpoint,
                     "player": response.gamertag,
                     "game": "minecraft"
-                }]);
+                }];
+                await this.store.set("server_list", serverList);
+                ServerListStore.mirrorServerCount(serverList);
             }
 
             await this.store.delete("auth_state_token");
