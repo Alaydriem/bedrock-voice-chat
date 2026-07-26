@@ -42,8 +42,8 @@ impl AuthCodeService {
         let alphabet: Vec<char> = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".chars().collect();
         let code = nanoid::nanoid!(8, &alphabet);
 
-        let now = Utc::now().timestamp() as u32;
-        let expires_at = now + duration_secs as u32;
+        let now = Utc::now().timestamp();
+        let expires_at = now + duration_secs as i64;
 
         let active_model = player_auth_code::ActiveModel {
             code: ActiveValue::Set(code.clone()),
@@ -81,7 +81,7 @@ impl AuthCodeService {
         };
 
         // Check expiration
-        let now = Utc::now().timestamp() as u32;
+        let now = Utc::now().timestamp();
         if auth_code.expires_at < now {
             return Err(AuthCodeError::CodeExpired);
         }

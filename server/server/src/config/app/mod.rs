@@ -90,37 +90,7 @@ impl ApplicationConfig {
 
     /// Returns the database DSN string from the configuration.
     pub fn get_dsn(&self) -> String {
-        match self.database.scheme.as_str() {
-            "sqlite" | "sqlite3" => {
-                let path = std::path::Path::new(&self.database.database);
-                if !path.exists() {
-                    match std::fs::File::create(&self.database.database) {
-                        Ok(_) => {}
-                        Err(_e) => {
-                            panic!(
-                                "Verify that {} exists and is writable. You may need to create this file.",
-                                &self.database.database
-                            );
-                        }
-                    }
-                }
-
-                format!("sqlite://{}", &self.database.database)
-            }
-            "mysql" => format!(
-                "mysql://{}:{}@{}:{}/{}",
-                &self.database.username.clone().unwrap_or(String::from("")),
-                &self.database.password.clone().unwrap_or(String::from("")),
-                &self
-                    .database
-                    .host
-                    .clone()
-                    .unwrap_or(String::from("127.0.0.1")),
-                &self.database.port.unwrap_or(3306),
-                &self.database.database
-            ),
-            _ => format!("sqlite://{}", "/etc/bvc/bvc.sqlite3"),
-        }
+        self.database.get_dsn()
     }
 
     /// Returns the appropriate log level for Rocket.rs
@@ -164,7 +134,8 @@ impl ApplicationConfig {
             ));
         }
 
-        tracing::info!("Database: {}", self.get_dsn().to_string());
+        self.database.validate()?;
+        tracing::info!("Database: {}", self.database.get_redacted_dsn());
         let figment = rocket::Config::figment()
             .merge(("cli_colors", false))
             .merge(("profile", rocket::figment::Profile::new("release")))
@@ -203,7 +174,8 @@ impl ApplicationConfig {
 
     /// Create a standalone database connection for CLI commands.
     pub async fn create_database_connection(&self) -> Result<DatabaseConnection, anyhow::Error> {
-        let dsn = self.get_dsn();
+        self.database.validate()?;
+        let dsn = self.database.get_dsn();
 
         let mut options = ConnectOptions::new(dsn);
         options

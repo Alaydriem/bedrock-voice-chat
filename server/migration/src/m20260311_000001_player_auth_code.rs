@@ -31,7 +31,7 @@ impl MigrationTrait for Migration {
                     )
                     .col(
                         ColumnDef::new(PlayerAuthCode::ExpiresAt)
-                            .big_unsigned()
+                            .big_integer()
                             .not_null(),
                     )
                     .col(
@@ -42,12 +42,12 @@ impl MigrationTrait for Migration {
                     )
                     .col(
                         ColumnDef::new(PlayerAuthCode::CreatedAt)
-                            .big_unsigned()
+                            .big_integer()
                             .not_null(),
                     )
                     .col(
                         ColumnDef::new(PlayerAuthCode::UpdatedAt)
-                            .big_unsigned()
+                            .big_integer()
                             .not_null(),
                     )
                     .foreign_key(

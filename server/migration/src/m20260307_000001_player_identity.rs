@@ -37,12 +37,12 @@ impl MigrationTrait for Migration {
                     )
                     .col(
                         ColumnDef::new(PlayerIdentity::CreatedAt)
-                            .integer()
+                            .big_integer()
                             .not_null(),
                     )
                     .col(
                         ColumnDef::new(PlayerIdentity::UpdatedAt)
-                            .integer()
+                            .big_integer()
                             .not_null(),
                     )
                     .foreign_key(

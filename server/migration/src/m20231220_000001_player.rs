@@ -24,8 +24,8 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(Player::Keypair).binary())
                     .col(ColumnDef::new(Player::Signature).binary())
                     .col(ColumnDef::new(Player::Banished).boolean())
-                    .col(ColumnDef::new(Player::CreatedAt).big_unsigned().not_null())
-                    .col(ColumnDef::new(Player::UpdatedAt).big_unsigned().not_null())
+                    .col(ColumnDef::new(Player::CreatedAt).big_integer().not_null())
+                    .col(ColumnDef::new(Player::UpdatedAt).big_integer().not_null())
                     .to_owned(),
             )
             .await

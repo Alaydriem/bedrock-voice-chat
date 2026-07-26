@@ -122,6 +122,27 @@ fn database_fields_override() {
 }
 
 #[test]
+fn database_ssl_fields_override() {
+    let config = apply(
+        &[
+            ("BVC_DATABASE_SCHEME", "postgres"),
+            ("BVC_DATABASE_SSL_MODE", "verify-full"),
+            ("BVC_DATABASE_SSL_ROOT_CERT", "/certs/ca.pem"),
+            ("BVC_DATABASE_SSL_CERT", "/certs/client.pem"),
+            ("BVC_DATABASE_SSL_KEY", "/certs/client.key"),
+        ],
+        ApplicationConfig::default(),
+    );
+    assert_eq!(config.database.ssl_mode.as_deref(), Some("verify-full"));
+    assert_eq!(
+        config.database.ssl_root_cert.as_deref(),
+        Some("/certs/ca.pem")
+    );
+    assert_eq!(config.database.ssl_cert.as_deref(), Some("/certs/client.pem"));
+    assert_eq!(config.database.ssl_key.as_deref(), Some("/certs/client.key"));
+}
+
+#[test]
 fn meridian_full_set_materializes_block() {
     let config = apply(
         &[

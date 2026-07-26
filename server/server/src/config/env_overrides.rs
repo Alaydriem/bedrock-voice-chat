@@ -149,6 +149,18 @@ impl EnvOverrides {
         if let Some(v) = self.get("BVC_DATABASE_PASSWORD") {
             config.database.password = Some(v.to_string());
         }
+        if let Some(v) = self.get("BVC_DATABASE_SSL_MODE") {
+            config.database.ssl_mode = Some(v.to_string());
+        }
+        if let Some(v) = self.get("BVC_DATABASE_SSL_ROOT_CERT") {
+            config.database.ssl_root_cert = Some(v.to_string());
+        }
+        if let Some(v) = self.get("BVC_DATABASE_SSL_CERT") {
+            config.database.ssl_cert = Some(v.to_string());
+        }
+        if let Some(v) = self.get("BVC_DATABASE_SSL_KEY") {
+            config.database.ssl_key = Some(v.to_string());
+        }
         Ok(())
     }
 

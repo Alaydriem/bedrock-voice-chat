@@ -78,7 +78,7 @@ impl PlayerIdentityService {
         game: &Game,
         alias_type: &str,
     ) -> Result<(), anyhow::Error> {
-        let now = common::ncryptflib::rocket::Utc::now().timestamp() as u32;
+        let now = common::ncryptflib::rocket::Utc::now().timestamp();
 
         // Check if alias already exists
         let existing = player_identity::Entity::find()

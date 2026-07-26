@@ -693,10 +693,13 @@ impl ServerRuntime {
     /// Create a standalone database connection.
     /// This is used by the PlayerRegistrarService and can be shared between components.
     async fn create_database_connection(&self) -> Result<DatabaseConnection, anyhow::Error> {
-        let dsn = self.get_dsn();
-        tracing::info!("Creating standalone database connection: {}", dsn);
+        self.config.database.validate()?;
+        tracing::info!(
+            "Creating standalone database connection: {}",
+            self.config.database.get_redacted_dsn()
+        );
 
-        let mut options = ConnectOptions::new(dsn);
+        let mut options = ConnectOptions::new(self.config.database.get_dsn());
         options
             .max_connections(100)
             .min_connections(1)
@@ -706,51 +709,6 @@ impl ServerRuntime {
 
         let conn = Database::connect(options).await?;
         Ok(conn)
-    }
-
-    /// Get the database DSN string from config.
-    fn get_dsn(&self) -> String {
-        match self.config.database.scheme.as_str() {
-            "sqlite" | "sqlite3" => {
-                let path = std::path::Path::new(&self.config.database.database);
-                if !path.exists() {
-                    match std::fs::File::create(&self.config.database.database) {
-                        Ok(_) => {}
-                        Err(_e) => {
-                            panic!(
-                                "Verify that {} exists and is writable. You may need to create this file.",
-                                &self.config.database.database
-                            );
-                        }
-                    }
-                }
-                format!("sqlite://{}", &self.config.database.database)
-            }
-            "mysql" => format!(
-                "mysql://{}:{}@{}:{}/{}",
-                &self
-                    .config
-                    .database
-                    .username
-                    .clone()
-                    .unwrap_or(String::from("")),
-                &self
-                    .config
-                    .database
-                    .password
-                    .clone()
-                    .unwrap_or(String::from("")),
-                &self
-                    .config
-                    .database
-                    .host
-                    .clone()
-                    .unwrap_or(String::from("127.0.0.1")),
-                &self.config.database.port.unwrap_or(3306),
-                &self.config.database.database
-            ),
-            _ => format!("sqlite://{}", "/etc/bvc/bvc.sqlite3"),
-        }
     }
 
     /// Setup the tracing/logging subsystem

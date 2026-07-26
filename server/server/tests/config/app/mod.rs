@@ -1,3 +1,4 @@
+mod database;
 mod server;
 
 use std::collections::HashMap;

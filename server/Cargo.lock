@@ -831,6 +831,7 @@ dependencies = [
  "ogg",
  "okapi",
  "opus2",
+ "percent-encoding",
  "proc_mem",
  "rand 0.10.1",
  "rcgen 0.14.8",

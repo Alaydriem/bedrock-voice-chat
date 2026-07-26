@@ -70,6 +70,7 @@ tracing = { version = "^0.1" }
 tracing-subscriber = { version = "^0.3" }
 tracing-appender = { version = "^0.2" }
 base64 = { version = "^0.22" }
+percent-encoding = { version = "^2" }
 faccess = { version = "^0.2" }
 bytes = { version = "^1.11.1" }
 async-mutex = { version = "^1.4" }

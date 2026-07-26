@@ -10,8 +10,8 @@ pub struct Model {
     pub alias: String,
     pub game: common::Game,
     pub alias_type: String,
-    pub created_at: u32,
-    pub updated_at: u32,
+    pub created_at: i64,
+    pub updated_at: i64,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -36,8 +36,7 @@ impl ActiveModelBehavior for ActiveModel {
     where
         C: ConnectionTrait,
     {
-        self.updated_at =
-            ActiveValue::Set(common::ncryptflib::rocket::Utc::now().timestamp() as u32);
+        self.updated_at = ActiveValue::Set(common::ncryptflib::rocket::Utc::now().timestamp());
         Ok(self)
     }
 }
