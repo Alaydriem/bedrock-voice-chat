@@ -4,7 +4,7 @@ pub mod auth;
 pub(crate) mod channel;
 pub mod control;
 pub(crate) mod gamerpic;
-pub(crate) mod health;
+pub mod health;
 pub(crate) mod positions;
 pub mod relay;
 pub(crate) mod server_config;

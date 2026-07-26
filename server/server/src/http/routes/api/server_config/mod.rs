@@ -31,12 +31,7 @@ pub async fn get_config(config: &State<Server>, voice: &State<Voice>) -> Json<Ap
     let bedrock = {
         #[cfg(feature = "bedrock")]
         {
-            let enabled = config.bedrock.enabled;
-            ApiConfigBedrock {
-                enabled,
-                dns_enabled: config.bedrock.dns.enabled,
-                transfer_port: enabled.then_some(config.bedrock.transfer_port),
-            }
+            config.bedrock.to_api()
         }
         #[cfg(not(feature = "bedrock"))]
         {

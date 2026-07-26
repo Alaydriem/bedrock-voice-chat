@@ -55,6 +55,7 @@ pub struct QuicServerManager {
     webhook_receiver: WebhookReceiver,
     shutdown_tx: Option<oneshot::Sender<()>>,
     shutdown_rx: Option<oneshot::Receiver<()>>,
+    readiness: Option<Arc<crate::runtime::ReadinessState>>,
 }
 
 impl QuicServerManager {
@@ -76,10 +77,31 @@ impl QuicServerManager {
             webhook_receiver,
             shutdown_tx: Some(shutdown_tx),
             shutdown_rx: Some(shutdown_rx),
+            readiness: None,
         }
     }
 
-    pub async fn start(&mut self) -> Result<(), anyhow::Error> {
+    /// Installs the shared readiness flag the /health/readiness route reads.
+    /// The flag is raised once the QUIC listener is accepting and lowered on
+    /// any exit of the accept loop.
+    pub fn set_readiness(&mut self, readiness: Arc<crate::runtime::ReadinessState>) {
+        self.readiness = Some(readiness);
+    }
+
+}
+
+impl StreamTrait for QuicServerManager {
+    /// Stopped means `stop()` consumed the shutdown sender; before the first
+    /// start the manager is idle, not stopped.
+    fn is_stopped(&self) -> bool {
+        self.shutdown_tx.is_none()
+    }
+
+    async fn metadata(&mut self, _key: String, _value: String) -> Result<(), anyhow::Error> {
+        Ok(())
+    }
+
+    async fn start(&mut self) -> Result<(), anyhow::Error> {
         tracing::info!("Starting QUIC server manager");
 
         let (ca_cert, ca_key) = self.get_certificates().await?;
@@ -151,6 +173,10 @@ impl QuicServerManager {
 
         tracing::info!("QUIC server started on {}", bind_addr);
 
+        if let Some(readiness) = &self.readiness {
+            readiness.set_quic_ready(true);
+        }
+
         tokio::select! {
             _ = async {
                 while let Some(packet) = webhook_rx.recv().await {
@@ -196,11 +222,19 @@ impl QuicServerManager {
             }
         }
 
+        if let Some(readiness) = &self.readiness {
+            readiness.set_quic_ready(false);
+        }
+
         Ok(())
     }
 
-    pub async fn stop(&mut self) -> Result<(), anyhow::Error> {
+    async fn stop(&mut self) -> Result<(), anyhow::Error> {
         tracing::info!("Stopping QUIC server");
+
+        if let Some(readiness) = &self.readiness {
+            readiness.set_quic_ready(false);
+        }
 
         if let Some(shutdown_tx) = self.shutdown_tx.take() {
             let _ = shutdown_tx.send(());
@@ -209,7 +243,9 @@ impl QuicServerManager {
         tracing::info!("QUIC server stopped");
         Ok(())
     }
+}
 
+impl QuicServerManager {
     pub fn get_cache_manager(&self) -> CacheManager {
         self.cache_manager.clone()
     }

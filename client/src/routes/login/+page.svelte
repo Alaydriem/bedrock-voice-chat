@@ -196,14 +196,6 @@
                       height="41"
                     />
                   </button>
-
-                  {#if !isMobile}
-                    <div class="flex items-center my-4">
-                      <hr class="flex-grow border-slate-300 dark:border-navy-450" />
-                      <span class="px-3 text-slate-400 dark:text-navy-300 text-sm">or</span>
-                      <hr class="flex-grow border-slate-300 dark:border-navy-450" />
-                    </div>
-                  {/if}
                 {/if}
               </div>
             </form>

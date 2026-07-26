@@ -9,7 +9,11 @@ pub use audio::Audio;
 pub use database::Database;
 pub use logger::Logger;
 pub use permissions::Permissions;
+pub use server::Acme;
+pub use server::AcmeProviderKind;
+pub use server::BedrockConfig;
 pub use server::BedrockDnsConfig;
+pub use server::BedrockServerEntry;
 pub use server::Features;
 pub use server::Meridian;
 pub use server::Minecraft;
@@ -58,6 +62,32 @@ impl Default for ApplicationConfig {
 }
 
 impl ApplicationConfig {
+    /// Parses an HCL document into an ApplicationConfig, evaluating
+    /// `${env.VAR}` expressions against the provided variable map. A
+    /// referenced-but-unset variable is a hard error — never a silent
+    /// empty string.
+    pub fn from_hcl_str_with_env(
+        content: &str,
+        env: &std::collections::HashMap<String, String>,
+    ) -> Result<Self, anyhow::Error> {
+        let mut ctx = hcl::eval::Context::new();
+        let env_object: hcl::Map<String, hcl::Value> = env
+            .iter()
+            .map(|(k, v)| (k.clone(), hcl::Value::String(v.clone())))
+            .collect();
+        ctx.declare_var("env", hcl::Value::Object(env_object));
+
+        let value: serde_json::Value = hcl::eval::from_str(content, &ctx)
+            .map_err(|e| anyhow!("parsing configuration: {e}"))?;
+        serde_json::from_value(value).map_err(|e| anyhow!("invalid configuration: {e}"))
+    }
+
+    /// Parses an HCL document, exposing the full process environment as the
+    /// `env` object so any `${env.VAR}` reference resolves.
+    pub fn from_hcl_str(content: &str) -> Result<Self, anyhow::Error> {
+        Self::from_hcl_str_with_env(content, &std::env::vars().collect())
+    }
+
     /// Returns the database DSN string from the configuration.
     pub fn get_dsn(&self) -> String {
         match self.database.scheme.as_str() {

@@ -42,6 +42,7 @@ pub struct TestServer {
     pub admin_id: i32,
     pub cert_service: Arc<CertificateService>,
     pub db: DatabaseConnection,
+    pub readiness: Arc<bvc_server_lib::runtime::ReadinessState>,
     _tmp: TempDir,
     _server_task: tokio::task::JoinHandle<()>,
 }
@@ -115,9 +116,17 @@ impl TestServer {
 
         let identity_service =
             bvc_server_lib::services::PlayerIdentityService::new(Arc::new(db.clone()));
-        let server_task =
-            RocketHarness::launch(config, cert_service.clone(), identity_service, relay_enabled)
-                .await?;
+        // The harness never boots QUIC, so the flag starts (and stays) false
+        // unless a test raises it explicitly.
+        let readiness = bvc_server_lib::runtime::ReadinessState::new_shared();
+        let server_task = RocketHarness::launch(
+            config,
+            cert_service.clone(),
+            identity_service,
+            relay_enabled,
+            readiness.clone(),
+        )
+        .await?;
 
         // Poll until the server accepts connections (the introspect probe expects 401
         // because the probe client has no client cert; we treat any HTTP response as ready).
@@ -133,6 +142,7 @@ impl TestServer {
             admin_id,
             cert_service,
             db,
+            readiness,
             _tmp: tmp,
             _server_task: server_task,
         })

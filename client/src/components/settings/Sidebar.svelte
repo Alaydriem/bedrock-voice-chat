@@ -23,7 +23,7 @@
     const currentPageTitle = manager.currentPageTitle;
     const activePageId = manager.activePage;
     const realmsConnectEnabled = manager.realmsConnectEnabled;
-    const serverBedrockEnabled = manager.serverBedrockEnabled;
+    const capabilityStatus = manager.capability.status;
 
     type SidebarItem =
         | { type: "page"; id: string; title: string; icon: string; component: any }
@@ -120,10 +120,6 @@
 
     let visibleItems = $derived(
         settingsItems.filter(item => {
-            if (!$serverBedrockEnabled) {
-                if (item.type === "page" && manager.isBedrockPage(item.id)) return false;
-                if (item.type === "separator" && item.label === "Minecraft Bedrock") return false;
-            }
             if (!$realmsConnectEnabled && item.type === "page" && item.id === "realms_connect.svelte") return false;
             if ($isMobile && item.type === "page" && mobileHiddenPages.has(item.id)) return false;
             return true;
@@ -288,7 +284,13 @@
                                     <div class="flex-shrink-0 text-slate-400 transition-colors {$activePageId === item.id ? 'text-primary dark:text-accent-light' : ''}">
                                         {@html item.icon}
                                     </div>
-                                    <span class="font-medium">{item.title}</span>
+                                    <span class="font-medium whitespace-nowrap">{item.title}</span>
+
+                                    {#if manager.isBedrockPage(item.id) && $capabilityStatus === 'disabled'}
+                                        <span class="badge ml-auto shrink-0 rounded-full bg-slate-150 px-2 py-0.5 text-tiny+ text-slate-500 dark:bg-navy-500 dark:text-navy-200">
+                                            Unavailable
+                                        </span>
+                                    {/if}
 
                                     <div class="ml-auto md:hidden">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="size-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">

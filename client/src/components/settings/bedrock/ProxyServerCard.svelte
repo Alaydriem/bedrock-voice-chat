@@ -17,6 +17,8 @@
 
     let menuOpen = $state(false);
 
+    let isServerProvided = $derived(entry.source === "server");
+
     let hue = $derived.by(() => {
         let total = 0;
         for (let i = 0; i < entry.id.length; i++) {
@@ -49,6 +51,12 @@
             Proxy
         </span>
 
+        {#if isServerProvided}
+            <span class="absolute left-3 top-11 badge rounded-full bg-info/80 text-white text-tiny+ backdrop-blur-sm px-2 py-0.5">
+                From server
+            </span>
+        {/if}
+
         <div class="absolute bottom-0 w-full p-4">
             <h3 class="text-lg font-medium text-white line-clamp-1">{entry.name}</h3>
             <p class="mt-1 text-xs text-slate-200 line-clamp-1">{entry.host}:{entry.port}</p>
@@ -56,6 +64,9 @@
     </div>
 
     <div class="flex items-center justify-between p-3 bg-white dark:bg-navy-700">
+        {#if isServerProvided}
+            <div class="size-8"></div>
+        {:else}
         <div class="relative">
             <button
                 class="btn size-8 rounded-full p-0 text-slate-500 hover:bg-slate-100 hover:text-slate-700
@@ -94,6 +105,7 @@
                 </div>
             {/if}
         </div>
+        {/if}
 
         {#if isActive}
             <div class="flex items-center gap-2">

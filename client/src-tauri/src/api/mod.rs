@@ -256,6 +256,10 @@ impl Api {
                     }
 
                     if let Ok(legacy) = serde_json::from_str::<LegacyApiConfig>(&body) {
+                        warn!(
+                            "Config from {} parsed via legacy fallback; server predates bedrock/protocol fields",
+                            self.endpoint
+                        );
                         return Ok(ApiConfigResponse {
                             status: legacy.status,
                             client_id: legacy.client_id,

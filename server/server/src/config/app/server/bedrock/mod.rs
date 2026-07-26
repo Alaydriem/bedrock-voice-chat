@@ -1,7 +1,10 @@
 mod dns;
+mod server_entry;
 
 pub use dns::BedrockDnsConfig;
+pub use server_entry::BedrockServerEntry;
 
+use common::response::ApiConfigBedrock;
 use serde::{Deserialize, Serialize};
 
 fn default_enabled() -> bool {
@@ -38,6 +41,8 @@ pub struct BedrockConfig {
     pub proxy_event_freshness_threshold_secs: u32,
     #[serde(default)]
     pub dns: BedrockDnsConfig,
+    #[serde(default)]
+    pub servers: Vec<BedrockServerEntry>,
 }
 
 impl Default for BedrockConfig {
@@ -49,6 +54,25 @@ impl Default for BedrockConfig {
             transfer_cache_ttl_secs: default_transfer_cache_ttl_secs(),
             proxy_event_freshness_threshold_secs: default_proxy_event_freshness_threshold_secs(),
             dns: BedrockDnsConfig::default(),
+            servers: Vec::new(),
+        }
+    }
+}
+
+impl BedrockConfig {
+    // Wire-facing view of this config for `/api/config`. The transfer port and
+    // the curated server list are withheld when the relay is disabled: a
+    // disabled relay has nothing a client can connect to.
+    pub fn to_api(&self) -> ApiConfigBedrock {
+        ApiConfigBedrock {
+            enabled: self.enabled,
+            dns_enabled: self.dns.enabled,
+            transfer_port: self.enabled.then_some(self.transfer_port),
+            servers: if self.enabled {
+                self.servers.iter().map(BedrockServerEntry::to_api).collect()
+            } else {
+                Vec::new()
+            },
         }
     }
 }

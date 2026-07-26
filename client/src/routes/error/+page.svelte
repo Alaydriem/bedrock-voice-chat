@@ -200,6 +200,22 @@
         style: 'secondary'
       }
     },
+    'AUTH02': {
+      code: 'AUTH02',
+      title: 'Access Denied',
+      message: 'This server has not granted you account access. Join the Minecraft server in-game at least once so it can register you, or ask the server operator to add you.',
+      icon: 'fa-solid fa-user-lock',
+      primaryAction: {
+        label: 'Try Again',
+        url: '/login',
+        style: 'primary'
+      },
+      secondaryAction: {
+        label: 'Choose Different Server',
+        url: '/server',
+        style: 'secondary'
+      }
+    },
     'UPD01': {
       code: 'UPD01',
       title: 'Update Available',

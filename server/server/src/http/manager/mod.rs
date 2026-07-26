@@ -32,6 +32,8 @@ pub struct RocketManager {
     server_peer_store: Option<Arc<crate::relay::ServerPeerStore>>,
     relay_inject_delivery: Option<Arc<dyn crate::relay::LocalInjectDelivery>>,
     metrics: Arc<crate::services::MetricsService>,
+    readiness: Arc<crate::runtime::ReadinessState>,
+    shutdown_handle: Arc<Mutex<Option<rocket::Shutdown>>>,
     #[cfg(feature = "bedrock")]
     transfer_target_cache: crate::services::bedrock::TransferTargetCache,
 }
@@ -50,6 +52,7 @@ impl RocketManager {
         relay_inject_delivery: Option<Arc<dyn crate::relay::LocalInjectDelivery>>,
         audio_stream_token_cache: Option<AudioStreamTokenCache>,
         metrics: Arc<crate::services::MetricsService>,
+        readiness: Arc<crate::runtime::ReadinessState>,
         #[cfg(feature = "bedrock")]
         transfer_target_cache: crate::services::bedrock::TransferTargetCache,
     ) -> Self {
@@ -68,10 +71,13 @@ impl RocketManager {
             server_peer_store,
             relay_inject_delivery,
             metrics,
+            readiness,
+            shutdown_handle: Arc::new(Mutex::new(None)),
             #[cfg(feature = "bedrock")]
             transfer_target_cache,
         }
     }
+
 
     /// Starts the Rocket HTTP server - this is the main entry point
     pub async fn start(&self) -> Result<(), Error> {
@@ -115,6 +121,10 @@ impl RocketManager {
                     .allow_credentials(cors_config.allow_credentials);
 
                 let mut rocket = rocket::custom(figment)
+                    .manage(crate::services::HealthService::new_shared(
+                        self.readiness.clone(),
+                        self.config.server.tls.certificate.clone(),
+                    ))
                     .manage(cache_wrapper)
                     .manage(self.config.server.clone())
                     .manage(self.config.voice.clone())
@@ -196,6 +206,7 @@ impl RocketManager {
 
                 match rocket.ignite().await {
                     Ok(ignite) => {
+                        *self.shutdown_handle.lock().unwrap() = Some(ignite.shutdown());
                         tracing::info!("Rocket server is now running and awaiting requests!");
                         let result = ignite.launch().await;
                         if let Err(e) = result {
@@ -210,12 +221,39 @@ impl RocketManager {
         }
     }
 
-    /// Stops the Rocket HTTP server gracefully
-    pub async fn stop(&mut self) -> Result<(), Error> {
+    /// Gracefully stops the running Rocket instance, if any. `start()` then
+    /// returns Ok, letting the runtime decide whether to relaunch
+    /// (certificate renewal) or shut down. Takes `&self` so it can be called
+    /// while a `start()` future is still being polled.
+    pub async fn stop(&self) -> Result<(), Error> {
         tracing::info!("Stopping Rocket HTTP server");
-        // Rocket doesn't have a direct stop method, but we can handle graceful shutdown
-        // by returning from start() method
+        if let Some(handle) = self.shutdown_handle.lock().unwrap().take() {
+            handle.notify();
+        }
         Ok(())
+    }
+}
+
+/// The runtime supervises the long-running `start()` future directly in its
+/// select loop (structured cancellation), so the inherent methods take
+/// `&self` — this impl exists so RocketManager satisfies the same lifecycle
+/// contract as every other streaming component.
+impl common::traits::StreamTrait for RocketManager {
+    /// Running means a live Shutdown handle is stashed; `stop()` takes it.
+    fn is_stopped(&self) -> bool {
+        self.shutdown_handle.lock().unwrap().is_none()
+    }
+
+    async fn metadata(&mut self, _key: String, _value: String) -> Result<(), Error> {
+        Ok(())
+    }
+
+    async fn start(&mut self) -> Result<(), Error> {
+        RocketManager::start(self).await
+    }
+
+    async fn stop(&mut self) -> Result<(), Error> {
+        RocketManager::stop(self).await
     }
 }
 

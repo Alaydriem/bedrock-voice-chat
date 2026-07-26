@@ -1,7 +1,6 @@
 use anyhow::anyhow;
 use bvc_server_lib::ApplicationConfig;
 use clap::Parser;
-use serde_json::Value;
 use std::fs;
 use std::{process::exit, sync::Arc};
 
@@ -90,53 +89,50 @@ impl Cli {
         let mut data = Self::parse();
 
         if data.requires_config_file() {
-            match data.get_config_file() {
-                Ok(hcl) => {
-                    data.config = Self::apply_env_overrides(hcl);
+            let base = if std::path::Path::new(&data.config_file).exists() {
+                match data.get_config_file() {
+                    Ok(hcl) => hcl,
+                    Err(error) => {
+                        println!("{}", error);
+                        exit(1);
+                    }
                 }
-                Err(error) => {
-                    println!("{}", error);
-                    exit(1);
-                }
+            } else {
+                // No config file: defaults + environment. Anything genuinely
+                // required and absent (e.g. TLS cert paths) fails downstream
+                // with its own specific error.
+                println!(
+                    "Configuration file {} not found; using defaults + environment variables",
+                    &data.config_file
+                );
+                ApplicationConfig::default()
             };
+            data.config = Self::apply_env_overrides(base);
         }
 
         return Arc::new(data);
     }
 
-    /// Applies environment variable overrides to an already parsed config.
-    /// BVC_SERVER is host:port (e.g. 0.0.0.0:8444) and overrides listen + port.
-    /// If BVC_SERVER looks like a URL (http:// or https://), it is ignored here
-    /// and handled by clap as the target server_url for client commands.
-    fn apply_env_overrides(mut config: ApplicationConfig) -> ApplicationConfig {
-        if let Ok(addr) = std::env::var("BVC_SERVER") {
-            if !addr.starts_with("http://") && !addr.starts_with("https://") {
-                if let Some((host, port_str)) = addr.rsplit_once(':') {
-                    if let Ok(port) = port_str.parse::<u32>() {
-                        config.server.listen = host.to_string();
-                        config.server.port = port;
-                    }
-                }
+    /// Applies the curated BVC_* environment overrides on top of the parsed
+    /// (or defaulted) configuration. A malformed value is fatal.
+    fn apply_env_overrides(config: ApplicationConfig) -> ApplicationConfig {
+        match bvc_server_lib::config::EnvOverrides::from_env().apply(config) {
+            Ok(config) => config,
+            Err(error) => {
+                println!("{}", error);
+                exit(1);
             }
         }
-        config
     }
 
     /// Reads in the HCL configuration file
     pub fn get_config_file<'a>(&'a self) -> std::result::Result<ApplicationConfig, anyhow::Error> {
-        if let Ok(config) = fs::read_to_string(&self.config_file) {
-            if let Ok(hcl) = hcl::from_str::<Value>(&config.as_str()) {
-                let app_config: Result<ApplicationConfig, serde_json::Error> =
-                    serde_json::from_value(hcl);
-                if app_config.is_ok() {
-                    let acr = app_config.unwrap();
-                    return Ok::<ApplicationConfig, anyhow::Error>(acr);
-                } else {
-                    return Err(anyhow!(app_config.unwrap_err()));
-                }
-            }
-        }
-
-        return Err(anyhow!("Unable to read or parse configuration file."));
+        let content = fs::read_to_string(&self.config_file).map_err(|e| {
+            anyhow!(
+                "Unable to read configuration file {}: {e}",
+                &self.config_file
+            )
+        })?;
+        ApplicationConfig::from_hcl_str(&content)
     }
 }

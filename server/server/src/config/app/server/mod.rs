@@ -1,3 +1,4 @@
+pub mod acme;
 pub mod age;
 pub mod bedrock;
 pub mod cors;
@@ -7,9 +8,11 @@ pub mod minecraft;
 pub mod relay;
 pub mod tls;
 
+pub use acme::{Acme, AcmeProviderKind};
 pub use age::Age;
 pub use bedrock::BedrockConfig;
 pub use bedrock::BedrockDnsConfig;
+pub use bedrock::BedrockServerEntry;
 pub use cors::Cors;
 pub use features::Features;
 pub use meridian::Meridian;
@@ -48,6 +51,7 @@ pub struct Server {
     pub tls: Tls,
     #[serde(default)]
     pub cors: Cors,
+    #[serde(default)]
     pub minecraft: Minecraft,
     #[serde(default)]
     pub features: Features,

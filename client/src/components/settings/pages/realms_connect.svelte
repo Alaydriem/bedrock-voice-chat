@@ -4,6 +4,7 @@
     import PageShell from "../bedrock/PageShell.svelte";
     import RealmCard from "../bedrock/RealmCard.svelte";
     import RealmsUpsell from "../bedrock/RealmsUpsell.svelte";
+    import ServerCapabilityNotice from "../bedrock/ServerCapabilityNotice.svelte";
 
     interface Props {
         bedrockManager: BedrockManager;
@@ -11,6 +12,9 @@
 
     let { bedrockManager }: Props = $props();
 
+    const capabilityStatus = bedrockManager.capability.status;
+    const capabilityServerHost = bedrockManager.capability.serverHost;
+    const capabilityChecking = bedrockManager.capability.isChecking;
     const gateStatus = bedrockManager.gateStatus;
     const proxyRunning = bedrockManager.proxyRunning;
     const realmsRunning = bedrockManager.realmsRunning;
@@ -24,7 +28,9 @@
     });
 </script>
 
-{#if $gateStatus === null}
+{#if $capabilityStatus !== "enabled"}
+    <ServerCapabilityNotice status={$capabilityStatus} serverHost={$capabilityServerHost} isChecking={$capabilityChecking} onRetry={() => bedrockManager.capability.refresh()} />
+{:else if $gateStatus === null}
     <div class="grid grid-cols-1 gap-4 sm:gap-5 lg:gap-6 pt-4 md:pt-0">
         <div class="card flex flex-col items-center justify-center gap-5 px-6 py-16 text-center">
             <div class="relative flex size-16 items-center justify-center">

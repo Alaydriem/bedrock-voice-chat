@@ -3,7 +3,7 @@ pub mod bedrock;
 mod check;
 
 pub use age::ApiConfigAge;
-pub use bedrock::ApiConfigBedrock;
+pub use bedrock::{ApiConfigBedrock, ApiConfigBedrockServer};
 pub use check::ApiConfigCheckResponse;
 
 use serde::{Deserialize, Serialize};

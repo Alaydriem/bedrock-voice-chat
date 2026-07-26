@@ -17,6 +17,10 @@ export class BedrockProxyManager {
     private serverPortStore: Writable<number>;
     private listenPortStore: Writable<number>;
     private proxyServersStore: Writable<ProxyServerEntry[]>;
+    // Entries advertised by the BVC server. Kept separate from the user's
+    // persisted list: merged for display only, so switching BVC servers or
+    // changing server config never leaves stale entries in the Store.
+    private serverProvidedStore: Writable<ProxyServerEntry[]>;
     private proxyFavoritesStore: Writable<Set<string>>;
     private activeProxyIdStore: Writable<string | null>;
 
@@ -46,6 +50,7 @@ export class BedrockProxyManager {
         this.serverPortStore = writable(19132);
         this.listenPortStore = writable(19137);
         this.proxyServersStore = writable([]);
+        this.serverProvidedStore = writable([]);
         this.proxyFavoritesStore = writable(new Set());
         this.activeProxyIdStore = writable(null);
 
@@ -61,14 +66,26 @@ export class BedrockProxyManager {
         this.activeProxyId = { subscribe: this.activeProxyIdStore.subscribe };
 
         this.sortedProxyServers = derived(
-            [this.proxyServersStore, this.proxyFavoritesStore],
-            ([$servers, $favorites]) =>
-                [...$servers].sort((a, b) => {
+            [this.serverProvidedStore, this.proxyServersStore, this.proxyFavoritesStore],
+            ([$provided, $user, $favorites]) => {
+                // A user entry with the same host:port wins the dedupe — it may
+                // carry a custom name or protocol override.
+                const userKeys = new Set($user.map((s) => `${s.host}:${s.port}`));
+                const merged = [
+                    ...$provided.filter((s) => !userKeys.has(`${s.host}:${s.port}`)),
+                    ...$user,
+                ];
+                return merged.sort((a, b) => {
                     const aFav = $favorites.has(a.id) ? 0 : 1;
                     const bFav = $favorites.has(b.id) ? 0 : 1;
                     return aFav - bFav || a.name.localeCompare(b.name);
-                }),
+                });
+            },
         );
+    }
+
+    setServerProvidedServers(entries: ProxyServerEntry[]): void {
+        this.serverProvidedStore.set(entries);
     }
 
     getSelectedInterface(): string {
@@ -107,7 +124,7 @@ export class BedrockProxyManager {
             this.listenPortStore.set(snapshot.listenPort);
         }
         if (snapshot.running && snapshot.host && snapshot.port) {
-            const match = get(this.proxyServersStore).find(
+            const match = [...get(this.serverProvidedStore), ...get(this.proxyServersStore)].find(
                 (s) => s.host === snapshot.host && s.port === snapshot.port,
             );
             if (match) {
@@ -210,6 +227,9 @@ export class BedrockProxyManager {
     }
 
     async updateProxyServer(id: string, patch: Partial<Omit<ProxyServerEntry, 'id'>>): Promise<void> {
+        if (get(this.serverProvidedStore).some((s) => s.id === id)) {
+            return;
+        }
         this.proxyServersStore.update((current) =>
             current.map((s) =>
                 s.id === id
@@ -229,6 +249,9 @@ export class BedrockProxyManager {
     }
 
     async deleteProxyServer(id: string): Promise<void> {
+        if (get(this.serverProvidedStore).some((s) => s.id === id)) {
+            return;
+        }
         this.proxyServersStore.update((current) => current.filter((s) => s.id !== id));
         this.proxyFavoritesStore.update((current) => {
             const next = new Set(current);

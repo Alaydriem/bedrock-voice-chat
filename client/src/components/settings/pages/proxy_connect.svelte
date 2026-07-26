@@ -4,6 +4,7 @@
     import PageShell from "../bedrock/PageShell.svelte";
     import ProxyServerCard from "../bedrock/ProxyServerCard.svelte";
     import ProxyServerModal from "../bedrock/ProxyServerModal.svelte";
+    import ServerCapabilityNotice from "../bedrock/ServerCapabilityNotice.svelte";
 
     interface Props {
         bedrockManager: BedrockManager;
@@ -11,6 +12,9 @@
 
     let { bedrockManager }: Props = $props();
 
+    const capabilityStatus = bedrockManager.capability.status;
+    const capabilityServerHost = bedrockManager.capability.serverHost;
+    const capabilityChecking = bedrockManager.capability.isChecking;
     const proxyRunning = bedrockManager.proxyRunning;
     const realmsRunning = bedrockManager.realmsRunning;
     const sortedProxyServers = bedrockManager.sortedProxyServers;
@@ -27,6 +31,7 @@
     }
 </script>
 
+{#if $capabilityStatus === "enabled"}
 <PageShell
     {bedrockManager}
     title="Saved Proxy Servers"
@@ -81,4 +86,7 @@
         initial={modalState.mode === "edit" ? modalState.entry : undefined}
         onClose={() => { modalState = null; }}
     />
+{/if}
+{:else}
+    <ServerCapabilityNotice status={$capabilityStatus} serverHost={$capabilityServerHost} isChecking={$capabilityChecking} onRetry={() => bedrockManager.capability.refresh()} />
 {/if}
