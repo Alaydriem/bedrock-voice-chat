@@ -18,3 +18,4 @@ upload-keystore.jks
 docs
 openapi.json
 *.dmp
+swarm.toml

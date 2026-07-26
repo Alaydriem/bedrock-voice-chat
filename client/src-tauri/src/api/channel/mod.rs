@@ -12,7 +12,7 @@ use std::error::Error;
 impl Api {
     /// Creates a new channel
     pub(crate) async fn create_channel(&self, name: String) -> Result<String, String> {
-        let client = self.get_client(Some(self.endpoint.as_str())).await;
+        let client = self.get_client();
 
         let mut headers = HeaderMap::new();
         headers.insert("Content-Type", HeaderValue::from_static("application/json"));
@@ -52,7 +52,7 @@ impl Api {
 
     /// Deletes a channel (owner only)
     pub(crate) async fn delete_channel(&self, channel_id: String) -> Result<bool, String> {
-        let client = self.get_client(Some(self.endpoint.as_str())).await;
+        let client = self.get_client();
 
         let mut headers = HeaderMap::new();
         headers.insert("Accept", HeaderValue::from_static("application/json"));
@@ -94,7 +94,7 @@ impl Api {
     pub(crate) async fn list_channels(
         &self,
     ) -> Result<Vec<common::structs::channel::Channel>, String> {
-        let client = self.get_client(Some(self.endpoint.as_str())).await;
+        let client = self.get_client();
 
         let mut headers = HeaderMap::new();
         headers.insert("Accept", HeaderValue::from_static("application/json"));
@@ -140,7 +140,7 @@ impl Api {
         &self,
         channel_id: &str,
     ) -> Result<common::structs::channel::Channel, String> {
-        let client = self.get_client(Some(self.endpoint.as_str())).await;
+        let client = self.get_client();
 
         let mut headers = HeaderMap::new();
         headers.insert("Accept", HeaderValue::from_static("application/json"));
@@ -194,7 +194,7 @@ impl Api {
         channel_id: &str,
         name: &str,
     ) -> Result<bool, String> {
-        let client = self.get_client(Some(self.endpoint.as_str())).await;
+        let client = self.get_client();
 
         let mut headers = HeaderMap::new();
         headers.insert("Content-Type", HeaderValue::from_static("application/json"));
@@ -240,7 +240,7 @@ impl Api {
         channel_id: String,
         event: common::structs::channel::ChannelEvent,
     ) -> Result<bool, String> {
-        let client = self.get_client(Some(self.endpoint.as_str())).await;
+        let client = self.get_client();
 
         let mut headers = HeaderMap::new();
         headers.insert("Content-Type", HeaderValue::from_static("application/json"));

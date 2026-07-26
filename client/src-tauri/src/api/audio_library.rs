@@ -33,7 +33,7 @@ impl Api {
         game: Option<&str>,
         query: &AudioFileListQuery,
     ) -> Result<PaginatedResponse<AudioFileResponse>, String> {
-        let client = self.get_client(Some(self.endpoint.as_str())).await;
+        let client = self.get_client();
         let url = format!("{}/api/audio/file", self.endpoint);
 
         let mut query_params: Vec<(&str, String)> = Vec::new();
@@ -90,7 +90,7 @@ impl Api {
         filename: &str,
         game: Option<&str>,
     ) -> Result<AudioFileResponse, String> {
-        let client = self.get_client(Some(self.endpoint.as_str())).await;
+        let client = self.get_client();
         let url = format!("{}/api/audio/file", self.endpoint);
 
         let mut headers = HeaderMap::new();
@@ -139,7 +139,7 @@ impl Api {
         file_id: &str,
         game: Option<&str>,
     ) -> Result<bool, String> {
-        let client = self.get_client(Some(self.endpoint.as_str())).await;
+        let client = self.get_client();
         let url = format!("{}/api/audio/file/{}", self.endpoint, file_id);
 
         let mut headers = HeaderMap::new();
@@ -167,7 +167,7 @@ impl Api {
         &self,
         game: Option<&str>,
     ) -> Result<common::response::auth::AuthStateResponse, String> {
-        let client = self.get_client(Some(self.endpoint.as_str())).await;
+        let client = self.get_client();
         let url = format!("{}/api/auth/state", self.endpoint);
 
         let mut headers = HeaderMap::new();
@@ -203,7 +203,7 @@ impl Api {
         file_id: &str,
         game: Option<&str>,
     ) -> Result<AudioStreamTokenResponse, String> {
-        let client = self.get_client(Some(self.endpoint.as_str())).await;
+        let client = self.get_client();
         let url = format!("{}/api/audio/file/{}/token", self.endpoint, file_id);
 
         let mut headers = HeaderMap::new();

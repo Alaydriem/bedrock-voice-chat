@@ -15,7 +15,7 @@ impl Api {
         game: &str,
         gamertag: &str,
     ) -> Result<GamerpicResponse, String> {
-        let client = self.get_client(Some(self.endpoint.as_str())).await;
+        let client = self.get_client();
 
         let mut headers = HeaderMap::new();
         headers.insert("Accept", HeaderValue::from_static("application/json"));

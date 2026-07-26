@@ -342,7 +342,12 @@ impl ServerRuntime {
             );
         }
 
-        // Register with Meridian if configured
+        // Register with Meridian if configured. Cancelled after the main event
+        // loop exits, so the heartbeat is torn down with everything else rather
+        // than detached.
+        let meridian_shutdown = tokio_util::sync::CancellationToken::new();
+        let mut meridian_heartbeat: Option<tokio::task::JoinHandle<()>> = None;
+
         if let Some(meridian_config) = &self.config.server.meridian {
             let hostname = meridian_config
                 .host
@@ -366,9 +371,18 @@ impl ServerRuntime {
                 hostname,
             );
 
+            // Attempt once inline so a misconfiguration is visible at startup, then
+            // keep refreshing. A one-shot registration leaves this customer
+            // unroutable if Meridian restarts or this record's lease lapses.
             if let Err(e) = service.register().await {
-                tracing::error!(error = %e, "Failed to register with Meridian");
+                tracing::error!(
+                    error = %e,
+                    "Failed to register with Meridian; heartbeat will retry"
+                );
             }
+
+            meridian_heartbeat =
+                Some(std::sync::Arc::new(service).spawn_heartbeat(meridian_shutdown.clone()));
         }
 
         let _shutdown_flag = self.shutdown_flag.clone();
@@ -409,6 +423,14 @@ impl ServerRuntime {
                 }
             }
         }
+        }
+
+        // Stop refreshing the Meridian record. The lease then lapses on Meridian's
+        // side, which is how a departing backend is removed without an explicit
+        // delete.
+        meridian_shutdown.cancel();
+        if let Some(handle) = meridian_heartbeat {
+            let _ = tokio::time::timeout(std::time::Duration::from_secs(2), handle).await;
         }
 
         // Final PostHog flush: signal the drain and await it briefly so buffered fleet
