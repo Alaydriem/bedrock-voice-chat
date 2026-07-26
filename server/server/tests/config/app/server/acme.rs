@@ -3,7 +3,7 @@ use bvc_server_lib::config::{Acme, AcmeProviderKind};
 fn base_cloudflare() -> Acme {
     let mut acme = Acme::default();
     acme.email = "ops@example.com".to_string();
-    acme.provider = "cloudflare".to_string();
+    acme.provider = Some(AcmeProviderKind::Cloudflare);
     acme.api_token = Some("cf-token".to_string());
     acme
 }
@@ -11,7 +11,7 @@ fn base_cloudflare() -> Acme {
 fn base_acme_dns() -> Acme {
     let mut acme = Acme::default();
     acme.email = "ops@example.com".to_string();
-    acme.provider = "acme-dns".to_string();
+    acme.provider = Some(AcmeProviderKind::AcmeDns);
     acme.server_url = Some("https://acme-dns.example.com".to_string());
     acme.username = Some("user".to_string());
     acme.password = Some("pass".to_string());
@@ -20,23 +20,31 @@ fn base_acme_dns() -> Acme {
 }
 
 #[test]
-fn provider_kind_parses_known_providers() {
-    assert!(matches!(
-        base_cloudflare().provider_kind().unwrap(),
+fn provider_parses_known_providers() {
+    assert_eq!(
+        "cloudflare".parse::<AcmeProviderKind>().unwrap(),
         AcmeProviderKind::Cloudflare
-    ));
-    assert!(matches!(
-        base_acme_dns().provider_kind().unwrap(),
+    );
+    assert_eq!(
+        "acme-dns".parse::<AcmeProviderKind>().unwrap(),
         AcmeProviderKind::AcmeDns
-    ));
+    );
 }
 
 #[test]
-fn provider_kind_rejects_unknown_provider() {
+fn provider_rejects_unknown_provider() {
+    let err = "route53".parse::<AcmeProviderKind>().unwrap_err();
+    let msg = format!("{err}");
+    assert!(msg.contains("route53"), "got: {msg}");
+    assert!(msg.contains("cloudflare"), "got: {msg}");
+}
+
+#[test]
+fn validate_requires_provider() {
     let mut acme = base_cloudflare();
-    acme.provider = "route53".to_string();
-    let err = acme.provider_kind().unwrap_err();
-    assert!(format!("{err}").contains("route53"));
+    acme.provider = None;
+    let err = acme.validate(&["a.example.com".to_string()]).unwrap_err();
+    assert!(format!("{err}").contains("acme.provider"));
 }
 
 #[test]

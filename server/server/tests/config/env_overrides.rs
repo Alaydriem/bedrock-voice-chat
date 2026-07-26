@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use bvc_server_lib::config::{ApplicationConfig, EnvOverrides};
+use bvc_server_lib::config::{AcmeProviderKind, ApplicationConfig, EnvOverrides};
 
 fn vars(pairs: &[(&str, &str)]) -> HashMap<String, String> {
     pairs
@@ -165,7 +165,7 @@ fn acme_vars_materialize_block() {
     );
     let acme = config.server.tls.acme.expect("block must materialize");
     assert_eq!(acme.email, "ops@example.com");
-    assert_eq!(acme.provider, "cloudflare");
+    assert_eq!(acme.provider, Some(AcmeProviderKind::Cloudflare));
     assert_eq!(acme.api_token.as_deref(), Some("cf-token"));
     assert_eq!(
         acme.domains,
@@ -189,7 +189,7 @@ fn acme_vars_override_existing_block_fields() {
     let mut config = ApplicationConfig::default();
     let mut acme = bvc_server_lib::config::Acme::default();
     acme.email = "old@example.com".to_string();
-    acme.provider = "cloudflare".to_string();
+    acme.provider = Some(AcmeProviderKind::Cloudflare);
     config.server.tls.acme = Some(acme);
     let config = apply(
         &[
@@ -199,9 +199,22 @@ fn acme_vars_override_existing_block_fields() {
         config,
     );
     let acme = config.server.tls.acme.expect("block still present");
-    assert_eq!(acme.provider, "acme-dns");
+    assert_eq!(acme.provider, Some(AcmeProviderKind::AcmeDns));
     assert_eq!(acme.server_url.as_deref(), Some("https://acme-dns.internal"));
     assert_eq!(acme.email, "old@example.com");
+}
+
+#[test]
+fn acme_provider_env_rejects_unknown_value() {
+    let err = EnvOverrides::from_vars(vars(&[
+        ("BVC_ACME_EMAIL", "ops@example.com"),
+        ("BVC_ACME_PROVIDER", "route53"),
+    ]))
+    .apply(ApplicationConfig::default())
+    .expect_err("unknown provider must error");
+    let msg = format!("{err}");
+    assert!(msg.contains("BVC_ACME_PROVIDER"), "got: {msg}");
+    assert!(msg.contains("route53"), "got: {msg}");
 }
 
 #[test]

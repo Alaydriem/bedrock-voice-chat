@@ -200,7 +200,7 @@ impl EnvOverrides {
             acme.email = v.to_string();
         }
         if let Some(v) = provider {
-            acme.provider = v.to_string();
+            acme.provider = Some(v.parse().map_err(|e| anyhow!("BVC_ACME_PROVIDER: {e}"))?);
         }
         if let Some(v) = api_token {
             acme.api_token = Some(v.to_string());

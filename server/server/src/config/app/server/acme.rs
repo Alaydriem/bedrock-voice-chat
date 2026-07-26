@@ -1,3 +1,6 @@
+use std::fmt;
+use std::str::FromStr;
+
 use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 
@@ -6,10 +9,57 @@ fn default_directory() -> String {
 }
 
 /// Which DNS provider fulfills the DNS-01 challenge.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
 pub enum AcmeProviderKind {
     Cloudflare,
     AcmeDns,
+}
+
+impl AcmeProviderKind {
+    pub const SUPPORTED: &str = "cloudflare, acme-dns";
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Cloudflare => "cloudflare",
+            Self::AcmeDns => "acme-dns",
+        }
+    }
+}
+
+impl FromStr for AcmeProviderKind {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "cloudflare" => Ok(Self::Cloudflare),
+            "acme-dns" => Ok(Self::AcmeDns),
+            other => Err(anyhow!(
+                "unknown acme provider {other:?}; supported: {}",
+                Self::SUPPORTED
+            )),
+        }
+    }
+}
+
+impl TryFrom<String> for AcmeProviderKind {
+    type Error = anyhow::Error;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+
+impl From<AcmeProviderKind> for String {
+    fn from(kind: AcmeProviderKind) -> Self {
+        kind.as_str().to_string()
+    }
+}
+
+impl fmt::Display for AcmeProviderKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
 }
 
 /// ACME DNS-01 configuration. Mutually exclusive with manual
@@ -19,7 +69,7 @@ pub struct Acme {
     #[serde(default)]
     pub email: String,
     #[serde(default)]
-    pub provider: String,
+    pub provider: Option<AcmeProviderKind>,
     // Cloudflare: zone-scoped API token with DNS edit permission.
     #[serde(default)]
     pub api_token: Option<String>,
@@ -43,7 +93,7 @@ impl Default for Acme {
     fn default() -> Self {
         Self {
             email: String::new(),
-            provider: String::new(),
+            provider: None,
             api_token: None,
             server_url: None,
             username: None,
@@ -57,13 +107,12 @@ impl Default for Acme {
 
 impl Acme {
     pub fn provider_kind(&self) -> Result<AcmeProviderKind, anyhow::Error> {
-        match self.provider.as_str() {
-            "cloudflare" => Ok(AcmeProviderKind::Cloudflare),
-            "acme-dns" => Ok(AcmeProviderKind::AcmeDns),
-            other => Err(anyhow!(
-                "unknown acme provider {other:?}; supported: cloudflare, acme-dns"
-            )),
-        }
+        self.provider.ok_or_else(|| {
+            anyhow!(
+                "acme.provider is required; supported: {}",
+                AcmeProviderKind::SUPPORTED
+            )
+        })
     }
 
     /// The domains to put on the certificate: the explicit `domains` list, or
@@ -93,32 +142,23 @@ impl Acme {
             return Err(anyhow!("acme.email is required"));
         }
         let kind = self.provider_kind()?;
-        let mut missing = Vec::new();
-        match kind {
-            AcmeProviderKind::Cloudflare => {
-                if self.api_token.as_deref().unwrap_or("").trim().is_empty() {
-                    missing.push("api_token");
-                }
-            }
-            AcmeProviderKind::AcmeDns => {
-                if self.server_url.as_deref().unwrap_or("").trim().is_empty() {
-                    missing.push("server_url");
-                }
-                if self.username.as_deref().unwrap_or("").trim().is_empty() {
-                    missing.push("username");
-                }
-                if self.password.as_deref().unwrap_or("").trim().is_empty() {
-                    missing.push("password");
-                }
-                if self.subdomain.as_deref().unwrap_or("").trim().is_empty() {
-                    missing.push("subdomain");
-                }
-            }
-        }
+        let required: Vec<(&str, &Option<String>)> = match kind {
+            AcmeProviderKind::Cloudflare => vec![("api_token", &self.api_token)],
+            AcmeProviderKind::AcmeDns => vec![
+                ("server_url", &self.server_url),
+                ("username", &self.username),
+                ("password", &self.password),
+                ("subdomain", &self.subdomain),
+            ],
+        };
+        let missing: Vec<&str> = required
+            .into_iter()
+            .filter(|(_, value)| value.as_deref().unwrap_or("").trim().is_empty())
+            .map(|(name, _)| name)
+            .collect();
         if !missing.is_empty() {
             return Err(anyhow!(
-                "acme provider {:?} is missing required fields: {}",
-                self.provider,
+                "acme provider {kind} is missing required fields: {}",
                 missing.join(", ")
             ));
         }
