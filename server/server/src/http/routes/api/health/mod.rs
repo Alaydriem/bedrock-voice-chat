@@ -1,6 +1,6 @@
-pub(crate) mod liveness;
+pub mod liveness;
 pub(crate) mod ping;
-pub(crate) mod readiness;
+pub mod readiness;
 
 use crate::http::openapi::{RouteSpec, TagDefinition};
 

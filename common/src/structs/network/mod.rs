@@ -1,3 +1,9 @@
+pub mod quic_close_code;
+pub mod quic_port_selection;
+
+pub use quic_close_code::QuicCloseCode;
+pub use quic_port_selection::QuicPortSelection;
+
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -15,5 +21,10 @@ pub enum ConnectionHealth {
         client_version: String,
         server_version: String,
         client_too_old: bool,
+    },
+    // The server refused this connection's identity. Terminal: the client stops
+    // reconnecting, because retrying with the same credentials cannot succeed.
+    Unauthorized {
+        reason: String,
     },
 }

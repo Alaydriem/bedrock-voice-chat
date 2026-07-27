@@ -197,6 +197,7 @@ fn main() {
                 "player_presence",
                 "recording:started",
                 "recording:stopped",
+                "connection_health",
             ];
             for name in FORWARDED_UI_EVENTS {
                 let event_name = (*name).to_string();

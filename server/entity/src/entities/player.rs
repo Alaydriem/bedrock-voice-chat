@@ -20,8 +20,8 @@ pub struct Model {
     pub banished: bool,
     pub keypair: Vec<u8>,
     pub signature: Vec<u8>,
-    pub created_at: u32,
-    pub updated_at: u32,
+    pub created_at: i64,
+    pub updated_at: i64,
     pub game: common::Game,
 }
 
@@ -45,8 +45,7 @@ impl ActiveModelBehavior for ActiveModel {
     where
         C: ConnectionTrait,
     {
-        self.updated_at =
-            ActiveValue::Set(common::ncryptflib::rocket::Utc::now().timestamp() as u32);
+        self.updated_at = ActiveValue::Set(common::ncryptflib::rocket::Utc::now().timestamp());
         Ok(self)
     }
 }

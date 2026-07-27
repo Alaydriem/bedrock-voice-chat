@@ -91,7 +91,7 @@ impl BedrockState {
             .map_err(|e| format!("BVC server connection required: {}", e))?;
 
         let server_url = api.endpoint().to_string();
-        let client = api.get_reqwest_client().await;
+        let client = api.get_reqwest_client();
 
         let mut keepalive = TransferKeepAlive::new(
             server_url,

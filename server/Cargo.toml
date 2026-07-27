@@ -19,6 +19,7 @@ incremental = true  # Incremental enabled for faster debug builds
 [workspace.dependencies]
 sea-orm = { version = "^2.0.0-rc.1", features = [
     "sqlx-mysql",
+    "sqlx-postgres",
     "runtime-tokio-rustls",
     "macros",
     "sqlx-sqlite",

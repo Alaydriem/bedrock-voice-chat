@@ -1,15 +1,27 @@
+use std::sync::Arc;
+
+use rocket::State;
 use rocket::http::Status;
+use rocket::serde::json::Json;
 use rocket_okapi::openapi;
 use sea_orm::DatabaseConnection;
 
+use crate::http::dtos::health::ReadinessResponse;
 use crate::http::pool::Db;
+use crate::services::HealthService;
 
 #[openapi(tag = "Health")]
 #[get("/readiness")]
-pub async fn readiness(db: Db<'_>) -> Status {
+pub async fn readiness(
+    db: Db<'_>,
+    health: &State<Arc<HealthService>>,
+) -> (Status, Json<ReadinessResponse>) {
     let conn: &DatabaseConnection = db.into_inner();
-    match conn.ping().await {
-        Ok(_) => Status::Ok,
-        Err(_) => Status::ServiceUnavailable,
-    }
+    let response = health.evaluate(conn).await;
+    let status = if response.ready() {
+        Status::Ok
+    } else {
+        Status::ServiceUnavailable
+    };
+    (status, Json(response))
 }

@@ -203,8 +203,8 @@ impl PlayerRegistrarService {
             banished: ActiveValue::Set(false),
             keypair: ActiveValue::Set(kpv),
             signature: ActiveValue::Set(sgv),
-            created_at: ActiveValue::Set(Utc::now().timestamp() as u32),
-            updated_at: ActiveValue::Set(Utc::now().timestamp() as u32),
+            created_at: ActiveValue::Set(Utc::now().timestamp()),
+            updated_at: ActiveValue::Set(Utc::now().timestamp()),
             game: ActiveValue::Set(game_type.clone()),
         };
 
@@ -230,7 +230,7 @@ impl PlayerRegistrarService {
 
     /// INSERT OR IGNORE a platform UUID into the player_identity table.
     async fn store_platform_uuid(&self, player_id: i32, uuid: &str, game_type: &Game) {
-        let now = Utc::now().timestamp() as u32;
+        let now = Utc::now().timestamp();
         let identity = player_identity::ActiveModel {
             id: ActiveValue::NotSet,
             player_id: ActiveValue::Set(player_id),

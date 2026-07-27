@@ -196,14 +196,6 @@
                       height="41"
                     />
                   </button>
-
-                  {#if !isMobile}
-                    <div class="flex items-center my-4">
-                      <hr class="flex-grow border-slate-300 dark:border-navy-450" />
-                      <span class="px-3 text-slate-400 dark:text-navy-300 text-sm">or</span>
-                      <hr class="flex-grow border-slate-300 dark:border-navy-450" />
-                    </div>
-                  {/if}
                 {/if}
               </div>
             </form>
@@ -313,50 +305,15 @@
     </div>
 
 <style>
+  /* Deliberately overrides the global .bvc-ring: no CSS animation, because
+     this page rotates the ring from JS so motion survives Android WebView
+     settings that suppress CSS animations. */
   .bvc-ring {
     width: 46px;
     height: 46px;
     border-radius: 9999px;
     border: 3px solid rgb(148 163 184 / 0.35);
     border-top-color: #5f5af6;
-  }
-
-  .bvc-spinner {
-    display: inline-block;
-    width: 18px;
-    text-align: center;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 18px;
-    line-height: 1;
-    font-weight: 600;
-  }
-
-  .bvc-shimmer {
-    background: linear-gradient(
-      90deg,
-      currentColor 0%,
-      currentColor 35%,
-      #ffffff 50%,
-      currentColor 65%,
-      currentColor 100%
-    );
-    color: rgb(100 116 139);
-    background-size: 200% 100%;
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    animation: bvc-shimmer 2.2s linear infinite;
-  }
-  :global(.dark) .bvc-shimmer {
-    color: #697a9b;
-  }
-  @keyframes bvc-shimmer {
-    0% { background-position: 120% 0; }
-    100% { background-position: -120% 0; }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .bvc-shimmer { animation: none; }
-    .bvc-shimmer { -webkit-text-fill-color: currentColor; }
+    animation: none;
   }
 </style>

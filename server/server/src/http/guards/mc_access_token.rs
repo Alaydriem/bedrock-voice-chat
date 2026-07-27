@@ -20,14 +20,19 @@ impl<'r> FromRequest<'r> for MCAccessToken {
     async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
         return match req.headers().get_one("X-MC-Access-Token") {
             Some(key) => {
-                let at = req
-                    .guard::<&State<Server>>()
-                    .await
-                    .map(|config| MCAccessToken(config.minecraft.access_token.clone()));
-                let current = Outcome::Success(MCAccessToken(key.to_string()));
+                let expected = match req.guard::<&State<Server>>().await {
+                    Outcome::Success(config) => config.minecraft.access_token.clone(),
+                    _ => {
+                        return Outcome::Error((
+                            Status::InternalServerError,
+                            MCAccessTokenError::Invalid,
+                        ));
+                    }
+                };
 
-                // Ensure that the access tokens match
-                if at.eq(&current) {
+                // Constant-time compare so a network attacker cannot recover the
+                // token byte-by-byte from response-time differences.
+                if constant_time_eq::constant_time_eq(expected.as_bytes(), key.as_bytes()) {
                     Outcome::Success(MCAccessToken(key.to_string()))
                 } else {
                     Outcome::Error((Status::Forbidden, MCAccessTokenError::Invalid))

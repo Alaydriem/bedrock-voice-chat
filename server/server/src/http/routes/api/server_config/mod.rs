@@ -31,12 +31,7 @@ pub async fn get_config(config: &State<Server>, voice: &State<Voice>) -> Json<Ap
     let bedrock = {
         #[cfg(feature = "bedrock")]
         {
-            let enabled = config.bedrock.enabled;
-            ApiConfigBedrock {
-                enabled,
-                dns_enabled: config.bedrock.dns.enabled,
-                transfer_port: enabled.then_some(config.bedrock.transfer_port),
-            }
+            config.bedrock.to_api()
         }
         #[cfg(not(feature = "bedrock"))]
         {
@@ -49,6 +44,7 @@ pub async fn get_config(config: &State<Server>, voice: &State<Voice>) -> Json<Ap
         client_id: config.minecraft.client_id.clone(),
         protocol_version: PROTOCOL_VERSION.to_string(),
         quic_port: config.quic_port,
+        quic_ports: config.quic_ports(),
         spatial_audio: voice.spatial_audio.clone(),
         bedrock,
         age: ApiConfigAge::from_minimum(config.age.minimum),

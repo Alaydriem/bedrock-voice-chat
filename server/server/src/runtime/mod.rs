@@ -1,4 +1,6 @@
+pub mod access_token;
 pub mod ca_cert;
+pub mod readiness;
 pub mod position_updater;
 pub mod state;
 use crate::config::ApplicationConfig;
@@ -8,6 +10,8 @@ use crate::services::{
     PlayerIdentityService, PlayerRegistrarService,
 };
 use crate::stream::quic::{QuicServerManager, WebhookReceiver};
+use common::traits::StreamTrait;
+pub use readiness::ReadinessState;
 pub use state::RuntimeState;
 
 use anyhow::anyhow;
@@ -123,6 +127,37 @@ impl ServerRuntime {
         // Generate CA certificates
         let (ca_pem, _ca_key_pem) = self.generate_ca().await?;
 
+        // Resolve the Minecraft access token before any component clones the
+        // config. Env and config values win; otherwise the persisted token is
+        // reused or a fresh one is generated once and logged.
+        let token_manager =
+            access_token::AccessTokenManager::new(&self.config.server.tls.certs_path);
+        self.config.server.minecraft.access_token = token_manager
+            .resolve(&self.config.server.minecraft.access_token)?;
+
+        // ACME DNS-01: mutually exclusive with manual cert paths. Issuance
+        // must complete before Rocket starts — the HTTPS listener cannot
+        // exist without a certificate.
+        let mut acme_service: Option<Arc<crate::services::acme::AcmeService>> = None;
+        if let Some(acme_config) = self.config.server.tls.acme.clone() {
+            if !self.config.server.tls.certificate.is_empty()
+                || !self.config.server.tls.key.is_empty()
+            {
+                return Err(anyhow!(
+                    "tls.acme and tls.certificate/tls.key are mutually exclusive; remove one"
+                ));
+            }
+            let service = crate::services::acme::AcmeService::new(
+                acme_config,
+                &self.config.server.tls.names,
+                &self.config.server.tls.certs_path,
+            )?;
+            let paths = service.ensure_certificate().await?;
+            self.config.server.tls.certificate = paths.certificate;
+            self.config.server.tls.key = paths.key;
+            acme_service = Some(Arc::new(service));
+        }
+
         // Create standalone database connection for FFI and shared services
         let db_conn = self.create_database_connection().await?;
         let db_conn = Arc::new(db_conn);
@@ -157,6 +192,8 @@ impl ServerRuntime {
 
         // QUIC server manager
         let mut quic_manager = QuicServerManager::new(self.config.clone());
+        let readiness_state = readiness::ReadinessState::new_shared();
+        quic_manager.set_readiness(readiness_state.clone());
         let webhook_receiver = quic_manager.get_webhook_receiver().clone();
         let cache_manager = quic_manager.get_cache_manager();
         let connection_registry = quic_manager.get_connection_registry();
@@ -285,6 +322,7 @@ impl ServerRuntime {
                 .map(|relay| relay.inject_delivery()),
             Some(audio_stream_token_cache),
             metrics.clone(),
+            readiness_state.clone(),
             #[cfg(feature = "bedrock")]
             transfer_target_cache.clone(),
         );
@@ -342,7 +380,12 @@ impl ServerRuntime {
             );
         }
 
-        // Register with Meridian if configured
+        // Register with Meridian if configured. Cancelled after the main event
+        // loop exits, so the heartbeat is torn down with everything else rather
+        // than detached.
+        let meridian_shutdown = tokio_util::sync::CancellationToken::new();
+        let mut meridian_heartbeat: Option<tokio::task::JoinHandle<()>> = None;
+
         if let Some(meridian_config) = &self.config.server.meridian {
             let hostname = meridian_config
                 .host
@@ -366,13 +409,35 @@ impl ServerRuntime {
                 hostname,
             );
 
+            // Attempt once inline so a misconfiguration is visible at startup, then
+            // keep refreshing. A one-shot registration leaves this customer
+            // unroutable if Meridian restarts or this record's lease lapses.
             if let Err(e) = service.register().await {
-                tracing::error!(error = %e, "Failed to register with Meridian");
+                tracing::error!(
+                    error = %e,
+                    "Failed to register with Meridian; heartbeat will retry"
+                );
             }
+
+            meridian_heartbeat =
+                Some(std::sync::Arc::new(service).spawn_heartbeat(meridian_shutdown.clone()));
         }
 
         let _shutdown_flag = self.shutdown_flag.clone();
         let shutdown_notify = self.shutdown_notify.clone();
+
+        // Renewal plumbing: the ACME task signals here after re-issuing; the
+        // loop below gracefully bounces only the Rocket listener. With ACME
+        // off, the sender drops immediately and the arm never fires.
+        let acme_cancel = tokio_util::sync::CancellationToken::new();
+        let (acme_renewed_tx, mut acme_renewed_rx) = tokio::sync::mpsc::channel::<()>(1);
+        let mut acme_renewal_task: Option<tokio::task::JoinHandle<()>> = None;
+        if let Some(service) = &acme_service {
+            acme_renewal_task =
+                Some(service.clone().spawn_renewal(acme_cancel.clone(), acme_renewed_tx));
+        } else {
+            drop(acme_renewed_tx);
+        }
 
         // Main event loop: run QUIC + Rocket until one stops or shutdown is requested,
         // with the low-cadence channel reaper as a structured arm. On exit the pinned
@@ -381,8 +446,9 @@ impl ServerRuntime {
         // Note: CTRL+C handling is done by the host process (Java/CLI), not here.
         {
         let quic = quic_manager.start();
-        let rocket = rocket_manager.start();
-        tokio::pin!(quic, rocket);
+        tokio::pin!(quic);
+        let mut rocket = Box::pin(rocket_manager.start());
+        let mut relaunch_rocket = false;
         let mut reap_interval = tokio::time::interval(std::time::Duration::from_secs(60));
         loop {
             tokio::select! {
@@ -393,12 +459,25 @@ impl ServerRuntime {
                     }
                     break;
                 }
-                result = &mut rocket => {
-                    match result {
-                        Ok(_) => tracing::info!("Rocket server stopped normally"),
-                        Err(e) => tracing::error!("Rocket server error: {}", e),
+                result = rocket.as_mut() => {
+                    if relaunch_rocket {
+                        relaunch_rocket = false;
+                        tracing::info!("Relaunching Rocket with renewed certificate");
+                        rocket = Box::pin(rocket_manager.start());
+                    } else {
+                        match result {
+                            Ok(_) => tracing::info!("Rocket server stopped normally"),
+                            Err(e) => tracing::error!("Rocket server error: {}", e),
+                        }
+                        break;
                     }
-                    break;
+                }
+                Some(_) = acme_renewed_rx.recv() => {
+                    tracing::info!("ACME certificate renewed; bouncing the HTTP listener");
+                    relaunch_rocket = true;
+                    if let Err(e) = rocket_manager.stop().await {
+                        tracing::error!("Failed to stop Rocket for certificate reload: {}", e);
+                    }
                 }
                 _ = shutdown_notify.notified() => {
                     tracing::info!("Shutdown requested, shutting down...");
@@ -409,6 +488,19 @@ impl ServerRuntime {
                 }
             }
         }
+        }
+
+        acme_cancel.cancel();
+        if let Some(handle) = acme_renewal_task {
+            let _ = tokio::time::timeout(std::time::Duration::from_secs(2), handle).await;
+        }
+
+        // Stop refreshing the Meridian record. The lease then lapses on Meridian's
+        // side, which is how a departing backend is removed without an explicit
+        // delete.
+        meridian_shutdown.cancel();
+        if let Some(handle) = meridian_heartbeat {
+            let _ = tokio::time::timeout(std::time::Duration::from_secs(2), handle).await;
         }
 
         // Final PostHog flush: signal the drain and await it briefly so buffered fleet
@@ -601,10 +693,13 @@ impl ServerRuntime {
     /// Create a standalone database connection.
     /// This is used by the PlayerRegistrarService and can be shared between components.
     async fn create_database_connection(&self) -> Result<DatabaseConnection, anyhow::Error> {
-        let dsn = self.get_dsn();
-        tracing::info!("Creating standalone database connection: {}", dsn);
+        self.config.database.validate()?;
+        tracing::info!(
+            "Creating standalone database connection: {}",
+            self.config.database.get_redacted_dsn()
+        );
 
-        let mut options = ConnectOptions::new(dsn);
+        let mut options = ConnectOptions::new(self.config.database.get_dsn());
         options
             .max_connections(100)
             .min_connections(1)
@@ -614,51 +709,6 @@ impl ServerRuntime {
 
         let conn = Database::connect(options).await?;
         Ok(conn)
-    }
-
-    /// Get the database DSN string from config.
-    fn get_dsn(&self) -> String {
-        match self.config.database.scheme.as_str() {
-            "sqlite" | "sqlite3" => {
-                let path = std::path::Path::new(&self.config.database.database);
-                if !path.exists() {
-                    match std::fs::File::create(&self.config.database.database) {
-                        Ok(_) => {}
-                        Err(_e) => {
-                            panic!(
-                                "Verify that {} exists and is writable. You may need to create this file.",
-                                &self.config.database.database
-                            );
-                        }
-                    }
-                }
-                format!("sqlite://{}", &self.config.database.database)
-            }
-            "mysql" => format!(
-                "mysql://{}:{}@{}:{}/{}",
-                &self
-                    .config
-                    .database
-                    .username
-                    .clone()
-                    .unwrap_or(String::from("")),
-                &self
-                    .config
-                    .database
-                    .password
-                    .clone()
-                    .unwrap_or(String::from("")),
-                &self
-                    .config
-                    .database
-                    .host
-                    .clone()
-                    .unwrap_or(String::from("127.0.0.1")),
-                &self.config.database.port.unwrap_or(3306),
-                &self.config.database.database
-            ),
-            _ => format!("sqlite://{}", "/etc/bvc/bvc.sqlite3"),
-        }
     }
 
     /// Setup the tracing/logging subsystem

@@ -32,19 +32,6 @@ export default () => ({
       if (this.isRightSidebarExpanded) this.isRightSidebarExpanded = false;
     })
   },
-
-  documentBody: {
-    ["@load.window"]() {
-      const preloader = document.querySelector(".app-preloader");
-      if (!preloader) return;
-      setTimeout(() => {
-        preloader.classList.add(
-          "animate-[cubic-bezier(0.4,0,0.2,1)_fade-out_500ms_forwards]"
-        );
-        setTimeout(() => preloader.remove(), 1000);
-      }, 150);
-    },
-  },
 });
 
 function currentLocation() {

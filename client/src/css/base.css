@@ -65,17 +65,6 @@ body.is-monochrome::before {
   @apply pointer-events-none fixed inset-0 z-[999999] -m-[5rem] h-[calc(100%+10rem)] w-[calc(100%+10rem)] backdrop-grayscale backdrop-opacity-[.92] content-[''];
 }
 
-/* app-preloader */
-.app-preloader .app-preloader-inner::after,
-.app-preloader .app-preloader-inner::before {
-  @apply absolute h-full w-full rounded-full bg-slate-300/[.25] content-[''] dark:bg-navy-300/50;
-  animation: spinner-grow 3s cubic-bezier(0.55, 0.15, 0.45, 0.85) infinite;
-}
-
-.app-preloader .app-preloader-inner::after {
-  animation-delay: -1.5s;
-}
-
 /* Sidebar Toggle Button */
 .menu-toggle span {
   @apply h-[2px] w-5 translate-x-0 bg-current transition-all duration-[.25s] ease-in-out;

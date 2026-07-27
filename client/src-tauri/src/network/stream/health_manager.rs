@@ -178,6 +178,23 @@ impl ConnectionHealthManager {
                 break;
             }
 
+            // Terminal: the server refused this identity, so probing and re-dialing
+            // would loop forever against a server that is perfectly healthy.
+            if health_state.has_unauthorized() {
+                log::error!(
+                    "Server refused this connection's identity; stopping reconnect attempts"
+                );
+                let _ = app_handle.emit(
+                    "connection_health",
+                    ConnectionHealth::Unauthorized {
+                        reason: "The server refused this connection's identity. Your \
+                                 credentials may have been revoked — sign in again."
+                            .to_string(),
+                    },
+                );
+                break;
+            }
+
             if health_state.has_protocol_error() {
                 log::error!(
                     "Datagram decode failures indicate an incompatible server protocol; tearing down connection"

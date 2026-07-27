@@ -28,10 +28,12 @@ impl RocketHarness {
         cert_service: Arc<CertificateService>,
         identity_service: PlayerIdentityService,
         mount_relay: bool,
+        readiness: Arc<bvc_server_lib::runtime::ReadinessState>,
     ) -> Result<tokio::task::JoinHandle<()>> {
         let figment = config
             .get_rocket_config()
             .map_err(|e| anyhow!("rocket figment: {}", e))?;
+        let cert_path_for_health = config.server.tls.certificate.clone();
 
         let admin_routes = routes![
             routes::api::admin::user::create::create_user,
@@ -83,6 +85,10 @@ impl RocketHarness {
         ];
 
         let mut rocket = rocket::custom(figment)
+            .manage(bvc_server_lib::services::HealthService::new_shared(
+                readiness,
+                cert_path_for_health,
+            ))
             .manage(control_cache_manager)
             .manage(control_webhook)
             .manage(identity_service)
@@ -97,7 +103,14 @@ impl RocketHarness {
             .mount("/api/admin", admin_routes)
             .mount("/api", auth_routes)
             .mount("/api", control_routes)
-            .mount("/metrics", routes![routes::metrics::metrics]);
+            .mount("/metrics", routes![routes::metrics::metrics])
+            .mount(
+                "/health",
+                routes![
+                    routes::api::health::liveness::liveness,
+                    routes::api::health::readiness::readiness,
+                ],
+            );
 
         if mount_relay {
             // Cross-server peering routes (offer / peer-redeem / peer-link). They

@@ -13,6 +13,10 @@
 
     <link rel="icon" href="%sveltekit.assets%/images/app-logo.png" />
 
+    <!-- Render-blocking on purpose: the preloader below must be styled at
+         first paint, before the app bundle injects the main stylesheet. -->
+    <link rel="stylesheet" href="%sveltekit.assets%/preloader/app-preloader.css" />
+
     %sveltekit.head%
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -26,15 +30,43 @@
   <body
     data-sveltekit-preload-data="tap"
     x-data
-    x-bind="$store.global.documentBody"
     class=" is-sidebar-open is-header-blur"
   >
-    <!-- App preloader-->
-    <div
-      class="app-preloader fixed z-50 grid h-full w-full place-content-center bg-slate-50 dark:bg-navy-900"
-    >
-      <div class="app-preloader-inner relative inline-block size-48"></div>
+    <!-- App preloader: markup only. Styling and behavior live in
+         static/preloader/ - served outside the app bundle so the overlay
+         works even when a page hangs during init. -->
+    <div class="app-preloader">
+      <div class="app-preloader-column">
+        <div class="app-preloader-card" role="status" aria-live="polite">
+          <div class="app-preloader-ring"></div>
+          <p id="app-preloader-headline" class="app-preloader-headline" hidden>Loading…</p>
+          <div class="app-preloader-status-row">
+            <span id="app-preloader-frame" class="app-preloader-frame" aria-hidden="true">⠋</span>
+            <span id="app-preloader-status" class="app-preloader-status" hidden
+              >Getting things ready…</span
+            >
+          </div>
+          <div id="app-preloader-actions" class="app-preloader-actions" hidden>
+            <p class="app-preloader-hint">The app may be stuck.</p>
+            <a
+              id="app-preloader-action-server"
+              href="/server"
+              class="app-preloader-btn app-preloader-btn--primary"
+              >Choose Different Server</a
+            >
+            <a
+              href="/login?logout=true"
+              class="app-preloader-btn app-preloader-btn--secondary"
+              >Sign Out &amp; Sign In Again</a
+            >
+            <button type="button" id="app-preloader-keep-waiting" class="app-preloader-keep-waiting">
+              Keep Waiting
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
+    <script src="%sveltekit.assets%/preloader/app-preloader.js"></script>
     <div style="display: contents">%sveltekit.body%</div>
   </body>
 

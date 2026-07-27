@@ -11,11 +11,11 @@ pub struct Model {
     #[sea_orm(unique)]
     pub code: String,
     pub player_id: i32,
-    pub expires_at: u32,
+    pub expires_at: i64,
     pub used: bool,
     pub ephemeral: bool,
-    pub created_at: u32,
-    pub updated_at: u32,
+    pub created_at: i64,
+    pub updated_at: i64,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -40,8 +40,7 @@ impl ActiveModelBehavior for ActiveModel {
     where
         C: ConnectionTrait,
     {
-        self.updated_at =
-            ActiveValue::Set(common::ncryptflib::rocket::Utc::now().timestamp() as u32);
+        self.updated_at = ActiveValue::Set(common::ncryptflib::rocket::Utc::now().timestamp());
         Ok(self)
     }
 }

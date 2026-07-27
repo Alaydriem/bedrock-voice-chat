@@ -11,10 +11,14 @@
 //! - Graceful shutdown via oneshot channels
 
 mod cache_manager;
+mod certificate_common_name;
 mod client_id_hasher;
 mod connection_id_format;
 mod connection_identity;
 pub mod connection_registry;
+mod packet_identity_stamp;
+mod peer_identity_capture;
+mod peer_identity_context;
 mod server_input_packet;
 mod stream_manager;
 mod webhook_receiver;
@@ -23,6 +27,7 @@ use crate::config::ApplicationConfig;
 use anyhow;
 use client_id_hasher::ClientIdHasher;
 use common::s2n_quic::{Connection, Server};
+use common::structs::network::QuicCloseCode;
 use common::structs::packet::{
     PacketType, PlayerDataPacket, PlayerPositionPacket, QuicNetworkPacket, QuicNetworkPacketData,
 };
@@ -33,7 +38,12 @@ use stream_manager::{InputStream, OutputStream};
 use tokio::sync::{mpsc, oneshot};
 
 pub use cache_manager::{CacheManager, CacheTrait, PlayerPreferenceCache, PlayerStateCache};
+pub use certificate_common_name::CertificateCommonName;
 pub use connection_id_format::PrefixedConnectionIdFormat;
+pub use connection_identity::{ConnectionClassifier, ConnectionKind};
+pub use packet_identity_stamp::PacketIdentityStamp;
+pub use peer_identity_capture::PeerIdentityCapture;
+pub use peer_identity_context::PeerIdentityContext;
 pub use server_input_packet::ServerInputPacket;
 pub use webhook_receiver::WebhookReceiver;
 
@@ -45,6 +55,7 @@ pub struct QuicServerManager {
     webhook_receiver: WebhookReceiver,
     shutdown_tx: Option<oneshot::Sender<()>>,
     shutdown_rx: Option<oneshot::Receiver<()>>,
+    readiness: Option<Arc<crate::runtime::ReadinessState>>,
 }
 
 impl QuicServerManager {
@@ -66,10 +77,31 @@ impl QuicServerManager {
             webhook_receiver,
             shutdown_tx: Some(shutdown_tx),
             shutdown_rx: Some(shutdown_rx),
+            readiness: None,
         }
     }
 
-    pub async fn start(&mut self) -> Result<(), anyhow::Error> {
+    /// Installs the shared readiness flag the /health/readiness route reads.
+    /// The flag is raised once the QUIC listener is accepting and lowered on
+    /// any exit of the accept loop.
+    pub fn set_readiness(&mut self, readiness: Arc<crate::runtime::ReadinessState>) {
+        self.readiness = Some(readiness);
+    }
+
+}
+
+impl StreamTrait for QuicServerManager {
+    /// Stopped means `stop()` consumed the shutdown sender; before the first
+    /// start the manager is idle, not stopped.
+    fn is_stopped(&self) -> bool {
+        self.shutdown_tx.is_none()
+    }
+
+    async fn metadata(&mut self, _key: String, _value: String) -> Result<(), anyhow::Error> {
+        Ok(())
+    }
+
+    async fn start(&mut self) -> Result<(), anyhow::Error> {
         tracing::info!("Starting QUIC server manager");
 
         let (ca_cert, ca_key) = self.get_certificates().await?;
@@ -106,7 +138,10 @@ impl QuicServerManager {
         };
 
         let builder = Server::builder()
-            .with_event(common::s2n_quic::provider::event::tracing::Subscriber::default())?
+            .with_event((
+                common::s2n_quic::provider::event::tracing::Subscriber::default(),
+                PeerIdentityCapture::default(),
+            ))?
             .with_tls(provider)?
             .with_io(bind_addr.as_str())?
             .with_datagram(dg_endpoint)?;
@@ -138,13 +173,18 @@ impl QuicServerManager {
 
         tracing::info!("QUIC server started on {}", bind_addr);
 
+        if let Some(readiness) = &self.readiness {
+            readiness.set_quic_ready(true);
+        }
+
         tokio::select! {
             _ = async {
                 while let Some(packet) = webhook_rx.recv().await {
                     // process_packet has no AudioFrame arm; skipping it avoids a
                     // full packet clone (audio payload included) per frame.
                     if packet.packet_type != PacketType::AudioFrame {
-                        if let Err(e) = cache_manager.process_packet(packet.clone()).await {
+                        // Server-injected: no certificate, so no authenticated game.
+                        if let Err(e) = cache_manager.process_packet(packet.clone(), None).await {
                             tracing::error!("Failed to process packet in cache manager: {}", e);
                         }
                     }
@@ -182,11 +222,19 @@ impl QuicServerManager {
             }
         }
 
+        if let Some(readiness) = &self.readiness {
+            readiness.set_quic_ready(false);
+        }
+
         Ok(())
     }
 
-    pub async fn stop(&mut self) -> Result<(), anyhow::Error> {
+    async fn stop(&mut self) -> Result<(), anyhow::Error> {
         tracing::info!("Stopping QUIC server");
+
+        if let Some(readiness) = &self.readiness {
+            readiness.set_quic_ready(false);
+        }
 
         if let Some(shutdown_tx) = self.shutdown_tx.take() {
             let _ = shutdown_tx.send(());
@@ -195,7 +243,9 @@ impl QuicServerManager {
         tracing::info!("QUIC server stopped");
         Ok(())
     }
+}
 
+impl QuicServerManager {
     pub fn get_cache_manager(&self) -> CacheManager {
         self.cache_manager.clone()
     }
@@ -239,10 +289,64 @@ impl QuicServerManager {
         ))
     }
 
+    // The mTLS-verified Common Name for an accepted connection, captured during the
+    // handshake by `PeerIdentityCapture`. `None` means no authenticated identity is
+    // available, which the accept loop treats as a refusal.
+    fn authenticated_cn(connection: &Connection) -> Option<String> {
+        connection
+            .query_event_context(|ctx: &PeerIdentityContext| ctx.cn())
+            .ok()
+            .flatten()
+    }
+
+    // The close code sent to a connection whose identity cannot be trusted. The
+    // client keys off this value to stop reconnecting instead of retrying forever.
+    fn unauthorized_code() -> common::s2n_quic::application::Error {
+        common::s2n_quic::application::Error::new(QuicCloseCode::Unauthorized.as_u64())
+            .unwrap_or(common::s2n_quic::application::Error::UNKNOWN)
+    }
+
     async fn accept_connections(&self, mut server: Server) -> Result<(), anyhow::Error> {
         while let Some(mut connection) = server.accept().await {
             let connection_id = format!("{:?}", connection.id());
             tracing::info!("New QUIC connection accepted: {}", connection_id);
+
+            // Routing and trust are anchored to the mTLS certificate, never to the
+            // self-asserted `owner.name` on the wire. A connection with no readable
+            // certificate identity is refused outright rather than guessed at.
+            let authenticated_cn = match Self::authenticated_cn(&connection) {
+                Some(cn) => cn,
+                None => {
+                    tracing::error!(
+                        connection = %connection_id,
+                        "Refusing connection: no mTLS identity could be read from the peer certificate"
+                    );
+                    connection.close(Self::unauthorized_code());
+                    continue;
+                }
+            };
+
+            let (player_identity, peer_endpoint) = match ConnectionClassifier::classify(
+                &authenticated_cn,
+            ) {
+                ConnectionKind::Player { game, name } => (Some((game, name)), None),
+                ConnectionKind::Peer { endpoint, .. } => (None, Some(endpoint)),
+                ConnectionKind::Rejected { identity } => {
+                    tracing::warn!(
+                        connection = %connection_id,
+                        identity = %identity,
+                        "Refusing connection: certificate identity is not a valid player or peer CN"
+                    );
+                    connection.close(Self::unauthorized_code());
+                    continue;
+                }
+            };
+
+            tracing::info!(
+                connection = %connection_id,
+                identity = %authenticated_cn,
+                "Connection authenticated"
+            );
 
             let connection_registry = self.connection_registry.clone();
             let cache_manager = self.cache_manager.clone();
@@ -270,14 +374,14 @@ impl QuicServerManager {
                     let client_id_lock = output_stream.client_id.clone();
                     let registry = connection_registry.clone();
                     let tx = packet_tx.clone();
-                    move |player_id: String, client_id: Vec<u8>| {
+                    move |player_id: String, client_id: Vec<u8>, game: common::Game| {
                         if player_id_lock.set(player_id.clone()).is_err() {
                             tracing::warn!("Player ID already set for connection");
                         }
                         if client_id_lock.set(client_id.clone()).is_err() {
                             tracing::warn!("Client ID already set for connection");
                         }
-                        registry.register(client_id, player_id, tx.clone());
+                        registry.register(client_id, player_id, game, tx.clone());
                     }
                 };
 
@@ -363,6 +467,8 @@ impl QuicServerManager {
                         input_shutdown_rx,
                         Box::new(output_stream_identity_setter),
                         input_conn,
+                        player_identity,
+                        peer_endpoint,
                     )
                     .await
                     {
@@ -395,8 +501,10 @@ impl QuicServerManager {
         broadcast_range: f32,
         deafen_distance: f32,
         mut shutdown_rx: oneshot::Receiver<()>,
-        player_callback: Box<dyn Fn(String, Vec<u8>) + Send + Sync>,
+        player_callback: Box<dyn Fn(String, Vec<u8>, common::Game) + Send + Sync>,
         connection: Arc<Connection>,
+        player_identity: Option<(common::Game, String)>,
+        peer_endpoint: Option<String>,
     ) -> Result<(), anyhow::Error> {
         let (packet_tx, mut packet_rx) = mpsc::unbounded_channel();
         input_stream.set_producer(packet_tx);
@@ -404,78 +512,76 @@ impl QuicServerManager {
         let stream_task = tokio::spawn(async move { input_stream.start().await });
 
         let player_cache = cache_manager.players().inner_arc();
-        let mut has_set_identity = false;
-        // A peer-identity connection (CN = `host:https_port`, issued by
-        // `sign_peer_cert`) is routed to the relay `PeerManager` as an INBOUND
-        // peer link: it registers nothing as a player and every packet it sends
-        // is fed into the relay ingest. A normal player keeps the existing path.
-        // `None` until identity is set.
-        let mut peer_endpoint: Option<String> = None;
+        // Identity is settled by the mTLS certificate before this loop starts. A
+        // player's every inbound packet is stamped with its authenticated name; a
+        // peer server feeds the relay ingest and is never stamped, because relayed
+        // packets carry their original sender's identity single-hop.
+        let authenticated_game = player_identity.as_ref().map(|(game, _)| game.clone());
+        let mut registered = false;
+
+        // An inbound peer link registers with the relay up front rather than waiting
+        // for a first packet to reveal who it is, then drains its outbound queue back
+        // onto this same connection so `forward_local`'s per-peer enqueues reach
+        // acceptor-accepted peers. Mirrors the dialer's write pump.
+        if let Some(endpoint) = &peer_endpoint {
+            match connection_registry.peer_manager() {
+                Some(pm) => {
+                    pm.register_inbound(endpoint, std::time::Instant::now());
+
+                    if let Some(mut outbound_rx) = pm.take_outbound_receiver(endpoint) {
+                        let write_conn = connection.clone();
+                        tokio::spawn(async move {
+                            while let Some(relayed) = outbound_rx.recv().await {
+                                if let Ok(bytes) = relayed.packet.to_datagram() {
+                                    let _ = write_conn.datagram_mut(
+                                        |dg: &mut common::s2n_quic::provider::datagram::default::Sender| {
+                                            dg.send_datagram(bytes.into())
+                                        },
+                                    );
+                                }
+                            }
+                        });
+                    }
+
+                    tracing::info!(
+                        "Accepted inbound peer connection: {} (relay ingest path)",
+                        endpoint
+                    );
+                }
+                None => {
+                    tracing::warn!(
+                        "Inbound peer-identity connection {} but no relay manager is wired; dropping",
+                        endpoint
+                    );
+                }
+            }
+        }
 
         loop {
             tokio::select! {
                 Some(server_packet) = packet_rx.recv() => {
-                    let packet = server_packet.data;
+                    let mut packet = server_packet.data;
 
-                    if !has_set_identity && packet.owner.is_some() {
-                        let owner = packet.owner.as_ref().unwrap();
-                        match connection_identity::ConnectionClassifier::classify(&owner.name) {
-                            connection_identity::ConnectionKind::Peer { endpoint, .. } => {
-                                if let Some(pm) = connection_registry.peer_manager() {
-                                    pm.register_inbound(&endpoint, std::time::Instant::now());
-                                    peer_endpoint = Some(endpoint.clone());
+                    // The wire owner is a claim; overwrite it with the certificate
+                    // identity before anything downstream reads it. Registration
+                    // still waits for the first owned packet, because the per-device
+                    // client_id it routes on only exists on the wire.
+                    if let Some((game, name)) = &player_identity {
+                        PacketIdentityStamp::apply(&mut packet, name);
 
-                                    // Drain this acceptor link's outbound queue
-                                    // back onto the accepted connection, so
-                                    // `forward_local`'s per-peer enqueues reach
-                                    // acceptor-accepted peers. Mirrors the
-                                    // dialer's write pump.
-                                    if let Some(mut outbound_rx) =
-                                        pm.take_outbound_receiver(&endpoint)
-                                    {
-                                        let write_conn = connection.clone();
-                                        tokio::spawn(async move {
-                                            while let Some(relayed) = outbound_rx.recv().await {
-                                                if let Ok(bytes) = relayed.packet.to_datagram() {
-                                                    let _ = write_conn.datagram_mut(
-                                                        |dg: &mut common::s2n_quic::provider::datagram::default::Sender| {
-                                                            dg.send_datagram(bytes.into())
-                                                        },
-                                                    );
-                                                }
-                                            }
-                                        });
-                                    }
-
-                                    tracing::info!(
-                                        "Accepted inbound peer connection: {} (relay ingest path)",
-                                        endpoint
-                                    );
-                                } else {
-                                    tracing::warn!(
-                                        "Inbound peer-identity connection {} but no relay manager is wired; dropping",
-                                        endpoint
-                                    );
-                                }
-                            }
-                            connection_identity::ConnectionKind::Player { .. } => {
-                                player_callback(owner.name.clone(), owner.client_id.clone());
+                        if !registered {
+                            if let Some(owner) = &packet.owner {
+                                player_callback(
+                                    name.clone(),
+                                    owner.client_id.clone(),
+                                    game.clone(),
+                                );
                                 tracing::info!(
-                                    "Notified output stream of player identity: {}",
-                                    owner.name
+                                    "Registered authenticated player identity: {name}"
                                 );
-                            }
-                            connection_identity::ConnectionKind::Rejected { identity } => {
-                                // A `server::`-marked identity that is not a
-                                // well-formed endpoint: route it nowhere (fail
-                                // closed) — never the player path, never a peer.
-                                tracing::warn!(
-                                    "Refusing connection with malformed server-peer identity '{}' (fail closed)",
-                                    identity
-                                );
+                                registered = true;
                             }
                         }
-                        has_set_identity = true;
                     }
 
                     // Inbound peer link: route every packet straight into the
@@ -491,7 +597,10 @@ impl QuicServerManager {
                     // process_packet has no AudioFrame arm; skipping it avoids a
                     // full packet clone (audio payload included) per frame.
                     if packet.packet_type != PacketType::AudioFrame {
-                        if let Err(e) = cache_manager.process_packet(packet.clone()).await {
+                        if let Err(e) = cache_manager
+                            .process_packet(packet.clone(), authenticated_game.clone())
+                            .await
+                        {
                             tracing::error!("Failed to process packet in cache manager: {}", e);
                         }
                     }

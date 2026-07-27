@@ -8,6 +8,7 @@ use common::request::AudioFileListQuery;
 use common::response::{ApiError, AudioFileResponse, AudioStreamTokenResponse, PaginatedResponse};
 
 use super::Api;
+use super::circuit_breaker::SendError;
 
 struct ApiErrorResponse;
 
@@ -32,7 +33,7 @@ impl Api {
         game: Option<&str>,
         query: &AudioFileListQuery,
     ) -> Result<PaginatedResponse<AudioFileResponse>, String> {
-        let client = self.get_client(Some(self.endpoint.as_str())).await;
+        let client = self.get_client();
         let url = format!("{}/api/audio/file", self.endpoint);
 
         let mut query_params: Vec<(&str, String)> = Vec::new();
@@ -60,11 +61,8 @@ impl Api {
             }
         }
 
-        match client
-            .get(url)
-            .query(&query_params)
-            .headers(headers)
-            .send()
+        match self
+            .send(client.get(url).query(&query_params).headers(headers))
             .await
         {
             Ok(response) if response.status() == StatusCode::OK => {
@@ -76,7 +74,10 @@ impl Api {
                     .map_err(|e| format!("Failed to parse audio file list: {}", e))
             }
             Ok(response) => Err(ApiErrorResponse::from_response(response).await),
-            Err(e) => {
+            Err(SendError::Open) => {
+                Err("Server temporarily unreachable; backing off".to_string())
+            }
+            Err(SendError::Transport(e)) => {
                 error!("Failed to list audio files: {}", e);
                 Err(format!("Connection failed: {}", e))
             }
@@ -89,7 +90,7 @@ impl Api {
         filename: &str,
         game: Option<&str>,
     ) -> Result<AudioFileResponse, String> {
-        let client = self.get_client(Some(self.endpoint.as_str())).await;
+        let client = self.get_client();
         let url = format!("{}/api/audio/file", self.endpoint);
 
         let mut headers = HeaderMap::new();
@@ -107,11 +108,8 @@ impl Api {
             }
         }
 
-        match client
-            .post(url)
-            .headers(headers)
-            .body(opus_bytes)
-            .send()
+        match self
+            .send(client.post(url).headers(headers).body(opus_bytes))
             .await
         {
             Ok(response)
@@ -126,7 +124,10 @@ impl Api {
                     .map_err(|e| format!("Failed to parse upload response: {}", e))
             }
             Ok(response) => Err(ApiErrorResponse::from_response(response).await),
-            Err(e) => {
+            Err(SendError::Open) => {
+                Err("Server temporarily unreachable; backing off".to_string())
+            }
+            Err(SendError::Transport(e)) => {
                 error!("Failed to upload audio file: {}", e);
                 Err(format!("Connection failed: {}", e))
             }
@@ -138,7 +139,7 @@ impl Api {
         file_id: &str,
         game: Option<&str>,
     ) -> Result<bool, String> {
-        let client = self.get_client(Some(self.endpoint.as_str())).await;
+        let client = self.get_client();
         let url = format!("{}/api/audio/file/{}", self.endpoint, file_id);
 
         let mut headers = HeaderMap::new();
@@ -149,10 +150,13 @@ impl Api {
             }
         }
 
-        match client.delete(url).headers(headers).send().await {
+        match self.send(client.delete(url).headers(headers)).await {
             Ok(response) if response.status() == StatusCode::OK => Ok(true),
             Ok(response) => Err(ApiErrorResponse::from_response(response).await),
-            Err(e) => {
+            Err(SendError::Open) => {
+                Err("Server temporarily unreachable; backing off".to_string())
+            }
+            Err(SendError::Transport(e)) => {
                 error!("Failed to delete audio file: {}", e);
                 Err(format!("Connection failed: {}", e))
             }
@@ -163,7 +167,7 @@ impl Api {
         &self,
         game: Option<&str>,
     ) -> Result<common::response::auth::AuthStateResponse, String> {
-        let client = self.get_client(Some(self.endpoint.as_str())).await;
+        let client = self.get_client();
         let url = format!("{}/api/auth/state", self.endpoint);
 
         let mut headers = HeaderMap::new();
@@ -174,7 +178,7 @@ impl Api {
             }
         }
 
-        match client.get(url).headers(headers).send().await {
+        match self.send(client.get(url).headers(headers)).await {
             Ok(response) if response.status() == StatusCode::OK => {
                 let body = response
                     .text()
@@ -184,7 +188,10 @@ impl Api {
                     .map_err(|e| format!("Failed to parse server state: {}", e))
             }
             Ok(response) => Err(ApiErrorResponse::from_response(response).await),
-            Err(e) => {
+            Err(SendError::Open) => {
+                Err("Server temporarily unreachable; backing off".to_string())
+            }
+            Err(SendError::Transport(e)) => {
                 error!("Failed to get server state: {}", e);
                 Err(format!("Connection failed: {}", e))
             }
@@ -196,7 +203,7 @@ impl Api {
         file_id: &str,
         game: Option<&str>,
     ) -> Result<AudioStreamTokenResponse, String> {
-        let client = self.get_client(Some(self.endpoint.as_str())).await;
+        let client = self.get_client();
         let url = format!("{}/api/audio/file/{}/token", self.endpoint, file_id);
 
         let mut headers = HeaderMap::new();
@@ -207,7 +214,7 @@ impl Api {
             }
         }
 
-        match client.post(url).headers(headers).send().await {
+        match self.send(client.post(url).headers(headers)).await {
             Ok(response) if response.status() == StatusCode::OK => {
                 let body = response
                     .text()
@@ -217,7 +224,10 @@ impl Api {
                     .map_err(|e| format!("Failed to parse stream token: {}", e))
             }
             Ok(response) => Err(ApiErrorResponse::from_response(response).await),
-            Err(e) => {
+            Err(SendError::Open) => {
+                Err("Server temporarily unreachable; backing off".to_string())
+            }
+            Err(SendError::Transport(e)) => {
                 error!("Failed to get audio stream token: {}", e);
                 Err(format!("Connection failed: {}", e))
             }

@@ -184,6 +184,38 @@
         style: 'secondary'
       }
     },
+    'AUTH01': {
+      code: 'AUTH01',
+      title: 'Connection Refused',
+      message: 'The server refused this connection because it could not verify your identity. Your certificate may have been revoked or reissued. Sign in again to get fresh credentials.',
+      icon: 'fa-solid fa-user-shield',
+      primaryAction: {
+        label: 'Sign In Again',
+        url: '/login',
+        style: 'primary'
+      },
+      secondaryAction: {
+        label: 'Choose Different Server',
+        url: '/server',
+        style: 'secondary'
+      }
+    },
+    'AUTH02': {
+      code: 'AUTH02',
+      title: 'Access Denied',
+      message: 'This server has not granted you account access. Join the Minecraft server in-game at least once so it can register you, or ask the server operator to add you.',
+      icon: 'fa-solid fa-user-lock',
+      primaryAction: {
+        label: 'Try Again',
+        url: '/login',
+        style: 'primary'
+      },
+      secondaryAction: {
+        label: 'Choose Different Server',
+        url: '/server',
+        style: 'secondary'
+      }
+    },
     'UPD01': {
       code: 'UPD01',
       title: 'Update Available',

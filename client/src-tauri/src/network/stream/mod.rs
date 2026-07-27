@@ -4,16 +4,23 @@ mod stream_manager;
 use crate::AudioPacket;
 use crate::NetworkPacket;
 use common::s2n_quic::Client;
+use common::s2n_quic::Connection;
 use common::s2n_quic::client::Connect;
 use common::structs::packet::PacketOwner;
 use std::error::Error;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 use tauri::Manager;
 use stream_manager::StreamTrait;
 use stream_manager::StreamTraitType;
 
 use health_manager::ConnectionHealthManager;
+
+// Per-port handshake budget. A blackholed UDP port produces no response at all,
+// so this timeout — not an error — is what ends the attempt and moves on to the
+// next candidate.
+const CONNECT_ATTEMPT_TIMEOUT: Duration = Duration::from_secs(3);
 
 pub(crate) struct NetworkStreamManager {
     producer: Arc<flume::Sender<AudioPacket>>,
@@ -60,7 +67,7 @@ impl NetworkStreamManager {
         &mut self,
         server_fqdn: String,
         server_url: String,
-        socket: SocketAddr,
+        sockets: Vec<SocketAddr>,
         name: String,
         ca_cert: String,
         cert: String,
@@ -89,9 +96,7 @@ impl NetworkStreamManager {
             .with_datagram(dg_endpoint)?
             .start()?;
 
-        let connect = Connect::new(socket).with_server_name(server_fqdn);
-
-        let mut connection = client.connect(connect).await?;
+        let mut connection = Self::connect_first_available(&client, &sockets, &server_fqdn).await?;
         connection.keep_alive(true)?;
         let conn_arc = Arc::new(connection);
         self.health_manager.reset();
@@ -135,6 +140,45 @@ impl NetworkStreamManager {
         }
 
         Ok(())
+    }
+
+    // Walks the candidate ports in order and returns the first completed
+    // handshake. The winning port is logged: it is the only signal separating
+    // "the primary port works" from "this user is on the fallback", and that
+    // distribution is what justifies maintaining the list.
+    async fn connect_first_available(
+        client: &Client,
+        sockets: &[SocketAddr],
+        server_fqdn: &str,
+    ) -> Result<Connection, Box<dyn Error>> {
+        let mut last_error: Option<String> = None;
+
+        for socket in sockets {
+            let connect = Connect::new(*socket).with_server_name(server_fqdn.to_string());
+
+            match tokio::time::timeout(CONNECT_ATTEMPT_TIMEOUT, client.connect(connect)).await {
+                Ok(Ok(connection)) => {
+                    log::info!("QUIC handshake succeeded on {}", socket);
+                    return Ok(connection);
+                }
+                Ok(Err(e)) => {
+                    log::warn!("QUIC handshake rejected on {}: {}", socket, e);
+                    last_error = Some(e.to_string());
+                }
+                Err(_) => {
+                    log::warn!(
+                        "QUIC handshake timed out on {} after {:?}",
+                        socket,
+                        CONNECT_ATTEMPT_TIMEOUT
+                    );
+                    last_error = Some(format!("timed out after {:?}", CONNECT_ATTEMPT_TIMEOUT));
+                }
+            }
+        }
+
+        Err(last_error
+            .unwrap_or_else(|| "no candidate QUIC ports were available".to_string())
+            .into())
     }
 
     pub async fn stop(&mut self) -> Result<(), anyhow::Error> {

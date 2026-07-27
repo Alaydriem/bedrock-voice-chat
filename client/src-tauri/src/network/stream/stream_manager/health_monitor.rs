@@ -13,6 +13,9 @@ pub struct HealthMonitorState {
     /// Set when datagrams can no longer be decoded, i.e. the peer speaks an
     /// incompatible protocol and the connection must be torn down
     protocol_error: AtomicBool,
+    /// Set when the server closed the connection with the Unauthorized code, i.e.
+    /// it refused this connection's identity and reconnecting cannot succeed
+    unauthorized: AtomicBool,
 }
 
 impl HealthMonitorState {
@@ -27,6 +30,7 @@ impl HealthMonitorState {
             awaiting_response: AtomicBool::new(false),
             failure_count: AtomicU32::new(0),
             protocol_error: AtomicBool::new(false),
+            unauthorized: AtomicBool::new(false),
         }
     }
 
@@ -38,6 +42,17 @@ impl HealthMonitorState {
     /// Whether a protocol mismatch has been detected on this connection
     pub fn has_protocol_error(&self) -> bool {
         self.protocol_error.load(Ordering::SeqCst)
+    }
+
+    /// Flag the connection as refused by the server. Terminal: reconnecting with the
+    /// same credentials cannot succeed, so the reconnect loop must not run.
+    pub fn signal_unauthorized(&self) {
+        self.unauthorized.store(true, Ordering::SeqCst);
+    }
+
+    /// Whether the server refused this connection's identity
+    pub fn has_unauthorized(&self) -> bool {
+        self.unauthorized.load(Ordering::SeqCst)
     }
 
     /// Called when any packet is received from the server
@@ -103,6 +118,7 @@ impl HealthMonitorState {
         self.awaiting_response.store(false, Ordering::Relaxed);
         self.failure_count.store(0, Ordering::Relaxed);
         self.protocol_error.store(false, Ordering::SeqCst);
+        self.unauthorized.store(false, Ordering::SeqCst);
     }
 }
 

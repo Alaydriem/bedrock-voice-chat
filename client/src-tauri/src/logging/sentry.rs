@@ -1,23 +1,19 @@
 use std::sync::atomic::AtomicBool;
 
 use log::{Log, Metadata, Record};
-use once_cell::sync::Lazy;
 
-const BREADCRUMB_BUFFER_SIZE: usize = 100;
-
-static BREADCRUMB_BUFFER: Lazy<(
-    flume::Sender<sentry::Breadcrumb>,
-    flume::Receiver<sentry::Breadcrumb>,
-)> = Lazy::new(|| flume::bounded(BREADCRUMB_BUFFER_SIZE));
+use super::throttle::{LogThrottle, ThrottleDecision};
 
 pub struct SentryLogger {
     enabled: AtomicBool,
+    throttle: LogThrottle,
 }
 
 impl SentryLogger {
     pub fn new(enabled: bool) -> Self {
         Self {
             enabled: AtomicBool::new(enabled),
+            throttle: LogThrottle::new(),
         }
     }
 
@@ -45,25 +41,28 @@ impl Log for SentryLogger {
             return;
         }
 
-        if record.level() <= log::Level::Error {
-            sentry::Hub::current().capture_log(sentry::integrations::log::log_from_record(record));
-        }
-
         match record.level() {
             log::Level::Error => {
-                let (_, rx) = &*BREADCRUMB_BUFFER;
-                while let Ok(breadcrumb) = rx.try_recv() {
-                    sentry::add_breadcrumb(breadcrumb);
+                let suppressed = match self.throttle.evaluate(record) {
+                    ThrottleDecision::Suppress => return,
+                    ThrottleDecision::Emit { suppressed } => suppressed,
+                };
+
+                let mut log = sentry::integrations::log::log_from_record(record);
+                if suppressed > 0 {
+                    log.body = format!(
+                        "{} [+{} identical suppressed in last {}s]",
+                        log.body,
+                        suppressed,
+                        self.throttle.window_secs()
+                    );
                 }
-                sentry::capture_event(sentry::integrations::log::exception_from_record(record));
+                sentry::Hub::current().capture_log(log);
+
+                sentry::add_breadcrumb(sentry::integrations::log::breadcrumb_from_record(record));
             }
             _ => {
-                let breadcrumb = sentry::integrations::log::breadcrumb_from_record(record);
-                let (tx, rx) = &*BREADCRUMB_BUFFER;
-                if let Err(flume::TrySendError::Full(bc)) = tx.try_send(breadcrumb) {
-                    let _ = rx.try_recv();
-                    let _ = tx.try_send(bc);
-                }
+                sentry::add_breadcrumb(sentry::integrations::log::breadcrumb_from_record(record));
             }
         }
     }

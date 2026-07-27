@@ -1,0 +1,199 @@
+/* Self-contained styles for the boot preloader in app.html. The overlay
+   paints before the SvelteKit bundle (and the bundle-injected stylesheet)
+   loads, so nothing in here may depend on Tailwind or app.css. Color and
+   size values mirror the design tokens in src/css/app.css. */
+
+.app-preloader {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-content: center;
+  /* navy-900 */
+  background-color: #192132;
+  font-family: "Poppins", ui-sans-serif, system-ui, sans-serif;
+}
+
+.app-preloader [hidden] {
+  display: none !important;
+}
+
+.app-preloader-column {
+  width: 26rem;
+  max-width: calc(100vw - 2rem);
+  padding: 1rem;
+}
+
+.app-preloader-card {
+  border-radius: 0.5rem;
+  padding: 1.25rem;
+  text-align: center;
+  /* navy-700 */
+  background-color: #26334d;
+  /* navy-200 */
+  color: #a3adc2;
+}
+
+@media (min-width: 1024px) {
+  .app-preloader-card {
+    padding: 1.75rem;
+  }
+}
+
+.app-preloader-ring {
+  width: 46px;
+  height: 46px;
+  margin: 0 auto;
+  border-radius: 9999px;
+  border: 3px solid rgb(148 163 184 / 0.35);
+  /* accent */
+  border-top-color: #5f5af6;
+  animation: app-preloader-spin 0.9s linear infinite;
+}
+
+@keyframes app-preloader-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.app-preloader-headline {
+  margin: 1rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+  /* navy-50 */
+  color: #e7e9ef;
+}
+
+.app-preloader-status-row {
+  margin-top: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  min-height: 22px;
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+.app-preloader-frame {
+  display: inline-block;
+  width: 18px;
+  text-align: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 18px;
+  line-height: 1;
+  font-weight: 600;
+  /* accent-light */
+  color: #818cf8;
+}
+
+.app-preloader-status {
+  /* text-xs+ */
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+  background: linear-gradient(
+    90deg,
+    currentColor 0%,
+    currentColor 35%,
+    #ffffff 50%,
+    currentColor 65%,
+    currentColor 100%
+  );
+  /* navy-300 */
+  color: #697a9b;
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: app-preloader-shimmer 2.2s linear infinite;
+}
+
+@keyframes app-preloader-shimmer {
+  0% {
+    background-position: 120% 0;
+  }
+  100% {
+    background-position: -120% 0;
+  }
+}
+
+.app-preloader-actions {
+  margin-top: 1.5rem;
+}
+
+.app-preloader-hint {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 500;
+  /* navy-100 */
+  color: #c2c9d6;
+}
+
+.app-preloader-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin-top: 0.75rem;
+  padding: 0.5rem 1.25rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  letter-spacing: 0.025em;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.app-preloader-btn--primary {
+  /* accent */
+  background-color: #5f5af6;
+  color: #ffffff;
+}
+
+.app-preloader-btn--primary:hover {
+  /* accent-focus */
+  background-color: #4d47f5;
+}
+
+.app-preloader-btn--secondary {
+  /* navy-450 */
+  border: 1px solid #465675;
+  /* navy-50 */
+  color: #e7e9ef;
+  background-color: transparent;
+}
+
+.app-preloader-btn--secondary:hover {
+  /* navy-500 */
+  background-color: #384766;
+}
+
+.app-preloader-keep-waiting {
+  margin-top: 1rem;
+  border: 0;
+  padding: 0;
+  background: none;
+  font-family: inherit;
+  /* text-tiny+ */
+  font-size: 0.6875rem;
+  /* navy-300 */
+  color: #697a9b;
+  cursor: pointer;
+}
+
+.app-preloader-keep-waiting:hover {
+  /* navy-200 */
+  color: #a3adc2;
+  text-decoration: underline;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-preloader-ring {
+    animation-duration: 1.6s;
+  }
+  .app-preloader-status {
+    animation: none;
+    -webkit-text-fill-color: currentColor;
+  }
+}

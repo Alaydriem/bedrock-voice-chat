@@ -23,7 +23,7 @@ pub(crate) async fn server_login(
     server: String,
     code: String,
     redirect: String,
-) -> Result<LoginResponse, bool> {
+) -> Result<LoginResponse, String> {
     let login_result = login::server_login(server.clone(), code, redirect).await;
 
     if let Ok(ref response) = login_result {
@@ -42,7 +42,7 @@ pub(crate) async fn server_login(
         }
     }
 
-    login_result
+    login_result.map_err(|e| e.to_string())
 }
 
 #[tauri::command(async)]

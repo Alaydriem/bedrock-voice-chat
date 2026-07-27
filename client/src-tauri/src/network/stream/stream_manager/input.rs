@@ -1,8 +1,11 @@
 use crate::AudioPacket;
 use bytes::Bytes;
 use common::s2n_quic::Connection;
+use common::s2n_quic::provider::datagram::default::DatagramError;
+use common::structs::network::QuicCloseCode;
 use common::structs::packet::{PacketType, QuicNetworkPacket};
 use core::{
+    fmt,
     future::Future,
     pin::Pin,
     task::{Context, Poll},
@@ -72,7 +75,7 @@ impl common::traits::StreamTrait for InputStream {
             let mut decode_errors: u64 = 0;
             let mut consecutive_decode_errors: u32 = 0;
             let mut last_decode_error_log: Option<Instant> = None;
-            while let Ok(bytes) = recv_one_datagram(&connection).await {
+            while let Some(bytes) = Self::recv_next(&connection, &health_state).await {
                 if shutdown.load(Ordering::Relaxed) {
                     info!("Network stream input handler stopped.");
                     break;
@@ -131,6 +134,57 @@ impl common::traits::StreamTrait for InputStream {
 }
 
 impl InputStream {
+    /// Receive the next datagram, or `None` when the recv stream has ended. A server
+    /// refusal of this connection's identity is signalled to the health monitor
+    /// before ending so the reconnect loop stops instead of re-dialing.
+    async fn recv_next(connection: &Connection, health_state: &HealthMonitorState) -> Option<Bytes> {
+        match recv_one_datagram(connection).await {
+            Ok(bytes) => Some(bytes),
+            Err(failure) => {
+                if Self::is_refused(&failure, connection) {
+                    error!(
+                        "Server refused this connection's identity; not retrying. Sign in again if your credentials were revoked."
+                    );
+                    health_state.signal_unauthorized();
+                } else {
+                    info!("Network recv stream ended: {}", failure);
+                }
+                None
+            }
+        }
+    }
+
+    /// Whether the server refused this connection's identity.
+    ///
+    /// The close code surfaces on two different places depending on timing: the
+    /// datagram error carries it when a receive was in flight as the close landed,
+    /// but a refusal issued at `accept()` arrives before the first poll, and is then
+    /// only visible by querying the connection handle. Both are checked, because the
+    /// server refuses before the client has sent anything.
+    fn is_refused(failure: &RecvFailure, connection: &Connection) -> bool {
+        if let RecvFailure::Datagram(DatagramError::ConnectionError { error, .. }) = failure {
+            if Self::is_unauthorized_close(error) {
+                return true;
+            }
+        }
+
+        match connection.application_protocol() {
+            Err(e) => Self::is_unauthorized_close(&e),
+            Ok(_) => false,
+        }
+    }
+
+    /// True when the peer closed with our Unauthorized application error code, which
+    /// means the server rejected this connection's mTLS identity.
+    fn is_unauthorized_close(error: &common::s2n_quic::connection::Error) -> bool {
+        match error {
+            common::s2n_quic::connection::Error::Application { error, .. } => {
+                QuicCloseCode::from_u64(u64::from(*error)) == Some(QuicCloseCode::Unauthorized)
+            }
+            _ => false,
+        }
+    }
+
     pub fn new(
         producer: Arc<flume::Sender<AudioPacket>>,
         connection: Option<Arc<Connection>>,
@@ -149,6 +203,26 @@ impl InputStream {
     }
 }
 
+// Why a datagram receive ended. The concrete `DatagramError` is preserved rather
+// than flattened into `anyhow`, because a server-initiated close carries an
+// application error code that only the typed value exposes — every connection-level
+// failure renders as the same opaque string through `Display`.
+pub(crate) enum RecvFailure {
+    /// The connection itself failed or was closed by the peer.
+    Datagram(DatagramError),
+    /// The datagram provider could not be queried, i.e. the connection is already gone.
+    Query(String),
+}
+
+impl fmt::Display for RecvFailure {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RecvFailure::Datagram(e) => write!(f, "{}", e),
+            RecvFailure::Query(e) => write!(f, "{}", e),
+        }
+    }
+}
+
 struct RecvDatagram<'c> {
     conn: &'c Connection,
 }
@@ -158,7 +232,7 @@ impl<'c> RecvDatagram<'c> {
     }
 }
 impl<'c> Future for RecvDatagram<'c> {
-    type Output = Result<Bytes, anyhow::Error>;
+    type Output = Result<Bytes, RecvFailure>;
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.conn.datagram_mut(
             |r: &mut common::s2n_quic::provider::datagram::default::Receiver| {
@@ -166,12 +240,12 @@ impl<'c> Future for RecvDatagram<'c> {
             },
         ) {
             Ok(Poll::Ready(Ok(bytes))) => Poll::Ready(Ok(bytes)),
-            Ok(Poll::Ready(Err(e))) => Poll::Ready(Err(anyhow::anyhow!(e))),
+            Ok(Poll::Ready(Err(e))) => Poll::Ready(Err(RecvFailure::Datagram(e))),
             Ok(Poll::Pending) => Poll::Pending,
-            Err(e) => Poll::Ready(Err(anyhow::anyhow!(e))),
+            Err(e) => Poll::Ready(Err(RecvFailure::Query(e.to_string()))),
         }
     }
 }
-async fn recv_one_datagram(conn: &Connection) -> Result<Bytes, anyhow::Error> {
+async fn recv_one_datagram(conn: &Connection) -> Result<Bytes, RecvFailure> {
     RecvDatagram::new(conn).await
 }

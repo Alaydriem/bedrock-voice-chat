@@ -12,6 +12,7 @@ import type { ProtocolVersionOption } from '../../../bindings/ProtocolVersionOpt
 import type { RealmsGateStatus } from '../../../bindings/RealmsGateStatus';
 import type { IapOffer } from '../../../bindings/IapOffer';
 import type { ProxyServerEntry } from './ProxyServerEntry';
+import type { BedrockCapabilityManager } from './BedrockCapabilityManager';
 import { BedrockAuthManager } from './auth/BedrockAuthManager';
 import { BedrockProxyManager } from './proxy/BedrockProxyManager';
 import { BedrockRealmsManager } from './realms/BedrockRealmsManager';
@@ -77,11 +78,14 @@ export class BedrockManager {
     private gatingModalStore: Writable<RealmsGateStatus | null>;
     public readonly gatingModal: Readable<RealmsGateStatus | null>;
 
+    public readonly capability: BedrockCapabilityManager;
+    private capabilityUnsubscribe: (() => void) | null = null;
+
     private initialized = false;
     private store: Store | null = null;
     private purchaseUnlisten: (() => void) | null = null;
 
-    constructor() {
+    constructor(capability: BedrockCapabilityManager) {
         this.statusMessageStore = writable('');
         this.statusMessage = { subscribe: this.statusMessageStore.subscribe };
 
@@ -160,6 +164,11 @@ export class BedrockManager {
             ([$auth, $proxy, $realms, $host]) =>
                 $auth && !$proxy && !$realms && $host.length > 0,
         );
+
+        this.capability = capability;
+        this.capabilityUnsubscribe = capability.serverProvidedServers.subscribe((entries) => {
+            this.proxyManager.setServerProvidedServers(entries);
+        });
     }
 
     async initialize(): Promise<void> {
@@ -396,6 +405,12 @@ export class BedrockManager {
         if (this.purchaseUnlisten) {
             this.purchaseUnlisten();
             this.purchaseUnlisten = null;
+        }
+        // The capability manager itself is owned by SettingsSidebarManager;
+        // only the subscription is ours to release.
+        if (this.capabilityUnsubscribe) {
+            this.capabilityUnsubscribe();
+            this.capabilityUnsubscribe = null;
         }
     }
 }

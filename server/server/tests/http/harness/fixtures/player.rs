@@ -24,7 +24,7 @@ impl PlayerFixture {
         sgv.extend_from_slice(&signature.get_secret_key());
 
         let (cert, key) = cert_service.sign_player_cert(gamertag, game)?;
-        let now = ncryptf::rocket::Utc::now().timestamp() as u32;
+        let now = ncryptf::rocket::Utc::now().timestamp();
         let active = player::ActiveModel {
             id: ActiveValue::NotSet,
             gamertag: ActiveValue::Set(Some(gamertag.to_string())),

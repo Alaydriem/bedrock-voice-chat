@@ -3,8 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import PlatformDetector from "../../utils/PlatformDetector";
 import { BedrockManager } from "../bedrock/BedrockManager";
+import { BedrockCapabilityManager } from "../bedrock/BedrockCapabilityManager";
 import type { RealmsGateStatus } from "../../../bindings/RealmsGateStatus";
-import type { ApiConfigCheckResponse } from "../../../bindings/ApiConfigCheckResponse";
 
 export class SettingsSidebarManager {
     private readonly platformDetector: PlatformDetector;
@@ -17,8 +17,11 @@ export class SettingsSidebarManager {
     public readonly activePage: Readable<string>;
     private realmsConnectEnabledStore: Writable<boolean>;
     public readonly realmsConnectEnabled: Readable<boolean>;
-    private serverBedrockEnabledStore: Writable<boolean>;
-    public readonly serverBedrockEnabled: Readable<boolean>;
+
+    // Whether the connected BVC server supports Bedrock features, plus the
+    // operator-curated proxy server list. Shared with the Bedrock pages via
+    // BedrockManager.
+    public readonly capability: BedrockCapabilityManager;
 
     private readonly bedrockPageIds = new Set(["proxy_connect.svelte", "realms_connect.svelte"]);
 
@@ -37,13 +40,12 @@ export class SettingsSidebarManager {
         this.activePage = { subscribe: this.activePageStore.subscribe };
         this.realmsConnectEnabledStore = writable(false);
         this.realmsConnectEnabled = { subscribe: this.realmsConnectEnabledStore.subscribe };
-        this.serverBedrockEnabledStore = writable(false);
-        this.serverBedrockEnabled = { subscribe: this.serverBedrockEnabledStore.subscribe };
+        this.capability = new BedrockCapabilityManager();
     }
 
     getBedrockManager(): BedrockManager {
         if (!this.bedrockManager) {
-            this.bedrockManager = new BedrockManager();
+            this.bedrockManager = new BedrockManager(this.capability);
         }
         return this.bedrockManager;
     }
@@ -85,12 +87,7 @@ export class SettingsSidebarManager {
             void this.refreshRealmsGate();
         });
 
-        try {
-            const check = await invoke<ApiConfigCheckResponse>("api_get_config");
-            this.serverBedrockEnabledStore.set(check.config.bedrock.enabled);
-        } catch {
-            this.serverBedrockEnabledStore.set(false);
-        }
+        await this.capability.refresh();
     }
 
     // Re-evaluates the Realms Connect master flag. Run on mount and whenever the
@@ -108,6 +105,7 @@ export class SettingsSidebarManager {
 
     destroy(): void {
         this.bedrockManager?.destroy();
+        this.capability.destroy();
         if (this.flagsUnlisten) {
             this.flagsUnlisten();
             this.flagsUnlisten = null;

@@ -9,7 +9,11 @@ pub use audio::Audio;
 pub use database::Database;
 pub use logger::Logger;
 pub use permissions::Permissions;
+pub use server::Acme;
+pub use server::AcmeProviderKind;
+pub use server::BedrockConfig;
 pub use server::BedrockDnsConfig;
+pub use server::BedrockServerEntry;
 pub use server::Features;
 pub use server::Meridian;
 pub use server::Minecraft;
@@ -58,39 +62,35 @@ impl Default for ApplicationConfig {
 }
 
 impl ApplicationConfig {
+    /// Parses an HCL document into an ApplicationConfig, evaluating
+    /// `${env.VAR}` expressions against the provided variable map. A
+    /// referenced-but-unset variable is a hard error — never a silent
+    /// empty string.
+    pub fn from_hcl_str_with_env(
+        content: &str,
+        env: &std::collections::HashMap<String, String>,
+    ) -> Result<Self, anyhow::Error> {
+        let mut ctx = hcl::eval::Context::new();
+        let env_object: hcl::Map<String, hcl::Value> = env
+            .iter()
+            .map(|(k, v)| (k.clone(), hcl::Value::String(v.clone())))
+            .collect();
+        ctx.declare_var("env", hcl::Value::Object(env_object));
+
+        let value: serde_json::Value = hcl::eval::from_str(content, &ctx)
+            .map_err(|e| anyhow!("parsing configuration: {e}"))?;
+        serde_json::from_value(value).map_err(|e| anyhow!("invalid configuration: {e}"))
+    }
+
+    /// Parses an HCL document, exposing the full process environment as the
+    /// `env` object so any `${env.VAR}` reference resolves.
+    pub fn from_hcl_str(content: &str) -> Result<Self, anyhow::Error> {
+        Self::from_hcl_str_with_env(content, &std::env::vars().collect())
+    }
+
     /// Returns the database DSN string from the configuration.
     pub fn get_dsn(&self) -> String {
-        match self.database.scheme.as_str() {
-            "sqlite" | "sqlite3" => {
-                let path = std::path::Path::new(&self.database.database);
-                if !path.exists() {
-                    match std::fs::File::create(&self.database.database) {
-                        Ok(_) => {}
-                        Err(_e) => {
-                            panic!(
-                                "Verify that {} exists and is writable. You may need to create this file.",
-                                &self.database.database
-                            );
-                        }
-                    }
-                }
-
-                format!("sqlite://{}", &self.database.database)
-            }
-            "mysql" => format!(
-                "mysql://{}:{}@{}:{}/{}",
-                &self.database.username.clone().unwrap_or(String::from("")),
-                &self.database.password.clone().unwrap_or(String::from("")),
-                &self
-                    .database
-                    .host
-                    .clone()
-                    .unwrap_or(String::from("127.0.0.1")),
-                &self.database.port.unwrap_or(3306),
-                &self.database.database
-            ),
-            _ => format!("sqlite://{}", "/etc/bvc/bvc.sqlite3"),
-        }
+        self.database.get_dsn()
     }
 
     /// Returns the appropriate log level for Rocket.rs
@@ -134,7 +134,8 @@ impl ApplicationConfig {
             ));
         }
 
-        tracing::info!("Database: {}", self.get_dsn().to_string());
+        self.database.validate()?;
+        tracing::info!("Database: {}", self.database.get_redacted_dsn());
         let figment = rocket::Config::figment()
             .merge(("cli_colors", false))
             .merge(("profile", rocket::figment::Profile::new("release")))
@@ -173,7 +174,8 @@ impl ApplicationConfig {
 
     /// Create a standalone database connection for CLI commands.
     pub async fn create_database_connection(&self) -> Result<DatabaseConnection, anyhow::Error> {
-        let dsn = self.get_dsn();
+        self.database.validate()?;
+        let dsn = self.database.get_dsn();
 
         let mut options = ConnectOptions::new(dsn);
         options

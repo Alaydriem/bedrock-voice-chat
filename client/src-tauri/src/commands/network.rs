@@ -1,7 +1,8 @@
 use crate::analytics::AnalyticsService;
 use crate::{NetworkStreamManager, structs::app_state::AppState};
 use common::response::LoginResponse;
-use log::{error, info};
+use common::structs::network::QuicPortSelection;
+use log::{error, info, warn};
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use tauri::State;
@@ -49,10 +50,41 @@ pub(crate) async fn change_network_stream(
                 .to_string()
         });
 
-    // Default to 443 if quic_connect_string is empty or invalid
-    let port: u16 = data.quic_connect_string.parse().unwrap_or(443);
+    // The keyring copy of the port is frozen at login. Ask the server what it
+    // currently advertises so a server-side port change does not strand
+    // already-authenticated clients; the stored value is the fallback for when the
+    // config fetch itself fails.
+    let api = {
+        let state = state.lock().await;
+        state.get_api_client_for_server(&server).await
+    };
 
-    let socket_addr = match tokio::net::lookup_host(format!("{}:{}", server_fqdn, port)).await {
+    let advertised = match api {
+        Ok(api) => match api.get_config().await {
+            Ok(config) => Some((config.quic_ports, config.quic_port)),
+            Err(e) => {
+                warn!("Config fetch failed for {}; using stored port: {}", server, e);
+                None
+            }
+        },
+        Err(e) => {
+            warn!("No API client for {}; using stored port: {}", server, e);
+            None
+        }
+    };
+
+    let (advertised_ports, advertised_scalar) = advertised.unwrap_or((Vec::new(), 0));
+    let ports = QuicPortSelection::resolve(
+        &advertised_ports,
+        advertised_scalar,
+        Some(&data.quic_connect_string),
+    );
+
+    info!("QUIC candidate ports for {}: {:?}", server_fqdn, ports);
+
+    // One DNS lookup serves every candidate: the host is identical and only the
+    // port varies, so resolving per port would repeat the same query.
+    let resolved_ip = match tokio::net::lookup_host(format!("{}:{}", server_fqdn, ports[0])).await {
         Ok(addrs) => {
             let resolved: Vec<SocketAddr> = addrs.collect();
             match resolved
@@ -60,7 +92,7 @@ pub(crate) async fn change_network_stream(
                 .find(|sa| matches!(sa.ip(), IpAddr::V4(_)))
                 .or_else(|| resolved.first())
             {
-                Some(addr) => *addr,
+                Some(addr) => addr.ip(),
                 None => {
                     error!("System DNS returned no IPs for {}", server_fqdn);
                     return Err("DNS_FAIL: System DNS returned no results".to_string());
@@ -73,6 +105,11 @@ pub(crate) async fn change_network_stream(
         }
     };
 
+    let socket_addrs: Vec<SocketAddr> = ports
+        .iter()
+        .map(|port| SocketAddr::new(resolved_ip, *port))
+        .collect();
+
     let mut network_stream = network_stream.lock().await;
     _ = network_stream.stop().await;
     analytics.clear_connected_server();
@@ -82,7 +119,7 @@ pub(crate) async fn change_network_stream(
         .restart(
             server_fqdn.clone(),
             server.clone(),
-            socket_addr,
+            socket_addrs,
             data.gamertag,
             data.certificate_ca,
             data.certificate,

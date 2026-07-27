@@ -4,6 +4,7 @@ use common::reqwest::{
     StatusCode,
     header::{HeaderMap, HeaderValue},
 };
+use crate::api::circuit_breaker::SendError;
 use common::response::GamerpicResponse;
 use log::error;
 use std::error::Error;
@@ -14,14 +15,14 @@ impl Api {
         game: &str,
         gamertag: &str,
     ) -> Result<GamerpicResponse, String> {
-        let client = self.get_client(Some(self.endpoint.as_str())).await;
+        let client = self.get_client();
 
         let mut headers = HeaderMap::new();
         headers.insert("Accept", HeaderValue::from_static("application/json"));
 
         let url = format!("{}/api/gamerpic/{}/{}", self.endpoint, game, gamertag);
 
-        match client.get(url).headers(headers).send().await {
+        match self.send(client.get(url).headers(headers)).await {
             Ok(response) => match response.status() {
                 StatusCode::OK => match response.json::<GamerpicResponse>().await {
                     Ok(result) => Ok(result),
@@ -35,7 +36,10 @@ impl Api {
                     Err(format!("Request failed with status: {}", status))
                 }
             },
-            Err(e) => {
+            Err(SendError::Open) => {
+                Err("Server temporarily unreachable; backing off".to_string())
+            }
+            Err(SendError::Transport(e)) => {
                 error!("Failed to get gamerpic: {}", e);
                 let mut source = e.source();
                 while let Some(cause) = source {

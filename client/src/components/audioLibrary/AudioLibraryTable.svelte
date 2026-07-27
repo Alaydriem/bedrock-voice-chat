@@ -230,8 +230,10 @@
             <tbody>
                 {#each files as file}
                 <tr class="border-y border-transparent border-b-slate-200 dark:border-b-navy-500">
-                    <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-600 dark:text-navy-200">
-                        {file.original_filename}
+                    <td class="px-3 py-3 text-sm text-slate-600 dark:text-navy-200">
+                        <div class="max-w-[16rem] truncate" title={file.original_filename}>
+                            {file.original_filename}
+                        </div>
                     </td>
                     <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-600 dark:text-navy-200">
                         {formatDuration(file.duration_ms)}

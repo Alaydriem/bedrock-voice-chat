@@ -26,6 +26,8 @@ pub struct Tls {
     pub names: Vec<String>,
     #[serde(default = "default_tls_ips")]
     pub ips: Vec<String>,
+    #[serde(default)]
+    pub acme: Option<super::acme::Acme>,
 }
 
 impl Default for Tls {
@@ -37,6 +39,7 @@ impl Default for Tls {
             certs_path: default_certs_path(),
             names: default_tls_names(),
             ips: default_tls_ips(),
+            acme: None,
         }
     }
 }

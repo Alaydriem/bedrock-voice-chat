@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use common::request::LoginRequest;
 use common::response::LoginResponse;
 use serde::{Deserialize, Serialize};
@@ -23,7 +24,7 @@ pub(crate) async fn server_login(
     server: String,
     code: String,
     redirect: String,
-) -> Result<LoginResponse, bool> {
+) -> Result<LoginResponse, anyhow::Error> {
     let payload = LoginRequest {
         code: code.clone(),
         redirect_uri: redirect,
@@ -34,7 +35,7 @@ pub(crate) async fn server_login(
         Ok(ek) => ek,
         Err(e) => {
             log::error!("{:?}", e);
-            return Err(false);
+            return Err(anyhow!("Unable to reach the server for key exchange"));
         }
     };
 
@@ -76,29 +77,34 @@ pub(crate) async fn server_login(
                         {
                             Ok(response) => match response.data {
                                 Some(data) => Ok(data),
-                                None => Err(false),
+                                None => Err(anyhow!("Login response contained no data")),
                             },
                             Err(e) => {
                                 log::error!("Response Error: {:?}", e.to_string());
-                                Err(false)
+                                Err(anyhow!("Login response could not be parsed"))
                             }
                         },
                         Err(e) => {
                             log::error!("Ncryptf Error: {}", e.to_string());
-                            return Err(false);
+                            return Err(anyhow!("Login response could not be decrypted"));
                         }
                     }
                 }
                 Err(e) => {
                     log::error!("Error: {}", e.to_string());
-                    return Err(false);
+                    return Err(anyhow!("Login response could not be read"));
                 }
             },
-            _ => Err(false),
+            // The server answers 403 when the account authenticated with Xbox Live
+            // but is not authorized on this server (not registered, or banished).
+            StatusCode::FORBIDDEN => Err(anyhow!(
+                "403 Forbidden: the server denied access for this account"
+            )),
+            status => Err(anyhow!("Login failed: server returned HTTP {}", status)),
         },
         Err(e) => {
             log::error!("Unknown Error: {}", e.to_string());
-            Err(false)
+            Err(anyhow!("Login request failed: {}", e))
         }
     }
 }

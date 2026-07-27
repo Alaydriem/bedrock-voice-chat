@@ -85,13 +85,13 @@ impl CloneBench {
         let warmup = (self.args.iterations / 20).max(1);
         for _ in 0..warmup {
             let clone = self.packet.clone();
-            let _ = self.cache_manager.process_packet(clone).await;
+            let _ = self.cache_manager.process_packet(clone, None).await;
         }
 
         let started = Instant::now();
         for _ in 0..self.args.iterations {
             let clone = self.packet.clone();
-            let _ = self.cache_manager.process_packet(clone).await;
+            let _ = self.cache_manager.process_packet(clone, None).await;
         }
         started.elapsed().as_nanos() as f64 / self.args.iterations as f64
     }

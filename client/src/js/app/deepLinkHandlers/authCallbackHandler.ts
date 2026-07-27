@@ -4,6 +4,7 @@ import { info, error as logError } from '@tauri-apps/plugin-log';
 import Analytics from '../analytics';
 import { type LoginResponse } from "../../bindings/LoginResponse";
 import { type ServerListEntry } from "../../bindings/ServerListEntry";
+import { ServerListStore } from '../services/ServerListStore';
 import type { DeepLinkOutcome } from '../deepLinkRouter.ts';
 
 export class AuthCallbackHandler {
@@ -41,9 +42,9 @@ export class AuthCallbackHandler {
 
         // Redemption has no page dependency: redeem wherever the link arrives and
         // navigate based on the outcome (onboarding on success, /login on
-        // failure). This avoids stranding the callback when the landing page
-        // (splash, server list) navigates away before a deferred /login redirect
-        // can take effect.
+        // retryable failure, /error on access denial). This avoids stranding the
+        // callback when the landing page (splash, server list) navigates away
+        // before a deferred /login redirect can take effect.
         await this.processAuthCallback(code, state);
         return 'handled';
     }
@@ -95,12 +96,15 @@ export class AuthCallbackHandler {
                     });
                 }
                 await this.store.set("server_list", serverList);
+                ServerListStore.mirrorServerCount(serverList);
             } else {
-                await this.store.set("server_list", [{
+                const serverList: ServerListEntry[] = [{
                     "server": authStateEndpoint,
                     "player": response.gamertag,
                     "game": "minecraft"
-                }]);
+                }];
+                await this.store.set("server_list", serverList);
+                ServerListStore.mirrorServerCount(serverList);
             }
 
             await this.store.delete("auth_state_token");
@@ -113,8 +117,8 @@ export class AuthCallbackHandler {
         } catch (e) {
             logError(`AuthCallbackHandler: Login failed: ${e}`);
             const errorStr = String(e).toLowerCase();
-            if (errorStr.includes("403") || errorStr.includes("forbidden") || errorStr.includes("permission") || errorStr.includes("banned") || errorStr.includes("whitelist")) {
-                await this.failLogin("Access denied. Check with your server operator if you have permissions.");
+            if (errorStr.includes("403") || errorStr.includes("forbidden") || errorStr.includes("denied") || errorStr.includes("banned") || errorStr.includes("whitelist")) {
+                await this.denyLogin();
             } else {
                 await this.failLogin("Login failed. Please check your server URL and try again.");
             }
@@ -123,6 +127,21 @@ export class AuthCallbackHandler {
 
     private getRedirectUrl(): string {
         return "bedrock-voice-chat://auth";
+    }
+
+    /**
+     * The server rejected the account itself (403: not registered on the server,
+     * or banished). This is not recoverable by retrying, so it gets a hard error
+     * page rather than an inline login-form warning.
+     */
+    private async denyLogin(): Promise<void> {
+        try {
+            await this.store.delete(this.PENDING_KEY);
+            await this.store.save();
+        } catch (e) {
+            logError(`AuthCallbackHandler: Failed to clear pending deep link: ${e}`);
+        }
+        window.location.href = "/error?code=AUTH02";
     }
 
     /**
@@ -139,6 +158,14 @@ export class AuthCallbackHandler {
         } catch (e) {
             logError(`AuthCallbackHandler: Failed to persist login error: ${e}`);
         }
-        window.location.href = "/login";
+        // When the login page is already mounted, its watchAuthError listener has
+        // consumed the persisted key and rendered the message. Reloading here would
+        // wipe that render, and the remount's consumeAuthError would find the key
+        // already cleared - the failure would never be shown. Only navigate when
+        // the callback landed on some other page.
+        const path = window.location.pathname.replace(/\/+$/, "");
+        if (path !== "/login") {
+            window.location.href = "/login";
+        }
     }
 }

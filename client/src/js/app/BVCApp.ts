@@ -71,6 +71,11 @@ export default class BVCApp extends App {
                 warn(`BVCApp: Version mismatch detected: client=${payload.client_version}, server=${payload.server_version}, redirecting to ${errorCode}`);
                 window.location.href = `/error?code=${errorCode}`;
             }
+            if (event.payload.status === 'Unauthorized') {
+                const payload = event.payload as { status: 'Unauthorized', reason: string };
+                warn(`BVCApp: Server refused the connection identity: ${payload.reason}`);
+                window.location.href = '/error?code=AUTH01';
+            }
         }).then((unlisten) => {
             this.connectionHealthUnlisten = unlisten;
         }).catch((err) => {

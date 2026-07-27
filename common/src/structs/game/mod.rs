@@ -39,6 +39,15 @@ impl Game {
         }
     }
 
+    // Inverse of `as_str`: the wire/CN tag form back into the enum.
+    pub fn from_tag(tag: &str) -> Option<Game> {
+        match tag {
+            "minecraft" => Some(Game::Minecraft),
+            "hytale" => Some(Game::Hytale),
+            _ => None,
+        }
+    }
+
     // The channel-membership / cert-CN key for a player: `game:gamertag`
     // (e.g. "minecraft:Alice"). This is the single source of truth for the key
     // form that ChannelCollection, player_channel, and the control routes share.
@@ -58,10 +67,6 @@ impl<'r> rocket::request::FromParam<'r> for Game {
     type Error = &'r str;
 
     fn from_param(param: &'r str) -> Result<Self, Self::Error> {
-        match param {
-            "minecraft" => Ok(Game::Minecraft),
-            "hytale" => Ok(Game::Hytale),
-            _ => Err(param),
-        }
+        Game::from_tag(param).ok_or(param)
     }
 }

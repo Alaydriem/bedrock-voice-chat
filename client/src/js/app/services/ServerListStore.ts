@@ -10,7 +10,20 @@ export class ServerListStore {
     private static readonly KEY_CURRENT_PLAYER = 'current_player';
     private static readonly KEY_ACTIVE_GAME = 'active_game';
 
+    // localStorage mirror of the server-list length, readable by the
+    // pre-hydration preloader script in app.html where the Tauri store
+    // is unreachable.
+    private static readonly SERVER_COUNT_MIRROR_KEY = 'bvc_server_count';
+
     private storePromise: Promise<Store> | null = null;
+
+    // Static so login flows that write server_list through their own store
+    // handles can keep the mirror fresh without instantiating this service.
+    static mirrorServerCount(list: ServerListEntry[]): void {
+        try {
+            window.localStorage.setItem(ServerListStore.SERVER_COUNT_MIRROR_KEY, String(list.length));
+        } catch (_) {}
+    }
 
     private getStore(): Promise<Store> {
         if (!this.storePromise) {
@@ -22,7 +35,9 @@ export class ServerListStore {
     async getServerList(): Promise<ServerListEntry[]> {
         const store = await this.getStore();
         const list = await store.get(ServerListStore.KEY_SERVER_LIST) as ServerListEntry[] | null;
-        return list ?? [];
+        const result = list ?? [];
+        ServerListStore.mirrorServerCount(result);
+        return result;
     }
 
     async findEntry(server: string): Promise<ServerListEntry | undefined> {
@@ -56,6 +71,7 @@ export class ServerListStore {
             await store.delete(ServerListStore.KEY_ACTIVE_GAME);
         }
         await store.save();
+        ServerListStore.mirrorServerCount(filtered);
         return filtered;
     }
 
@@ -71,5 +87,6 @@ export class ServerListStore {
         }
         await store.set(ServerListStore.KEY_SERVER_LIST, list);
         await store.save();
+        ServerListStore.mirrorServerCount(list);
     }
 }

@@ -1,18 +1,18 @@
-// Classification of an accepted QUIC connection's authenticated identity.
+use common::Game;
+
+// Classification of an accepted QUIC connection's mTLS-authenticated identity
+// (the client certificate's Common Name).
 //
-// A normal player connects with an mTLS/application identity of the shape
-// `{game}:{playername}` (issued by `CertificateService::sign_player_cert`).
-// A peered remote server connects as a client whose identity is
-// `server::{host}:{port}` (an explicit peer marker issued by `sign_peer_cert`);
-// the `host:port` makes two endpoints on one host distinct and is the key the
-// relay `PeerManager` uses for dial/accept dedup and tiebreak.
+// A player cert CN is `{game}:{playername}` (issued by
+// `CertificateService::sign_player_cert`). A peered remote server connects with
+// `server::{host}:{port}` (issued by `sign_peer_cert`); the `host:port` makes two
+// endpoints on one host distinct and is the key the relay `PeerManager` uses for
+// dial/accept dedup and tiebreak.
 //
-// The `server::` prefix is the discriminator: a CN that carries it is a `Peer`
-// when the remainder is a well-formed `host:port`, and is `Rejected` (fail
-// closed — connection refused) when it is not. A peer CN therefore can NEVER be
-// mistaken for a player and a malformed peer CN can NEVER slip onto the player
-// path. Any identity WITHOUT the prefix is a `Player` (the safe default for the
-// normal client path).
+// Anything that is neither a well-formed peer marker nor a known-game player CN is
+// `Rejected` and the connection is refused. Because both shapes are explicit, a peer
+// CN can never be mistaken for a player and a malformed CN can never slip onto the
+// player path.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConnectionKind {
     // A peered remote server. `endpoint` is the canonical `host:port` key
@@ -23,12 +23,14 @@ pub enum ConnectionKind {
         port: u16,
         endpoint: String,
     },
-    // A normal player (any identity without the `server::` peer marker).
+    // A normal player. `game` and `name` are split from the CN so the game drives
+    // membership keying and the bare name is what inbound packets are stamped with.
     Player {
-        identity: String,
+        game: Game,
+        name: String,
     },
-    // A `server::`-prefixed identity that is not a well-formed `host:port`. The
-    // connection is refused — it is never treated as a player (fail closed).
+    // An identity that is neither a well-formed peer endpoint nor a known-game
+    // player CN. The connection is refused (fail closed).
     Rejected {
         identity: String,
     },
