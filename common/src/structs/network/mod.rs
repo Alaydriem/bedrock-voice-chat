@@ -1,6 +1,8 @@
 pub mod quic_close_code;
+pub mod quic_port_selection;
 
 pub use quic_close_code::QuicCloseCode;
+pub use quic_port_selection::QuicPortSelection;
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;

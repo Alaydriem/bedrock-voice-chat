@@ -44,6 +44,7 @@ pub async fn get_config(config: &State<Server>, voice: &State<Voice>) -> Json<Ap
         client_id: config.minecraft.client_id.clone(),
         protocol_version: PROTOCOL_VERSION.to_string(),
         quic_port: config.quic_port,
+        quic_ports: config.quic_ports(),
         spatial_audio: voice.spatial_audio.clone(),
         bedrock,
         age: ApiConfigAge::from_minimum(config.age.minimum),

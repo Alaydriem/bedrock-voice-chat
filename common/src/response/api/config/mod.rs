@@ -19,6 +19,12 @@ pub struct ApiConfigResponse {
     pub client_id: String,
     pub protocol_version: String,
     pub quic_port: u32,
+    // Every public UDP port that reaches this server's QUIC listener, in the
+    // operator's preferred order. Independent of the bound port: a fronting proxy
+    // and a direct publish can both deliver to the same socket. Empty from a
+    // server that predates this field, in which case `quic_port` stands alone.
+    #[serde(default)]
+    pub quic_ports: Vec<u32>,
     #[serde(default)]
     pub spatial_audio: SpatialAudioConfig,
     #[serde(default)]

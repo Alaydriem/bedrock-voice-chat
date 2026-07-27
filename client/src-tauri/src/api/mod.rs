@@ -265,6 +265,7 @@ impl Api {
                             client_id: legacy.client_id,
                             protocol_version: String::new(),
                             quic_port: 0,
+                            quic_ports: Vec::new(),
                             spatial_audio: Default::default(),
                             bedrock: Default::default(),
                             age: Default::default(),
