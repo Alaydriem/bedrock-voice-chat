@@ -48,6 +48,40 @@ fn bvc_server_sets_listen_and_port_but_ignores_urls() {
 }
 
 #[test]
+fn advertised_quic_ports_parses_a_list_and_preserves_order() {
+    let config = apply(
+        &[("BVC_ADVERTISED_QUIC_PORTS", "443, 8443")],
+        ApplicationConfig::default(),
+    );
+    assert_eq!(config.server.advertised_quic_ports, vec![443u32, 8443]);
+    assert_eq!(
+        config.server.quic_ports(),
+        vec![443u32, 8443],
+        "the override must reach what clients are actually told"
+    );
+}
+
+#[test]
+fn advertised_quic_ports_rejects_a_malformed_entry() {
+    let err = EnvOverrides::from_vars(vars(&[("BVC_ADVERTISED_QUIC_PORTS", "443,not-a-port")]))
+        .apply(ApplicationConfig::default())
+        .expect_err("a malformed port must be a hard startup error, not a silently dropped entry");
+    assert!(format!("{err}").contains("BVC_ADVERTISED_QUIC_PORTS"));
+}
+
+#[test]
+fn unset_advertised_quic_ports_leaves_the_bind_port_alone() {
+    let mut config = ApplicationConfig::default();
+    config.server.quic_port = 8443;
+    let config = apply(&[("BVC_ADVERTISED_QUIC_PORTS", "")], config);
+    assert_eq!(
+        config.server.quic_ports(),
+        vec![8443u32],
+        "an empty variable in a compose file must not blank out the advertisement"
+    );
+}
+
+#[test]
 fn quic_port_parses_or_errors() {
     let config = apply(&[("BVC_QUIC_PORT", "8443")], ApplicationConfig::default());
     assert_eq!(config.server.quic_port, 8443);

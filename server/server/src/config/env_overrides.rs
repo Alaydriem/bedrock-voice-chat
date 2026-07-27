@@ -77,6 +77,24 @@ impl EnvOverrides {
         }
     }
 
+    /// Comma-separated ports. A malformed entry is an error rather than a skip:
+    /// silently dropping one would advertise a shorter list than the operator
+    /// wrote, and the missing port only shows up as a client that cannot connect.
+    fn get_u32_list(&self, key: &str) -> Result<Option<Vec<u32>>, anyhow::Error> {
+        match self.get_list(key) {
+            None => Ok(None),
+            Some(raw) => raw
+                .into_iter()
+                .map(|entry| {
+                    entry
+                        .parse::<u32>()
+                        .map_err(|_| anyhow!("{key} must be integer ports, got {entry:?}"))
+                })
+                .collect::<Result<Vec<u32>, _>>()
+                .map(Some),
+        }
+    }
+
     fn get_list(&self, key: &str) -> Option<Vec<String>> {
         self.get(key).map(|raw| {
             raw.split(',')
@@ -102,6 +120,9 @@ impl EnvOverrides {
         }
         if let Some(port) = self.get_u32("BVC_QUIC_PORT")? {
             config.server.quic_port = port;
+        }
+        if let Some(ports) = self.get_u32_list("BVC_ADVERTISED_QUIC_PORTS")? {
+            config.server.advertised_quic_ports = ports;
         }
         if let Some(token) = self.get("BVC_ACCESS_TOKEN") {
             config.server.minecraft.access_token = token.to_string();
