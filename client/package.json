@@ -10,6 +10,10 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "tauri": "tauri",
+    "radial:dev": "vite dev --config vite.radial.config.ts",
+    "radial:build": "vite build --config vite.radial.config.ts",
+    "radial:preview": "vite preview --config vite.radial.config.ts",
+    "radial:test": "node --test --experimental-strip-types --import ./src/radial/tests/register.mjs \"./src/radial/tests/*.test.ts\"",
     "tauri:ios:init": "tauri ios init && cp src-tauri/Info.ios.plist src-tauri/gen/apple/bedrock-voice-chat-client_iOS/Info.plist && cp -R src-tauri/icons/Assets.xcassets src-tauri/gen/apple/ && node ../.github/scripts/patch-apple-plists.js && node ../.github/scripts/patch-entitlements.js",
     "asyncapi-docs": "cargo run --manifest-path ../common/websocket-types/Cargo.toml --bin generate-asyncapi-docs"
   },

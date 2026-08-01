@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Radial · loader and boot sequence</title>
+    <link rel="stylesheet" href="./standalone.css" />
+    <style>
+      .lo {
+        display: grid;
+        grid-template-columns: 312px minmax(0, 1fr);
+        gap: 0;
+        border: 1px solid var(--page-line);
+        border-radius: 12px;
+        overflow: hidden;
+        margin-top: 20px;
+      }
+      @media (max-width: 860px) {
+        .lo {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+      .lo-panel {
+        background: var(--page-2);
+        border-right: 1px solid var(--page-line);
+        padding: 18px 18px 30px;
+        max-height: 780px;
+        overflow-y: auto;
+      }
+      .lo-stage {
+        display: grid;
+        place-items: center;
+        min-height: 420px;
+        padding: 20px;
+        background: #0a0710;
+        overflow: hidden;
+      }
+      .lo-stage.is-alpha canvas {
+        background-image:
+          linear-gradient(45deg, rgb(255 255 255 / 0.045) 25%, transparent 25%, transparent 75%, rgb(255 255 255 / 0.045) 75%),
+          linear-gradient(45deg, rgb(255 255 255 / 0.045) 25%, transparent 25%, transparent 75%, rgb(255 255 255 / 0.045) 75%);
+        background-size: 24px 24px;
+        background-position: 0 0, 12px 12px;
+      }
+      .lo-stage canvas {
+        display: block;
+        transform-origin: center center;
+      }
+      .lo-sec {
+        margin-top: 20px;
+        padding-top: 15px;
+        border-top: 1px solid var(--page-line);
+      }
+      .lo-sec:first-child {
+        margin-top: 0;
+        padding-top: 0;
+        border-top: 0;
+      }
+      .lo-h {
+        margin: 0 0 11px;
+        font-family: var(--font-rad-mono);
+        font-size: 0.5556rem;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--color-rad-brand-lift);
+      }
+      .lo-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 10px;
+        font-family: var(--font-rad-mono);
+        font-size: 0.6111rem;
+        letter-spacing: 0.04em;
+        color: var(--page-dim);
+      }
+      .lo-row input[type="range"] {
+        flex: 1 1 auto;
+        max-width: 128px;
+        accent-color: var(--color-rad-brand-lift);
+      }
+      .lo-row .v {
+        min-width: 44px;
+        text-align: right;
+        color: var(--page-ink);
+        font-variant-numeric: tabular-nums;
+      }
+      .lo-row input[type="color"] {
+        width: 42px;
+        height: 20px;
+        padding: 0;
+        border: 1px solid var(--page-line);
+        background: none;
+        cursor: pointer;
+      }
+      .lo-row input[type="number"] {
+        width: 66px;
+        padding: 4px 6px;
+        border: 1px solid var(--page-line);
+        background: #0a0710;
+        color: var(--page-ink);
+        font: inherit;
+        font-size: 0.6111rem;
+      }
+      .lo-seg {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1px;
+        margin-bottom: 11px;
+        background: var(--page-line);
+        border: 1px solid var(--page-line);
+      }
+      .lo-seg.four {
+        grid-template-columns: 1fr 1fr;
+      }
+      .lo-seg button {
+        padding: 7px 4px;
+        border: 0;
+        background: #0a0710;
+        color: var(--page-dim);
+        font: inherit;
+        font-size: 0.5556rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        cursor: pointer;
+      }
+      .lo-seg button:hover {
+        color: var(--page-ink);
+      }
+      .lo-seg button[aria-pressed="true"] {
+        background: rgb(159 123 255 / 0.18);
+        color: var(--page-ink);
+      }
+      .lo-act {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 11px;
+      }
+      .lo-act button {
+        flex: 1;
+        padding: 8px 6px;
+        border: 1px solid var(--page-line);
+        background: #0a0710;
+        color: var(--page-ink);
+        font: inherit;
+        font-size: 0.5556rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        cursor: pointer;
+      }
+      .lo-act button:hover {
+        border-color: var(--color-rad-brand-lift);
+      }
+      .lo-act button:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+      .lo-switch {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 9px;
+        font-family: var(--font-rad-mono);
+        font-size: 0.6111rem;
+        color: var(--page-ink);
+        cursor: pointer;
+      }
+      .lo-switch input {
+        accent-color: var(--color-rad-brand-lift);
+      }
+      #scrub {
+        width: 100%;
+        max-width: none;
+        accent-color: var(--color-rad-brand-lift);
+      }
+      .lo-status {
+        min-height: 34px;
+        margin: 10px 0 0;
+        font-family: var(--font-rad-mono);
+        font-size: 0.5833rem;
+        line-height: 1.55;
+        color: var(--page-faint);
+      }
+      .lo-hint {
+        margin: 8px 0 0;
+        font-size: 0.6111rem;
+        line-height: 1.5;
+        color: var(--page-faint);
+      }
+      .lo-fit {
+        font-family: var(--font-rad-mono);
+        font-size: 0.5556rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--page-faint);
+        padding: 10px 16px;
+        border-top: 1px solid var(--page-line);
+        grid-column: 1 / -1;
+        background: var(--page-2);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="g-wrap">
+      <header class="g-head">
+        <p class="g-kick">Radial · loader</p>
+        <h1 class="g-title">The mark writes on, the ring collapses inward, and then it waits</h1>
+        <p class="g-lede">
+          Six phases: the mark writes on flat in idle grey, takes its spectrum colours, starts
+          dancing; the seventy-two ring bars fly inward onto their resting radius; the two beat
+          together; the mark settles. What the sequence is saying is that the ring and the mark are
+          one object &mdash; the relationship the rest of the product relies on, and one nobody has
+          to be told if they watch it happen once.
+        </p>
+      </header>
+
+      <nav class="g-nav" data-g-nav></nav>
+
+      <section class="g-sec" id="loader">
+        <p class="g-sec__kick">Issue #228</p>
+        <h2 class="g-sec__title">One call, and an awaited finish</h2>
+        <p class="g-sec__note">
+          <code>renderAt(t)</code> is pure in <code>t</code>: the same timestamp always produces the
+          same frame. That is what lets one implementation drive a live loop, the scrub bar below, a
+          single-frame PNG and a WebM recording without any of them being a special case &mdash; and
+          it is what makes the phase envelopes testable without a canvas.
+        </p>
+
+        <div class="lo">
+          <aside class="lo-panel">
+            <div class="lo-sec">
+              <p class="lo-h">Loading state</p>
+              <div class="lo-act">
+                <button id="lo-loader">Preview as loader</button>
+                <button id="lo-finish">Finish loading</button>
+              </div>
+              <p class="lo-hint">
+                Opens on the steady dance with the ring already landed &mdash; what
+                <code>Loader.mount()</code> hands your app. Finish collapses the mark to its flat
+                colour row and resolves.
+              </p>
+            </div>
+
+            <div class="lo-sec">
+              <p class="lo-h">End state</p>
+              <div class="lo-seg" id="lo-end">
+                <button data-end="flat" aria-pressed="true">Flat row</button>
+                <button data-end="dance" aria-pressed="false">Keep dancing</button>
+              </div>
+              <div class="lo-row">
+                <span>Idle gain</span>
+                <input type="range" data-key="idleGain" min="0.1" max="0.9" step="0.02" value="0.32" />
+                <span class="v" data-val="idleGain"></span>
+              </div>
+              <p class="lo-hint" id="lo-end-hint">
+                Mark collapses to its mid row, still in spectrum colour.
+              </p>
+            </div>
+
+            <div class="lo-sec">
+              <p class="lo-h">Background</p>
+              <div class="lo-seg" id="lo-bg">
+                <button data-bg="transparent">Transparent</button>
+                <button data-bg="#251844" aria-pressed="true">Void 2</button>
+                <button data-bg="#1c1132">Void</button>
+                <button data-bg="#0a0710">Docs dark</button>
+              </div>
+              <div class="lo-row">
+                <span>Custom</span>
+                <input type="color" id="lo-bg-color" value="#251844" />
+              </div>
+              <p class="lo-hint">
+                Transparent keeps the alpha channel in a saved PNG and in a VP9 WebM.
+              </p>
+            </div>
+
+            <div class="lo-sec">
+              <p class="lo-h">Mark</p>
+              <div class="lo-seg" id="lo-mark">
+                <button data-mark="spectrum" aria-pressed="true">Spectrum</button>
+                <button data-mark="single" aria-pressed="false">Single tint</button>
+              </div>
+              <div class="lo-row">
+                <span>Single tint</span><input type="color" id="lo-tint" value="#bb8dfa" />
+              </div>
+              <div class="lo-row">
+                <span>Idle, pre-signal</span><input type="color" data-color="idleTint" value="#7a68a0" />
+              </div>
+              <div class="lo-row">
+                <span>Ring bars, live</span><input type="color" data-color="ringColor" value="#6a4f96" />
+              </div>
+              <div class="lo-row">
+                <span>Ring bars, at rest</span
+                ><input type="color" data-color="ringIdleColor" value="#54407c" />
+              </div>
+              <div class="lo-row">
+                <span>Mortar</span><input type="color" data-color="mortarColor" value="#43306e" />
+              </div>
+              <label class="lo-switch"><input type="checkbox" data-flag="mortar" checked /> Violet mortar</label>
+              <label class="lo-switch"><input type="checkbox" data-flag="glow" /> Bloom on the blocks</label>
+            </div>
+
+            <div class="lo-sec">
+              <p class="lo-h">Motion</p>
+              <div class="lo-row">
+                <span>Speed</span>
+                <input type="range" data-key="speed" data-unit="×" min="0.25" max="2" step="0.05" value="1" />
+                <span class="v" data-val="speed"></span>
+              </div>
+              <div class="lo-row">
+                <span>Ring spin</span>
+                <input type="range" data-key="ringSpin" min="0" max="0.6" step="0.01" value="0.16" />
+                <span class="v" data-val="ringSpin"></span>
+              </div>
+              <div class="lo-row">
+                <span>Hold</span>
+                <input type="range" data-key="holdSeconds" data-unit="s" min="0" max="8" step="0.2" value="1.6" />
+                <span class="v" data-val="holdSeconds"></span>
+              </div>
+              <label class="lo-switch"
+                ><input type="checkbox" data-flag="loop" id="lo-loop" checked /> Loop after the hold</label
+              >
+            </div>
+
+            <div class="lo-sec">
+              <p class="lo-h">Geometry</p>
+              <div class="lo-row">
+                <span>Ring scale</span>
+                <input type="range" data-key="scale" data-unit="×" min="0.5" max="1.5" step="0.02" value="1" />
+                <span class="v" data-val="scale"></span>
+              </div>
+              <div class="lo-row">
+                <span>Mark size</span>
+                <input type="range" data-key="logoScale" data-unit="×" min="0.6" max="1.6" step="0.02" value="1" />
+                <span class="v" data-val="logoScale"></span>
+              </div>
+              <p class="lo-hint">
+                Mark size 1&times; is the system's own ratio against the ring; push it up to overflow
+                the hairline circle.
+              </p>
+            </div>
+
+            <div class="lo-sec">
+              <p class="lo-h">Canvas</p>
+              <div class="lo-seg four" id="lo-size">
+                <button data-w="1080" data-h="1080" aria-pressed="true">1080 square</button>
+                <button data-w="1920" data-h="1080">1920 × 1080</button>
+                <button data-w="1280" data-h="720">1280 × 720</button>
+                <button data-w="1080" data-h="1920">1080 × 1920</button>
+              </div>
+              <div class="lo-row"><span>Width</span><input type="number" id="lo-w" value="1080" min="120" max="3840" step="2" /></div>
+              <div class="lo-row"><span>Height</span><input type="number" id="lo-h" value="1080" min="120" max="3840" step="2" /></div>
+            </div>
+
+            <div class="lo-sec">
+              <p class="lo-h">Transport</p>
+              <div class="lo-act">
+                <button id="lo-playpause">Pause</button>
+                <button id="lo-replay">Replay</button>
+              </div>
+              <input type="range" id="scrub" min="0" max="8.1" step="0.01" value="0" aria-label="Scrub the sequence" />
+              <div class="lo-row"><span>Frame</span><span class="v" id="lo-time">0.00s</span></div>
+              <div class="lo-act">
+                <button id="lo-png">Save frame</button>
+                <button id="lo-webm">Record WebM</button>
+              </div>
+              <p class="lo-status" id="lo-status">
+                Space plays, R replays, arrows step one frame.
+              </p>
+            </div>
+          </aside>
+
+          <div class="lo-stage" id="lo-stage"><canvas id="lo-canvas"></canvas></div>
+          <div class="lo-fit" id="lo-fit"></div>
+        </div>
+      </section>
+
+      <section class="g-sec">
+        <p class="g-sec__kick">Using it</p>
+        <h2 class="g-sec__title">In the app</h2>
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">Loader.mount</span>
+            <span class="g-item__note">
+              The collapse is the completion signal, so a route change happens on a finished
+              animation rather than on a timeout that may or may not have been long enough.
+            </span>
+          </div>
+          <pre class="g-code"><b>import</b> { Loader } <b>from</b> "$radial/core/intro/Loader";
+
+<b>const</b> loader = Loader.mount(canvas);
+<b>await</b> fetchServers();
+<b>await</b> loader.finish();   <i>// collapses to the flat colour row, ring still turning</i>
+
+<i>// or declaratively</i>
+<b>&lt;Loader</b> loading={busy} onfinished={() =&gt; goto("/dashboard")} <b>/&gt;</b></pre>
+        </div>
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">What it replaces</span>
+            <span class="g-item__note">
+              The current preloader: <code>.bvc-ring</code> (a borrowed CSS spinner),
+              <code>.bvc-badge</code>, <code>.bvc-shimmer</code>, and the ten-second escape hatch
+              bolted on when the spinner could not say whether anything was happening.
+            </span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./loader.ts"></script>
+  </body>
+</html>

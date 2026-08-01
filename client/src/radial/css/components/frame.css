@@ -1,0 +1,423 @@
+/* The app window, and the layout that lives inside it.
+ *
+ * `.rad-frame` is the container-query root. Every responsive decision in the kit
+ * is made against `@container rad`, never against the viewport — a component is
+ * narrow because its container is narrow, which is the only definition that
+ * survives being put in a sidebar, a sheet, or a 412px window.
+ */
+
+.rad-frame {
+  container-type: inline-size;
+  container-name: rad;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--color-rad-void);
+  color: var(--color-rad-tx);
+  border: 1px solid #4a3374;
+  border-radius: var(--radius-rad-lg);
+  box-shadow: var(--shadow-rad-frame);
+  font-family: var(--font-rad-sans);
+}
+
+/* Reference sizes: the client's actual desktop window, and a phone. */
+.rad-frame--desktop {
+  width: 1280px;
+  height: 800px;
+  max-width: 100%;
+}
+
+.rad-frame--phone {
+  width: 412px;
+  height: 892px;
+  max-width: 100%;
+}
+
+/* A frame that fills whatever it is given. What the real app uses. */
+.rad-frame--fluid {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* Sinks the corners so the frame reads as lit from the middle. */
+.rad-frame::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  pointer-events: none;
+  background: radial-gradient(150% 115% at 50% 34%, transparent 62%, rgb(12 5 22 / 0.3) 100%);
+}
+
+.rad-frame--fluid::after {
+  display: none;
+}
+
+/* Film grain. Stops large flat violet areas from banding on cheap panels. */
+.rad-grain {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  pointer-events: none;
+  opacity: 0.2;
+  mix-blend-mode: overlay;
+  background-image: radial-gradient(circle at 50% 50%, rgb(255 255 255 / 0.7) 0.5px, transparent 0.6px);
+  background-size: 3px 3px;
+}
+
+.rad-frame :is(button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-rad-brand-lift);
+  outline-offset: 3px;
+}
+
+/* ---- screens ---- */
+
+.rad-screen {
+  position: absolute;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  overflow-x: hidden;
+}
+
+.rad-screen.is-on {
+  display: flex;
+}
+
+/* ---- top and bottom bars ---- */
+
+.rad-topbar {
+  flex: 0 0 auto;
+  height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 30px;
+  position: relative;
+  z-index: 5;
+  background: var(--color-rad-void);
+  border-bottom: 1px solid var(--color-rad-line);
+}
+
+.rad-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.rad-brand canvas {
+  display: block;
+}
+
+.rad-wordmark {
+  font-size: var(--text-rad-xs);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-rad-dim);
+}
+
+.rad-footbar {
+  flex: 0 0 auto;
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 30px;
+  position: relative;
+  z-index: 5;
+  background: var(--color-rad-void);
+  border-top: 1px solid var(--color-rad-line);
+}
+
+.rad-footbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ---- the two-pane split ---- */
+
+.rad-split {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: 44% 56%;
+  min-height: 0;
+}
+
+.rad-visual-pane {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--color-rad-void-2);
+  border-right: 1px solid var(--color-rad-line);
+}
+
+.rad-content-pane {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  padding: 38px 44px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.rad-content-pane--top {
+  justify-content: flex-start;
+  padding-top: 26px;
+}
+
+/* ---- the dashboard and settings shell ---- */
+
+.rad-shell {
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
+}
+
+.rad-stage {
+  flex: 1 1 auto;
+  min-width: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- rail ---- */
+
+.rad-rail {
+  flex: 0 0 76px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 0 96px;
+  background: rgb(20 12 38 / 0.55);
+  border-right: 1px solid var(--color-rad-line);
+}
+
+.rad-rail__list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  overflow-y: auto;
+}
+
+.rad-rail__spacer {
+  flex: 1 1 auto;
+}
+
+.rad-rail-item {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  background: var(--color-rad-void-2);
+  border: 1px solid var(--color-rad-line);
+  border-radius: var(--radius-rad-rail);
+  transition: 0.18s;
+}
+
+.rad-rail-item:hover {
+  border-color: var(--color-rad-line-2);
+  transform: translateY(-1px);
+}
+
+.rad-rail-item.is-on {
+  border-color: var(--color-rad-brand-lift);
+  box-shadow: 0 0 0 1px var(--color-rad-brand-lift);
+}
+
+/* The active server is marked outside its own tile, against the rail edge, so
+   selection is legible without recolouring the glyph. */
+.rad-rail-item.is-on::before {
+  content: "";
+  position: absolute;
+  left: -14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 22px;
+  border-radius: 0 3px 3px 0;
+  background: var(--color-rad-brand-lift);
+}
+
+.rad-rail-item canvas {
+  display: block;
+  border-radius: var(--radius-rad-md);
+}
+
+.rad-rail-btn {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-rad-rail);
+  background: transparent;
+  color: var(--color-rad-faint);
+  cursor: pointer;
+  transition: 0.18s;
+}
+
+.rad-rail-btn:hover {
+  color: var(--color-rad-tx);
+  background: var(--color-rad-panel);
+}
+
+.rad-rail-btn.is-on {
+  color: var(--color-rad-brand-lift);
+  background: var(--color-rad-panel);
+}
+
+.rad-rail-btn svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+/* ---- the second column ---- */
+
+.rad-panel {
+  flex: 0 0 246px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: rgb(20 12 38 / 0.32);
+  border-right: 1px solid var(--color-rad-line);
+}
+
+.rad-panel__head {
+  padding: 18px 18px 10px;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-xs);
+  letter-spacing: var(--tracking-rad-label);
+  text-transform: uppercase;
+  color: var(--color-rad-faint);
+}
+
+.rad-panel__body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 0 12px 96px;
+  overflow-y: auto;
+}
+
+/* ---- entry animation ----
+ * Stagger with style="--d:120" for 120ms. `backwards` holds the from-state during
+ * the delay, so a late element is invisible rather than flashing then dropping in.
+ */
+
+.rad-rise {
+  animation: rad-rise 0.58s var(--ease-rad-rise) backwards;
+  animation-delay: calc(var(--d, 0) * 1ms);
+}
+
+@keyframes rad-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---- self-state, stated once for the whole frame ----
+ * A muted mic is not a property of a button, it is a property of the session, so it
+ * is drawn on the frame. One glance anywhere on the screen answers "can they hear me".
+ */
+
+.rad-frame.is-muted .rad-stage::before,
+.rad-frame.is-deafened .rad-stage::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 3px;
+  z-index: 8;
+  opacity: 0.85;
+  background: var(--color-rad-fault);
+}
+
+.rad-frame.is-deafened .rad-stage::before {
+  background: var(--color-rad-warn);
+}
+
+/* ================= phone ================= */
+
+@container rad (max-width: 560px) {
+  /* Flow, not absolute positioning: every visual sizes to its own content and the
+     whole screen scrolls past it. */
+  .rad-screen.is-on {
+    display: block;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .rad-topbar {
+    position: sticky;
+    top: 0;
+    height: 60px;
+    padding: 0 18px;
+  }
+
+  .rad-wordmark {
+    display: none;
+  }
+
+  .rad-footbar {
+    position: sticky;
+    bottom: 0;
+    min-height: 72px;
+    padding: 12px 18px;
+    box-shadow: 0 -10px 24px -14px rgb(0 0 0 / 0.75);
+  }
+
+  .rad-footbar .rad-label {
+    display: none;
+  }
+
+  .rad-footbar__actions {
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .rad-split {
+    display: block;
+  }
+
+  .rad-visual-pane {
+    display: block;
+    height: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--color-rad-line);
+  }
+
+  .rad-content-pane {
+    padding: 26px 20px 30px;
+    justify-content: flex-start;
+    overflow: visible;
+  }
+
+  .rad-rail,
+  .rad-panel {
+    display: none;
+  }
+}

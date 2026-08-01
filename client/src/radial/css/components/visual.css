@@ -1,0 +1,174 @@
+/* Hosts for the canvas bindings.
+ *
+ * The bindings read `--rad-mark-cell`, `--rad-mark-gap`, `--rad-meter-cell` and
+ * `--rad-meter-gap` off their own computed style, on mount and on resize. That is
+ * how a container query decides how big the mark is: the TypeScript never learns
+ * what a phone is, it just re-reads the property when its box changes.
+ */
+
+/* ---- the mark ---- */
+
+/* No default `--rad-mark-cell` here on purpose. The binding reads the property when
+   it is set and falls back to its `cell` option when it is not, so a blanket default
+   would silently override every caller and render the whole product at one size.
+   CSS sets the property only where it means to take the decision away. */
+canvas[data-rad-mark] {
+  display: block;
+}
+
+.rad-brand canvas[data-rad-mark] {
+  --rad-mark-cell: 6;
+}
+
+.rad-mark--sm {
+  --rad-mark-cell: 4;
+}
+
+.rad-mark--lg {
+  --rad-mark-cell: 9;
+}
+
+@container rad (max-width: 560px) {
+  .rad-brand canvas[data-rad-mark] {
+    --rad-mark-cell: 4;
+  }
+}
+
+/* ---- level meters ---- */
+
+canvas[data-rad-level] {
+  display: block;
+}
+
+.rad-meter--xs {
+  --rad-meter-cell: 2;
+}
+
+.rad-meter--sm {
+  --rad-meter-cell: 3;
+}
+
+.rad-meter--md {
+  --rad-meter-cell: 4;
+}
+
+/* ---- the ring ---- */
+
+/* The ring fills its host absolutely, so a pane can put copy over or beside it
+   without the canvas participating in flow. */
+.rad-ring {
+  position: relative;
+  min-height: 0;
+}
+
+.rad-ring > canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* A ring at a stated size, for a header or an empty state rather than a pane. */
+.rad-ring--fixed {
+  width: 330px;
+  height: 330px;
+}
+
+.rad-ring--fixed > canvas {
+  position: static;
+  inset: auto;
+}
+
+/* ---- a visual pane's contents ---- */
+
+.rad-visual {
+  position: absolute;
+  inset: 0;
+}
+
+.rad-visual[hidden] {
+  display: none;
+}
+
+.rad-visual > canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Reads the visual: what it is, and what it currently says. */
+.rad-caption {
+  position: absolute;
+  left: 26px;
+  bottom: 22px;
+  z-index: 2;
+}
+
+.rad-caption__value {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono);
+  letter-spacing: var(--tracking-rad-caption);
+  color: var(--color-rad-dim);
+}
+
+/* ---- the timeline ---- */
+
+.rad-timeline-lanes {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.rad-timeline-lanes > canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+@container rad (max-width: 560px) {
+  .rad-visual {
+    position: relative;
+    inset: auto;
+  }
+
+  .rad-visual > canvas {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    height: 288px;
+  }
+
+  /* The caption stops floating over the art and becomes a bar under it, where it
+     cannot cover the thing it is describing on a narrow screen. */
+  .rad-caption {
+    position: relative;
+    left: auto;
+    bottom: auto;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 13px 20px;
+    background: rgb(28 17 50 / 0.55);
+    border-top: 1px solid var(--color-rad-line);
+  }
+
+  .rad-caption__value {
+    margin-top: 0;
+    text-align: right;
+  }
+
+  .rad-ring--fixed {
+    width: 248px;
+    height: 248px;
+  }
+
+  .rad-timeline-lanes {
+    height: 210px;
+  }
+}

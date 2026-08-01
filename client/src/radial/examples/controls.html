@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Radial · controls</title>
+    <link rel="stylesheet" href="./standalone.css" />
+  </head>
+  <body>
+    <div class="g-wrap">
+      <header class="g-head">
+        <p class="g-kick">Radial · controls</p>
+        <h1 class="g-title">Squares, because the mark is blocks</h1>
+        <p class="g-lede">
+          The knobs, boxes and dots are all squares with small radii. A pill-shaped toggle in this
+          system reads as borrowed from somewhere else. Two exceptions are deliberate: a radio is
+          round because roundness is what says <em>exactly one</em>, and a range thumb is round
+          because it is a grabbable point.
+        </p>
+      </header>
+
+      <nav class="g-nav" data-g-nav></nav>
+
+      <section class="g-sec" id="buttons">
+        <p class="g-sec__kick">Buttons</p>
+        <h2 class="g-sec__title">One component, two scales</h2>
+        <p class="g-sec__note">
+          The prototype grew two complete button systems &mdash; a tracked, uppercase one at
+          onboarding scale and a compact one in settings &mdash; with the same variant names meaning
+          different things in each. A primary action is a primary action wherever it appears, so
+          they are one component with a size.
+        </p>
+
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">.rad-btn</span>
+            <span class="g-item__note">md &middot; settings scale, sentence case.</span>
+          </div>
+          <div class="g-stage">
+            <div class="g-row">
+              <button class="rad-btn rad-btn--primary">Save changes</button>
+              <button class="rad-btn">Cancel</button>
+              <button class="rad-btn rad-btn--quiet">Not now</button>
+              <button class="rad-btn rad-btn--danger">
+                <span data-rad-icon="trash"></span> Delete everything
+              </button>
+              <button class="rad-btn" data-rad-copy="the example value">
+                <span data-rad-icon="copy"></span> Copy
+              </button>
+              <button class="rad-btn" disabled>Disabled</button>
+            </div>
+          </div>
+          <pre class="g-code"><b>&lt;button</b> class="rad-btn rad-btn--primary"<b>&gt;</b>Save changes<b>&lt;/button&gt;</b>
+<b>&lt;button</b> class="rad-btn rad-btn--danger"<b>&gt;&lt;span</b> data-rad-icon="trash"<b>&gt;&lt;/span&gt;</b> Delete<b>&lt;/button&gt;</b>
+
+<b>&lt;Button</b> variant="primary" onclick={save}<b>&gt;</b>Save changes<b>&lt;/Button&gt;</b></pre>
+        </div>
+
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">.rad-btn--lg</span>
+            <span class="g-item__note">
+              lg &middot; the two or three buttons on a screen that has almost nothing else on it.
+            </span>
+          </div>
+          <div class="g-stage">
+            <div class="g-row">
+              <button class="rad-btn rad-btn--lg rad-btn--primary">Next</button>
+              <button class="rad-btn rad-btn--lg">I have an address</button>
+              <button class="rad-btn rad-btn--lg rad-btn--quiet">Skip</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">icon-only &amp; split</span>
+            <span class="g-item__note">
+              Every icon-only control carries an aria-label: the glyph is decorative, the button is
+              the thing being named.
+            </span>
+          </div>
+          <div class="g-stage">
+            <div class="g-row">
+              <button class="rad-icon-btn" aria-label="Copy address"><span data-rad-icon="copy"></span></button>
+              <button class="rad-icon-btn" aria-label="Settings"><span data-rad-icon="gear"></span></button>
+              <button class="rad-kebab" aria-label="Actions" data-rad-menu-demo><span data-rad-icon="kebab"></span></button>
+              <button class="rad-header-btn" aria-label="Show the field"><span data-rad-icon="field"></span></button>
+              <button class="rad-header-btn has-badge" aria-label="Groups"><span data-rad-icon="people"></span></button>
+              <span class="rad-split-btn">
+                <button class="rad-btn rad-btn--primary">Export</button>
+                <button class="rad-btn rad-btn--primary" aria-label="Export options" data-rad-split-demo>
+                  <span data-rad-icon="chev"></span>
+                </button>
+              </span>
+              <span class="rad-tip" data-rad-tip="Opus, 48 kHz, 20 ms frames">
+                <button class="rad-btn">Hover me</button>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">.rad-ms-signin</span>
+            <span class="g-item__note">
+              The four squares are Microsoft's mark and are exempt from the palette. Recolouring them
+              would break the recognition that is the entire reason the button works.
+            </span>
+          </div>
+          <div class="g-stage">
+            <div style="max-width: 370px">
+              <button class="rad-ms-signin">
+                <span class="rad-ms-mark"><i></i><i></i><i></i><i></i></span>Sign in with Microsoft
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">links out</span>
+            <span class="g-item__note">A pill for a short list, a card when each needs a row.</span>
+          </div>
+          <div class="g-stage">
+            <div class="g-row">
+              <button class="rad-pill-link">Wiki <span class="rad-pill-link__ext">&#8599;</span></button>
+              <button class="rad-pill-link">Discord <span class="rad-pill-link__ext">&#8599;</span></button>
+              <button class="rad-pill-link">bedrockvoicechat.com <span class="rad-pill-link__ext">&#8599;</span></button>
+            </div>
+            <div class="rad-link-grid">
+              <button class="rad-link-card">API documentation <span data-rad-icon="ext"></span></button>
+              <button class="rad-link-card">Stream Deck plugin <span data-rad-icon="ext"></span></button>
+              <button class="rad-link-card">Source code <span data-rad-icon="ext"></span></button>
+              <button class="rad-link-card" data-rad-copy="a diagnostics bundle">
+                Copy diagnostics <span data-rad-icon="copy"></span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="g-sec" id="inputs">
+        <p class="g-sec__kick">Inputs</p>
+        <h2 class="g-sec__title">State lives on the ARIA attribute</h2>
+        <p class="g-sec__note">
+          <code>aria-checked</code> and <code>aria-pressed</code> are the source of truth rather than
+          a mirror of it, so a control cannot look one way and report another. Everything below is
+          wired by one delegated listener on the page rather than one per control &mdash; these
+          appear in lists that get rebuilt, and per-element listeners would leak.
+        </p>
+
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">toggle · segmented · select</span>
+            <span class="g-item__note">Disabled controls grey out rather than disappear, so the setting stays findable.</span>
+          </div>
+          <div class="g-stage">
+            <div class="g-row" style="gap: 24px">
+              <button class="rad-toggle" role="switch" aria-checked="true" data-rad-toggle="a" aria-label="Noise gate"></button>
+              <button class="rad-toggle" role="switch" aria-checked="false" data-rad-toggle="b" aria-label="Spatial audio"></button>
+              <button class="rad-toggle" role="switch" aria-checked="false" disabled aria-label="Unavailable"></button>
+
+              <span class="rad-segmented" role="group" aria-label="Voice mode" data-rad-segment-group="voice">
+                <button data-rad-segment="va" aria-pressed="true">Voice activated</button>
+                <button data-rad-segment="ptt" aria-pressed="false">Push-to-talk</button>
+              </span>
+
+              <button class="rad-select" data-rad-select="Focusrite Scarlett 2i2|Realtek High Definition Audio|Blue Yeti">
+                <span class="rad-select__value">Focusrite Scarlett 2i2</span>
+                <span data-rad-icon="chev"></span>
+              </button>
+            </div>
+          </div>
+          <pre class="g-code"><b>&lt;button</b> class="rad-toggle" role="switch" aria-checked="true"
+        data-rad-toggle="noise-gate" aria-label="Noise gate"<b>&gt;&lt;/button&gt;</b>
+
+<b>new</b> FormControls(frame, { onToggle: (name, on) =&gt; save(name, on) });</pre>
+        </div>
+
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">text · prefixed field · search</span>
+          </div>
+          <div class="g-stage">
+            <div class="g-col" style="gap: 16px; align-items: stretch; max-width: 420px">
+              <span class="rad-input" style="width: 160px">
+                <input type="text" value="-42" aria-label="Gate threshold" />
+                <span class="rad-input__suffix">dBFS</span>
+              </span>
+              <span class="rad-search">
+                <span data-rad-icon="search"></span>
+                <input type="text" placeholder="Search sounds" aria-label="Search sounds" />
+              </span>
+              <div class="rad-field">
+                <span class="rad-field__prefix">ADDR</span>
+                <input
+                  type="text"
+                  value="bvc.example.com"
+                  spellcheck="false"
+                  autocapitalize="none"
+                  autocorrect="off"
+                  data-resolve-input
+                  aria-label="Server address"
+                />
+              </div>
+              <div class="rad-resolve rad-resolve--ok" data-resolve>&#9679; Resolved &middot; 41 ms</div>
+              <span class="g-tag">Type in the field to watch it resolve. All three states:</span>
+              <div class="g-col" style="gap: 6px; align-items: stretch">
+                <div class="rad-resolve" style="margin-top: 0">&#9675; Resolving</div>
+                <div class="rad-resolve rad-resolve--ok" style="margin-top: 0">&#9679; Resolved &middot; 41 ms</div>
+                <div class="rad-resolve rad-resolve--bad" style="margin-top: 0">&#10005; Nothing at that address</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">checkbox · radio · stepper · keycap</span>
+            <span class="g-item__note">
+              A segmented control works for two or three short words. When each option needs a
+              sentence it becomes a radio group.
+            </span>
+          </div>
+          <div class="g-stage">
+            <div class="g-col" style="gap: 4px; max-width: 460px; width: 100%">
+              <button class="rad-checkbox" role="checkbox" aria-checked="true" data-rad-checkbox="alaydriem">
+                <span class="rad-checkbox__box" data-rad-icon="check"></span>
+                <span class="rad-checkbox__label">Alaydriem</span>
+                <span class="rad-checkbox__note">you</span>
+              </button>
+              <button class="rad-checkbox" role="checkbox" aria-checked="true" data-rad-checkbox="petra">
+                <span class="rad-checkbox__box" data-rad-icon="check"></span>
+                <span class="rad-checkbox__label">Petra</span>
+                <span class="rad-checkbox__note">nearby</span>
+              </button>
+            </div>
+
+            <div class="rad-card" style="max-width: 460px; margin-top: 20px">
+              <button class="rad-radio" role="radio" aria-checked="true" data-rad-radio="backend" data-rad-value="wasapi">
+                <span class="rad-radio__dot"></span>
+                <span class="rad-radio__label">
+                  <span class="rad-radio__title">WASAPI</span>
+                  <span class="rad-radio__note">Windows default. Works everywhere, a few milliseconds of extra latency.</span>
+                </span>
+              </button>
+              <button class="rad-radio" role="radio" aria-checked="false" data-rad-radio="backend" data-rad-value="asio">
+                <span class="rad-radio__dot"></span>
+                <span class="rad-radio__label">
+                  <span class="rad-radio__title">ASIO</span>
+                  <span class="rad-radio__note">Lowest latency, needs a driver from your interface manufacturer.</span>
+                </span>
+              </button>
+              <button class="rad-radio" role="radio" aria-checked="false" data-rad-radio="backend" data-rad-value="auto">
+                <span class="rad-radio__dot"></span>
+                <span class="rad-radio__label">
+                  <span class="rad-radio__title">Auto</span>
+                  <span class="rad-radio__note">Prefer ASIO when a driver is present, otherwise WASAPI.</span>
+                </span>
+              </button>
+            </div>
+
+            <div class="g-row" style="margin-top: 20px; gap: 20px">
+              <span class="rad-stepper" data-rad-stepper="jitter" data-rad-min="10" data-rad-max="200" data-rad-step="5">
+                <button data-rad-step="-1" aria-label="Decrease">&minus;</button>
+                <span class="rad-stepper__value" data-rad-step-value>40</span>
+                <button data-rad-step="1" aria-label="Increase">+</button>
+                <span class="rad-stepper__unit">ms</span>
+              </span>
+              <button class="rad-keycap" data-rad-keybind="ptt">Mouse 4</button>
+              <button class="rad-keycap" data-rad-keybind="mute">Ctrl + Shift + M</button>
+              <button class="rad-keycap" data-rad-keybind="rec">Not set</button>
+            </div>
+            <p class="g-tag" style="margin-top: 12px">
+              Click a binding, then press the combination. Escape cancels, Delete clears it.
+            </p>
+          </div>
+        </div>
+
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">.rad-range</span>
+            <span class="g-item__note">
+              The thumb is currentColor, so a player card setting its own hue colours their volume
+              slider without the slider knowing whose it is.
+            </span>
+          </div>
+          <div class="g-stage">
+            <div class="g-col" style="width: 100%; max-width: 420px; gap: 18px">
+              <input class="rad-range" type="range" min="0" max="1.5" step="0.05" value="1" style="color: #21d8d8" aria-label="Volume" />
+              <input class="rad-range" type="range" min="0" max="1.5" step="0.05" value="0.6" style="color: #aee236" aria-label="Volume" />
+              <input class="rad-range" type="range" min="0" max="1.5" step="0.05" value="1.3" style="color: #f67414" aria-label="Volume" />
+              <input class="rad-range" type="range" min="-70" max="-10" value="-42" disabled aria-label="Disabled" />
+            </div>
+          </div>
+        </div>
+
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">step dots &amp; pagination</span>
+            <span class="g-item__note">
+              The active dot widens rather than only changing colour, so progress is legible without
+              relying on hue.
+            </span>
+          </div>
+          <div class="g-stage">
+            <span class="rad-step-dots">
+              <button class="is-on" aria-label="Step 1"></button>
+              <button aria-label="Step 2"></button>
+              <button aria-label="Step 3"></button>
+              <button aria-label="Step 4"></button>
+              <span class="rad-step-dots__count">01 / 04</span>
+            </span>
+            <div class="rad-pager" style="margin-top: 20px; max-width: 420px">
+              <span>12 sounds</span>
+              <span class="rad-pager__pages">
+                <button disabled>&lsaquo;</button>
+                <button class="is-on">1</button>
+                <button>2</button>
+                <button>&rsaquo;</button>
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="rad-menu" data-rad-menu></div>
+    </div>
+
+    <script type="module" src="./controls.ts"></script>
+  </body>
+</html>

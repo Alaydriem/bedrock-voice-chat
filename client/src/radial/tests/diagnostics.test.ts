@@ -1,0 +1,155 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import { Diagnostics, type DiagnosticsInput } from "../core/controllers/Diagnostics";
+import { ScopeBuffer } from "../core/ring/ScopeBuffer";
+
+const healthy: DiagnosticsInput = {
+  rtt: 41,
+  lossPercent: 0.2,
+  jitterMs: 42,
+  jitterDrops: 0,
+  datagramsIn: 48,
+  datagramsOut: 50,
+  inputDevice: "Focusrite Scarlett 2i2",
+  inputRate: 48000,
+  outputDevice: "Sennheiser HD 560S",
+  outputRate: 48000,
+  quicPort: 443,
+  protocol: "1.3.0",
+  rangeMetres: 80,
+  falloff: "inverse-square",
+  server: "bvc.alaydriem.com",
+  uptimeSeconds: 2531,
+  reconnecting: false,
+  muted: false,
+  deafened: false,
+  pttIdle: false,
+  mutedOthers: 0,
+  visiblePlayers: 4,
+};
+
+/**
+ * The verdict is first-failing-check-wins, and the order is the point: things that stop
+ * the product working, then things the user did to themselves, then things that merely
+ * degrade quality. Someone who opened this panel has a problem, and a summary makes them
+ * do the diagnosis themselves.
+ */
+describe("Diagnostics.verdict", () => {
+  it("says everything is fine when it is", () => {
+    const [severity, text] = Diagnostics.verdict(healthy);
+    assert.equal(severity, "ok");
+    assert.match(text, /fine/);
+  });
+
+  it("leads with reconnecting over everything else", () => {
+    const [severity, text] = Diagnostics.verdict({
+      ...healthy,
+      reconnecting: true,
+      muted: true,
+      deafened: true,
+      lossPercent: 9,
+      inputRate: 44100,
+    });
+    assert.equal(severity, "bad");
+    assert.match(text, /Reconnecting/);
+  });
+
+  it("reports deafened before muted, because deafen implies mute", () => {
+    // Both flags are set whenever you deafen, so reporting "you are muted" would name
+    // the symptom rather than the thing the user chose.
+    const [severity, text] = Diagnostics.verdict({ ...healthy, deafened: true, muted: true });
+    assert.equal(severity, "warn");
+    assert.match(text, /deafened/);
+  });
+
+  it("calls a muted mic a fault, not a warning", () => {
+    const [severity, text] = Diagnostics.verdict({ ...healthy, muted: true });
+    assert.equal(severity, "bad");
+    assert.match(text, /Nobody can hear you/);
+  });
+
+  it("explains an idle push-to-talk before blaming the hardware", () => {
+    const [, text] = Diagnostics.verdict({ ...healthy, pttIdle: true, inputRate: 44100 });
+    assert.match(text, /Push-to-talk/);
+  });
+
+  it("names the actual sample rate", () => {
+    const [severity, text] = Diagnostics.verdict({ ...healthy, inputRate: 44100 });
+    assert.equal(severity, "warn");
+    assert.match(text, /44\.1 kHz/);
+  });
+
+  it("only complains about loss once it is audible", () => {
+    assert.equal(Diagnostics.verdict({ ...healthy, lossPercent: 2.9 })[0], "ok");
+    assert.equal(Diagnostics.verdict({ ...healthy, lossPercent: 3.1 })[0], "warn");
+  });
+
+  it("reminds you when you are the one who muted someone", () => {
+    const [severity, text] = Diagnostics.verdict({ ...healthy, mutedOthers: 1 });
+    assert.equal(severity, "warn");
+    assert.match(text, /1 player is muted by you/);
+    assert.match(Diagnostics.verdict({ ...healthy, mutedOthers: 2 })[1], /2 players are/);
+  });
+});
+
+describe("Diagnostics.groups", () => {
+  it("flags a sample rate mismatch inside the row as well as the verdict", () => {
+    const groups = Diagnostics.groups({ ...healthy, inputRate: 44100 });
+    const rate = groups[0].rows.find(([key]) => key === "Sample rate");
+    assert.ok(rate?.[1].includes("expected 48.0"));
+  });
+
+  it("says so plainly when nothing is going out", () => {
+    const groups = Diagnostics.groups({ ...healthy, datagramsOut: 0 });
+    const sending = groups[0].rows.find(([key]) => key === "Sending");
+    assert.ok(sending?.[1].includes("nothing is going out"));
+  });
+
+  it("marks a non-standard QUIC port as a fallback", () => {
+    const groups = Diagnostics.groups({ ...healthy, quicPort: 8443 });
+    const port = groups[2].rows.find(([key]) => key === "QUIC port");
+    assert.ok(port?.[1].includes("fallback"));
+    const standard = Diagnostics.groups(healthy)[2].rows.find(([key]) => key === "QUIC port");
+    assert.ok(!standard?.[1].includes("fallback"));
+  });
+
+  it("drops the hours segment from a short uptime", () => {
+    assert.equal(Diagnostics.duration(65), "01:05");
+    assert.equal(Diagnostics.duration(3725), "1:02:05");
+  });
+});
+
+describe("ScopeBuffer", () => {
+  it("ages from the write head, so one bar changes per tick", () => {
+    // Ageing from index zero would make the whole ring flicker every second instead of
+    // the trace decaying around it.
+    const buffer = new ScopeBuffer(4, 0);
+    buffer.push(10);
+    assert.equal(buffer.age(0), 0);
+    assert.equal(buffer.age(3), 1);
+    buffer.push(20);
+    assert.equal(buffer.age(1), 0);
+    assert.equal(buffer.age(0), 1);
+  });
+
+  it("wraps rather than growing", () => {
+    const buffer = new ScopeBuffer(3, 0);
+    for (const v of [1, 2, 3, 4]) buffer.push(v);
+    assert.deepEqual([buffer.at(0), buffer.at(1), buffer.at(2)], [4, 2, 3]);
+  });
+
+  it("gives the newest sample the most life", () => {
+    const buffer = new ScopeBuffer(8, 0);
+    buffer.push(50);
+    assert.equal(buffer.life(0), 1);
+    assert.ok(buffer.life(1) < buffer.life(0));
+  });
+
+  it("resets to a plausible trace rather than to zero", () => {
+    const buffer = new ScopeBuffer(4, 0);
+    buffer.push(90);
+    buffer.reset(36);
+    assert.equal(buffer.head, 0);
+    assert.deepEqual([0, 1, 2, 3].map((i) => buffer.at(i)), [36, 36, 36, 36]);
+  });
+});

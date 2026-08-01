@@ -1,0 +1,960 @@
+/* The dashboard.
+ *
+ * Top is where you are. Bottom is your voice. The ring speaks only when nobody else
+ * can — the moment anyone is in earshot their mark leaves the ring, becomes their
+ * card, and the ring gets out of the way. Names and controls live in the list.
+ *
+ * One axis per surface: the mark owns your mic and flatlines when you are muted, the
+ * roster owns incoming and dims when you are deafened, a dot owns the connection.
+ */
+
+/* ---- header ---- */
+
+.rad-dash-top {
+  flex: 0 0 auto;
+  height: 66px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 26px;
+  border-bottom: 1px solid var(--color-rad-line);
+}
+
+.rad-dash-top__who {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-width: 0;
+}
+
+.rad-dash-top__server {
+  display: block;
+  font-size: var(--text-rad-md);
+  font-weight: 520;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rad-dash-top__sub {
+  margin-top: 2px;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-xs);
+  letter-spacing: var(--tracking-rad-caption);
+  color: var(--color-rad-faint);
+}
+
+.rad-dash-top__state {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  letter-spacing: var(--tracking-rad-caption);
+  color: var(--color-rad-dim);
+}
+
+/* The connection, and nothing else. Its own indicator so a muted mic can never be
+   mistaken for a dropped link. */
+.rad-health-dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: var(--radius-rad-pill);
+  background: var(--color-rad-ok);
+}
+
+.rad-health-dot--warn {
+  background: var(--color-rad-warn);
+}
+
+.rad-health-dot--bad {
+  background: var(--color-rad-fault);
+}
+
+/* Shown on desktop, hidden in a phone container. */
+.rad-desk-only {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.rad-phone-only {
+  display: none;
+}
+
+/* ---- main area ---- */
+
+.rad-main {
+  flex: 1 1 auto;
+  position: relative;
+  min-height: 0;
+}
+
+/* ---- the empty state ----
+ * Not an edge case. In a proximity app you are alone constantly, so this is somewhere
+ * users live, and a live ring says the system is on and listening without asking
+ * anyone to interpret it.
+ */
+
+.rad-idle {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition:
+    opacity 0.42s var(--ease-rad-out),
+    transform 0.42s var(--ease-rad-out);
+}
+
+.rad-idle.is-gone {
+  opacity: 0;
+  transform: scale(0.9);
+  pointer-events: none;
+}
+
+.rad-idle__caption {
+  margin-top: 4px;
+  text-align: center;
+}
+
+.rad-idle__kicker {
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--color-rad-brand-lift);
+}
+
+.rad-idle__headline {
+  display: block;
+  margin-top: 9px;
+  font-size: var(--text-rad-subhead);
+  font-weight: 300;
+  letter-spacing: -0.018em;
+  color: var(--color-rad-tx);
+}
+
+.rad-idle__note {
+  display: block;
+  max-width: 34ch;
+  margin: 10px auto 0;
+  font-size: var(--text-rad-sm);
+  line-height: 1.6;
+  color: var(--color-rad-dim);
+}
+
+/* ---- the roster ---- */
+
+.rad-roster {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  padding: 22px 26px 26px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--color-rad-void);
+  will-change: transform, opacity;
+}
+
+.rad-roster.is-gone {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Deafened dims everything incoming at once. One gesture, one consequence, visible. */
+.rad-roster.is-deafened {
+  opacity: 0.5;
+}
+
+.rad-section-rule {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 6px 0 12px;
+}
+
+.rad-section-rule + .rad-card-grid {
+  margin-bottom: 24px;
+}
+
+.rad-section-rule__title {
+  min-width: 0;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-xs);
+  letter-spacing: var(--tracking-rad-label);
+  text-transform: uppercase;
+  color: var(--color-rad-faint);
+}
+
+.rad-section-rule__line {
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--color-rad-line);
+}
+
+.rad-section-rule__count {
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-rad-faint);
+}
+
+.rad-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+/* ---- the player card ----
+ * Who, how far, how loud, and a way to turn them down. A row gives you a face, a
+ * name and a mute button in one glance, which is the only thing that matters when
+ * someone is shouting over you.
+ *
+ * The card sets `color` to the player's hue, so the avatar ring, the slider thumb
+ * and the meter all take it without being told whose card they are in.
+ */
+
+.rad-player {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 15px;
+  padding: 15px 17px;
+  border: 1px solid var(--color-rad-line);
+  border-radius: var(--radius-rad-lg);
+  background: var(--color-rad-void-2);
+  transition:
+    border-color 0.25s,
+    background 0.25s,
+    opacity 0.3s,
+    transform 0.3s;
+}
+
+/* Held back until its flyer lands, so the card appears where the mark arrived. */
+.rad-player.is-pending {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.rad-player.is-live {
+  background: var(--color-rad-panel);
+}
+
+.rad-player__avatar {
+  position: relative;
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-rad-lg);
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-base);
+  font-weight: 700;
+  color: var(--color-rad-void);
+}
+
+/* Lights only while they are actually speaking. */
+.rad-player__ring {
+  position: absolute;
+  inset: -3px;
+  border: 2px solid transparent;
+  border-radius: 15px;
+  transition: border-color 0.2s;
+}
+
+.rad-player.is-live .rad-player__ring {
+  border-color: currentColor;
+}
+
+.rad-player__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.rad-player__name {
+  font-size: var(--text-rad-base);
+  font-weight: 540;
+  letter-spacing: -0.012em;
+  color: var(--color-rad-tx);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rad-player__distance {
+  flex: 0 0 auto;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  letter-spacing: var(--tracking-rad-tag);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-rad-faint);
+}
+
+.rad-player__level {
+  height: 18px;
+  margin-top: 7px;
+  display: flex;
+  align-items: center;
+}
+
+.rad-player__controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 9px;
+}
+
+.rad-player__percent {
+  flex: 0 0 auto;
+  width: 44px;
+  text-align: right;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-rad-dim);
+}
+
+.rad-player__mute {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--color-rad-line-2);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-rad-dim);
+  cursor: pointer;
+  transition: 0.16s;
+}
+
+.rad-player__mute > [data-rad-icon] > svg {
+  width: 15px;
+  height: 15px;
+}
+
+.rad-player__mute:hover {
+  border-color: var(--color-rad-brand-lift);
+  color: var(--color-rad-tx);
+}
+
+.rad-player__mute[aria-pressed="true"] {
+  background: rgb(255 130 102 / 0.16);
+  border-color: var(--color-rad-fault);
+  color: var(--color-rad-fault);
+}
+
+.rad-leave-btn {
+  padding: 4px 10px;
+  border: 1px solid var(--color-rad-line-2);
+  border-radius: var(--radius-rad-sm);
+  background: transparent;
+  color: var(--color-rad-dim);
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-2xs);
+  letter-spacing: var(--tracking-rad-caption);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: 0.16s;
+}
+
+.rad-leave-btn:hover {
+  border-color: var(--color-rad-fault);
+  color: var(--color-rad-fault);
+}
+
+/* ---- groups ---- */
+
+.rad-new-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin-bottom: 6px;
+  padding: 11px 13px;
+  text-align: left;
+  font: inherit;
+  font-size: var(--text-rad-md);
+  border: 0;
+  border-radius: var(--radius-rad-md);
+  background: var(--color-rad-void-2);
+  color: var(--color-rad-dim);
+  cursor: pointer;
+  transition: 0.18s;
+}
+
+.rad-new-group:hover {
+  background: var(--color-rad-panel);
+  color: var(--color-rad-tx);
+}
+
+.rad-new-group > [data-rad-icon] > svg {
+  width: 14px;
+  height: 14px;
+}
+
+.rad-group-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 13px;
+  text-align: left;
+  font: inherit;
+  border: 1px solid transparent;
+  border-radius: var(--radius-rad-md);
+  background: transparent;
+  color: var(--color-rad-dim);
+  cursor: pointer;
+  transition: 0.18s;
+}
+
+.rad-group-row:hover {
+  background: var(--color-rad-void-2);
+  color: var(--color-rad-tx);
+}
+
+.rad-group-row.is-on {
+  background: var(--color-rad-panel);
+  border-color: var(--color-rad-brand-lift);
+  color: var(--color-rad-tx);
+}
+
+.rad-group-row__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--text-rad-md);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A group's own level: whether anything is happening in there, without joining. */
+.rad-group-row canvas {
+  display: block;
+  flex: 0 0 auto;
+  opacity: 0.85;
+}
+
+.rad-group-row__count {
+  min-width: 14px;
+  text-align: right;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-rad-faint);
+}
+
+.rad-group-row.is-on .rad-group-row__count {
+  color: var(--color-rad-brand-lift);
+}
+
+/* ---- self controls, desktop ----
+ * A floating pill, and the avatar overhangs its left edge because it is the person,
+ * not a slot in a toolbar.
+ */
+
+.rad-self-pill {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  z-index: 14;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 66px;
+  padding: 0 9px 0 58px;
+  border: 1px solid var(--color-rad-line-2);
+  border-radius: 22px;
+  background: rgb(37 24 68 / 0.95);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--shadow-rad-pill);
+}
+
+.rad-self__avatar {
+  position: absolute;
+  left: -9px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: 17px;
+  background: var(--color-rad-brand);
+  box-shadow: 0 0 0 4px var(--color-rad-void);
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-lead);
+  font-weight: 700;
+  color: #fff;
+}
+
+.rad-self__id {
+  min-width: 0;
+  max-width: 152px;
+  padding: 0 4px 0 0;
+  text-align: left;
+  font: inherit;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.rad-self__name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-size: var(--text-rad-md);
+  font-weight: 600;
+  color: var(--color-rad-tx);
+}
+
+.rad-self__name > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rad-self__chev {
+  flex: 0 0 auto;
+  font-size: 9px;
+  color: var(--color-rad-faint);
+}
+
+.rad-self__sub {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 16px;
+  min-width: 0;
+  margin-top: 5px;
+}
+
+.rad-self__sub canvas {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.rad-self__state {
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono);
+  letter-spacing: var(--tracking-rad-wide);
+  text-transform: uppercase;
+  color: var(--color-rad-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rad-self__btn {
+  flex: 0 0 auto;
+  /* Sized by max-width rather than width so the record button can grow to fit its
+     timer: `width: auto` is not an animatable value, and snapping open was the
+     single most abrupt moment on the dashboard. */
+  width: auto;
+  min-width: 42px;
+  max-width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-rad-pill);
+  background: rgb(20 12 38 / 0.68);
+  color: var(--color-rad-dim);
+  cursor: pointer;
+  transition:
+    background 0.22s var(--ease-rad-out),
+    color 0.22s var(--ease-rad-out),
+    max-width 0.38s var(--ease-rad-out),
+    padding 0.38s var(--ease-rad-out);
+}
+
+.rad-self__btn > [data-rad-icon] > svg {
+  width: 19px;
+  height: 19px;
+}
+
+.rad-self__btn:hover {
+  background: var(--color-rad-panel);
+  color: var(--color-rad-tx);
+}
+
+.rad-self__btn[aria-pressed="true"] {
+  background: rgb(255 130 102 / 0.24);
+  color: var(--color-rad-fault);
+}
+
+/* Deafen is warn, not fault: you chose it, and it is recoverable in one press. */
+.rad-self__btn--deafen[aria-pressed="true"] {
+  background: rgb(255 207 77 / 0.24);
+  color: var(--color-rad-warn);
+}
+
+/* Push-to-talk held down. Green because it is the only state in which you are
+   definitely being heard. */
+.rad-self__btn.is-holding {
+  background: rgb(92 227 131 / 0.28);
+  color: var(--color-rad-ok);
+}
+
+/* Recording: a circle grows into an oval, then turns red, then the timer fades in.
+ *
+ * Three stages in sequence rather than at once, because they are three separate facts —
+ * the control has changed shape, the session is live, and here is how long it has been
+ * running. Arriving together, they read as a pop.
+ *
+ * Width is an explicit pixel value and the contents are absolutely positioned, so the
+ * transition drives the size rather than the size following the contents. The earlier
+ * version animated `max-width` around an `auto` width: the real width tracked the
+ * contents, `gap` jumped instantly because gap does not transition, and the font metrics
+ * changed on the first frame. That is what was snapping.
+ */
+.rad-self__btn--record {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  min-width: 0;
+  max-width: none;
+  padding: 0;
+  gap: 0;
+  /* Set once, so nothing about the text changes mid-animation. */
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  letter-spacing: var(--tracking-rad-tag);
+  /* Stopping runs in reverse: the timer goes first, then the colour, then the shape. */
+  transition:
+    width 0.42s var(--ease-rad-out) 0.16s,
+    background 0.24s ease,
+    color 0.24s ease;
+}
+
+/* 106px is what the contents actually need: 18px in, a 19px glyph, a 10px gap, five
+   monospaced characters of mm:ss at ~41px, and 18px out again. Anything wider is a gap
+   the eye reads as the timer being off-centre. */
+.rad-self__btn--record[aria-pressed="true"] {
+  width: 106px;
+  background: rgb(255 130 102 / 0.22);
+  color: var(--color-rad-fault);
+  transition:
+    width 0.42s var(--ease-rad-out),
+    background 0.3s ease 0.32s,
+    color 0.3s ease 0.32s;
+}
+
+/* The glyph glides from the centre of the circle to the left of the oval. Absolutely
+   positioned so it never contributes to the width being animated. */
+.rad-self__btn--record > [data-rad-icon] {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  transition:
+    left 0.42s var(--ease-rad-out),
+    transform 0.42s var(--ease-rad-out);
+}
+
+.rad-self__btn--record[aria-pressed="true"] > [data-rad-icon] {
+  left: 18px;
+  transform: none;
+  /* One indicator. A blinking dot beside a record glyph states the same fact twice. */
+  animation: rad-blip 1.6s ease-in-out infinite;
+}
+
+.rad-self__rec-time {
+  position: absolute;
+  left: 47px;
+  /* Clips rather than pushing the button wider if a session ever runs past 99 minutes
+     and the value grows a character. */
+  max-width: 46px;
+  white-space: nowrap;
+  opacity: 0;
+  font-variant-numeric: tabular-nums;
+  transition: opacity 0.18s ease;
+}
+
+/* Last in, after the shape has settled and the colour has landed. */
+[aria-pressed="true"] > .rad-self__rec-time {
+  opacity: 1;
+  transition: opacity 0.28s ease 0.62s;
+}
+
+/* ---- self controls, phone ---- */
+
+.rad-self-bar {
+  display: none;
+}
+
+/* ---- the handoff ----
+ * A player's mark flies out of the ring and lands as their avatar. Nobody has to be
+ * told the circle and the list are the same information — they watch it happen once.
+ * Positioned against the viewport because it crosses component boundaries.
+ */
+
+.rad-flyer {
+  position: fixed;
+  z-index: 60;
+  width: 15px;
+  height: 15px;
+  border-radius: var(--radius-rad-xs);
+  pointer-events: none;
+  transition:
+    transform 0.55s var(--ease-rad-fly),
+    opacity 0.55s ease;
+}
+
+.rad-flyer--spark {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  transition:
+    transform 0.46s var(--ease-rad-rise),
+    opacity 0.46s ease;
+}
+
+/* ---- status panel ----
+ * Slides the roster aside rather than covering it, so it reads as a second page of
+ * the same screen. Reconnect lives in here, not in the gesture that opens it.
+ */
+
+.rad-status {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-rad-void);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.rad-frame.is-status .rad-status {
+  z-index: 6;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.rad-frame.is-status .rad-roster,
+.rad-frame.is-status .rad-idle {
+  transform: translateY(102%);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 0.42s var(--ease-rad-out),
+    opacity 0.3s ease;
+}
+
+.rad-status__head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 26px 0;
+}
+
+.rad-status__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rad-status__act {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 15px;
+  font: inherit;
+  font-size: var(--text-rad-xs);
+  letter-spacing: var(--tracking-rad-wide);
+  border: 0;
+  border-radius: var(--radius-rad-lg);
+  background: var(--color-rad-void-2);
+  color: var(--color-rad-dim);
+  cursor: pointer;
+  transition: 0.16s;
+}
+
+.rad-status__act:hover {
+  background: var(--color-rad-panel);
+  color: var(--color-rad-tx);
+}
+
+.rad-status__act > [data-rad-icon] > svg {
+  width: 16px;
+  height: 16px;
+}
+
+.rad-status__act.is-busy {
+  color: var(--color-rad-brand-lift);
+  pointer-events: none;
+}
+
+.rad-status__act.is-busy > [data-rad-icon] > svg {
+  animation: rad-spin 0.9s linear infinite;
+}
+
+.rad-status__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  gap: 30px;
+  padding: 10px 26px 26px;
+  overflow-y: auto;
+}
+
+.rad-status__scope {
+  flex: 0 0 292px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+
+.rad-status__scope canvas {
+  display: block;
+  width: 268px;
+  height: 268px;
+}
+
+.rad-status__scope-cap {
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-2xs);
+  letter-spacing: var(--tracking-rad-label);
+  text-transform: uppercase;
+  color: var(--color-rad-faint);
+}
+
+.rad-status__read {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+@container rad (max-width: 560px) {
+  .rad-dash-top {
+    height: 60px;
+    padding: 0 18px;
+  }
+
+  .rad-desk-only {
+    display: none !important;
+  }
+
+  .rad-phone-only {
+    display: grid;
+  }
+
+  .rad-self-pill {
+    display: none;
+  }
+
+  .rad-idle {
+    padding-bottom: 90px;
+  }
+
+  .rad-roster {
+    padding: 18px 16px 120px;
+  }
+
+  .rad-card-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rad-status__head {
+    padding: 14px 18px 0;
+  }
+
+  .rad-status__act {
+    padding: 9px 13px;
+    font-size: var(--text-rad-mono-sm);
+  }
+
+  .rad-status__body {
+    flex-direction: column;
+    gap: 18px;
+    padding: 6px 18px 118px;
+  }
+
+  .rad-status__scope {
+    flex: 0 0 auto;
+    gap: 10px;
+  }
+
+  .rad-status__scope canvas {
+    width: 212px;
+    height: 212px;
+  }
+
+  /* The margin is measured from the avatar, which is the visually leading edge. */
+  .rad-self-bar {
+    display: block;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 12;
+    padding: 0 15px calc(15px + env(safe-area-inset-bottom)) 24px;
+    pointer-events: none;
+  }
+
+  .rad-self-capsule {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    height: 70px;
+    padding: 0 9px 0 62px;
+    border: 1px solid var(--color-rad-line-2);
+    border-radius: 24px;
+    background: rgb(37 24 68 / 0.94);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 18px 44px -16px rgb(0 0 0 / 0.85);
+    pointer-events: auto;
+  }
+
+  .rad-self-capsule .rad-self__avatar {
+    width: 58px;
+    height: 58px;
+    border-radius: 18px;
+    font-size: var(--text-rad-lead);
+  }
+
+  .rad-self-capsule .rad-self__id {
+    flex: 1 1 auto;
+    max-width: none;
+    overflow: hidden;
+  }
+
+  .rad-self-capsule .rad-self__btn {
+    width: 44px;
+    height: 44px;
+    background: rgb(20 12 38 / 0.7);
+  }
+
+  .rad-self-capsule .rad-self__btn > [data-rad-icon] > svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* The mic is the primary control on a phone and is lifted out of the row. */
+  .rad-self-capsule .rad-self__btn--primary {
+    background: var(--color-rad-panel);
+    color: var(--color-rad-tx);
+  }
+}

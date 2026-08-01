@@ -1,0 +1,32 @@
+/* Radial — the app-facing entry.
+ *
+ * Import this from a Tailwind entry that has already pulled in `tailwindcss`:
+ *
+ *   @import "../radial/css/radial.css";
+ *
+ * It declares tokens and component classes and nothing else — no reset, no base
+ * styles, no `@import "tailwindcss"`. Adding it to the existing app cannot restyle
+ * anything already there, because every selector it introduces is `rad-` prefixed.
+ * (`bvc-` was avoided on purpose: `.bvc-ring`, `.bvc-badge` and `.bvc-shimmer`
+ * already exist in `app.css` as the current preloader.)
+ *
+ * The standalone reference pages import `examples/standalone.css` instead, which
+ * wraps this with Tailwind and a page reset.
+ */
+
+@import "./tokens.css";
+
+@import "./components/frame.css" layer(components);
+@import "./components/typography.css" layer(components);
+@import "./components/visual.css" layer(components);
+@import "./components/icon.css" layer(components);
+@import "./components/button.css" layer(components);
+@import "./components/control.css" layer(components);
+@import "./components/container.css" layer(components);
+@import "./components/message.css" layer(components);
+@import "./components/table.css" layer(components);
+@import "./components/overlay.css" layer(components);
+@import "./components/onboarding.css" layer(components);
+@import "./components/dashboard.css" layer(components);
+@import "./components/chat.css" layer(components);
+@import "./components/settings.css" layer(components);

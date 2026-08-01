@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Radial · containers</title>
+    <link rel="stylesheet" href="./standalone.css" />
+  </head>
+  <body>
+    <div class="g-wrap">
+      <header class="g-head">
+        <p class="g-kick">Radial · containers</p>
+        <h1 class="g-title">The row is the unit</h1>
+        <p class="g-lede">
+          A label, at most one sentence of explanation, and one control on the right. Rows stack into
+          a card; a card carries a mono caption. On a narrow container the control drops below the
+          text instead of being crushed against it, and that single change is the whole of what the
+          kit does differently on a phone.
+        </p>
+      </header>
+
+      <nav class="g-nav" data-g-nav></nav>
+
+      <section class="g-sec" id="rows">
+        <p class="g-sec__kick">Rows and cards</p>
+        <h2 class="g-sec__title">Every setting is a row</h2>
+
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">.rad-card · .rad-row</span>
+            <span class="g-item__note">Drag the browser narrow to watch the controls drop.</span>
+          </div>
+          <div class="g-stage">
+            <div class="rad-card" style="margin-top: 0">
+              <div class="rad-card__head">Audio</div>
+              <div class="rad-row">
+                <span class="rad-row__text">
+                  <span class="rad-row__label">Noise gate</span>
+                  <span class="rad-row__note">
+                    Cuts your mic when you are not speaking. Off is better with a headset mic.
+                  </span>
+                </span>
+                <span class="rad-row__control">
+                  <button class="rad-toggle" role="switch" aria-checked="true" data-rad-toggle="gate" aria-label="Noise gate"></button>
+                </span>
+              </div>
+              <div class="rad-row">
+                <span class="rad-row__text">
+                  <span class="rad-row__label">Input device</span>
+                  <span class="rad-row__note">Must support 48 kHz.</span>
+                </span>
+                <span class="rad-row__control">
+                  <button class="rad-select" data-rad-select="Focusrite Scarlett 2i2|Realtek High Definition Audio|Blue Yeti">
+                    <span class="rad-select__value">Focusrite Scarlett 2i2</span>
+                    <span data-rad-icon="chev"></span>
+                  </button>
+                </span>
+              </div>
+              <div class="rad-row">
+                <span class="rad-row__text">
+                  <span class="rad-row__label">Recordings folder</span>
+                  <span class="rad-row__note">Sessions and exports are written here.</span>
+                </span>
+                <span class="rad-row__control">
+                  <span class="rad-path">C:\Users\charl\Documents\BVC</span>
+                  <button class="rad-btn">Browse</button>
+                </span>
+              </div>
+              <div class="rad-row rad-row--stack">
+                <span class="rad-row__text">
+                  <span class="rad-row__label">Gate threshold</span>
+                  <span class="rad-row__note">
+                    Everything below this is treated as silence. Currently
+                    <b style="color: var(--color-rad-tx)">-42 dBFS</b>.
+                  </span>
+                </span>
+                <input class="rad-range" type="range" min="-70" max="-10" value="-42" style="width: 100%" aria-label="Gate threshold" />
+              </div>
+              <div class="rad-row">
+                <span class="rad-row__text">
+                  <span class="rad-row__label">Disabled example</span>
+                  <span class="rad-row__note">
+                    Controls grey out rather than disappear, so the setting stays findable.
+                  </span>
+                </span>
+                <span class="rad-row__control">
+                  <button class="rad-toggle" role="switch" aria-checked="false" disabled aria-label="Disabled"></button>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="g-sec" id="messages">
+        <p class="g-sec__kick">Messages</p>
+        <h2 class="g-sec__title">Four ways to say something is the case</h2>
+        <p class="g-sec__note">
+          A <strong>chip</strong> is state in one word, beside the thing it describes. A
+          <strong>callout</strong> explains, inline, with no action. A <strong>banner</strong> is
+          page-level and carries an action. A <strong>verdict</strong> is the headline of a status
+          panel. Collapsing them would mean either a chip that can hold a sentence or a banner that
+          can be ignored, and both are worse than four components.
+        </p>
+
+        <div class="g-item">
+          <div class="g-item__head"><span class="g-item__name">.rad-chip · .rad-status-chip</span></div>
+          <div class="g-stage">
+            <div class="rad-chips" style="margin-top: 0">
+              <span class="rad-chip"><i style="background: #21d8d8"></i>Positional audio</span>
+              <span class="rad-chip"><i style="background: #3bd869"></i>Whisper &amp; shout</span>
+              <span class="rad-chip"><i style="background: #aee236"></i>Spectator support</span>
+            </div>
+            <div class="g-row" style="margin-top: 20px">
+              <span class="rad-status-chip rad-status-chip--ok">Listening</span>
+              <span class="rad-status-chip rad-status-chip--warn">Degraded</span>
+              <span class="rad-status-chip rad-status-chip--bad">Stopped</span>
+              <span class="rad-status-chip rad-status-chip--muted">Off</span>
+              <span class="rad-status-chip">Idle</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="g-item">
+          <div class="g-item__head"><span class="g-item__name">.rad-callout</span></div>
+          <div class="g-stage">
+            <div class="rad-callout" style="margin-top: 0">
+              <span>
+                Position data reaches BVC through the server mod.
+                <b>Without it, voice still works but everyone sounds equally close.</b>
+              </span>
+            </div>
+            <div class="rad-callout rad-callout--warn">
+              <span>
+                Your input device is running at <b>44.1 kHz</b>. BVC expects 48 kHz &mdash; some
+                Android devices are the exception.
+              </span>
+            </div>
+            <div class="rad-callout rad-callout--bad">
+              <span>Deleting a recording removes its tracks from disk. <b>This cannot be undone.</b></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">.rad-banner</span>
+            <span class="g-item__note">
+              Not dismissible: dismissing would not restart the app, grant the microphone permission,
+              or renew the session.
+            </span>
+          </div>
+          <div class="g-stage">
+            <div class="rad-banner" style="margin-top: 0">
+              <span class="rad-banner__icon" data-rad-icon="check"></span>
+              <span class="rad-banner__text"><b>Version 1.0.0-beta.8 is available.</b> Restart to finish updating.</span>
+              <button class="rad-btn rad-btn--primary">Restart</button>
+            </div>
+            <div class="rad-banner rad-banner--warn">
+              <span class="rad-banner__icon" data-rad-icon="warn"></span>
+              <span class="rad-banner__text"><b>Microphone access is blocked.</b> BVC cannot hear you until Windows allows it.</span>
+              <button class="rad-btn">Open settings</button>
+            </div>
+            <div class="rad-banner rad-banner--bad">
+              <span class="rad-banner__icon" data-rad-icon="close"></span>
+              <span class="rad-banner__text"><b>Your session expired.</b> Sign in again to reconnect to this server.</span>
+              <button class="rad-btn">Sign in</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">.rad-verdict</span>
+            <span class="g-item__note">
+              First failing check, not a summary. Someone who opened the status panel has a problem.
+            </span>
+          </div>
+          <div class="g-stage">
+            <div class="rad-verdict"><span class="rad-verdict__dot"></span><span class="rad-verdict__text">Everything looks fine.</span></div>
+            <div class="rad-verdict rad-verdict--warn">
+              <span class="rad-verdict__dot"></span>
+              <span class="rad-verdict__text">Push-to-talk is on. Hold the mic button to speak.</span>
+            </div>
+            <div class="rad-verdict rad-verdict--bad" style="margin-bottom: 0">
+              <span class="rad-verdict__dot"></span>
+              <span class="rad-verdict__text">You are muted. Nobody can hear you.</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="g-sec" id="missing">
+        <p class="g-sec__kick">When data is missing</p>
+        <h2 class="g-sec__title">Loading, failed and empty are three screens</h2>
+        <p class="g-sec__note">
+          A skeleton says something is coming and roughly what shape it is. A failure needs a reason
+          and a retry. An empty state needs to say how something gets here. One spinner for all three
+          answers none of the questions.
+        </p>
+
+        <div class="g-item">
+          <div class="g-item__head"><span class="g-item__name">loading · failed · empty</span></div>
+          <div class="g-stage">
+            <div class="g-grid">
+              <div class="rad-card" style="margin-top: 0">
+                <div class="rad-card__head">Loading</div>
+                <div class="rad-card__body" style="display: flex; flex-direction: column; gap: 13px">
+                  <span class="rad-skeleton" style="width: 58%"></span>
+                  <span class="rad-skeleton" style="width: 82%"></span>
+                  <span class="rad-skeleton" style="width: 38%"></span>
+                </div>
+              </div>
+              <div class="rad-card" style="margin-top: 0">
+                <div class="rad-card__head">Failed</div>
+                <div class="rad-empty" style="padding: 30px 20px">
+                  <span class="rad-empty__title">Couldn't load your Realms</span>
+                  <span class="rad-empty__note">
+                    Xbox Live returned 503. Nothing is wrong with your account &mdash; it is usually
+                    over within a few minutes.
+                  </span>
+                  <span class="rad-swatchrow" style="justify-content: center">
+                    <button class="rad-btn rad-btn--primary">Try again</button>
+                    <button class="rad-btn">See the log</button>
+                  </span>
+                </div>
+              </div>
+              <div class="rad-card" style="margin-top: 0">
+                <div class="rad-card__head">Empty</div>
+                <div class="rad-empty" style="padding: 24px 20px">
+                  <canvas data-rad-mark data-cell="4" data-gain="0.35" data-still="true"></canvas>
+                  <span class="rad-empty__title">Nothing recorded yet</span>
+                  <span class="rad-empty__note">
+                    Arm recording from the dashboard. Each player lands on their own timecoded track.
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div class="rad-progress" style="max-width: 420px; margin-top: 24px">
+              <i style="width: 62%"></i>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="g-sec" id="table">
+        <p class="g-sec__kick">Tables</p>
+        <h2 class="g-sec__title">Search, sort, page and select, as one unit</h2>
+        <p class="g-sec__note">
+          These four arrive together and they interact: searching resets the page, sorting resets the
+          page, and "select all" means every row matching the current query rather than every row
+          that exists. Wiring them separately is how a table ends up acting on rows the user cannot
+          see.
+        </p>
+
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">.rad-table + TableController</span>
+            <span class="g-item__note">Search, sort a column, select rows, open a row menu.</span>
+          </div>
+          <div class="g-stage">
+            <div class="g-row" style="gap: 10px; margin-bottom: 12px">
+              <span class="rad-search" style="max-width: 280px">
+                <span data-rad-icon="search"></span>
+                <input type="text" placeholder="Search sounds" data-lib-search aria-label="Search sounds" />
+              </span>
+              <button class="rad-btn"><span data-rad-icon="plus"></span> Add</button>
+            </div>
+            <div class="rad-selection-bar" data-lib-selbar hidden>
+              <span class="rad-selection-bar__count"><b data-lib-selcount>0</b> selected</span>
+              <span class="rad-spacer"></span>
+              <button class="rad-btn" data-lib-export>Export…</button>
+              <button class="rad-btn rad-btn--danger" data-lib-delete>Delete</button>
+              <button class="rad-btn" data-lib-clear>Clear</button>
+            </div>
+            <div class="rad-card" style="margin-top: 0">
+              <div class="rad-table-wrap">
+                <table class="rad-table">
+                  <thead>
+                    <tr>
+                      <th class="rad-select-cell">
+                        <button class="rad-checkbox rad-checkbox--compact" role="checkbox" aria-checked="false" data-lib-selall aria-label="Select all">
+                          <span class="rad-checkbox__box" data-rad-icon="check"></span>
+                        </button>
+                      </th>
+                      <th class="rad-sortable" data-lib-sort="name">Name<span class="rad-caret">&#9650;</span></th>
+                      <th class="rad-sortable rad-num" data-lib-sort="length">Length<span class="rad-caret">&#9650;</span></th>
+                      <th class="rad-sortable rad-num" data-lib-sort="size">Size<span class="rad-caret">&#9650;</span></th>
+                      <th class="rad-num">ID</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody data-lib-body></tbody>
+                </table>
+              </div>
+              <div class="rad-pager">
+                <span data-lib-count>—</span>
+                <span class="rad-pager__pages" data-lib-pages></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="g-sec" id="lists">
+        <p class="g-sec__kick">Lists and readouts</p>
+        <h2 class="g-sec__title">Identities, order, logs</h2>
+
+        <div class="g-item">
+          <div class="g-item__head"><span class="g-item__name">.rad-account · .rad-deflist</span></div>
+          <div class="g-stage">
+            <div class="g-grid">
+              <div class="rad-card" style="margin-top: 0">
+                <div class="rad-card__head">Linked accounts</div>
+                <div class="rad-account">
+                  <span class="rad-account__badge" style="background: var(--color-rad-brand)">AL</span>
+                  <span class="rad-account__text">
+                    <span class="rad-account__name">Alaydriem</span>
+                    <span class="rad-account__meta">MINECRAFT BEDROCK &middot; XBOX LIVE</span>
+                  </span>
+                  <span class="rad-status-chip rad-status-chip--ok">Signed in</span>
+                </div>
+                <div class="rad-account">
+                  <span class="rad-account__badge" style="background: #107c10">XB</span>
+                  <span class="rad-account__text">
+                    <span class="rad-account__name">Xbox Live</span>
+                    <span class="rad-account__meta">REQUIRED FOR BEDROCK</span>
+                  </span>
+                  <button class="rad-btn" disabled>Linked</button>
+                </div>
+                <div class="rad-account">
+                  <span class="rad-account__badge" style="background: #5865f2">DC</span>
+                  <span class="rad-account__text">
+                    <span class="rad-account__name">Discord</span>
+                    <span class="rad-account__meta">NOT LINKED</span>
+                  </span>
+                  <button class="rad-btn">Link</button>
+                </div>
+              </div>
+
+              <div class="rad-card" style="margin-top: 0">
+                <div class="rad-card__head">Build</div>
+                <dl class="rad-deflist">
+                  <dt>Version</dt>
+                  <dd><span>1.0.0-beta.7</span></dd>
+                  <dt>Protocol</dt>
+                  <dd><span>1.3.0</span></dd>
+                  <dt>Commit</dt>
+                  <dd>
+                    <span>8fa727ab</span>
+                    <button class="rad-icon-btn" data-rad-copy="8fa727ab" aria-label="Copy commit">
+                      <span data-rad-icon="copy"></span>
+                    </button>
+                  </dd>
+                  <dt>Platform</dt>
+                  <dd><span>Windows 11 &middot; 26200</span></dd>
+                </dl>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">.rad-drag-row</span>
+            <span class="g-item__note">
+              Manual order and column sorting are mutually exclusive: picking one clears the other,
+              because a list cannot honestly be in two orders.
+            </span>
+          </div>
+          <div class="g-stage">
+            <div class="rad-card" style="margin-top: 0">
+              <div data-reorder>
+                <div class="rad-drag-row" data-rad-key="airhorn">
+                  <span class="rad-drag-row__handle" data-rad-icon="grip"></span>
+                  <span class="rad-drag-row__name">Airhorn</span>
+                  <span class="rad-drag-row__meta">snd_airhorn</span>
+                </div>
+                <div class="rad-drag-row" data-rad-key="applause">
+                  <span class="rad-drag-row__handle" data-rad-icon="grip"></span>
+                  <span class="rad-drag-row__name">Applause</span>
+                  <span class="rad-drag-row__meta">snd_applause</span>
+                </div>
+                <div class="rad-drag-row" data-rad-key="rimshot">
+                  <span class="rad-drag-row__handle" data-rad-icon="grip"></span>
+                  <span class="rad-drag-row__name">Rimshot</span>
+                  <span class="rad-drag-row__meta">snd_rimshot</span>
+                </div>
+                <div class="rad-drag-row" data-rad-key="trombone">
+                  <span class="rad-drag-row__handle" data-rad-icon="grip"></span>
+                  <span class="rad-drag-row__name">Sad trombone</span>
+                  <span class="rad-drag-row__meta">snd_sad_trombone</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">.rad-disclosure · .rad-log</span>
+            <span class="g-item__note">
+              Autoscrolls only when you are already at the bottom &mdash; someone reading the line
+              where it went wrong should not be dragged off it by the next heartbeat.
+            </span>
+          </div>
+          <div class="g-stage">
+            <div class="rad-disclosure is-open" style="margin-top: 0">
+              <button class="rad-disclosure__head" data-rad-disclosure-head aria-expanded="true">
+                <span data-rad-icon="terminal"></span> Proxy log
+                <span class="rad-status-chip rad-status-chip--live" style="margin-left: 8px">Live</span>
+                <span class="rad-disclosure__caret" data-rad-icon="chev"></span>
+              </button>
+              <div class="rad-disclosure__body">
+                <div class="rad-log" data-log></div>
+                <div class="rad-log-bar">
+                  <button class="rad-select" style="min-width: 112px" data-rad-select="All|Info|Warnings|Errors" data-log-filter>
+                    <span class="rad-select__value">All</span><span data-rad-icon="chev"></span>
+                  </button>
+                  <span class="rad-spacer"></span>
+                  <button class="rad-btn" data-log-copy><span data-rad-icon="copy"></span> Copy</button>
+                  <button class="rad-btn" data-log-clear>Clear</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">.rad-kv-grid</span>
+            <span class="g-item__note">
+              Values are written in place once a second, never by rebuilding the DOM &mdash; a reflow
+              here reads as a link that is misbehaving.
+            </span>
+          </div>
+          <div class="g-stage">
+            <div class="rad-kv-grid" data-kv></div>
+          </div>
+        </div>
+      </section>
+
+      <div class="rad-menu" data-rad-menu></div>
+    </div>
+
+    <script type="module" src="./containers.ts"></script>
+  </body>
+</html>

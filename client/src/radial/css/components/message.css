@@ -1,0 +1,335 @@
+/* Four ways to say something is the case. They are deliberately not one component.
+ *
+ *   chip     state in one word, beside the thing it describes
+ *   callout  explains, inline with the setting it concerns, no action
+ *   banner   page-level, carries an action, cannot be dismissed away
+ *   verdict  the headline of a status panel: the one thing that is wrong
+ *
+ * Collapsing them would mean either a chip that can hold a sentence or a banner
+ * that can be ignored, and both of those are worse than four components.
+ *
+ * All four use the same three severities: default, warn, bad.
+ */
+
+/* ---- chip: a colour square and a word ----
+ * Onboarding uses this to list features. The square is the feature's colour, not a
+ * status, which is why it is a block rather than a dot.
+ */
+
+.rad-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 22px;
+}
+
+.rad-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 15px;
+  border: 1px solid var(--color-rad-line-2);
+  border-radius: var(--radius-rad-pill);
+  background: var(--color-rad-panel);
+  font-size: var(--text-rad-sm);
+  color: var(--color-rad-dim);
+}
+
+.rad-chip > i {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-rad-block);
+  flex: 0 0 auto;
+}
+
+/* ---- status chip: a dot and a state ----
+ * The dot is currentColor, so a severity sets both at once and they cannot disagree.
+ */
+
+.rad-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border-radius: var(--radius-rad-pill);
+  background: var(--color-rad-void-2);
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-xs);
+  letter-spacing: var(--tracking-rad-tag);
+  text-transform: uppercase;
+  color: var(--color-rad-faint);
+}
+
+.rad-status-chip::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-rad-pill);
+  background: currentColor;
+  flex: 0 0 auto;
+}
+
+.rad-status-chip--ok {
+  color: var(--color-rad-ok);
+  background: rgb(92 227 131 / 0.12);
+}
+
+.rad-status-chip--warn {
+  color: var(--color-rad-warn);
+  background: rgb(255 207 77 / 0.12);
+}
+
+.rad-status-chip--bad {
+  color: var(--color-rad-fault);
+  background: rgb(255 130 102 / 0.12);
+}
+
+/* Stopped on purpose, as opposed to broken. Not a fault, so not red. */
+.rad-status-chip--muted {
+  color: var(--color-rad-faint);
+  background: var(--color-rad-void-2);
+}
+
+/* A chip that has to sit against a dark pane and still read as live. */
+.rad-status-chip--live {
+  color: var(--color-rad-ok);
+  background: rgb(92 227 131 / 0.14);
+  letter-spacing: var(--tracking-rad-caption);
+  font-size: var(--text-rad-mono-2xs);
+  padding: 4px 10px;
+}
+
+.rad-status-chip--live::before {
+  display: none;
+}
+
+/* ---- callout: explains ----
+ * A left rule rather than a box, because it belongs to the content beside it. No
+ * dismiss: a fact about how the product works does not stop being true.
+ */
+
+.rad-callout {
+  display: flex;
+  gap: 13px;
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 11px;
+  border-left: 3px solid var(--color-rad-brand-lift);
+  background: var(--color-rad-void-2);
+  font-size: var(--text-rad-xs);
+  line-height: 1.6;
+  color: var(--color-rad-dim);
+}
+
+.rad-callout b,
+.rad-callout strong {
+  color: var(--color-rad-tx);
+  font-weight: 600;
+}
+
+.rad-callout--warn {
+  border-left-color: var(--color-rad-warn);
+}
+
+.rad-callout--bad {
+  border-left-color: var(--color-rad-fault);
+}
+
+/* The onboarding variant: brand-tinted ground, because on those screens it is a
+   reassurance rather than a caveat. */
+.rad-callout--aside {
+  margin-top: 22px;
+  padding: 16px 18px;
+  border-left-color: var(--color-rad-brand);
+  border-radius: 0 8px 8px 0;
+  background: rgb(130 57 216 / 0.12);
+  font-size: var(--text-rad-sm);
+}
+
+/* ---- banner: page-level, with an action ---- */
+
+.rad-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 11px;
+  padding: 14px 16px;
+  border-radius: var(--radius-rad-lg);
+  border-left: 3px solid var(--color-rad-brand-lift);
+  background: var(--color-rad-void-2);
+}
+
+.rad-banner--warn {
+  border-left-color: var(--color-rad-warn);
+}
+
+.rad-banner--bad {
+  border-left-color: var(--color-rad-fault);
+}
+
+.rad-banner__icon {
+  flex: 0 0 auto;
+  color: var(--color-rad-brand-lift);
+}
+
+.rad-banner--warn .rad-banner__icon {
+  color: var(--color-rad-warn);
+}
+
+.rad-banner--bad .rad-banner__icon {
+  color: var(--color-rad-fault);
+}
+
+.rad-banner__icon > svg {
+  width: 20px;
+  height: 20px;
+}
+
+.rad-banner__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--text-rad-xs);
+  line-height: 1.55;
+  color: var(--color-rad-dim);
+}
+
+.rad-banner__text b,
+.rad-banner__text strong {
+  color: var(--color-rad-tx);
+  font-weight: 600;
+}
+
+/* ---- verdict: the headline of a status panel ----
+ * One sentence, plain language, and it is the first failing check rather than a
+ * summary. Someone opening this panel has a problem; leading with numbers makes
+ * them do the diagnosis themselves.
+ */
+
+.rad-verdict {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  /* The verdict is the headline and the grid below it is the detail; they need to
+     read as two things rather than as a stack. */
+  margin-bottom: 30px;
+  padding: 15px 17px;
+  border-radius: 11px;
+  border-left: 3px solid var(--color-rad-ok);
+  background: var(--color-rad-void-2);
+}
+
+.rad-verdict__dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  margin-top: 6px;
+  border-radius: var(--radius-rad-pill);
+  background: var(--color-rad-ok);
+}
+
+.rad-verdict__text {
+  font-size: var(--text-rad-base);
+  line-height: 1.45;
+  color: var(--color-rad-tx);
+}
+
+.rad-verdict--warn {
+  border-left-color: var(--color-rad-warn);
+}
+
+.rad-verdict--warn .rad-verdict__dot {
+  background: var(--color-rad-warn);
+}
+
+.rad-verdict--bad {
+  border-left-color: var(--color-rad-fault);
+}
+
+.rad-verdict--bad .rad-verdict__dot {
+  background: var(--color-rad-fault);
+}
+
+/* ---- toast ----
+ * Confirms an action just taken. Never carries a decision: nothing important can
+ * live in something that removes itself after 1.7 seconds.
+ */
+
+.rad-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 26px;
+  z-index: 120;
+  transform: translate(-50%, 14px);
+  padding: 10px 20px;
+  border: 1px solid var(--color-rad-brand-lift);
+  border-radius: 8px;
+  background: var(--color-rad-panel);
+  color: var(--color-rad-tx);
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-xs);
+  letter-spacing: var(--tracking-rad-wide);
+  opacity: 0;
+  pointer-events: none;
+  transition: 0.25s var(--ease-rad-out);
+}
+
+.rad-toast.is-on {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* ---- tooltip ----
+ * CSS only, for one clarifying phrase. Anything longer is the row's note.
+ */
+
+.rad-tip {
+  position: relative;
+  display: inline-flex;
+}
+
+.rad-tip::after {
+  content: attr(data-rad-tip);
+  position: absolute;
+  bottom: calc(100% + 9px);
+  left: 50%;
+  z-index: 30;
+  transform: translateX(-50%) translateY(4px);
+  padding: 7px 11px;
+  border: 1px solid var(--color-rad-line-2);
+  border-radius: 8px;
+  background: #150c26;
+  color: var(--color-rad-dim);
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: 0.16s;
+}
+
+.rad-tip:hover::after,
+.rad-tip:focus-within::after {
+  opacity: 1;
+  transform: translateX(-50%);
+}
+
+@container rad (max-width: 560px) {
+  .rad-chips {
+    gap: 7px;
+  }
+
+  .rad-chip {
+    font-size: var(--text-rad-xs);
+    padding: 8px 13px;
+  }
+
+  .rad-verdict {
+    margin-bottom: 4px;
+    padding: 13px 15px;
+  }
+
+  .rad-verdict__text {
+    font-size: var(--text-rad-md);
+  }
+}

@@ -1,0 +1,733 @@
+/* The screens before sign-in.
+ *
+ * Four steps, then a gate that asks the only question that matters — is there a
+ * server for your world or not — and two answers to it. Each step gets its own
+ * visual grammar, because "how loud is someone" and "which platforms work" are not
+ * the same kind of question and a single chart type would flatter neither.
+ */
+
+/* ---- the readout list ----
+ * Step one: three people, their level, their gain, their range. Mono, because these
+ * are readings.
+ */
+
+.rad-readout-list {
+  margin-top: 22px;
+  border-top: 1px solid var(--color-rad-line);
+}
+
+.rad-readout {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) 120px 52px 64px;
+  gap: 14px;
+  align-items: center;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--color-rad-line);
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  letter-spacing: var(--tracking-rad-wide);
+  color: var(--color-rad-faint);
+}
+
+.rad-readout.is-live {
+  color: var(--color-rad-dim);
+}
+
+/* The dot is their hue at a third opacity when silent: present, not speaking. */
+.rad-readout__dot {
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  opacity: 0.35;
+  transition: opacity 0.3s;
+}
+
+.rad-readout.is-live .rad-readout__dot {
+  opacity: 1;
+}
+
+.rad-readout canvas {
+  display: block;
+}
+
+.rad-readout__gain,
+.rad-readout__range {
+  text-align: right;
+}
+
+/* ---- channel columns ----
+ * Step two: proximity on the left, a channel on the right, and members moving
+ * between them on their own. The point is that proximity keeps running underneath.
+ */
+
+.rad-channels {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  gap: 14px;
+  padding: 32px 28px 70px;
+}
+
+.rad-channel {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 15px;
+  background: rgb(28 17 50 / 0.6);
+  border: 1px solid var(--color-rad-line);
+  border-radius: var(--radius-rad-lg);
+  transition:
+    border-color 0.3s,
+    background 0.3s;
+}
+
+/* The channel someone is actually in. */
+.rad-channel.is-active {
+  border-color: var(--color-rad-brand-lift);
+  background: rgb(47 32 84 / 0.72);
+}
+
+.rad-channel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--color-rad-line);
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  letter-spacing: var(--tracking-rad-caption);
+  text-transform: uppercase;
+  color: var(--color-rad-faint);
+}
+
+.rad-channel.is-active .rad-channel__head {
+  color: var(--color-rad-brand-lift);
+}
+
+.rad-channel__member {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono);
+  letter-spacing: var(--tracking-rad-wide);
+  color: var(--color-rad-dim);
+  animation: rad-pop 0.4s var(--ease-rad-out);
+}
+
+.rad-channel__member canvas {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.rad-channel__member-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@keyframes rad-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rad-channel__empty {
+  padding: 7px 0;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  letter-spacing: var(--tracking-rad-tag);
+  color: var(--color-rad-faint);
+}
+
+/* ---- compatibility matrix ----
+ * Step three. "Will this work with my setup" is the objection that stops signups,
+ * and it wants a table, not a ring. Centred and fitted: the prototype had this
+ * scrolling inside a pane that was already scrolling.
+ */
+
+.rad-matrix {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 14px;
+  padding: 28px 26px 66px;
+}
+
+.rad-matrix__group {
+  padding: 15px 17px;
+  background: rgb(28 17 50 / 0.55);
+  border: 1px solid var(--color-rad-line);
+  border-radius: var(--radius-rad-lg);
+}
+
+.rad-matrix__head {
+  margin-bottom: 9px;
+  padding-bottom: 11px;
+  border-bottom: 1px solid var(--color-rad-line);
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  letter-spacing: var(--tracking-rad-caption);
+  text-transform: uppercase;
+  color: var(--color-rad-faint);
+}
+
+.rad-matrix__row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 13px;
+  align-items: center;
+  padding: 7px 0;
+  font-size: var(--text-rad-sm);
+  color: var(--color-rad-dim);
+}
+
+/* Three blocks from the mark, so a row is tagged by colour without a badge. */
+.rad-matrix__blocks {
+  display: flex;
+  gap: 2px;
+}
+
+.rad-matrix__blocks i {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-rad-block);
+}
+
+.rad-matrix__tag {
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-xs);
+  letter-spacing: var(--tracking-rad-tag);
+  text-transform: uppercase;
+  color: var(--color-rad-faint);
+}
+
+.rad-matrix__tag--yes {
+  color: var(--color-rad-ok);
+}
+
+.rad-matrix__tag--soon {
+  color: var(--color-rad-warn);
+}
+
+/* The one fact the table cannot express without lying by omission: the BVC server is a
+   separate thing from the world, and it needs its own home. It is a sentence, not a
+   comparison, so it sits under the groups rather than becoming a row that has to say
+   "no" about hosts the reader is otherwise being told will work. */
+.rad-matrix__note {
+  display: flex;
+  gap: 11px;
+  padding: 0 4px;
+  font-size: var(--text-rad-sm);
+  line-height: 1.55;
+  color: var(--color-rad-dim);
+}
+
+.rad-matrix__note b {
+  color: var(--color-rad-tx);
+  font-weight: 600;
+}
+
+.rad-matrix__note::before {
+  content: "→";
+  flex: 0 0 auto;
+  color: var(--color-rad-brand-lift);
+}
+
+/* ---- timeline chrome ----
+ * Step four. REC is a status readout on the ruler line beside the timecode, not a
+ * floating control — it was mistaken for a button when it floated over the lanes.
+ */
+
+.rad-timeline {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 30px 28px 70px;
+}
+
+.rad-timeline__ruler {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding-bottom: 11px;
+  border-bottom: 1px solid var(--color-rad-line);
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  letter-spacing: var(--tracking-rad-tag);
+  color: var(--color-rad-faint);
+}
+
+.rad-timeline__rec {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-rad-fault);
+}
+
+.rad-timeline__rec i {
+  display: block;
+  width: 9px;
+  height: 9px;
+  border-radius: var(--radius-rad-pill);
+  background: var(--color-rad-fault);
+  animation: rad-blip 1.6s ease-in-out infinite;
+}
+
+@keyframes rad-blip {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.rad-timeline__marks {
+  flex: 1 1 auto;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+/* ---- numbered steps ---- */
+
+.rad-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 24px;
+}
+
+.rad-step {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  padding: 11px 0;
+  border-top: 1px solid var(--color-rad-line);
+}
+
+.rad-step:last-child {
+  border-bottom: 1px solid var(--color-rad-line);
+}
+
+.rad-step__n {
+  padding: 3px 0;
+  text-align: center;
+  line-height: 1.2;
+  border: 1px solid var(--color-rad-line-2);
+  border-radius: var(--radius-rad-xs);
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-rad-brand-lift);
+}
+
+.rad-step__title {
+  display: block;
+  font-size: var(--text-rad-base);
+  font-weight: 520;
+  letter-spacing: -0.012em;
+  color: var(--color-rad-tx);
+}
+
+.rad-step__note {
+  display: block;
+  margin-top: 4px;
+  max-width: 44ch;
+  font-size: var(--text-rad-xs);
+  line-height: 1.5;
+  color: var(--color-rad-dim);
+}
+
+/* ---- choice cards ----
+ * "Which one are you?" Sorting by who the reader is, rather than by what the product
+ * does, is what makes a dead end into a path.
+ */
+
+.rad-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.rad-choice {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 20px;
+  align-items: center;
+  width: 100%;
+  padding: 20px 22px;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: var(--color-rad-void-2);
+  border: 1px solid var(--color-rad-line);
+  border-radius: var(--radius-rad-lg);
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.rad-choice:hover {
+  border-color: var(--color-rad-brand-lift);
+  background: var(--color-rad-panel);
+  transform: translateY(-1px);
+}
+
+.rad-choice__title {
+  display: block;
+  font-size: var(--text-rad-subhead);
+  font-weight: 540;
+  letter-spacing: -0.016em;
+}
+
+.rad-choice__note {
+  display: block;
+  margin-top: 8px;
+  max-width: 46ch;
+  font-size: var(--text-rad-sm);
+  line-height: 1.55;
+  color: var(--color-rad-dim);
+}
+
+.rad-choice__action {
+  white-space: nowrap;
+  padding-bottom: 3px;
+  border-bottom: 1px solid rgb(187 141 250 / 0.4);
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono);
+  letter-spacing: var(--tracking-rad-caption);
+  text-transform: uppercase;
+  color: var(--color-rad-brand-lift);
+  transition: 0.2s;
+}
+
+.rad-choice:hover .rad-choice__action {
+  border-bottom-color: var(--color-rad-brand-lift);
+}
+
+/* ---- the gate ----
+ * Two options, split down the middle. The ring and the copy are grid rows rather than
+ * layers, so no height can make them collide.
+ *
+ * The question comes first, above both. Without it the screen is two cards side by
+ * side, and a reader working left to right meets Option A as a statement rather than
+ * as one of two answers — they pick it because it is there, not because it is true.
+ */
+
+.rad-gate-head {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: 30px 40px 24px;
+}
+
+.rad-gate-head__question {
+  margin: 0;
+  font-size: 1.7778rem;
+  line-height: 1.12;
+  letter-spacing: -0.026em;
+  font-weight: 300;
+  color: var(--color-rad-tx);
+  text-wrap: balance;
+}
+
+.rad-gate-head__question b {
+  font-weight: 600;
+}
+
+.rad-gate-head__note {
+  margin: 0;
+  max-width: 58ch;
+  font-size: var(--text-rad-md);
+  line-height: 1.6;
+  color: var(--color-rad-dim);
+}
+
+.rad-gate {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  min-height: 0;
+  background: var(--color-rad-line);
+}
+
+.rad-gate__option {
+  position: relative;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  align-content: stretch;
+  gap: 22px;
+  padding: 34px 38px 38px;
+  overflow: hidden;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  border: 0;
+  background: var(--color-rad-void);
+  cursor: pointer;
+  transition: background 0.25s;
+}
+
+.rad-gate__option:hover {
+  background: var(--color-rad-void-2);
+}
+
+.rad-gate__copy {
+  display: flex;
+  flex-direction: column;
+}
+
+.rad-gate__title {
+  margin-top: 12px;
+  font-size: var(--text-rad-title);
+  font-weight: 520;
+  letter-spacing: -0.024em;
+}
+
+.rad-gate__note {
+  margin-top: 10px;
+  max-width: 34ch;
+  font-size: var(--text-rad-base);
+  line-height: 1.6;
+  color: var(--color-rad-dim);
+}
+
+.rad-gate__action {
+  margin-top: 22px;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono);
+  letter-spacing: var(--tracking-rad-caption);
+  text-transform: uppercase;
+  color: var(--color-rad-faint);
+  transition: 0.2s;
+}
+
+.rad-gate__option:hover .rad-gate__action {
+  color: var(--color-rad-brand-lift);
+}
+
+/* ---- address resolution ----
+ * Reserved height so the layout does not jump between resolving, resolved and failed —
+ * but with real line-height and padding, so the text is not squeezed against the field
+ * above it.
+ */
+
+.rad-resolve {
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+  margin-top: 10px;
+  padding: 4px 2px;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono);
+  line-height: 1.5;
+  letter-spacing: var(--tracking-rad-caption);
+  text-transform: uppercase;
+  color: var(--color-rad-faint);
+  transition: color 0.3s;
+}
+
+/* ---- the sign-in code ----
+ * The code is the whole screen: big, monospaced, and with enough letter spacing to be
+ * read aloud or copied by hand across a room.
+ */
+
+.rad-code {
+  margin-top: 8px;
+  padding: 18px 20px;
+  text-align: center;
+  border: 1px solid var(--color-rad-line-2);
+  border-radius: var(--radius-rad-md);
+  background: rgb(20 12 38 / 0.6);
+  font-family: var(--font-rad-mono);
+  font-size: 2rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--color-rad-tx);
+  font-variant-numeric: tabular-nums;
+}
+
+.rad-code-url {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 10px 10px 10px 16px;
+  border: 1px solid var(--color-rad-line-2);
+  border-radius: var(--radius-rad-md);
+  background: rgb(20 12 38 / 0.6);
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-md);
+  color: var(--color-rad-tx);
+}
+
+.rad-resolve--ok {
+  color: var(--color-rad-ok);
+}
+
+.rad-resolve--bad {
+  color: var(--color-rad-fault);
+}
+
+@container rad (max-width: 560px) {
+  .rad-readout {
+    grid-template-columns: 12px minmax(0, 1fr) 88px 52px;
+    gap: 10px;
+    font-size: var(--text-rad-mono);
+  }
+
+  .rad-readout__range {
+    display: none;
+  }
+
+  .rad-readout > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Stacked panels, not two narrow columns. */
+  .rad-channels {
+    position: relative;
+    inset: auto;
+    flex-direction: column;
+    gap: 10px;
+    padding: 20px 20px 6px;
+  }
+
+  .rad-channel {
+    padding: 13px;
+  }
+
+  .rad-channel__member canvas {
+    max-width: 82px;
+  }
+
+  /* The matrix flows and wraps instead of being clipped. */
+  .rad-matrix {
+    position: relative;
+    inset: auto;
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 20px 20px 6px;
+  }
+
+  .rad-matrix__group {
+    padding: 13px 14px;
+  }
+
+  .rad-matrix__row {
+    grid-template-columns: 30px minmax(0, 1fr);
+    gap: 11px;
+    align-items: start;
+    padding: 8px 0;
+  }
+
+  .rad-matrix__blocks {
+    padding-top: 5px;
+  }
+
+  .rad-matrix__row > span:nth-child(2) {
+    overflow-wrap: anywhere;
+  }
+
+  .rad-matrix__tag {
+    grid-column: 2;
+    margin-top: 3px;
+  }
+
+  .rad-timeline {
+    position: relative;
+    inset: auto;
+    padding: 20px 20px 6px;
+  }
+
+  .rad-timeline__ruler {
+    gap: 12px;
+    flex-wrap: wrap;
+    font-size: var(--text-rad-mono-xs);
+  }
+
+  .rad-steps {
+    margin-top: 20px;
+  }
+
+  .rad-step {
+    grid-template-columns: 30px minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .rad-step__title {
+    font-size: var(--text-rad-md);
+  }
+
+  .rad-step__note {
+    max-width: none;
+    font-size: var(--text-rad-xs);
+  }
+
+  .rad-gate-head {
+    padding: 24px 20px 18px;
+  }
+
+  .rad-gate-head__question {
+    font-size: 1.4444rem;
+  }
+
+  .rad-gate-head__note {
+    font-size: var(--text-rad-sm);
+  }
+
+  .rad-gate {
+    display: block;
+    background: transparent;
+  }
+
+  .rad-gate__option {
+    grid-template-rows: 200px auto;
+    gap: 16px;
+    padding: 24px 20px 28px;
+    border-bottom: 1px solid var(--color-rad-line);
+  }
+
+  .rad-gate__title {
+    font-size: 1.3333rem;
+  }
+
+  .rad-gate__note {
+    max-width: none;
+    font-size: var(--text-rad-md);
+  }
+
+  .rad-choice {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    padding: 18px;
+  }
+
+  .rad-choice__note {
+    max-width: none;
+  }
+
+  .rad-choice__action {
+    text-align: left;
+  }
+}

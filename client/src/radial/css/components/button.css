@@ -1,0 +1,396 @@
+/* One button.
+ *
+ * The prototype grew two complete button systems — a tracked, uppercase one at
+ * onboarding scale and a compact, sentence-case one in settings — with the same
+ * variant names meaning different things in each. They are one component with a
+ * size, because a primary action is a primary action wherever it appears.
+ *
+ *   <button class="rad-btn rad-btn--primary">Save changes</button>
+ *   <button class="rad-btn rad-btn--lg rad-btn--primary">Next</button>
+ *   <button class="rad-btn rad-btn--danger"><span data-rad-icon="trash"></span> Delete</button>
+ */
+
+.rad-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  font: inherit;
+  font-size: var(--text-rad-xs);
+  padding: 10px 17px;
+  border: 0;
+  border-radius: var(--radius-rad-md);
+  background: var(--color-rad-void-2);
+  color: var(--color-rad-dim);
+  cursor: pointer;
+  transition: 0.16s;
+}
+
+.rad-btn:hover {
+  background: var(--color-rad-panel);
+  color: var(--color-rad-tx);
+}
+
+.rad-btn > [data-rad-icon] > svg {
+  width: 16px;
+  height: 16px;
+}
+
+.rad-btn--primary {
+  background: var(--color-rad-brand);
+  color: #fff;
+}
+
+.rad-btn--primary:hover {
+  background: var(--color-rad-brand-lift);
+  color: #fff;
+}
+
+/* Destructive is red as text first. A solid red button is louder than the action
+   usually deserves, and the confirm behind it is where the weight belongs. */
+.rad-btn--danger {
+  color: var(--color-rad-fault);
+}
+
+.rad-btn--danger:hover {
+  background: rgb(255 130 102 / 0.14);
+  color: var(--color-rad-fault);
+}
+
+.rad-btn--quiet {
+  background: transparent;
+  color: var(--color-rad-faint);
+}
+
+.rad-btn--quiet:hover {
+  background: transparent;
+  color: var(--color-rad-tx);
+}
+
+.rad-btn:disabled,
+.rad-btn[aria-disabled="true"] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Onboarding scale: bigger, tracked, uppercase, outlined. These are the two or
+   three buttons on a screen that has almost nothing else on it. */
+.rad-btn--lg {
+  font-size: var(--text-rad-sm);
+  letter-spacing: var(--tracking-rad-tag);
+  text-transform: uppercase;
+  padding: 14px 26px;
+  border: 1px solid var(--color-rad-line-2);
+  border-radius: var(--radius-rad-xs);
+  background: transparent;
+  color: var(--color-rad-tx);
+  transition: 0.18s;
+}
+
+.rad-btn--lg:hover {
+  background: rgb(173 118 247 / 0.14);
+  border-color: var(--color-rad-brand-lift);
+  color: var(--color-rad-tx);
+}
+
+.rad-btn--lg.rad-btn--primary {
+  background: var(--color-rad-brand);
+  border-color: var(--color-rad-brand);
+  color: #fff;
+  font-weight: 650;
+}
+
+.rad-btn--lg.rad-btn--primary:hover {
+  background: var(--color-rad-brand-lift);
+  border-color: var(--color-rad-brand-lift);
+}
+
+.rad-btn--lg.rad-btn--quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-rad-faint);
+  padding: 14px 10px;
+}
+
+.rad-btn--lg.rad-btn--quiet:hover {
+  color: var(--color-rad-tx);
+  background: transparent;
+  border-color: transparent;
+}
+
+/* ---- icon-only ---- */
+
+.rad-icon-btn {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-rad-md);
+  background: transparent;
+  color: var(--color-rad-dim);
+  cursor: pointer;
+  transition: 0.16s;
+}
+
+.rad-icon-btn:hover {
+  color: var(--color-rad-tx);
+  background: var(--color-rad-panel);
+}
+
+.rad-icon-btn > [data-rad-icon] > svg {
+  width: 17px;
+  height: 17px;
+}
+
+/* Row actions in a table. Smaller, and quieter until the row is hovered. */
+.rad-kebab {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-rad-sm);
+  background: transparent;
+  color: var(--color-rad-faint);
+  cursor: pointer;
+  transition: 0.16s;
+}
+
+.rad-kebab:hover {
+  color: var(--color-rad-tx);
+  background: var(--color-rad-panel);
+}
+
+.rad-kebab > [data-rad-icon] > svg {
+  width: 17px;
+  height: 17px;
+}
+
+/* A header control: same footprint as the mobile capsule buttons so the top and
+   bottom edges of a phone screen feel like one system. */
+.rad-header-btn {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-rad-lg);
+  background: transparent;
+  color: var(--color-rad-dim);
+  cursor: pointer;
+  transition: 0.16s;
+}
+
+.rad-header-btn:hover {
+  color: var(--color-rad-tx);
+  background: var(--color-rad-panel);
+}
+
+.rad-header-btn.is-on {
+  color: var(--color-rad-brand-lift);
+  background: var(--color-rad-panel);
+}
+
+.rad-header-btn > [data-rad-icon] > svg {
+  width: 21px;
+  height: 21px;
+}
+
+/* Something happened in there. Ringed in the frame colour so it reads as a dot on
+   the icon rather than as part of it. */
+.rad-header-btn.has-badge::after {
+  content: "";
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-rad-pill);
+  background: var(--color-rad-brand-lift);
+  border: 2px solid var(--color-rad-void);
+}
+
+.rad-header-glyph {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-rad-lg);
+  background: transparent;
+  cursor: pointer;
+  transition: 0.16s;
+}
+
+.rad-header-glyph:hover {
+  background: var(--color-rad-panel);
+}
+
+.rad-header-glyph canvas {
+  display: block;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-rad-md);
+}
+
+/* ---- split button ----
+ * One obvious action, with its variants behind the caret. The default has to be
+ * genuinely the right choice most of the time or this is just a menu with a lie
+ * attached.
+ */
+
+.rad-split-btn {
+  display: inline-flex;
+}
+
+.rad-split-btn > .rad-btn:first-child {
+  border-radius: var(--radius-rad-md) 0 0 var(--radius-rad-md);
+}
+
+.rad-split-btn > .rad-btn:last-child {
+  border-radius: 0 var(--radius-rad-md) var(--radius-rad-md) 0;
+  padding: 10px 11px;
+  margin-left: 1px;
+}
+
+.rad-split-btn > .rad-btn:last-child > [data-rad-icon] > svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* ---- Microsoft sign-in ----
+ * The four squares are Microsoft's mark and are exempt from the palette. Recolouring
+ * them would break the recognition that is the entire reason the button works.
+ */
+
+.rad-ms-signin {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 13px;
+  font: inherit;
+  font-size: var(--text-rad-sm);
+  letter-spacing: var(--tracking-rad-tag);
+  text-transform: uppercase;
+  padding: 17px;
+  border: 1px solid var(--color-rad-line-2);
+  border-radius: 5px;
+  background: var(--color-rad-panel);
+  color: var(--color-rad-tx);
+  cursor: pointer;
+  transition: 0.18s;
+}
+
+.rad-ms-signin:hover {
+  border-color: var(--color-rad-brand-lift);
+  background: rgb(173 118 247 / 0.16);
+}
+
+.rad-ms-mark {
+  width: 17px;
+  height: 17px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+.rad-ms-mark i {
+  display: block;
+}
+
+.rad-ms-mark i:nth-child(1) {
+  background: #f25022;
+}
+.rad-ms-mark i:nth-child(2) {
+  background: #7fba00;
+}
+.rad-ms-mark i:nth-child(3) {
+  background: #00a4ef;
+}
+.rad-ms-mark i:nth-child(4) {
+  background: #ffb900;
+}
+
+/* ---- links out ---- */
+
+.rad-pill-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font: inherit;
+  font-size: var(--text-rad-sm);
+  padding: 10px 16px;
+  border: 1px solid var(--color-rad-line);
+  border-radius: var(--radius-rad-pill);
+  background: transparent;
+  color: var(--color-rad-dim);
+  cursor: pointer;
+  transition: 0.18s;
+}
+
+.rad-pill-link:hover {
+  color: var(--color-rad-tx);
+  border-color: var(--color-rad-line-2);
+  background: var(--color-rad-panel);
+}
+
+.rad-pill-link__ext {
+  font-size: var(--text-rad-mono-xs);
+  color: var(--color-rad-faint);
+}
+
+.rad-link-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  margin-top: 14px;
+}
+
+.rad-link-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: var(--text-rad-sm);
+  padding: 14px 16px;
+  border: 0;
+  border-radius: 11px;
+  background: var(--color-rad-void-2);
+  color: var(--color-rad-dim);
+  cursor: pointer;
+  transition: 0.16s;
+}
+
+.rad-link-card:hover {
+  background: var(--color-rad-panel);
+  color: var(--color-rad-tx);
+}
+
+.rad-link-card > [data-rad-icon] {
+  margin-left: auto;
+  color: var(--color-rad-faint);
+}
+
+.rad-link-card > [data-rad-icon] > svg {
+  width: 16px;
+  height: 16px;
+}
+
+@container rad (max-width: 560px) {
+  .rad-link-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rad-pill-link {
+    font-size: var(--text-rad-xs);
+  }
+}

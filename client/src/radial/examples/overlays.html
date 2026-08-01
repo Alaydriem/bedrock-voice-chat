@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Radial · overlays</title>
+    <link rel="stylesheet" href="./standalone.css" />
+  </head>
+  <body>
+    <div class="g-wrap">
+      <header class="g-head">
+        <p class="g-kick">Radial · overlays</p>
+        <h1 class="g-title">One dropdown, three modals, one sheet</h1>
+        <p class="g-lede">
+          Every overlay is positioned inside the frame, not on the page. The client is a window, not
+          a document, and an overlay that escaped the frame would also escape the container query
+          that every component inside it depends on.
+        </p>
+      </header>
+
+      <nav class="g-nav" data-g-nav></nav>
+
+      <section class="g-sec" id="overlays">
+        <p class="g-sec__kick">In place</p>
+        <h2 class="g-sec__title">Everything, inside one frame</h2>
+        <p class="g-sec__note">
+          The specimen below is a real <code>.rad-frame</code>. Switch it to phone to see the sheet,
+          which is the narrow-container stand-in for the rail and the group panel.
+        </p>
+
+        <div class="g-bar">
+          <span class="g-ctls">
+            <button data-open="menu">Row menu</button>
+            <button data-open="select">Select</button>
+            <button data-open="confirm">Confirm</button>
+            <button data-open="export">Export dialog</button>
+            <button data-open="typed">Typed confirm</button>
+            <button data-open="sheet">Bottom sheet</button>
+            <button data-open="toast">Toast</button>
+          </span>
+          <span class="g-seg" data-g-device="ov-frame">
+            <button data-g-size="desktop" aria-pressed="true">Desktop</button>
+            <button data-g-size="phone" aria-pressed="false">Phone</button>
+          </span>
+        </div>
+
+        <div class="g-frame-stage">
+          <div class="rad-frame rad-frame--desktop" id="ov-frame">
+            <div class="rad-grain"></div>
+            <div class="rad-topbar">
+              <span class="rad-brand">
+                <canvas data-rad-mark></canvas>
+                <span class="rad-wordmark">Bedrock Voice Chat</span>
+              </span>
+              <span class="rad-label">Overlays</span>
+            </div>
+
+            <div class="rad-stage">
+              <div class="rad-settings-body">
+                <div class="rad-settings-measure">
+                  <div class="rad-section">
+                    <div class="rad-section__head">Anchored to what opened it</div>
+                    <div class="rad-section__note">
+                      The dropdown flips above its trigger near the bottom edge. Open the one on the
+                      last row to watch it.
+                    </div>
+                    <div class="rad-card">
+                      <div class="rad-card__head">Export</div>
+                      <div class="rad-row">
+                        <span class="rad-row__text">
+                          <span class="rad-row__label">Format</span>
+                          <span class="rad-row__note">A select: tick marks against the current value.</span>
+                        </span>
+                        <span class="rad-row__control">
+                          <button
+                            class="rad-select"
+                            id="ov-select"
+                            data-rad-select="BWAV — one file, multitrack|WAV — one file per track|MP4 / Opus — mixdown"
+                          >
+                            <span class="rad-select__value">WAV &mdash; one file per track</span>
+                            <span data-rad-icon="chev"></span>
+                          </button>
+                        </span>
+                      </div>
+                      <div class="rad-row">
+                        <span class="rad-row__text">
+                          <span class="rad-row__label">Row actions</span>
+                          <span class="rad-row__note">
+                            The same component: dividers, and a single destructive item last.
+                          </span>
+                        </span>
+                        <span class="rad-row__control">
+                          <button class="rad-kebab" id="ov-kebab" aria-label="Actions">
+                            <span data-rad-icon="kebab"></span>
+                          </button>
+                        </span>
+                      </div>
+                      <div class="rad-row">
+                        <span class="rad-row__text">
+                          <span class="rad-row__label">Near the bottom edge</span>
+                          <span class="rad-row__note">This one opens upward instead.</span>
+                        </span>
+                        <span class="rad-row__control">
+                          <button class="rad-kebab" id="ov-kebab-low" aria-label="Actions">
+                            <span data-rad-icon="kebab"></span>
+                          </button>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="rad-section">
+                    <div class="rad-section__head">Irreversible actions</div>
+                    <div class="rad-section__note">
+                      A confirm is enough for one item. For something that cannot be undone in bulk,
+                      make the person type it.
+                    </div>
+                    <div class="rad-swatchrow">
+                      <button class="rad-btn rad-btn--danger" data-rad-modal-open="confirm">
+                        <span data-rad-icon="trash"></span> Delete this recording
+                      </button>
+                      <button class="rad-btn rad-btn--danger" data-rad-modal-open="typed">
+                        <span data-rad-icon="trash"></span> Delete all recordings
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- the dropdown -->
+            <div class="rad-menu" data-rad-menu></div>
+
+            <!-- sheets -->
+            <div class="rad-scrim" data-rad-sheet-scrim></div>
+            <div class="rad-sheet" data-rad-sheet="servers">
+              <span class="rad-sheet__handle"></span>
+              <h4 class="rad-sheet__title">Servers</h4>
+              <button class="rad-sheet-row is-on">
+                <canvas data-rad-glyph="bvc.alaydriem.com" data-size="30"></canvas>
+                <span class="rad-sheet-row__text">
+                  <span class="rad-sheet-row__name">Alaydriem's SMP</span>
+                  <span class="rad-sheet-row__host">bvc.alaydriem.com</span>
+                </span>
+                <span class="rad-sheet-row__tick" data-rad-icon="check"></span>
+              </button>
+              <button class="rad-sheet-row">
+                <canvas data-rad-glyph="voice.hearthhold.net" data-size="30"></canvas>
+                <span class="rad-sheet-row__text">
+                  <span class="rad-sheet-row__name">Hearthhold</span>
+                  <span class="rad-sheet-row__host">voice.hearthhold.net</span>
+                </span>
+              </button>
+              <button class="rad-sheet-row">
+                <canvas data-rad-glyph="bvc.tinyaxolotl.gg" data-size="30"></canvas>
+                <span class="rad-sheet-row__text">
+                  <span class="rad-sheet-row__name">Tiny Axolotl</span>
+                  <span class="rad-sheet-row__host">bvc.tinyaxolotl.gg</span>
+                </span>
+              </button>
+              <div class="rad-sheet__divider"></div>
+              <button class="rad-list-row"><span class="rad-list-row__icon" data-rad-icon="plus"></span> Add a server</button>
+              <button class="rad-list-row"><span class="rad-list-row__icon" data-rad-icon="gear"></span> Settings</button>
+              <button class="rad-list-row"><span class="rad-list-row__icon" data-rad-icon="refresh"></span> Refresh connection</button>
+              <div class="rad-sheet__divider"></div>
+              <button class="rad-list-row rad-list-row--danger" data-rad-sheet-close>
+                <span class="rad-list-row__icon" data-rad-icon="close"></span> Sign out
+              </button>
+            </div>
+
+            <!-- modals -->
+            <div class="rad-scrim rad-scrim--modal" data-rad-modal-scrim></div>
+
+            <div class="rad-modal" data-rad-modal="confirm">
+              <h5 class="rad-modal__title">Delete this recording?</h5>
+              <p><b>Nether run &mdash; 2026-07-28</b> and all of its tracks will be removed from disk. This cannot be undone.</p>
+              <div class="rad-modal__actions">
+                <button class="rad-btn" data-rad-modal-close>Keep it</button>
+                <button class="rad-btn rad-btn--danger" data-rad-modal-close>
+                  <span data-rad-icon="trash"></span> Delete
+                </button>
+              </div>
+            </div>
+
+            <div class="rad-modal rad-modal--wide" data-rad-modal="export">
+              <h5 class="rad-modal__title">Export tracks</h5>
+              <p style="margin-bottom: 14px">Nether run &mdash; 2026-07-28 &mdash; choose which tracks to write.</p>
+              <div class="rad-card" style="margin-top: 0">
+                <div class="rad-modal__scroll" style="padding: 6px 16px" data-x-tracks></div>
+              </div>
+              <div class="rad-row" style="padding: 14px 0 0; border: 0">
+                <span class="rad-row__text"><span class="rad-row__label" style="font-size: var(--text-rad-sm)">Format</span></span>
+                <span class="rad-row__control">
+                  <button class="rad-select" data-rad-select="BWAV — one file, multitrack|WAV — one file per track|MP4 / Opus — mixdown">
+                    <span class="rad-select__value">WAV &mdash; one file per track</span>
+                    <span data-rad-icon="chev"></span>
+                  </button>
+                </span>
+              </div>
+              <div class="rad-progress" style="margin-top: 16px; display: none" data-x-progress><i></i></div>
+              <div class="rad-modal__actions">
+                <button class="rad-btn" data-rad-modal-close>Cancel</button>
+                <button class="rad-btn rad-btn--primary" data-x-go>Export <span data-x-count>5</span> tracks</button>
+              </div>
+            </div>
+
+            <div class="rad-modal" data-rad-modal="typed">
+              <h5 class="rad-modal__title">Delete every recording?</h5>
+              <p>This removes <b>4 sessions</b> and all of their tracks from disk. It cannot be undone.</p>
+              <p style="margin-top: 14px; font-size: var(--text-rad-xs)">
+                Type <b style="font-family: var(--font-rad-mono)">delete all</b> to confirm.
+              </p>
+              <span class="rad-input" style="margin-top: 9px">
+                <input type="text" placeholder="delete all" data-typed-input aria-label="Type delete all to confirm" />
+              </span>
+              <div class="rad-modal__actions">
+                <button class="rad-btn" data-rad-modal-close>Cancel</button>
+                <button class="rad-btn rad-btn--danger" data-typed-go disabled>Delete everything</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="g-sec">
+        <p class="g-sec__kick">Rules</p>
+        <h2 class="g-sec__title">What each one is for</h2>
+        <div class="g-grid" style="margin-top: 18px">
+          <div class="g-item" style="margin-top: 0">
+            <div class="g-item__head"><span class="g-item__name">Menu</span></div>
+            <div class="g-stage" style="padding: 18px 20px">
+              <p class="g-sec__note" style="margin: 0">
+                Tick marks for a select, dividers plus one trailing destructive item for a row menu.
+                Always last and always the only red thing, so "the red one at the bottom" is a shape
+                rather than something to read carefully each time.
+              </p>
+            </div>
+          </div>
+          <div class="g-item" style="margin-top: 0">
+            <div class="g-item__head"><span class="g-item__name">Modal</span></div>
+            <div class="g-stage" style="padding: 18px 20px">
+              <p class="g-sec__note" style="margin: 0">
+                One at a time. Focus moves in on open, is trapped while open, and returns to whatever
+                opened it on close &mdash; without that last part a keyboard user is dropped at the
+                top of the document every time they cancel.
+              </p>
+            </div>
+          </div>
+          <div class="g-item" style="margin-top: 0">
+            <div class="g-item__head"><span class="g-item__name">Sheet</span></div>
+            <div class="g-stage" style="padding: 18px 20px">
+              <p class="g-sec__note" style="margin: 0">
+                Rows enter staggered, so the sheet reads as assembling rather than as a block sliding
+                up, and the list is scannable a beat sooner.
+              </p>
+            </div>
+          </div>
+          <div class="g-item" style="margin-top: 0">
+            <div class="g-item__head"><span class="g-item__name">Toast</span></div>
+            <div class="g-stage" style="padding: 18px 20px">
+              <p class="g-sec__note" style="margin: 0">
+                Only ever says what just happened. Nothing that matters can live in something that
+                disappears after 1.7 seconds and cannot be recalled &mdash; a failure gets a banner,
+                a decision gets a modal.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./overlays.ts"></script>
+  </body>
+</html>
