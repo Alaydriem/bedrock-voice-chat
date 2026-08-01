@@ -7,17 +7,29 @@ permissions:
 #   - `common`           (Linux)   — platform-agnostic crate.
 #   - `server`           (Linux)   — the server's production target is Linux; its
 #                                    tests bind 127.0.0.1 + SQLite, no Windows needed.
+#   - `client-lib`       (Windows) — the client crate's inline #[cfg(test)] unit
+#                                    tests only (`--lib`); the e2e target is
+#                                    excluded by its `required-features`.
 #   - `e2e-build-server` (Windows) — compiles the server cdylib (loaded via FFI).
 #   - `e2e-build-client` (Windows) — compiles the e2e harness bin + the client test
 #                                    binaries (packaged with `nextest archive`).
 #   - `e2e-shard`        (Windows) — downloads both build artifacts and RUNS a shard
 #                                    of the suite via `nextest run --archive-file
-#                                    --partition`. No compilation.
+#                                    --partition`. No compilation. Filtered to
+#                                    `not kind(lib)` so the unit tests, which
+#                                    `client-lib` owns, do not also run here.
 #
 # The cdylib and the client test suite have no build-time dependency on each other
 # (the cdylib is dlopen'd at runtime), so their two build jobs run concurrently;
 # the shards then build nothing. Each build job carries only the setup it needs:
 # the server job skips node/yarn/ASIO/frontend, the client job skips vcpkg.
+#
+# COVERAGE: the `common`, `server`, and `client-lib` suites run under
+# cargo-llvm-cov and upload lcov to Codecov under one flag each. The e2e shards
+# do NOT — instrumenting them means covering a cdylib built in the other Cargo
+# workspace and dlopen'd at runtime, plus child processes, and it is unsolved.
+# Coverage never gates a merge (see codecov.yml); patch coverage on changed
+# lines is the signal, reported as a PR comment.
 #
 # Reusable workflow: invoked by build-all.yml and release.yml (which provide the
 # PR/push triggers), plus workflow_dispatch. The caller's job result is success
@@ -54,11 +66,13 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-nextest
+          tool: cargo-nextest,cargo-llvm-cov
 
       - name: Setup private cargo deps auth
         uses: ./.github/actions/setup-private-cargo-deps
@@ -69,15 +83,35 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: test-common
+          # Distinct from the non-coverage keys: instrumented builds carry
+          # different RUSTFLAGS and land in target/llvm-cov-target, so they must
+          # not share a cache entry with an uninstrumented build.
+          shared-key: test-common-cov
 
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y pkg-config cmake build-essential libasound2-dev
 
-      - name: Common workspace tests
-        run: cargo nextest run -p common --no-fail-fast
+      - name: Common workspace tests (instrumented)
+        # --remap-path-prefix emits SF: paths relative to the Cargo workspace
+        # root. This crate's workspace root IS the repo root, so the paths come
+        # out repo-relative with no fixup. (The server workspace is nested one
+        # level down and does need one — see that job.)
+        run: >
+          cargo llvm-cov nextest -p common --no-fail-fast
+          --remap-path-prefix
+          --lcov --output-path lcov-common.info
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: lcov-common.info
+          flags: common
+          token: ${{ secrets.CODECOV_TOKEN }}
+          # Coverage is informational and must never fail the merge gate; this
+          # job's pass/fail stays purely about whether the tests passed.
+          fail_ci_if_error: false
 
   server:
     name: Server tests (Linux)
@@ -90,11 +124,13 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-nextest
+          tool: cargo-nextest,cargo-llvm-cov
 
       - name: Setup private cargo deps auth
         uses: ./.github/actions/setup-private-cargo-deps
@@ -106,20 +142,155 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: "./server"
-          shared-key: test-server
+          # See the note on test-common-cov: instrumented artifacts get their
+          # own cache key.
+          shared-key: test-server-cov
 
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y pkg-config cmake build-essential libasound2-dev
 
-      - name: Server workspace tests
+      - name: Server workspace tests (instrumented)
         working-directory: ./server/server
         # Serial (-j1): each server test binds 127.0.0.1:0 then hands the port to
         # Rocket — a bind-then-handoff TOCTOU that process isolation does not fix,
         # so concurrency stays at one. Run from the server crate dir so the
         # `s2n_quic_unstable` rustflag in its .cargo/config applies.
-        run: cargo nextest run --workspace -j 1 --no-fail-fast
+        #
+        # cargo-llvm-cov reads build.rustflags from .cargo/config.toml and
+        # appends its own, so `--cfg s2n_quic_unstable` survives instrumentation.
+        run: >
+          cargo llvm-cov nextest --workspace -j 1 --no-fail-fast
+          --remap-path-prefix
+          --lcov --output-path lcov-server.info
+
+      - name: Rebase server paths onto the repo root
+        working-directory: ./server/server
+        # --remap-path-prefix makes paths relative to the CARGO WORKSPACE root,
+        # and server/ is a workspace of its own nested one level below the repo
+        # root. So it emits `server/src/...`, `entity/src/...`,
+        # `migration/src/...` — each missing the leading `server/` that the repo
+        # actually has. Without this, Codecov matches none of these files against
+        # the diff and reports 0 changed lines covered for every server PR.
+        run: sed -i -E 's|^SF:|SF:server/|' lcov-server.info
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./server/server/lcov-server.info
+          flags: server
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
+  client-lib:
+    name: Client unit tests (Windows)
+    runs-on: windows-2022
+    # Covers ONLY the crate's inline #[cfg(test)] unit tests (`--lib`). The
+    # `integration` target is `required-features = ["e2e"]`, so --lib excludes it
+    # outright — no cdylib, no harness binary, no FFI. Instrumenting the e2e
+    # suite is a separate and much harder problem (the server cdylib it dlopens
+    # is built in a different Cargo workspace) and is deliberately not attempted
+    # here.
+    #
+    # Windows rather than Linux because cpal/ASIO is the platform the client
+    # actually ships and tests on.
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: 'yarn'
+          cache-dependency-path: client/yarn.lock
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+          components: llvm-tools-preview
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest,cargo-llvm-cov
+
+      - name: Setup private cargo deps auth
+        uses: ./.github/actions/setup-private-cargo-deps
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: test-client-lib-cov
+
+      - name: Install JavaScript dependencies
+        working-directory: ./client
+        run: yarn install --frozen-lockfile
+
+      - name: Download and setup ASIO SDK
+        working-directory: ./client/src-tauri
+        shell: powershell
+        run: |
+          Invoke-WebRequest -Uri "https://download.steinberg.net/sdk_downloads/asiosdk_2.3.3_2019-06-14.zip" -OutFile "asiosdk.zip"
+          Expand-Archive -Path "asiosdk.zip" -DestinationPath "." -Force
+
+      - name: Set up LIBCLANG environment
+        shell: powershell
+        run: |
+          $libclangPath = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm\x64\lib"
+          if (-not (Test-Path $libclangPath)) {
+            $libclangPath = "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Tools\Llvm\x64\lib"
+          }
+          if (-not (Test-Path $libclangPath)) {
+            $libclangPath = "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\x64\lib"
+          }
+          echo "LIBCLANG_PATH=$libclangPath" >> $env:GITHUB_ENV
+
+      - name: Build frontend dist
+        working-directory: ./client
+        # tauri-build's build script fails without dist/, so this is required
+        # even though no frontend code is under test here.
+        run: yarn build
+
+      - name: Client unit tests (instrumented)
+        working-directory: ./client/src-tauri
+        # Run from the crate dir: .cargo/config.toml sets CPAL_ASIO_DIR with
+        # `relative = true`, so it resolves only when cwd is inside
+        # client/src-tauri. From the workspace root the config is skipped
+        # entirely and asio-sys fails.
+        #
+        # This crate is a member of the ROOT workspace, so --remap-path-prefix
+        # already yields repo-relative `client/src-tauri/src/...` paths.
+        shell: bash
+        run: >
+          cargo llvm-cov nextest -p bedrock-voice-chat-client --lib --no-fail-fast
+          --remap-path-prefix
+          --lcov --output-path lcov-client.info
+
+      - name: Normalize Windows path separators
+        working-directory: ./client/src-tauri
+        shell: bash
+        # llvm-cov emits native separators on Windows. Codecov matches coverage
+        # records against git paths, which are always forward-slashed, so
+        # backslashes here would silently match nothing.
+        run: |
+          tr '\\' '/' < lcov-client.info > lcov-client.norm.info
+          mv lcov-client.norm.info lcov-client.info
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./client/src-tauri/lcov-client.info
+          flags: client
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
 
   e2e-build-server:
     name: Build server cdylib (Windows)
@@ -334,10 +505,17 @@ jobs:
         # `--partition` selects this shard's slice; `--workspace-remap .` points
         # path-relative lookups at this checkout. The heavy relay scenarios stay
         # serial via the test group in .config/nextest.toml.
+        #
+        # `not kind(lib)` drops the client's inline #[cfg(test)] unit tests from
+        # the shards. They are in the archive (it is built per-package, not
+        # per-target) but the `client-lib` job already runs them under coverage,
+        # so without this filter they run twice. What remains here is the
+        # `integration` target — the actual e2e scenarios.
         run: >
           cargo nextest run
           --archive-file e2e-client/nextest-archive.tar.zst
           --workspace-remap .
           --partition hash:${{ matrix.shard }}/3
+          -E 'not kind(lib)'
           --no-fail-fast
           -j ${{ inputs.test_jobs || '4' }}
