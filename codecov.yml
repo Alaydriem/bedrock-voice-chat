@@ -1,0 +1,50 @@
+# Coverage here is REPORTED, never gated.
+#
+# CLAUDE.md §10 bans zero-value tests — serialization round-trips, DTO
+# construction, encoding round-trips, enum discriminant assertions. Those are
+# precisely the constructs that dominate the DTO-heavy modules in common/, so a
+# low absolute number there is the policy working, not a defect. A project
+# threshold would create pressure to write the exact tests that policy forbids.
+#
+# The signal we act on is patch coverage: of the lines this PR changed, how many
+# does a test execute. It stays informational so it can never block a merge.
+
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
+
+comment:
+  # diff  -> the patch-coverage summary: of the lines this PR touched, how many
+  #          are executed by a test. This is the number to read first.
+  # flags -> per-area rollup. The flags map 1:1 onto common/server/client, so
+  #          this answers "which crate did this PR move" without a second tool.
+  #          (Codecov "Components" would duplicate this; flags already align.)
+  # files -> the per-changed-file table — which specific files need tests.
+  layout: "condensed_header, diff, flags, files, condensed_footer"
+  behavior: default
+  require_changes: false
+
+flag_management:
+  default_rules:
+    carryforward: true
+  individual_flags:
+    - name: common
+      paths:
+        - common/
+    - name: server
+      paths:
+        - server/
+    - name: client
+      paths:
+        - client/
+
+ignore:
+  # ts-rs generated from the Rust types in common/; the generator is what is
+  # under test, not the output.
+  - client/src/js/bindings/**
+  - "**/tests/**"
