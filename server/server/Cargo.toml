@@ -35,7 +35,7 @@ bedrock = [
 ]
 
 [dependencies]
-common = { path = "../../common", features = ["quic", "templates", "server"] }
+common = { path = "../../common", features = ["quic", "server"] }
 entity = { path = "../entity" }
 migration = { path = "../migration" }
 sea-orm = { workspace = true }
@@ -164,11 +164,6 @@ assets = [
     [
         "../README.md",
         "usr/share/doc/bvcd/README",
-        "644",
-    ],
-    [
-        "templates/**/*",
-        "etc/bvcd/templates/",
         "644",
     ],
     [

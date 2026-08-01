@@ -196,7 +196,11 @@ impl AuthService {
             certificate,
             certificate_key,
             certificate_ca,
-            config.quic_port.to_string(),
+            // The port a client is told to dial has to be one the operator
+            // advertises, not the port the socket happens to be bound to. Behind a
+            // fronting proxy the two differ, and this value is what a client caches
+            // in its keyring.
+            config.quic_ports()[0].to_string(),
             server_permissions,
         ))
     }

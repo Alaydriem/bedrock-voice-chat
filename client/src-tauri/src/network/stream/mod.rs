@@ -6,21 +6,15 @@ use crate::NetworkPacket;
 use common::s2n_quic::Client;
 use common::s2n_quic::Connection;
 use common::s2n_quic::client::Connect;
+use common::net::CandidatePlan;
 use common::structs::packet::PacketOwner;
 use std::error::Error;
-use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::Duration;
 use tauri::Manager;
 use stream_manager::StreamTrait;
 use stream_manager::StreamTraitType;
 
 use health_manager::ConnectionHealthManager;
-
-// Per-port handshake budget. A blackholed UDP port produces no response at all,
-// so this timeout — not an error — is what ends the attempt and moves on to the
-// next candidate.
-const CONNECT_ATTEMPT_TIMEOUT: Duration = Duration::from_secs(3);
 
 pub(crate) struct NetworkStreamManager {
     producer: Arc<flume::Sender<AudioPacket>>,
@@ -67,7 +61,7 @@ impl NetworkStreamManager {
         &mut self,
         server_fqdn: String,
         server_url: String,
-        sockets: Vec<SocketAddr>,
+        plan: CandidatePlan,
         name: String,
         ca_cert: String,
         cert: String,
@@ -75,28 +69,38 @@ impl NetworkStreamManager {
     ) -> Result<(), Box<dyn Error>> {
         self.stop().await?;
 
-        let provider = common::rustls::MtlsProvider::new_from_vec(
-            ca_cert.as_bytes().to_vec(),
-            cert.as_bytes().to_vec(),
-            key.as_bytes().to_vec(),
-        )
-        .await?;
+        // A client with no IPv6 candidates stays on the plain IPv4 socket that every
+        // released version uses. Only a client that actually intends to try IPv6
+        // takes the dual-stack path, where IPv4 destinations travel v4-mapped.
+        //
+        // A failed dual-stack bind means the host has IPv6 unbound entirely. The v6
+        // candidates are undialable from the replacement socket, so they are dropped
+        // along with it rather than left in the walk to time out.
+        let (client, plan) = if plan.requires_v6_socket() {
+            // The bind error is rendered to a String before the retry: it is a
+            // `Box<dyn Error>`, which is not Send, and holding one across the next
+            // await would make every caller's future non-Send.
+            let first = Self::build_client("[::]:0", &ca_cert, &cert, &key)
+                .await
+                .map_err(|e| e.to_string());
 
-        let dg_endpoint = common::s2n_quic::provider::datagram::default::Endpoint::builder()
-            .with_send_capacity(1024)
-            .expect("send cap > 0")
-            .with_recv_capacity(1024)
-            .expect("recv cap > 0")
-            .build()
-            .expect("build dg endpoint");
+            match first {
+                Ok(client) => (client, plan),
+                Err(detail) => {
+                    log::warn!(
+                        "Dual-stack QUIC socket bind failed ({}); retrying on IPv4 only",
+                        detail
+                    );
+                    let client = Self::build_client("0.0.0.0:0", &ca_cert, &cert, &key).await?;
+                    (client, plan.without_ipv6())
+                }
+            }
+        } else {
+            let client = Self::build_client("0.0.0.0:0", &ca_cert, &cert, &key).await?;
+            (client, plan)
+        };
 
-        let client = Client::builder()
-            .with_tls(provider)?
-            .with_io("0.0.0.0:0")?
-            .with_datagram(dg_endpoint)?
-            .start()?;
-
-        let mut connection = Self::connect_first_available(&client, &sockets, &server_fqdn).await?;
+        let mut connection = Self::connect_first_available(&client, &plan, &server_fqdn).await?;
         connection.keep_alive(true)?;
         let conn_arc = Arc::new(connection);
         self.health_manager.reset();
@@ -142,42 +146,89 @@ impl NetworkStreamManager {
         Ok(())
     }
 
-    // Walks the candidate ports in order and returns the first completed
-    // handshake. The winning port is logged: it is the only signal separating
-    // "the primary port works" from "this user is on the fallback", and that
-    // distribution is what justifies maintaining the list.
+    // Builds an endpoint bound to `bind`. The mTLS provider and the datagram
+    // endpoint are each consumed by the builder and neither is Clone, so every
+    // attempt constructs its own rather than sharing.
+    async fn build_client(
+        bind: &str,
+        ca_cert: &str,
+        cert: &str,
+        key: &str,
+    ) -> Result<Client, Box<dyn Error>> {
+        let provider = common::rustls::MtlsProvider::new_from_vec(
+            ca_cert.as_bytes().to_vec(),
+            cert.as_bytes().to_vec(),
+            key.as_bytes().to_vec(),
+        )
+        .await?;
+
+        let dg_endpoint = common::s2n_quic::provider::datagram::default::Endpoint::builder()
+            .with_send_capacity(1024)
+            .expect("send cap > 0")
+            .with_recv_capacity(1024)
+            .expect("recv cap > 0")
+            .build()
+            .expect("build dg endpoint");
+
+        let client = Client::builder()
+            .with_tls(provider)?
+            .with_io(bind)?
+            .with_datagram(dg_endpoint)?
+            .start()?;
+
+        Ok(client)
+    }
+
+    // Walks the plan in order and returns the first completed handshake. The winning
+    // family is logged alongside the winning port: that split is the only field
+    // signal separating "IPv6 works for this player" from "IPv6 was tried and IPv4
+    // carried the session".
+    //
+    // A blackholed UDP port produces no response at all, so the per-candidate
+    // timeout — not an error — is what ends an attempt and moves on.
     async fn connect_first_available(
         client: &Client,
-        sockets: &[SocketAddr],
+        plan: &CandidatePlan,
         server_fqdn: &str,
     ) -> Result<Connection, Box<dyn Error>> {
         let mut last_error: Option<String> = None;
 
-        for socket in sockets {
-            let connect = Connect::new(*socket).with_server_name(server_fqdn.to_string());
+        for candidate in plan.candidates() {
+            let connect = Connect::new(candidate.dial()).with_server_name(server_fqdn.to_string());
 
-            match tokio::time::timeout(CONNECT_ATTEMPT_TIMEOUT, client.connect(connect)).await {
+            match tokio::time::timeout(candidate.budget(), client.connect(connect)).await {
                 Ok(Ok(connection)) => {
-                    log::info!("QUIC handshake succeeded on {}", socket);
+                    log::info!(
+                        "QUIC handshake succeeded on {} ({:?}, port {})",
+                        candidate.dial(),
+                        candidate.family(),
+                        candidate.port()
+                    );
                     return Ok(connection);
                 }
                 Ok(Err(e)) => {
-                    log::warn!("QUIC handshake rejected on {}: {}", socket, e);
+                    log::warn!(
+                        "QUIC handshake rejected on {} ({:?}): {}",
+                        candidate.dial(),
+                        candidate.family(),
+                        e
+                    );
                     last_error = Some(e.to_string());
                 }
                 Err(_) => {
                     log::warn!(
-                        "QUIC handshake timed out on {} after {:?}",
-                        socket,
-                        CONNECT_ATTEMPT_TIMEOUT
+                        "QUIC handshake timed out on {} ({:?}) after {:?}",
+                        candidate.dial(),
+                        candidate.family(),
+                        candidate.budget()
                     );
-                    last_error = Some(format!("timed out after {:?}", CONNECT_ATTEMPT_TIMEOUT));
+                    last_error = Some(format!("timed out after {:?}", candidate.budget()));
                 }
             }
         }
 
         Err(last_error
-            .unwrap_or_else(|| "no candidate QUIC ports were available".to_string())
+            .unwrap_or_else(|| "no candidate QUIC endpoints were available".to_string())
             .into())
     }
 

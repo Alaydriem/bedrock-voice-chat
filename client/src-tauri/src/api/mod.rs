@@ -14,6 +14,7 @@ use common::reqwest::{
     header::{HeaderMap, HeaderValue},
 };
 use std::error::Error;
+use std::sync::Arc;
 use std::time::Duration;
 
 // Connection-establishment failures are transient often enough (proxy dial,
@@ -26,18 +27,28 @@ const RETRY_BASE_DELAY: Duration = Duration::from_millis(250);
 pub(crate) struct Api {
     endpoint: String,
     client: client::Client,
+    // Shared, not copied: this Api is pooled per server and long-lived, so a
+    // verdict captured at construction would freeze. The cell also bridges the
+    // async/sync boundary, since get_client cannot await a probe.
+    family_preference: Arc<common::net::FamilyPreferenceCell>,
 }
 
 impl Api {
-    pub fn new(endpoint: String, ca_cert: String, pem: String) -> Self {
+    pub fn new(
+        endpoint: String,
+        ca_cert: String,
+        pem: String,
+        family_preference: Arc<common::net::FamilyPreferenceCell>,
+    ) -> Self {
         Self {
             endpoint,
             client: client::Client::new(ca_cert, pem),
+            family_preference,
         }
     }
 
     fn get_client(&self) -> ReqwestClient {
-        self.client.get_client()
+        self.client.get_client(self.family_preference.get())
     }
 
     /// Send a prepared request through this endpoint's circuit breaker. While the
@@ -156,7 +167,7 @@ impl Api {
     }
 
     pub(crate) fn get_reqwest_client(&self) -> ReqwestClient {
-        self.client.get_client()
+        self.client.get_client(self.family_preference.get())
     }
 
     pub(crate) async fn ping(&self) -> Result<(), bool> {

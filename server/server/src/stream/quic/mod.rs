@@ -18,6 +18,8 @@ mod connection_identity;
 pub mod connection_registry;
 mod log_throttle;
 mod packet_identity_stamp;
+mod path_observer;
+mod path_observer_context;
 mod peer_identity_capture;
 mod peer_identity_context;
 mod server_input_packet;
@@ -46,6 +48,8 @@ pub use certificate_common_name::CertificateCommonName;
 pub use connection_id_format::PrefixedConnectionIdFormat;
 pub use connection_identity::{ConnectionClassifier, ConnectionKind};
 pub use packet_identity_stamp::PacketIdentityStamp;
+pub use path_observer::PathObserver;
+pub use path_observer_context::PathObserverContext;
 pub use peer_identity_capture::PeerIdentityCapture;
 pub use peer_identity_context::PeerIdentityContext;
 pub use server_input_packet::ServerInputPacket;
@@ -92,35 +96,21 @@ impl QuicServerManager {
         self.readiness = Some(readiness);
     }
 
-}
-
-impl StreamTrait for QuicServerManager {
-    /// Stopped means `stop()` consumed the shutdown sender; before the first
-    /// start the manager is idle, not stopped.
-    fn is_stopped(&self) -> bool {
-        self.shutdown_tx.is_none()
-    }
-
-    async fn metadata(&mut self, _key: String, _value: String) -> Result<(), anyhow::Error> {
-        Ok(())
-    }
-
-    async fn start(&mut self) -> Result<(), anyhow::Error> {
-        tracing::info!("Starting QUIC server manager");
-
-        let (ca_cert, ca_key) = self.get_certificates().await?;
-
+    // Builds the endpoint for one bind address. The TLS provider and the datagram
+    // endpoint are each consumed by the builder and neither is Clone, so every
+    // attempt constructs its own rather than sharing.
+    async fn build_endpoint(
+        &self,
+        bind_addr: &str,
+        ca_cert: &str,
+        ca_key: &str,
+    ) -> Result<Server, anyhow::Error> {
         let provider = common::rustls::MtlsProvider::new_from_vec(
             ca_cert.as_bytes().to_vec(),
             ca_cert.as_bytes().to_vec(),
             ca_key.as_bytes().to_vec(),
         )
         .await?;
-
-        let bind_addr = format!(
-            "{}:{}",
-            self.config.server.listen, self.config.server.quic_port
-        );
 
         let dg_endpoint = {
             let send_cap = if self.config.voice.datagram_send_capacity == 0 {
@@ -143,11 +133,14 @@ impl StreamTrait for QuicServerManager {
 
         let builder = Server::builder()
             .with_event((
-                common::s2n_quic::provider::event::tracing::Subscriber::default(),
-                PeerIdentityCapture::default(),
+                (
+                    common::s2n_quic::provider::event::tracing::Subscriber::default(),
+                    PeerIdentityCapture::default(),
+                ),
+                PathObserver::default(),
             ))?
             .with_tls(provider)?
-            .with_io(bind_addr.as_str())?
+            .with_io(bind_addr)?
             .with_datagram(dg_endpoint)?;
 
         let server = if let Some(instance_id) =
@@ -159,6 +152,50 @@ impl StreamTrait for QuicServerManager {
                 .start()?
         } else {
             builder.start()?
+        };
+
+        Ok(server)
+    }
+}
+
+impl StreamTrait for QuicServerManager {
+    /// Stopped means `stop()` consumed the shutdown sender; before the first
+    /// start the manager is idle, not stopped.
+    fn is_stopped(&self) -> bool {
+        self.shutdown_tx.is_none()
+    }
+
+    async fn metadata(&mut self, _key: String, _value: String) -> Result<(), anyhow::Error> {
+        Ok(())
+    }
+
+    async fn start(&mut self) -> Result<(), anyhow::Error> {
+        tracing::info!("Starting QUIC server manager");
+
+        let (ca_cert, ca_key) = self.get_certificates().await?;
+
+        let preferred = self.config.server.quic_bind_addr(self.config.server.quic_port);
+
+        // A failed v6 bind means the host has no IPv6 stack. Falling back keeps
+        // those installs serving IPv4 across an upgrade instead of failing to
+        // start, at the cost of being unreachable for IPv6-only clients — which is
+        // what the warning says out loud.
+        let (server, bind_addr) = match self.build_endpoint(&preferred, &ca_cert, &ca_key).await {
+            Ok(server) => (server, preferred),
+            Err(e) => {
+                let fallback = format!(
+                    "{}:{}",
+                    crate::config::Server::FALLBACK_LISTEN, self.config.server.quic_port
+                );
+                tracing::warn!(
+                    "QUIC bind to {} failed ({}); falling back to {}. IPv6-only clients cannot reach this server.",
+                    preferred,
+                    e,
+                    fallback
+                );
+                let server = self.build_endpoint(&fallback, &ca_cert, &ca_key).await?;
+                (server, fallback)
+            }
         };
 
         let mut webhook_rx = self

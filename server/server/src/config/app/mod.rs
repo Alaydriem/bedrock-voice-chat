@@ -142,7 +142,7 @@ impl ApplicationConfig {
             .merge(("ident", false))
             .merge(("log_level", self.get_rocket_log_level()))
             .merge(("port", &self.server.port))
-            .merge(("address", &self.server.listen))
+            .merge(("address", self.server.http_listen_ip()))
             .merge(("limits", Limits::new().limit("json", (10).megabytes())))
             .merge(("secret_key", randombytes_buf(32)))
             .merge(("tls.certs", &self.server.tls.certificate))
