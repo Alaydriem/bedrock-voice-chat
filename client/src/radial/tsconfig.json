@@ -1,0 +1,30 @@
+{
+  // Radial's own tsconfig, deliberately not extending the app's.
+  //
+  // `client/tsconfig.json` extends `.svelte-kit/tsconfig.json`, which only exists
+  // after `svelte-kit sync` has run. The reference pages must build on a fresh clone
+  // without a SvelteKit step, so anything under src/radial/ resolves this file
+  // instead — TypeScript and the bundler both pick the nearest tsconfig.
+  //
+  // The app still type-checks these files through the $radial alias declared in
+  // svelte.config.js, so both paths see the same code.
+  "compilerOptions": {
+    "module": "esnext",
+    "target": "ES2024",
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "$radial/*": ["./*"]
+    }
+  },
+  "include": ["./**/*.ts", "./**/*.svelte"]
+}

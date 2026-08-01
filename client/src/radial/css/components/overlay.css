@@ -1,0 +1,368 @@
+/* Things that appear over the frame: the dropdown, modals, bottom sheets.
+ *
+ * All of them are positioned inside `.rad-frame`, not on the page. The client is a
+ * window, not a document, and an overlay that escaped the frame would also escape
+ * the container query every component inside it depends on.
+ */
+
+/* ---- the dropdown ----
+ * One component, two jobs. As a select it shows tick marks against the current
+ * value; as a table row menu it uses dividers and puts a single destructive item
+ * last, always last and always the only red thing in the list.
+ */
+
+.rad-menu {
+  position: absolute;
+  z-index: 60;
+  min-width: 230px;
+  padding: 6px;
+  border: 1px solid var(--color-rad-line-2);
+  border-radius: var(--radius-rad-lg);
+  background: rgb(37 24 68 / 0.98);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--shadow-rad-menu);
+  opacity: 0;
+  transform: translateY(-6px) scale(0.98);
+  pointer-events: none;
+  /* Named properties, not `all`. Transitioning `left`/`top` makes the menu slide
+     across the screen from wherever it was last opened, instead of appearing at
+     its anchor. */
+  transition:
+    opacity 0.16s var(--ease-rad-out),
+    transform 0.16s var(--ease-rad-out);
+}
+
+.rad-menu.is-open {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.rad-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  text-align: left;
+  font: inherit;
+  font-size: var(--text-rad-sm);
+  border: 0;
+  border-radius: var(--radius-rad-md);
+  background: transparent;
+  color: var(--color-rad-dim);
+  cursor: pointer;
+  transition: 0.14s;
+}
+
+.rad-menu__item:hover,
+.rad-menu__item.is-focused {
+  background: var(--color-rad-panel);
+  color: var(--color-rad-tx);
+}
+
+.rad-menu__item--danger {
+  color: var(--color-rad-fault);
+}
+
+.rad-menu__item--danger:hover,
+.rad-menu__item--danger.is-focused {
+  background: rgb(255 130 102 / 0.14);
+  color: var(--color-rad-fault);
+}
+
+.rad-menu__tick {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  color: var(--color-rad-brand-lift);
+}
+
+.rad-menu__tick > svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* Keeps labels aligned whether or not a row is ticked. */
+.rad-menu__tick--empty {
+  visibility: hidden;
+}
+
+.rad-menu__hint {
+  margin-left: auto;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-xs);
+  color: var(--color-rad-faint);
+}
+
+.rad-menu__divider {
+  height: 1px;
+  margin: 5px 8px;
+  background: var(--color-rad-line);
+}
+
+/* ---- scrim ---- */
+
+.rad-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: rgb(8 3 16 / 0.62);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.28s ease;
+}
+
+.rad-scrim.is-on {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.rad-scrim--modal {
+  z-index: 70;
+  background: rgb(8 3 16 / 0.66);
+  transition: 0.24s;
+}
+
+/* ---- modal ----
+ * One at a time. A confirm stacked over an export dialog leaves no way to tell
+ * which one a Cancel belongs to.
+ */
+
+.rad-modal {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 71;
+  width: min(420px, 86%);
+  max-height: 80%;
+  padding: 24px;
+  border: 1px solid var(--color-rad-line-2);
+  border-radius: var(--radius-rad-xl);
+  background: var(--color-rad-void-2);
+  box-shadow: var(--shadow-rad-modal);
+  transform: translate(-50%, -46%) scale(0.97);
+  opacity: 0;
+  pointer-events: none;
+  transition: 0.26s var(--ease-rad-out);
+}
+
+.rad-modal.is-open {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+  pointer-events: auto;
+}
+
+.rad-modal__title {
+  margin: 0 0 10px;
+  font-size: var(--text-rad-lead);
+  font-weight: 580;
+  letter-spacing: -0.014em;
+  color: var(--color-rad-tx);
+}
+
+.rad-modal p {
+  margin: 0;
+  font-size: var(--text-rad-sm);
+  line-height: 1.6;
+  color: var(--color-rad-dim);
+}
+
+.rad-modal b,
+.rad-modal strong {
+  color: var(--color-rad-tx);
+}
+
+.rad-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  margin-top: 22px;
+}
+
+/* A modal wide enough for a list. Its body scrolls; its actions do not. */
+.rad-modal--wide {
+  width: min(460px, 88%);
+  display: flex;
+  flex-direction: column;
+}
+
+.rad-modal--wide .rad-card {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.rad-modal__scroll {
+  max-height: 206px;
+  overflow-y: auto;
+}
+
+/* ---- bottom sheet ----
+ * The phone equivalent of the rail and the group panel. Rows enter staggered so the
+ * sheet reads as assembling rather than as a block sliding up.
+ */
+
+.rad-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 21;
+  max-height: 76%;
+  padding: 8px 16px 20px;
+  overflow-y: auto;
+  border-top: 1px solid var(--color-rad-line-2);
+  border-radius: var(--radius-rad-xl) var(--radius-rad-xl) 0 0;
+  background: var(--color-rad-void-2);
+  box-shadow: var(--shadow-rad-sheet);
+  transform: translateY(102%);
+  transition: transform 0.34s var(--ease-rad-out);
+}
+
+.rad-sheet.is-open {
+  transform: translateY(0);
+}
+
+.rad-sheet__handle {
+  display: block;
+  width: 38px;
+  height: 4px;
+  margin: 6px auto 14px;
+  border-radius: var(--radius-rad-pill);
+  background: var(--color-rad-line-2);
+}
+
+.rad-sheet__title {
+  margin: 0 0 12px;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-rad-label);
+  text-transform: uppercase;
+  color: var(--color-rad-faint);
+}
+
+.rad-sheet__divider {
+  height: 1px;
+  margin: 14px 0;
+  background: var(--color-rad-line);
+}
+
+.rad-sheet.is-open .rad-sheet-row,
+.rad-sheet.is-open .rad-list-row,
+.rad-sheet.is-open .rad-group-row {
+  animation: rad-sheet-in 0.42s var(--ease-rad-rise) backwards;
+  animation-delay: calc(var(--i, 0) * 30ms);
+}
+
+@keyframes rad-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* A server, in a sheet: glyph, name, host, tick. */
+.rad-sheet-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 12px;
+  text-align: left;
+  font: inherit;
+  border: 1px solid transparent;
+  border-radius: var(--radius-rad-lg);
+  background: transparent;
+  color: var(--color-rad-dim);
+  cursor: pointer;
+  transition: 0.16s;
+}
+
+.rad-sheet-row:hover {
+  background: var(--color-rad-panel);
+  color: var(--color-rad-tx);
+}
+
+.rad-sheet-row.is-on {
+  border-color: var(--color-rad-brand-lift);
+  background: var(--color-rad-panel);
+  color: var(--color-rad-tx);
+}
+
+.rad-sheet-row canvas {
+  flex: 0 0 auto;
+  border-radius: 8px;
+}
+
+.rad-sheet-row__text {
+  min-width: 0;
+}
+
+.rad-sheet-row__name {
+  display: block;
+  font-size: var(--text-rad-md);
+  font-weight: 520;
+  color: var(--color-rad-tx);
+}
+
+.rad-sheet-row__host {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-xs);
+  color: var(--color-rad-faint);
+}
+
+.rad-sheet-row__tick {
+  margin-left: auto;
+  color: var(--color-rad-brand-lift);
+}
+
+/* A plain action in a sheet. */
+.rad-list-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 12px;
+  text-align: left;
+  font: inherit;
+  font-size: var(--text-rad-md);
+  border: 0;
+  border-radius: var(--radius-rad-lg);
+  background: transparent;
+  color: var(--color-rad-dim);
+  cursor: pointer;
+  transition: 0.16s;
+}
+
+.rad-list-row:hover {
+  background: var(--color-rad-panel);
+  color: var(--color-rad-tx);
+}
+
+.rad-list-row__icon {
+  width: 26px;
+  display: flex;
+  justify-content: center;
+  color: var(--color-rad-faint);
+}
+
+.rad-list-row__icon > svg {
+  width: 17px;
+  height: 17px;
+}
+
+.rad-list-row--danger {
+  color: var(--color-rad-fault);
+}
+
+.rad-list-row--danger .rad-list-row__icon {
+  color: var(--color-rad-fault);
+}

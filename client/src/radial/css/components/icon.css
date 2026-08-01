@@ -1,0 +1,43 @@
+/* Icons inherit colour and take their size from their host, so a button styles its
+ * icon by styling itself. Nothing sets a fill: every glyph is stroked in
+ * currentColor, and the two that need a solid centre say so in their own path data.
+ */
+
+[data-rad-icon] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+[data-rad-icon] > svg {
+  display: block;
+  width: 1em;
+  height: 1em;
+}
+
+.rad-icon--sm > svg {
+  width: 14px;
+  height: 14px;
+}
+
+.rad-icon--md > svg {
+  width: 17px;
+  height: 17px;
+}
+
+.rad-icon--lg > svg {
+  width: 21px;
+  height: 21px;
+}
+
+/* Spins whatever it is on. Used by a reconnect button that is working. */
+.rad-icon-spin > svg {
+  animation: rad-spin 0.9s linear infinite;
+}
+
+@keyframes rad-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

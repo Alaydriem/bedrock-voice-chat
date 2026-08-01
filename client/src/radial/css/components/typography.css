@@ -1,0 +1,58 @@
+/* Four type roles. Anything that is not one of these is a component's own concern.
+ *
+ * Body text #D6CBEA on #1C1132 measures 9.9:1 and the mono labels at #B3A4D0
+ * measure 6.6:1 — clear AA for their sizes, and the labels clear AAA. Those two
+ * pairs are load-bearing: they are why the palette can stay this dark.
+ */
+
+/* The mono label. Kickers, captions, table headers, section names. Never a sentence:
+   at 0.2em tracking a clause becomes a chore to read. */
+.rad-label {
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono);
+  letter-spacing: var(--tracking-rad-label);
+  text-transform: uppercase;
+  color: var(--color-rad-faint);
+}
+
+/* The display line. Light weight, tight tracking, with the emphasis carried by a
+   bold span rather than by size — the second line is the point of the sentence. */
+.rad-display {
+  margin: 0;
+  font-size: var(--text-rad-display);
+  line-height: 1.06;
+  letter-spacing: -0.032em;
+  font-weight: 300;
+  color: var(--color-rad-tx);
+  text-wrap: balance;
+}
+
+.rad-display b,
+.rad-display strong {
+  font-weight: 600;
+}
+
+.rad-body {
+  margin: 0;
+  font-size: var(--text-rad-lead);
+  line-height: 1.68;
+  color: var(--color-rad-dim);
+  max-width: 44ch;
+}
+
+/* Anything a reader compares down a column: distances, timecodes, percentages. */
+.rad-num {
+  font-family: var(--font-rad-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+@container rad (max-width: 560px) {
+  .rad-display {
+    font-size: 1.7222rem;
+  }
+
+  .rad-body {
+    font-size: var(--text-rad-base);
+    max-width: none;
+  }
+}

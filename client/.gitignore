@@ -3,6 +3,8 @@ node_modules
 /build
 /.svelte-kit
 /package
+# Static output of the Radial reference pages (yarn radial:build)
+/dist-radial
 .env
 .env.*
 !.env.example

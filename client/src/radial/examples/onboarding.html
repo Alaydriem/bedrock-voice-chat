@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Radial · onboarding</title>
+    <link rel="stylesheet" href="./standalone.css" />
+  </head>
+  <body>
+    <div class="g-wrap">
+      <header class="g-head">
+        <p class="g-kick">Radial · onboarding</p>
+        <h1 class="g-title">Four steps, a gate, and the door for people with nowhere to go</h1>
+        <p class="g-lede">
+          Each step gets its own visual grammar, because "how loud is someone" and "which platforms
+          work" are not the same kind of question and one chart type would flatter neither. Four is
+          the ceiling: each added step multiplies the skip rate, so a fifth should displace one of
+          these rather than extend the run.
+        </p>
+      </header>
+
+      <nav class="g-nav" data-g-nav></nav>
+
+      <section class="g-sec" id="flow">
+        <p class="g-sec__kick">The flow</p>
+        <h2 class="g-sec__title">One frame, four screens</h2>
+        <p class="g-sec__note">
+          The gate asks the only question that matters &mdash; is there a BVC server for your world
+          or not &mdash; and both answers lead somewhere. Step two moves players between channels on
+          its own; step four's REC is a status readout on the ruler, not a control.
+        </p>
+        <p class="g-sec__note">
+          <strong>The sign-in code flow is deliberately unadvertised.</strong> There is no button for
+          it. On the sign-in screen, type <code>code@bvc.example.com</code> into the address field to
+          reach it &mdash; it is for a console player or a machine with no browser, and someone
+          telling you to type that is the situation it exists for. The tab above is a reviewer's
+          shortcut, not part of the product.
+        </p>
+
+        <div class="g-bar">
+          <span class="g-ctls">
+            <label>Screen</label>
+            <button data-screen="intro" aria-pressed="true">Introduction</button>
+            <button data-screen="gate">Server check</button>
+            <button data-screen="login">Sign in</button>
+            <button data-screen="code">Sign-in code</button>
+            <button data-screen="notyet">Not yet</button>
+          </span>
+          <span class="g-seg" data-g-device="ob-frame">
+            <button data-g-size="desktop" aria-pressed="true">Desktop</button>
+            <button data-g-size="phone" aria-pressed="false">Phone</button>
+          </span>
+        </div>
+
+        <div class="g-frame-stage">
+          <div class="rad-frame rad-frame--desktop" id="ob-frame">
+            <div class="rad-grain"></div>
+
+            <!-- ============ INTRODUCTION ============ -->
+            <section class="rad-screen is-on" data-rad-screen="intro">
+              <div class="rad-topbar">
+                <span class="rad-brand">
+                  <canvas data-rad-mark></canvas>
+                  <span class="rad-wordmark">Bedrock Voice Chat</span>
+                </span>
+                <span class="rad-step-dots">
+                  <button data-rad-step-to="1" class="is-on" aria-label="Step 1"></button>
+                  <button data-rad-step-to="2" aria-label="Step 2"></button>
+                  <button data-rad-step-to="3" aria-label="Step 3"></button>
+                  <button data-rad-step-to="4" aria-label="Step 4"></button>
+                  <span class="rad-step-dots__count" data-rad-step-count>01 / 04</span>
+                </span>
+              </div>
+
+              <div class="rad-split">
+                <div class="rad-visual-pane">
+                  <!-- 1 · proximity: the ring, with people placed on it -->
+                  <div class="rad-visual" data-rad-step-visual="1">
+                    <canvas data-rad-ring="live" data-rad-id="scene"></canvas>
+                    <span class="rad-caption">
+                      <span class="rad-label">Your range</span>
+                      <span class="rad-caption__value" data-earshot>80 M &middot; 3 IN EARSHOT</span>
+                    </span>
+                  </div>
+
+                  <!-- 2 · channels: membership, moving on its own -->
+                  <div class="rad-visual" data-rad-step-visual="2" hidden>
+                    <div class="rad-channels">
+                      <div class="rad-channel" data-channel="0">
+                        <div class="rad-channel__head"><span>Proximity</span><span data-channel-count="0">0</span></div>
+                        <div data-channel-body="0"></div>
+                      </div>
+                      <div class="rad-channel is-active" data-channel="1">
+                        <div class="rad-channel__head"><span>Raid party</span><span data-channel-count="1">0</span></div>
+                        <div data-channel-body="1"></div>
+                      </div>
+                    </div>
+                    <span class="rad-caption">
+                      <span class="rad-label">Channel</span>
+                      <span class="rad-caption__value">FULL VOLUME &middot; ANY DISTANCE</span>
+                    </span>
+                  </div>
+
+                  <!-- 3 · reach: a question that wants a table -->
+                  <div class="rad-visual" data-rad-step-visual="3" hidden>
+                    <div class="rad-matrix">
+                      <div class="rad-matrix__group">
+                        <div class="rad-matrix__head">Where your world can live &mdash; the mod goes here</div>
+                        <div class="rad-matrix__row">
+                          <span class="rad-matrix__blocks"><i style="background:#8239d8"></i><i style="background:#6a50e9"></i><i style="background:#466cf3"></i></span>
+                          <span>Your own server</span><span class="rad-matrix__tag rad-matrix__tag--yes">Supported</span>
+                        </div>
+                        <div class="rad-matrix__row">
+                          <span class="rad-matrix__blocks"><i style="background:#28bae1"></i><i style="background:#21d8d8"></i><i style="background:#26ddcd"></i></span>
+                          <span>Aternos &mdash; free hosting</span><span class="rad-matrix__tag rad-matrix__tag--yes">Supported</span>
+                        </div>
+                        <div class="rad-matrix__row">
+                          <span class="rad-matrix__blocks"><i style="background:#34d8a0"></i><i style="background:#3bd869"></i><i style="background:#6fd846"></i></span>
+                          <span>Minecraft Realms</span><span class="rad-matrix__tag rad-matrix__tag--yes">Supported</span>
+                        </div>
+                        <div class="rad-matrix__row">
+                          <span class="rad-matrix__blocks"><i style="background:#aee236"></i><i style="background:#f8e433"></i><i style="background:#f9bf21"></i></span>
+                          <span>Java + Geyser &amp; Floodgate</span><span class="rad-matrix__tag rad-matrix__tag--yes">Supported</span>
+                        </div>
+                      </div>
+                      <div class="rad-matrix__group">
+                        <div class="rad-matrix__head">Who can join</div>
+                        <div class="rad-matrix__row">
+                          <span class="rad-matrix__blocks"><i style="background:#8239d8"></i><i style="background:#6a50e9"></i><i style="background:#466cf3"></i></span>
+                          <span>Windows &middot; macOS &middot; Linux</span><span class="rad-matrix__tag rad-matrix__tag--yes">Ready</span>
+                        </div>
+                        <div class="rad-matrix__row">
+                          <span class="rad-matrix__blocks"><i style="background:#28bae1"></i><i style="background:#21d8d8"></i><i style="background:#26ddcd"></i></span>
+                          <span>Android &middot; iOS</span><span class="rad-matrix__tag rad-matrix__tag--yes">Ready</span>
+                        </div>
+                        <div class="rad-matrix__row">
+                          <span class="rad-matrix__blocks"><i style="background:#34d8a0"></i><i style="background:#3bd869"></i><i style="background:#6fd846"></i></span>
+                          <span>Xbox &middot; PlayStation &middot; Switch</span><span class="rad-matrix__tag rad-matrix__tag--yes">Via phone</span>
+                        </div>
+                      </div>
+                      <p class="rad-matrix__note">
+                        <span>The BVC server runs separately, on <b>any machine you control</b> &mdash;
+                          your gaming PC, a VPS, or a home box.</span>
+                      </p>
+                    </div>
+                    <span class="rad-caption">
+                      <span class="rad-label">Reach</span>
+                      <span class="rad-caption__value">YOUR WORLD STAYS WHERE IT IS</span>
+                    </span>
+                  </div>
+
+                  <!-- 4 · time: one track per voice -->
+                  <div class="rad-visual" data-rad-step-visual="4" hidden>
+                    <div class="rad-timeline">
+                      <div class="rad-timeline__ruler">
+                        <span class="rad-timeline__rec"><i></i>REC <span class="rad-num" data-rectime>04:12</span></span>
+                        <span class="rad-timeline__marks">
+                          <span>00:00</span><span>01:24</span><span>02:48</span><span>04:12</span>
+                        </span>
+                      </div>
+                      <div class="rad-timeline-lanes"><canvas data-rad-id="timeline"></canvas></div>
+                    </div>
+                    <span class="rad-caption">
+                      <span class="rad-label">Session</span>
+                      <span class="rad-caption__value">3 TRACKS &middot; TIMECODED</span>
+                    </span>
+                  </div>
+                </div>
+
+                <div class="rad-content-pane">
+                  <div data-rad-step-body="1">
+                    <span class="rad-label rad-rise" style="--d: 50">01 &middot; Proximity</span>
+                    <h2 class="rad-display rad-rise" style="--d: 120; margin-top: 12px">
+                      Walk up to someone.<br /><b>You're already talking.</b>
+                    </h2>
+                    <p class="rad-body rad-rise" style="--d: 210">
+                      Voices get louder as players come toward you and fade as they leave. No lobbies,
+                      no invites, and nobody shouting over a call from three biomes away.
+                    </p>
+                    <div class="rad-chips rad-rise" style="--d: 300">
+                      <span class="rad-chip"><i style="background: #21d8d8"></i>Positional audio</span>
+                      <span class="rad-chip"><i style="background: #3bd869"></i>Whisper &amp; shout</span>
+                      <span class="rad-chip"><i style="background: #aee236"></i>Spectator support</span>
+                    </div>
+                    <div class="rad-readout-list rad-rise" style="--d: 380" data-readouts></div>
+                  </div>
+
+                  <div data-rad-step-body="2" hidden>
+                    <span class="rad-label rad-rise" style="--d: 50">02 &middot; Channels</span>
+                    <h2 class="rad-display rad-rise" style="--d: 120; margin-top: 12px">
+                      Split off into<br /><b>your own channel.</b>
+                    </h2>
+                    <p class="rad-body rad-rise" style="--d: 210">
+                      Running something across the whole map? Drop into a channel and everyone stays
+                      at full volume however far apart you get. Proximity keeps running underneath the
+                      entire time.
+                    </p>
+                    <div class="rad-chips rad-rise" style="--d: 300">
+                      <span class="rad-chip"><i style="background: #8239d8"></i>Persistent groups</span>
+                      <span class="rad-chip"><i style="background: #28bae1"></i>Join from in-game</span>
+                      <span class="rad-chip"><i style="background: #f9bf21"></i>Server-wide broadcast</span>
+                      <span class="rad-chip"><i style="background: #3bd869"></i>Per-player volume 0&ndash;150%</span>
+                      <span class="rad-chip"><i style="background: #f67414"></i>Moderator controls</span>
+                    </div>
+                  </div>
+
+                  <div data-rad-step-body="3" hidden>
+                    <span class="rad-label rad-rise" style="--d: 50">03 &middot; Anywhere you play</span>
+                    <h2 class="rad-display rad-rise" style="--d: 120; margin-top: 12px">
+                      It works with<br /><b>the world you already have.</b>
+                    </h2>
+                    <p class="rad-body rad-rise" style="--d: 210">
+                      Your world stays exactly where it is. The mod goes on it; the BVC server runs
+                      on a machine you control.
+                    </p>
+                    <div class="rad-steps rad-rise" style="--d: 300">
+                      <div class="rad-step">
+                        <span class="rad-step__n">1</span>
+                        <span>
+                          <span class="rad-step__title">Run the BVC server</span>
+                          <span class="rad-step__note">Your PC, a VPS, or a home box</span>
+                        </span>
+                      </div>
+                      <div class="rad-step">
+                        <span class="rad-step__n">2</span>
+                        <span>
+                          <span class="rad-step__title">Add the mod to your world</span>
+                          <span class="rad-step__note">A Bedrock add-on, or the Fabric or Paper mod for Java</span>
+                        </span>
+                      </div>
+                      <div class="rad-step">
+                        <span class="rad-step__n">3</span>
+                        <span>
+                          <span class="rad-step__title">Share the address and talk</span>
+                          <span class="rad-step__note">Everyone signs in with the account they already play on</span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div data-rad-step-body="4" hidden>
+                    <span class="rad-label rad-rise" style="--d: 50">04 &middot; Record &amp; control</span>
+                    <h2 class="rad-display rad-rise" style="--d: 120; margin-top: 12px">
+                      Record everyone.<br /><b>On separate tracks.</b>
+                    </h2>
+                    <p class="rad-body rad-rise" style="--d: 210">
+                      Every voice lands on its own timecoded track, ready to drop straight into the
+                      edit &mdash; and the controls reach the desk beside your keyboard.
+                    </p>
+                    <div class="rad-chips rad-rise" style="--d: 300">
+                      <span class="rad-chip"><i style="background: #21d8d8"></i>Split-track recording</span>
+                      <span class="rad-chip"><i style="background: #aee236"></i>Stream Deck plugin</span>
+                      <span class="rad-chip"><i style="background: #f9bf21"></i>Push-to-talk &amp; hotkeys</span>
+                      <span class="rad-chip"><i style="background: #8239d8"></i>Noise gate &amp; gain</span>
+                      <span class="rad-chip"><i style="background: #f67414"></i>WebSocket API</span>
+                      <span class="rad-chip"><i style="background: #3bd869"></i>Export to WAV or MP4</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="rad-footbar">
+                <span class="rad-label" data-rad-step-caption>Four things worth knowing before you sign in</span>
+                <span class="rad-footbar__actions">
+                  <button class="rad-btn rad-btn--lg rad-btn--quiet" data-rad-goto="gate">Skip</button>
+                  <button class="rad-btn rad-btn--lg rad-btn--quiet" data-rad-step-back hidden>Back</button>
+                  <button class="rad-btn rad-btn--lg rad-btn--primary" data-rad-step-next>Next</button>
+                </span>
+              </div>
+            </section>
+
+            <!-- ============ SERVER CHECK ============ -->
+            <section class="rad-screen" data-rad-screen="gate">
+              <div class="rad-topbar">
+                <span class="rad-brand">
+                  <canvas data-rad-mark></canvas>
+                  <span class="rad-wordmark">Bedrock Voice Chat</span>
+                </span>
+                <span class="rad-label">Server check</span>
+              </div>
+
+              <div class="rad-gate-head rad-rise" style="--d: 30">
+                <span class="rad-label">Before you sign in</span>
+                <h2 class="rad-gate-head__question">
+                  Is a BVC server already set up for <b>your world?</b>
+                </h2>
+                <p class="rad-gate-head__note">
+                  Your world needs a BVC server running somewhere before anyone can talk. If that is
+                  already done, all you need is its address.
+                </p>
+              </div>
+
+              <div class="rad-gate">
+                <button class="rad-gate__option rad-rise" style="--d: 70" data-rad-goto="login">
+                  <span class="rad-ring"><canvas data-rad-ring="live" data-rad-id="gate-live"></canvas></span>
+                  <span class="rad-gate__copy">
+                    <span class="rad-label">Yes &middot; I have an address</span>
+                    <span class="rad-gate__title">Someone already set it up</span>
+                    <span class="rad-gate__note">
+                      A BVC server is running for your world and you have its address. Sign in with the
+                      Microsoft account you play Minecraft with.
+                    </span>
+                    <span class="rad-gate__action">Sign in &rarr;</span>
+                  </span>
+                </button>
+                <button class="rad-gate__option rad-rise" style="--d: 170" data-rad-goto="notyet">
+                  <span class="rad-ring"><canvas data-rad-ring="empty"></canvas></span>
+                  <span class="rad-gate__copy">
+                    <span class="rad-label">No &middot; or I am not sure</span>
+                    <span class="rad-gate__title">Nobody has set it up yet</span>
+                    <span class="rad-gate__note">
+                      Voice chat needs a BVC server plus a mod on the world. It's a one-time install
+                      &mdash; see what's involved.
+                    </span>
+                    <span class="rad-gate__action">Show me how &rarr;</span>
+                  </span>
+                </button>
+              </div>
+              <div class="rad-footbar">
+                <span class="rad-label">BVC server + world mod &middot; installed once</span>
+                <span class="rad-label">Device setup continues after sign-in</span>
+              </div>
+            </section>
+
+            <!-- ============ SIGN IN ============ -->
+            <section class="rad-screen" data-rad-screen="login">
+              <div class="rad-topbar">
+                <span class="rad-brand">
+                  <canvas data-rad-mark></canvas>
+                  <span class="rad-wordmark">Bedrock Voice Chat</span>
+                </span>
+                <span class="rad-label">Connect</span>
+              </div>
+              <div class="rad-split">
+                <div class="rad-visual-pane">
+                  <div class="rad-visual">
+                    <canvas data-rad-ring="lock" data-rad-id="lock"></canvas>
+                    <span class="rad-caption">
+                      <span class="rad-label">Acquiring</span>
+                      <span class="rad-caption__value" data-lock-value>RESOLVED &middot; 41 MS</span>
+                    </span>
+                  </div>
+                </div>
+                <div class="rad-content-pane">
+                  <span class="rad-label rad-rise" style="--d: 50">Connect</span>
+                  <h2 class="rad-display rad-rise" style="--d: 120; margin-top: 12px; font-size: 2.1111rem">
+                    Which server are you&nbsp;joining?
+                  </h2>
+                  <div class="rad-rise" style="--d: 210; margin-top: 20px; max-width: 370px">
+                    <span class="rad-label">Server address</span>
+                    <div class="rad-field">
+                      <span class="rad-field__prefix">ADDR</span>
+                      <input
+                        type="text"
+                        value="bvc.example.com"
+                        spellcheck="false"
+                        autocapitalize="none"
+                        autocorrect="off"
+                        data-address
+                        aria-label="Server address"
+                      />
+                    </div>
+                    <div class="rad-resolve rad-resolve--ok" data-resolve>&#9679; Resolved &middot; 41 ms</div>
+                    <button class="rad-ms-signin" data-connect>
+                      <span class="rad-ms-mark"><i></i><i></i><i></i><i></i></span>Sign in with Microsoft
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="rad-footbar">
+                <span class="rad-label">Privacy notice</span>
+                <span class="rad-label rad-num">v1.0.0-beta.7</span>
+              </div>
+            </section>
+
+            <!-- ============ SIGN-IN CODE ============
+                 Deliberately unadvertised. There is no button for it: typing
+                 code@<server> into the address field is the way in. A visible option
+                 would send people down a slower path than the one that works. -->
+            <section class="rad-screen" data-rad-screen="code">
+              <div class="rad-topbar">
+                <span class="rad-brand">
+                  <canvas data-rad-mark></canvas>
+                  <span class="rad-wordmark">Bedrock Voice Chat</span>
+                </span>
+                <span class="rad-label">Sign-in code</span>
+              </div>
+              <div class="rad-split">
+                <div class="rad-visual-pane">
+                  <div class="rad-visual">
+                    <canvas data-rad-ring="lock" data-rad-id="code-ring"></canvas>
+                    <span class="rad-caption">
+                      <span class="rad-label">Waiting</span>
+                      <span class="rad-caption__value" data-code-state>LISTENING FOR APPROVAL</span>
+                    </span>
+                  </div>
+                </div>
+                <div class="rad-content-pane">
+                  <span class="rad-label rad-rise" style="--d: 50">Sign in on another device</span>
+                  <h2 class="rad-display rad-rise" style="--d: 120; margin-top: 12px; font-size: 1.8889rem">
+                    Enter this code<br /><b>where you can sign in.</b>
+                  </h2>
+                  <div class="rad-rise" style="--d: 200; margin-top: 24px; max-width: 400px">
+                    <span class="rad-label">Go to</span>
+                    <div class="rad-code-url">
+                      <span data-code-url>bedrockvoicechat.com/link</span>
+                      <button class="rad-icon-btn" data-rad-copy="bedrockvoicechat.com/link" aria-label="Copy the address">
+                        <span data-rad-icon="copy"></span>
+                      </button>
+                    </div>
+                    <span class="rad-label" style="display: block; margin-top: 20px">And enter</span>
+                    <div class="rad-code" data-code>XKCD&#8209;4417</div>
+                    <div class="rad-resolve" data-code-expiry>&#9675; Expires in 9:58</div>
+                    <button class="rad-btn rad-btn--lg" style="margin-top: 18px; width: 100%" data-rad-goto="login">
+                      Back to sign in
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="rad-footbar">
+                <span class="rad-label" data-code-server>bvc.example.com</span>
+                <span class="rad-label rad-num">v1.0.0-beta.7</span>
+              </div>
+            </section>
+
+            <!-- ============ NOT YET ============ -->
+            <section class="rad-screen" data-rad-screen="notyet">
+              <div class="rad-topbar">
+                <span class="rad-brand">
+                  <canvas data-rad-mark></canvas>
+                  <span class="rad-wordmark">Bedrock Voice Chat</span>
+                </span>
+                <span class="rad-label">No server yet</span>
+              </div>
+              <div class="rad-split">
+                <div class="rad-visual-pane">
+                  <div class="rad-visual">
+                    <canvas data-rad-ring="empty"></canvas>
+                    <span class="rad-caption">
+                      <span class="rad-label">Nothing in range</span>
+                      <span class="rad-caption__value">ONE INSTALL AWAY</span>
+                    </span>
+                  </div>
+                </div>
+                <div class="rad-content-pane rad-content-pane--top">
+                  <span class="rad-label rad-rise" style="--d: 50">No server yet</span>
+                  <h2 class="rad-display rad-rise" style="--d: 120; margin-top: 12px; font-size: 2rem">
+                    Set it up once.<br /><b>Then everyone just signs in.</b>
+                  </h2>
+                  <p class="rad-body rad-rise" style="--d: 200">
+                    Voice chat needs two things: a mod on your world, and a BVC server running somewhere
+                    you control. Nothing at all on your players' machines.
+                  </p>
+
+                  <span class="rad-label rad-rise" style="--d: 240; display: block; margin-top: 26px">What's involved</span>
+                  <div class="rad-steps rad-rise" style="--d: 270">
+                    <div class="rad-step">
+                      <span class="rad-step__n">1</span>
+                      <span><span class="rad-step__title">Run the BVC server</span>
+                        <span class="rad-step__note">On a machine you control &mdash; your PC, a VPS, or a home box</span></span>
+                    </div>
+                    <div class="rad-step">
+                      <span class="rad-step__n">2</span>
+                      <span><span class="rad-step__title">Add the mod to your world</span>
+                        <span class="rad-step__note">Wherever your world is hosted, including Aternos and Realms</span></span>
+                    </div>
+                    <div class="rad-step">
+                      <span class="rad-step__n">3</span>
+                      <span><span class="rad-step__title">Share the address &mdash; everyone talks</span></span>
+                    </div>
+                  </div>
+
+                  <span class="rad-label rad-rise" style="--d: 320; display: block; margin-top: 28px">Which one are you?</span>
+                  <div class="rad-choices rad-rise" style="--d: 350">
+                    <button class="rad-choice" data-toast="Opens the wiki install guide">
+                      <span>
+                        <span class="rad-choice__title">I run the server</span>
+                        <span class="rad-choice__note">
+                          Do both installs yourself. The guide covers the server and the mod, start to
+                          finish, in about fifteen minutes.
+                        </span>
+                      </span>
+                      <span class="rad-choice__action">Install guide &rarr;</span>
+                    </button>
+                    <button class="rad-choice" data-toast="Message copied to your clipboard">
+                      <span>
+                        <span class="rad-choice__title">A friend runs the server</span>
+                        <span class="rad-choice__note">
+                          They only have to do it once. Copy a short message with the guide link and
+                          send it over.
+                        </span>
+                      </span>
+                      <span class="rad-choice__action">Copy message &rarr;</span>
+                    </button>
+                    <button class="rad-choice" data-toast="Opens bedrockvoicechat.com">
+                      <span>
+                        <span class="rad-choice__title">I'm just looking</span>
+                        <span class="rad-choice__note">
+                          Watch the setup walkthrough and see it running before you commit to anything.
+                        </span>
+                      </span>
+                      <span class="rad-choice__action">Watch it &rarr;</span>
+                    </button>
+                  </div>
+
+                  <div class="rad-swatchrow" style="margin-top: 22px">
+                    <button class="rad-pill-link" data-toast="Opens the wiki">Wiki <span class="rad-pill-link__ext">&#8599;</span></button>
+                    <button class="rad-pill-link" data-toast="Opens Discord">Discord <span class="rad-pill-link__ext">&#8599;</span></button>
+                    <button class="rad-pill-link" data-toast="Opens bedrockvoicechat.com">
+                      bedrockvoicechat.com <span class="rad-pill-link__ext">&#8599;</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="rad-footbar">
+                <span class="rad-label">Come back any time from the sign-in screen</span>
+                <button class="rad-btn rad-btn--lg" data-rad-goto="login">I have an address &mdash; sign in</button>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./onboarding.ts"></script>
+  </body>
+</html>

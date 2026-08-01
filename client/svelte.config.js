@@ -31,6 +31,13 @@ const config = {
   },
   kit: {
     adapter: adapter(),
+    alias: {
+      // The Radial design system. Kit turns this into a tsconfig path too, so
+      // `import { Mark } from "$radial/..."` resolves for svelte-check as well as
+      // for the bundler. The standalone reference pages get the same alias from
+      // vite.radial.config.ts.
+      $radial: "src/radial",
+    },
   },
 };
 

@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Radial · dashboard</title>
+    <link rel="stylesheet" href="./standalone.css" />
+  </head>
+  <body>
+    <div class="g-wrap">
+      <header class="g-head">
+        <p class="g-kick">Radial · dashboard</p>
+        <h1 class="g-title">The ring speaks only when nobody else can</h1>
+        <p class="g-lede">
+          Top is where you are. Bottom is your voice. With nobody in earshot the ring owns the room;
+          the moment anyone arrives their mark leaves the ring, becomes their card, and the ring gets
+          out of the way. Names and controls live in the list, never on the circle &mdash;
+          identification wants recognition, not recall.
+        </p>
+      </header>
+
+      <nav class="g-nav" data-g-nav></nav>
+
+      <section class="g-sec" id="dashboard">
+        <p class="g-sec__kick">Live</p>
+        <h2 class="g-sec__title">Add someone and watch the handoff</h2>
+        <p class="g-sec__note">
+          A player's mark flies out of the ring and lands as their avatar. Nobody has to be told the
+          circle and the list are the same information &mdash; they watch it happen once. When the
+          last person leaves, the cards collapse back into the ring.
+        </p>
+
+        <div class="g-bar">
+          <span class="g-ctls">
+            <label>Nearby</label>
+            <button data-act="minus">&minus; Player</button>
+            <button data-act="plus">+ Player</button>
+            <label style="margin-left: 10px">Mode</label>
+            <button data-act="ptt" aria-pressed="false">Push-to-talk</button>
+            <button data-act="fault" style="margin-left: 10px">Fault: none</button>
+            <button data-act="status" style="margin-left: 10px">Status</button>
+            <button data-act="reset" style="margin-left: 10px">Reset</button>
+          </span>
+          <span class="g-seg" data-g-device="dsh-frame">
+            <button data-g-size="desktop" aria-pressed="true">Desktop</button>
+            <button data-g-size="phone" aria-pressed="false">Phone</button>
+          </span>
+        </div>
+
+        <div class="g-frame-stage">
+          <div class="rad-frame rad-frame--desktop" id="dsh-frame">
+            <div class="rad-grain"></div>
+            <div class="rad-shell">
+              <!-- server rail -->
+              <div class="rad-rail">
+                <div class="rad-rail__list" data-rail></div>
+                <button class="rad-rail-btn" aria-label="Add a server"><span data-rad-icon="plus"></span></button>
+                <span class="rad-rail__spacer"></span>
+                <button class="rad-rail-btn" aria-label="Settings"><span data-rad-icon="gear"></span></button>
+              </div>
+
+              <!-- groups -->
+              <div class="rad-panel">
+                <div class="rad-panel__head">Groups</div>
+                <div class="rad-panel__body">
+                  <button class="rad-new-group"><span data-rad-icon="plus"></span> New group</button>
+                  <div data-groups></div>
+                </div>
+              </div>
+
+              <div class="rad-stage">
+                <div class="rad-dash-top">
+                  <span class="rad-dash-top__who">
+                    <span class="rad-desk-only">
+                      <span class="rad-dash-top__server" data-server-name>Alaydriem's SMP</span>
+                    </span>
+                    <button
+                      class="rad-header-btn rad-phone-only"
+                      data-rad-sheet-open="groups"
+                      data-groups-btn
+                      aria-label="Groups"
+                    >
+                      <span data-rad-icon="people"></span>
+                    </button>
+                  </span>
+                  <span class="rad-dash-top__state">
+                    <span class="rad-desk-only">
+                      <span style="display: flex; align-items: center; gap: 10px">
+                        <span class="rad-health-dot"></span>
+                        <span data-headline>NOBODY IN EARSHOT</span>
+                      </span>
+                      <button class="rad-header-btn" data-peek aria-pressed="false" aria-label="Show status">
+                        <span data-rad-icon="field"></span>
+                      </button>
+                    </span>
+                    <button class="rad-header-glyph rad-phone-only" data-rad-sheet-open="servers" aria-label="Servers and settings">
+                      <canvas data-rad-glyph="bvc.alaydriem.com" data-size="34"></canvas>
+                    </button>
+                  </span>
+                </div>
+
+                <!-- phone: roster and chat are peer views -->
+                <div class="rad-tabs">
+                  <button class="is-on" data-tab="roster">In earshot</button>
+                  <button data-tab="chat">Chat<span class="rad-tabs__dot" data-chat-dot hidden></span></button>
+                </div>
+
+                <div class="rad-main" data-main>
+                  <div class="rad-idle" data-idle>
+                    <div class="rad-ring rad-ring--fixed"><canvas data-rad-ring="empty" data-rad-id="idle-ring"></canvas></div>
+                    <span class="rad-idle__caption">
+                      <span class="rad-idle__kicker">Listening</span>
+                      <span class="rad-idle__headline">Nobody within 80 m</span>
+                      <span class="rad-idle__note">
+                        Voices appear here the moment someone walks into range. Nothing to join,
+                        nothing to dial.
+                      </span>
+                    </span>
+                  </div>
+
+                  <div class="rad-status" data-status>
+                    <div class="rad-status__head">
+                      <span class="rad-label">Status</span>
+                      <span class="rad-status__actions">
+                        <button class="rad-status__act" data-reconnect>
+                          <span data-rad-icon="refresh"></span> Reconnect
+                        </button>
+                        <button class="rad-icon-btn" data-status-close aria-label="Close status">
+                          <span data-rad-icon="close"></span>
+                        </button>
+                      </span>
+                    </div>
+                    <div class="rad-status__body">
+                      <div class="rad-status__scope">
+                        <canvas data-rad-ring="scope" data-rad-id="scope"></canvas>
+                        <span class="rad-status__scope-cap">Round trip &middot; last 72 s</span>
+                      </div>
+                      <div class="rad-status__read">
+                        <div class="rad-verdict" data-verdict>
+                          <span class="rad-verdict__dot"></span>
+                          <span class="rad-verdict__text">Everything looks fine.</span>
+                        </div>
+                        <div class="rad-kv-grid" data-kv></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="rad-roster is-gone" data-roster></div>
+                </div>
+
+                <!-- chat -->
+                <div class="rad-chat-dock">
+                  <div class="rad-chat-history">
+                    <div class="rad-chat__head">
+                      <span class="rad-label">Server chat</span>
+                      <span class="rad-status-chip rad-status-chip--live">Live</span>
+                      <span class="rad-spacer"></span>
+                      <button class="rad-icon-btn" data-chat-close aria-label="Close chat">
+                        <span data-rad-icon="close"></span>
+                      </button>
+                    </div>
+                    <div class="rad-chat__body" data-chat-body></div>
+                  </div>
+                  <div class="rad-chat-bar">
+                    <button class="rad-chat-toggle" data-chat-toggle aria-label="Chat">
+                      <span data-rad-icon="chat"></span>
+                      <span class="rad-chat-badge" data-chat-badge hidden>0</span>
+                    </button>
+                    <input class="rad-chat-input" data-chat-input placeholder="Message the server…" autocomplete="off" aria-label="Message the server" />
+                    <button class="rad-chat-send" data-chat-send aria-label="Send"><span data-rad-icon="send"></span></button>
+                  </div>
+                </div>
+
+                <!-- phone: self controls -->
+                <div class="rad-self-bar" data-self-capsule></div>
+              </div>
+            </div>
+
+            <!-- desktop: self controls -->
+            <div data-self-pill></div>
+
+            <div class="rad-menu" data-rad-menu></div>
+            <div class="rad-scrim" data-rad-sheet-scrim></div>
+
+            <div class="rad-sheet" data-rad-sheet="servers">
+              <span class="rad-sheet__handle"></span>
+              <h4 class="rad-sheet__title">Servers</h4>
+              <div data-sheet-servers></div>
+              <div class="rad-sheet__divider"></div>
+              <button class="rad-list-row"><span class="rad-list-row__icon" data-rad-icon="plus"></span> Add a server</button>
+              <button class="rad-list-row"><span class="rad-list-row__icon" data-rad-icon="gear"></span> Settings</button>
+              <button class="rad-list-row" data-sheet-status>
+                <span class="rad-list-row__icon" data-rad-icon="field"></span> Connection status
+              </button>
+              <div class="rad-sheet__divider"></div>
+              <button class="rad-list-row rad-list-row--danger" data-rad-sheet-close>
+                <span class="rad-list-row__icon" data-rad-icon="close"></span> Sign out
+              </button>
+            </div>
+
+            <div class="rad-sheet" data-rad-sheet="groups">
+              <span class="rad-sheet__handle"></span>
+              <h4 class="rad-sheet__title">Groups</h4>
+              <div data-sheet-groups></div>
+              <div class="rad-sheet__divider"></div>
+              <button class="rad-list-row"><span class="rad-list-row__icon" data-rad-icon="plus"></span> New group</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="g-sec">
+        <p class="g-sec__kick">Why it is shaped this way</p>
+        <h2 class="g-sec__title">Four decisions worth keeping</h2>
+        <div class="g-grid" style="margin-top: 18px">
+          <div class="g-item" style="margin-top: 0">
+            <div class="g-item__head"><span class="g-item__name">the ring earns the empty state</span></div>
+            <div class="g-stage" style="padding: 18px 20px">
+              <p class="g-sec__note" style="margin: 0">
+                In a proximity app you are alone constantly &mdash; at connect, while mining, anywhere
+                off the beaten path. That screen is not an edge case, it is somewhere users live, and
+                a live ring says the system is on and listening without asking anyone to interpret it.
+              </p>
+            </div>
+          </div>
+          <div class="g-item" style="margin-top: 0">
+            <div class="g-item__head"><span class="g-item__name">and leaves the moment anyone arrives</span></div>
+            <div class="g-stage" style="padding: 18px 20px">
+              <p class="g-sec__note" style="margin: 0">
+                A circle makes you find a mark, work out whose it is, then find the control. A row
+                gives you a face, a name and a mute button in one glance, which is the only thing that
+                matters when someone is shouting over you.
+              </p>
+            </div>
+          </div>
+          <div class="g-item" style="margin-top: 0">
+            <div class="g-item__head"><span class="g-item__name">one axis per surface</span></div>
+            <div class="g-stage" style="padding: 18px 20px">
+              <p class="g-sec__note" style="margin: 0">
+                The mark owns your mic and flatlines when you are muted. The roster owns incoming and
+                dims when you are deafened. A dot owns the connection. Nothing reports two things, so
+                nothing is ambiguous.
+              </p>
+            </div>
+          </div>
+          <div class="g-item" style="margin-top: 0">
+            <div class="g-item__head"><span class="g-item__name">one way in, on both sizes</span></div>
+            <div class="g-stage" style="padding: 18px 20px">
+              <p class="g-sec__note" style="margin: 0">
+                Pull the list down on a phone, press the dial on desktop. Reconnect lives inside the
+                panel: pulling a list is exploratory and must never take an action on the connection.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./dashboard.ts"></script>
+  </body>
+</html>

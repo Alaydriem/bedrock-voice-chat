@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Radial · overview</title>
+    <link rel="stylesheet" href="./standalone.css" />
+  </head>
+  <body>
+    <div class="g-wrap">
+      <header class="g-head">
+        <p class="g-kick">Radial · BVC design system</p>
+        <h1 class="g-title">One mark, drawn every way the product needs it</h1>
+        <p class="g-lede">
+          The logo is not a badge. It is 137 blocks on a 23&times;13 grid where every column is one
+          contiguous vertical span &mdash; a waveform envelope running violet to red across the
+          spectrum. One drawing routine renders it as a header logo, as a level meter beside a name,
+          and as the ring on the empty state. Every colour in the palette is a column of it.
+        </p>
+      </header>
+
+      <nav class="g-nav" data-g-nav></nav>
+
+      <!-- ======================= tokens ======================= -->
+      <section class="g-sec" id="tokens">
+        <p class="g-sec__kick">Tokens</p>
+        <h2 class="g-sec__title">The palette is the mark</h2>
+        <p class="g-sec__note">
+          Dark only. There is no light counterpart, because the product is a violet ground. Each
+          colour below records which column of the mark it came from &mdash; that provenance is what
+          keeps the palette one system rather than a set of separate choices.
+        </p>
+
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">ground &amp; surface</span>
+            <span class="g-item__note">Column 00 at 12% lightness, and four steps up from it.</span>
+          </div>
+          <div class="g-stage g-stage--alt">
+            <div class="g-swatches">
+              <div class="g-swatch">
+                <div class="g-swatch__chip" style="background: #1c1132"></div>
+                <div class="g-swatch__meta">
+                  <div class="g-swatch__name">--color-rad-void</div>
+                  <div class="g-swatch__value">#1C1132 · col 00 @ 12%</div>
+                </div>
+              </div>
+              <div class="g-swatch">
+                <div class="g-swatch__chip" style="background: #251844"></div>
+                <div class="g-swatch__meta">
+                  <div class="g-swatch__name">--color-rad-void-2</div>
+                  <div class="g-swatch__value">#251844 · cards, wells</div>
+                </div>
+              </div>
+              <div class="g-swatch">
+                <div class="g-swatch__chip" style="background: #2f2054"></div>
+                <div class="g-swatch__meta">
+                  <div class="g-swatch__name">--color-rad-panel</div>
+                  <div class="g-swatch__value">#2F2054 · hover, active</div>
+                </div>
+              </div>
+              <div class="g-swatch">
+                <div class="g-swatch__chip" style="background: #432f6c"></div>
+                <div class="g-swatch__meta">
+                  <div class="g-swatch__name">--color-rad-line</div>
+                  <div class="g-swatch__value">#432F6C · also the mortar</div>
+                </div>
+              </div>
+              <div class="g-swatch">
+                <div class="g-swatch__chip" style="background: #5b4487"></div>
+                <div class="g-swatch__meta">
+                  <div class="g-swatch__name">--color-rad-line-2</div>
+                  <div class="g-swatch__value">#5B4487 · control borders</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">brand &amp; semantic</span>
+            <span class="g-item__note">
+              The semantic three are lifted off columns 10, 15 and 20 rather than taken raw, so they
+              hold contrast against the violet ground.
+            </span>
+          </div>
+          <div class="g-stage g-stage--alt">
+            <div class="g-swatches">
+              <div class="g-swatch">
+                <div class="g-swatch__chip" style="background: #8239d8"></div>
+                <div class="g-swatch__meta">
+                  <div class="g-swatch__name">--color-rad-brand</div>
+                  <div class="g-swatch__value">#8239D8 · column 00 verbatim</div>
+                </div>
+              </div>
+              <div class="g-swatch">
+                <div class="g-swatch__chip" style="background: #bb8dfa"></div>
+                <div class="g-swatch__meta">
+                  <div class="g-swatch__name">--color-rad-brand-lift</div>
+                  <div class="g-swatch__value">#BB8DFA · focus, active</div>
+                </div>
+              </div>
+              <div class="g-swatch">
+                <div class="g-swatch__chip" style="background: #5ce383"></div>
+                <div class="g-swatch__meta">
+                  <div class="g-swatch__name">--color-rad-ok</div>
+                  <div class="g-swatch__value">#5CE383 · from column 10</div>
+                </div>
+              </div>
+              <div class="g-swatch">
+                <div class="g-swatch__chip" style="background: #ffcf4d"></div>
+                <div class="g-swatch__meta">
+                  <div class="g-swatch__name">--color-rad-warn</div>
+                  <div class="g-swatch__value">#FFCF4D · from column 15</div>
+                </div>
+              </div>
+              <div class="g-swatch">
+                <div class="g-swatch__chip" style="background: #ff8266"></div>
+                <div class="g-swatch__meta">
+                  <div class="g-swatch__name">--color-rad-fault</div>
+                  <div class="g-swatch__value">#FF8266 · from column 20</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">the full spectrum</span>
+            <span class="g-item__note" data-g-spectrum-note></span>
+          </div>
+          <div class="g-stage g-stage--alt">
+            <div class="g-swatches" data-g-spectrum></div>
+          </div>
+          <pre class="g-code"><i>// any column is a legitimate colour — nothing here is off-limits</i>
+MarkData.hueAt(<b>10</b>)                     <i>// #3bd869</i>
+MarkData.COLUMNS[<b>20</b>][<b>2</b>]                  <i>// #f0422b</i>
+PlayerHue.forPlayer("minecraft", name)   <i>// one of these, deterministically</i></pre>
+        </div>
+
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">type &amp; contrast</span>
+            <span class="g-item__note">
+              Ratios are computed in the browser from the tokens, not transcribed. If a token moves,
+              this table stops agreeing with the design notes.
+            </span>
+          </div>
+          <div class="g-stage">
+            <p class="rad-label">01 &middot; Proximity</p>
+            <h3 class="rad-display" style="margin-top: 12px">
+              Walk up to someone.<br /><b>You're already talking.</b>
+            </h3>
+            <p class="rad-body" style="margin-top: 18px">
+              Voices get louder as players come toward you and fade as they leave. No lobbies, no
+              invites, and nobody shouting over a call from three biomes away.
+            </p>
+          </div>
+          <div class="g-stage g-stage--alt" style="padding: 0">
+            <table class="g-table">
+              <thead>
+                <tr>
+                  <th>Role</th>
+                  <th>Token</th>
+                  <th>Size</th>
+                  <th>Measured on --void</th>
+                  <th>Needs</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Display</td>
+                  <td>--color-rad-tx</td>
+                  <td>44px / 300</td>
+                  <td data-g-contrast="#fbf8ff|#1c1132" data-g-contrast-min="3"></td>
+                  <td>3:1 (large)</td>
+                </tr>
+                <tr>
+                  <td>Body</td>
+                  <td>--color-rad-dim</td>
+                  <td>17px / 400</td>
+                  <td data-g-contrast="#d6cbea|#1c1132" data-g-contrast-min="4.5"></td>
+                  <td>4.5:1</td>
+                </tr>
+                <tr>
+                  <td>Mono label</td>
+                  <td>--color-rad-faint</td>
+                  <td>12px / 400</td>
+                  <td data-g-contrast="#b3a4d0|#1c1132" data-g-contrast-min="4.5"></td>
+                  <td>4.5:1</td>
+                </tr>
+                <tr>
+                  <td>OK chip</td>
+                  <td>--color-rad-ok</td>
+                  <td>11px / 400</td>
+                  <td data-g-contrast="#5ce383|#1c1132" data-g-contrast-min="4.5"></td>
+                  <td>4.5:1</td>
+                </tr>
+                <tr>
+                  <td>Warn chip</td>
+                  <td>--color-rad-warn</td>
+                  <td>11px / 400</td>
+                  <td data-g-contrast="#ffcf4d|#1c1132" data-g-contrast-min="4.5"></td>
+                  <td>4.5:1</td>
+                </tr>
+                <tr>
+                  <td>Fault chip</td>
+                  <td>--color-rad-fault</td>
+                  <td>11px / 400</td>
+                  <td data-g-contrast="#ff8266|#1c1132" data-g-contrast-min="4.5"></td>
+                  <td>4.5:1</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================= the mark ======================= -->
+      <section class="g-sec" id="mark">
+        <p class="g-sec__kick">Mark</p>
+        <h2 class="g-sec__title">The dancing logo</h2>
+        <p class="g-sec__note">
+          Cell size comes from the <code>--rad-mark-cell</code> custom property, so a container query
+          decides how big the mark is and the TypeScript never learns what a phone is. The violet
+          mortar fills the gaps <em>inside</em> the silhouette only: the blocks read as blocks without
+          the negative space going black and without a panel appearing around the logo.
+        </p>
+
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">&lt;canvas data-rad-mark&gt;</span>
+            <span class="g-item__note">Sizes: 4 (phone header), 6 (desktop header), 9 (marketing).</span>
+          </div>
+          <div class="g-stage">
+            <div class="g-row" style="gap: 34px">
+              <div class="g-col">
+                <span class="g-tag">cell 4</span>
+                <canvas data-rad-mark data-cell="4"></canvas>
+              </div>
+              <div class="g-col">
+                <span class="g-tag">cell 6</span>
+                <canvas data-rad-mark data-cell="6"></canvas>
+              </div>
+              <div class="g-col">
+                <span class="g-tag">cell 9</span>
+                <canvas data-rad-mark data-cell="9"></canvas>
+              </div>
+            </div>
+          </div>
+          <pre class="g-code"><b>&lt;canvas</b> data-rad-mark data-cell="6"<b>&gt;&lt;/canvas&gt;</b>
+
+<b>import</b> { MarkBinding } <b>from</b> "$radial/bindings/MarkBinding";
+<b>new</b> MarkBinding(canvas, { cell: 6 });          <i>// spectrum, mortar on</i>
+<b>new</b> MarkBinding(canvas, { color: "#21d8d8" }); <i>// one tint</i></pre>
+        </div>
+
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">amplitude &amp; tint</span>
+            <span class="g-item__note">
+              Gain 0 collapses the mark to its mid row. That is the same collapse the loader performs
+              when it finishes, and the same one a muted mic performs.
+            </span>
+          </div>
+          <div class="g-stage">
+            <div class="g-row" style="gap: 30px">
+              <div class="g-col">
+                <span class="g-tag">gain 1</span>
+                <canvas data-rad-mark data-cell="5" data-gain="1"></canvas>
+              </div>
+              <div class="g-col">
+                <span class="g-tag">gain 0.4</span>
+                <canvas data-rad-mark data-cell="5" data-gain="0.4"></canvas>
+              </div>
+              <div class="g-col">
+                <span class="g-tag">gain 0, still</span>
+                <canvas data-rad-mark data-cell="5" data-gain="0" data-still="true"></canvas>
+              </div>
+              <div class="g-col">
+                <span class="g-tag">single tint</span>
+                <canvas data-rad-mark data-cell="5" data-color="#bb8dfa"></canvas>
+              </div>
+              <div class="g-col">
+                <span class="g-tag">no mortar</span>
+                <canvas data-rad-mark data-cell="5" data-mortar="false"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================= the ring ======================= -->
+      <section class="g-sec" id="ring">
+        <p class="g-sec__kick">Ring</p>
+        <h2 class="g-sec__title">The mark, with circles around it</h2>
+        <p class="g-sec__note">
+          Seventy-two bars, each a radial stack of segments. A voice is placed by angle and pushes the
+          bars near it outward, tinted with that player's hue &mdash; which is how the ring says
+          <em>who</em> and <em>where</em> without carrying a single name. It is the empty state and the
+          status oscilloscope, and never a control surface or a roster: identification wants
+          recognition, not recall.
+        </p>
+
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">&lt;canvas data-rad-ring="…"&gt;</span>
+            <span class="g-item__note">
+              live &middot; someone is talking. empty &middot; nobody is in range. lock &middot; one
+              source acquiring.
+            </span>
+          </div>
+          <div class="g-stage">
+            <div class="g-grid">
+              <div class="g-col" style="width: 100%">
+                <span class="g-tag">live</span>
+                <div class="rad-ring rad-ring--fixed" style="width: 240px; height: 240px">
+                  <canvas data-rad-ring="live" data-rad-id="ring-live"></canvas>
+                </div>
+              </div>
+              <div class="g-col" style="width: 100%">
+                <span class="g-tag">empty</span>
+                <div class="rad-ring rad-ring--fixed" style="width: 240px; height: 240px">
+                  <canvas data-rad-ring="empty"></canvas>
+                </div>
+              </div>
+              <div class="g-col" style="width: 100%">
+                <span class="g-tag">lock</span>
+                <div class="rad-ring rad-ring--fixed" style="width: 240px; height: 240px">
+                  <canvas data-rad-ring="lock" data-rad-id="ring-lock"></canvas>
+                </div>
+              </div>
+              <div class="g-col" style="width: 100%">
+                <span class="g-tag">scope &middot; round trip, last 72 s</span>
+                <div class="rad-ring rad-ring--fixed" style="width: 240px; height: 240px">
+                  <canvas data-rad-ring="scope" data-rad-id="ring-scope"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+          <pre class="g-code"><b>&lt;div</b> class="rad-ring rad-ring--fixed"<b>&gt;</b>
+  <b>&lt;canvas</b> data-rad-ring="empty"<b>&gt;&lt;/canvas&gt;</b>
+<b>&lt;/div&gt;</b>
+
+<b>const</b> ring = <b>new</b> RingBinding(canvas, { mode: "live" });
+ring.setSources([{ angle: -Math.PI / 2, volume: 0.8, hue: "#21d8d8" }]);</pre>
+        </div>
+      </section>
+
+      <!-- ======================= level meters ======================= -->
+      <section class="g-sec" id="level">
+        <p class="g-sec__kick">Level meter</p>
+        <h2 class="g-sec__title">A voice, as the mark at low amplitude</h2>
+        <p class="g-sec__note">
+          Driven by pushed data, never by an internal oscillator: a meter subscribes to a
+          <code>LevelSource</code> and knows nothing else. On these pages the source is synthetic; in
+          the app it is whatever the audio layer hands over. Colour is a hex, or
+          <code>rainbow</code> for the spectrum.
+        </p>
+
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">&lt;canvas data-rad-level&gt;</span>
+            <span class="g-item__note">
+              Mortar off: at three pixels a cell the violet reads as mud rather than as substance.
+            </span>
+          </div>
+          <div class="g-stage">
+            <div class="g-col" style="gap: 18px">
+              <div class="g-row" style="gap: 16px">
+                <span class="g-tag" style="width: 90px">rainbow</span>
+                <canvas data-rad-level data-color="rainbow" data-phase="0"></canvas>
+              </div>
+              <div class="g-row" style="gap: 16px">
+                <span class="g-tag" style="width: 90px">#21d8d8</span>
+                <canvas data-rad-level data-color="#21d8d8" data-phase="1.7"></canvas>
+              </div>
+              <div class="g-row" style="gap: 16px">
+                <span class="g-tag" style="width: 90px">#aee236</span>
+                <canvas data-rad-level data-color="#aee236" data-phase="3.1"></canvas>
+              </div>
+              <div class="g-row" style="gap: 16px">
+                <span class="g-tag" style="width: 90px">#f67414</span>
+                <canvas data-rad-level data-color="#f67414" data-phase="4.4"></canvas>
+              </div>
+              <div class="g-row" style="gap: 16px">
+                <span class="g-tag" style="width: 90px">silent</span>
+                <canvas data-rad-level data-source="none"></canvas>
+              </div>
+              <div class="g-row" style="gap: 16px">
+                <span class="g-tag" style="width: 90px">cell 2 / 4</span>
+                <canvas data-rad-level data-cell="2" data-color="#bb8dfa" data-phase="2.2"></canvas>
+                <canvas data-rad-level data-cell="4" data-color="#bb8dfa" data-phase="2.2"></canvas>
+              </div>
+            </div>
+          </div>
+          <pre class="g-code"><b>&lt;canvas</b> data-rad-level data-color="#21d8d8"<b>&gt;&lt;/canvas&gt;</b>
+
+<i>// the adapter seam: something else drives it</i>
+<b>const</b> mic = <b>new</b> PushLevelSource();
+<b>new</b> LevelMeterBinding(canvas, { source: mic, color: "rainbow" });
+listen&lt;number&gt;("audio://input-level", (e) =&gt; mic.push(e.payload));</pre>
+        </div>
+      </section>
+
+      <!-- ======================= server glyphs ======================= -->
+      <section class="g-sec" id="glyph">
+        <p class="g-sec__kick">Server glyph</p>
+        <h2 class="g-sec__title">Identity, derived from the name</h2>
+        <p class="g-sec__note">
+          No upload, no avatar service, no default grey box. A hostname hashes to a hue from a column
+          of the mark and a mirrored 5&times;5 block pattern, so every server looks distinct, looks
+          like it belongs here, and looks the same on every client that knows its name.
+        </p>
+
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">&lt;canvas data-rad-glyph="host"&gt;</span>
+            <span class="g-item__note">Deterministic: the same name always produces the same glyph.</span>
+          </div>
+          <div class="g-stage">
+            <div class="g-row" style="gap: 18px">
+              <canvas data-rad-glyph="bvc.alaydriem.com" data-size="48"></canvas>
+              <canvas data-rad-glyph="voice.hearthhold.net" data-size="48"></canvas>
+              <canvas data-rad-glyph="bvc.tinyaxolotl.gg" data-size="48"></canvas>
+              <canvas data-rad-glyph="alaydriem-realm" data-size="48"></canvas>
+              <canvas data-rad-glyph="hearthhold-realm" data-size="48"></canvas>
+              <canvas data-rad-glyph="mc.example.com" data-size="48"></canvas>
+              <canvas data-rad-glyph="a" data-size="48"></canvas>
+              <canvas data-rad-glyph="b" data-size="48"></canvas>
+            </div>
+            <div class="g-row" style="gap: 18px; margin-top: 20px">
+              <canvas data-rad-glyph="bvc.alaydriem.com" data-size="30"></canvas>
+              <canvas data-rad-glyph="bvc.alaydriem.com" data-size="36"></canvas>
+              <canvas data-rad-glyph="bvc.alaydriem.com" data-size="64"></canvas>
+              <span class="g-tag">one name, three sizes</span>
+            </div>
+            <div style="margin-top: 24px">
+              <span class="g-tag">every column of the mark is reachable &mdash; one glyph each</span>
+              <div class="g-row" style="gap: 10px; margin-top: 12px" data-g-glyph-spread></div>
+            </div>
+          </div>
+          <pre class="g-code"><b>&lt;canvas</b> data-rad-glyph="bvc.example.com" data-size="48"<b>&gt;&lt;/canvas&gt;</b>
+
+<i>// or draw it somewhere else entirely</i>
+<b>const</b> { hue, bits } = ServerGlyph.of("bvc.example.com");</pre>
+        </div>
+      </section>
+
+      <!-- ======================= shell ======================= -->
+      <section class="g-sec" id="shell">
+        <p class="g-sec__kick">Shell</p>
+        <h2 class="g-sec__title">The frame is the container query root</h2>
+        <p class="g-sec__note">
+          Every responsive decision in the kit is made against <code>@container rad</code>, never
+          against the viewport. Switching the specimen below between desktop and phone changes one
+          element's width; everything inside re-lays itself out because its container changed. That is
+          also why a component behaves correctly inside a sheet, a sidebar or a 412px window without
+          knowing it is in one.
+        </p>
+
+        <div class="g-bar">
+          <span class="g-tag">1280&times;800 &middot; the client's actual window</span>
+          <span class="g-seg" data-g-device="shell-frame">
+            <button data-g-size="desktop" aria-pressed="true">Desktop</button>
+            <button data-g-size="phone" aria-pressed="false">Phone</button>
+          </span>
+        </div>
+
+        <div class="g-frame-stage">
+          <div class="rad-frame rad-frame--desktop" id="shell-frame">
+            <div class="rad-grain"></div>
+            <div class="rad-topbar">
+              <span class="rad-brand">
+                <canvas data-rad-mark></canvas>
+                <span class="rad-wordmark">Bedrock Voice Chat</span>
+              </span>
+              <span class="rad-label">Shell</span>
+            </div>
+            <div class="rad-split">
+              <div class="rad-visual-pane">
+                <div class="rad-visual">
+                  <canvas data-rad-ring="live"></canvas>
+                  <span class="rad-caption">
+                    <span class="rad-label">Your range</span>
+                    <span class="rad-caption__value">80 M &middot; 3 IN EARSHOT</span>
+                  </span>
+                </div>
+              </div>
+              <div class="rad-content-pane">
+                <span class="rad-label rad-rise" style="--d: 50">The content pane</span>
+                <h3 class="rad-display rad-rise" style="--d: 120; margin-top: 12px">
+                  Two panes on desktop.<br /><b>One column on a phone.</b>
+                </h3>
+                <p class="rad-body rad-rise" style="--d: 210">
+                  The visual pane fills its half absolutely so copy can sit over it. On a phone it
+                  becomes a fixed-height block at the top of a scrolling page, and the caption stops
+                  floating over the art and becomes a bar beneath it.
+                </p>
+                <div class="rad-chips rad-rise" style="--d: 300">
+                  <span class="rad-chip"><i style="background: #21d8d8"></i>Container queries</span>
+                  <span class="rad-chip"><i style="background: #3bd869"></i>No viewport media</span>
+                  <span class="rad-chip"><i style="background: #aee236"></i>Dark only</span>
+                </div>
+              </div>
+            </div>
+            <div class="rad-footbar">
+              <span class="rad-label">The bar at the bottom sticks on a phone</span>
+              <span class="rad-footbar__actions">
+                <button class="rad-btn rad-btn--lg rad-btn--quiet">Skip</button>
+                <button class="rad-btn rad-btn--lg rad-btn--primary">Next</button>
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================= icons ======================= -->
+      <section class="g-sec" id="icons">
+        <p class="g-sec__kick">Icons</p>
+        <h2 class="g-sec__title">No font, no CDN, no request</h2>
+        <p class="g-sec__note">
+          The client ships offline and runs in a WebView, so an icon that needs a request is an icon
+          that is sometimes missing. Every glyph is stroke-built inline SVG on one 24&times;24 box at a
+          1.9 stroke with round caps, sized by its host in <code>em</code> and coloured by
+          <code>currentColor</code>. Swapping <code>data-rad-icon</code> swaps the glyph, which is how
+          a mic becomes a struck-through mic on mute without the button knowing any markup.
+        </p>
+
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">&lt;span data-rad-icon="mic"&gt;</span>
+            <span class="g-item__note" data-g-icon-count></span>
+          </div>
+          <div class="g-stage">
+            <div class="g-row" style="gap: 10px" data-g-icon-sheet></div>
+          </div>
+          <pre class="g-code"><b>&lt;span</b> data-rad-icon="mic"<b>&gt;&lt;/span&gt;</b>
+
+<b>const</b> icon = <b>new</b> IconBinding(el);
+icon.name = muted ? "micoff" : "mic";</pre>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./index.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,254 @@
+/* Settings navigation.
+ *
+ * Reuses the dashboard's shell — the same rail, the same second column, now a section
+ * list. On a narrow container it becomes list-then-detail, because a sidebar and a
+ * settings pane cannot share 412 pixels and a horizontal nav strip above a long form
+ * is a worse compromise than two screens.
+ */
+
+.rad-settings-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 26px 34px 46px;
+  overflow-y: auto;
+}
+
+/* A measure. Settings rows past about 760px start needing eye travel between a label
+   on the left and its control on the right. */
+.rad-settings-measure {
+  max-width: 760px;
+}
+
+/* ---- nav ---- */
+
+.rad-nav-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 11px 13px;
+  text-align: left;
+  font: inherit;
+  font-size: var(--text-rad-md);
+  border: 0;
+  border-radius: var(--radius-rad-md);
+  background: transparent;
+  color: var(--color-rad-dim);
+  cursor: pointer;
+  transition: 0.16s;
+}
+
+.rad-nav-item:hover {
+  background: var(--color-rad-void-2);
+  color: var(--color-rad-tx);
+}
+
+/* An inset rule rather than a fill, so the active item does not read as a button. */
+.rad-nav-item.is-on {
+  background: var(--color-rad-panel);
+  color: var(--color-rad-tx);
+  box-shadow: inset 3px 0 0 var(--color-rad-brand-lift);
+}
+
+.rad-nav-item__badge {
+  margin-left: auto;
+  padding: 2px 7px;
+  border-radius: var(--radius-rad-pill);
+  background: var(--color-rad-brand);
+  color: #fff;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-2xs);
+}
+
+.rad-nav-group {
+  padding: 16px 13px 7px;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-2xs);
+  letter-spacing: var(--tracking-rad-label);
+  text-transform: uppercase;
+  color: var(--color-rad-faint);
+}
+
+/* ---- nav strip ----
+ * For a container too narrow for a sidebar but too wide for list-then-detail.
+ */
+
+.rad-nav-strip {
+  display: none;
+  gap: 7px;
+  padding: 0 18px 14px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.rad-nav-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.rad-nav-strip .rad-nav-item {
+  flex: 0 0 auto;
+  width: auto;
+  padding: 9px 15px;
+  border-radius: var(--radius-rad-pill);
+  background: var(--color-rad-void-2);
+  font-size: var(--text-rad-xs);
+}
+
+.rad-nav-strip .rad-nav-item.is-on {
+  background: var(--color-rad-brand);
+  color: #fff;
+  box-shadow: none;
+}
+
+/* ---- mobile back bar ---- */
+
+.rad-backbar {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  height: 56px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--color-rad-line);
+}
+
+.rad-backbar__btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 6px;
+  font: inherit;
+  font-size: var(--text-rad-sm);
+  border: 0;
+  border-radius: var(--radius-rad-md);
+  background: transparent;
+  color: var(--color-rad-dim);
+  cursor: pointer;
+}
+
+.rad-backbar__btn:hover {
+  background: var(--color-rad-panel);
+  color: var(--color-rad-tx);
+}
+
+.rad-backbar__btn > [data-rad-icon] > svg {
+  width: 17px;
+  height: 17px;
+}
+
+.rad-backbar__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-rad-md);
+  font-weight: 560;
+  color: var(--color-rad-tx);
+}
+
+/* ---- mobile list, then detail ---- */
+
+.rad-mobile-list {
+  display: none;
+  flex: 1 1 auto;
+  padding: 8px 14px 30px;
+  overflow-y: auto;
+}
+
+.rad-mobile-group {
+  padding: 18px 10px 8px;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-2xs);
+  letter-spacing: var(--tracking-rad-label);
+  text-transform: uppercase;
+  color: var(--color-rad-faint);
+}
+
+.rad-mobile-row {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  width: 100%;
+  margin-bottom: 7px;
+  padding: 15px 16px;
+  text-align: left;
+  font: inherit;
+  font-size: var(--text-rad-md);
+  border: 0;
+  border-radius: 11px;
+  background: var(--color-rad-void-2);
+  color: var(--color-rad-tx);
+  cursor: pointer;
+}
+
+.rad-mobile-row:hover {
+  background: var(--color-rad-panel);
+}
+
+.rad-mobile-row__chevron {
+  display: flex;
+  margin-left: auto;
+  flex: 0 0 auto;
+  color: var(--color-rad-faint);
+}
+
+.rad-mobile-row__chevron > svg {
+  width: 16px;
+  height: 16px;
+  transform: rotate(-90deg);
+}
+
+.rad-mobile-row__badge {
+  margin-left: auto;
+  padding: 3px 8px;
+  border-radius: var(--radius-rad-pill);
+  background: var(--color-rad-brand);
+  color: #fff;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-2xs);
+}
+
+.rad-mobile-row__badge + .rad-mobile-row__chevron {
+  margin-left: 10px;
+}
+
+/* ---- conditional panes ----
+ * Generalised from the prototype's bespoke ws-only / proxy-only / realm-only rules.
+ * A pane declares what it depends on; the frame declares the current state. No new
+ * CSS is needed to add a condition.
+ *
+ *   <div class="rad-frame" data-rad-state="realm">
+ *     <div data-rad-when="proxy realm">…</div>
+ *
+ * Conditional.apply() sets [hidden] on the panes that do not match, and marks the
+ * frame resolved. Until it has run, every conditional pane is hidden — otherwise the
+ * proxy and realm panes would both flash before the first pass.
+ */
+
+.rad-frame:not([data-rad-resolved]) [data-rad-when] {
+  display: none;
+}
+
+@container rad (max-width: 620px) {
+  .rad-settings-body {
+    padding: 20px 18px 40px;
+  }
+
+  /* Scoped to a settings frame. Unscoped, these hid the dashboard's phone header
+     too — the dashboard and settings share a shell, so a bare `.rad-dash-top`
+     rule here reaches a surface it knows nothing about. */
+  .rad-frame--settings .rad-backbar {
+    display: flex;
+  }
+
+  .rad-frame--settings .rad-dash-top {
+    display: none;
+  }
+
+  .rad-frame--settings.is-list .rad-mobile-list {
+    display: block;
+  }
+
+  .rad-frame--settings.is-list .rad-settings-body {
+    display: none;
+  }
+}

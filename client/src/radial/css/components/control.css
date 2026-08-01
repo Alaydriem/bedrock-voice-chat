@@ -1,0 +1,610 @@
+/* Inputs.
+ *
+ * The knobs, boxes and dots are all squares with small radii, because the mark is
+ * blocks. A pill-shaped toggle in this system reads as borrowed from somewhere else.
+ * The exceptions are deliberate: a radio is round because roundness is what says
+ * "exactly one", and a range thumb is round because it is a grabbable point.
+ */
+
+/* ---- segmented ----
+ * Two or three short words. When each option needs a sentence it is a radio group.
+ */
+
+.rad-segmented {
+  display: inline-flex;
+  padding: 3px;
+  background: var(--color-rad-void);
+  border: 1px solid var(--color-rad-line-2);
+  border-radius: var(--radius-rad-lg);
+}
+
+.rad-segmented button {
+  font: inherit;
+  font-size: var(--text-rad-xs);
+  padding: 8px 15px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--color-rad-dim);
+  cursor: pointer;
+  transition: 0.16s;
+}
+
+.rad-segmented button:hover {
+  color: var(--color-rad-tx);
+}
+
+.rad-segmented button[aria-pressed="true"] {
+  background: var(--color-rad-brand);
+  color: #fff;
+}
+
+/* ---- toggle ----
+ * The knob is a block, like everything else.
+ */
+
+.rad-toggle {
+  position: relative;
+  width: 48px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--color-rad-line-2);
+  border-radius: var(--radius-rad-md);
+  background: var(--color-rad-void);
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.rad-toggle::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-rad-sm);
+  background: var(--color-rad-faint);
+  transition: 0.2s var(--ease-rad-out);
+}
+
+.rad-toggle[aria-checked="true"] {
+  background: rgb(130 57 216 / 0.3);
+  border-color: var(--color-rad-brand-lift);
+}
+
+.rad-toggle[aria-checked="true"]::after {
+  left: 23px;
+  background: var(--color-rad-brand-lift);
+}
+
+/* Disabled controls grey out rather than disappear, so the setting stays findable
+   and its state stays readable. */
+.rad-toggle:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ---- select trigger ----
+ * Opens .rad-menu. A native <select> cannot carry tick marks, hints or a
+ * destructive item, and the same dropdown has to serve table row actions.
+ */
+
+.rad-select {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 150px;
+  font: inherit;
+  font-size: var(--text-rad-sm);
+  padding: 9px 12px;
+  border: 1px solid var(--color-rad-line-2);
+  border-radius: var(--radius-rad-md);
+  background: var(--color-rad-void);
+  color: var(--color-rad-tx);
+  cursor: pointer;
+  transition: 0.16s;
+}
+
+.rad-select:hover {
+  border-color: var(--color-rad-brand-lift);
+}
+
+.rad-select > [data-rad-icon] {
+  color: var(--color-rad-faint);
+}
+
+.rad-select > [data-rad-icon] > svg {
+  width: 15px;
+  height: 15px;
+}
+
+.rad-select__value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- text input ---- */
+
+.rad-input {
+  display: flex;
+  align-items: center;
+  background: var(--color-rad-void);
+  border: 1px solid var(--color-rad-line-2);
+  border-radius: var(--radius-rad-md);
+}
+
+.rad-input:focus-within {
+  border-color: var(--color-rad-brand-lift);
+}
+
+.rad-input input {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--color-rad-tx);
+  font: inherit;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-sm);
+}
+
+.rad-input__suffix {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-left: 1px solid var(--color-rad-line);
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono);
+  color: var(--color-rad-faint);
+}
+
+/* A field whose prefix says what it is, so the label can be a caption instead of a
+   sentence. Used for the server address, which is the one thing a new user types. */
+.rad-field {
+  display: flex;
+  align-items: center;
+  margin-top: 11px;
+  background: rgb(20 12 38 / 0.6);
+  border: 1px solid var(--color-rad-line-2);
+  border-radius: 5px;
+}
+
+.rad-field:focus-within {
+  border-color: var(--color-rad-brand-lift);
+}
+
+.rad-field__prefix {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  padding: 0 15px;
+  border-right: 1px solid var(--color-rad-line);
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono);
+  letter-spacing: var(--tracking-rad-tag);
+  color: var(--color-rad-faint);
+}
+
+.rad-field input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 16px 17px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--color-rad-tx);
+  font: inherit;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-lead);
+}
+
+/* ---- search ---- */
+
+.rad-search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0 12px;
+  background: var(--color-rad-void);
+  border: 1px solid var(--color-rad-line-2);
+  border-radius: var(--radius-rad-md);
+}
+
+.rad-search:focus-within {
+  border-color: var(--color-rad-brand-lift);
+}
+
+.rad-search > [data-rad-icon] {
+  color: var(--color-rad-faint);
+}
+
+.rad-search > [data-rad-icon] > svg {
+  width: 16px;
+  height: 16px;
+}
+
+.rad-search input {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--color-rad-tx);
+  font: inherit;
+  font-size: var(--text-rad-sm);
+}
+
+/* ---- checkbox ---- */
+
+.rad-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 9px 0;
+  text-align: left;
+  font: inherit;
+  font-size: var(--text-rad-sm);
+  border: 0;
+  background: transparent;
+  color: var(--color-rad-dim);
+  cursor: pointer;
+}
+
+.rad-checkbox:hover {
+  color: var(--color-rad-tx);
+}
+
+.rad-checkbox__box {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--color-rad-line-2);
+  border-radius: var(--radius-rad-sm);
+  color: transparent;
+  transition: 0.15s;
+}
+
+.rad-checkbox[aria-checked="true"] .rad-checkbox__box {
+  background: var(--color-rad-brand);
+  border-color: var(--color-rad-brand);
+  color: #fff;
+}
+
+.rad-checkbox__box > svg {
+  width: 13px;
+  height: 13px;
+}
+
+.rad-checkbox__label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.rad-checkbox__note {
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  color: var(--color-rad-faint);
+}
+
+.rad-checkbox--compact {
+  width: auto;
+  padding: 0;
+}
+
+.rad-checkbox--compact .rad-checkbox__box {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+}
+
+/* ---- radio ----
+ * Round on purpose: it is the one control that means exactly one of these.
+ */
+
+.rad-radio {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  width: 100%;
+  padding: 15px 18px;
+  text-align: left;
+  font: inherit;
+  border: 0;
+  border-bottom: 1px solid var(--color-rad-line);
+  background: transparent;
+  cursor: pointer;
+  transition: 0.15s;
+}
+
+.rad-radio:last-child {
+  border-bottom: 0;
+}
+
+.rad-radio:hover {
+  background: var(--color-rad-void);
+}
+
+.rad-radio__dot {
+  flex: 0 0 auto;
+  width: 19px;
+  height: 19px;
+  margin-top: 2px;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--color-rad-line-2);
+  border-radius: var(--radius-rad-pill);
+  transition: 0.15s;
+}
+
+.rad-radio[aria-checked="true"] .rad-radio__dot {
+  border-color: var(--color-rad-brand-lift);
+}
+
+.rad-radio[aria-checked="true"] .rad-radio__dot::after {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: var(--radius-rad-pill);
+  background: var(--color-rad-brand-lift);
+}
+
+.rad-radio__label {
+  display: block;
+  min-width: 0;
+}
+
+.rad-radio__title {
+  display: block;
+  font-size: var(--text-rad-md);
+  font-weight: 500;
+  color: var(--color-rad-tx);
+}
+
+.rad-radio__note {
+  display: block;
+  margin-top: 4px;
+  font-size: var(--text-rad-xs);
+  line-height: 1.5;
+  color: var(--color-rad-faint);
+}
+
+/* ---- stepper ----
+ * Bounds live on the element as data-min / data-max / data-step, so two steppers on
+ * one page cannot share a clamp they never agreed to.
+ */
+
+.rad-stepper {
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  background: var(--color-rad-void);
+  border: 1px solid var(--color-rad-line-2);
+  border-radius: var(--radius-rad-md);
+}
+
+.rad-stepper button {
+  width: 34px;
+  height: 38px;
+  border: 0;
+  background: transparent;
+  color: var(--color-rad-dim);
+  font: inherit;
+  font-size: var(--text-rad-base);
+  cursor: pointer;
+  transition: 0.14s;
+}
+
+.rad-stepper button:hover {
+  background: var(--color-rad-panel);
+  color: var(--color-rad-tx);
+}
+
+.rad-stepper button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.rad-stepper__value {
+  min-width: 40px;
+  text-align: center;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-rad-tx);
+}
+
+.rad-stepper__unit {
+  padding: 0 11px 0 4px;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  color: var(--color-rad-faint);
+}
+
+/* ---- keybind capture ---- */
+
+.rad-keycap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 150px;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-xs);
+  padding: 9px 14px;
+  background: var(--color-rad-void);
+  border: 1px solid var(--color-rad-line-2);
+  border-radius: var(--radius-rad-md);
+  color: var(--color-rad-tx);
+  cursor: pointer;
+  transition: 0.16s;
+}
+
+.rad-keycap:hover {
+  border-color: var(--color-rad-brand-lift);
+}
+
+.rad-keycap.is-listening {
+  border-color: var(--color-rad-brand-lift);
+  background: rgb(130 57 216 / 0.14);
+  color: var(--color-rad-brand-lift);
+}
+
+.rad-kbd {
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono);
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: var(--color-rad-panel);
+  border-bottom: 2px solid var(--color-rad-line-2);
+}
+
+/* ---- range ----
+ * The thumb is currentColor, so a player card setting `color: <their hue>` colours
+ * their volume slider without the slider knowing whose it is.
+ */
+
+.rad-range {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 4px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--color-rad-line-2);
+  border-radius: var(--radius-rad-pill);
+  outline: 0;
+  cursor: pointer;
+}
+
+.rad-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-rad-pill);
+  background: currentColor;
+  border: 2px solid var(--color-rad-void);
+  cursor: pointer;
+}
+
+.rad-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-rad-pill);
+  background: currentColor;
+  border: 2px solid var(--color-rad-void);
+  cursor: pointer;
+}
+
+.rad-range:disabled {
+  opacity: 0.4;
+}
+
+/* ---- step dots ----
+ * Clickable: someone who wants to go back to step two should not have to press
+ * Back twice. The active dot widens rather than only changing colour, so progress
+ * is legible without relying on hue.
+ */
+
+.rad-step-dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rad-step-dots button {
+  width: 24px;
+  height: 5px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-rad-block);
+  background: var(--color-rad-line-2);
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.rad-step-dots button.is-on {
+  width: 34px;
+  background: var(--color-rad-brand-lift);
+}
+
+.rad-step-dots__count {
+  margin-left: 11px;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono);
+  letter-spacing: var(--tracking-rad-tag);
+  color: var(--color-rad-faint);
+}
+
+/* ---- mobile tabs ---- */
+
+.rad-tabs {
+  display: none;
+  gap: 7px;
+  flex: 0 0 auto;
+  padding: 12px 16px 4px;
+}
+
+.rad-tabs button {
+  position: relative;
+  flex: 1 1 0;
+  font: inherit;
+  font-size: var(--text-rad-xs);
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--radius-rad-lg);
+  background: var(--color-rad-void-2);
+  color: var(--color-rad-dim);
+  cursor: pointer;
+  transition: 0.16s;
+}
+
+.rad-tabs button.is-on {
+  background: var(--color-rad-panel);
+  color: var(--color-rad-tx);
+}
+
+.rad-tabs__dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 7px;
+  vertical-align: middle;
+  border-radius: var(--radius-rad-pill);
+  background: var(--color-rad-brand-lift);
+}
+
+@container rad (max-width: 560px) {
+  .rad-tabs {
+    display: flex;
+  }
+
+  .rad-select,
+  .rad-keycap,
+  .rad-search {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .rad-step-dots {
+    gap: 5px;
+  }
+
+  .rad-step-dots button {
+    width: 20px;
+  }
+
+  .rad-step-dots button.is-on {
+    width: 28px;
+  }
+}

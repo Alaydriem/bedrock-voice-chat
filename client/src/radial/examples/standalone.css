@@ -1,0 +1,410 @@
+/* The reference pages' own entry.
+ *
+ * Wraps Radial with Tailwind and the page chrome the gallery needs. The app imports
+ * `../css/radial.css` instead and brings its own Tailwind, so nothing here ships.
+ */
+
+@layer theme, base, components, gallery, utilities;
+
+@import "tailwindcss";
+@import "../css/radial.css";
+
+/* ---- the page around the specimens ---- */
+
+@layer gallery {
+  :root {
+    --page: #0c0812;
+    --page-2: #150e20;
+    --page-line: #261a36;
+    --page-ink: #ece5f5;
+    --page-dim: #a99cbd;
+    --page-faint: #71678a;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    /* The client sets html{font-size:112.5%}. Matching it is what makes the rem type
+       scale render at the design's px values here too. */
+    font-size: 112.5%;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--page-ink);
+    font-family: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+    font-size: 0.8333rem;
+    line-height: 1.6;
+  }
+
+  a {
+    color: var(--color-rad-brand-lift);
+  }
+
+  .g-wrap {
+    /* Positioned, so it is the offsetParent for any .rad-menu parked inside it.
+       Without this the menu resolves against the body and lands off by the auto
+       margin — the same place every time, regardless of what opened it. */
+    position: relative;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 24px 110px;
+  }
+
+  .g-head {
+    padding: 48px 0 22px;
+  }
+
+  .g-kick {
+    margin: 0 0 14px;
+    font-family: var(--font-rad-mono);
+    font-size: 0.6111rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--page-faint);
+  }
+
+  .g-title {
+    margin: 0;
+    font-size: clamp(1.6rem, 4vw, 2.3333rem);
+    line-height: 1.08;
+    letter-spacing: -0.024em;
+    font-weight: 640;
+    text-wrap: balance;
+  }
+
+  .g-lede {
+    margin: 16px 0 0;
+    max-width: 70ch;
+    font-size: 0.9167rem;
+    color: var(--page-dim);
+  }
+
+  .g-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 14px 0 24px;
+    border-bottom: 1px solid var(--page-line);
+  }
+
+  .g-nav a {
+    padding: 6px 13px;
+    border: 1px solid var(--page-line);
+    border-radius: 8px;
+    background: var(--page-2);
+    color: var(--page-dim);
+    font-size: 0.7222rem;
+    text-decoration: none;
+    transition: 0.15s;
+  }
+
+  .g-nav a:hover {
+    color: var(--page-ink);
+    border-color: var(--page-faint);
+  }
+
+  .g-nav a[aria-current="page"] {
+    background: var(--page-ink);
+    color: var(--page);
+    border-color: var(--page-ink);
+  }
+
+  /* A section of the gallery. */
+  .g-sec {
+    padding-top: 54px;
+  }
+
+  .g-sec__kick {
+    margin: 0 0 6px;
+    font-family: var(--font-rad-mono);
+    font-size: 0.6111rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--page-faint);
+  }
+
+  .g-sec__title {
+    margin: 0 0 8px;
+    font-size: 1.3889rem;
+    letter-spacing: -0.018em;
+    font-weight: 630;
+  }
+
+  .g-sec__note {
+    margin: 0 0 20px;
+    max-width: 76ch;
+    font-size: 0.8056rem;
+    color: var(--page-dim);
+  }
+
+  /* One component, its specimen, and the markup that produced it. */
+  .g-item {
+    margin-top: 20px;
+    border: 1px solid var(--page-line);
+    border-radius: 12px;
+    background: var(--page-2);
+    overflow: hidden;
+  }
+
+  .g-item__head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 13px 18px;
+    border-bottom: 1px solid var(--page-line);
+  }
+
+  .g-item__name {
+    font-family: var(--font-rad-mono);
+    font-size: 0.75rem;
+    color: var(--color-rad-brand-lift);
+  }
+
+  .g-item__note {
+    flex: 1 1 240px;
+    min-width: 0;
+    font-size: 0.7222rem;
+    color: var(--page-dim);
+  }
+
+  /* Specimens sit on the product's ground, never on the page's — and carry the same
+     film grain the app frame does, so a swatch or an avatar looks here exactly as it
+     will in the product. Without it, flat colour reads as flat colour. */
+  .g-stage {
+    position: relative;
+    padding: 26px 22px;
+    background: var(--color-rad-void);
+    container-type: inline-size;
+    container-name: rad;
+  }
+
+  .g-stage::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    opacity: 0.2;
+    mix-blend-mode: overlay;
+    background-image: radial-gradient(circle at 50% 50%, rgb(255 255 255 / 0.7) 0.5px, transparent 0.6px);
+    background-size: 3px 3px;
+  }
+
+  .g-stage--flush {
+    padding: 0;
+  }
+
+  .g-stage--alt {
+    background: var(--color-rad-void-2);
+  }
+
+  .g-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .g-col {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    align-items: flex-start;
+  }
+
+  .g-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+    gap: 16px;
+    align-items: start;
+  }
+
+  /* Markup, shown as written. */
+  .g-code {
+    margin: 0;
+    padding: 14px 18px;
+    border-top: 1px solid var(--page-line);
+    background: #0a0710;
+    color: var(--page-dim);
+    font-family: var(--font-rad-mono);
+    font-size: 0.6944rem;
+    line-height: 1.7;
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  .g-code b {
+    color: var(--color-rad-brand-lift);
+    font-weight: 400;
+  }
+
+  /* Labels a specimen inside a stage. */
+  .g-tag {
+    font-family: var(--font-rad-mono);
+    font-size: 0.6111rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--page-faint);
+  }
+
+  /* The device toggle above a framed specimen. */
+  .g-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    margin: 20px 0 14px;
+  }
+
+  .g-seg {
+    display: inline-flex;
+    padding: 3px;
+    border: 1px solid var(--page-line);
+    border-radius: 999px;
+    background: var(--page-2);
+  }
+
+  .g-seg button {
+    font: inherit;
+    font-size: 0.6944rem;
+    padding: 5px 15px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--page-dim);
+    cursor: pointer;
+    transition: 0.15s;
+  }
+
+  .g-seg button[aria-pressed="true"] {
+    background: var(--page-ink);
+    color: var(--page);
+  }
+
+  .g-ctls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .g-ctls button {
+    font: inherit;
+    font-size: 0.7222rem;
+    padding: 6px 13px;
+    border: 1px solid var(--page-line);
+    border-radius: 8px;
+    background: var(--page-2);
+    color: var(--page-dim);
+    cursor: pointer;
+    transition: 0.15s;
+  }
+
+  .g-ctls button:hover {
+    color: var(--page-ink);
+    border-color: var(--page-faint);
+  }
+
+  .g-ctls button[aria-pressed="true"] {
+    background: var(--page-ink);
+    color: var(--page);
+    border-color: var(--page-ink);
+  }
+
+  .g-ctls button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .g-ctls label {
+    font-family: var(--font-rad-mono);
+    font-size: 0.6111rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--page-faint);
+  }
+
+  /* Centres a full frame specimen and lets it scroll horizontally if it must. */
+  .g-frame-stage {
+    display: flex;
+    justify-content: center;
+    padding: 24px 12px;
+    background: var(--page-2);
+    border-top: 1px solid var(--page-line);
+    border-bottom: 1px solid var(--page-line);
+    overflow-x: auto;
+  }
+
+  /* Token specimens. */
+  .g-swatches {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+  }
+
+  .g-swatch {
+    border: 1px solid var(--page-line);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .g-swatch__chip {
+    height: 54px;
+  }
+
+  .g-swatch__meta {
+    padding: 9px 11px;
+    background: var(--page-2);
+    font-family: var(--font-rad-mono);
+    font-size: 0.6111rem;
+    line-height: 1.6;
+  }
+
+  .g-swatch__name {
+    color: var(--page-ink);
+  }
+
+  .g-swatch__value {
+    color: var(--page-faint);
+  }
+
+  .g-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-rad-mono);
+    font-size: 0.6944rem;
+  }
+
+  .g-table th,
+  .g-table td {
+    text-align: left;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--page-line);
+  }
+
+  .g-table th {
+    color: var(--page-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 600;
+  }
+
+  .g-table td {
+    color: var(--page-dim);
+  }
+
+  .g-pass {
+    color: var(--color-rad-ok);
+  }
+
+  .g-fail {
+    color: var(--color-rad-fault);
+  }
+}

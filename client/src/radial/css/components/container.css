@@ -1,0 +1,584 @@
+/* Cards, rows, sections — the frame around everything else.
+ *
+ * The row is the unit: a label, at most one sentence of explanation, and one
+ * control on the right. Rows stack into a card; a card carries a mono caption.
+ * On a narrow container the control drops below the text instead of being crushed
+ * against it, and that single change is the whole of what the kit does differently
+ * on a phone.
+ */
+
+/* ---- section ---- */
+
+.rad-section {
+  margin-bottom: 30px;
+}
+
+.rad-section__head {
+  font-size: var(--text-rad-subhead);
+  font-weight: 580;
+  letter-spacing: -0.018em;
+  color: var(--color-rad-tx);
+}
+
+.rad-section__note {
+  margin-top: 6px;
+  max-width: 62ch;
+  font-size: var(--text-rad-sm);
+  line-height: 1.6;
+  color: var(--color-rad-dim);
+}
+
+/* ---- card ---- */
+
+.rad-card {
+  margin-top: 14px;
+  overflow: hidden;
+  background: var(--color-rad-void-2);
+  border: 1px solid var(--color-rad-line);
+  border-radius: var(--radius-rad-lg);
+}
+
+.rad-card__head {
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--color-rad-line);
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-2xs);
+  letter-spacing: var(--tracking-rad-label);
+  text-transform: uppercase;
+  color: var(--color-rad-faint);
+}
+
+.rad-card__body {
+  padding: 16px 18px;
+}
+
+/* ---- the setting row ---- */
+
+.rad-row {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 15px 18px;
+  border-bottom: 1px solid var(--color-rad-line);
+}
+
+.rad-row:last-child {
+  border-bottom: 0;
+}
+
+.rad-row__text {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.rad-row__label {
+  display: block;
+  font-size: var(--text-rad-md);
+  font-weight: 500;
+  color: var(--color-rad-tx);
+}
+
+.rad-row__note {
+  display: block;
+  margin-top: 4px;
+  max-width: 52ch;
+  font-size: var(--text-rad-xs);
+  line-height: 1.5;
+  color: var(--color-rad-faint);
+}
+
+.rad-row__control {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* For a control that needs the full width even on desktop — a slider, a long path. */
+.rad-row--stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+
+/* ---- a filesystem path ----
+ * `direction: rtl` keeps the end of the path visible when it overflows, because the
+ * filename is the part you are checking.
+ */
+
+.rad-path {
+  max-width: 250px;
+  padding: 9px 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  color: var(--color-rad-dim);
+  background: var(--color-rad-void);
+  border: 1px solid var(--color-rad-line-2);
+  border-radius: var(--radius-rad-md);
+}
+
+/* ---- definition list ---- */
+
+.rad-deflist {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 0;
+}
+
+.rad-deflist dt,
+.rad-deflist dd {
+  margin: 0;
+  padding: 11px 18px;
+  border-bottom: 1px solid var(--color-rad-line);
+  font-size: var(--text-rad-xs);
+}
+
+.rad-deflist dt {
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono);
+  letter-spacing: var(--tracking-rad-wide);
+  color: var(--color-rad-faint);
+}
+
+.rad-deflist dd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  color: var(--color-rad-dim);
+}
+
+.rad-deflist dd > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rad-deflist > :nth-last-child(1),
+.rad-deflist > :nth-last-child(2) {
+  border-bottom: 0;
+}
+
+/* ---- disclosure ---- */
+
+.rad-disclosure {
+  margin-top: 14px;
+  overflow: hidden;
+  background: var(--color-rad-void-2);
+  border: 1px solid var(--color-rad-line);
+  border-radius: var(--radius-rad-lg);
+}
+
+.rad-disclosure__head {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 14px 18px;
+  text-align: left;
+  font: inherit;
+  font-size: var(--text-rad-sm);
+  border: 0;
+  background: transparent;
+  color: var(--color-rad-tx);
+  cursor: pointer;
+}
+
+.rad-disclosure__head:hover {
+  background: var(--color-rad-panel);
+}
+
+.rad-disclosure__caret {
+  margin-left: auto;
+  color: var(--color-rad-faint);
+  transition: transform 0.22s;
+}
+
+.rad-disclosure__caret > svg {
+  width: 16px;
+  height: 16px;
+}
+
+.rad-disclosure.is-open .rad-disclosure__caret {
+  transform: rotate(180deg);
+}
+
+.rad-disclosure__body {
+  display: none;
+  border-top: 1px solid var(--color-rad-line);
+}
+
+.rad-disclosure.is-open .rad-disclosure__body {
+  display: block;
+}
+
+/* ---- log console ----
+ * Darker than the card it sits in, because a log is a different kind of surface: it
+ * is a machine talking, and it should not look like the settings around it.
+ */
+
+.rad-log {
+  max-height: 220px;
+  padding: 12px 14px;
+  overflow-y: auto;
+  background: #150c26;
+  border-radius: 0 0 11px 11px;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono);
+  line-height: 1.65;
+}
+
+.rad-log__line {
+  display: flex;
+  gap: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.rad-log__ts {
+  flex: 0 0 auto;
+  color: #6a5a8f;
+}
+
+.rad-log__level {
+  flex: 0 0 46px;
+  padding-top: 2px;
+  text-transform: uppercase;
+  font-size: var(--text-rad-mono-2xs);
+  letter-spacing: var(--tracking-rad-tag);
+}
+
+.rad-log__level--info {
+  color: var(--color-rad-scope-ok);
+}
+
+.rad-log__level--warn {
+  color: var(--color-rad-warn);
+}
+
+.rad-log__level--err {
+  color: var(--color-rad-fault);
+}
+
+.rad-log__msg {
+  min-width: 0;
+  color: var(--color-rad-dim);
+}
+
+.rad-log-bar {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 14px;
+  background: var(--color-rad-void-2);
+  border-top: 1px solid var(--color-rad-line);
+}
+
+.rad-spacer {
+  flex: 1 1 auto;
+}
+
+/* ---- an identity row: a linked account, a realm ---- */
+
+.rad-account {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--color-rad-line);
+}
+
+.rad-account:last-child {
+  border-bottom: 0;
+}
+
+.rad-account__badge {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-rad-lg);
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono);
+  font-weight: 700;
+  color: #fff;
+}
+
+.rad-account__text {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.rad-account__name {
+  display: block;
+  font-size: var(--text-rad-sm);
+  font-weight: 500;
+  color: var(--color-rad-tx);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rad-account__meta {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  letter-spacing: var(--tracking-rad-wide);
+  color: var(--color-rad-faint);
+}
+
+.rad-account canvas {
+  flex: 0 0 auto;
+  border-radius: var(--radius-rad-md);
+}
+
+/* ---- drag to reorder ----
+ * Manual order and column sorting are mutually exclusive: picking one clears the
+ * other, because a list cannot honestly be in two orders.
+ */
+
+.rad-drag-row {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 13px 16px;
+  background: var(--color-rad-void-2);
+  border-bottom: 1px solid var(--color-rad-line);
+  cursor: grab;
+  transition: background 0.15s;
+}
+
+.rad-drag-row:last-child {
+  border-bottom: 0;
+}
+
+.rad-drag-row:hover {
+  background: var(--color-rad-panel);
+}
+
+.rad-drag-row.is-dragging {
+  opacity: 0.35;
+  cursor: grabbing;
+}
+
+/* Drop target: a line at the top edge, so it reads as "it will land here" rather
+   than as a selected row. */
+.rad-drag-row.is-over {
+  box-shadow: inset 0 2px 0 var(--color-rad-brand-lift);
+}
+
+.rad-drag-row__handle {
+  flex: 0 0 auto;
+  display: flex;
+  color: var(--color-rad-faint);
+}
+
+.rad-drag-row__handle > svg {
+  width: 17px;
+  height: 17px;
+}
+
+.rad-drag-row__name {
+  font-size: var(--text-rad-sm);
+  color: var(--color-rad-tx);
+}
+
+.rad-drag-row__meta {
+  margin-left: auto;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  color: var(--color-rad-faint);
+}
+
+/* ---- progress ---- */
+
+.rad-progress {
+  width: 100%;
+  height: 6px;
+  overflow: hidden;
+  background: var(--color-rad-line);
+  border-radius: var(--radius-rad-pill);
+}
+
+.rad-progress > i {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: var(--radius-rad-pill);
+  background: var(--color-rad-brand-lift);
+  transition: width 0.2s linear;
+}
+
+/* ---- skeleton ----
+ * Loading, failed and empty are three different screens. This is only the first:
+ * we know something is coming and roughly what shape it is.
+ */
+
+.rad-skeleton {
+  height: 14px;
+  border-radius: var(--radius-rad-sm);
+  background: linear-gradient(
+    90deg,
+    var(--color-rad-line) 25%,
+    var(--color-rad-line-2) 50%,
+    var(--color-rad-line) 75%
+  );
+  background-size: 200% 100%;
+  animation: rad-shimmer 1.4s linear infinite;
+}
+
+@keyframes rad-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* ---- empty state ---- */
+
+.rad-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 54px 20px;
+}
+
+.rad-empty canvas {
+  margin-bottom: 6px;
+  opacity: 0.45;
+}
+
+.rad-empty__title {
+  font-size: var(--text-rad-lead);
+  font-weight: 520;
+  color: var(--color-rad-tx);
+}
+
+.rad-empty__note {
+  max-width: 40ch;
+  font-size: var(--text-rad-xs);
+  line-height: 1.6;
+  color: var(--color-rad-faint);
+}
+
+/* ---- key/value diagnostics ---- */
+
+.rad-kv-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 30px;
+}
+
+.rad-kv-group__head {
+  margin-bottom: 6px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-rad-line);
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-2xs);
+  letter-spacing: var(--tracking-rad-label);
+  text-transform: uppercase;
+  color: var(--color-rad-faint);
+}
+
+.rad-kv {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 5px 0;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+}
+
+.rad-kv__key {
+  flex: 0 0 auto;
+  color: var(--color-rad-faint);
+}
+
+.rad-kv__value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  color: var(--color-rad-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- a row of loose controls ---- */
+
+.rad-swatchrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+/* ---- a meter beside its control ---- */
+
+.rad-meter-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.rad-meter-row canvas {
+  display: block;
+}
+
+@container rad (max-width: 620px) {
+  .rad-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .rad-row__control {
+    justify-content: flex-start;
+  }
+
+  .rad-row__note {
+    max-width: none;
+  }
+
+  .rad-deflist {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rad-deflist dt {
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+
+  .rad-deflist dd {
+    padding-top: 5px;
+  }
+
+  .rad-kv-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .rad-section__head {
+    font-size: 1rem;
+  }
+
+  .rad-path {
+    max-width: none;
+  }
+}
