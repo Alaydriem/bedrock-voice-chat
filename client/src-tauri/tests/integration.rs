@@ -1,3 +1,4 @@
+mod analytics;
 #[cfg(feature = "bedrock-protocol")]
 mod bedrock;
 mod control;

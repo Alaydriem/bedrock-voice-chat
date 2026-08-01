@@ -15,10 +15,12 @@ pub struct Provider {
     app_build: String,
     os: String,
     is_debug: bool,
+    is_first_run: bool,
+    install_date: String,
 }
 
 impl Provider {
-    pub fn new(host: String, api_key: String) -> Self {
+    pub fn new(host: String, api_key: String, is_first_run: bool, install_date: String) -> Self {
         Self {
             client: reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(10))
@@ -30,6 +32,8 @@ impl Provider {
             app_build: option_env!("APP_BUILD_NUMBER").unwrap_or("local").to_string(),
             os: std::env::consts::OS.to_string(),
             is_debug: cfg!(debug_assertions),
+            is_first_run,
+            install_date,
         }
     }
 
@@ -45,6 +49,8 @@ impl Provider {
             app_version: self.app_version.clone(),
             app_build: self.app_build.clone(),
             is_debug: self.is_debug,
+            is_first_run: self.is_first_run,
+            install_date: self.install_date.clone(),
             connected_server: event.connected_server.clone(),
             player_display: event.player_display.clone(),
             player_hash: event.player_hash.clone(),

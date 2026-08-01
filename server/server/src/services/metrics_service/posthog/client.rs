@@ -18,10 +18,17 @@ pub struct PosthogClient {
     api_key: String,
     distinct_id: String,
     version: String,
+    hostname_sha: String,
 }
 
 impl PosthogClient {
-    pub fn new(host: String, api_key: String, distinct_id: String, version: String) -> Self {
+    pub fn new(
+        host: String,
+        api_key: String,
+        distinct_id: String,
+        version: String,
+        hostname_sha: String,
+    ) -> Self {
         Self {
             client: reqwest::Client::builder()
                 .timeout(Duration::from_secs(10))
@@ -31,25 +38,43 @@ impl PosthogClient {
             api_key,
             distinct_id,
             version,
+            hostname_sha,
         }
     }
 
     fn properties_for(&self, event: &TelemetryEvent) -> EventProperties {
         let mut props = EventProperties {
+            server_id: self.distinct_id.clone(),
             server_version: self.version.clone(),
-            hostname_sha: None,
+            hostname_sha: Some(self.hostname_sha.clone()).filter(|h| !h.is_empty()),
             session_duration_secs: None,
+            time_since_disconnect_secs: None,
+            stop_reason: None,
+            uptime_secs: None,
+            heartbeat: None,
         };
         match event {
-            TelemetryEvent::ServerStarted { hostname_sha, .. } => {
-                props.hostname_sha = Some(hostname_sha.clone());
-            }
-            TelemetryEvent::Disconnected { duration_secs, .. } => {
+            TelemetryEvent::PlayerDisconnected { duration_secs, .. } => {
                 props.session_duration_secs = Some(*duration_secs);
             }
-            TelemetryEvent::Connected { .. }
-            | TelemetryEvent::ChannelJoined { .. }
-            | TelemetryEvent::ChannelLeft { .. } => {}
+            TelemetryEvent::Heartbeat { snapshot, .. } => {
+                props.heartbeat = Some(snapshot.clone());
+            }
+            TelemetryEvent::PlayerReconnected {
+                time_since_disconnect_secs,
+                ..
+            } => {
+                props.time_since_disconnect_secs = Some(*time_since_disconnect_secs);
+            }
+            TelemetryEvent::Stopped {
+                uptime_secs,
+                stop_reason,
+                ..
+            } => {
+                props.uptime_secs = Some(*uptime_secs);
+                props.stop_reason = Some(stop_reason);
+            }
+            _ => {}
         }
         props
     }
@@ -93,6 +118,17 @@ impl PosthogClient {
                 _ = tick.tick() => self.flush(&mut buffer).await,
                 _ = shutdown.cancelled() => break,
             }
+        }
+
+        // Cancellation races the receive arm, so events already queued must be
+        // collected before the final flush. `record_stopped` sends immediately
+        // before cancelling the token, which puts Server::Stopped in the channel
+        // rather than the buffer every time — without this drain `select!` would
+        // discard it about half the time, and a graceful shutdown that emits no
+        // Server::Stopped is indistinguishable downstream from a crash.
+        rx.close();
+        while let Ok(event) = rx.try_recv() {
+            buffer.push(event);
         }
 
         self.flush(&mut buffer).await;

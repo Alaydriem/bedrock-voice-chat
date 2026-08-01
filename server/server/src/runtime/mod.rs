@@ -91,20 +91,47 @@ impl ServerRuntime {
         self.shutdown_notify.clone()
     }
 
-    /// Start the server with CTRL+C signal handling.
+    /// Start the server with shutdown signal handling.
     /// Blocks until the server shuts down.
     pub async fn start(&mut self) -> Result<(), anyhow::Error> {
         let shutdown_flag = self.shutdown_flag();
         let shutdown_notify = self.shutdown_notify();
         tokio::spawn(async move {
-            if let Ok(()) = tokio::signal::ctrl_c().await {
-                tracing::info!("Received CTRL+C, shutting down...");
+            if let Some(signal) = Self::await_shutdown_signal().await {
+                tracing::info!("Received {}, shutting down...", signal);
                 shutdown_flag.store(true, Ordering::SeqCst);
                 shutdown_notify.notify_one();
             }
         });
 
         self.start_async().await
+    }
+
+    // Container runtimes and init systems stop a process with SIGTERM, never SIGINT.
+    // Without the SIGTERM arm the default disposition kills the process before the
+    // shutdown path runs, so a routine `docker stop` emits no Server::Stopped and is
+    // indistinguishable downstream from a crash.
+    #[cfg(unix)]
+    async fn await_shutdown_signal() -> Option<&'static str> {
+        use tokio::signal::unix::{SignalKind, signal};
+
+        let mut terminate = match signal(SignalKind::terminate()) {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::warn!("could not install SIGTERM handler: {}", e);
+                return tokio::signal::ctrl_c().await.ok().map(|_| "CTRL+C");
+            }
+        };
+
+        tokio::select! {
+            result = tokio::signal::ctrl_c() => result.ok().map(|_| "CTRL+C"),
+            _ = terminate.recv() => Some("SIGTERM"),
+        }
+    }
+
+    #[cfg(not(unix))]
+    async fn await_shutdown_signal() -> Option<&'static str> {
+        tokio::signal::ctrl_c().await.ok().map(|_| "CTRL+C")
     }
 
     /// Initialize and start the server (async)
@@ -123,6 +150,12 @@ impl ServerRuntime {
             "Protocol Version: {}",
             common::consts::version::PROTOCOL_VERSION
         );
+
+        // The CA keypair is generated exactly once per deployment, so its absence
+        // here means this boot is the deployment's first.
+        let ca_minted = !std::path::Path::new(&self.config.server.tls.certs_path)
+            .join("ca.key")
+            .exists();
 
         // Generate CA certificates
         let (ca_pem, _ca_key_pem) = self.generate_ca().await?;
@@ -198,16 +231,41 @@ impl ServerRuntime {
         let cache_manager = quic_manager.get_cache_manager();
         let connection_registry = quic_manager.get_connection_registry();
 
-        // Gauges are pushed into the service by ConnectionRegistry on change; the only
-        // periodic work is the channel reaper, run as an arm of the main event loop
-        // below (structured cancellation — no detached task). The boot ping is emitted
-        // inside new_shared. posthog_handle is awaited on shutdown for a final flush.
+        // relay is deliberately absent: RelayFeature holds only tuning intervals and
+        // has no enable flag, so there is no boolean to report.
+        let mut features_enabled: Vec<String> = Vec::new();
+        if self.config.server.features.openapi_docs {
+            features_enabled.push("openapi_docs".to_string());
+        }
+        if self.config.server.features.telemetry {
+            features_enabled.push("telemetry".to_string());
+        }
+        if self.config.server.meridian.is_some() {
+            features_enabled.push("meridian".to_string());
+        }
+        if self.config.server.tls.acme.is_some() {
+            features_enabled.push("acme".to_string());
+        }
+        if self.config.server.bedrock.enabled {
+            features_enabled.push("bedrock".to_string());
+        }
+
+        // Gauges are pushed into the service by ConnectionRegistry on change. The
+        // heartbeat task below owns the only other periodic work; the channel reaper
+        // runs as an arm of the main event loop (structured cancellation — no detached
+        // task). The boot ping is emitted inside new_shared. posthog_handle is awaited
+        // on shutdown for a final flush.
         let (metrics, posthog_handle) = crate::services::MetricsService::new_shared(
             self.config.server.features.telemetry,
             &self.config.server.tls.certs_path,
             &self.config.server.tls.certificate,
+            features_enabled,
+            ca_minted,
         );
         connection_registry.set_metrics(metrics.clone());
+
+        let heartbeat_shutdown = tokio_util::sync::CancellationToken::new();
+        let heartbeat_handle = metrics.spawn_heartbeat(heartbeat_shutdown.clone());
 
         // Cross-server voice relay plane. Discovery is decentralized via in-realm
         // `!bvca` announces — there is no central relay and no discovery routes.
@@ -503,11 +561,19 @@ impl ServerRuntime {
             let _ = tokio::time::timeout(std::time::Duration::from_secs(2), handle).await;
         }
 
+        heartbeat_shutdown.cancel();
+        let _ = tokio::time::timeout(std::time::Duration::from_secs(2), heartbeat_handle).await;
+
+        metrics.record_stopped();
+
         // Final PostHog flush: signal the drain and await it briefly so buffered fleet
         // events are sent before teardown.
         metrics.begin_posthog_drain();
         if let Some(handle) = posthog_handle {
-            let _ = tokio::time::timeout(std::time::Duration::from_secs(5), handle).await;
+            // Must exceed the PostHog client's own 10s per-request timeout, or a
+            // single slow request consumes the whole budget and the drained buffer —
+            // Server::Stopped included — is abandoned.
+            let _ = tokio::time::timeout(std::time::Duration::from_secs(15), handle).await;
         }
 
         // Always stop QUIC regardless of which branch exited

@@ -1,14 +1,19 @@
 use chrono::{DateTime, Utc};
 
+use crate::services::metrics_service::heartbeat_snapshot::HeartbeatSnapshot;
+
 pub enum TelemetryEvent {
     ServerStarted {
         at: DateTime<Utc>,
-        hostname_sha: String,
     },
-    Connected {
+    Heartbeat {
+        at: DateTime<Utc>,
+        snapshot: HeartbeatSnapshot,
+    },
+    PlayerConnected {
         at: DateTime<Utc>,
     },
-    Disconnected {
+    PlayerDisconnected {
         at: DateTime<Utc>,
         duration_secs: u64,
     },
@@ -18,26 +23,46 @@ pub enum TelemetryEvent {
     ChannelLeft {
         at: DateTime<Utc>,
     },
+    Stopped {
+        at: DateTime<Utc>,
+        uptime_secs: u64,
+        stop_reason: &'static str,
+    },
+    FirstSeen {
+        at: DateTime<Utc>,
+    },
+    PlayerReconnected {
+        at: DateTime<Utc>,
+        time_since_disconnect_secs: u64,
+    },
 }
 
 impl TelemetryEvent {
     pub fn name(&self) -> &'static str {
         match self {
-            TelemetryEvent::ServerStarted { .. } => "server_started",
-            TelemetryEvent::Connected { .. } => "player_connected",
-            TelemetryEvent::Disconnected { .. } => "player_disconnected",
-            TelemetryEvent::ChannelJoined { .. } => "channel_joined",
-            TelemetryEvent::ChannelLeft { .. } => "channel_left",
+            TelemetryEvent::ServerStarted { .. } => "Server::Started",
+            TelemetryEvent::Heartbeat { .. } => "Server::Heartbeat",
+            TelemetryEvent::PlayerConnected { .. } => "Server::PlayerConnected",
+            TelemetryEvent::PlayerDisconnected { .. } => "Server::PlayerDisconnected",
+            TelemetryEvent::ChannelJoined { .. } => "Server::ChannelJoined",
+            TelemetryEvent::ChannelLeft { .. } => "Server::ChannelLeft",
+            TelemetryEvent::Stopped { .. } => "Server::Stopped",
+            TelemetryEvent::FirstSeen { .. } => "Server::FirstSeen",
+            TelemetryEvent::PlayerReconnected { .. } => "Server::PlayerReconnected",
         }
     }
 
     pub fn at(&self) -> DateTime<Utc> {
         match self {
-            TelemetryEvent::ServerStarted { at, .. } => *at,
-            TelemetryEvent::Connected { at } => *at,
-            TelemetryEvent::Disconnected { at, .. } => *at,
+            TelemetryEvent::ServerStarted { at } => *at,
+            TelemetryEvent::Heartbeat { at, .. } => *at,
+            TelemetryEvent::PlayerConnected { at } => *at,
+            TelemetryEvent::PlayerDisconnected { at, .. } => *at,
             TelemetryEvent::ChannelJoined { at } => *at,
             TelemetryEvent::ChannelLeft { at } => *at,
+            TelemetryEvent::Stopped { at, .. } => *at,
+            TelemetryEvent::FirstSeen { at } => *at,
+            TelemetryEvent::PlayerReconnected { at, .. } => *at,
         }
     }
 }

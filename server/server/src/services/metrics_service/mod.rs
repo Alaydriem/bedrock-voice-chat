@@ -1,11 +1,14 @@
 pub mod event;
+pub mod heartbeat_snapshot;
+pub mod interaction;
 pub mod metric;
 pub mod posthog;
 
 use std::io::ErrorKind;
 use std::net::{SocketAddr, UdpSocket};
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, OnceLock};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use chrono::Utc;
 use metrics::{counter, describe_histogram, gauge, histogram};
@@ -17,6 +20,9 @@ use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
 use crate::services::metrics_service::event::TelemetryEvent;
+use crate::services::metrics_service::heartbeat_snapshot::HeartbeatSnapshot;
+use crate::services::metrics_service::interaction::InteractionRoute;
+use crate::services::metrics_service::interaction::InteractionTracker;
 use crate::services::metrics_service::metric::Metric;
 use crate::services::metrics_service::posthog::PosthogClient;
 
@@ -26,12 +32,27 @@ const DEFAULT_POSTHOG_HOST: &str = "https://us.i.posthog.com";
 const EVENT_CHANNEL_CAPACITY: usize = 1024;
 const STATSD_ADDR: &str = "127.0.0.1:8125";
 const STATSD_PROBE_TIMEOUT: Duration = Duration::from_millis(150);
+const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(15 * 60);
+const RECONNECT_WINDOW: Duration = Duration::from_secs(30 * 60);
+const RECONNECT_CACHE_CAPACITY: u64 = 4096;
 
 pub struct MetricsService {
     prometheus: PrometheusHandle,
     server_id: String,
     sender: Option<mpsc::Sender<TelemetryEvent>>,
     posthog_drain: Option<CancellationToken>,
+    // Mirrors of the same values written to the Prometheus gauges. metrics-rs
+    // exposes no read path, and the heartbeat must report the same number the
+    // gauge carries, so both are written by the one method below.
+    active_players: AtomicI64,
+    peak_players: AtomicI64,
+    interactions: InteractionTracker,
+    started_at: Instant,
+    features_enabled: Vec<String>,
+    // Recently disconnected players, so a return inside the window is reported as a
+    // reconnect rather than a fresh session. The name is a local key and never
+    // leaves the process — only the elapsed delta is emitted.
+    recent_disconnects: moka::sync::Cache<String, Instant>,
 }
 
 impl MetricsService {
@@ -42,6 +63,8 @@ impl MetricsService {
         telemetry_enabled: bool,
         certs_path: &str,
         server_cert_path: &str,
+        features_enabled: Vec<String>,
+        ca_minted: bool,
     ) -> (Arc<Self>, Option<JoinHandle<()>>) {
         let version = env!("CARGO_PKG_VERSION");
         let prometheus = Self::global_prometheus_handle();
@@ -60,17 +83,21 @@ impl MetricsService {
                     key.to_string(),
                     server_id.clone(),
                     version.to_string(),
+                    hostname_sha.clone(),
                 );
                 let drain = CancellationToken::new();
                 let drain_child = drain.clone();
                 let handle = tokio::spawn(async move { client.run(rx, drain_child).await });
 
-                // Boot ping: one server_started per process so every enabled deployment
-                // reports its existence, version, and hostname even if it sees no traffic.
-                let _ = tx.try_send(TelemetryEvent::ServerStarted {
-                    at: Utc::now(),
-                    hostname_sha,
-                });
+                // Boot ping: one Server::Started per process so every enabled deployment
+                // reports its existence and version even if it sees no traffic.
+                let _ = tx.try_send(TelemetryEvent::ServerStarted { at: Utc::now() });
+
+                // The CA keypair is minted exactly once per deployment, so this boot
+                // creating it is the first time this server has ever run.
+                if ca_minted {
+                    let _ = tx.try_send(TelemetryEvent::FirstSeen { at: Utc::now() });
+                }
                 tracing::info!("PostHog fleet telemetry enabled");
                 (Some(tx), Some(drain), Some(handle))
             }
@@ -85,6 +112,15 @@ impl MetricsService {
             server_id,
             sender,
             posthog_drain: drain,
+            active_players: AtomicI64::new(0),
+            peak_players: AtomicI64::new(0),
+            interactions: InteractionTracker::new(),
+            started_at: Instant::now(),
+            features_enabled,
+            recent_disconnects: moka::sync::Cache::builder()
+                .time_to_live(RECONNECT_WINDOW)
+                .max_capacity(RECONNECT_CACHE_CAPACITY)
+                .build(),
         });
         (service, handle)
     }
@@ -128,6 +164,7 @@ impl MetricsService {
                     counter!(m.name()).absolute(0);
                 }
                 gauge!(Metric::ActivePlayers.name()).set(0.0);
+                gauge!(Metric::PeakPlayers.name()).set(0.0);
                 gauge!(Metric::ActiveChannels.name()).set(0.0);
                 gauge!(Metric::PlayersInChannels.name()).set(0.0);
                 describe_histogram!(
@@ -184,9 +221,18 @@ impl MetricsService {
         )
     }
 
-    // server_id groups all fleet events by deployment. The CA is required for the server
-    // to run at all, so an unreadable CA is fatal — we fail loud rather than fabricate a
-    // random id that would make every restart look like a brand-new deployment.
+    // server_id groups all fleet events by deployment. Hashes the CA's public key
+    // rather than the cert file: ca.crt is re-signed whenever the configured SAN set
+    // drifts, but the keypair behind it is generated once and never replaced. The CA
+    // is required for the server to run at all, so an unreadable or unparseable CA is
+    // fatal — we fail loud rather than fabricate an id that would make every restart
+    // look like a brand-new deployment.
+    //
+    // This changed derivation from an earlier hash of the ca.crt file bytes, so every
+    // deployment predating it reports a new id once and its PostHog history splits at
+    // that point. Accepted deliberately rather than bridged with a $create_alias: the
+    // very re-signing this fixes means some deployments had already forked, so a merge
+    // could not have been complete either.
     pub fn derive_server_id(certs_path: &str) -> String {
         let ca_path = std::path::Path::new(certs_path).join("ca.crt");
         let bytes = std::fs::read(&ca_path).unwrap_or_else(|e| {
@@ -196,7 +242,16 @@ impl MetricsService {
                 e
             )
         });
-        blake3::hash(&bytes).to_hex().to_string()
+        let spki = x509_parser::pem::parse_x509_pem(&bytes)
+            .ok()
+            .and_then(|(_, pem)| pem.parse_x509().ok().map(|c| c.public_key().raw.to_vec()));
+        let spki = spki.unwrap_or_else(|| {
+            panic!(
+                "CA cert at {} could not be parsed; BVC cannot run without a valid CA",
+                ca_path.display()
+            )
+        });
+        blake3::hash(&spki).to_hex().to_string()
     }
 
     // Blake3 of the server TLS cert's common name (the domain it primarily responds from).
@@ -209,13 +264,23 @@ impl MetricsService {
                 return String::new();
             }
         };
-        let cn = x509_parser::pem::parse_x509_pem(&pem)
-            .ok()
-            .and_then(|(_, p)| p.parse_x509().ok().map(|c| c.tbs_certificate.subject.to_string()));
+        // The CN alone, not the whole subject DN: the value is meant to identify the
+        // hostname the server answers on, and a DN string also carries O/OU/C, which
+        // would change the hash on an unrelated cert-metadata edit.
+        let cn = x509_parser::pem::parse_x509_pem(&pem).ok().and_then(|(_, p)| {
+            p.parse_x509().ok().and_then(|c| {
+                c.tbs_certificate
+                    .subject
+                    .iter_common_name()
+                    .next()
+                    .and_then(|attr| attr.as_str().ok())
+                    .map(str::to_string)
+            })
+        });
         match cn {
-            Some(subject) => blake3::hash(subject.as_bytes()).to_hex().to_string(),
+            Some(cn) => blake3::hash(cn.as_bytes()).to_hex().to_string(),
             None => {
-                tracing::warn!("could not parse server cert subject for hostname_sha");
+                tracing::warn!("could not parse server cert common name for hostname_sha");
                 String::new()
             }
         }
@@ -225,17 +290,44 @@ impl MetricsService {
         &self.server_id
     }
 
-    pub fn record_connect(&self) {
+    pub fn record_connect(&self, player_name: &str) {
         counter!(Metric::PlayerConnectionsTotal.name()).increment(1);
-        self.emit(TelemetryEvent::Connected { at: Utc::now() });
+        match self.recent_disconnects.get(player_name) {
+            Some(left_at) => {
+                self.recent_disconnects.invalidate(player_name);
+                self.emit(TelemetryEvent::PlayerReconnected {
+                    at: Utc::now(),
+                    time_since_disconnect_secs: left_at.elapsed().as_secs(),
+                });
+            }
+            None => self.emit(TelemetryEvent::PlayerConnected { at: Utc::now() }),
+        }
     }
 
-    pub fn record_disconnect(&self, duration: Duration) {
+    pub fn record_disconnect(&self, player_name: &str, duration: Duration) {
         counter!(Metric::PlayerDisconnectionsTotal.name()).increment(1);
         histogram!(Metric::SessionDurationSeconds.name()).record(duration.as_secs_f64());
-        self.emit(TelemetryEvent::Disconnected {
+        self.recent_disconnects
+            .insert(player_name.to_string(), Instant::now());
+        self.emit(TelemetryEvent::PlayerDisconnected {
             at: Utc::now(),
             duration_secs: duration.as_secs(),
+        });
+    }
+
+    // Observable seam for the reconnect window, so the gating logic is testable
+    // without reaching into the cache.
+    pub fn saw_recent_disconnect(&self, player_name: &str) -> bool {
+        self.recent_disconnects.get(player_name).is_some()
+    }
+
+    // Emitted only on the graceful shutdown path. A crash cannot emit its own stop
+    // event, so a crash is a heartbeat gap with no preceding Server::Stopped.
+    pub fn record_stopped(&self) {
+        self.emit(TelemetryEvent::Stopped {
+            at: Utc::now(),
+            uptime_secs: self.started_at.elapsed().as_secs(),
+            stop_reason: "graceful",
         });
     }
 
@@ -257,6 +349,19 @@ impl MetricsService {
         histogram!(Metric::AudioRouteDurationSeconds.name()).record(duration.as_secs_f64());
     }
 
+    // One delivered frame reached one recipient. This is per-recipient, not
+    // per-frame: at a fanout of N it runs N times for each serialization the route
+    // does, so it is the most frequently executed work on the delivery path. Steady
+    // state is two sharded read locks (per-route window plus `any`) and an integer
+    // compare; budget accordingly before adding anything here.
+    pub fn record_interaction(&self, route: InteractionRoute, sender: u64, recipient: u64) {
+        self.interactions.record_delivery(route, sender, recipient);
+    }
+
+    pub fn interactions(&self) -> &InteractionTracker {
+        &self.interactions
+    }
+
     // A recipient's bounded output queue was full and the frame was dropped for
     // them — the first user-audible routing failure mode under load.
     pub fn record_audio_route_drop(&self) {
@@ -265,6 +370,28 @@ impl MetricsService {
 
     pub fn set_active_players(&self, value: i64) {
         gauge!(Metric::ActivePlayers.name()).set(value as f64);
+        self.active_players.store(value, Ordering::Relaxed);
+        self.peak_players.fetch_max(value, Ordering::Relaxed);
+    }
+
+    pub fn active_players(&self) -> i64 {
+        self.active_players.load(Ordering::Relaxed)
+    }
+
+    pub fn peak_players(&self) -> i64 {
+        self.peak_players.load(Ordering::Relaxed)
+    }
+
+    // Drops the high-water mark to the count online right now. A server busy across
+    // the UTC day boundary has not gone empty, so resetting to zero would understate
+    // the new day until the next connect.
+    pub fn reset_peak_players(&self) {
+        self.peak_players
+            .store(self.active_players.load(Ordering::Relaxed), Ordering::Relaxed);
+    }
+
+    pub fn push_peak_players(&self) {
+        gauge!(Metric::PeakPlayers.name()).set(self.peak_players.load(Ordering::Relaxed) as f64);
     }
 
     pub fn set_active_channels(&self, value: i64) {
@@ -273,6 +400,79 @@ impl MetricsService {
 
     pub fn set_players_in_channels(&self, value: i64) {
         gauge!(Metric::PlayersInChannels.name()).set(value as f64);
+    }
+
+    // 15-minute cadence. Downstream treats a heartbeat inside the last 35 minutes
+    // as active, so one missed beat does not flip a live server to inactive.
+    pub fn spawn_heartbeat(self: &Arc<Self>, cancel: CancellationToken) -> JoinHandle<()> {
+        let service = self.clone();
+        tokio::spawn(async move {
+            let mut tick = tokio::time::interval(HEARTBEAT_INTERVAL);
+            tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            // The first tick of a tokio interval resolves immediately; consuming it
+            // here keeps the first heartbeat one full interval after boot instead of
+            // duplicating Server::Started.
+            tick.tick().await;
+            let mut last_utc_date = Utc::now().date_naive();
+            loop {
+                tokio::select! {
+                    _ = tick.tick() => service.emit_heartbeat(&mut last_utc_date),
+                    _ = cancel.cancelled() => break,
+                }
+            }
+        })
+    }
+
+    // Closes the interaction window and emits the sample. This is the only caller
+    // of close_window, which is what makes the window boundary the heartbeat tick.
+    pub fn emit_heartbeat(&self, last_utc_date: &mut chrono::NaiveDate) {
+        // Read the high-water mark before any reset, so the sample that observes a
+        // new UTC day still reports the peak the closing day actually reached in the
+        // interval since its last heartbeat.
+        let peak_player_count = self.peak_players();
+        self.push_peak_players();
+
+        let today = Utc::now().date_naive();
+        if today != *last_utc_date {
+            self.reset_peak_players();
+            *last_utc_date = today;
+        }
+
+        let closed = self.interactions.close_window();
+        for (route, counts) in closed.iter() {
+            gauge!(Metric::PlayersReached.name(), "route" => route.label())
+                .set(counts.reached as f64);
+            gauge!(Metric::PlayersReachedMutual.name(), "route" => route.label())
+                .set(counts.mutual as f64);
+        }
+
+        let find = |wanted: InteractionRoute| {
+            closed
+                .iter()
+                .find(|(r, _)| *r == wanted)
+                .map(|(_, c)| *c)
+                .unwrap_or_default()
+        };
+        let any = find(InteractionRoute::Any);
+        let proximity = find(InteractionRoute::Proximity);
+        let channel = find(InteractionRoute::Channel);
+
+        self.emit(TelemetryEvent::Heartbeat {
+            at: Utc::now(),
+            snapshot: HeartbeatSnapshot {
+                uptime_secs: self.started_at.elapsed().as_secs(),
+                window_secs: HEARTBEAT_INTERVAL.as_secs(),
+                player_count: self.active_players(),
+                peak_player_count,
+                players_reached: any.reached,
+                players_reached_proximity: proximity.reached,
+                players_reached_channel: channel.reached,
+                players_reached_mutual: any.mutual,
+                players_reached_mutual_proximity: proximity.mutual,
+                players_reached_mutual_channel: channel.mutual,
+                features_enabled: self.features_enabled.clone(),
+            },
+        });
     }
 
     pub fn render(&self) -> String {
