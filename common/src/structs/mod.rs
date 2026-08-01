@@ -11,6 +11,7 @@ pub mod events;
 pub mod game;
 pub mod iap;
 pub mod keybinds;
+pub mod metrics;
 pub mod network;
 pub mod onboarding;
 pub mod packet;

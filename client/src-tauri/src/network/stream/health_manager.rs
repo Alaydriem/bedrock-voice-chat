@@ -234,6 +234,8 @@ impl ConnectionHealthManager {
             packet_type: PacketType::HealthCheck,
             owner: packet_owner.clone(),
             data: QuicNetworkPacketData::HealthCheck(HealthCheckPacket),
+                    // Not a server fan-out, so this envelope carries no sequence.
+            seq: None,
         };
 
         health_state.set_awaiting(true);

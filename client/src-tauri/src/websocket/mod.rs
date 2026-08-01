@@ -6,7 +6,10 @@ use tauri_plugin_store::StoreExt;
 use tokio::sync::{broadcast, watch};
 use tokio::task::AbortHandle;
 
+pub mod route;
 pub mod structs;
+
+pub use route::{RejectReason, WebSocketRoute};
 pub use structs::{
     Command, CommandMessage, DeviceType, ErrorResponse, MuteData, PongData, RecordData,
     ResponseData, StateData, SuccessResponse,
@@ -34,14 +37,30 @@ impl Default for WebSocketConfig {
 
 /// Wrapper around a broadcast sender for sharing with Tauri managed state.
 /// UI commands (mute, recording) use this to push state updates to all connected WS clients.
-pub struct WebSocketBroadcaster(pub broadcast::Sender<String>);
+pub struct WebSocketBroadcaster {
+    pub commands: broadcast::Sender<String>,
+    // A separate channel so a one-per-second diagnostics push cannot lag a command subscriber out
+    // of its buffer, and so a command client that never asked for metrics is not sent any.
+    pub metrics: broadcast::Sender<String>,
+}
 
 impl WebSocketBroadcaster {
+    /// Serialize a diagnostics snapshot and broadcast it to `/metrics` subscribers.
+    ///
+    /// The envelope is tagged. `ResponseData` is `#[serde(untagged)]`, so a consumer could not
+    /// distinguish a metrics frame from a state frame by shape alone if this rode on that enum.
+    pub fn broadcast_metrics(&self, snapshot: common::structs::metrics::LinkDiagnosticsSnapshot) {
+        let push = common::structs::metrics::MetricsPush::new(snapshot);
+        if let Ok(json) = serde_json::to_string(&push) {
+            let _ = self.metrics.send(json);
+        }
+    }
+
     /// Serialize a StateData DTO and broadcast to all connected WS clients.
     pub fn broadcast_state(&self, state: StateData) {
         let response = SuccessResponse::state(state.muted, state.deafened, state.recording);
         if let Ok(json) = serde_json::to_string(&response) {
-            let _ = self.0.send(json);
+            let _ = self.commands.send(json);
         }
     }
 }
@@ -52,6 +71,7 @@ pub struct WebSocketManager {
     config: Option<WebSocketConfig>,
     app_handle: AppHandle,
     broadcast_tx: broadcast::Sender<String>,
+    metrics_tx: broadcast::Sender<String>,
 }
 
 impl WebSocketManager {
@@ -63,6 +83,9 @@ impl WebSocketManager {
             .and_then(|v| serde_json::from_value(v.clone()).ok());
 
         let (broadcast_tx, _) = broadcast::channel(16);
+        // Deeper than the command channel: this carries one frame per second, so a subscriber
+        // that stalls briefly should fall behind rather than be dropped.
+        let (metrics_tx, _) = broadcast::channel(64);
 
         Self {
             abort_handle: None,
@@ -70,12 +93,16 @@ impl WebSocketManager {
             config,
             app_handle,
             broadcast_tx,
+            metrics_tx,
         }
     }
 
     /// Extract a broadcaster handle for registration as Tauri managed state
     pub fn broadcaster(&self) -> WebSocketBroadcaster {
-        WebSocketBroadcaster(self.broadcast_tx.clone())
+        WebSocketBroadcaster {
+            commands: self.broadcast_tx.clone(),
+            metrics: self.metrics_tx.clone(),
+        }
     }
 
     pub fn update_config(&mut self, config: WebSocketConfig) {
@@ -152,18 +179,26 @@ impl WebSocketManager {
         let config = config.clone();
         let app_handle = self.app_handle.clone();
         let broadcast_tx = self.broadcast_tx.clone();
+        let metrics_tx = self.metrics_tx.clone();
 
         let handle = tokio::spawn(async move {
             while let Ok((stream, _)) = listener.accept().await {
                 let app_handle = app_handle.clone();
                 let key = config.key.clone();
                 let broadcast_tx = broadcast_tx.clone();
+                let metrics_tx = metrics_tx.clone();
                 let shutdown_rx = shutdown_rx.clone();
 
                 tokio::spawn(async move {
-                    if let Err(e) =
-                        Self::handle_connection(stream, app_handle, key, broadcast_tx, shutdown_rx)
-                            .await
+                    if let Err(e) = Self::handle_connection(
+                        stream,
+                        app_handle,
+                        key,
+                        broadcast_tx,
+                        metrics_tx,
+                        shutdown_rx,
+                    )
+                    .await
                     {
                         // Connection resets / broken pipes are normal client disconnects
                         let is_disconnect = e.root_cause().downcast_ref::<std::io::Error>().map_or(
@@ -194,12 +229,111 @@ impl WebSocketManager {
         app_handle: AppHandle,
         auth_key: String,
         broadcast_tx: broadcast::Sender<String>,
+        metrics_tx: broadcast::Sender<String>,
+        shutdown_rx: watch::Receiver<bool>,
+    ) -> Result<(), anyhow::Error> {
+        use std::sync::Mutex as StdMutex;
+        use tokio_tungstenite::accept_hdr_async;
+        use tokio_tungstenite::tungstenite::handshake::server::{
+            ErrorResponse as HandshakeError, Request, Response,
+        };
+        use tokio_tungstenite::tungstenite::http::StatusCode;
+
+        // The route is decided during the handshake so a bad path or a wrong key refuses the
+        // upgrade outright, rather than accepting a client that then waits forever.
+        let resolved: Arc<StdMutex<Option<WebSocketRoute>>> = Arc::new(StdMutex::new(None));
+        let captured = resolved.clone();
+        let key_for_callback = auth_key.clone();
+
+        let callback = move |request: &Request, response: Response| {
+            let uri = request.uri().to_string();
+            match WebSocketRoute::resolve(&uri, &key_for_callback) {
+                Ok(route) => {
+                    if let Ok(mut slot) = captured.lock() {
+                        *slot = Some(route);
+                    }
+                    Ok(response)
+                }
+                Err(reason) => {
+                    log::warn!("Rejected WebSocket upgrade: {}", reason.as_str());
+                    let status = StatusCode::UNAUTHORIZED;
+                    let _ = reason;
+                    let mut error = HandshakeError::new(Some(reason.as_str().to_string()));
+                    *error.status_mut() = status;
+                    Err(error)
+                }
+            }
+        };
+
+        let ws_stream = accept_hdr_async(stream, callback).await?;
+        let route = resolved
+            .lock()
+            .ok()
+            .and_then(|slot| *slot)
+            .unwrap_or(WebSocketRoute::Command);
+
+        match route {
+            WebSocketRoute::Metrics => {
+                Self::serve_metrics(ws_stream, metrics_tx, shutdown_rx).await
+            }
+            WebSocketRoute::Command => {
+                Self::serve_commands(ws_stream, app_handle, auth_key, broadcast_tx, shutdown_rx)
+                    .await
+            }
+        }
+    }
+
+    // Push only. Inbound frames other than close and ping are ignored, because this endpoint has
+    // no commands.
+    async fn serve_metrics(
+        ws_stream: tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>,
+        metrics_tx: broadcast::Sender<String>,
         mut shutdown_rx: watch::Receiver<bool>,
     ) -> Result<(), anyhow::Error> {
         use futures_util::{SinkExt, StreamExt};
-        use tokio_tungstenite::accept_async;
 
-        let ws_stream = accept_async(stream).await?;
+        let (mut write, mut read) = ws_stream.split();
+        let mut metrics_rx = metrics_tx.subscribe();
+
+        loop {
+            tokio::select! {
+                frame = read.next() => {
+                    match frame {
+                        Some(Ok(msg)) if msg.is_close() => return Ok(()),
+                        Some(Ok(_)) => continue,
+                        Some(Err(e)) => return Err(e.into()),
+                        None => return Ok(()),
+                    }
+                }
+
+                result = metrics_rx.recv() => {
+                    match result {
+                        Ok(json) => {
+                            write
+                                .send(tokio_tungstenite::tungstenite::Message::Text(json.into()))
+                                .await?;
+                        }
+                        Err(broadcast::error::RecvError::Lagged(n)) => {
+                            log::warn!("Metrics subscriber lagged by {} frames", n);
+                        }
+                        Err(broadcast::error::RecvError::Closed) => return Ok(()),
+                    }
+                }
+
+                _ = shutdown_rx.changed() => return Ok(()),
+            }
+        }
+    }
+
+    async fn serve_commands(
+        ws_stream: tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>,
+        app_handle: AppHandle,
+        auth_key: String,
+        broadcast_tx: broadcast::Sender<String>,
+        mut shutdown_rx: watch::Receiver<bool>,
+    ) -> Result<(), anyhow::Error> {
+        use futures_util::{SinkExt, StreamExt};
+
         let (mut write, mut read) = ws_stream.split();
         let mut broadcast_rx = broadcast_tx.subscribe();
 

@@ -16,6 +16,9 @@ mod client_id_hasher;
 mod connection_id_format;
 mod connection_identity;
 pub mod connection_registry;
+// Public so the integration crate can drive the one invariant this mechanism rests on: a sequence
+// number is consumed only when a datagram is actually produced for a connection.
+pub mod connection_sequence;
 mod log_throttle;
 mod packet_identity_stamp;
 mod path_observer;
@@ -466,6 +469,8 @@ impl QuicServerManager {
                                                     channel_id.clone(),
                                                 ),
                                             ),
+                                                                                    // Not a server fan-out, so this envelope carries no sequence.
+                                            seq: None,
                                         };
 
                                         if let Err(e) = webhook_receiver.send_packet(leave_packet).await {
@@ -688,6 +693,8 @@ impl QuicServerManager {
                                     data: QuicNetworkPacketData::PlayerData(
                                         PlayerDataPacket::new(vec![player]),
                                     ),
+                                    // Not a server fan-out, so this envelope carries no sequence.
+                                    seq: None,
                                 };
                                 connection_registry.send_positions_to_owners(&echo);
                             }

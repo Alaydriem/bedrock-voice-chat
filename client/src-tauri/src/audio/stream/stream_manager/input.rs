@@ -53,6 +53,7 @@ pub(crate) struct InputStream {
     recording_producer: Option<Arc<RecordingProducer>>,
     recording_active: Option<Arc<AtomicBool>>,
     recovery_tx: RecoverySender,
+    input_stats: Arc<crate::diagnostics::InputPipelineStats>,
     #[cfg(feature = "bedrock-protocol")]
     player_state_cache: Option<Arc<BedrockPlayerStateCache>>,
 }
@@ -192,6 +193,7 @@ impl InputStream {
         recording_producer: Option<Arc<RecordingProducer>>,
         recording_active: Option<Arc<AtomicBool>>,
         recovery_tx: RecoverySender,
+        input_stats: Arc<crate::diagnostics::InputPipelineStats>,
         #[cfg(feature = "bedrock-protocol")] player_state_cache: Option<
             Arc<BedrockPlayerStateCache>,
         >,
@@ -208,6 +210,7 @@ impl InputStream {
             recording_producer,
             recording_active,
             recovery_tx,
+            input_stats,
             #[cfg(feature = "bedrock-protocol")]
             player_state_cache,
         }
@@ -286,6 +289,7 @@ impl InputStream {
             sample_rate,
             tail_frame_count,
             producer,
+            self.input_stats.clone(),
         );
 
         let process = move |data: &[f32]| {
@@ -446,6 +450,8 @@ impl InputStream {
                                 None,
                                 None,
                             )),
+                                                    // Not a server fan-out, so this envelope carries no sequence.
+                            seq: None,
                         },
                     };
 

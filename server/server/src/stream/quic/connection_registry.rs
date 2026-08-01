@@ -16,6 +16,7 @@ use crate::relay::{ObservedCodeHandler, PeerManager, RelayedPacket};
 use crate::services::MetricsService;
 use crate::services::metrics_service::interaction::InteractionRoute;
 use crate::services::metrics_service::interaction::InteractionTracker;
+use crate::stream::quic::connection_sequence::ConnectionSequence;
 
 const OVERSIZED_BROADCAST_LOG_INTERVAL: Duration = Duration::from_secs(30);
 
@@ -25,6 +26,9 @@ pub enum RoutedPacket {
 
 pub(crate) struct ConnectionEntry {
     pub player_name: String,
+    // Outbound sequence for this connection, so a client can derive its own downlink loss from gaps
+    // rather than being told by a report that travels the same lossy path.
+    pub sequence: Arc<ConnectionSequence>,
     // The game from this connection's mTLS certificate CN. Channel membership keys
     // are `game:gamertag`, so holding it here lets membership be resolved from the
     // authenticated identity instead of from position data the player may not have
@@ -282,6 +286,7 @@ impl ConnectionRegistry {
             client_id,
             ConnectionEntry {
                 player_name,
+                sequence: ConnectionSequence::new_shared(),
                 game,
                 name_hash,
                 tx,
@@ -320,46 +325,56 @@ impl ConnectionRegistry {
     }
 
     pub fn broadcast_to_all(&self, packet: QuicNetworkPacket) {
-        let bytes = match packet.to_datagram() {
-            Ok(bytes) => Bytes::from(bytes),
-            Err(e) => {
-                // A player list that does not fit is still deliverable in
-                // pieces; every consumer merges players by name, so splitting
-                // changes nothing observable. Dropping it whole would strand
-                // every client's positions until the roster shrank.
-                if let Some(halves) = Self::split_oversized(&packet) {
-                    for half in halves {
-                        self.broadcast_to_all(half);
-                    }
-                    return;
-                }
-
-                if packet.packet_type == PacketType::PlayerData {
-                    if let Some(metrics) = self.metrics.get() {
-                        metrics.record_position_oversize_drop();
-                    }
-                }
-
-                if let Some(suppressed) = self.oversized_broadcast_log.should_log() {
-                    tracing::error!(
-                        suppressed,
-                        packet_type = ?packet.packet_type,
-                        "Failed to serialize broadcast: {}",
-                        e
-                    );
+        // Size is settled once up front rather than per recipient, because the split has to happen
+        // before anything is stamped: an oversized packet rejected inside the loop below would
+        // consume a sequence number on every connection and read at the receiver as loss. Probing
+        // with `u32::MAX` takes the widest encoding this field has, so a packet that fits here fits
+        // for every recipient however far its counter has advanced.
+        let mut probe = packet.clone();
+        probe.stamp(u32::MAX);
+        if let Err(e) = probe.to_datagram() {
+            // A player list that does not fit is still deliverable in
+            // pieces; every consumer merges players by name, so splitting
+            // changes nothing observable. Dropping it whole would strand
+            // every client's positions until the roster shrank.
+            if let Some(halves) = Self::split_oversized(&packet) {
+                for half in halves {
+                    self.broadcast_to_all(half);
                 }
                 return;
             }
-        };
+
+            if packet.packet_type == PacketType::PlayerData {
+                if let Some(metrics) = self.metrics.get() {
+                    metrics.record_position_oversize_drop();
+                }
+            }
+
+            if let Some(suppressed) = self.oversized_broadcast_log.should_log() {
+                tracing::error!(
+                    suppressed,
+                    packet_type = ?packet.packet_type,
+                    "Failed to serialize broadcast: {}",
+                    e
+                );
+            }
+            return;
+        }
 
         let mut dead_keys: Vec<Vec<u8>> = Vec::new();
 
+        // Serialized per recipient rather than once, because each carries that connection's own
+        // sequence number. One postcard pass per listener replaces a `Bytes` refcount clone; at
+        // audio rates that is a fraction of a percent of a core, and it is what makes a gap at the
+        // receiver mean loss rather than routing.
+        let mut outbound = packet;
+
         for entry in self.connections.iter() {
-            match entry
-                .value()
-                .tx
-                .try_send(RoutedPacket::Serialized(bytes.clone()))
-            {
+            let Some(bytes) = entry.value().sequence.stamp(&mut outbound) else {
+                continue;
+            };
+
+            match entry.value().tx.try_send(RoutedPacket::Serialized(bytes)) {
                 Ok(()) => {}
                 Err(mpsc::error::TrySendError::Full(_)) => {
                     tracing::debug!(
@@ -456,19 +471,21 @@ impl ConnectionRegistry {
         };
         // Clone the sender and drop the DashMap ref before any send/unregister to
         // avoid holding a shard lock across a potential `unregister`.
-        let tx = match self.connections.get(&client_id) {
-            Some(entry) => entry.value().tx.clone(),
+        let (tx, sequence) = match self.connections.get(&client_id) {
+            Some(entry) => (entry.value().tx.clone(), entry.value().sequence.clone()),
             None => return false,
         };
-        let bytes = match packet.to_datagram() {
-            Ok(b) => Bytes::from(b),
-            Err(e) => {
+        let mut outbound = packet.clone();
+        let bytes = match sequence.stamp(&mut outbound) {
+            Some(b) => b,
+            None => {
+                // `stamp` logs the serialization failure itself; this keeps the counter so an
+                // oversized position packet stays visible in metrics rather than only in logs.
                 if packet.packet_type == PacketType::PlayerData {
                     if let Some(metrics) = self.metrics.get() {
                         metrics.record_position_oversize_drop();
                     }
                 }
-                tracing::error!("Failed to serialize packet for {}: {}", player_name, e);
                 return false;
             }
         };
@@ -596,29 +613,29 @@ impl ConnectionRegistry {
             sender_channel,
         );
 
-        // Pre-build serialized variants (single clone, mutate in-place between serializations)
-        let mut p = packet.clone();
+        // Two envelope variants, held unserialized. Each recipient's datagram carries that
+        // connection's own sequence number, so serialization moves inside the loop below — after
+        // every decision not to send. A packet the router rejects for proximity or membership must
+        // not consume a sequence number, or the client reads a gap that was never loss.
+        let mut envelope_spatial = packet.clone();
+        if let QuicNetworkPacketData::AudioFrame(ref mut af) = envelope_spatial.data {
+            af.spatial = Some(true);
+        }
 
-        let bytes_spatial: Option<Bytes> = {
-            if let QuicNetworkPacketData::AudioFrame(ref mut af) = p.data {
-                af.spatial = Some(true);
-            }
-            p.to_datagram().ok().map(Bytes::from)
-        };
-
-        let bytes_channel: Option<Bytes> = {
-            if let QuicNetworkPacketData::AudioFrame(ref mut af) = p.data {
-                af.spatial = Some(false);
-            }
-            p.to_datagram().ok().map(Bytes::from)
-        };
-
-        if bytes_spatial.is_none() && bytes_channel.is_none() {
-            return;
+        let mut envelope_channel = packet.clone();
+        if let QuicNetworkPacketData::AudioFrame(ref mut af) = envelope_channel.data {
+            af.spatial = Some(false);
         }
 
         // Snapshot connections to release DashMap shard locks before any .await
-        let snapshot: Vec<(Vec<u8>, String, Game, u64, mpsc::Sender<RoutedPacket>)> = self
+        let snapshot: Vec<(
+            Vec<u8>,
+            String,
+            Game,
+            u64,
+            mpsc::Sender<RoutedPacket>,
+            Arc<ConnectionSequence>,
+        )> = self
             .connections
             .iter()
             .map(|entry| {
@@ -628,6 +645,7 @@ impl ConnectionRegistry {
                     entry.value().game.clone(),
                     entry.value().name_hash,
                     entry.value().tx.clone(),
+                    entry.value().sequence.clone(),
                 )
             })
             .collect();
@@ -640,7 +658,9 @@ impl ConnectionRegistry {
         // background music.
         let sender_hash = self.connection_name_hash(sender_name);
 
-        for (client_id, recipient_name, recipient_game, recipient_hash, tx) in &snapshot {
+        for (client_id, recipient_name, recipient_game, recipient_hash, tx, sequence) in
+            &snapshot
+        {
             if recipient_name == sender_name {
                 continue;
             }
@@ -667,7 +687,10 @@ impl ConnectionRegistry {
                 _ => false,
             };
 
-            let (bytes_to_send, route) = if in_same_channel {
+            // Which variant this recipient gets, and which route the delivery took. Selection
+            // only — the stamp and the serialization happen after this block, so every
+            // `continue` above leaves the sequence untouched.
+            let (use_channel_variant, route) = if in_same_channel {
                 tracing::debug!(
                     "route_audio_frame: {} -> {} IN_CHANNEL spatial={:?}",
                     sender_name,
@@ -678,10 +701,7 @@ impl ConnectionRegistry {
                 // the client skips distance-based volume attenuation. Without this,
                 // a spatial=true packet would be zeroed by calculate_spatial_audio_data
                 // when members are far apart, defeating the channel-bypass entirely.
-                match &bytes_channel {
-                    Some(b) => (b, InteractionRoute::Channel),
-                    None => continue,
-                }
+                (true, InteractionRoute::Channel)
             } else {
                 // Proximity is the only branch that needs coordinates, so both sides
                 // must have reported a position to be compared at all.
@@ -717,14 +737,21 @@ impl ConnectionRegistry {
                 // Some(false) is rejected outside channels
                 match original_spatial {
                     Some(false) => continue,
-                    Some(true) | None => match &bytes_spatial {
-                        Some(b) => (b, InteractionRoute::Proximity),
-                        None => continue,
-                    },
+                    Some(true) | None => (false, InteractionRoute::Proximity),
                 }
             };
 
-            match tx.try_send(RoutedPacket::Serialized(bytes_to_send.clone())) {
+            let envelope = if use_channel_variant {
+                &mut envelope_channel
+            } else {
+                &mut envelope_spatial
+            };
+
+            let Some(bytes_to_send) = sequence.stamp(envelope) else {
+                continue;
+            };
+
+            match tx.try_send(RoutedPacket::Serialized(bytes_to_send)) {
                 Ok(()) => {
                     if let (Some(m), Some(sender_hash)) = (self.metrics.get(), sender_hash) {
                         m.record_interaction(route, sender_hash, *recipient_hash);
@@ -831,6 +858,8 @@ mod tests {
                 sender,
                 Some(true),
             )),
+            // Not a server fan-out to one connection, so this envelope carries no sequence.
+            seq: None,
         }
     }
 

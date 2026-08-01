@@ -22,6 +22,7 @@ pub(crate) struct OutputStream {
     shutdown: Arc<AtomicBool>,
     pub metadata: Arc<moka::future::Cache<String, String>>,
     app_handle: tauri::AppHandle,
+    transport_stats: Arc<crate::diagnostics::TransportStats>,
 }
 
 impl common::traits::StreamTrait for OutputStream {
@@ -57,6 +58,7 @@ impl common::traits::StreamTrait for OutputStream {
         let connection = self.connection.clone().unwrap();
         let packet_owner = self.packet_owner.clone();
         let app_handle = self.app_handle.clone();
+        let transport_stats = self.transport_stats.clone();
 
         let shutdown = self.shutdown.clone();
         jobs.push(tokio::spawn(async move {
@@ -71,7 +73,9 @@ impl common::traits::StreamTrait for OutputStream {
                         version: CLIENT_VERSION.to_string(),
                         timestamp: Instant::now().elapsed().as_millis() as u64,
                     }
-                )
+                ),
+                // Client-to-server, not a server fan-out, so this envelope carries no sequence.
+                seq: None,
             };
 
             match debug_packet.to_datagram() {
@@ -102,6 +106,7 @@ impl common::traits::StreamTrait for OutputStream {
                                 let payload = Bytes::from(bytes);
                                 let send_res = connection.datagram_mut(|dg: &mut common::s2n_quic::provider::datagram::default::Sender| dg.send_datagram(payload.clone()));
                                 if let Err(e) = send_res {
+                                    transport_stats.record_send_error();
                                     error_count += 1;
                                     if error_count == 100 {
                                         _ = app_handle.emit(crate::events::event::notification::EVENT_NOTIFICATION, crate::events::event::notification::Notification::new(
@@ -115,11 +120,11 @@ impl common::traits::StreamTrait for OutputStream {
                                     }
                                 } else {
                                     error_count = 0;
-                                    #[cfg(feature = "e2e")]
+                                    transport_stats.record_sent();
                                     if quic_network_packet.packet_type
                                         == common::structs::packet::PacketType::AudioFrame
                                     {
-                                        crate::testkit::counters::TransportCounters::increment_sent();
+                                        transport_stats.record_frame_sent();
                                     }
                                 }
                             }
@@ -147,6 +152,7 @@ impl OutputStream {
         packet_owner: Option<PacketOwner>,
         connection: Option<Arc<Connection>>,
         app_handle: tauri::AppHandle,
+        transport_stats: Arc<crate::diagnostics::TransportStats>,
     ) -> Self {
         Self {
             bus: consumer.clone(),
@@ -156,6 +162,7 @@ impl OutputStream {
             shutdown: Arc::new(AtomicBool::new(false)),
             metadata: Arc::new(moka::future::Cache::builder().build()),
             app_handle: app_handle.clone(),
+            transport_stats,
         }
     }
 }

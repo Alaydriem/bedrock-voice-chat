@@ -49,8 +49,8 @@ impl AudioFramePacket {
         let length = data.len() as i32;
 
         Self {
-            encoded_length: crate::encoding::encode_zigzag_varint_i32(length),
-            encoded_timestamp: crate::encoding::encode_zigzag_varint_i64(timestamp),
+            encoded_length: crate::encoding::Varint::encode(length),
+            encoded_timestamp: crate::encoding::Varint::encode(timestamp),
             sample_rate,
             data,
             sender,
@@ -65,13 +65,13 @@ impl AudioFramePacket {
     }
 
     pub fn length(&self) -> i32 {
-        crate::encoding::decode_zigzag_varint_i32(&self.encoded_length)
+        crate::encoding::Varint::decode::<i32>(&self.encoded_length)
             .unwrap_or((0, 0))
             .0
     }
 
     pub fn timestamp(&self) -> i64 {
-        crate::encoding::decode_zigzag_varint_i64(&self.encoded_timestamp)
+        crate::encoding::Varint::decode::<i64>(&self.encoded_timestamp)
             .unwrap_or((0, 0))
             .0
     }

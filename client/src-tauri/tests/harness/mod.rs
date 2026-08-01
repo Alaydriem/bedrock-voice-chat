@@ -5,6 +5,7 @@ pub mod jukebox_world;
 pub mod note_energy;
 pub mod protocol_matrix;
 pub mod proxy_driver;
+pub mod lossy_relay;
 pub mod rebinding_relay;
 pub mod proxy_scale;
 pub mod proxy_world;

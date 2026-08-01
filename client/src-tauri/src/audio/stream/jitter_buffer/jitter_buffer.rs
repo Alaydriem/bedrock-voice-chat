@@ -8,6 +8,7 @@ use std::time::Duration;
 use super::EncodedAudioFramePacket;
 use super::jitter_buffer_source::{JitterBufferError, JitterBufferSource};
 use crate::audio::recording::RecordingProducer;
+use crate::diagnostics::PlayerReceiveStats;
 use common::structs::SpatialAudioConfig;
 use common::{Coordinate, Game, Orientation};
 
@@ -50,6 +51,7 @@ impl JitterBuffer {
         activity_tx: Option<flume::Sender<crate::audio::stream::ActivityUpdate>>,
         recording_producer: Option<RecordingProducer>,
         recording_active: Option<Arc<AtomicBool>>,
+        receive_stats: Arc<PlayerReceiveStats>,
     ) -> Result<(Self, JitterBufferHandle), JitterBufferError> {
         let (tx, rx) = flume::unbounded::<Option<EncodedAudioFramePacket>>();
 
@@ -74,6 +76,7 @@ impl JitterBuffer {
             activity_tx,
             recording_producer,
             recording_active,
+            receive_stats,
         )?;
 
         let jitter_buffer = Self {

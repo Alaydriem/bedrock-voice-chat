@@ -362,6 +362,8 @@ impl PeerManager {
             packet_type: PacketType::AudioAvailable,
             owner: None,
             data: QuicNetworkPacketData::AudioAvailable(available),
+            // Not a server fan-out to one connection, so this envelope carries no sequence.
+            seq: None,
         };
         self.enqueue_to_link(peer_ep, &RelayedPacket::local(reply));
     }
@@ -394,6 +396,8 @@ impl PeerManager {
                 audio_id: audio_id.to_string(),
                 correlation_id: correlation_id.to_string(),
             }),
+            // Not a server fan-out to one connection, so this envelope carries no sequence.
+            seq: None,
         };
         self.enqueue_to_all_links(&RelayedPacket::local(query));
         rx
@@ -673,6 +677,8 @@ mod tests {
                 None,
                 Some(true),
             )),
+            // Not a server fan-out to one connection, so this envelope carries no sequence.
+            seq: None,
         }
     }
 
@@ -707,6 +713,8 @@ mod tests {
                 Some(sender),
                 Some(true),
             )),
+            // Not a server fan-out to one connection, so this envelope carries no sequence.
+            seq: None,
         }
     }
 
@@ -801,6 +809,8 @@ mod tests {
             data: QuicNetworkPacketData::PeerPresenceObserved(PeerPresenceObservedPacket {
                 token: "tok".into(),
             }),
+            // Not a server fan-out to one connection, so this envelope carries no sequence.
+            seq: None,
         };
         mgr.ingest(key, control).await;
         assert_eq!(
@@ -829,6 +839,8 @@ mod tests {
                 audio_id: "audio-1".into(),
                 correlation_id: "corr-1".into(),
             }),
+            // Not a server fan-out to one connection, so this envelope carries no sequence.
+            seq: None,
         };
         assert!(
             mgr.is_ingest_authorized(key, &query),
@@ -859,6 +871,8 @@ mod tests {
                 stream_token: "tok-1".into(),
                 correlation_id: "corr-1".into(),
             }),
+            // Not a server fan-out to one connection, so this envelope carries no sequence.
+            seq: None,
         };
         mgr.register_inbound("peerX:7000", Instant::now());
         mgr.ingest("peerX:7000", available).await;
@@ -887,6 +901,8 @@ mod tests {
                 stream_token: "tok".into(),
                 correlation_id: "corr-unknown".into(),
             }),
+            // Not a server fan-out to one connection, so this envelope carries no sequence.
+            seq: None,
         };
         mgr.register_inbound("peerX:7000", Instant::now());
         mgr.ingest("peerX:7000", available).await;
@@ -918,6 +934,8 @@ mod tests {
                 stream_token: "first".into(),
                 correlation_id: "corr-1".into(),
             }),
+            // Not a server fan-out to one connection, so this envelope carries no sequence.
+            seq: None,
         };
         let second = QuicNetworkPacket {
             packet_type: PacketType::AudioAvailable,
@@ -927,6 +945,8 @@ mod tests {
                 stream_token: "second".into(),
                 correlation_id: "corr-1".into(),
             }),
+            // Not a server fan-out to one connection, so this envelope carries no sequence.
+            seq: None,
         };
         mgr.ingest("peerA:7000", first).await;
         mgr.ingest("peerB:7000", second).await;
@@ -959,6 +979,8 @@ mod tests {
                 stream_token: "tok-a".into(),
                 correlation_id: "corr-a".into(),
             }),
+            // Not a server fan-out to one connection, so this envelope carries no sequence.
+            seq: None,
         };
         let reply_b = QuicNetworkPacket {
             packet_type: PacketType::AudioAvailable,
@@ -968,6 +990,8 @@ mod tests {
                 stream_token: "tok-b".into(),
                 correlation_id: "corr-b".into(),
             }),
+            // Not a server fan-out to one connection, so this envelope carries no sequence.
+            seq: None,
         };
         mgr.ingest("peerA:7000", reply_a).await;
         mgr.ingest("peerB:7000", reply_b).await;

@@ -39,7 +39,7 @@ use std::{
 use tokio::task::{AbortHandle, JoinHandle};
 
 /// Global mute state for output stream
-static MUTE_OUTPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
+pub(crate) static MUTE_OUTPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 
 pub(crate) struct OutputStream {
     pub device: Option<AudioDevice>,
@@ -57,6 +57,7 @@ pub(crate) struct OutputStream {
     client_id_to_player: Arc<moka::sync::Cache<String, String>>,
     recording_producer: Option<Arc<RecordingProducer>>,
     player_gain_cache: Arc<moka::sync::Cache<String, PlayerGainSettings>>,
+    peer_registry: Arc<crate::diagnostics::PeerRegistry>,
     recording_active: Option<Arc<AtomicBool>>,
     #[allow(unused)]
     recovery_tx: RecoverySender,
@@ -209,6 +210,7 @@ impl OutputStream {
         recording_producer: Option<Arc<RecordingProducer>>,
         recording_active: Option<Arc<AtomicBool>>,
         recovery_tx: RecoverySender,
+        peer_registry: Arc<crate::diagnostics::PeerRegistry>,
         #[cfg(feature = "bedrock-protocol")] beacon_cache: Option<Arc<JukeboxBeaconCache>>,
         #[cfg(feature = "bedrock-protocol")] eject_injector: Option<Arc<JukeboxEjectInjector>>,
         #[cfg(feature = "bedrock-protocol")] presence_injector: Option<Arc<PresenceInjector>>,
@@ -250,6 +252,7 @@ impl OutputStream {
             client_id_to_player: Arc::new(client_id_to_player),
             recording_producer,
             player_gain_cache: Arc::new(player_gain_cache),
+            peer_registry,
             recording_active,
             recovery_tx,
             #[cfg(feature = "bedrock-protocol")]
@@ -397,6 +400,14 @@ impl OutputStream {
             None => SpatialAudioConfig::default(),
         };
 
+        // Recorded where the value is resolved, so a diagnostic reports the range this session
+        // actually runs under rather than the compiled default.
+        if let Some(config) =
+            tauri::Manager::try_state::<Arc<crate::diagnostics::SessionConfig>>(&self.app_handle)
+        {
+            config.set_spatial(spatial_config.falloff_distance, "inverse-square");
+        }
+
         let panning_intensity = match metadata.get("panning_intensity").await {
             Some(val) => val.parse::<f32>().unwrap_or(0.8),
             None => 0.8,
@@ -413,6 +424,7 @@ impl OutputStream {
             self.recording_active.clone(),
             spatial_config,
             panning_intensity,
+            self.peer_registry.clone(),
         );
 
         self.sink_manager = Some(sink_manager);

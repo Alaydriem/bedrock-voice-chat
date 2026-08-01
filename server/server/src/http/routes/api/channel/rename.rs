@@ -53,6 +53,8 @@ pub async fn channel_rename(
             Some(new_name),
             None,
         )),
+            // Not a server fan-out, so this envelope carries no sequence.
+        seq: None,
     };
 
     if let Err(e) = webhook_receiver.send_packet(packet).await {

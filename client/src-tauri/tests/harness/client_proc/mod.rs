@@ -155,6 +155,19 @@ impl ClientProc {
                         Ok(OutMsg::Log { line }) => {
                             eprintln!("[bvc_client_e2e] {line}");
                         }
+                        Ok(OutMsg::Diagnostics {
+                            connected,
+                            stalled,
+                            uptime_secs,
+                            peers,
+                            downlink_loss_pct,
+                            ..
+                        }) => {
+                            let mut guard = reader_state.lock().unwrap();
+                            guard.diagnostics = Some((connected, stalled, uptime_secs));
+                            guard.diagnostic_peers = peers;
+                            guard.diagnostic_downlink_loss = Some(downlink_loss_pct);
+                        }
                         Ok(OutMsg::Stats {
                             frames_sent,
                             frames_from_quic,
@@ -471,6 +484,91 @@ impl ClientProc {
             }
             std::thread::sleep(Duration::from_millis(10));
         }
+    }
+
+    /// Request a link-diagnostics reading from the bin and block until it arrives (or the 5 s
+    /// deadline passes). Returns `(connected, stalled, uptime_secs)`.
+    ///
+    /// The bin reads the real service, so this observes the same derivation a player's status
+    /// panel and copyable report would show.
+    pub fn diagnostics(&self) -> (bool, bool, u64) {
+        {
+            let mut guard = self.state.lock().unwrap();
+            guard.diagnostics = None;
+            guard.diagnostic_downlink_loss = None;
+        }
+        self.send(&InMsg::RequestDiagnostics);
+
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            if let Some(d) = self.state.lock().unwrap().diagnostics {
+                return d;
+            }
+            if Instant::now() >= deadline {
+                return (false, false, 0);
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    /// Derived downlink loss as of the last `diagnostics()` call.
+    ///
+    /// The outer `Option` distinguishes "no reading arrived" from the inner one, which is the client
+    /// reporting the figure unmeasured because no stamped envelope has been seen.
+    pub fn diagnostic_downlink_loss(&self) -> Option<Option<f32>> {
+        self.state.lock().unwrap().diagnostic_downlink_loss
+    }
+
+    /// Speaker names in the per-peer diagnostics table as of the last `diagnostics()` call.
+    pub fn diagnostic_peers(&self) -> Vec<String> {
+        self.state.lock().unwrap().diagnostic_peers.clone()
+    }
+
+    /// Polls until the derived downlink loss satisfies `pred`, returning the value that matched.
+    ///
+    /// Loss is a windowed figure recomputed on the service's own tick, so a scenario has to sample
+    /// repeatedly rather than read once — an immediate read after arming loss would observe the
+    /// window before it.
+    pub fn await_diagnostics_downlink_loss<F>(
+        &self,
+        pred: F,
+        timeout: Duration,
+    ) -> Result<f32, String>
+    where
+        F: Fn(Option<f32>) -> bool,
+    {
+        let deadline = Instant::now() + timeout;
+        let mut last: Option<Option<f32>> = None;
+        while Instant::now() < deadline {
+            let _ = self.diagnostics();
+            let reading = self.diagnostic_downlink_loss().flatten();
+            last = Some(self.diagnostic_downlink_loss().flatten());
+            if pred(reading) {
+                return reading.ok_or_else(|| "predicate matched an unmeasured reading".to_string());
+            }
+            std::thread::sleep(Duration::from_millis(250));
+        }
+        Err(format!(
+            "downlink loss predicate never held; last reading {last:?}"
+        ))
+    }
+
+    /// Polls diagnostics until `pred` holds or the deadline passes. The service derives a stall
+    /// across consecutive samples, so a scenario has to sample repeatedly rather than once.
+    pub fn await_diagnostics<F>(&self, pred: F, timeout: Duration) -> Result<(bool, bool, u64), String>
+    where
+        F: Fn(&(bool, bool, u64)) -> bool,
+    {
+        let deadline = Instant::now() + timeout;
+        let mut last = (false, false, 0);
+        while Instant::now() < deadline {
+            last = self.diagnostics();
+            if pred(&last) {
+                return Ok(last);
+            }
+            std::thread::sleep(Duration::from_millis(250));
+        }
+        Err(format!("diagnostics predicate never held; last reading {last:?}"))
     }
 
     /// Drain captured samples accumulated over `dur`. Sleeps the full window so

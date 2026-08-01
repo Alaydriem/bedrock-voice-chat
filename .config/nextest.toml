@@ -6,7 +6,7 @@
 #
 # Global concurrency is the `--test-threads` / `-j` lever, set per-environment
 # (a CI runner has far less headroom than a dev workstation) rather than pinned
-# here. The group below bounds only the heaviest tests on top of that lever.
+# here. The groups below bound only the heaviest tests on top of that lever.
 
 [test-groups]
 # The cross-server voice/jukebox scenarios each boot 2-3 in-process server
@@ -16,6 +16,16 @@
 # to exhaust a small machine, so they are capped at 2 concurrent. Everything else
 # parallelizes up to `-j`. Raise this only with headroom to spare.
 heavy-relay-e2e = { max-threads = 2 }
+
+# Scenarios that put a UDP relay between a client and the server, so every datagram
+# takes an extra userspace hop through a tokio task.
+#
+# These matter for a reason beyond their own cost. Several audio scenarios assert
+# *exact* frame delivery — "Alice sent 150, Bob received 150" — over bounded
+# channels, which is only true while the machine keeps up. Adding relay scenarios
+# raised full-suite load enough that those equalities began failing by one frame,
+# on a different test each run. Capping the relay group keeps that headroom.
+relayed-e2e = { max-threads = 1 }
 
 [profile.default]
 # Per test, not per run: a test is flagged slow after `period`, and killed after
@@ -39,3 +49,7 @@ test-group = 'heavy-relay-e2e'
 # suite is load-sensitive enough to produce spurious failures under parallel
 # builds.
 slow-timeout = { period = "120s", terminate-after = 3 }
+
+[[profile.default.overrides]]
+filter = 'test(/scenarios::downlink_loss::/) + test(/scenarios::link_stall::/) + test(/scenarios::path_exhaustion::/)'
+test-group = 'relayed-e2e'

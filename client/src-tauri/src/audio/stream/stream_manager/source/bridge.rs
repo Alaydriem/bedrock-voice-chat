@@ -122,6 +122,8 @@ mod tests {
             _ => None,
         };
 
+        // Its own counters. This bridge drives a test source rather than a capture device, so its
+        // frame accounting must not be reported as a real microphone's.
         let mut core = InputProcessCore::new(
             gate,
             audio_resampler,
@@ -129,6 +131,7 @@ mod tests {
             src.sample_rate(),
             2,
             producer,
+            Arc::new(crate::diagnostics::InputPipelineStats::new()),
         );
 
         let shutdown_thread = shutdown.clone();

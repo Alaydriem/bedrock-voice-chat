@@ -44,6 +44,8 @@ impl ClientActionService {
             packet_type: PacketType::ClientAction,
             owner: None,
             data: QuicNetworkPacketData::ClientAction(packet),
+                    // Not a server fan-out, so this envelope carries no sequence.
+            seq: None,
         };
         registry.send_to_player(actor_name, &envelope)
     }

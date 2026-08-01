@@ -103,6 +103,8 @@ impl EjectScheduler {
             packet_type: PacketType::BedrockEvent,
             owner: None,
             data: QuicNetworkPacketData::BedrockEvent(bedrock_packet),
+                    // Not a server fan-out, so this envelope carries no sequence.
+            seq: None,
         };
 
         if let Err(e) = self.webhook_receiver.send_packet(packet).await {

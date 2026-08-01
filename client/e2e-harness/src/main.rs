@@ -280,6 +280,41 @@ fn main() {
                             stdin_handle.exit(0);
                             break;
                         }
+                        Ok(InMsg::RequestDiagnostics) => {
+                            let service = stdin_handle
+                                .try_state::<std::sync::Arc<
+                                    bvc_client_lib::diagnostics::LinkDiagnosticsService,
+                                >>();
+                            let snapshot = service.and_then(|s| s.snapshot());
+                            StdoutBridge::emit(&OutMsg::Diagnostics {
+                                connected: snapshot.is_some(),
+                                stalled: snapshot
+                                    .as_ref()
+                                    .map(|s| s.link.stalled)
+                                    .unwrap_or(false),
+                                uptime_secs: snapshot
+                                    .as_ref()
+                                    .map(|s| s.link.uptime_secs)
+                                    .unwrap_or(0),
+                                datagrams_sent: snapshot
+                                    .as_ref()
+                                    .map(|s| s.mic.datagrams_per_sec as u64)
+                                    .unwrap_or(0),
+                                datagrams_received: snapshot
+                                    .as_ref()
+                                    .map(|s| s.playback.datagrams_per_sec as u64)
+                                    .unwrap_or(0),
+                                peers: snapshot
+                                    .as_ref()
+                                    .map(|s| {
+                                        s.peers.iter().map(|p| p.name.clone()).collect()
+                                    })
+                                    .unwrap_or_default(),
+                                downlink_loss_pct: snapshot
+                                    .as_ref()
+                                    .and_then(|s| s.link.downlink_loss_pct),
+                            });
+                        }
                         Ok(InMsg::RequestStats) => {
                             let (sent, from_quic, into_jitter_buffer) =
                                 bvc_client_lib::testkit::counters::TransportCounters::snapshot();

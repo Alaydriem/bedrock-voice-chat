@@ -3,6 +3,7 @@ use std::net::IpAddr;
 use ts_rs::TS;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
+#[cfg_attr(feature = "openapi", derive(schemars::JsonSchema))]
 #[ts(export, export_to = "./../../client/src/js/bindings/")]
 pub enum AddressFamily {
     Ipv4,
@@ -24,6 +25,7 @@ impl AddressFamily {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[cfg_attr(feature = "openapi", derive(schemars::JsonSchema))]
 #[ts(export, export_to = "./../../client/src/js/bindings/")]
 pub enum AddressFamilyPreference {
     PreferIpv6,

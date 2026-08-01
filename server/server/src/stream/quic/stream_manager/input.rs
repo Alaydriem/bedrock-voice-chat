@@ -266,6 +266,8 @@ impl StreamTrait for InputStream {
                                                         data: QuicNetworkPacketData::ServerError(
                                                             error_packet,
                                                         ),
+                                                                                                            // Not a server fan-out, so this envelope carries no sequence.
+                                                        seq: None,
                                                     };
                                                     if let Ok(bytes) = error_net.to_datagram() {
                                                         let _ = connection.datagram_mut(
@@ -320,6 +322,8 @@ impl StreamTrait for InputStream {
                                                 event_type: ConnectionEventType::Connected,
                                             },
                                         ),
+                                                                            // Not a server fan-out, so this envelope carries no sequence.
+                                        seq: None,
                                     })
                                     .await;
                                 }
@@ -400,6 +404,8 @@ impl StreamTrait for InputStream {
                                 timestamp,
                                 event_type: ConnectionEventType::Disconnected,
                             }),
+                                                    // Not a server fan-out, so this envelope carries no sequence.
+                            seq: None,
                         };
                         if let Err(e) = webhook_receiver_clone.send_packet(presence_packet).await {
                             tracing::error!("Failed to send player disconnected event: {}", e);

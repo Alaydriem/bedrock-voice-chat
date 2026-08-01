@@ -35,6 +35,8 @@ impl LocalInjectDelivery for BroadcastInjectDelivery {
             packet_type: PacketType::PeerPresenceInject,
             owner: None,
             data: QuicNetworkPacketData::PeerPresenceInject(packet),
+                    // Not a server fan-out, so this envelope carries no sequence.
+            seq: None,
         };
         let webhook = self.webhook.clone();
         tokio::spawn(async move {
@@ -49,6 +51,8 @@ impl LocalInjectDelivery for BroadcastInjectDelivery {
             packet_type: PacketType::PeerAnnounceInject,
             owner: None,
             data: QuicNetworkPacketData::PeerAnnounceInject(packet),
+                    // Not a server fan-out, so this envelope carries no sequence.
+            seq: None,
         };
         let webhook = self.webhook.clone();
         tokio::spawn(async move {
