@@ -79,9 +79,61 @@ impl RocketManager {
     }
 
 
+    /// Announces, unmissably, that this host cannot give the HTTP listener a
+    /// dual-stack socket even though `listen` asks for one.
+    ///
+    /// Emitted at ERROR rather than WARN deliberately. `get_tracing_log_level` maps
+    /// both `error` and any unrecognised level to `Level::ERROR`, so a warning would
+    /// be filtered out on exactly the hosts whose operator has turned logging down —
+    /// and the failure this describes is otherwise silent: IPv4 clients keep working,
+    /// so nothing looks wrong until an IPv6-only player cannot log in.
+    fn warn_if_http_is_not_dual_stack(&self) {
+        if !self.config.server.http_listen_is_downgraded() {
+            if self.config.server.listen_is_wildcard_v6() {
+                tracing::info!(
+                    "HTTP and QUIC are both listening dual-stack on [{}]",
+                    self.config.server.listen
+                );
+            }
+            return;
+        }
+
+        let platform_cause = if cfg!(windows) {
+            "Windows enables IPV6_V6ONLY by default and Rocket 0.5 binds its own \
+             socket (no listener API), so the flag cannot be cleared."
+        } else {
+            "net.ipv6.bindv6only is set to 1 on this host; it must be 0 for a \
+             wildcard IPv6 bind to accept IPv4 peers."
+        };
+
+        tracing::error!(
+            "\n\
+             ==========================================================================\n\
+             ==  IPv6 HTTP IS NOT AVAILABLE ON THIS HOST                             ==\n\
+             ==========================================================================\n\
+             listen = \"{}\" requests a dual-stack listener, but a wildcard IPv6 TCP\n\
+             bind is not dual-stack here, so HTTP is bound to {} and serves IPv4 only.\n\
+             \n\
+             Cause: {}\n\
+             \n\
+             Effect: QUIC voice remains dual-stack, so IPv6 works for audio. Login,\n\
+             channels, and every other API call go over HTTP, so an IPv6-ONLY CLIENT\n\
+             CANNOT SIGN IN TO THIS SERVER. IPv4 clients are unaffected.\n\
+             \n\
+             Fix: run the server on Linux with net.ipv6.bindv6only=0 (the default), or\n\
+             put a dual-stack reverse proxy in front of the HTTP port.\n\
+             ==========================================================================",
+            self.config.server.listen,
+            crate::config::Server::FALLBACK_LISTEN,
+            platform_cause
+        );
+    }
+
     /// Starts the Rocket HTTP server - this is the main entry point
     pub async fn start(&self) -> Result<(), Error> {
         tracing::info!("Starting Rocket HTTP server manager");
+
+        self.warn_if_http_is_not_dual_stack();
 
         // Ensure the assets directory exists
         let assets_path = std::path::Path::new(&self.config.server.assets_path);

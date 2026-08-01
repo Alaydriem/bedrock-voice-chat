@@ -21,6 +21,11 @@ pub struct AppState {
     pub current_server: Option<String>,
     pub(crate) api_client: Option<Api>,
     pub(crate) server_pool: Arc<RwLock<HashMap<String, Api>>>,
+    reachability: Arc<common::net::ReachabilityProbe>,
+    // Shared rather than copied into each Api: pooled clients are long-lived, and a
+    // host that moves between networks has to pick up a new verdict without them
+    // being rebuilt.
+    family_preference: Arc<common::net::FamilyPreferenceCell>,
 }
 
 impl AppState {
@@ -52,13 +57,23 @@ impl AppState {
             current_server: AppState::get_current_server(&store),
             api_client: None,
             server_pool: Arc::new(RwLock::new(HashMap::new())),
+            reachability: common::net::ReachabilityProbe::new_shared(),
+            family_preference: common::net::FamilyPreferenceCell::new_shared(),
         }
+    }
+
+    pub(crate) fn reachability(&self) -> Arc<common::net::ReachabilityProbe> {
+        self.reachability.clone()
+    }
+
+    pub(crate) fn family_preference(&self) -> Arc<common::net::FamilyPreferenceCell> {
+        self.family_preference.clone()
     }
 
     /// Initialize the API client with credentials
     /// Sets both the default api_client (for backwards compatibility) and adds to server_pool
     pub async fn initialize_api_client(&mut self, endpoint: String, ca_cert: String, pem: String) {
-        let api = Api::new(endpoint.clone(), ca_cert, pem);
+        let api = Api::new(endpoint.clone(), ca_cert, pem, self.family_preference.clone());
 
         self.api_client = Some(api.clone());
         self.current_server = Some(endpoint.clone());

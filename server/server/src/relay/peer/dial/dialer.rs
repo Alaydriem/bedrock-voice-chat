@@ -1,5 +1,5 @@
 use std::future::Future;
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context as TaskContext, Poll};
@@ -58,8 +58,37 @@ impl PeerDialer {
         }
     }
 
+    // A dual-stack socket is used only when a peer actually has an IPv6 address.
+    // IPv4 destinations then travel v4-mapped, because s2n-quic hands the kernel a
+    // bare sockaddr_in otherwise and an IPv6 socket rejects it.
+    pub fn bind_address(addrs: &[IpAddr]) -> &'static str {
+        let has_ipv6 = addrs.iter().any(|ip| match ip {
+            IpAddr::V6(v6) => v6.to_ipv4_mapped().is_none(),
+            IpAddr::V4(_) => false,
+        });
+
+        if has_ipv6 { "[::]:0" } else { "0.0.0.0:0" }
+    }
+
+    // Every resolved address becomes a candidate, in the order given. Dropping one
+    // on a guess about which family works would strand a peer whose only address is
+    // the dropped one.
+    pub fn dial_targets(addrs: &[IpAddr], port: u16, bind: &str) -> Vec<SocketAddr> {
+        let v6_socket = bind.starts_with('[');
+
+        addrs
+            .iter()
+            .map(|ip| match (ip, v6_socket) {
+                (IpAddr::V4(v4), true) => {
+                    SocketAddr::new(IpAddr::V6(v4.to_ipv6_mapped()), port)
+                }
+                _ => SocketAddr::new(*ip, port),
+            })
+            .collect()
+    }
+
     // Builds the s2n-quic client endpoint with the issued peer credential.
-    async fn build_client(&self) -> Result<Client, anyhow::Error> {
+    async fn build_client(&self, bind: &str) -> Result<Client, anyhow::Error> {
         let provider = common::rustls::MtlsProvider::new_from_vec(
             self.ca_pem.clone(),
             self.cert_pem.clone(),
@@ -79,7 +108,7 @@ impl PeerDialer {
         let client = Client::builder()
             .with_tls(provider)
             .context("client tls")?
-            .with_io("0.0.0.0:0")
+            .with_io(bind)
             .context("client io")?
             .with_datagram(dg_endpoint)
             .context("client datagram")?
@@ -89,6 +118,35 @@ impl PeerDialer {
         Ok(client)
     }
 
+    // Walks the candidates in order and returns the first completed handshake. The
+    // winning address is logged: a peer reached over IPv6 is the signal that the
+    // dual-stack path is carrying real traffic.
+    async fn connect_first_available(
+        client: &Client,
+        targets: &[SocketAddr],
+        server_name: &str,
+    ) -> Result<common::s2n_quic::Connection, anyhow::Error> {
+        let mut last_error: Option<anyhow::Error> = None;
+
+        for target in targets {
+            let connect = Connect::new(*target).with_server_name(server_name.to_string());
+            match client.connect(connect).await {
+                Ok(connection) => {
+                    tracing::debug!("relay peer handshake succeeded on {}", target);
+                    return Ok(connection);
+                }
+                Err(e) => {
+                    tracing::debug!("relay peer handshake failed on {}: {}", target, e);
+                    last_error = Some(anyhow::Error::new(e));
+                }
+            }
+        }
+
+        Err(last_error
+            .unwrap_or_else(|| anyhow::anyhow!("no peer addresses were available"))
+            .context("peer connect"))
+    }
+
     // Dials the peer and runs the read/write pump until the connection closes.
     // Inbound datagrams are deserialized and handed to the GATED `ingest`
     // (`PeerManager::ingest`, tagged `FromPeer`): the same presence-proof gate the
@@ -96,14 +154,20 @@ impl PeerDialer {
     // Queued outbound `RelayedPacket`s are serialized and sent as datagrams.
     pub async fn run(
         &self,
-        socket: SocketAddr,
+        addrs: Vec<IpAddr>,
+        port: u16,
         server_name: String,
         ingest: Arc<dyn GatedPeerIngest>,
         mut outbound_rx: mpsc::Receiver<RelayedPacket>,
     ) -> Result<(), anyhow::Error> {
-        let client = self.build_client().await?;
-        let connect = Connect::new(socket).with_server_name(server_name);
-        let mut connection = client.connect(connect).await.context("peer connect")?;
+        let bind = Self::bind_address(&addrs);
+        let targets = Self::dial_targets(&addrs, port, bind);
+        if targets.is_empty() {
+            return Err(anyhow::anyhow!("peer resolved to no addresses"));
+        }
+
+        let client = self.build_client(bind).await?;
+        let mut connection = Self::connect_first_available(&client, &targets, &server_name).await?;
         connection.keep_alive(true).ok();
         let connection = Arc::new(connection);
 

@@ -108,24 +108,27 @@ impl ProductionPeerDialDriver {
             }
         };
 
-        let socket = match (host.as_str(), quic_port).to_socket_addrs() {
-            Ok(addrs) => {
-                let resolved: Vec<_> = addrs.collect();
-                // Prefer IPv4: a hostname like "localhost" resolves to `::1` first
-                // on many systems, but BVC servers bind an IPv4 `listen` address,
-                // so a v6 dial reaches no listener and the QUIC handshake times
-                // out. Fall back to whatever resolved when no IPv4 exists.
-                match resolved
-                    .iter()
-                    .find(|a| a.is_ipv4())
-                    .or_else(|| resolved.first())
-                {
-                    Some(addr) => *addr,
-                    None => {
-                        tracing::warn!("relay dial: no socket addr for {}", peer_ep);
-                        return;
+        // Every resolved address is kept, IPv4 first. IPv4 leads because a
+        // dual-stack server is reachable that way from anywhere, which makes it the
+        // safe first attempt; IPv6 follows rather than being discarded, so a peer
+        // whose only address is AAAA is still dialable. Collapsing to one address
+        // here is what previously made such a peer unreachable.
+        let addrs = match (host.as_str(), quic_port).to_socket_addrs() {
+            Ok(resolved) => {
+                let mut unique: Vec<std::net::IpAddr> = Vec::new();
+                for addr in resolved {
+                    if !unique.contains(&addr.ip()) {
+                        unique.push(addr.ip());
                     }
                 }
+                unique.sort_by_key(|ip| !ip.is_ipv4());
+
+                if unique.is_empty() {
+                    tracing::warn!("relay dial: no socket addr for {}", peer_ep);
+                    return;
+                }
+
+                unique
             }
             Err(e) => {
                 tracing::warn!("relay dial: resolve {} failed: {}", peer_ep, e);
@@ -146,7 +149,10 @@ impl ProductionPeerDialDriver {
         let gated_ingest = PeerLinkIngest::new_shared(peer_manager.clone(), peer_ep.clone());
 
         // Opens the QUIC connection and pumps datagrams until close.
-        if let Err(e) = dialer.run(socket, host, gated_ingest, outbound_rx).await {
+        if let Err(e) = dialer
+            .run(addrs, quic_port, host, gated_ingest, outbound_rx)
+            .await
+        {
             tracing::warn!("relay peer dial to {} ended: {:#}", peer_ep, e);
         }
 

@@ -51,6 +51,33 @@ impl EmbeddedServer {
         Self::config_json_with_relay(rocket_port, quic_port, data_dir, None)
     }
 
+    /// Binds the wildcard IPv6 address, which serves IPv4 peers as well because
+    /// s2n-quic-platform clears IPV6_V6ONLY on the socket it creates. This is the
+    /// production default; the other constructors pin `127.0.0.1`, so without this
+    /// the dual-stack bind would go entirely untested.
+    pub fn config_json_dual_stack(rocket_port: u16, quic_port: u16, data_dir: &Path) -> String {
+        Self::config_json_inner(rocket_port, quic_port, data_dir, None, "::", &[])
+    }
+
+    /// Advertises a port other than the bound one, which is how a client is steered
+    /// through a middlebox: `/api/config` reports the advertised list and the client
+    /// dials that, while the server keeps listening on `quic_port`.
+    pub fn config_json_advertising(
+        rocket_port: u16,
+        quic_port: u16,
+        data_dir: &Path,
+        advertised_quic_ports: &[u16],
+    ) -> String {
+        Self::config_json_inner(
+            rocket_port,
+            quic_port,
+            data_dir,
+            None,
+            "127.0.0.1",
+            advertised_quic_ports,
+        )
+    }
+
     /// Like `config_json` but lowers the cross-server relay cadence so a peer link
     /// converges within a test window. Discovery is decentralized (in-realm `!bvca`
     /// announce); the relay plane builds unconditionally, so the only knobs are the
@@ -62,6 +89,24 @@ impl EmbeddedServer {
         quic_port: u16,
         data_dir: &Path,
         idle_timeout_secs: Option<u64>,
+    ) -> String {
+        Self::config_json_inner(
+            rocket_port,
+            quic_port,
+            data_dir,
+            idle_timeout_secs,
+            "127.0.0.1",
+            &[],
+        )
+    }
+
+    fn config_json_inner(
+        rocket_port: u16,
+        quic_port: u16,
+        data_dir: &Path,
+        idle_timeout_secs: Option<u64>,
+        listen: &str,
+        advertised_quic_ports: &[u16],
     ) -> String {
         let certs_path = data_dir.join("certificates");
         let db_path = data_dir.join("bvc-test.sqlite3");
@@ -96,9 +141,10 @@ impl EmbeddedServer {
                 },
             },
             "server": {
-                "listen": "127.0.0.1",
+                "listen": listen,
                 "port": rocket_port,
                 "quic_port": quic_port,
+                "advertised_quic_ports": advertised_quic_ports,
                 "assets_path": assets_path.to_string_lossy(),
                 "tls": {
                     "certificate": certs_path.join("ca.crt").to_string_lossy(),

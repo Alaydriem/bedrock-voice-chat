@@ -7,6 +7,7 @@ pub use serde::{Deserialize, Serialize};
 
 pub mod consts;
 pub mod game_data;
+pub mod net;
 pub mod players;
 pub mod request;
 pub mod response;

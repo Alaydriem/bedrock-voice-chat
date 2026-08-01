@@ -1,9 +1,11 @@
 use crate::analytics::AnalyticsService;
 use crate::{NetworkStreamManager, structs::app_state::AppState};
+use common::net::CandidatePlan;
 use common::response::LoginResponse;
 use common::structs::network::QuicPortSelection;
+use common::structs::reachability::ReachabilityRequest;
 use log::{error, info, warn};
-use std::net::{IpAddr, SocketAddr};
+use std::net::IpAddr;
 use std::sync::Arc;
 use tauri::State;
 use tauri::async_runtime::Mutex;
@@ -83,58 +85,96 @@ pub(crate) async fn change_network_stream(
     info!("QUIC candidate ports for {}: {:?}", server_fqdn, ports);
 
     // One DNS lookup serves every candidate: the host is identical and only the
-    // port varies, so resolving per port would repeat the same query.
-    let resolved_ip = match tokio::net::lookup_host(format!("{}:{}", server_fqdn, ports[0])).await {
-        Ok(addrs) => {
-            let resolved: Vec<SocketAddr> = addrs.collect();
-            match resolved
-                .iter()
-                .find(|sa| matches!(sa.ip(), IpAddr::V4(_)))
-                .or_else(|| resolved.first())
-            {
-                Some(addr) => addr.ip(),
-                None => {
-                    error!("System DNS returned no IPs for {}", server_fqdn);
-                    return Err("DNS_FAIL: System DNS returned no results".to_string());
+    // port varies, so resolving per port would repeat the same query. Both families
+    // are kept — collapsing to a single IPv4 address here is what left an IPv6-only
+    // host with nothing to dial, and which family is tried first is the probe's
+    // decision below rather than DNS ordering.
+    let resolved: Vec<IpAddr> =
+        match tokio::net::lookup_host(format!("{}:{}", server_fqdn, ports[0])).await {
+            Ok(addrs) => {
+                let mut unique: Vec<IpAddr> = Vec::new();
+                for addr in addrs {
+                    if !unique.contains(&addr.ip()) {
+                        unique.push(addr.ip());
+                    }
                 }
+                unique
             }
-        }
-        Err(e) => {
-            error!("System DNS resolution failed for {}: {}", server_fqdn, e);
-            return Err(format!("DNS_FAIL: {}", e));
-        }
+            Err(e) => {
+                error!("System DNS resolution failed for {}: {}", server_fqdn, e);
+                return Err(format!("DNS_FAIL: {}", e));
+            }
+        };
+
+    if resolved.is_empty() {
+        error!("System DNS returned no IPs for {}", server_fqdn);
+        return Err("DNS_FAIL: System DNS returned no results".to_string());
+    }
+
+    let (reachability, family_preference) = {
+        let state = state.lock().await;
+        (state.reachability(), state.family_preference())
     };
 
-    let socket_addrs: Vec<SocketAddr> = ports
-        .iter()
-        .map(|port| SocketAddr::new(resolved_ip, *port))
-        .collect();
+    let request = ReachabilityRequest::new(
+        server_fqdn.clone(),
+        resolved.clone(),
+        ports.clone(),
+        format!("{}/api/config", server.trim_end_matches('/')),
+        Url::parse(&server)
+            .ok()
+            .and_then(|u| u.port())
+            .unwrap_or(ReachabilityRequest::DEFAULT_HTTPS_PORT),
+    );
+
+    let report = reachability.evaluate(&request).await;
+    family_preference.set(report.preference());
+
+    let plan = CandidatePlan::build(&resolved, &ports, &report);
+
+    info!(
+        "QUIC candidates for {} ({:?}): {:?}",
+        server_fqdn,
+        report.preference(),
+        plan.candidates()
+            .iter()
+            .map(|c| c.dial())
+            .collect::<Vec<_>>()
+    );
 
     let mut network_stream = network_stream.lock().await;
     _ = network_stream.stop().await;
     analytics.clear_connected_server();
     analytics.clear_player();
     let gamertag = data.gamertag.clone();
-    match network_stream
+    // The error is rendered to a String before any further await: it is a
+    // `Box<dyn Error>`, which is not Send, and holding one across an await would
+    // make this command's future non-Send.
+    let outcome = network_stream
         .restart(
             server_fqdn.clone(),
             server.clone(),
-            socket_addrs,
+            plan,
             data.gamertag,
             data.certificate_ca,
             data.certificate,
             data.certificate_key,
         )
         .await
-    {
+        .map_err(|e| format!("{:?}", e));
+
+    match outcome {
         Ok(()) => {
             info!("Now streaming {}", server);
             analytics.set_connected_server(Some(server.clone()));
             analytics.set_player(&gamertag);
         }
-        Err(e) => {
-            error!("QUIC connection failed to {}: {:?}", server, e);
-            return Err(format!("QUIC_FAIL: {}", e));
+        Err(detail) => {
+            error!("QUIC connection failed to {}: {}", server, detail);
+            // A verdict that led nowhere must not persist to its TTL: the next
+            // attempt re-probes rather than repeating the same ordering.
+            reachability.invalidate(&server_fqdn).await;
+            return Err(format!("QUIC_FAIL: {}", detail));
         }
     };
 
