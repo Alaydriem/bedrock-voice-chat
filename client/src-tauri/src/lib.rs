@@ -31,6 +31,7 @@ pub mod bedrock;
 mod commands;
 pub mod control;
 mod deep_links;
+pub mod diagnostics;
 pub mod discord;
 pub use discord::{
     DiscordLinkService, DiscordOAuth, DiscordRoleClient, DiscordTraitState, RoleCategory,
@@ -65,6 +66,13 @@ pub mod websocket;
 pub use crate::audio::stream::stream_manager::sink::CapturingSink;
 #[cfg(feature = "e2e")]
 pub use crate::audio::stream::stream_manager::source::BridgeInputSource;
+
+// Re-exported for the integration test crate to cover one contract: feeding the adaptation
+// engine real buffer underruns leaves capacity, warmup, and reorder tolerance unmoved,
+// because the capacity floor swallows every reachable multiplier. Two type re-exports rather
+// than widening `audio::stream`, which would leak the whole playback pipeline.
+pub use crate::audio::stream::jitter_buffer::adaptive::AdaptationEngine;
+pub use crate::audio::stream::jitter_buffer::metrics::MetricsCollector;
 
 /// JNI export called from MainActivity.onCreate to populate the global
 /// `ndk_context` static. tao 0.35 (Tauri 2.11) dropped this initialization as
@@ -215,6 +223,8 @@ pub fn run() {
             })
             .build())
         .invoke_handler(tauri::generate_handler![
+            commands::diagnostics::get_link_diagnostics,
+            commands::diagnostics::get_diagnostics_report,
             // About
             crate::commands::about::get_app_info,
             crate::commands::about::export_logs,

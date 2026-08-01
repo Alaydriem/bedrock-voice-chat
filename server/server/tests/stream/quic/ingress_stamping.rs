@@ -22,6 +22,8 @@ fn query_state_packet(
             recording: false,
             current_group: None,
         })),
+        // Not a server fan-out to one connection, so this envelope carries no sequence.
+        seq: None,
     }
 }
 

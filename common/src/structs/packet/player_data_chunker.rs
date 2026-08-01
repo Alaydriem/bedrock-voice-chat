@@ -63,6 +63,9 @@ impl PlayerDataChunker {
             owner: owner.cloned(),
             packet_type: PacketType::PlayerData,
             data: QuicNetworkPacketData::PlayerData(PlayerDataPacket::new(players)),
+            // Sized and sent by the position broadcaster, not stamped for one connection; the
+            // fan-out in `broadcast_to_all` assigns each recipient's sequence.
+            seq: None,
         }
     }
 

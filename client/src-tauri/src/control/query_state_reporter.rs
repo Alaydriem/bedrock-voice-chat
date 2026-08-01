@@ -215,6 +215,8 @@ impl QueryStateReporter {
                 // Stamped with the connection identity by the network OutputStream.
                 owner: None,
                 data,
+                            // Not a server fan-out, so this envelope carries no sequence.
+                seq: None,
             },
         };
         if let Err(e) = producer.try_send(packet) {

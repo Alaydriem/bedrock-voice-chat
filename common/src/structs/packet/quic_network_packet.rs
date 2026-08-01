@@ -17,9 +17,38 @@ pub struct QuicNetworkPacket {
     pub packet_type: PacketType,
     pub owner: Option<PacketOwner>,
     pub data: QuicNetworkPacketData,
+    // Monotonic per-connection sequence, assigned by the sender at the moment it queues this
+    // datagram for one recipient. A gap at the receiver therefore means exactly one thing: the
+    // sender sent it and it did not arrive.
+    //
+    // On the envelope rather than on the audio frame deliberately. A per-speaker sequence would be
+    // gapped by the server's own routing — proximity, channel membership, deafen distance — and a
+    // gap would then conflate correct filtering with loss.
+    //
+    // `None` from every producer that is not a server fan-out to one connection — the relay dialer,
+    // the embedded FFI path, the mods, and the client itself. A receiver reports loss as unmeasured
+    // rather than zero when it is absent, so an unstamped peer never reads as a perfect link.
+    //
+    // Adding this field was a BREAKING wire change, not an additive one, and `#[serde(default)]` is
+    // deliberately absent because it would imply otherwise. Postcard is not self-describing: a
+    // decoder expecting this byte runs off the end of a datagram produced without it. The direction
+    // that survives is only the harmless one — an old decoder ignores the trailing byte — which makes
+    // the break asymmetric and easy to miss during a rollout.
+    // `common/tests/structs/packet/envelope_sequence.rs` pins both directions.
+    pub seq: Option<u32>,
 }
 
 impl QuicNetworkPacket {
+    // Stamps this envelope for one recipient. Called immediately before serialization, after every
+    // decision not to send, so a suppressed packet consumes no number.
+    pub fn stamp(&mut self, sequence: u32) {
+        self.seq = Some(sequence);
+    }
+
+    pub fn sequence(&self) -> Option<u32> {
+        self.seq
+    }
+
     pub fn to_datagram(&self) -> Result<Vec<u8>, anyhow::Error> {
         let bytes = postcard::to_stdvec(&self)?;
         if bytes.len() > MAX_DATAGRAM_SIZE {

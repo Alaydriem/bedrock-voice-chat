@@ -5,6 +5,14 @@
 #[derive(Default)]
 pub(super) struct SharedState {
     pub(super) ready: bool,
+    // Most recent link-diagnostics reading from `OutMsg::Diagnostics`:
+    // (connected, stalled, uptime_secs).
+    pub(super) diagnostics: Option<(bool, bool, u64)>,
+    // Speaker names from the most recent `OutMsg::Diagnostics`.
+    pub(super) diagnostic_peers: Vec<String>,
+    // Derived downlink loss from the most recent reading. The outer Option is "no reading yet", the
+    // inner one is "the client reports it unmeasured" — two different facts.
+    pub(super) diagnostic_downlink_loss: Option<Option<f32>>,
     pub(super) connected: bool,
     pub(super) disconnected: bool,
     // Server-assigned channel id reported by OutMsg::ChannelJoined after connect.

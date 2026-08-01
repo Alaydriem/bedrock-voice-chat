@@ -4,11 +4,13 @@ use audio_gate::NoiseGate;
 use common::consts::OPUS_FRAME_DURATION_MS;
 use common::structs::audio::NoiseGateSettings;
 use log::warn;
+use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 use super::input::{
     MUTE_INPUT_STREAM, NOISE_GATE_SETTINGS, UPDATE_NOISE_GATE_SETTINGS, USE_NOISE_GATE,
 };
+use crate::diagnostics::InputPipelineStats;
 
 // Owned processing core for the input pipeline: noise gate, channel conversion,
 // resampling, and silence/tail gating, terminating in an AudioFrame::F32 send.
@@ -22,6 +24,7 @@ pub(crate) struct InputProcessCore {
     consecutive_silent_frames: u32,
     tail_frame_count: u32,
     producer: flume::Sender<AudioFrame>,
+    stats: Arc<InputPipelineStats>,
 }
 
 impl InputProcessCore {
@@ -32,6 +35,7 @@ impl InputProcessCore {
         src_sample_rate: u32,
         tail_frame_count: u32,
         producer: flume::Sender<AudioFrame>,
+        stats: Arc<InputPipelineStats>,
     ) -> Self {
         Self {
             gate,
@@ -42,6 +46,7 @@ impl InputProcessCore {
             consecutive_silent_frames: 0,
             tail_frame_count,
             producer,
+            stats,
         }
     }
 
@@ -111,6 +116,15 @@ impl InputProcessCore {
         let is_silent = mono_pcm.iter().all(|&e| f32::abs(e) == 0.0);
         let is_muted = MUTE_INPUT_STREAM.load(Ordering::Relaxed);
 
+        // A frame that survives the gate with any nonzero sample is a frame the gate passed. The
+        // gate exposes no open/closed query of its own, so this is the observation a diagnostic
+        // reports as gate state.
+        //
+        // A hard mute counts as closed regardless of what the gate did: muting does not zero the
+        // samples, so reporting the gate open while the mic is muted would print "gate open" and
+        // "muted true" side by side in the same report.
+        self.stats.record_frame(is_silent || is_muted);
+
         if is_muted {
             // Hard mute: reset state, send nothing
             self.consecutive_silent_frames = 0;
@@ -127,7 +141,7 @@ impl InputProcessCore {
                 pcm: mono_pcm,
                 captured_at_ms,
             })) {
-                Ok(()) => {}
+                Ok(()) => self.stats.record_sent(),
                 Err(_e) => {}
             }
         } else if self.consecutive_silent_frames < self.tail_frame_count {
@@ -143,7 +157,7 @@ impl InputProcessCore {
                 pcm: mono_pcm,
                 captured_at_ms,
             })) {
-                Ok(()) => {}
+                Ok(()) => self.stats.record_sent(),
                 Err(_e) => {}
             }
         }
@@ -175,7 +189,15 @@ mod tests {
         let (producer, consumer) = flume::bounded::<AudioFrame>(10000);
 
         // 48 kHz mono → no resampler needed
-        let mut core = InputProcessCore::new(make_gate_disabled(), None, 1, 48000, 2, producer);
+        let mut core = InputProcessCore::new(
+            make_gate_disabled(),
+            None,
+            1,
+            48000,
+            2,
+            producer,
+            Arc::new(InputPipelineStats::new()),
+        );
 
         // 20 ms at 48 kHz = 960 frames per chunk
         let chunk_frames = 960usize;

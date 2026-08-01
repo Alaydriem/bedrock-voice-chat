@@ -38,6 +38,10 @@ pub(crate) struct InputStream {
     #[allow(unused)]
     app_handle: tauri::AppHandle,
     pub health_state: Arc<HealthMonitorState>,
+    transport_stats: Arc<crate::diagnostics::TransportStats>,
+    // Follows the live connection: a reconnect mints a fresh stats handle, so loss accounting starts
+    // over with it rather than inheriting a dead connection's sequence baseline.
+    quic_stats: tokio::sync::watch::Receiver<Arc<crate::diagnostics::QuicLinkStats>>,
 }
 
 impl common::traits::StreamTrait for InputStream {
@@ -70,6 +74,8 @@ impl common::traits::StreamTrait for InputStream {
 
         let shutdown = self.shutdown.clone();
         let health_state = self.health_state.clone();
+        let transport_stats = self.transport_stats.clone();
+        let quic_stats = self.quic_stats.clone();
         jobs.push(tokio::spawn(async move {
             log::info!("Started network recv stream.");
             let mut decode_errors: u64 = 0;
@@ -84,6 +90,15 @@ impl common::traits::StreamTrait for InputStream {
                     Ok(packet) => {
                         consecutive_decode_errors = 0;
                         health_state.on_packet_received();
+                        transport_stats.record_received();
+
+                        // Every envelope, regardless of type: the sequence is per connection rather
+                        // than per stream, so counting only audio frames would read every control
+                        // packet the server sent as a loss. Absent from a server predating the
+                        // field, which leaves downlink loss reported as unmeasured.
+                        if let Some(sequence) = packet.sequence() {
+                            quic_stats.borrow().record_sequence(sequence);
+                        }
 
                         if packet.packet_type == PacketType::HealthCheck {
                             health_state.on_health_check_received();
@@ -91,9 +106,8 @@ impl common::traits::StreamTrait for InputStream {
                             continue;
                         }
 
-                        #[cfg(feature = "e2e")]
                         if packet.packet_type == PacketType::AudioFrame {
-                            crate::testkit::counters::TransportCounters::increment_from_quic();
+                            transport_stats.record_frame_from_quic();
                         }
                         _ = tx.send_async(AudioPacket { data: packet }).await;
                     }
@@ -190,6 +204,8 @@ impl InputStream {
         connection: Option<Arc<Connection>>,
         app_handle: tauri::AppHandle,
         health_state: Arc<HealthMonitorState>,
+        transport_stats: Arc<crate::diagnostics::TransportStats>,
+        quic_stats: tokio::sync::watch::Receiver<Arc<crate::diagnostics::QuicLinkStats>>,
     ) -> Self {
         Self {
             bus: producer.clone(),
@@ -199,6 +215,8 @@ impl InputStream {
             metadata: Arc::new(moka::future::Cache::builder().build()),
             app_handle: app_handle.clone(),
             health_state,
+            transport_stats,
+            quic_stats,
         }
     }
 }

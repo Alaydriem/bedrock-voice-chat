@@ -19,6 +19,27 @@ fn main() {
     let command_payload = remove_defs(command_schema_value.clone());
     let success_payload = remove_defs(success_schema_value.clone());
     let error_payload = remove_defs(error_schema_value.clone());
+    // The payload shape is NOT derived here. `common` is pinned to schemars 0.8 for the
+    // rocket_okapi stack while this crate is on 1.0, so the two `JsonSchema` traits are
+    // incompatible and the snapshot type cannot be reflected from here. Rather than hand-copy the
+    // shape — which would drift from the Rust definition with nothing to catch it — the channel
+    // documents its envelope and points at the generated TypeScript binding, which is produced
+    // from that single definition and is the contract a consumer should read.
+    let metrics_payload = json!({
+        "type": "object",
+        "required": ["type", "data"],
+        "properties": {
+            "type": {
+                "type": "string",
+                "const": "metrics",
+                "description": "Discriminant. Present so a consumer can tell this from a state frame."
+            },
+            "data": {
+                "type": "object",
+                "description": "LinkDiagnosticsSnapshot. Field-level contract: client/src/js/bindings/LinkDiagnosticsSnapshot.ts, generated from the Rust definition in common/src/structs/metrics/."
+            }
+        }
+    });
 
     let spec = json!({
         "asyncapi": "3.0.0",
@@ -48,6 +69,15 @@ fn main() {
                         "$ref": "#/components/messages/ErrorResponse"
                     }
                 }
+            },
+            "metrics": {
+                "address": "/metrics",
+                "description": "Push-only link diagnostics, one frame per second while a connection is live. Authenticate with the configured key as a `key` query parameter; the upgrade is refused outright when it is missing or wrong. Inbound frames other than close and ping are ignored.",
+                "messages": {
+                    "metrics": {
+                        "$ref": "#/components/messages/MetricsPush"
+                    }
+                }
             }
         },
         "components": {
@@ -67,6 +97,14 @@ fn main() {
                     "description": "Contains success flag and command-specific data",
                     "contentType": "application/json",
                     "payload": success_payload
+                },
+                "MetricsPush": {
+                    "name": "MetricsPush",
+                    "title": "Link Diagnostics Push",
+                    "summary": "Live link, device and per-speaker diagnostics",
+                    "description": "Tagged envelope carrying a full diagnostics snapshot. Tagged rather than riding on ResponseData, which is an untagged union a consumer could not discriminate.",
+                    "contentType": "application/json",
+                    "payload": metrics_payload
                 },
                 "ErrorResponse": {
                     "name": "ErrorResponse",

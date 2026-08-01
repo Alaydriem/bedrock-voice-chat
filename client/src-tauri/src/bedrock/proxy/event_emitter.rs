@@ -31,6 +31,8 @@ impl BedrockEventEmitter {
                 packet_type: PacketType::BedrockEvent,
                 owner: None,
                 data: QuicNetworkPacketData::BedrockEvent(bedrock_packet),
+                            // Not a server fan-out, so this envelope carries no sequence.
+                seq: None,
             },
         };
 
@@ -52,6 +54,8 @@ impl BedrockEventEmitter {
                 packet_type: PacketType::ClientAction,
                 owner: None,
                 data: QuicNetworkPacketData::ClientAction(ca_packet),
+                            // Not a server fan-out, so this envelope carries no sequence.
+                seq: None,
             },
         };
 
@@ -72,6 +76,8 @@ impl BedrockEventEmitter {
                 packet_type: PacketType::PlayerPosition,
                 owner: None,
                 data: QuicNetworkPacketData::PlayerPosition(PlayerPositionPacket { player }),
+                            // Not a server fan-out, so this envelope carries no sequence.
+                seq: None,
             },
         };
 
@@ -94,6 +100,8 @@ impl BedrockEventEmitter {
                 data: QuicNetworkPacketData::PeerPresenceObserved(PeerPresenceObservedPacket {
                     token,
                 }),
+                            // Not a server fan-out, so this envelope carries no sequence.
+                seq: None,
             },
         };
 
@@ -117,6 +125,8 @@ impl BedrockEventEmitter {
                     hashed_world,
                     endpoint,
                 }),
+                            // Not a server fan-out, so this envelope carries no sequence.
+                seq: None,
             },
         };
 

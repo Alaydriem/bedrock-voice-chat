@@ -129,6 +129,8 @@ impl RelayOrchestrator {
             packet_type: PacketType::PeerPresenceInject,
             owner: None,
             data: QuicNetworkPacketData::PeerPresenceInject(packet),
+            // Not a server fan-out to one connection, so this envelope carries no sequence.
+            seq: None,
         }
     }
 }

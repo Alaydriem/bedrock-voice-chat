@@ -98,6 +98,12 @@ impl AppBuilder {
             #[cfg(feature = "bedrock-protocol")]
             announce_injector,
         );
+
+        // Pulled out before the manager is moved behind its mutex, so the diagnostics service
+        // never has to take that lock to read a counter — it is contended with playback.
+        let input_stats = audio_stream.input_stats();
+        let peer_registry = audio_stream.peer_registry();
+
         app.manage(Mutex::new(audio_stream));
 
         // Initialize WebSocketManager and register the broadcaster
@@ -140,6 +146,19 @@ impl AppBuilder {
         #[cfg(feature = "bedrock-protocol")]
         app.manage(crate::bedrock::QueryStateInjector::new_shared());
 
+        // Link diagnostics. The QUIC stats handle travels on a watch channel because a
+        // reconnect mints a fresh one, and the service must follow the live connection rather
+        // than hold a handle to a dead one.
+        let transport_stats = Arc::new(crate::diagnostics::TransportStats::new());
+        let link_session = Arc::new(crate::diagnostics::LinkSession::new());
+        let (quic_stats_tx, quic_stats_rx) =
+            tokio::sync::watch::channel(Arc::new(crate::diagnostics::QuicLinkStats::new()));
+
+        // The e2e harness reads its transport-fidelity counters through this same instance, so
+        // the numbers the tests trust and the numbers a player sees cannot diverge.
+        #[cfg(feature = "e2e")]
+        crate::testkit::counters::TransportCounters::register(transport_stats.clone());
+
         let network_stream = NetworkStreamManager::new(
             handle.state::<Arc<Sender<AudioPacket>>>().inner().clone(),
             handle
@@ -147,8 +166,30 @@ impl AppBuilder {
                 .inner()
                 .clone(),
             handle.clone(),
+            quic_stats_tx,
+            link_session.clone(),
+            transport_stats.clone(),
         );
         app.manage(Mutex::new(network_stream));
+
+        let session_config = Arc::new(crate::diagnostics::SessionConfig::new());
+        let device_info = Arc::new(crate::diagnostics::DeviceInfo::new());
+        // Resolved spatial settings are recorded where the audio pipeline reads them, so a
+        // report describes what this session runs under rather than the defaults.
+        app.manage(session_config.clone());
+        app.manage(device_info.clone());
+
+        let diagnostics = crate::diagnostics::LinkDiagnosticsService::new_shared(
+            quic_stats_rx,
+            transport_stats,
+            input_stats,
+            link_session,
+            session_config,
+            peer_registry,
+            device_info,
+        );
+        diagnostics.clone().start(handle.clone());
+        app.manage(diagnostics);
 
         Ok(())
     }

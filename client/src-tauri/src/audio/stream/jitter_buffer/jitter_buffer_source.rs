@@ -13,6 +13,7 @@ use super::metrics::MetricsCollector;
 use crate::audio::recording::{RawRecordingData, RecordingProducer};
 use crate::audio::stream::activity_detector::ActivityUpdate;
 use crate::audio::stream::stream_manager::AudioSinkType;
+use crate::diagnostics::PlayerReceiveStats;
 use common::RecordingPlayerData;
 
 #[derive(Debug)]
@@ -68,6 +69,10 @@ pub struct JitterBufferSource {
     recording_active: Option<Arc<AtomicBool>>,
     pending_recordings: VecDeque<PendingRecording>,
     current_recording: Option<PendingRecording>,
+    // Counters published outward. This source is moved into rodio's graph and no handle to it
+    // survives, so anything a diagnostic needs has to be written into shared state created
+    // before the move.
+    receive_stats: Arc<PlayerReceiveStats>,
 }
 
 impl JitterBufferSource {
@@ -79,6 +84,7 @@ impl JitterBufferSource {
         activity_tx: Option<flume::Sender<ActivityUpdate>>,
         recording_producer: Option<RecordingProducer>,
         recording_active: Option<Arc<AtomicBool>>,
+        receive_stats: Arc<PlayerReceiveStats>,
     ) -> Result<Self, JitterBufferError> {
         let sample_rate = initial_packet.sample_rate as u32;
 
@@ -127,11 +133,20 @@ impl JitterBufferSource {
             recording_active,
             pending_recordings,
             current_recording: None,
+            receive_stats,
         };
 
         source
             .metrics_collector
             .record_packet_arrival(initial_packet.timestamp, source.packet_ring.len());
+        source
+            .receive_stats
+            .record_arrival(initial_packet.timestamp);
+        source.receive_stats.set_ring(
+            source.packet_ring.len(),
+            source.adaptation_engine.current_capacity(),
+            source.adaptation_engine.warmup_packets_needed(),
+        );
 
         source.emit_activity_if_needed();
 
@@ -177,6 +192,7 @@ impl JitterBufferSource {
                     // Check packet acceptance with adaptive logic
                     if !self.is_packet_acceptable(packet_timestamp) {
                         self.metrics_collector.record_ooo_drop();
+                        self.receive_stats.record_ooo_drop();
                         continue;
                     }
 
@@ -185,6 +201,7 @@ impl JitterBufferSource {
                     let current_capacity = self.adaptation_engine.current_capacity();
                     if self.packet_ring.len() >= current_capacity {
                         self.metrics_collector.record_overflow_drop();
+                        self.receive_stats.record_overflow_drop();
                         if !self.packet_ring.is_empty() {
                             self.packet_ring.pop_front();
                         }
@@ -228,6 +245,12 @@ impl JitterBufferSource {
                         .record_packet_arrival(packet_timestamp, self.packet_ring.len());
                     self.metrics_collector
                         .update_ring_metrics(self.packet_ring.len());
+                    self.receive_stats.record_arrival(packet_timestamp);
+                    self.receive_stats.set_ring(
+                        self.packet_ring.len(),
+                        current_capacity,
+                        self.adaptation_engine.warmup_packets_needed(),
+                    );
 
                     // Emit activity since we just received a packet
                     self.emit_activity_if_needed();
@@ -275,6 +298,7 @@ impl JitterBufferSource {
                 Ok(frames_written) => {
                     self.audio_processor.reset_plc_counter();
                     self.metrics_collector.record_decode_success(frames_written);
+                    self.receive_stats.record_decode(frames_written);
 
                     // Assessment network conditions after successful decode
                     self.adaptation_engine
@@ -288,6 +312,18 @@ impl JitterBufferSource {
                 }
             }
         } else {
+            // An empty ring when playback needs a frame is the underrun. Recording it here
+            // gives `NetworkMetrics::buffer_underruns` its first writer, so
+            // `CongestionLevel::from_buffer_metrics` stops reading a constant zero.
+            //
+            // Its reach is bounded and deliberately so: `AdaptationEngine` is built with a
+            // base capacity of 6 frames while `AdaptiveBufferState` clamps to a 60 frame
+            // floor, so every reachable multiplier lands on the same clamped target and
+            // `adjust_capacity` always declines. Congestion becomes a real value; capacity,
+            // warmup, and reorder tolerance do not move. Correcting that clamp belongs to the
+            // buffer redesign.
+            self.metrics_collector.record_underrun();
+            self.receive_stats.record_underrun();
             self.generate_plc_sample()
         }
     }
@@ -297,10 +333,12 @@ impl JitterBufferSource {
         match self.audio_processor.generate_plc() {
             Ok(()) => {
                 self.metrics_collector.record_plc_generation();
+                self.receive_stats.record_plc();
                 self.audio_processor.next_sample()
             }
             Err(_) => {
                 self.metrics_collector.record_silence_generation();
+                self.receive_stats.record_silence();
                 Some(0.0) // Fallback to silence
             }
         }

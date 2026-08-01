@@ -2,6 +2,7 @@ mod analytics;
 #[cfg(feature = "bedrock-protocol")]
 mod bedrock;
 mod control;
+mod diagnostics;
 mod discord;
 mod feature_flags;
 mod harness;

@@ -2,6 +2,8 @@ mod analytics;
 mod bedrock;
 mod control;
 mod iap;
+mod metrics;
 mod network;
+mod packet;
 mod players;
 mod reachability;

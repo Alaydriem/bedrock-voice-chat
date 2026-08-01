@@ -36,6 +36,7 @@ pub enum AnalyticsEvent {
     DiscordAccountUnlinked,
     DiscordAccountResynced,
     FlagsmithFlagsFetched,
+    ClientLinkQuality,
 }
 
 impl AnalyticsEvent {
@@ -73,6 +74,7 @@ impl AnalyticsEvent {
             Self::DiscordAccountUnlinked => "DiscordAccountUnlinked",
             Self::DiscordAccountResynced => "DiscordAccountResynced",
             Self::FlagsmithFlagsFetched => "FlagsmithFlagsFetched",
+            Self::ClientLinkQuality => "ClientLinkQuality",
         }
     }
 }

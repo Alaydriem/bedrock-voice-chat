@@ -26,6 +26,10 @@ pub enum InMsg {
     // Request a snapshot of the transport-fidelity counters. The bin responds
     // with OutMsg::Stats immediately.
     RequestStats,
+    // Request the live link diagnostics. The bin responds with
+    // OutMsg::Diagnostics immediately, or with stalled=false and connected=false
+    // when no connection is up.
+    RequestDiagnostics,
     // Gracefully tear down the QUIC connection (the production server-switch
     // path) without exiting the process. The bin responds with
     // OutMsg::Disconnected once the network stream has been reset, so the server
@@ -100,6 +104,23 @@ pub enum OutMsg {
     //                    buffer pipeline (handle_audio_data succeeded). This is
     //                    ingest into the pipeline, BEFORE playback drain — not a
     //                    "heard" count.
+    // Link diagnostics emitted in response to InMsg::RequestDiagnostics. Only the fields a
+    // scenario asserts on are surfaced; the full snapshot is not worth serialising through the
+    // bridge.
+    Diagnostics {
+        connected: bool,
+        stalled: bool,
+        uptime_secs: u64,
+        datagrams_sent: u64,
+        datagrams_received: u64,
+        // Speakers currently attributable in the per-peer table, which is what the support log
+        // line is built from.
+        peers: Vec<String>,
+        // Server-to-client loss as the client derived it from the server's per-connection sequence.
+        // `None` means unmeasured, which is a different claim from zero and must survive the bridge
+        // as such.
+        downlink_loss_pct: Option<f32>,
+    },
     Stats {
         frames_sent: u64,
         frames_from_quic: u64,

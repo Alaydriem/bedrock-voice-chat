@@ -15,6 +15,7 @@ use crate::audio::stream::ActivityUpdate;
 use crate::audio::stream::jitter_buffer::{EncodedAudioFramePacket, JitterBuffer, PanState};
 use crate::audio::stream::stream_manager::audio_sink::AudioSink;
 use crate::audio::stream::stream_manager::mono_to_panned::MonoToPanned;
+use crate::diagnostics::{PeerRegistry, PeerRoute, PlayerReceiveStats};
 use common::PlayerEnum;
 use common::structs::SpatialAudioConfig;
 use common::structs::audio::{PlayerGainSettings, PlayerGainStore};
@@ -124,6 +125,7 @@ pub struct SinkManager {
     recording_producer: Option<RecordingProducer>,
     recording_active: Option<Arc<AtomicBool>>,
     spatial_config: SpatialAudioConfig,
+    peer_registry: Arc<PeerRegistry>,
 }
 
 impl SinkManager {
@@ -138,6 +140,7 @@ impl SinkManager {
         recording_active: Option<Arc<AtomicBool>>,
         spatial_config: SpatialAudioConfig,
         panning_intensity: f32,
+        peer_registry: Arc<PeerRegistry>,
     ) -> Self {
         // Create activity streaming channel
         let (activity_tx, activity_rx) = flume::unbounded::<ActivityUpdate>();
@@ -188,6 +191,7 @@ impl SinkManager {
             recording_producer,
             recording_active,
             spatial_config,
+            peer_registry,
         }
     }
 
@@ -225,6 +229,7 @@ impl SinkManager {
         let recording_producer = self.recording_producer.clone();
         let recording_active = self.recording_active.clone();
         let spatial_config = self.spatial_config.clone();
+        let peer_registry = self.peer_registry.clone();
 
         // Spawn an async task; use async recv to avoid blocking
         let handle = tokio::spawn(async move {
@@ -339,6 +344,12 @@ impl SinkManager {
                     }
 
                     if bundle.spatial_handle.is_none() {
+                        let stats = Arc::new(PlayerReceiveStats::new(display_name.clone()));
+                        peer_registry.register(
+                            author_bytes.clone(),
+                            PeerRoute::Spatial,
+                            stats.clone(),
+                        );
                         match JitterBuffer::create_with_handle_and_activity(
                             packet.clone(),
                             format!("spatial_{}", author),
@@ -346,6 +357,7 @@ impl SinkManager {
                             activity_tx.clone(),
                             recording_producer.clone(),
                             recording_active.clone(),
+                            stats,
                         ) {
                             Ok((jitter_buffer, handle)) => {
                                 if let (Some(spatial_sink), Some(pan_state)) =
@@ -387,6 +399,12 @@ impl SinkManager {
                     }
 
                     if bundle.normal_handle.is_none() {
+                        let stats = Arc::new(PlayerReceiveStats::new(display_name.clone()));
+                        peer_registry.register(
+                            author_bytes.clone(),
+                            PeerRoute::Normal,
+                            stats.clone(),
+                        );
                         match JitterBuffer::create_with_handle_and_activity(
                             packet.clone(),
                             format!("normal_{}", author),
@@ -394,6 +412,7 @@ impl SinkManager {
                             activity_tx.clone(),
                             recording_producer.clone(),
                             recording_active.clone(),
+                            stats,
                         ) {
                             Ok((jitter_buffer, handle)) => {
                                 if let Some(normal_sink) = &bundle.normal {
