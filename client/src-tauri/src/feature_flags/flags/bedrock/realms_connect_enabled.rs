@@ -2,35 +2,21 @@ use std::borrow::Cow;
 
 use crate::feature_flags::feature_flag::FeatureFlag;
 
-// Master switch for the entire Realms Connect feature. When false, the
-// sidebar item is hidden and the gate denies with FeatureDisabled.
-// Fail-closed: default false so a Flagsmith outage never exposes the
-// paid feature for free.
+// Remote kill switch for Realms Connect. When false the sidebar item is
+// hidden, the page shows an unavailable notice, and `bedrock_start_realms`
+// refuses to start a session.
+// Fail-open: Realms Connect costs nothing, so a Flagsmith outage must not
+// hide it.
 pub struct RealmsConnectEnabled;
 
 impl FeatureFlag for RealmsConnectEnabled {
     type Value = bool;
 
     fn default(&self) -> bool {
-        false
+        true
     }
 
     fn key(&self) -> Cow<'static, str> {
         Cow::Borrowed("feature.bedrock.realms_connect.enabled")
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn key_and_default() {
-        let flag = RealmsConnectEnabled;
-        assert_eq!(
-            flag.key().as_ref(),
-            "feature.bedrock.realms_connect.enabled"
-        );
-        assert!(!flag.default());
     }
 }

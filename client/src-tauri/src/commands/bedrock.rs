@@ -28,7 +28,7 @@ use crate::bedrock::{
 };
 use crate::control::ControlActionSender;
 use crate::feature_flags::FeatureFlagService;
-use crate::iap::EntitlementService;
+use crate::feature_flags::flags::bedrock::RealmsConnectEnabled;
 use crate::structs::app_state::AppState;
 
 #[tauri::command(async)]
@@ -163,7 +163,6 @@ pub(crate) async fn bedrock_start_realms(
     network_interface: String,
     state: State<'_, Mutex<BedrockState>>,
     app_state: State<'_, Mutex<AppState>>,
-    entitlement: State<'_, Arc<EntitlementService>>,
     quic_producer: State<'_, Arc<flume::Sender<NetworkPacket>>>,
     flag_service: State<'_, Arc<FeatureFlagService>>,
     analytics: State<'_, Arc<AnalyticsService>>,
@@ -173,18 +172,12 @@ pub(crate) async fn bedrock_start_realms(
     presence_injector: State<'_, Arc<PresenceInjector>>,
     announce_injector: State<'_, Arc<AnnounceInjector>>,
 ) -> Result<(), String> {
-    let gate = crate::bedrock::RealmsConnectGatingService::new(
-        Arc::clone(flag_service.inner()),
-        Arc::clone(analytics.inner()),
-    );
-    if !matches!(
-        gate.evaluate(entitlement.is_entitled()).await,
-        common::structs::iap::RealmsGateStatus::Allowed { .. }
-    ) {
-        return Err(
-            "Realms Connect requires an active subscription, a free-weekend window, or a membership code."
-                .to_string(),
-        );
+    // Scope is deliberate: the switch is read once, here, so it stops new
+    // sessions from starting. A session already running is not torn down when
+    // the flag flips off — it ends when the player disconnects. Cutting live
+    // sessions would need a watcher on the flag generation, not a check here.
+    if !flag_service.get(RealmsConnectEnabled).await {
+        return Err("Realms Connect is currently unavailable.".to_string());
     }
 
     let mut state = state.lock().await;
@@ -582,14 +575,8 @@ pub(crate) async fn bedrock_get_status(
 }
 
 #[tauri::command(async)]
-pub(crate) async fn bedrock_realms_gate(
-    entitlement: State<'_, Arc<EntitlementService>>,
+pub(crate) async fn bedrock_realms_enabled(
     flag_service: State<'_, Arc<FeatureFlagService>>,
-    analytics: State<'_, Arc<AnalyticsService>>,
-) -> Result<common::structs::iap::RealmsGateStatus, String> {
-    let gate = crate::bedrock::RealmsConnectGatingService::new(
-        Arc::clone(flag_service.inner()),
-        Arc::clone(analytics.inner()),
-    );
-    Ok(gate.evaluate(entitlement.is_entitled()).await)
+) -> Result<bool, String> {
+    Ok(flag_service.get(RealmsConnectEnabled).await)
 }

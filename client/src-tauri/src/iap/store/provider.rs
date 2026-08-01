@@ -5,10 +5,10 @@ use tauri_plugin_iap::{
     IapExt, Product, PurchaseRequest, PurchaseStateValue, RestorePurchasesRequest,
 };
 
-use common::consts::bedrock::BEDROCK_KEYRING_KEY_ENTITLEMENT;
-use common::consts::iap::{PRODUCT_TYPE_SUBS, REALMS_PRODUCT_IDS};
+use common::consts::iap::{IAP_KEYRING_KEY_ENTITLEMENT, PRODUCT_IDS, PRODUCT_TYPE_SUBS};
 use common::structs::iap::{EntitlementState, IapOffer};
 
+use crate::iap::IapKeyringService;
 use crate::iap::provider::EntitlementProvider;
 
 // Store-backed entitlement via tauri-plugin-iap. Holds a cached
@@ -32,9 +32,7 @@ impl StoreProvider {
     }
 
     fn load_cached(app_handle: &AppHandle) -> EntitlementState {
-        match crate::bedrock::BedrockKeyringService::new(app_handle)
-            .load(BEDROCK_KEYRING_KEY_ENTITLEMENT)
-        {
+        match IapKeyringService::new(app_handle).load(IAP_KEYRING_KEY_ENTITLEMENT) {
             Some(json) => serde_json::from_str(&json).unwrap_or_default(),
             None => EntitlementState::default(),
         }
@@ -42,19 +40,24 @@ impl StoreProvider {
 
     fn persist(&self, state: &EntitlementState) {
         if let Ok(json) = serde_json::to_string(state) {
-            crate::bedrock::BedrockKeyringService::new(&self.app_handle)
-                .store(BEDROCK_KEYRING_KEY_ENTITLEMENT, &json);
+            IapKeyringService::new(&self.app_handle).store(IAP_KEYRING_KEY_ENTITLEMENT, &json);
         }
     }
 
     // The only function that queries tauri-plugin-iap for entitlement. Returns
-    // the freshest (active, paid_through) the store reports across both
-    // products. `paid_through` is the max `expiration_time` (epoch ms).
+    // the freshest (active, paid_through) the store reports across
+    // `PRODUCT_IDS`. `paid_through` is the max `expiration_time` (epoch ms).
     async fn query_store(&self) -> Result<EntitlementState, String> {
+        // A false negative here would report a completed purchase as
+        // not-entitled, so an unconfigured catalog is an error, not `inactive`.
+        if PRODUCT_IDS.is_empty() {
+            return Err("no IAP products are configured".to_string());
+        }
+
         let mut active = false;
         let mut paid_through: Option<i64> = None;
 
-        for product_id in REALMS_PRODUCT_IDS {
+        for product_id in PRODUCT_IDS {
             let status = self
                 .app_handle
                 .iap()
@@ -82,7 +85,7 @@ impl StoreProvider {
     // reports the price only under `subscription_offer_details`; iOS, macOS, and
     // Windows populate the top-level field directly. Prefer the top-level price
     // and fall back to the recurring (last) pricing phase of the first offer so
-    // the upsell shows a price on every platform.
+    // a subscription's price is not blank on any platform.
     pub fn display_price(product: &Product) -> Option<String> {
         if let Some(price) = &product.formatted_price {
             return Some(price.clone());
@@ -104,8 +107,11 @@ impl EntitlementProvider for StoreProvider {
 
     async fn check_and_refresh(&self) -> Result<bool, String> {
         let fresh = self.query_store().await?;
-        self.persist(&fresh);
-        *self.cache.write() = fresh;
+        // Writing the credential store is not free.
+        if *self.cache.read() != fresh {
+            self.persist(&fresh);
+            *self.cache.write() = fresh;
+        }
         Ok(self.is_entitled())
     }
 
@@ -114,7 +120,7 @@ impl EntitlementProvider for StoreProvider {
             .app_handle
             .iap()
             .get_products(
-                REALMS_PRODUCT_IDS.iter().map(|s| s.to_string()).collect(),
+                PRODUCT_IDS.iter().map(|s| s.to_string()).collect(),
                 PRODUCT_TYPE_SUBS.to_string(),
             )
             .await

@@ -4,7 +4,6 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import PlatformDetector from "../../utils/PlatformDetector";
 import { BedrockManager } from "../bedrock/BedrockManager";
 import { BedrockCapabilityManager } from "../bedrock/BedrockCapabilityManager";
-import type { RealmsGateStatus } from "../../../bindings/RealmsGateStatus";
 
 export class SettingsSidebarManager {
     private readonly platformDetector: PlatformDetector;
@@ -27,7 +26,7 @@ export class SettingsSidebarManager {
 
     private bedrockManager: BedrockManager | null = null;
     private flagsUnlisten: UnlistenFn | null = null;
-    private realmsConnectEnabledValue = false;
+    private realmsConnectEnabledValue = true;
 
     constructor() {
         this.platformDetector = new PlatformDetector();
@@ -38,7 +37,7 @@ export class SettingsSidebarManager {
         this.currentPageTitle = { subscribe: this.currentPageTitleStore.subscribe };
         this.activePageStore = writable("account.svelte");
         this.activePage = { subscribe: this.activePageStore.subscribe };
-        this.realmsConnectEnabledStore = writable(false);
+        this.realmsConnectEnabledStore = writable(true);
         this.realmsConnectEnabled = { subscribe: this.realmsConnectEnabledStore.subscribe };
         this.capability = new BedrockCapabilityManager();
     }
@@ -63,8 +62,7 @@ export class SettingsSidebarManager {
         this.currentPageTitleStore.set(title);
     }
 
-    // Realms Connect is blocked until its feature flag is confirmed on. The page
-    // also renders the subscription upsell internally when the user isn't entitled.
+    // Realms Connect is hidden while its kill switch is off.
     canNavigateTo(pageId: string): boolean {
         if (pageId === "realms_connect.svelte" && !this.realmsConnectEnabledValue) {
             return false;
@@ -82,23 +80,23 @@ export class SettingsSidebarManager {
             this.isMobileStore.set(false);
         }
 
-        await this.refreshRealmsGate();
+        await this.refreshRealmsEnabled();
         this.flagsUnlisten = await listen("feature-flags-updated", () => {
-            void this.refreshRealmsGate();
+            void this.refreshRealmsEnabled();
         });
 
         await this.capability.refresh();
     }
 
-    // Re-evaluates the Realms Connect master flag. Run on mount and whenever the
+    // Re-reads the Realms Connect kill switch. Run on mount and whenever the
     // backend signals feature flags changed (e.g. after a Discord re-sync), so
-    // flag-gated UI appears without a restart.
-    private async refreshRealmsGate(): Promise<void> {
+    // the sidebar item appears without a restart. Fails open: a failed read
+    // must not hide a free feature.
+    private async refreshRealmsEnabled(): Promise<void> {
         try {
-            const gate = await invoke<RealmsGateStatus>("bedrock_realms_gate");
-            this.realmsConnectEnabledValue = gate.status !== "feature_disabled";
+            this.realmsConnectEnabledValue = await invoke<boolean>("bedrock_realms_enabled");
         } catch {
-            this.realmsConnectEnabledValue = false;
+            this.realmsConnectEnabledValue = true;
         }
         this.realmsConnectEnabledStore.set(this.realmsConnectEnabledValue);
     }

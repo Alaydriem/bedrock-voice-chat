@@ -3,7 +3,6 @@ import { invoke } from '@tauri-apps/api/core';
 import { Store } from '@tauri-apps/plugin-store';
 import { info, error as logError } from '@tauri-apps/plugin-log';
 import type { RealmEntry } from '../../../../bindings/RealmEntry';
-import type { RealmsGateStatus } from '../../../../bindings/RealmsGateStatus';
 import type { RealmsLifecycle } from './RealmsLifecycle';
 import type { BedrockRealmsManagerCallbacks } from './BedrockRealmsManagerCallbacks';
 
@@ -133,16 +132,16 @@ export class BedrockRealmsManager implements RealmsLifecycle {
         this.callbacks.clearLogs();
         this.callbacks.clearConnectionError();
 
-        // Hard gate pre-check. The backend re-enforces this on start
-        // (server-authoritative); this drives the not-entitled modal UX.
+        // Kill-switch pre-check. bedrock_start_realms re-enforces this
+        // authoritatively; this exists to surface the modal instead of a raw
+        // error string.
         try {
-            const gate = await invoke<RealmsGateStatus>('bedrock_realms_gate');
-            if (gate.status !== 'allowed') {
-                this.callbacks.onGateBlocked(gate);
+            if (!(await invoke<boolean>('bedrock_realms_enabled'))) {
+                this.callbacks.onRealmsUnavailable();
                 return;
             }
         } catch (e) {
-            logError(`Realms gate pre-check failed: ${e}`);
+            logError(`Realms Connect flag pre-check failed: ${e}`);
         }
 
         try {

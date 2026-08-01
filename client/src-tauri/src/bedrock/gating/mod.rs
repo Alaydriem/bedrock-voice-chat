@@ -1,6 +1,3 @@
-pub mod realms_connect;
-pub use realms_connect::RealmsConnectGatingService;
-
 use std::sync::Arc;
 
 use common::bedrock_protocol::ProtocolVersion;

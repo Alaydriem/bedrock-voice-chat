@@ -22,17 +22,17 @@ pub(crate) async fn iap_purchase(
     analytics: State<'_, Arc<AnalyticsService>>,
 ) -> Result<bool, String> {
     analytics.track(
-        AnalyticsEvent::RealmsPurchaseStarted,
+        AnalyticsEvent::IapPurchaseStarted,
         Some(AnalyticsEventData::new().insert("product_id", product_id.clone())),
     );
     match entitlement.purchase(product_id).await {
         Ok(v) => {
-            analytics.track(AnalyticsEvent::RealmsPurchaseCompleted, None);
+            analytics.track(AnalyticsEvent::IapPurchaseCompleted, None);
             Ok(v)
         }
         Err(e) => {
             analytics.track(
-                AnalyticsEvent::RealmsPurchaseFailed,
+                AnalyticsEvent::IapPurchaseFailed,
                 Some(AnalyticsEventData::new().insert("error", e.clone())),
             );
             Err(e)
@@ -45,7 +45,7 @@ pub(crate) async fn iap_restore(
     entitlement: State<'_, Arc<EntitlementService>>,
     analytics: State<'_, Arc<AnalyticsService>>,
 ) -> Result<bool, String> {
-    analytics.track(AnalyticsEvent::RealmsRestoreInvoked, None);
+    analytics.track(AnalyticsEvent::IapRestoreInvoked, None);
     entitlement.restore().await
 }
 

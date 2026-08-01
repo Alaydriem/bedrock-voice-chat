@@ -36,11 +36,14 @@ pub mod events;
 mod feature_flags;
 pub use feature_flags::FeatureFlagService;
 pub use feature_flags::flagsmith::FlagsmithProvider;
-#[cfg(feature = "bedrock-protocol")]
+// Re-exported for the integration test crate to assert that an unconfigured
+// Flagsmith leaves the Realms Connect kill switch open.
+#[cfg(feature = "e2e")]
+pub use feature_flags::flags::bedrock::RealmsConnectEnabled;
 mod iap;
 // Re-exported for the integration test crate (a separate crate root that can
 // only reach `pub` items) to cover the store price-selection fallback.
-#[cfg(feature = "bedrock-protocol")]
+#[cfg(feature = "e2e")]
 pub use crate::iap::store::StoreProvider;
 #[cfg(desktop)]
 pub mod keybinds;
@@ -328,14 +331,10 @@ pub fn run() {
             #[cfg(feature = "bedrock-protocol")]
             crate::commands::bedrock::bedrock_force_refresh,
             #[cfg(feature = "bedrock-protocol")]
-            crate::commands::bedrock::bedrock_realms_gate,
-            #[cfg(feature = "bedrock-protocol")]
+            crate::commands::bedrock::bedrock_realms_enabled,
             crate::commands::iap::iap_list_offers,
-            #[cfg(feature = "bedrock-protocol")]
             crate::commands::iap::iap_purchase,
-            #[cfg(feature = "bedrock-protocol")]
             crate::commands::iap::iap_restore,
-            #[cfg(feature = "bedrock-protocol")]
             crate::commands::iap::iap_refresh,
         ])
         .setup(move |app| {
@@ -502,6 +501,20 @@ pub fn run() {
             discord_link_service.load_persisted();
             app.manage(discord_link_service);
 
+            // Turn every successful flag fetch — initial load, background poll,
+            // or on-demand refresh — into the event flag-gated UI listens for,
+            // so it re-evaluates without a restart. The AppHandle lives here
+            // rather than on FeatureFlagService so test binaries linking the
+            // service do not pull in the GUI stack.
+            let flags_emit_handle = app.handle().clone();
+            let mut flags_rx = feature_flag_service.flags_changed();
+            tauri::async_runtime::spawn(async move {
+                use tauri::Emitter;
+                while flags_rx.changed().await.is_ok() {
+                    let _ = flags_emit_handle.emit("feature-flags-updated", ());
+                }
+            });
+
             let ffs = feature_flag_service.clone();
             tauri::async_runtime::spawn(async move {
                 ffs.initialize().await;
@@ -589,39 +602,31 @@ pub fn run() {
             app.manage(sentry_logger);
             app.manage(Mutex::new(app_state));
 
-            #[cfg(feature = "bedrock-protocol")]
-            let bedrock_player_state_cache = {
-                let bedrock_state = crate::bedrock::BedrockState::new();
-                let cache = std::sync::Arc::clone(&bedrock_state.player_state_cache);
-                app.manage(Mutex::new(bedrock_state));
+            handle.plugin(tauri_plugin_iap::init())?;
 
-                handle.plugin(tauri_plugin_iap::init())?;
+            let mut entitlement_providers = vec![crate::iap::EntitlementProviderType::Store(
+                crate::iap::store::StoreProvider::new(app.handle().clone()),
+            )];
+            let mock_iap = option_env!("BVC_MOCK_IAP")
+                .map(|v| {
+                    matches!(
+                        v.trim().to_ascii_lowercase().as_str(),
+                        "1" | "true" | "yes" | "on"
+                    )
+                })
+                .unwrap_or(false);
+            if mock_iap && cfg!(debug_assertions) {
+                log::info!("BVC_MOCK_IAP set — using mock IAP offers for local preview");
+                entitlement_providers.insert(
+                    0,
+                    crate::iap::EntitlementProviderType::Mock(crate::iap::mock::MockProvider::new()),
+                );
+            }
+            app.manage(std::sync::Arc::new(crate::iap::EntitlementService::new(
+                entitlement_providers,
+            )));
 
-                let mut entitlement_providers =
-                    vec![crate::iap::EntitlementProviderType::Store(
-                        crate::iap::store::StoreProvider::new(app.handle().clone()),
-                    )];
-                let mock_iap = option_env!("BVC_MOCK_IAP")
-                    .map(|v| {
-                        matches!(
-                            v.trim().to_ascii_lowercase().as_str(),
-                            "1" | "true" | "yes" | "on"
-                        )
-                    })
-                    .unwrap_or(false);
-                if mock_iap {
-                    log::info!("BVC_MOCK_IAP set — using mock IAP offers for local preview");
-                    entitlement_providers.insert(
-                        0,
-                        crate::iap::EntitlementProviderType::Mock(
-                            crate::iap::mock::MockProvider::new(),
-                        ),
-                    );
-                }
-                app.manage(std::sync::Arc::new(crate::iap::EntitlementService::new(
-                    entitlement_providers,
-                )));
-
+            if !common::consts::iap::PRODUCT_IDS.is_empty() {
                 let refresh_handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
                     use tauri::Manager;
@@ -633,6 +638,13 @@ pub fn run() {
                         log::warn!("startup entitlement refresh failed: {e}");
                     }
                 });
+            }
+
+            #[cfg(feature = "bedrock-protocol")]
+            let bedrock_player_state_cache = {
+                let bedrock_state = crate::bedrock::BedrockState::new();
+                let cache = std::sync::Arc::clone(&bedrock_state.player_state_cache);
+                app.manage(Mutex::new(bedrock_state));
 
                 cache
             };

@@ -10,7 +10,6 @@ pub use advertised_version_resolver::AdvertisedVersionResolver;
 pub use auth::{BedrockAuthService, BedrockKeyringService};
 pub use protocol_version_catalog::ProtocolVersionCatalog;
 pub use gating::ProtocolGatingService;
-pub use gating::RealmsConnectGatingService;
 pub(crate) use proxy::ProxyDeps;
 pub use proxy::{
     AnnounceInjector, BedrockConnectErrorChannel, BedrockEventEmitter, BedrockPlayerStateCache,
