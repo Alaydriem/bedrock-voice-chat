@@ -157,4 +157,27 @@ impl PlayerEnum {
             PlayerEnum::Generic(g) => g.name = name,
         }
     }
+
+    /// World identity, where the variant carries one. `Generic` has no world
+    /// concept and always reports `None`.
+    ///
+    /// The value is an opaque identifier, not a parseable UUID: the BDS mod
+    /// publishes a hyphenated UUIDv4 while the client proxy publishes the
+    /// 64-character blake3 digest from [`crate::structs::bedrock::BedrockWorldId`].
+    pub fn world_uuid(&self) -> Option<&str> {
+        match self {
+            PlayerEnum::Minecraft(mc) => mc.world_uuid.as_deref(),
+            PlayerEnum::Hytale(h) => h.world_uuid.as_deref(),
+            PlayerEnum::Generic(_) => None,
+        }
+    }
+
+    /// Overwrite world identity. A no-op for `Generic`, which has no field.
+    pub fn set_world_uuid(&mut self, world_uuid: Option<String>) {
+        match self {
+            PlayerEnum::Minecraft(mc) => mc.world_uuid = world_uuid,
+            PlayerEnum::Hytale(h) => h.world_uuid = world_uuid,
+            PlayerEnum::Generic(_) => {}
+        }
+    }
 }

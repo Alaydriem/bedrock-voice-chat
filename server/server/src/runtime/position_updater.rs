@@ -1,10 +1,6 @@
-use common::structs::packet::{
-    PacketOwner, PacketType, PlayerDataPacket, QuicNetworkPacket, QuicNetworkPacketData,
-};
+use common::structs::packet::{PacketOwner, PlayerDataChunker};
 
 use crate::stream::quic::WebhookReceiver;
-
-const PLAYERS_PER_CHUNK: usize = 30;
 
 pub struct PositionUpdater;
 
@@ -13,32 +9,26 @@ impl PositionUpdater {
         players: Vec<common::PlayerEnum>,
         webhook_receiver: &WebhookReceiver,
     ) {
-        let mut player_buffer = Vec::with_capacity(PLAYERS_PER_CHUNK);
-        for player in players {
-            player_buffer.push(player);
+        let owner = Self::owner();
 
-            if player_buffer.len() >= PLAYERS_PER_CHUNK {
-                Self::send_player_chunk(&player_buffer, webhook_receiver).await;
-                player_buffer.clear();
-            }
-        }
-
-        if !player_buffer.is_empty() {
-            Self::send_player_chunk(&player_buffer, webhook_receiver).await;
+        for chunk in PlayerDataChunker::chunk(players, Some(&owner)) {
+            Self::send_player_chunk(chunk, &owner, webhook_receiver).await;
         }
     }
 
-    async fn send_player_chunk(players: &[common::PlayerEnum], webhook_receiver: &WebhookReceiver) {
-        let packet = QuicNetworkPacket {
-            owner: Some(PacketOwner {
-                name: String::from("api"),
-                client_id: vec![0u8; 0],
-            }),
-            packet_type: PacketType::PlayerData,
-            data: QuicNetworkPacketData::PlayerData(PlayerDataPacket {
-                players: players.to_vec(),
-            }),
-        };
+    fn owner() -> PacketOwner {
+        PacketOwner {
+            name: String::from("api"),
+            client_id: vec![0u8; 0],
+        }
+    }
+
+    async fn send_player_chunk(
+        players: Vec<common::PlayerEnum>,
+        owner: &PacketOwner,
+        webhook_receiver: &WebhookReceiver,
+    ) {
+        let packet = PlayerDataChunker::packet(players, Some(owner));
 
         if let Err(e) = webhook_receiver.send_packet(packet).await {
             tracing::error!("Failed to send packet chunk to QUIC server: {}", e);

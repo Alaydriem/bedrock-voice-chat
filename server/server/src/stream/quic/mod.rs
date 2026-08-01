@@ -16,6 +16,7 @@ mod client_id_hasher;
 mod connection_id_format;
 mod connection_identity;
 pub mod connection_registry;
+mod log_throttle;
 mod packet_identity_stamp;
 mod peer_identity_capture;
 mod peer_identity_context;
@@ -195,6 +196,11 @@ impl StreamTrait for QuicServerManager {
                             connection_registry
                                 .route_audio_frame(&packet, &player_cache, broadcast_range, deafen_distance)
                                 .await;
+                        }
+                        PacketType::PlayerData => {
+                            // Addressed to each player rather than broadcast:
+                            // a client only ever reads its own entry.
+                            connection_registry.send_positions_to_owners(&packet);
                         }
                         PacketType::QueryState
                         | PacketType::PlayerPreference
@@ -632,14 +638,18 @@ impl QuicServerManager {
                                 player,
                             }) = updated_packet.data.clone()
                             {
-                                let rebroadcast = QuicNetworkPacket {
+                                // A proxy client self-reports its position and
+                                // relies on this echo to anchor its own
+                                // listener, so the packet still goes out -- but
+                                // only to the player it describes.
+                                let echo = QuicNetworkPacket {
                                     packet_type: PacketType::PlayerData,
                                     owner: updated_packet.owner.clone(),
-                                    data: QuicNetworkPacketData::PlayerData(PlayerDataPacket {
-                                        players: vec![player],
-                                    }),
+                                    data: QuicNetworkPacketData::PlayerData(
+                                        PlayerDataPacket::new(vec![player]),
+                                    ),
                                 };
-                                connection_registry.broadcast_to_all(rebroadcast);
+                                connection_registry.send_positions_to_owners(&echo);
                             }
                         }
                         PacketType::PeerPresenceObserved => {
@@ -664,6 +674,15 @@ impl QuicServerManager {
                                 connection_registry
                                     .on_peer_announce_observed(announce.hashed_world, announce.endpoint);
                             }
+                        }
+                        PacketType::PlayerData => {
+                            // Clients report position as PlayerPosition, so a
+                            // clientbound-shaped PlayerData arriving here is not
+                            // something the client should be sending. Address it
+                            // per-player like every other position packet rather
+                            // than letting one connection push coordinates to
+                            // everyone.
+                            connection_registry.send_positions_to_owners(&updated_packet);
                         }
                         PacketType::QueryState
                         | PacketType::PlayerPreference
