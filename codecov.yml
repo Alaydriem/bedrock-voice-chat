@@ -28,6 +28,16 @@ comment:
   layout: "condensed_header, diff, flags, files, condensed_footer"
   behavior: default
   require_changes: false
+  # Three uploads per commit: common, server, client. Codecov's default is to
+  # post and rewrite the comment after EACH one, so the first version appears
+  # ~90s into a ~40min pipeline holding only `common` — which is almost entirely
+  # ts-rs export_bindings tests, and reads as "coverage is broken". Waiting for
+  # all three means the number is right the first time it is shown.
+  #
+  # Keep this in sync with the number of Codecov uploads in tests.yml. If a
+  # fourth upload is ever added (e.g. instrumented e2e shards) and this is not
+  # raised, the comment stops appearing at all.
+  after_n_builds: 3
 
 flag_management:
   default_rules:
