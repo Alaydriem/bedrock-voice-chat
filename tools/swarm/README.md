@@ -207,12 +207,56 @@ documented inline. Essentials:
 | `client_bin` / `swarm_bin` | prebuilt **Linux** artifacts pushed into containers |
 | `group_size` | bots per voice group (each group shares a channel) |
 | `duration_secs` | seconds each bot streams |
+| `realm_players` | simulated realm population advertised per request (see below) |
+| `position_hz` | roster advertise rate; defaults to the mod's 4 Hz |
+| `world_uuid` | world identifier on every advertised player |
 | `[lxd]` | `client_cert`/`client_key`, `image`, `cloud_init` |
 | `[[target]]` | one per LXD host: `endpoint`, optional `server_cert`, `containers`, `bots_per_container` |
 
 Total bots = sum over targets of `containers × bots_per_container`. Per-host
 grouping is `containers = 1`; one voice group per container is
 `bots_per_container = group_size`.
+
+### Two independent axes
+
+A run scales **two** things, and conflating them hides a whole class of failure:
+
+- **Voice clients** — total bots. Drives connection count, audio fan-out and
+  routing cost.
+- **Realm population** — `realm_players`. Drives *position datagram size*,
+  because the game mod advertises every player on the realm in a **single**
+  request. Bots always appear in that roster; the remainder is synthetic filler
+  that never connects.
+
+The real shape is usually many players and few listeners: s4 ran 25 players
+against 4 voice clients. `realm_players = 100` with 20 bots models that. Scaling
+bots alone never grows a position packet.
+
+The controller owns the position feed — it is the only party that knows every bot
+name, and sharding the roster across agents would pin players-per-request at
+`bots_per_container` no matter how large the swarm got.
+
+### Reading the position numbers
+
+The summary reports the position feed separately from audio, because **audio
+routing does not depend on position delivery**. Server-side proximity gating
+reads the player cache that `/api/position` populates over HTTP, so frames route
+perfectly even when position packets never reach a single client. Audio-only
+metrics cannot see that failure.
+
+```
+position feed over the run window (100 players advertised per request):
+  datagrams emitted:   14400
+  players per datagram: 1.0
+  datagram bytes:      mean 84, max 91 (limit 1150)
+  oversize drops:      0
+```
+
+`oversize drops` is the one to watch: a drop is not a degradation, it discards
+the whole packet, so affected clients get **no** position update for that tick.
+Non-zero means position data is being lost outright. `datagram bytes / max` is
+the leading indicator — it shows headroom against the limit shrinking as the
+realm fills, before anything is dropped.
 
 ## Running
 

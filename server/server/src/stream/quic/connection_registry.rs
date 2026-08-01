@@ -1,7 +1,9 @@
 use bytes::Bytes;
 use common::Game;
 use common::PlayerEnum;
-use common::structs::packet::{PlayerDataPacket, QuicNetworkPacket, QuicNetworkPacketData};
+use common::structs::packet::{
+    PacketType, PlayerDataPacket, QuicNetworkPacket, QuicNetworkPacketData,
+};
 use common::traits::player_data::PlayerData;
 use dashmap::DashMap;
 use moka::future::Cache;
@@ -332,6 +334,12 @@ impl ConnectionRegistry {
                     return;
                 }
 
+                if packet.packet_type == PacketType::PlayerData {
+                    if let Some(metrics) = self.metrics.get() {
+                        metrics.record_position_oversize_drop();
+                    }
+                }
+
                 if let Some(suppressed) = self.oversized_broadcast_log.should_log() {
                     tracing::error!(
                         suppressed,
@@ -455,10 +463,29 @@ impl ConnectionRegistry {
         let bytes = match packet.to_datagram() {
             Ok(b) => Bytes::from(b),
             Err(e) => {
+                if packet.packet_type == PacketType::PlayerData {
+                    if let Some(metrics) = self.metrics.get() {
+                        metrics.record_position_oversize_drop();
+                    }
+                }
                 tracing::error!("Failed to serialize packet for {}: {}", player_name, e);
                 return false;
             }
         };
+
+        // Recorded here because the encoded bytes already exist; sizing the
+        // packet again at the call site would double the work on a path that
+        // runs for every player on every position tick.
+        if packet.packet_type == PacketType::PlayerData {
+            if let Some(metrics) = self.metrics.get() {
+                let players = match &packet.data {
+                    QuicNetworkPacketData::PlayerData(data) => data.players.len(),
+                    _ => 0,
+                };
+                metrics.record_position_datagram(bytes.len(), players);
+            }
+        }
+
         match tx.try_send(RoutedPacket::Serialized(bytes)) {
             Ok(()) => true,
             Err(mpsc::error::TrySendError::Full(_)) => false,
