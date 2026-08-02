@@ -56,6 +56,8 @@ impl RocketHarness {
             false,
             &config.server.tls.certs_path,
             &config.server.tls.certificate,
+            Vec::new(),
+            false,
         );
 
         let cache = cached::TimedCache::with_lifespan_and_refresh(

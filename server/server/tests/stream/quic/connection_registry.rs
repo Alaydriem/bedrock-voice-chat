@@ -1,3 +1,4 @@
+use bvc_server_lib::services::metrics_service::interaction::InteractionRoute;
 use bvc_server_lib::stream::quic::connection_registry::ConnectionRegistry;
 use common::Game;
 use tokio::sync::mpsc;
@@ -174,4 +175,86 @@ async fn deafened_sender_is_limited_to_deafen_distance() {
     reg.route_audio_frame(&packet, &cache, 50.0, 10.0).await;
 
     assert_eq!(RoutingFixture::delivered_spatial(&mut bob_rx).await, None);
+}
+
+fn metrics_for(dir_name: &str) -> std::sync::Arc<bvc_server_lib::services::MetricsService> {
+    let dir = std::env::temp_dir().join(dir_name);
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.to_string_lossy().to_string();
+    bvc_server_lib::runtime::ca_cert::CaCertManager::new(&path)
+        .ensure(&[String::from("localhost")])
+        .unwrap();
+    let (svc, _posthog) = bvc_server_lib::services::MetricsService::new_shared(
+        false,
+        &path,
+        "/nonexistent-cert.pem",
+        Vec::new(),
+        false,
+    );
+    svc
+}
+
+// Jukebox and webhook playback emit real AudioFrame packets under a synthetic
+// owner that has no live connection. Counting those would let a server whose
+// players never speak to each other report healthy reach from background music
+// alone — the exact blind spot this measurement exists to remove.
+#[tokio::test]
+async fn synthetic_sender_audio_is_not_counted_as_an_interaction() {
+    let reg = ConnectionRegistry::new();
+    let metrics = metrics_for("bvc-registry-synthetic-ca");
+    reg.set_metrics(metrics.clone());
+
+    let jukebox = RoutingFixture::player("Jukebox", 0.0, false);
+    let bob = RoutingFixture::player("Bob", 1.0, false);
+    let cache = RoutingFixture::player_cache(&[jukebox.clone(), bob.clone()]).await;
+
+    let (bob_tx, mut bob_rx) = mpsc::channel(16);
+    reg.register(vec![2], "Bob".to_string(), Game::Minecraft, bob_tx);
+
+    let packet = RoutingFixture::audio_packet(jukebox, "Jukebox");
+    reg.route_audio_frame(&packet, &cache, 30.0, 0.0).await;
+
+    // The frame still reaches Bob; only the measurement declines to count it.
+    assert!(
+        RoutingFixture::delivered_spatial(&mut bob_rx).await.is_some(),
+        "jukebox audio must still be delivered"
+    );
+    assert_eq!(
+        metrics
+            .interactions()
+            .counts(InteractionRoute::Any)
+            .reached,
+        0,
+        "a sender with no live connection is not a player interaction"
+    );
+}
+
+#[tokio::test]
+async fn audio_between_two_connected_players_counts_both() {
+    let reg = ConnectionRegistry::new();
+    let metrics = metrics_for("bvc-registry-twoplayer-ca");
+    reg.set_metrics(metrics.clone());
+
+    let alice = RoutingFixture::player("Alice", 0.0, false);
+    let bob = RoutingFixture::player("Bob", 1.0, false);
+    let cache = RoutingFixture::player_cache(&[alice.clone(), bob.clone()]).await;
+
+    let (alice_tx, _alice_rx) = mpsc::channel(16);
+    let (bob_tx, mut bob_rx) = mpsc::channel(16);
+    reg.register(vec![1], "Alice".to_string(), Game::Minecraft, alice_tx);
+    reg.register(vec![2], "Bob".to_string(), Game::Minecraft, bob_tx);
+
+    let packet = RoutingFixture::audio_packet(alice, "Alice");
+    reg.route_audio_frame(&packet, &cache, 30.0, 0.0).await;
+
+    assert!(RoutingFixture::delivered_spatial(&mut bob_rx).await.is_some());
+    assert_eq!(
+        metrics
+            .interactions()
+            .counts(InteractionRoute::Proximity)
+            .reached,
+        2,
+        "both the speaker and the listener are participants"
+    );
 }

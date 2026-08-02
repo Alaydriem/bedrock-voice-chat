@@ -13,6 +13,8 @@ pub struct CaptureEventProperties {
     #[serde(rename = "$app_build")]
     pub app_build: String,
     pub is_debug: bool,
+    pub is_first_run: bool,
+    pub install_date: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connected_server: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

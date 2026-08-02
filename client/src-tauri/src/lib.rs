@@ -19,6 +19,9 @@ use common::structs::DeepLink;
 use deep_links::DeepLinkHandler;
 
 mod analytics;
+// Re-exported for the integration test crate (a separate crate root that can
+// only reach `pub` items) to cover first-run and install-date resolution.
+pub use analytics::InstallMarker;
 mod api;
 pub mod app_builder;
 pub mod audio;
@@ -430,17 +433,25 @@ pub fn run() {
 
             let stored_install_id = store
                 .get("install_id")
-                .and_then(|v| v.as_str().map(String::from))
-                .filter(|id| !id.is_empty() && id != &uuid::Uuid::nil().to_string());
-            let install_id = match stored_install_id {
-                Some(id) => id,
-                None => {
-                    let id = uuid::Uuid::now_v7().to_string();
-                    store.set("install_id", id.clone());
-                    let _ = store.save();
-                    id
-                }
-            };
+                .and_then(|v| v.as_str().map(String::from));
+            let stored_install_date = store
+                .get("install_date")
+                .and_then(|v| v.as_str().map(String::from));
+            let marker = analytics::InstallMarker::resolve(
+                stored_install_id.as_deref(),
+                stored_install_date.as_deref(),
+                chrono::Utc::now(),
+            );
+            if marker.is_first_run {
+                store.set("install_id", marker.install_id.clone());
+            }
+            if stored_install_date.as_deref() != Some(marker.install_date.as_str()) {
+                store.set("install_date", marker.install_date.clone());
+                let _ = store.save();
+            } else if marker.is_first_run {
+                let _ = store.save();
+            }
+            let install_id = marker.install_id.clone();
             log::info!("Platform ID: {}", install_id);
 
             // Analytics service with provider pattern
@@ -453,7 +464,12 @@ pub fn run() {
                 if !key.is_empty() {
                     analytics_service.add_provider(
                         analytics::AnalyticsProviderType::PostHog(
-                            analytics::posthog::Provider::new(host.to_string(), key.to_string())
+                            analytics::posthog::Provider::new(
+                                host.to_string(),
+                                key.to_string(),
+                                marker.is_first_run,
+                                marker.install_date.clone(),
+                            )
                         )
                     );
                     info!("PostHog analytics provider configured");

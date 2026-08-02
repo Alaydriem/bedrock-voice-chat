@@ -11,6 +11,8 @@ use tokio::sync::mpsc;
 
 use crate::relay::{ObservedCodeHandler, PeerManager, RelayedPacket};
 use crate::services::MetricsService;
+use crate::services::metrics_service::interaction::InteractionRoute;
+use crate::services::metrics_service::interaction::InteractionTracker;
 
 pub enum RoutedPacket {
     Serialized(Bytes),
@@ -23,6 +25,9 @@ pub(crate) struct ConnectionEntry {
     // authenticated identity instead of from position data the player may not have
     // sent yet.
     pub game: Game,
+    // Precomputed hash of player_name for interaction measurement, so the audio
+    // delivery path never hashes a recipient name per frame.
+    pub name_hash: u64,
     pub tx: mpsc::Sender<RoutedPacket>,
     pub connected_at: Instant,
 }
@@ -76,8 +81,13 @@ impl ConnectionRegistry {
         let _ = self.metrics.set(metrics);
     }
 
+    // Distinct connected players, not raw connection entries. client_id is minted
+    // fresh per connection, so a reconnecting player registers a second entry that
+    // lives until the stale one is reaped. Counting entries double-counts them —
+    // transient for the active gauge, but permanent for the peak high-water mark,
+    // which only falls at the UTC day boundary.
     fn active_player_count(&self) -> i64 {
-        self.connections.len() as i64
+        self.live_player_names().len() as i64
     }
 
     // The set of currently-connected players, by bare gamertag. Channel membership
@@ -123,6 +133,7 @@ impl ConnectionRegistry {
     fn push_gauges(&self) {
         if let Some(m) = self.metrics.get() {
             m.set_active_players(self.active_player_count());
+            m.push_peak_players();
             m.set_active_channels(self.active_channel_count());
             m.set_players_in_channels(self.players_in_channels());
         }
@@ -255,11 +266,14 @@ impl ConnectionRegistry {
             self.connections.len() + 1
         );
         self.name_index.insert(player_name.clone(), client_id.clone());
+        let registered_name = player_name.clone();
+        let name_hash = InteractionTracker::hash_name(&player_name);
         let replaced = self.connections.insert(
             client_id,
             ConnectionEntry {
                 player_name,
                 game,
+                name_hash,
                 tx,
                 connected_at: Instant::now(),
             },
@@ -269,9 +283,9 @@ impl ConnectionRegistry {
             // close out that session first so connect/disconnect counters and
             // session durations stay balanced.
             if let Some(old) = replaced {
-                metrics.record_disconnect(old.connected_at.elapsed());
+                metrics.record_disconnect(&old.player_name, old.connected_at.elapsed());
             }
-            metrics.record_connect();
+            metrics.record_connect(&registered_name);
         }
         self.push_gauges();
     }
@@ -284,7 +298,7 @@ impl ConnectionRegistry {
                 .remove_if(&entry.player_name, |_, v| v.as_slice() == client_id);
             self.player_channel.remove(&entry.player_name);
             if let Some(metrics) = self.metrics.get() {
-                metrics.record_disconnect(entry.connected_at.elapsed());
+                metrics.record_disconnect(&entry.player_name, entry.connected_at.elapsed());
             }
             tracing::info!(
                 "Unregistered connection for player: {} (connections: {})",
@@ -384,6 +398,22 @@ impl ConnectionRegistry {
         game.membership_key(name)
     }
 
+    // The precomputed reach hash for a locally-connected player. `None` means the
+    // name belongs to no live local connection.
+    //
+    // That covers two different populations. Server-injected audio (jukebox, webhook)
+    // carries a synthetic owner and genuinely is not a player, which is the exclusion
+    // this measurement wants. Relayed peers are real humans who happen to be
+    // registered on their own server, and they are excluded too — so a deployment
+    // whose conversation happens across the relay link reports near-zero reach, and
+    // no emitted field distinguishes that from a quiet server.
+    fn connection_name_hash(&self, player_name: &str) -> Option<u64> {
+        let client_id = self.name_index.get(player_name)?.value().clone();
+        self.connections
+            .get(&client_id)
+            .map(|entry| entry.value().name_hash)
+    }
+
     // The authenticated game for a live connection, by player name. `None` when the
     // name has no connection — a server-injected sender such as a jukebox, or a
     // player who has already disconnected.
@@ -468,7 +498,7 @@ impl ConnectionRegistry {
         }
 
         // Snapshot connections to release DashMap shard locks before any .await
-        let snapshot: Vec<(Vec<u8>, String, Game, mpsc::Sender<RoutedPacket>)> = self
+        let snapshot: Vec<(Vec<u8>, String, Game, u64, mpsc::Sender<RoutedPacket>)> = self
             .connections
             .iter()
             .map(|entry| {
@@ -476,14 +506,21 @@ impl ConnectionRegistry {
                     entry.key().clone(),
                     entry.value().player_name.clone(),
                     entry.value().game.clone(),
+                    entry.value().name_hash,
                     entry.value().tx.clone(),
                 )
             })
             .collect();
 
         let mut dead_keys: Vec<Vec<u8>> = Vec::new();
+        // Reach measures humans reaching humans, so only a sender with a live local
+        // connection qualifies — otherwise a server whose players never speak to each
+        // other would report healthy reach purely from background music. See
+        // `connection_name_hash` for why this also drops relayed peers, who are not
+        // background music.
+        let sender_hash = self.connection_name_hash(sender_name);
 
-        for (client_id, recipient_name, recipient_game, tx) in &snapshot {
+        for (client_id, recipient_name, recipient_game, recipient_hash, tx) in &snapshot {
             if recipient_name == sender_name {
                 continue;
             }
@@ -510,7 +547,7 @@ impl ConnectionRegistry {
                 _ => false,
             };
 
-            let bytes_to_send = if in_same_channel {
+            let (bytes_to_send, route) = if in_same_channel {
                 tracing::debug!(
                     "route_audio_frame: {} -> {} IN_CHANNEL spatial={:?}",
                     sender_name,
@@ -522,7 +559,7 @@ impl ConnectionRegistry {
                 // a spatial=true packet would be zeroed by calculate_spatial_audio_data
                 // when members are far apart, defeating the channel-bypass entirely.
                 match &bytes_channel {
-                    Some(b) => b,
+                    Some(b) => (b, InteractionRoute::Channel),
                     None => continue,
                 }
             } else {
@@ -561,14 +598,18 @@ impl ConnectionRegistry {
                 match original_spatial {
                     Some(false) => continue,
                     Some(true) | None => match &bytes_spatial {
-                        Some(b) => b,
+                        Some(b) => (b, InteractionRoute::Proximity),
                         None => continue,
                     },
                 }
             };
 
             match tx.try_send(RoutedPacket::Serialized(bytes_to_send.clone())) {
-                Ok(()) => {}
+                Ok(()) => {
+                    if let (Some(m), Some(sender_hash)) = (self.metrics.get(), sender_hash) {
+                        m.record_interaction(route, sender_hash, *recipient_hash);
+                    }
+                }
                 Err(mpsc::error::TrySendError::Full(_)) => {
                     if let Some(m) = self.metrics.get() {
                         m.record_audio_route_drop();
