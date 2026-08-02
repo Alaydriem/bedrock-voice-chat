@@ -1,5 +1,6 @@
 use crate::api::Api;
-use crate::audio::types::{AudioDevice, AudioDeviceHost, AudioDeviceType, StreamConfig};
+use crate::audio::types::{AudioDevice, AudioDeviceHost, AudioDeviceType};
+use crate::structs::StoredAudioDevice;
 use rodio::cpal::{
     self,
     traits::{DeviceTrait, HostTrait},
@@ -194,43 +195,19 @@ impl AppState {
         io: AudioDeviceType,
         store: &Arc<Store<Wry>>,
     ) -> Result<AudioDevice, String> {
-        // Check if stored config exists and has the new `id` field
-        let use_stored = match store.get(io.store_key()) {
-            Some(s) => {
-                if s.get("id").is_none() {
-                    log::warn!(
-                        "Detected old-format device config for {} (missing 'id' field). Clearing stored config and reverting to system default.",
-                        io.store_key()
-                    );
-                    store.delete(io.store_key());
-                    let _ = store.save();
-                    false
-                } else {
-                    true
-                }
-            }
-            None => false,
-        };
+        // A stored entry that cannot be read is discarded and treated as absent rather than
+        // unwrapped. Only `id` used to be validated, so an entry missing or corrupt in any other
+        // field panicked here — on a path that runs during setup and from the audio commands.
+        let stored = StoredAudioDevice::load(io.clone(), store);
 
-        let (id, name, host, stream_configs, display_name) = if use_stored {
-            let s = store.get(io.store_key()).unwrap();
+        let (id, name, host, stream_configs, display_name) = if let Some(stored) = stored {
+            let display_name = stored.display_name().to_string();
             (
-                s.get("id")
-                    .unwrap()
-                    .as_str()
-                    .unwrap_or("default")
-                    .to_string(),
-                s.get("name").unwrap().to_string().replace('\"', ""),
-                serde_json::from_str::<AudioDeviceHost>(
-                    s.get("host").unwrap().to_string().as_str(),
-                )
-                .unwrap(),
-                serde_json::from_value::<Vec<StreamConfig>>(s.get("config").unwrap().clone())
-                    .unwrap(),
-                match s.get("display_name") {
-                    Some(name) => name.to_string().replace('\"', ""),
-                    None => s.get("name").unwrap().to_string().replace('\"', ""),
-                },
+                stored.id,
+                stored.name,
+                stored.host,
+                stored.stream_configs,
+                display_name,
             )
         } else {
             let default_host = cpal::default_host();
