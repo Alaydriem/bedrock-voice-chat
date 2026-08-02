@@ -451,7 +451,7 @@ impl InputStream {
                                 None,
                             )),
                                                     // Not a server fan-out, so this envelope carries no sequence.
-                            seq: None,
+                            ..Default::default()
                         },
                     };
 

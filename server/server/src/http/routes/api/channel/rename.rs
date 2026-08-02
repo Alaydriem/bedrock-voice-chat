@@ -54,7 +54,7 @@ pub async fn channel_rename(
             None,
         )),
             // Not a server fan-out, so this envelope carries no sequence.
-        seq: None,
+        ..Default::default()
     };
 
     if let Err(e) = webhook_receiver.send_packet(packet).await {

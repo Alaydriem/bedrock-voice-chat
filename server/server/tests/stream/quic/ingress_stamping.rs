@@ -23,7 +23,7 @@ fn query_state_packet(
             current_group: None,
         })),
         // Not a server fan-out to one connection, so this envelope carries no sequence.
-        seq: None,
+        ..Default::default()
     }
 }
 

@@ -8,7 +8,7 @@ fn envelope() -> QuicNetworkPacket {
         packet_type: PacketType::HealthCheck,
         owner: None,
         data: QuicNetworkPacketData::HealthCheck(HealthCheckPacket),
-        seq: None,
+        ..Default::default()
     }
 }
 

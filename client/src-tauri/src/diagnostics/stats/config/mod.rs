@@ -1,5 +1,9 @@
 use std::sync::Mutex;
 
+mod spatial;
+
+use spatial::Spatial;
+
 // Server-supplied voice settings, recorded where they are resolved so a diagnostic can report
 // what this session is actually running under rather than what the defaults say.
 //
@@ -8,12 +12,6 @@ use std::sync::Mutex;
 #[derive(Debug, Default)]
 pub struct SessionConfig {
     spatial: Mutex<Option<Spatial>>,
-}
-
-#[derive(Debug, Clone)]
-struct Spatial {
-    proximity_range: f32,
-    falloff: String,
 }
 
 impl SessionConfig {

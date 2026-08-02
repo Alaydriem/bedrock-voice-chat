@@ -363,7 +363,7 @@ impl PeerManager {
             owner: None,
             data: QuicNetworkPacketData::AudioAvailable(available),
             // Not a server fan-out to one connection, so this envelope carries no sequence.
-            seq: None,
+            ..Default::default()
         };
         self.enqueue_to_link(peer_ep, &RelayedPacket::local(reply));
     }
@@ -397,7 +397,7 @@ impl PeerManager {
                 correlation_id: correlation_id.to_string(),
             }),
             // Not a server fan-out to one connection, so this envelope carries no sequence.
-            seq: None,
+            ..Default::default()
         };
         self.enqueue_to_all_links(&RelayedPacket::local(query));
         rx
@@ -678,7 +678,7 @@ mod tests {
                 Some(true),
             )),
             // Not a server fan-out to one connection, so this envelope carries no sequence.
-            seq: None,
+            ..Default::default()
         }
     }
 
@@ -714,7 +714,7 @@ mod tests {
                 Some(true),
             )),
             // Not a server fan-out to one connection, so this envelope carries no sequence.
-            seq: None,
+            ..Default::default()
         }
     }
 
@@ -810,7 +810,7 @@ mod tests {
                 token: "tok".into(),
             }),
             // Not a server fan-out to one connection, so this envelope carries no sequence.
-            seq: None,
+            ..Default::default()
         };
         mgr.ingest(key, control).await;
         assert_eq!(
@@ -840,7 +840,7 @@ mod tests {
                 correlation_id: "corr-1".into(),
             }),
             // Not a server fan-out to one connection, so this envelope carries no sequence.
-            seq: None,
+            ..Default::default()
         };
         assert!(
             mgr.is_ingest_authorized(key, &query),
@@ -872,7 +872,7 @@ mod tests {
                 correlation_id: "corr-1".into(),
             }),
             // Not a server fan-out to one connection, so this envelope carries no sequence.
-            seq: None,
+            ..Default::default()
         };
         mgr.register_inbound("peerX:7000", Instant::now());
         mgr.ingest("peerX:7000", available).await;
@@ -902,7 +902,7 @@ mod tests {
                 correlation_id: "corr-unknown".into(),
             }),
             // Not a server fan-out to one connection, so this envelope carries no sequence.
-            seq: None,
+            ..Default::default()
         };
         mgr.register_inbound("peerX:7000", Instant::now());
         mgr.ingest("peerX:7000", available).await;
@@ -935,7 +935,7 @@ mod tests {
                 correlation_id: "corr-1".into(),
             }),
             // Not a server fan-out to one connection, so this envelope carries no sequence.
-            seq: None,
+            ..Default::default()
         };
         let second = QuicNetworkPacket {
             packet_type: PacketType::AudioAvailable,
@@ -946,7 +946,7 @@ mod tests {
                 correlation_id: "corr-1".into(),
             }),
             // Not a server fan-out to one connection, so this envelope carries no sequence.
-            seq: None,
+            ..Default::default()
         };
         mgr.ingest("peerA:7000", first).await;
         mgr.ingest("peerB:7000", second).await;
@@ -980,7 +980,7 @@ mod tests {
                 correlation_id: "corr-a".into(),
             }),
             // Not a server fan-out to one connection, so this envelope carries no sequence.
-            seq: None,
+            ..Default::default()
         };
         let reply_b = QuicNetworkPacket {
             packet_type: PacketType::AudioAvailable,
@@ -991,7 +991,7 @@ mod tests {
                 correlation_id: "corr-b".into(),
             }),
             // Not a server fan-out to one connection, so this envelope carries no sequence.
-            seq: None,
+            ..Default::default()
         };
         mgr.ingest("peerA:7000", reply_a).await;
         mgr.ingest("peerB:7000", reply_b).await;

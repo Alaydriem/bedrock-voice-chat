@@ -65,7 +65,7 @@ impl PlayerDataChunker {
             data: QuicNetworkPacketData::PlayerData(PlayerDataPacket::new(players)),
             // Sized and sent by the position broadcaster, not stamped for one connection; the
             // fan-out in `broadcast_to_all` assigns each recipient's sequence.
-            seq: None,
+            ..Default::default()
         }
     }
 

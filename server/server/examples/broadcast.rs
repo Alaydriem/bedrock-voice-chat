@@ -445,7 +445,7 @@ async fn run(args: Args) -> Result<(), Box<dyn Error>> {
                         ),
                     ),
                     // Not a server fan-out to one connection, so this envelope carries no sequence.
-                    seq: None,
+                    ..Default::default()
                 };
 
                 match packet.to_datagram() {

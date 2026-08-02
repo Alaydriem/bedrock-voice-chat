@@ -16,6 +16,12 @@ use super::stats::{
 };
 use super::{DeviceInfo, DiagnosticsReport, SampleRing};
 
+mod counter_readings;
+mod stall_state;
+
+use counter_readings::CounterReadings;
+use stall_state::StallState;
+
 // A live QUIC connection always produces return traffic — acknowledgements above all — so a client
 // whose packets are going out while nothing at all comes back is not idle, it is cut off.
 //
@@ -32,27 +38,6 @@ const ROLLUP_INTERVAL: Duration = Duration::from_secs(300);
 // Device names and sample rates change rarely, and reading them contends with the audio
 // command path, so they are refreshed on the slow cadence rather than every tick.
 const DEVICE_REFRESH_INTERVAL: Duration = Duration::from_secs(30);
-
-// Previous readings of the monotonic counters, so the service can turn them into rates. Every
-// producer only ever increments; all windowing happens here.
-#[derive(Debug, Default, Clone)]
-struct CounterReadings {
-    at: Option<Instant>,
-    datagrams_sent: u64,
-    datagrams_received: u64,
-    frames_with_signal: u64,
-    packets_sent: u64,
-    packets_received: u64,
-    packets_lost: u64,
-    sequence_received: u64,
-    sequence_lost: u64,
-    burst_loss: u64,
-}
-
-#[derive(Debug, Default)]
-struct StallState {
-    consecutive: u32,
-}
 
 pub struct LinkDiagnosticsService {
     quic_stats: watch::Receiver<Arc<QuicLinkStats>>,
@@ -630,7 +615,7 @@ impl LinkDiagnosticsService {
         use tauri::Emitter;
 
         if let Err(e) = app_handle.emit(
-            crate::events::event::link_diagnostics::LINK_DIAGNOSTICS,
+            crate::events::event::LINK_DIAGNOSTICS,
             &snapshot,
         ) {
             log::debug!("Failed to emit link diagnostics: {}", e);

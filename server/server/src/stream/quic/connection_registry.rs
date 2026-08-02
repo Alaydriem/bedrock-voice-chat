@@ -411,6 +411,8 @@ impl ConnectionRegistry {
             packet_type: packet.packet_type.clone(),
             owner: packet.owner.clone(),
             data: QuicNetworkPacketData::PlayerData(PlayerDataPacket::new(players.to_vec())),
+            // Each half is re-entered through `broadcast_to_all`, which stamps per recipient.
+            ..Default::default()
         };
 
         Some([rebuild(head), rebuild(tail)])
@@ -450,6 +452,8 @@ impl ConnectionRegistry {
                 data: QuicNetworkPacketData::PlayerData(PlayerDataPacket::new(vec![
                     player.clone(),
                 ])),
+                // `send_to_player` stamps this with that connection's sequence.
+                ..Default::default()
             };
 
             if self.send_to_player(name, &own) {
@@ -859,7 +863,7 @@ mod tests {
                 Some(true),
             )),
             // Not a server fan-out to one connection, so this envelope carries no sequence.
-            seq: None,
+            ..Default::default()
         }
     }
 
