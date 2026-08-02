@@ -38,7 +38,10 @@ use std::sync::Arc;
 use stream_manager::{InputStream, OutputStream};
 use tokio::sync::{mpsc, oneshot};
 
-pub use cache_manager::{CacheManager, CacheTrait, PlayerPreferenceCache, PlayerStateCache};
+pub use cache_manager::{
+    CacheManager, CacheTrait, PlayerPreferenceCache, PlayerStateCache, TicketIdentity,
+    WebsocketTicketCache,
+};
 pub use certificate_common_name::CertificateCommonName;
 pub use connection_id_format::PrefixedConnectionIdFormat;
 pub use connection_identity::{ConnectionClassifier, ConnectionKind};

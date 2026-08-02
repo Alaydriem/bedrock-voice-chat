@@ -22,6 +22,7 @@ pub mod permission_service;
 pub mod metrics_service;
 pub mod player_identity_service;
 pub mod player_registrar_service;
+pub mod position_service;
 
 pub use audio_file_service::{AudioFileError, AudioFileService};
 pub use audio_playback_service::{AudioPlaybackService, EjectScheduler};
@@ -39,3 +40,4 @@ pub use permission_service::{PermissionService, PermissionServiceError};
 pub use metrics_service::MetricsService;
 pub use player_identity_service::PlayerIdentityService;
 pub use player_registrar_service::{PlayerRegistrarService, RegisteredPlayersCache};
+pub use position_service::{PositionHandle, PositionService};

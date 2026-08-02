@@ -9,6 +9,7 @@ pub(crate) mod positions;
 pub mod relay;
 pub(crate) mod server_config;
 pub mod state;
+pub mod websocket;
 
 #[cfg(feature = "bedrock")]
 pub(crate) mod bedrock;

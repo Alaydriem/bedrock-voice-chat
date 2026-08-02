@@ -34,3 +34,6 @@ pub(crate) use relay_offer_rate_limit::RelayOfferRateLimit;
 
 mod relay_redeem_rate_limit;
 pub(crate) use relay_redeem_rate_limit::RelayRedeemRateLimit;
+
+mod websocket_ticket;
+pub(crate) use websocket_ticket::WebsocketTicket;

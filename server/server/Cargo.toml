@@ -50,6 +50,9 @@ rocket = { version = "^0.5", default-features = false, features = [
     "json",
     "mtls",
 ] }
+# Upgrades a WebSocket inside a Rocket route, so the stream shares the HTTP
+# port, TLS and routing table rather than needing a separate listener.
+rocket_ws = { version = "^0.1" }
 hcl-rs = { version = "^0.19" }
 instant-acme = { version = "^0.8" }
 anyhow = { version = "^1.0" }

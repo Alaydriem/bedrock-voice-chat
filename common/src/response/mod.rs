@@ -7,6 +7,7 @@ pub mod gamerpic_response;
 pub mod link_java_identity_response;
 pub mod login;
 pub mod paginated;
+pub mod websocket;
 
 pub use api::config::{
     ApiConfigAge, ApiConfigBedrock, ApiConfigBedrockServer, ApiConfigCheckResponse,

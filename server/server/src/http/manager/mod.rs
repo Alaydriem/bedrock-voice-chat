@@ -180,7 +180,13 @@ impl RocketManager {
                         routes![routes::assets::get_avatar, routes::assets::get_canvas,],
                     )
                     .mount("/ncryptf", routes![routes::ncryptf::ncryptf_ek_route])
-                    .mount("/metrics", routes![routes::metrics::metrics]);
+                    .mount("/metrics", routes![routes::metrics::metrics])
+                    // Mounted directly rather than through the OpenAPI spec: an
+                    // upgrade is not a JSON route and has no response schema.
+                    .mount(
+                        "/api",
+                        routes![routes::api::websocket::positions::positions],
+                    );
 
                 for (prefix, route_list) in crate::http::openapi::OpenApiSpec::routes() {
                     rocket = rocket.mount(prefix, route_list);
