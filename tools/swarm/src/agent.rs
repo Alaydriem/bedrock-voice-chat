@@ -1,9 +1,7 @@
-use std::sync::Arc;
 use std::time::Duration;
 
 use crate::bot_proc::BotProc;
 use crate::job::AgentJob;
-use crate::position_sender::PositionSender;
 use crate::report::{AgentReport, BotReport};
 use crate::tone::Tone;
 
@@ -80,40 +78,12 @@ impl SwarmAgent {
             }
         }
 
-        // Positions must exist in the server cache before audio or every
-        // recipient is filtered out. Seed a few times, then refresh in the
-        // background for the whole run.
-        let names_with_cluster: Vec<(String, usize)> = codes
-            .iter()
-            .enumerate()
-            .map(|(i, (name, _))| (name.clone(), self.job.offset + i))
-            .collect();
-        let positions = Arc::new(PositionSender::new(
-            &self.job.server,
-            self.job.access_token.clone(),
-            self.job.ca_pem.as_deref(),
-            &names_with_cluster,
-            group_size,
-        )?);
-
-        for _ in 0..5 {
-            positions.post_once().await?;
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
-        tokio::time::sleep(Duration::from_millis(500)).await;
-
-        let position_task = {
-            let positions = positions.clone();
-            let label = self.host_label();
-            tokio::spawn(async move {
-                loop {
-                    tokio::time::sleep(Duration::from_millis(500)).await;
-                    if let Err(e) = positions.post_once().await {
-                        eprintln!("[agent {}] position refresh failed: {}", label, e);
-                    }
-                }
-            })
-        };
+        // Positions are advertised by the CONTROLLER for the whole simulated
+        // realm in one request, because datagram size is driven by
+        // players-per-request. An agent posting only its own bots would pin that
+        // axis at `bots_per_container` no matter how large the swarm got. The
+        // controller starts advertising before any container launches, so the
+        // server cache is already populated by the time bots connect.
 
         // Feed the tone in 1-second batches (50 frames). The client bin paces the
         // 20ms cadence itself, so real-time supply keeps its input buffer shallow.
@@ -133,8 +103,6 @@ impl SwarmAgent {
             }
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
-
-        position_task.abort();
 
         // Read counters, then tear each bot down cleanly.
         for bot in bots.iter_mut() {

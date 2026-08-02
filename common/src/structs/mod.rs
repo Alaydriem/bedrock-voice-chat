@@ -16,6 +16,7 @@ pub mod onboarding;
 pub mod packet;
 pub mod permission;
 pub mod players;
+pub mod position;
 pub mod recording;
 pub mod relay;
 pub mod server_list_entry;

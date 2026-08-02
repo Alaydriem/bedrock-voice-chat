@@ -19,13 +19,37 @@ admin_cert = "certs/admin.crt"
 admin_key  = "certs/admin.key"
 
 # The server's Minecraft mod access token (server config `minecraft.access_token`).
-# Agents send it as `X-MC-Access-Token` when POSTing bot positions. Required —
-# without valid positions the server routes zero audio to the bots.
+# The CONTROLLER sends it as `X-MC-Access-Token` when advertising positions.
+# Required — without valid positions the server routes zero audio to the bots.
 access_token = "REPLACE_WITH_SERVER_MOD_ACCESS_TOKEN"
 
 prefix = "SwarmBot"
 group_size = 5
 duration_secs = 120
+
+# ---- Position feed -----------------------------------------------------------
+# The game mod advertises EVERY player on the realm in a SINGLE request, so
+# players-per-request drives position datagram size — not the number of bots on
+# voice. These knobs are what let a run exercise that axis; the controller owns
+# the feed because it is the only party that knows every bot name.
+
+# Simulated realm population. Must be >= total bots: bots always appear in the
+# roster, and any remainder is synthetic filler that never connects. This models
+# the common real shape — a busy realm with only a handful of people on voice
+# (s4 ran 25 players against 4 voice clients). Defaults to the bot count.
+realm_players = 100
+
+# How often the full roster is advertised. Defaults to 4, the mod's real cadence
+# (every 5 ticks). Positions must be advertised CONTINUOUSLY for size pressure to
+# surface; a one-shot post seeds the cache and then hides the problem, because
+# audio keeps routing off that cache even when position delivery is failing.
+position_hz = 4
+
+# World identifier attached to every advertised player. Length is significant:
+# it is roughly half of a player's encoded size, so omitting it understates
+# datagram size about 2x. Use a 64-char value to model the client-proxy path,
+# which publishes a blake3 digest rather than a UUID.
+world_uuid = "8f14e45f-ea8f-4b62-9f2a-1c0d7e3b4a55"
 
 # Prebuilt LINUX binaries on THIS (controller) machine. The controller pushes
 # them into every container. Build them on a Linux box / CI:

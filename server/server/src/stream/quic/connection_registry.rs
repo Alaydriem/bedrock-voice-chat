@@ -1,18 +1,23 @@
 use bytes::Bytes;
 use common::Game;
 use common::PlayerEnum;
-use common::structs::packet::{QuicNetworkPacket, QuicNetworkPacketData};
+use common::structs::packet::{
+    PacketType, PlayerDataPacket, QuicNetworkPacket, QuicNetworkPacketData,
+};
 use common::traits::player_data::PlayerData;
 use dashmap::DashMap;
 use moka::future::Cache;
 use std::sync::{Arc, OnceLock};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
+use super::log_throttle::LogThrottle;
 use crate::relay::{ObservedCodeHandler, PeerManager, RelayedPacket};
 use crate::services::MetricsService;
 use crate::services::metrics_service::interaction::InteractionRoute;
 use crate::services::metrics_service::interaction::InteractionTracker;
+
+const OVERSIZED_BROADCAST_LOG_INTERVAL: Duration = Duration::from_secs(30);
 
 pub enum RoutedPacket {
     Serialized(Bytes),
@@ -55,6 +60,10 @@ pub struct ConnectionRegistry {
     // client's `PeerPresenceObserved` report is redeemed against the offering
     // minter to establish the peer link. Installed alongside the relay manager.
     observe_handler: OnceLock<Arc<dyn ObservedCodeHandler>>,
+    // Guards the broadcast serialization-failure log. The inputs that cause a
+    // failure recur every tick, so this site would otherwise emit at the
+    // source's full rate.
+    oversized_broadcast_log: LogThrottle,
 }
 
 impl Default for ConnectionRegistry {
@@ -73,6 +82,7 @@ impl ConnectionRegistry {
             observe_handler: OnceLock::new(),
             metrics: OnceLock::new(),
             channel_absent_ticks: DashMap::new(),
+            oversized_broadcast_log: LogThrottle::new(OVERSIZED_BROADCAST_LOG_INTERVAL),
         }
     }
 
@@ -313,7 +323,31 @@ impl ConnectionRegistry {
         let bytes = match packet.to_datagram() {
             Ok(bytes) => Bytes::from(bytes),
             Err(e) => {
-                tracing::error!("Failed to serialize broadcast: {}", e);
+                // A player list that does not fit is still deliverable in
+                // pieces; every consumer merges players by name, so splitting
+                // changes nothing observable. Dropping it whole would strand
+                // every client's positions until the roster shrank.
+                if let Some(halves) = Self::split_oversized(&packet) {
+                    for half in halves {
+                        self.broadcast_to_all(half);
+                    }
+                    return;
+                }
+
+                if packet.packet_type == PacketType::PlayerData {
+                    if let Some(metrics) = self.metrics.get() {
+                        metrics.record_position_oversize_drop();
+                    }
+                }
+
+                if let Some(suppressed) = self.oversized_broadcast_log.should_log() {
+                    tracing::error!(
+                        suppressed,
+                        packet_type = ?packet.packet_type,
+                        "Failed to serialize broadcast: {}",
+                        e
+                    );
+                }
                 return;
             }
         };
@@ -344,6 +378,73 @@ impl ConnectionRegistry {
         }
     }
 
+    // Halves an oversized player list. Returns `None` for anything that cannot
+    // be divided -- a different packet type, or a single player already too
+    // large -- which is what terminates the recursion in `broadcast_to_all`.
+    fn split_oversized(packet: &QuicNetworkPacket) -> Option<[QuicNetworkPacket; 2]> {
+        let QuicNetworkPacketData::PlayerData(data) = &packet.data else {
+            return None;
+        };
+
+        if data.players.len() < 2 {
+            return None;
+        }
+
+        let (head, tail) = data.players.split_at(data.players.len() / 2);
+
+        let rebuild = |players: &[PlayerEnum]| QuicNetworkPacket {
+            packet_type: packet.packet_type.clone(),
+            owner: packet.owner.clone(),
+            data: QuicNetworkPacketData::PlayerData(PlayerDataPacket::new(players.to_vec())),
+        };
+
+        Some([rebuild(head), rebuild(tail)])
+    }
+
+    /// Delivers each player's position to that player alone.
+    ///
+    /// A client reads exactly one entry out of a position packet -- its own,
+    /// which anchors the listener for spatial audio. Every other entry is
+    /// decoded and discarded, because an emitter's position travels on the
+    /// audio frame itself. Broadcasting the roster therefore sent N records to
+    /// M clients to deliver M useful ones; addressing each player directly
+    /// makes the cost O(connected clients) instead of O(roster x clients), and
+    /// keeps a position packet at one player regardless of how large the realm
+    /// grows.
+    ///
+    /// Returns how many clients were served, for metrics and tests.
+    pub fn send_positions_to_owners(&self, packet: &QuicNetworkPacket) -> usize {
+        let QuicNetworkPacketData::PlayerData(data) = &packet.data else {
+            return 0;
+        };
+
+        let mut delivered = 0;
+
+        for player in &data.players {
+            let name = player.get_name();
+
+            // Most of the roster is not on voice at all; skipping the
+            // non-connected majority is the entire saving.
+            if !self.name_index.contains_key(name) {
+                continue;
+            }
+
+            let own = QuicNetworkPacket {
+                packet_type: packet.packet_type.clone(),
+                owner: packet.owner.clone(),
+                data: QuicNetworkPacketData::PlayerData(PlayerDataPacket::new(vec![
+                    player.clone(),
+                ])),
+            };
+
+            if self.send_to_player(name, &own) {
+                delivered += 1;
+            }
+        }
+
+        delivered
+    }
+
     // Delivers a single packet to one connected player (by bare gamertag) via the
     // O(1) name index. Returns whether a live connection received it; a closed
     // sender is reaped. Used by the control plane to route a ClientBound action to
@@ -362,10 +463,29 @@ impl ConnectionRegistry {
         let bytes = match packet.to_datagram() {
             Ok(b) => Bytes::from(b),
             Err(e) => {
+                if packet.packet_type == PacketType::PlayerData {
+                    if let Some(metrics) = self.metrics.get() {
+                        metrics.record_position_oversize_drop();
+                    }
+                }
                 tracing::error!("Failed to serialize packet for {}: {}", player_name, e);
                 return false;
             }
         };
+
+        // Recorded here because the encoded bytes already exist; sizing the
+        // packet again at the call site would double the work on a path that
+        // runs for every player on every position tick.
+        if packet.packet_type == PacketType::PlayerData {
+            if let Some(metrics) = self.metrics.get() {
+                let players = match &packet.data {
+                    QuicNetworkPacketData::PlayerData(data) => data.players.len(),
+                    _ => 0,
+                };
+                metrics.record_position_datagram(bytes.len(), players);
+            }
+        }
+
         match tx.try_send(RoutedPacket::Serialized(bytes)) {
             Ok(()) => true,
             Err(mpsc::error::TrySendError::Full(_)) => false,

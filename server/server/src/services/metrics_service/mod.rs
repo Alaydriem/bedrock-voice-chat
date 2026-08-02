@@ -175,6 +175,10 @@ impl MetricsService {
                     Metric::AudioRouteDurationSeconds.name(),
                     "Per-frame route_audio_frame duration in seconds"
                 );
+                describe_histogram!(
+                    Metric::PositionDatagramBytes.name(),
+                    "Encoded size of each position datagram, against MAX_DATAGRAM_SIZE"
+                );
                 gauge!(Metric::BuildInfo.name(), "version" => env!("CARGO_PKG_VERSION")).set(1.0);
 
                 handle
@@ -366,6 +370,23 @@ impl MetricsService {
     // them — the first user-audible routing failure mode under load.
     pub fn record_audio_route_drop(&self) {
         counter!(Metric::AudioRouteRecipientDropsTotal.name()).increment(1);
+    }
+
+    // One position datagram put on the wire, with its encoded size. The size
+    // histogram is the load-bearing part: it shows headroom against
+    // MAX_DATAGRAM_SIZE shrinking as a realm fills, rather than only reporting
+    // the failure once packets already exceed it.
+    pub fn record_position_datagram(&self, bytes: usize, players: usize) {
+        counter!(Metric::PositionDatagramsTotal.name()).increment(1);
+        histogram!(Metric::PositionDatagramBytes.name()).record(bytes as f64);
+        counter!(Metric::PositionPlayersAdvertisedTotal.name()).increment(players as u64);
+    }
+
+    // A position packet could not be encoded within MAX_DATAGRAM_SIZE and was
+    // dropped rather than split. Any non-zero rate here means some clients are
+    // receiving no position updates at all.
+    pub fn record_position_oversize_drop(&self) {
+        counter!(Metric::PositionOversizeDropsTotal.name()).increment(1);
     }
 
     pub fn set_active_players(&self, value: i64) {

@@ -3,8 +3,9 @@ use std::sync::Arc;
 use crate::config::SwarmConfig;
 use crate::job::AgentJob;
 use crate::lxd_client::LxdClient;
-use crate::metrics_scrape::{MetricsScrape, MetricsSnapshot};
+use crate::metrics_scrape::{MAX_DATAGRAM_SIZE, MetricsScrape, MetricsSnapshot};
 use crate::minter::CodeMinter;
+use crate::position_sender::PositionSender;
 use crate::report::AgentReport;
 
 /// Orchestrates a whole run from the config file: obtain codes, launch an
@@ -211,6 +212,23 @@ impl SwarmController {
             before.frames_routed, before.recipient_drops
         );
 
+        // Advertise the whole simulated realm before any container starts, so
+        // the server's player cache is populated by the time bots connect and
+        // the position feed is under load for the entire run. A bad access
+        // token fails here rather than after provisioning containers.
+        let positions = Arc::new(self.position_sender()?);
+        let advertised = positions.advertised_players();
+        eprintln!(
+            "[controller] advertising {} players at {}Hz ({} on voice)",
+            advertised,
+            self.config.position_hz,
+            self.config.total_bots(),
+        );
+        let position_task = positions
+            .clone()
+            .spawn_advertising(self.config.position_hz)
+            .await?;
+
         let pid = std::process::id();
         let mut offset = 0usize;
         let mut handles = Vec::new();
@@ -247,14 +265,44 @@ impl SwarmController {
             }
         }
 
+        position_task.abort();
+
         let after = scrape.snapshot().await.unwrap_or_default();
         let delta = after.delta(&before);
 
-        Self::print_summary(&reports, &delta);
+        Self::print_summary(&reports, &delta, advertised);
         Ok(())
     }
 
-    fn print_summary(reports: &[AgentReport], delta: &MetricsSnapshot) {
+    // Builds the realm-wide position feed: every minted bot, plus synthetic
+    // filler up to `realm_players`. Filler never connects; it exists to put the
+    // roster at a realistic size, since a realm typically has far more players
+    // than voice clients.
+    fn position_sender(&self) -> Result<PositionSender, anyhow::Error> {
+        let names_with_cluster: Vec<(String, usize)> = self
+            .codes
+            .iter()
+            .enumerate()
+            .map(|(i, (name, _))| (name.clone(), i))
+            .collect();
+
+        let filler_count = self.config.realm_size().saturating_sub(self.codes.len());
+        let filler_names: Vec<String> = (0..filler_count)
+            .map(|i| self.config.filler_name(i))
+            .collect();
+
+        PositionSender::new(
+            &self.config.server,
+            self.config.access_token.clone(),
+            self.ca_pem.as_deref(),
+            self.config.world_uuid.clone(),
+            &names_with_cluster,
+            self.config.group_size,
+            &filler_names,
+        )
+    }
+
+    fn print_summary(reports: &[AgentReport], delta: &MetricsSnapshot, advertised: usize) {
         let total_bots: usize = reports.iter().map(|r| r.bots.len()).sum();
         let total_connected: usize = reports.iter().map(|r| r.connected).sum();
         let total_received: u64 = reports.iter().map(|r| r.total_frames_received).sum();
@@ -281,6 +329,40 @@ impl SwarmController {
         println!("  frames routed:       {}", delta.frames_routed);
         println!("  recipient drops:     {}", delta.recipient_drops);
         println!("  mean route duration: {:.1} µs", delta.mean_route_us());
+        println!();
+        println!(
+            "position feed over the run window ({} players advertised per request):",
+            advertised
+        );
+        println!("  datagrams emitted:   {}", delta.position_datagrams);
+        println!(
+            "  players per datagram: {:.1}",
+            delta.mean_players_per_datagram()
+        );
+        println!(
+            "  datagram bytes:      mean {:.0}, max {:.0} (limit {})",
+            delta.mean_position_bytes(),
+            delta.position_bytes_max,
+            MAX_DATAGRAM_SIZE,
+        );
+        println!("  oversize drops:      {}", delta.position_oversize_drops);
+
+        // An oversize drop is not a degradation: the whole packet is discarded,
+        // so affected clients receive no position update at all for that tick.
+        if delta.position_oversize_drops > 0 {
+            println!();
+            println!(
+                "  !! {} position datagrams exceeded {} bytes and were DROPPED — \
+                 clients received no position data for those ticks",
+                delta.position_oversize_drops, MAX_DATAGRAM_SIZE,
+            );
+        } else if delta.position_datagrams == 0 {
+            println!();
+            println!(
+                "  !! no position datagrams were emitted — the feed never reached any client"
+            );
+        }
+
         println!("=======================================================");
     }
 }

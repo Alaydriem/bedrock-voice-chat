@@ -2,11 +2,13 @@ mod cache_trait;
 mod player_cache;
 mod player_preference_cache;
 mod player_state_cache;
+mod websocket_ticket_cache;
 
 pub use cache_trait::CacheTrait;
 pub use player_cache::PlayerCache;
 pub use player_preference_cache::PlayerPreferenceCache;
 pub use player_state_cache::PlayerStateCache;
+pub use websocket_ticket_cache::{TicketIdentity, WebsocketTicketCache};
 
 use crate::services::{BedrockEventService, ClientActionService};
 use crate::stream::quic::connection_registry::ConnectionRegistry;
@@ -33,6 +35,7 @@ pub struct CacheManager {
     webhook_receiver: Option<WebhookReceiver>,
     player_state: PlayerStateCache,
     preferences: PlayerPreferenceCache,
+    websocket_tickets: WebsocketTicketCache,
 }
 
 impl CacheManager {
@@ -45,6 +48,7 @@ impl CacheManager {
             webhook_receiver: None,
             player_state: PlayerStateCache::new(),
             preferences: PlayerPreferenceCache::new(),
+            websocket_tickets: WebsocketTicketCache::new(),
         }
     }
 
@@ -61,6 +65,11 @@ impl CacheManager {
     /// The per-player preference cache (`CacheTrait` + `get_scoped`/`evict_owner`).
     pub fn preferences(&self) -> &PlayerPreferenceCache {
         &self.preferences
+    }
+
+    /// Single-use tickets exchanging an mTLS identity for a WebSocket upgrade.
+    pub fn websocket_tickets(&self) -> &WebsocketTicketCache {
+        &self.websocket_tickets
     }
 
     pub(crate) fn set_connection_registry(&mut self, registry: Arc<ConnectionRegistry>) {

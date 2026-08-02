@@ -100,6 +100,8 @@ async fn render_exposes_all_metric_families_without_identity() {
     svc.set_active_players(7);
     svc.set_active_channels(2);
     svc.set_players_in_channels(3);
+    svc.record_position_datagram(84, 1);
+    svc.record_position_oversize_drop();
 
     let body = svc.render();
     for family in [
@@ -113,6 +115,13 @@ async fn render_exposes_all_metric_families_without_identity() {
         "bvc_peak_players",
         "bvc_active_channels",
         "bvc_players_in_channels",
+        // The position feed is observable independently of audio: proximity
+        // gating reads the cache /api/position fills over HTTP, so frames keep
+        // routing even when position delivery to clients has failed entirely.
+        "bvc_position_datagrams_total",
+        "bvc_position_datagram_bytes",
+        "bvc_position_players_advertised_total",
+        "bvc_position_oversize_drops_total",
     ] {
         assert!(body.contains(family), "missing {family} in exposition:\n{body}");
     }
