@@ -18,11 +18,12 @@
     </head>
   
     <body>
-      <div id="root"><section class="aui-root"><div class="container:xl relative md:flex bg-white leading-normal" id=""><div class="burger-menu rounded-full h-16 w-16 bg-white fixed bottom-16 right-8 flex items-center justify-center z-30 cursor-pointer shadow-md bg-teal-500" data-lol="false"><svg viewBox="0 0 100 70" width="40" height="30" class="fill-current text-gray-200"><rect width="100" height="10"></rect><rect y="30" width="100" height="10"></rect><rect y="60" width="100" height="10"></rect></svg></div><div class="hidden sidebar relative w-64 max-h-screen h-full bg-gray-200 shadow z-20"><div class=" block fixed max-h-screen h-full font-sans px-4 pt-8 pb-16 overflow-y-auto bg-gray-200"><div class="sidebar--content"><div><h1 class="text-2xl font-light">Bedrock Voice Chat WebSocket API<!-- --> <!-- -->1.0.0</h1></div><ul class="text-sm mt-10 relative"><li class="mb-3"><a class="text-gray-700 no-underline hover:text-gray-900" href="#introduction">Introduction</a></li><li class="mb-3 mt-9"><a class="text-xs uppercase text-gray-700 mt-10 mb-4 font-thin hover:text-gray-900" href="#servers">Servers</a><ul class="text-sm mt-2"><li><a class="flex no-underline text-gray-700 mb-2 hover:text-gray-900" href="#server-local"><span class="break-all inline-block">local</span></a></li></ul></li><li class="mb-3 mt-9"><a class="text-xs uppercase text-gray-700 mt-10 mb-4 font-thin hover:text-gray-900" href="#messages">Messages</a><ul class="text-sm mt-2"><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#message-Command"><div class="break-all inline-block">Command</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#message-ErrorResponse"><div class="break-all inline-block">ErrorResponse</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#message-SuccessResponse"><div class="break-all inline-block">SuccessResponse</div></a></li></ul></li><li class="mb-3 mt-9"><a class="text-xs uppercase text-gray-700 mt-10 mb-4 font-thin hover:text-gray-900" href="#schemas">Schemas</a><ul class="text-sm mt-2"><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-DeviceType"><div class="break-all inline-block">DeviceType</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-MuteData"><div class="break-all inline-block">MuteData</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-PongData"><div class="break-all inline-block">PongData</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-RecordData"><div class="break-all inline-block">RecordData</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-ResponseData"><div class="break-all inline-block">ResponseData</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-StateData"><div class="break-all inline-block">StateData</div></a></li></ul></li></ul></div></div></div><div class="panel--center relative py-8 flex-1"><div class="relative z-10"><div class="panel-item"><div class="panel-item--center px-8 text-left" id="introduction"><div class="text-4xl">Bedrock Voice Chat WebSocket API<!-- --> <!-- -->1.0.0</div><div class="mt-4"><div class="prose max-w-none text-sm"><p>A local WebSocket API for controlling Bedrock Voice Chat client via Stream Deck and other integrations</p>
+      <div id="root"><section class="aui-root"><div class="container:xl relative md:flex bg-white leading-normal" id=""><div class="burger-menu rounded-full h-16 w-16 bg-white fixed bottom-16 right-8 flex items-center justify-center z-30 cursor-pointer shadow-md bg-teal-500" data-lol="false"><svg viewBox="0 0 100 70" width="40" height="30" class="fill-current text-gray-200"><rect width="100" height="10"></rect><rect y="30" width="100" height="10"></rect><rect y="60" width="100" height="10"></rect></svg></div><div class="hidden sidebar relative w-64 max-h-screen h-full bg-gray-200 shadow z-20"><div class=" block fixed max-h-screen h-full font-sans px-4 pt-8 pb-16 overflow-y-auto bg-gray-200"><div class="sidebar--content"><div><h1 class="text-2xl font-light">Bedrock Voice Chat WebSocket API<!-- --> <!-- -->1.0.0</h1></div><ul class="text-sm mt-10 relative"><li class="mb-3"><a class="text-gray-700 no-underline hover:text-gray-900" href="#introduction">Introduction</a></li><li class="mb-3 mt-9"><a class="text-xs uppercase text-gray-700 mt-10 mb-4 font-thin hover:text-gray-900" href="#servers">Servers</a><ul class="text-sm mt-2"><li><a class="flex no-underline text-gray-700 mb-2 hover:text-gray-900" href="#server-local"><span class="break-all inline-block">local</span></a></li></ul></li><li class="mb-3 mt-9"><a class="text-xs uppercase text-gray-700 mt-10 mb-4 font-thin hover:text-gray-900" href="#messages">Messages</a><ul class="text-sm mt-2"><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#message-Command"><div class="break-all inline-block">Command</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#message-ErrorResponse"><div class="break-all inline-block">ErrorResponse</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#message-MetricsPush"><div class="break-all inline-block">MetricsPush</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#message-SuccessResponse"><div class="break-all inline-block">SuccessResponse</div></a></li></ul></li><li class="mb-3 mt-9"><a class="text-xs uppercase text-gray-700 mt-10 mb-4 font-thin hover:text-gray-900" href="#schemas">Schemas</a><ul class="text-sm mt-2"><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-DeviceType"><div class="break-all inline-block">DeviceType</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-MuteData"><div class="break-all inline-block">MuteData</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-PongData"><div class="break-all inline-block">PongData</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-RecordData"><div class="break-all inline-block">RecordData</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-ResponseData"><div class="break-all inline-block">ResponseData</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-StateData"><div class="break-all inline-block">StateData</div></a></li></ul></li></ul></div></div></div><div class="panel--center relative py-8 flex-1"><div class="relative z-10"><div class="panel-item"><div class="panel-item--center px-8 text-left" id="introduction"><div class="text-4xl">Bedrock Voice Chat WebSocket API<!-- --> <!-- -->1.0.0</div><div class="mt-4"><div class="prose max-w-none text-sm"><p>A local WebSocket API for controlling Bedrock Voice Chat client via Stream Deck and other integrations</p>
 </div></div></div><div class="panel-item--right"></div></div><section id="servers" class="mt-16"><h2 class="2xl:w-7/12 text-3xl font-light mb-4 px-8">Servers</h2><ul><li class="mb-4" id="server-local"><div class="panel-item"><div class="panel-item--center px-8"><div class="shadow rounded bg-gray-200 p-4 border bg-gray-100"><div><span class="font-mono text-base">ws://127.0.0.1:9595/</span><strong class="bg-teal-500 no-underline text-white uppercase rounded mx-2 px-2 py-1 text-sm">ws</strong><strong class="bg-blue-500 no-underline text-white uppercase rounded px-2 py-1 text-sm">local</strong></div><div class="mt-2"><div class="prose max-w-none text-sm"><p>Local websocket server running from Bedrock Voice Chat client</p>
 </div></div><div id="server-local-security"></div><div class="mt-2"></div></div></div><div class="panel-item--right"></div></div></li></ul></section><section id="messages" class="mt-16"><h2 class="2xl:w-7/12 text-3xl font-light mb-4 px-8">Messages</h2><ul><li class="mb-4" id="message-Command"><div class="panel-item"><div class="panel-item--center px-8"><div class="shadow rounded bg-gray-200 p-4 border"><div><strong class="text-gray-700 mr-2">#<!-- -->1</strong><span class="text-gray-700 mr-2">WebSocket Command</span></div><p class="text-gray-600 text-sm">Commands that can be sent to the WebSocket server</p><ul class="leading-normal mt-2 mb-4 space-x-2 space-y-2"><li class="inline-block"><a href="https://www.iana.org/assignments/media-types/application/json" title="Opens in new window" class="border border-solid border-orange-300 hover:bg-orange-300 hover:text-orange-600 text-orange-500 font-bold no-underline text-xs uppercase rounded px-3 py-1" target="_blank" rel="nofollow noopener noreferrer"><span>application/json</span></a></li></ul><div class="border bg-gray-100 rounded px-4 py-2 mt-2"><div class="text-sm text-gray-700">Message ID<span class="bg-orange-600 text-white rounded text-xs ml-2 py-0 px-2">Command</span></div></div><div class="mt-2"><div class="prose max-w-none text-sm"><p>Tagged union of all available commands (ping, mute, record)</p>
 </div></div><div class="mt-2" id="message-Command-payload"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">Payload</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">oneOf</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div></div></div></li><li class="mb-4" id="message-ErrorResponse"><div class="panel-item"><div class="panel-item--center px-8"><div class="shadow rounded bg-gray-200 p-4 border"><div><strong class="text-gray-700 mr-2">#<!-- -->2</strong><span class="text-gray-700 mr-2">Error Response</span></div><p class="text-gray-600 text-sm">Response sent when command fails</p><ul class="leading-normal mt-2 mb-4 space-x-2 space-y-2"><li class="inline-block"><a href="https://www.iana.org/assignments/media-types/application/json" title="Opens in new window" class="border border-solid border-orange-300 hover:bg-orange-300 hover:text-orange-600 text-orange-500 font-bold no-underline text-xs uppercase rounded px-3 py-1" target="_blank" rel="nofollow noopener noreferrer"><span>application/json</span></a></li></ul><div class="border bg-gray-100 rounded px-4 py-2 mt-2"><div class="text-sm text-gray-700">Message ID<span class="bg-orange-600 text-white rounded text-xs ml-2 py-0 px-2">ErrorResponse</span></div></div><div class="mt-2"><div class="prose max-w-none text-sm"><p>Contains success flag (false) and error message</p>
-</div></div><div class="mt-2" id="message-ErrorResponse-payload"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">Payload</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">object [ErrorResponse]</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div></div></div></li><li class="mb-4" id="message-SuccessResponse"><div class="panel-item"><div class="panel-item--center px-8"><div class="shadow rounded bg-gray-200 p-4 border"><div><strong class="text-gray-700 mr-2">#<!-- -->3</strong><span class="text-gray-700 mr-2">Success Response</span></div><p class="text-gray-600 text-sm">Response sent when command succeeds</p><ul class="leading-normal mt-2 mb-4 space-x-2 space-y-2"><li class="inline-block"><a href="https://www.iana.org/assignments/media-types/application/json" title="Opens in new window" class="border border-solid border-orange-300 hover:bg-orange-300 hover:text-orange-600 text-orange-500 font-bold no-underline text-xs uppercase rounded px-3 py-1" target="_blank" rel="nofollow noopener noreferrer"><span>application/json</span></a></li></ul><div class="border bg-gray-100 rounded px-4 py-2 mt-2"><div class="text-sm text-gray-700">Message ID<span class="bg-orange-600 text-white rounded text-xs ml-2 py-0 px-2">SuccessResponse</span></div></div><div class="mt-2"><div class="prose max-w-none text-sm"><p>Contains success flag and command-specific data</p>
+</div></div><div class="mt-2" id="message-ErrorResponse-payload"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">Payload</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">object [ErrorResponse]</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div></div></div></li><li class="mb-4" id="message-MetricsPush"><div class="panel-item"><div class="panel-item--center px-8"><div class="shadow rounded bg-gray-200 p-4 border"><div><strong class="text-gray-700 mr-2">#<!-- -->3</strong><span class="text-gray-700 mr-2">Link Diagnostics Push</span></div><p class="text-gray-600 text-sm">Live link, device and per-speaker diagnostics</p><ul class="leading-normal mt-2 mb-4 space-x-2 space-y-2"><li class="inline-block"><a href="https://www.iana.org/assignments/media-types/application/json" title="Opens in new window" class="border border-solid border-orange-300 hover:bg-orange-300 hover:text-orange-600 text-orange-500 font-bold no-underline text-xs uppercase rounded px-3 py-1" target="_blank" rel="nofollow noopener noreferrer"><span>application/json</span></a></li></ul><div class="border bg-gray-100 rounded px-4 py-2 mt-2"><div class="text-sm text-gray-700">Message ID<span class="bg-orange-600 text-white rounded text-xs ml-2 py-0 px-2">MetricsPush</span></div></div><div class="mt-2"><div class="prose max-w-none text-sm"><p>Tagged envelope carrying a full diagnostics snapshot. Tagged rather than riding on ResponseData, which is an untagged union a consumer could not discriminate.</p>
+</div></div><div class="mt-2" id="message-MetricsPush-payload"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">Payload</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">object</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div></div></div></li><li class="mb-4" id="message-SuccessResponse"><div class="panel-item"><div class="panel-item--center px-8"><div class="shadow rounded bg-gray-200 p-4 border"><div><strong class="text-gray-700 mr-2">#<!-- -->4</strong><span class="text-gray-700 mr-2">Success Response</span></div><p class="text-gray-600 text-sm">Response sent when command succeeds</p><ul class="leading-normal mt-2 mb-4 space-x-2 space-y-2"><li class="inline-block"><a href="https://www.iana.org/assignments/media-types/application/json" title="Opens in new window" class="border border-solid border-orange-300 hover:bg-orange-300 hover:text-orange-600 text-orange-500 font-bold no-underline text-xs uppercase rounded px-3 py-1" target="_blank" rel="nofollow noopener noreferrer"><span>application/json</span></a></li></ul><div class="border bg-gray-100 rounded px-4 py-2 mt-2"><div class="text-sm text-gray-700">Message ID<span class="bg-orange-600 text-white rounded text-xs ml-2 py-0 px-2">SuccessResponse</span></div></div><div class="mt-2"><div class="prose max-w-none text-sm"><p>Contains success flag and command-specific data</p>
 </div></div><div class="mt-2" id="message-SuccessResponse-payload"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">Payload</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">object [SuccessResponse]</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div></div></div></li></ul></section><section id="schemas" class="mt-16"><h2 class="2xl:w-7/12 text-3xl font-light mb-4 px-8">Schemas</h2><ul><li class="mb-4" id="schema-DeviceType"><div><div class="panel-item--center px-8"><div class="shadow rounded px-4 py-2 border bg-gray-200"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">DeviceType</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">string</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div><div class="w-full mt-4"></div></div></li><li class="mb-4" id="schema-MuteData"><div><div class="panel-item--center px-8"><div class="shadow rounded px-4 py-2 border bg-gray-200"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">MuteData</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">object</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div><div class="w-full mt-4"></div></div></li><li class="mb-4" id="schema-PongData"><div><div class="panel-item--center px-8"><div class="shadow rounded px-4 py-2 border bg-gray-200"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">PongData</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">object</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div><div class="w-full mt-4"></div></div></li><li class="mb-4" id="schema-RecordData"><div><div class="panel-item--center px-8"><div class="shadow rounded px-4 py-2 border bg-gray-200"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">RecordData</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">object</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div><div class="w-full mt-4"></div></div></li><li class="mb-4" id="schema-ResponseData"><div><div class="panel-item--center px-8"><div class="shadow rounded px-4 py-2 border bg-gray-200"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">ResponseData</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">anyOf</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div><div class="w-full mt-4"></div></div></li><li class="mb-4" id="schema-StateData"><div><div class="panel-item--center px-8"><div class="shadow rounded px-4 py-2 border bg-gray-200"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">StateData</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">object</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div><div class="w-full mt-4"></div></div></li></ul></section></div><div class="panel--right absolute top-0 right-0 h-full bg-gray-800"></div></div></div></section></div>
   
       <script type="text/javascript">
@@ -40,6 +41,42 @@
     const schema = {
   "asyncapi": "3.0.0",
   "channels": {
+    "metrics": {
+      "address": "/metrics",
+      "description": "Push-only link diagnostics, one frame per second while a connection is live. Authenticate with the configured key as a `key` query parameter; the upgrade is refused outright when it is missing or wrong. Inbound frames other than close and ping are ignored.",
+      "messages": {
+        "metrics": {
+          "contentType": "application/json",
+          "description": "Tagged envelope carrying a full diagnostics snapshot. Tagged rather than riding on ResponseData, which is an untagged union a consumer could not discriminate.",
+          "name": "MetricsPush",
+          "payload": {
+            "properties": {
+              "data": {
+                "description": "LinkDiagnosticsSnapshot. Field-level contract: client/src/js/bindings/LinkDiagnosticsSnapshot.ts, generated from the Rust definition in common/src/structs/metrics/.",
+                "type": "object",
+                "x-parser-schema-id": "<anonymous-schema-2>"
+              },
+              "type": {
+                "const": "metrics",
+                "description": "Discriminant. Present so a consumer can tell this from a state frame.",
+                "type": "string",
+                "x-parser-schema-id": "<anonymous-schema-3>"
+              }
+            },
+            "required": [
+              "type",
+              "data"
+            ],
+            "type": "object",
+            "x-parser-schema-id": "<anonymous-schema-1>"
+          },
+          "summary": "Live link, device and per-speaker diagnostics",
+          "title": "Link Diagnostics Push",
+          "x-parser-unique-object-id": "metrics"
+        }
+      },
+      "x-parser-unique-object-id": "metrics"
+    },
     "root": {
       "address": "/",
       "messages": {
@@ -55,21 +92,21 @@
                   "action": {
                     "const": "ping",
                     "type": "string",
-                    "x-parser-schema-id": "<anonymous-schema-3>"
+                    "x-parser-schema-id": "<anonymous-schema-6>"
                   }
                 },
                 "required": [
                   "action"
                 ],
                 "type": "object",
-                "x-parser-schema-id": "<anonymous-schema-2>"
+                "x-parser-schema-id": "<anonymous-schema-5>"
               },
               {
                 "properties": {
                   "action": {
                     "const": "mute",
                     "type": "string",
-                    "x-parser-schema-id": "<anonymous-schema-5>"
+                    "x-parser-schema-id": "<anonymous-schema-8>"
                   },
                   "device": {
                     "enum": [
@@ -85,39 +122,39 @@
                   "device"
                 ],
                 "type": "object",
-                "x-parser-schema-id": "<anonymous-schema-4>"
+                "x-parser-schema-id": "<anonymous-schema-7>"
               },
               {
                 "properties": {
                   "action": {
                     "const": "record",
                     "type": "string",
-                    "x-parser-schema-id": "<anonymous-schema-7>"
+                    "x-parser-schema-id": "<anonymous-schema-10>"
                   }
                 },
                 "required": [
                   "action"
                 ],
                 "type": "object",
-                "x-parser-schema-id": "<anonymous-schema-6>"
+                "x-parser-schema-id": "<anonymous-schema-9>"
               },
               {
                 "properties": {
                   "action": {
                     "const": "state",
                     "type": "string",
-                    "x-parser-schema-id": "<anonymous-schema-9>"
+                    "x-parser-schema-id": "<anonymous-schema-12>"
                   }
                 },
                 "required": [
                   "action"
                 ],
                 "type": "object",
-                "x-parser-schema-id": "<anonymous-schema-8>"
+                "x-parser-schema-id": "<anonymous-schema-11>"
               }
             ],
             "title": "Command",
-            "x-parser-schema-id": "<anonymous-schema-1>"
+            "x-parser-schema-id": "<anonymous-schema-4>"
           },
           "summary": "Commands that can be sent to the WebSocket server",
           "title": "WebSocket Command",
@@ -132,11 +169,11 @@
             "properties": {
               "error": {
                 "type": "string",
-                "x-parser-schema-id": "<anonymous-schema-11>"
+                "x-parser-schema-id": "<anonymous-schema-14>"
               },
               "success": {
                 "type": "boolean",
-                "x-parser-schema-id": "<anonymous-schema-12>"
+                "x-parser-schema-id": "<anonymous-schema-15>"
               }
             },
             "required": [
@@ -145,7 +182,7 @@
             ],
             "title": "ErrorResponse",
             "type": "object",
-            "x-parser-schema-id": "<anonymous-schema-10>"
+            "x-parser-schema-id": "<anonymous-schema-13>"
           },
           "summary": "Response sent when command fails",
           "title": "Error Response",
@@ -164,7 +201,7 @@
                     "properties": {
                       "pong": {
                         "type": "boolean",
-                        "x-parser-schema-id": "<anonymous-schema-14>"
+                        "x-parser-schema-id": "<anonymous-schema-17>"
                       }
                     },
                     "required": [
@@ -177,11 +214,11 @@
                     "properties": {
                       "device": {
                         "type": "string",
-                        "x-parser-schema-id": "<anonymous-schema-15>"
+                        "x-parser-schema-id": "<anonymous-schema-18>"
                       },
                       "muted": {
                         "type": "boolean",
-                        "x-parser-schema-id": "<anonymous-schema-16>"
+                        "x-parser-schema-id": "<anonymous-schema-19>"
                       }
                     },
                     "required": [
@@ -195,7 +232,7 @@
                     "properties": {
                       "recording": {
                         "type": "boolean",
-                        "x-parser-schema-id": "<anonymous-schema-17>"
+                        "x-parser-schema-id": "<anonymous-schema-20>"
                       }
                     },
                     "required": [
@@ -208,15 +245,15 @@
                     "properties": {
                       "deafened": {
                         "type": "boolean",
-                        "x-parser-schema-id": "<anonymous-schema-18>"
+                        "x-parser-schema-id": "<anonymous-schema-21>"
                       },
                       "muted": {
                         "type": "boolean",
-                        "x-parser-schema-id": "<anonymous-schema-19>"
+                        "x-parser-schema-id": "<anonymous-schema-22>"
                       },
                       "recording": {
                         "type": "boolean",
-                        "x-parser-schema-id": "<anonymous-schema-20>"
+                        "x-parser-schema-id": "<anonymous-schema-23>"
                       }
                     },
                     "required": [
@@ -232,7 +269,7 @@
               },
               "success": {
                 "type": "boolean",
-                "x-parser-schema-id": "<anonymous-schema-21>"
+                "x-parser-schema-id": "<anonymous-schema-24>"
               }
             },
             "required": [
@@ -241,7 +278,7 @@
             ],
             "title": "SuccessResponse",
             "type": "object",
-            "x-parser-schema-id": "<anonymous-schema-13>"
+            "x-parser-schema-id": "<anonymous-schema-16>"
           },
           "summary": "Response sent when command succeeds",
           "title": "Success Response",
@@ -255,6 +292,7 @@
     "messages": {
       "Command": "$ref:$.channels.root.messages.command",
       "ErrorResponse": "$ref:$.channels.root.messages.error",
+      "MetricsPush": "$ref:$.channels.metrics.messages.metrics",
       "SuccessResponse": "$ref:$.channels.root.messages.success"
     },
     "schemas": {
