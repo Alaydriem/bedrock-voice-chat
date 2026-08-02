@@ -1,0 +1,43 @@
+---
+import RotatingWord from './RotatingWord.astro';
+import { copy } from '../copy';
+import { FRIEND_TARGETS } from '../lib/site';
+
+/**
+ * The claim no Java-only mod can make, at full size.
+ *
+ * On the old site this was a 14px grey footnote under the download grid, set
+ * smaller than the copyright.
+ *
+ * The rotating target covers devices and hosts in one list, because both are
+ * the same objection: will it work for the person I actually play with, on the
+ * server we actually use.
+ */
+const t = copy.consoleClaim;
+---
+
+<div class="claim">
+  <p class="eyebrow">{t.eyebrow}</p>
+  <h2 class="display">
+    {t.heading.before} <RotatingWord words={FRIEND_TARGETS} /> {t.heading.after}
+  </h2>
+  <p class="lead">{t.body}</p>
+</div>
+
+<style>
+  .claim {
+    text-align: center;
+  }
+
+  .display {
+    font-size: var(--fs-h2);
+    max-width: 24ch;
+    margin-inline: auto;
+  }
+
+  .lead {
+    max-width: 58ch;
+    margin-inline: auto;
+    font-size: 17px;
+  }
+</style>

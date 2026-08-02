@@ -1,0 +1,148 @@
+---
+import Button from './Button.astro';
+import { copy } from '../copy';
+import { DEMO_SERVER, enabled, LINKS } from '../lib/site';
+
+/**
+ * A persistent conversion rail, revealed once the hero has scrolled away.
+ *
+ * This is the alternative to hoisting "three ways in" and the download grid up
+ * the page. Those two sections earn their position: compatibility has to land
+ * before an operator will care how to install anything, and the download grid
+ * is a reference table rather than a hook. Duplicating them higher would make
+ * the page repeat itself.
+ *
+ * A rail keeps a call to action within reach at every scroll position without
+ * moving anything, and it re-labels per audience so the offer matches whoever
+ * the visitor said they were.
+ */
+const t = copy.stickyCta;
+---
+
+<div class="rail" data-sticky-cta hidden>
+  <span class="msg">
+    <span data-aud="player all">{enabled('demoServer') ? t.messages.player : t.messages.playerNoDemo}</span>
+    <span data-aud="operator">{t.messages.operator}</span>
+    <span data-aud="creator">{t.messages.creator}</span>
+  </span>
+  <span class="acts">
+    {
+      enabled('demoServer') && (
+        <Button href="#ladder" size="sm">
+          {t.demo}
+          {!DEMO_SERVER.address && <span class="tbd">{copy.common.tbd}</span>}
+        </Button>
+      )
+    }
+    <span data-aud="player creator">
+      <Button href="#download" size="sm" variant="primary">{t.download}</Button>
+    </span>
+    <span data-aud="operator">
+      <Button href={LINKS.install} size="sm" variant="primary">{t.installGuide}</Button>
+    </span>
+  </span>
+</div>
+
+<style>
+  .rail {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 38;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 22px;
+    flex-wrap: wrap;
+    padding: 13px var(--pad-page);
+    border-top: 1px solid var(--line-2);
+    background: rgb(37 24 68 / 0.95);
+    backdrop-filter: blur(16px);
+    transform: translateY(102%);
+    transition: transform 0.36s var(--ease);
+  }
+
+  .rail.is-in {
+    transform: none;
+  }
+
+  .msg {
+    font-size: var(--fs-small);
+    color: var(--dim);
+  }
+
+  .acts {
+    display: flex;
+    gap: 9px;
+    flex-wrap: wrap;
+  }
+
+  @media (max-width: 620px) {
+    .msg {
+      display: none;
+    }
+
+    .rail {
+      justify-content: stretch;
+    }
+
+    /* One button per row. `flex: 1 1 0` did not work here: a flex item keeps
+       min-width:auto, and the buttons are white-space:nowrap, so neither could
+       shrink below its own text and the pair overflowed the viewport. Stacking
+       gives each the full width, which cannot overflow at any size. */
+    .acts {
+      width: 100%;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 8px;
+    }
+
+    .acts :global(.btn) {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .rail {
+      transition: none;
+    }
+  }
+</style>
+
+<script>
+  // Revealed only after the hero is gone, and hidden again near the footer so it
+  // never covers the real download grid.
+  const rail = document.querySelector<HTMLElement>('[data-sticky-cta]');
+  const hero = document.querySelector('.hero');
+  const downloads = document.getElementById('download');
+
+  if (rail && hero) {
+    rail.hidden = false;
+    let pastHero = false;
+    let atDownloads = false;
+
+    const sync = (): void => {
+      rail.classList.toggle('is-in', pastHero && !atDownloads);
+    };
+
+    new IntersectionObserver(
+      ([e]) => {
+        pastHero = !e!.isIntersecting;
+        sync();
+      },
+      { threshold: 0 }
+    ).observe(hero);
+
+    if (downloads) {
+      new IntersectionObserver(
+        ([e]) => {
+          atDownloads = e!.isIntersecting;
+          sync();
+        },
+        { threshold: 0.2 }
+      ).observe(downloads);
+    }
+  }
+</script>

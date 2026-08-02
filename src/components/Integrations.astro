@@ -1,0 +1,181 @@
+---
+import Button from './Button.astro';
+import StreamDeck from './StreamDeck.astro';
+import { copy } from '../copy';
+import { APIS, LINKS } from '../lib/site';
+
+/**
+ * Stream Deck leads, the three API surfaces follow.
+ *
+ * The plugin gets a panel of its own rather than a row in a link grid: it is the
+ * only integration a creator can use without writing anything, so it converts
+ * where an API reference does not. The APIs sit under it for the people who were
+ * going to read them anyway.
+ */
+const t = copy.integrations;
+const byId = new Map(t.apis.map((a, i) => [APIS[i]!.id, a]));
+---
+
+<div class="wrapper">
+  <a class="deck" href={LINKS.streamDeck} target="_blank" rel="noopener">
+    <StreamDeck />
+    <div class="copy">
+      <h3>{t.deck.heading}</h3>
+      <p>{t.deck.body}</p>
+      <span class="cta">{t.deck.cta} →</span>
+    </div>
+  </a>
+
+  <div class="apis">
+    <p class="eyebrow">{t.apisLabel}</p>
+    <ul>
+      {
+        APIS.map((api) => (
+          <li style={`--accent:${api.accent}`}>
+            <a href={api.href} target="_blank" rel="noopener">
+              <span class="top">
+                <span class="name">{byId.get(api.id)?.name}</span>
+                <span class="spec">{api.spec}</span>
+              </span>
+              <span class="what">{byId.get(api.id)?.what}</span>
+              {api.pending && <span class="tbd">{t.pendingDocs} {copy.common.tbd}</span>}
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+    <div class="acts">
+      <Button href={LINKS.wiki} size="sm">{t.wikiCta}</Button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .wrapper {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    gap: clamp(20px, 3vw, 40px);
+    align-items: start;
+  }
+
+  .deck {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    background: var(--void-2);
+    text-decoration: none;
+    color: inherit;
+    overflow: hidden;
+    transition: all 0.2s var(--ease);
+  }
+
+  .copy {
+    padding: 26px 30px 30px;
+  }
+
+  .deck:hover {
+    border-color: var(--brand-lift);
+    transform: translateY(-3px);
+  }
+
+  .lb {
+    font-family: var(--font-mono);
+    font-size: var(--fs-label);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--brand-lift);
+  }
+
+  .deck h3 {
+    margin: 0;
+    font-size: var(--fs-h4);
+    font-weight: 540;
+    letter-spacing: -0.018em;
+    line-height: 1.3;
+  }
+
+  .deck p {
+    margin: 12px 0 0;
+    font-size: var(--fs-small);
+    color: var(--dim);
+    line-height: 1.6;
+  }
+
+  .cta {
+    display: block;
+    margin-top: 18px;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--brand-lift);
+  }
+
+  .apis ul {
+    margin: 16px 0 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .apis a {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding: 16px 18px;
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 var(--r-md) var(--r-md) 0;
+    background: var(--void-2);
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.18s var(--ease);
+  }
+
+  .apis a:hover {
+    border-color: var(--accent);
+    border-left-color: var(--accent);
+    transform: translateX(2px);
+  }
+
+  .top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .name {
+    font-size: 15.5px;
+    font-weight: 540;
+    color: var(--tx);
+  }
+
+  .spec {
+    font-family: var(--font-mono);
+    font-size: var(--fs-micro);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent-readable);
+    flex: 0 0 auto;
+  }
+
+  .what {
+    font-size: 13.5px;
+    color: var(--dim);
+    line-height: 1.55;
+  }
+
+  .acts {
+    margin-top: 16px;
+  }
+
+  @media (max-width: 900px) {
+    .wrapper {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

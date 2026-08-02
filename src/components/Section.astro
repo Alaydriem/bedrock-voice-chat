@@ -1,0 +1,53 @@
+---
+/**
+ * A page section. Owns the vertical rhythm and the optional tinted ground, so
+ * no page-level file ever sets its own padding.
+ */
+interface Props {
+  id?: string;
+  /** `raised` tints the ground to separate adjacent sections. */
+  tone?: 'base' | 'raised';
+  bordered?: boolean;
+  center?: boolean;
+  /** Constrain content to the standard column. */
+  wrap?: boolean;
+  class?: string;
+}
+
+const { id, tone = 'base', bordered = true, center = false, wrap = true, class: cls } = Astro.props;
+---
+
+<section id={id} class:list={['section', tone, { bordered, center }, cls]}>
+  <div class:list={[{ wrap }]}>
+    <slot />
+  </div>
+</section>
+
+<style>
+  .section {
+    padding: var(--pad-section) var(--pad-page);
+    position: relative;
+  }
+
+  .raised {
+    background: var(--void-2);
+  }
+
+  .bordered {
+    border-top: 1px solid var(--line);
+  }
+
+  .center {
+    text-align: center;
+  }
+
+  .center :global(.lead),
+  .center :global(.display) {
+    margin-inline: auto;
+  }
+
+  .wrap {
+    max-width: var(--maxw);
+    margin-inline: auto;
+  }
+</style>

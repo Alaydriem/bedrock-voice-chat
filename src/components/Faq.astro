@@ -1,0 +1,153 @@
+---
+import { copy } from '../copy';
+import { LINKS } from '../lib/site';
+
+/**
+ * The questions people actually ask, each answered in a sentence or two and
+ * then handed off to the wiki.
+ *
+ * This is the on-ramp: the landing page cannot hold configuration detail, but it
+ * can catch the search that brought someone here ("does bedrock voice chat work
+ * on realms") and point them at the page that finishes the job.
+ *
+ * Native <details>. No JavaScript, open state survives Ctrl+F on most browsers,
+ * and every answer is in the served HTML for search engines.
+ */
+
+const t = copy.faq;
+
+/** Link targets only; the labels are in the copy module, joined by index. */
+const LINKS_FOR: readonly (string | null)[] = [
+  LINKS.install,
+  null,
+  '/wiki/',
+  null,
+  null,
+  null,
+  LINKS.modrinth,
+  null,
+  null,
+  LINKS.streamDeck,
+];
+---
+
+<div class="faq">
+  <div class="head">
+    <p class="eyebrow">{t.eyebrow}</p>
+    <h2 class="display">{t.heading.lead} <b>{t.heading.strong}</b></h2>
+  </div>
+
+  <ul>
+    {
+      t.entries.map((e, i) => (
+        <li>
+          <details>
+            <summary>
+              <span>{e.q}</span>
+              <span class="chev" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M6 9.5l6 6 6-6" />
+                </svg>
+              </span>
+            </summary>
+            <div class="body">
+              <p>{e.a}</p>
+              {e.linkLabel && LINKS_FOR[i] && (
+                <a href={LINKS_FOR[i]!}>
+                  {e.linkLabel}
+                  <span aria-hidden="true"> →</span>
+                </a>
+              )}
+            </div>
+          </details>
+        </li>
+      ))
+    }
+  </ul>
+</div>
+
+<style>
+  .head .display {
+    font-size: var(--fs-h2);
+  }
+
+  ul {
+    margin: 34px 0 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--line);
+    max-width: 90ch;
+  }
+
+  li {
+    border-bottom: 1px solid var(--line);
+  }
+
+  summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 19px 4px;
+    cursor: pointer;
+    font-size: 17px;
+    font-weight: 520;
+    color: var(--tx);
+    letter-spacing: -0.008em;
+    list-style: none;
+    transition: color 0.16s var(--ease);
+  }
+
+  summary::-webkit-details-marker {
+    display: none;
+  }
+
+  summary:hover {
+    color: var(--brand-lift);
+  }
+
+  .chev {
+    flex: 0 0 auto;
+    width: 20px;
+    height: 20px;
+    color: var(--faint);
+    transition: transform 0.24s var(--ease);
+  }
+
+  details[open] .chev {
+    transform: rotate(180deg);
+    color: var(--brand-lift);
+  }
+
+  .body {
+    padding: 0 4px 22px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .body p {
+    margin: 0;
+    font-size: var(--fs-body);
+    color: var(--dim);
+    line-height: 1.7;
+    max-width: 72ch;
+  }
+
+  .body a {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--brand-lift);
+    text-decoration: none;
+    border-bottom: 1px solid rgb(187 141 250 / 0.4);
+    padding-bottom: 3px;
+    transition: border-color 0.16s var(--ease);
+  }
+
+  .body a:hover {
+    border-bottom-color: var(--brand-lift);
+  }
+</style>

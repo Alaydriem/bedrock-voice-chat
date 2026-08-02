@@ -1,0 +1,121 @@
+/* ============================================================================
+   BVC DESIGN TOKENS
+   The single source of colour, type and spacing for both the marketing site
+   and the wiki. Nothing else in the project may declare a raw hex value.
+
+   Every accent is a column of the logo. The mark is 23 columns x 13 rows of
+   blocks (see src/lib/mark.ts, extracted verbatim from
+   public/assets/logo/app-logo-transparent.svg) and the spectrum below is that
+   same sequence, sampled. Using a colour that is not in this file means using
+   a colour that is not in the logo.
+   ============================================================================ */
+
+:root {
+  /* ---- ground: violet, never black ---------------------------------- */
+  --void: #1c1132;
+  --void-2: #251844;
+  --panel: #2f2054;
+  --line: #432f6c;
+  --line-2: #5b4487;
+  --mortar: #43306e;
+
+  /* ---- ink ---------------------------------------------------------- */
+  --tx: #fbf8ff;
+  --dim: #d6cbea;
+  --faint: #b3a4d0;
+
+  /* ---- brand -------------------------------------------------------- */
+  --brand: #8239d8;
+  --brand-lift: #bb8dfa;
+
+  /* ---- semantic (separate from accent, never used decoratively) ----- */
+  --ok: #5ce383;
+  --warn: #ffcf4d;
+  --fault: #ff8266;
+
+  /* ---- the logo spectrum -------------------------------------------- *
+   * Sampled from the mark, violet -> red. Use these for categorical
+   * accents: audience colours, capability rows, platform chips.        */
+  --sp-violet: #8239d8;
+  --sp-indigo: #6a50e9;
+  --sp-blue: #466cf3;
+  --sp-azure: #3d93ed;
+  --sp-cyan: #28bae1;
+  --sp-teal: #21d8d8;
+  --sp-aqua: #26ddcd;
+  --sp-mint: #34d8a0;
+  --sp-green: #3bd869;
+  --sp-grass: #6fd846;
+  --sp-lime: #aee236;
+  --sp-yellow: #f8e433;
+  --sp-amber: #f9bf21;
+  --sp-orange: #f9871d;
+  --sp-ember: #f67414;
+  --sp-red: #f65021;
+  --sp-crimson: #f63125;
+
+  /* ---- readable accent -----------------------------------------------
+   * The raw spectrum stops are chosen for the mark, not for type. On the panel
+   * ground, --sp-violet lands at 2.73:1 and --sp-blue at 3.64:1, so both fail
+   * WCAG AA for label-sized text and violet fails even the large-text 3:1.
+   *
+   * Any accent-coloured TEXT uses this instead: the same hue lifted toward the
+   * ink until it clears 4.5:1 (violet reaches 6.4:1). Blocks, borders and bars
+   * keep the raw stop, because contrast rules do not apply to them and the
+   * palette should stay recognisable.
+   *
+   * It reads --accent from whatever element it is used on, so components set
+   * --accent once and get both.                                            */
+  --accent-readable: color-mix(in srgb, var(--accent, var(--brand)) 46%, var(--tx));
+
+  /* ---- audience accents (one spectrum stop each) --------------------- */
+  --aud-player: var(--sp-cyan);
+  --aud-operator: var(--sp-green);
+  --aud-creator: var(--sp-orange);
+
+  /* ---- type --------------------------------------------------------- *
+   * No webfonts. The system stack is deliberate: it is what the Tauri
+   * client renders in, so the site and the app set type identically.   */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, Menlo, Consolas, 'Cascadia Mono', monospace;
+
+  /* display scale — fluid, tight tracking, light weight */
+  --fs-display: clamp(34px, 5vw, 58px);
+  --fs-h2: clamp(26px, 3.8vw, 44px);
+  --fs-h3: clamp(23px, 2.8vw, 32px);
+  --fs-h4: 20px;
+  --fs-lead: 18px;
+  --fs-body: 16px;
+  --fs-small: 14.5px;
+  --fs-label: 12px;
+  /* Never smaller than this for anything a person has to read. */
+  --fs-micro: 11px;
+
+  --lh-display: 1.05;
+  --lh-body: 1.65;
+  --tracking-display: -0.032em;
+  --tracking-label: 0.2em;
+
+  /* ---- spacing ------------------------------------------------------- */
+  --pad-page: clamp(20px, 5vw, 72px);
+  --gap-section: clamp(50px, 8vw, 110px);
+  --pad-section: clamp(50px, 7vw, 90px);
+  --maxw: 1240px;
+  --maxw-prose: 66ch;
+
+  /* ---- form --------------------------------------------------------- */
+  --r-sm: 4px;
+  --r-md: 9px;
+  --r-lg: 14px;
+  --r-pill: 999px;
+  --nav-h: 72px;
+
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ----------------------------------------------------------------------
+   The product is a dark violet application and the site commits to that.
+   There is no light theme: a light marketing page handing off to a dark
+   client is the seam we are trying to remove. The wiki inherits the same
+   decision below.
+   ---------------------------------------------------------------------- */

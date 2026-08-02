@@ -1,0 +1,195 @@
+---
+import { copy } from '../copy';
+import { AUDIENCE_META, DEFAULT_AUDIENCE } from '../lib/site';
+
+/**
+ * "Who are you?" — and, just as importantly, "where does that take me?"
+ *
+ * These both switch and navigate. The switcher sits in a full-height hero, so a
+ * control that only rewrote the headline above it gave no sign it had done
+ * anything: the rest of the page was off-screen. Now the click moves the reader
+ * to the section they just identified with, which is visible feedback and means
+ * the control never has to hide content to prove it works.
+ *
+ * Each button names its destination, so the behaviour is legible before anyone
+ * commits to a click. They are still buttons rather than links because they set
+ * state as well as moving, and the state is what the hero and the sticky bar
+ * read.
+ */
+interface Props {
+  layout?: 'hero' | 'bar';
+  label?: string;
+  /** Marks this control as the one lib/audience.ts rotates automatically. */
+  rotates?: boolean;
+}
+
+const { layout = 'hero', label = copy.switcher.label, rotates = false } = Astro.props;
+const t = copy.switcher;
+---
+
+<div
+  class:list={['switcher', layout]}
+  role="group"
+  aria-label={t.ariaLabel}
+  data-audience-rotates={rotates ? '' : undefined}
+>
+  <span class="prompt eyebrow">{label}</span>
+  <div class="options">
+    {
+      AUDIENCE_META.map((a) => (
+        <button
+          type="button"
+          data-audience-pick={a.id}
+          aria-pressed={a.id === DEFAULT_AUDIENCE ? 'true' : 'false'}
+          style={`--accent:${a.accent}`}
+        >
+          <span class="dot" aria-hidden="true" />
+          <span class="text">
+            <span class="who">{t.options[a.id].label}</span>
+            <span class="dest">{t.options[a.id].destination}</span>
+          </span>
+          <span class="arrow" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 5v14" />
+              <path d="M6 13l6 6 6-6" />
+            </svg>
+          </span>
+        </button>
+      ))
+    }
+  </div>
+</div>
+
+<style>
+  .switcher {
+    display: flex;
+    flex-direction: column;
+    gap: 13px;
+  }
+
+  .hero {
+    margin-top: 32px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+  }
+
+  .bar {
+    flex-direction: row;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+    padding: 18px var(--pad-page);
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    background: rgb(20 12 38 / 0.55);
+  }
+
+  /* Three across on desktop, stacked on mobile. A wrapping flex row put one
+     button on its own line at most widths, which read as a mistake. */
+  .options {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  button {
+    font: inherit;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 15px 11px 17px;
+    border-radius: var(--r-md);
+    border: 1px solid var(--line-2);
+    background: transparent;
+    color: var(--dim);
+    text-align: left;
+    transition:
+      color 0.18s var(--ease),
+      border-color 0.32s var(--ease),
+      background-color 0.32s var(--ease);
+  }
+
+  button:hover {
+    color: var(--tx);
+    border-color: var(--accent);
+  }
+
+  button[aria-pressed='true'] {
+    color: var(--tx);
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 15%, transparent);
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 1px;
+    background: var(--accent);
+    opacity: 0.35;
+    transition: opacity 0.32s var(--ease);
+    flex: 0 0 auto;
+  }
+
+  button[aria-pressed='true'] .dot {
+    opacity: 1;
+  }
+
+  .text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .who {
+    font-size: var(--fs-small);
+    line-height: 1.25;
+  }
+
+  /* Naming the destination is what stops this reading as a filter. */
+  .dest {
+    font-family: var(--font-mono);
+    font-size: var(--fs-micro);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent-readable);
+    line-height: 1.3;
+    transition: color 0.18s var(--ease);
+  }
+
+  button:hover .dest,
+  button[aria-pressed='true'] .dest {
+    color: var(--accent-readable);
+  }
+
+  .arrow {
+    flex: 0 0 auto;
+    margin-left: auto;
+    width: 17px;
+    height: 17px;
+    color: var(--faint);
+    transition:
+      transform 0.22s var(--ease),
+      color 0.18s var(--ease);
+  }
+
+  button:hover .arrow {
+    color: var(--accent);
+    transform: translateY(2px);
+  }
+
+  @media (max-width: 760px) {
+    .options {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    button {
+      width: 100%;
+    }
+
+    .arrow {
+      margin-left: auto;
+    }
+  }
+</style>

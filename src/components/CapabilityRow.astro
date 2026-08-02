@@ -1,0 +1,118 @@
+---
+import Canvas from './Canvas.astro';
+
+/**
+ * A visual on one side, the claim and its supporting facts on the other.
+ * Rows alternate sides automatically via :nth-child in the parent list, so
+ * reordering them in the page file cannot break the zigzag.
+ */
+interface Fact {
+  /** A spectrum token, e.g. "var(--sp-cyan)". */
+  readonly accent: string;
+  readonly text: string;
+}
+
+interface Props {
+  eyebrow: string;
+  kind: 'ring' | 'channels' | 'matrix' | 'tracks' | 'scene';
+  label: string;
+  captionKey?: string;
+  captionValue?: string;
+  facts?: readonly Fact[];
+  id?: string;
+}
+
+const { eyebrow, kind, label, captionKey, captionValue, facts = [], id } = Astro.props;
+---
+
+<div class="row" id={id} data-reveal>
+  <Canvas
+    kind={kind}
+    label={label}
+    captionKey={captionKey}
+    captionValue={captionValue}
+    class="rowviz"
+  />
+  <div class="body">
+    <p class="eyebrow">{eyebrow}</p>
+    <h3 class="display heading"><slot name="heading" /></h3>
+    <p class="lead"><slot name="body" /></p>
+    {
+      facts.length > 0 && (
+        <ul class="facts">
+          {facts.map((f) => (
+            <li>
+              <i style={`background:${f.accent}`} aria-hidden="true" />
+              <span>{f.text}</span>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+    <slot />
+  </div>
+</div>
+
+<style>
+  .row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: clamp(28px, 5vw, 70px);
+    align-items: center;
+  }
+
+  .row:nth-child(even) :global(.rowviz) {
+    order: 2;
+  }
+
+  .heading {
+    font-size: var(--fs-h3);
+    line-height: 1.12;
+    letter-spacing: -0.026em;
+    margin-top: 14px;
+  }
+
+  .lead {
+    font-size: 16.5px;
+    max-width: 44ch;
+  }
+
+  .facts {
+    margin: 22px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .facts li {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr);
+    gap: 13px;
+    padding: 11px 0;
+    border-top: 1px solid var(--line);
+    font-size: var(--fs-small);
+    color: var(--dim);
+    align-items: baseline;
+  }
+
+  .facts li:last-child {
+    border-bottom: 1px solid var(--line);
+  }
+
+  .facts i {
+    width: 8px;
+    height: 8px;
+    border-radius: 1px;
+    display: block;
+    transform: translateY(1px);
+  }
+
+  @media (max-width: 860px) {
+    .row {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .row:nth-child(even) :global(.rowviz) {
+      order: 0;
+    }
+  }
+</style>

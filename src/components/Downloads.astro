@@ -1,0 +1,207 @@
+---
+import { copy } from '../copy';
+import { CLIENT_PLATFORMS, SERVER_PLATFORMS, type Platform } from '../lib/site';
+
+/**
+ * The download grid.
+ *
+ * Every platform ships. Nothing here is "coming soon" — the old site carried
+ * Coming Soon labels for macOS, iOS and Linux long after they started shipping,
+ * which reads as an abandoned project rather than a young one.
+ *
+ * These are the page's primary action, so they are built to look pressable: a
+ * platform glyph, the release channel, and an explicit "Get it" affordance that
+ * lights up on hover. An earlier version was a flat card with a coloured word on
+ * it, which read as a table row.
+ *
+ * Glyphs are drawn on the same 24-unit grid as the radial icon set so they sit
+ * with the rest of the system.
+ */
+interface Props {
+  /** `client` is the player-facing grid; `server` is the addon and plugins. */
+  set?: 'client' | 'server';
+}
+
+const { set = 'client' } = Astro.props;
+const platforms: readonly Platform[] = set === 'client' ? CLIENT_PLATFORMS : SERVER_PLATFORMS;
+const t = copy.downloads;
+
+/** Keyed on the `os` string so a copy change cannot orphan a glyph. */
+const GLYPH: Record<string, string> = {
+  Windows:
+    '<path d="M3 5.6l7.6-1v7.1H3zM12.2 4.4L21 3.2v8.5h-8.8zM3 12.7h7.6v7.1L3 18.5zM12.2 12.7H21v8.1l-8.8-1.2z" fill="currentColor" stroke="none"/>',
+  macOS:
+    '<path d="M16.3 12.6c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.5-.1-2.8.8-3.5.8s-1.9-.8-3.1-.8C6.7 7.3 5 8.4 4.2 10c-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.3 2.9 2.3 1.2 0 1.6-.7 3.1-.7 1.4 0 1.8.7 3 .7s2-1.1 2.8-2.2c.9-1.3 1.3-2.5 1.3-2.6-.1 0-2.2-.9-2.2-3.2z" fill="currentColor" stroke="none"/><path d="M14.4 5.6c.6-.8 1-1.8.9-2.9-.9.04-2 .6-2.7 1.4-.6.7-1.1 1.8-.9 2.8 1 .1 2-.5 2.7-1.3z" fill="currentColor" stroke="none"/>',
+  Linux:
+    '<rect x="2.5" y="4" width="19" height="13" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7.5 8.5L10 11l-2.5 2.5"/><path d="M12.5 13.5h4"/>',
+  Android:
+    '<path d="M5.5 10.5h13v6a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2z"/><path d="M8.5 10.5a3.5 3.5 0 0 1 7 0"/><path d="M9 4.5l1.2 2M15 4.5l-1.2 2"/><path d="M3 12v3.5M21 12v3.5"/>',
+  iOS: '<rect x="7" y="2.5" width="10" height="19" rx="2.4"/><path d="M10.6 5.4h2.8"/><path d="M12 18.3h.01"/>',
+  'Bedrock Dedicated Server':
+    '<path d="M12 2.9l8 4.2v9.8l-8 4.2-8-4.2V7.1z"/><path d="M4 7.1l8 4.2 8-4.2"/><path d="M12 11.3v9.8"/>',
+  'Java · Fabric':
+    '<path d="M4 6.5h16v11H4z"/><path d="M4 10.2h16M4 13.8h16"/><path d="M9 6.5v11M15 6.5v11"/>',
+  'Java · Paper':
+    '<path d="M6 3.5h8l4 4v13H6z"/><path d="M14 3.5v4h4"/><path d="M9 12h6M9 15.5h6"/>',
+};
+---
+
+<ul class="grid">
+  {
+    platforms.map((p, i) => (
+      <li>
+        <a
+          class="card"
+          href={p.href}
+          target="_blank"
+          rel="noopener"
+          style={`--accent:${p.accent}`}
+          data-reveal
+          data-reveal-index={i}
+        >
+          <span class="bar" aria-hidden="true" />
+
+          <span class="glyph" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" set:html={GLYPH[p.os] ?? ''} />
+          </span>
+
+          <span class="os">{p.os}</span>
+          <span class="channel">{t.channels[p.channel]}</span>
+
+          <span class="foot">
+            <span class="note num">{p.note}</span>
+            <span class="get">
+              {t.getLabel}
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 4.5v13" />
+                <path d="M6 12l6 6 6-6" />
+              </svg>
+            </span>
+          </span>
+        </a>
+      </li>
+    ))
+  }
+</ul>
+
+<style>
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(196px, 100%), 1fr));
+    gap: 12px;
+    margin: 34px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    height: 100%;
+    padding: 24px 22px 20px;
+    border: 1px solid var(--line-2);
+    border-radius: 13px;
+    background: var(--void-2);
+    text-decoration: none;
+    color: inherit;
+    overflow: hidden;
+    transition:
+      border-color 0.2s var(--ease),
+      background-color 0.2s var(--ease),
+      transform 0.2s var(--ease);
+  }
+
+  .card:hover {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 9%, var(--void-2));
+    transform: translateY(-3px);
+  }
+
+  .bar {
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 3px;
+    background: var(--accent);
+  }
+
+  .glyph {
+    width: 30px;
+    height: 30px;
+    margin-top: 2px;
+    color: var(--accent-readable);
+    transition: color 0.2s var(--ease);
+  }
+
+  .card:hover .glyph {
+    color: var(--tx);
+  }
+
+  .glyph svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .os {
+    font-size: 18px;
+    font-weight: 560;
+    letter-spacing: -0.014em;
+    color: var(--tx);
+    line-height: 1.25;
+  }
+
+  /* --accent-readable, not --accent: the raw violet is 2.73:1 on this ground and
+     fails WCAG AA at label size. This was the Windows card. */
+  .channel {
+    font-family: var(--font-mono);
+    font-size: var(--fs-micro);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent-readable);
+  }
+
+  .foot {
+    margin-top: auto;
+    padding-top: 14px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    border-top: 1px solid var(--line);
+  }
+
+  .note {
+    font-size: 13px;
+    color: var(--faint);
+  }
+
+  /* The explicit affordance. Without it the card read as a table row. */
+  .get {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: var(--fs-micro);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--dim);
+    white-space: nowrap;
+    transition: color 0.2s var(--ease);
+  }
+
+  .card:hover .get {
+    color: var(--tx);
+  }
+
+  .get svg {
+    width: 14px;
+    height: 14px;
+    transition: transform 0.2s var(--ease);
+  }
+
+  .card:hover .get svg {
+    transform: translateY(2px);
+  }
+</style>

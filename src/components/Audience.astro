@@ -1,0 +1,21 @@
+---
+import type { Audience } from '../lib/site';
+
+/**
+ * Shows its children only to the selected audience.
+ *
+ *   <Audience for="operator">…</Audience>
+ *   <Audience for={['operator', 'creator']}>…</Audience>
+ *
+ * The wrapper is display:contents when visible, so it never becomes a grid or
+ * flex item — you can drop one of these inside any layout without the layout
+ * noticing. All variants are in the served HTML; see styles/base.css.
+ */
+interface Props {
+  for: Audience | readonly Audience[];
+}
+
+const list = Array.isArray(Astro.props.for) ? Astro.props.for : [Astro.props.for];
+---
+
+<div data-aud={list.join(' ')}><slot /></div>

@@ -1,0 +1,233 @@
+---
+/**
+ * "Why not just use Discord?"
+ *
+ * The objection nobody was answering. For players the competitor is a Discord
+ * call; for Java operators it is Simple Voice Chat. Both are good at what they
+ * do, and the table says so — an unfair comparison reads as marketing and loses
+ * the reader who already likes the alternative.
+ *
+ * The honest wins are narrow and real: audio positioned in the world, console
+ * players included, and separate recording tracks. Everything else is a draw.
+ */
+
+import { copy } from '../copy';
+
+type Cell = 'yes' | 'no' | 'partial';
+
+/** Cells only. Labels and notes live in the copy module, joined by index. */
+const CELLS: readonly { bvc: Cell; discord: Cell; svc: Cell }[] = [
+  { bvc: 'yes', discord: 'no', svc: 'yes' },
+  { bvc: 'yes', discord: 'partial', svc: 'no' },
+  { bvc: 'yes', discord: 'partial', svc: 'no' },
+  { bvc: 'yes', discord: 'no', svc: 'no' },
+  { bvc: 'yes', discord: 'yes', svc: 'yes' },
+  { bvc: 'yes', discord: 'no', svc: 'yes' },
+  { bvc: 'yes', discord: 'yes', svc: 'yes' },
+];
+
+const ACCENTS = ['var(--sp-green)', 'var(--sp-blue)', 'var(--sp-violet)'];
+const KEYS = ['bvc', 'discord', 'svc'] as const;
+
+const MARK: Record<Cell, string> = { yes: '●', partial: '◐', no: '○' };
+const t = copy.comparison;
+---
+
+<div class="cmp">
+  <div class="head">
+    <p class="eyebrow">{t.eyebrow}</p>
+    <h2 class="display">{t.heading.lead} <b>{t.heading.strong}</b></h2>
+    <p class="lead">{t.lead}</p>
+  </div>
+
+  <div class="scroll-x">
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">{t.capabilityColumn}</th>
+          {
+            t.columns.map((label, i) => (
+              <th scope="col" style={`--accent:${ACCENTS[i]}`}>
+                {label}
+              </th>
+            ))
+          }
+        </tr>
+      </thead>
+      <tbody>
+        {
+          t.rows.map((r, ri) => (
+            <tr>
+              <th scope="row">
+                {r.capability}
+                {r.note && <span class="note">{r.note}</span>}
+              </th>
+              {KEYS.map((k, ci) => (
+                <td class={CELLS[ri]![k]} style={`--accent:${ACCENTS[ci]}`} data-col={t.columns[ci]}>
+                  <span aria-hidden="true">{MARK[CELLS[ri]![k]]}</span>
+                  <span class="sr">{t.reads[CELLS[ri]![k]]}</span>
+                </td>
+              ))}
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style>
+  .head .display {
+    font-size: var(--fs-h2);
+  }
+
+  .head .lead {
+    max-width: 62ch;
+  }
+
+  .scroll-x {
+    margin-top: 34px;
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 620px;
+  }
+
+  /* Below this the table stops being a table.
+   *
+   * A 620px min-width inside an overflow-x container technically scrolls, but a
+   * sideways-scrolling comparison on a phone is bad on its own terms, and the
+   * oversized box is what made the whole document wider than the viewport.
+   * Stacking removes the box instead of hiding it: each capability becomes a
+   * block, and every mark is labelled with its column via data-col. */
+  @media (max-width: 720px) {
+    table {
+      min-width: 0;
+    }
+
+    thead {
+      /* The column names move onto each cell, so the header row is redundant. */
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+
+    table,
+    tbody,
+    tr,
+    tbody th,
+    td {
+      display: block;
+      width: auto;
+    }
+
+    tbody tr {
+      padding: 18px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    tbody tr:last-child {
+      border-bottom: 0;
+    }
+
+    tbody th {
+      padding: 0;
+      border-bottom: 0;
+    }
+
+    td {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      padding: 7px 0 0;
+      border-bottom: 0;
+      text-align: left;
+      font-size: 15px;
+    }
+
+    td::before {
+      content: attr(data-col);
+      font-family: var(--font-mono);
+      font-size: var(--fs-micro);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--faint);
+      min-width: 13ch;
+    }
+  }
+
+  thead th {
+    text-align: left;
+    padding: 0 16px 12px 0;
+    border-bottom: 1px solid var(--line-2);
+    font-family: var(--font-mono);
+    font-size: var(--fs-micro);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    font-weight: 500;
+    color: var(--faint);
+    white-space: nowrap;
+  }
+
+  thead th:not(:first-child) {
+    color: var(--accent);
+    text-align: center;
+    width: 15%;
+  }
+
+  tbody th {
+    text-align: left;
+    font-weight: 540;
+    font-size: 15.5px;
+    color: var(--tx);
+    padding: 15px 20px 15px 0;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+
+  .note {
+    display: block;
+    margin-top: 5px;
+    font-size: 13.5px;
+    font-weight: 400;
+    color: var(--faint);
+    line-height: 1.5;
+    max-width: 46ch;
+  }
+
+  td {
+    text-align: center;
+    padding: 15px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 17px;
+    vertical-align: top;
+  }
+
+  td.yes {
+    color: var(--accent-readable);
+  }
+
+  td.partial {
+    color: var(--warn);
+  }
+
+  /* Absent, not failed — a hollow ring rather than a red cross. Discord is not
+     broken for lacking positional audio; it was never trying to have it. */
+  td.no {
+    color: var(--line-2);
+  }
+
+  .sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+</style>

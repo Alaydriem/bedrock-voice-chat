@@ -1,0 +1,223 @@
+/* ============================================================================
+   BASE — reset, document typography, and the layout primitives that more than
+   one component needs. Component-specific rules live in the component's own
+   <style> block, not here.
+
+   tokens.css is imported here rather than alongside this file, so its content
+   is inlined into whichever bundle pulls base.css in. Importing it as a
+   separate module from both the page and Starlight made Vite treat it as
+   shared and emit it into only one chunk, which left every custom property
+   undefined on the other.
+   ============================================================================ */
+
+@import './tokens.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  background: var(--void);
+}
+
+body {
+  margin: 0;
+  background: var(--void);
+  color: var(--tx);
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  -webkit-font-smoothing: antialiased;
+  /* `clip`, not `hidden`. overflow:hidden turns this into a scroll container,
+     which silently breaks position:sticky for the nav and the CTA rail; clip
+     contains stray width without that side effect. It is a safety net, not a
+     licence to ship overflowing children. */
+  overflow-x: clip;
+}
+
+img,
+canvas,
+svg {
+  max-width: 100%;
+  display: block;
+}
+
+a {
+  color: inherit;
+}
+
+::selection {
+  background: rgb(187 141 250 / 0.3);
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand-lift);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* ---- type primitives ------------------------------------------------- */
+
+.eyebrow {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.display {
+  margin: 16px 0 0;
+  font-size: var(--fs-display);
+  line-height: var(--lh-display);
+  letter-spacing: var(--tracking-display);
+  font-weight: 300;
+  text-wrap: balance;
+}
+
+.display b,
+.display strong {
+  font-weight: 600;
+}
+
+.lead {
+  margin: 20px 0 0;
+  font-size: var(--fs-lead);
+  line-height: var(--lh-body);
+  color: var(--dim);
+  max-width: 46ch;
+}
+
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- layout primitives ------------------------------------------------ */
+
+.wrap {
+  max-width: var(--maxw);
+  margin-inline: auto;
+}
+
+/* Anything wide enough to overflow scrolls inside itself, never the page. */
+.scroll-x {
+  overflow-x: auto;
+  max-width: 100%;
+  /* Without this a scroll container that is a flex or grid item keeps
+     min-width:auto and grows to its content instead of scrolling it. */
+  min-width: 0;
+}
+
+/* ---- placeholder marker ----------------------------------------------- *
+ * Wraps content that is not yet real, so an unfinished value can never be
+ * mistaken for a shipped one. Remove the element, not just the class.     */
+.tbd {
+  font-family: var(--font-mono);
+  font-size: 0.82em;
+  letter-spacing: 0.06em;
+  background: rgb(255 207 77 / 0.14);
+  color: var(--warn);
+  border: 1px dashed rgb(255 207 77 / 0.45);
+  border-radius: var(--r-sm);
+  padding: 1px 7px;
+  white-space: nowrap;
+}
+
+/* ---- audience filtering ------------------------------------------------ *
+ * <Audience for="operator"> renders [data-aud="operator"]. The root carries
+ * data-audience. display:contents means the wrapper never affects layout, so
+ * a variant can sit inside a grid without becoming a grid item.
+ *
+ * Every variant ships in the HTML: nothing is fetched, nothing is hidden from
+ * crawlers, and the page still works with JavaScript disabled because the
+ * server-rendered root already has data-audience="player".              */
+
+[data-aud] {
+  display: none;
+}
+
+:root[data-audience='player'] [data-aud~='player'],
+:root[data-audience='operator'] [data-aud~='operator'],
+:root[data-audience='creator'] [data-aud~='creator'],
+[data-aud~='all'] {
+  display: contents;
+}
+
+/* ---- visually hidden ----------------------------------------------------
+ * Reachable by keyboard and screen reader, contributing no geometry.        */
+
+.vis-hidden:not(:focus):not(:active) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---- call-to-action rows -----------------------------------------------
+ * Stacked and full width on small screens. Two side-by-side buttons whose
+ * labels cannot shrink is how the hero overflowed the viewport; one per row is
+ * structurally incapable of it, gives a bigger tap target, and reads as
+ * deliberate rather than as a wrap artefact.                                */
+
+@media (max-width: 620px) {
+  .acts {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 9px;
+    width: 100%;
+  }
+
+  .acts > *,
+  .acts .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ---- scroll reveal ------------------------------------------------------ *
+ * Replaces the GSAP + ScrollTrigger CDN pair with an IntersectionObserver.
+ * Elements are visible by default and only hidden once the observer has
+ * attached, so a JS failure degrades to "everything is shown".           */
+
+:root.js-reveal [data-reveal] {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity 0.6s var(--ease),
+    transform 0.6s var(--ease);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+:root.js-reveal [data-reveal].is-in {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  :root.js-reveal [data-reveal] {
+    opacity: 1;
+    transform: none;
+  }
+}

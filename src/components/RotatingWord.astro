@@ -1,0 +1,92 @@
+---
+/**
+ * A word that cycles through a list in place.
+ *
+ * The box tracks the width of the word currently showing, and animates between
+ * widths, so the words after it stay tucked up against it. An earlier version
+ * reserved the width of the longest candidate for all of them, which looked
+ * right on "PlayStation" and left a hole after "Switch".
+ *
+ * Every candidate ships in the markup. Before the script runs the first one sits
+ * in normal flow, so the sentence reads correctly with JavaScript off and every
+ * platform name is in the HTML for search. "Does it work on Switch" is a query
+ * worth answering.
+ */
+interface Props {
+  words: readonly string[];
+  class?: string;
+}
+
+const { words, class: cls } = Astro.props;
+---
+
+<span class:list={['rot', cls]} data-rotate>
+  <span class="strut" aria-hidden="true">&nbsp;</span>
+  {
+    words.map((w, i) => (
+      <span
+        class:list={['word', { 'is-on': i === 0 }]}
+        data-rotate-word
+        aria-hidden={i === 0 ? undefined : 'true'}
+      >
+        {w}
+      </span>
+    ))
+  }
+</span>
+
+<style>
+  .rot {
+    position: relative;
+    display: inline-block;
+    vertical-align: baseline;
+    text-align: left;
+    color: var(--brand-lift);
+    transition: width 0.34s var(--ease);
+  }
+
+  /* Zero-width, so it contributes line height and a baseline without taking up
+     horizontal space. The width comes from the script. */
+  .strut {
+    display: inline-block;
+    width: 0;
+    overflow: hidden;
+    visibility: hidden;
+  }
+
+  .word {
+    position: absolute;
+    left: 0;
+    top: 0;
+    white-space: nowrap;
+    opacity: 0;
+    transform: translateY(0.3em);
+    transition:
+      opacity 0.3s var(--ease),
+      transform 0.3s var(--ease);
+  }
+
+  .word.is-on {
+    opacity: 1;
+    transform: none;
+  }
+
+  .word.is-out {
+    opacity: 0;
+    transform: translateY(-0.3em);
+  }
+
+  /* Until the script takes over, the first word holds the line open itself. */
+  :global(:root:not(.js-rot)) .word:first-of-type {
+    position: static;
+    opacity: 1;
+    transform: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .rot,
+    .word {
+      transition: none;
+    }
+  }
+</style>

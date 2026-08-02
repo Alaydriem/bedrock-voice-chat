@@ -1,0 +1,23 @@
+{
+  "name": "bedrockvoicechat-website",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "bedrockvoicechat.com \u2014 marketing site and wiki",
+  "scripts": {
+    "dev": "astro dev --host",
+    "build": "astro build",
+    "preview": "astro preview --host",
+    "check": "astro check",
+    "dev:local": "astro dev"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.41.6",
+    "astro": "^7.1.6"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.10",
+    "typescript": "^6.0.3",
+    "sharp": "^0.35.3"
+  }
+}

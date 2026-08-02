@@ -1,0 +1,120 @@
+---
+import Button from './Button.astro';
+import { copy } from '../copy';
+import { LINKS } from '../lib/site';
+
+/**
+ * The entry point to the wiki.
+ *
+ * `copy.wiki.entries` is deliberately empty: the pages it used to name were
+ * removed because they were written without checking the source. Refill the
+ * array when real pages exist and the cards come back on their own. Until then
+ * this is a heading and a door, which is honest.
+ */
+const t = copy.wiki;
+const ACCENTS = [
+  'var(--sp-violet)',
+  'var(--sp-cyan)',
+  'var(--sp-teal)',
+  'var(--sp-green)',
+  'var(--sp-lime)',
+  'var(--sp-orange)',
+];
+---
+
+<div class="wikiblock">
+  <div class="head">
+    <p class="eyebrow">{t.eyebrow}</p>
+    <h2 class="display">{t.heading.lead} <b>{t.heading.strong}</b></h2>
+    <p class="lead">{t.lead}</p>
+  </div>
+
+  {
+    t.entries.length > 0 && (
+      <ul>
+        {t.entries.map((e, i) => (
+          <li style={`--accent:${ACCENTS[i % ACCENTS.length]}`} data-reveal data-reveal-index={i}>
+            <a href={LINKS.wiki}>
+              <span class="who">{e.who}</span>
+              <span class="title">{e.title}</span>
+              <span class="blurb">{e.blurb}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+
+  <div class="acts">
+    <Button href={LINKS.wiki} variant="primary">{t.browse}</Button>
+    <Button href="#integrations">{t.apiReference}</Button>
+  </div>
+</div>
+
+<style>
+  .head .display {
+    font-size: var(--fs-h2);
+  }
+
+  .head .lead {
+    max-width: 58ch;
+  }
+
+  ul {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+    gap: 12px;
+    margin: 34px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  a {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    height: 100%;
+    padding: 22px 20px;
+    border: 1px solid var(--line);
+    border-top: 3px solid var(--accent);
+    border-radius: 0 0 var(--r-md) var(--r-md);
+    background: var(--void-2);
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.18s var(--ease);
+  }
+
+  a:hover {
+    border-color: var(--accent);
+    border-top-color: var(--accent);
+    transform: translateY(-2px);
+  }
+
+  .who {
+    font-family: var(--font-mono);
+    font-size: var(--fs-micro);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent-readable);
+  }
+
+  .title {
+    font-size: 16.5px;
+    font-weight: 540;
+    color: var(--tx);
+    letter-spacing: -0.012em;
+  }
+
+  .blurb {
+    font-size: 13.5px;
+    color: var(--dim);
+    line-height: 1.55;
+  }
+
+  .acts {
+    margin-top: 28px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+</style>

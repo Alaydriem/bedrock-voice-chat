@@ -1,0 +1,131 @@
+---
+import Audience from './Audience.astro';
+import AudienceSwitcher from './AudienceSwitcher.astro';
+import Button from './Button.astro';
+import Canvas from './Canvas.astro';
+import { copy } from '../copy';
+import { DEMO_SERVER, enabled, LINKS } from '../lib/site';
+
+/**
+ * The hero. The ring and the eyebrow are constant; the headline, the sub and
+ * the primary action change with the audience, because those are the three
+ * things that decide whether someone keeps reading.
+ *
+ * The switcher sits where a spec readout used to (range / latency / transport).
+ * Those were facts a first-time visitor cannot act on — they answer "how good
+ * is it" before "is it for me" — and the track selector earns the space better.
+ * It rotates on its own until someone picks; see lib/audience.ts.
+ */
+const t = copy.hero;
+const href = { player: '#download', operator: LINKS.install, creator: '#creators' } as const;
+---
+
+<section class="hero">
+  <div class="inner">
+    <Canvas
+      kind="ring"
+      ratio="1 / 1"
+      frame={false}
+      class="ring"
+      label={t.ringLabel}
+    />
+
+    <div class="copy">
+      <p class="eyebrow">{t.eyebrow}</p>
+
+      {
+        (['player', 'operator', 'creator'] as const).map((id) => (
+          <Audience for={id}>
+            <h1 class="display">
+              {t.tracks[id].heading.lead}
+              <br />
+              <b>{t.tracks[id].heading.strong}</b>
+            </h1>
+            <p class="lead">{t.tracks[id].lead}</p>
+          </Audience>
+        ))
+      }
+
+      <div class="acts">
+        {
+          (['player', 'operator', 'creator'] as const).map((id) => (
+            <Audience for={id}>
+              <Button href={href[id]} variant="primary">
+                {t.tracks[id].cta}
+              </Button>
+            </Audience>
+          ))
+        }
+
+        {
+          enabled('demoServer') && (
+            <Button href={DEMO_SERVER.address ? `bvc://${DEMO_SERVER.address}` : '#ladder'}>
+              {t.demoCta}
+              {!DEMO_SERVER.address && <span class="tbd">{copy.common.tbd}</span>}
+            </Button>
+          )
+        }
+      </div>
+
+      <AudienceSwitcher rotates />
+    </div>
+  </div>
+</section>
+
+<style>
+  .hero {
+    min-height: calc(100vh - var(--nav-h));
+    display: grid;
+    place-items: center;
+    padding: 60px var(--pad-page) 40px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(120% 90% at 50% 40%, transparent 55%, rgb(12 5 22 / 0.55) 100%);
+  }
+
+  .inner {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+    gap: clamp(30px, 5vw, 72px);
+    align-items: center;
+    max-width: var(--maxw);
+    width: 100%;
+  }
+
+  .copy {
+    min-width: 0;
+  }
+
+  .acts {
+    margin-top: 30px;
+    display: flex;
+    gap: 11px;
+    flex-wrap: wrap;
+  }
+
+  /* min-width:0 lets a long label wrap instead of widening the grid column. */
+  .acts :global(.btn) {
+    min-width: 0;
+  }
+
+  @media (max-width: 900px) {
+    .inner {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .hero :global(.ring) {
+      max-width: 380px;
+      margin-inline: auto;
+      width: 100%;
+    }
+  }
+</style>

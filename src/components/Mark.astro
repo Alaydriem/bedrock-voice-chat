@@ -1,0 +1,67 @@
+---
+import { MarkData } from '../lib/radial/MarkData';
+
+/**
+ * The BVC mark.
+ *
+ * Dancing by default. The mark is a waveform envelope, not a badge — the same
+ * renderer draws the header logo, every level meter and the shape at the centre
+ * of the ring, so holding it still here would be the one place the system stops
+ * behaving like itself.
+ *
+ * `variant="svg"` renders the static asset instead. Use it only where a canvas
+ * cannot go: an og:image, an email, a print stylesheet.
+ */
+interface Props {
+  /** Block size in CSS px. Determines the whole mark's size. */
+  cell?: number;
+  variant?: 'canvas' | 'svg';
+  /** Hold the amplitude still. Rarely what you want. */
+  still?: boolean;
+  /** Amplitude, 0 collapses to the mid row, 1 is full height. */
+  gain?: number;
+  mortar?: boolean;
+  alt?: string;
+  class?: string;
+}
+
+const {
+  cell = 4,
+  variant = 'canvas',
+  still = false,
+  gain = 1,
+  mortar = true,
+  alt = 'Bedrock Voice Chat',
+  class: cls,
+} = Astro.props;
+
+const gap = MarkData.gapFor(cell);
+// A half-gap of bleed on each side so the mortar is not clipped at the edges.
+const w = MarkData.width(cell, gap) + gap;
+const h = MarkData.height(cell, gap) + gap;
+---
+
+{
+  variant === 'svg' ? (
+    <img
+      src="/assets/logo/app-logo-transparent.svg"
+      alt={alt}
+      width={w}
+      height={h}
+      class={cls}
+      style={`width:${w}px;height:${h}px;object-fit:contain`}
+      decoding="async"
+    />
+  ) : (
+    <canvas
+      data-cv="mark"
+      data-still={still ? '1' : '0'}
+      data-gain={gain}
+      data-mortar={mortar ? '1' : '0'}
+      class={cls}
+      style={`width:${w}px;height:${h}px`}
+      role="img"
+      aria-label={alt}
+    />
+  )
+}

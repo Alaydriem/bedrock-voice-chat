@@ -1,0 +1,63 @@
+---
+/**
+ * Four numbers in a hairline grid. From direction C, kept because a spec
+ * claim reads harder as a figure than as a sentence in a card.
+ */
+interface Stat {
+  readonly value: string;
+  readonly label: string;
+  readonly accent: string;
+}
+
+interface Props {
+  stats: readonly Stat[];
+}
+
+const { stats } = Astro.props;
+---
+
+<dl class="stats">
+  {
+    stats.map((s) => (
+      <div class="stat" style={`--accent:${s.accent}`}>
+        <dt class="value num">{s.value}</dt>
+        <dd class="label">{s.label}</dd>
+      </div>
+    ))
+  }
+</dl>
+
+<style>
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    margin: 44px 0 0;
+  }
+
+  .stat {
+    background: var(--void);
+    padding: 26px 24px;
+  }
+
+  /* Mono, matching every other figure on the page. Numbers are data here, not
+     display type — the sans-300 treatment came from a different direction and
+     read as a third typeface once it sat next to the mono readouts. */
+  .value {
+    font-family: var(--font-mono);
+    font-size: clamp(24px, 3vw, 33px);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--accent-readable);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .label {
+    margin: 14px 0 0;
+    font-size: 13.5px;
+    color: var(--dim);
+    line-height: 1.55;
+  }
+</style>

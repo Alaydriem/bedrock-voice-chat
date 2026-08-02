@@ -1,0 +1,178 @@
+/* ============================================================================
+   WIKI THEME
+   Maps Starlight's variables onto the tokens in tokens.css. This file contains
+   no colour values of its own — change tokens.css and the wiki follows.
+
+   The wiki is not a separate product with a separate look. A visitor moving
+   from the home page to an install guide should not be able to tell they
+   changed systems.
+
+   The tokens are @imported rather than listed as a second customCss entry: a
+   CSS module shared between a page and a Starlight route gets emitted into
+   only one of the two bundles.
+   ============================================================================ */
+
+@import './tokens.css';
+
+:root,
+:root[data-theme='dark'],
+:root[data-theme='light'] {
+  /* The site commits to the product's dark violet. Both Starlight themes are
+     defined identically so the theme toggle cannot strand someone on a
+     half-styled light page. */
+
+  --sl-color-accent-low: color-mix(in srgb, var(--brand) 25%, var(--void));
+  --sl-color-accent: var(--brand);
+  --sl-color-accent-high: var(--brand-lift);
+
+  --sl-color-white: var(--tx);
+  --sl-color-gray-1: var(--tx);
+  --sl-color-gray-2: var(--dim);
+  --sl-color-gray-3: var(--faint);
+  --sl-color-gray-4: var(--line-2);
+  --sl-color-gray-5: var(--line);
+  --sl-color-gray-6: var(--void-2);
+  --sl-color-black: var(--void);
+
+  --sl-color-bg: var(--void);
+  --sl-color-bg-nav: rgb(28 17 50 / 0.93);
+  --sl-color-bg-sidebar: var(--void);
+  --sl-color-bg-inline-code: var(--void-2);
+  --sl-color-bg-accent: var(--brand);
+
+  --sl-color-hairline: var(--line);
+  --sl-color-hairline-light: var(--line);
+  --sl-color-hairline-shade: var(--line);
+
+  --sl-color-text: var(--dim);
+  --sl-color-text-accent: var(--brand-lift);
+  --sl-color-text-invert: #fff;
+
+  --sl-color-backdrop-overlay: rgb(12 5 22 / 0.72);
+
+  --sl-font: var(--font-sans);
+  --sl-font-mono: var(--font-mono);
+
+  --sl-nav-height: 64px;
+  --sl-content-width: 50rem;
+}
+
+/* ---- headings match the marketing page's scale and weight -------------- */
+
+.sl-markdown-content h1,
+.content-panel h1 {
+  font-weight: 300;
+  letter-spacing: -0.028em;
+  color: var(--tx);
+}
+
+.sl-markdown-content h2 {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--tx);
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.sl-markdown-content h3,
+.sl-markdown-content h4 {
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  color: var(--tx);
+}
+
+.sl-markdown-content :not(pre) > code {
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--dim);
+  font-size: 0.87em;
+}
+
+.sl-markdown-content a {
+  color: var(--brand-lift);
+  text-underline-offset: 3px;
+}
+
+/* ---- site header: the same lockup and rhythm as the marketing nav ------ */
+
+.site-title {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+header.header {
+  border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(14px);
+}
+
+/* ---- sidebar --------------------------------------------------------- */
+
+.sidebar-content a[aria-current='page'],
+.sidebar-content a[aria-current='page']:hover {
+  background: var(--panel);
+  color: var(--tx);
+  border-left: 2px solid var(--brand-lift);
+}
+
+.sidebar-content summary,
+.sidebar-content .large {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* ---- asides reuse the marketing callout treatment --------------------- */
+
+.starlight-aside {
+  border-inline-start-width: 3px;
+  border-radius: 0 var(--r-md) var(--r-md) 0;
+}
+
+.starlight-aside--note {
+  border-color: var(--brand);
+  background: rgb(130 57 216 / 0.11);
+}
+
+.starlight-aside--caution {
+  border-color: var(--warn);
+  background: rgb(255 207 77 / 0.1);
+}
+
+.starlight-aside--danger {
+  border-color: var(--fault);
+  background: rgb(255 130 102 / 0.1);
+}
+
+.starlight-aside--tip {
+  border-color: var(--ok);
+  background: rgb(92 227 131 / 0.1);
+}
+
+.starlight-aside__title {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+/* ---- tables ----------------------------------------------------------- */
+
+.sl-markdown-content th {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--faint);
+  font-weight: 500;
+  border-bottom: 1px solid var(--line-2);
+}
+
+.sl-markdown-content td {
+  border-bottom: 1px solid var(--line);
+  color: var(--dim);
+}

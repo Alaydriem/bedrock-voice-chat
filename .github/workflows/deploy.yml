@@ -1,0 +1,111 @@
+name: Deploy site and wiki
+
+# gh-pages-src is the source. gh-pages is the deliverable.
+#
+# Both are orphan branches: no shared history with each other and none with the
+# code branches. Pushing here builds the marketing site and the wiki together —
+# one Astro project, one token file — and publishes the output to the root of
+# gh-pages.
+#
+# gh-pages is shared. These paths are written by OTHER workflows on the code
+# branches and must survive every publish from here:
+#
+#   /api/**          OpenAPI docs         build-all.yml, release.yml
+#   /websocket/**    AsyncAPI docs        build-all.yml, release.yml
+#   /updater/*.json  Tauri update feed    release.yml  <-- installed clients poll this
+#   /builds.json     build ledger         rewritten on every build
+#   /discord/**      OAuth callback
+#   /.well-known/**  deep-link association files  <-- see below
+#
+# /.well-known holds apple-app-site-association and assetlinks.json, the files
+# iOS and Android fetch to decide whether a link opens the app instead of the
+# browser. Remove them and /discord/callback and /auth/login stop deep-linking
+# into the client. Like /updater, nothing fails at deploy time.
+#
+# Every one of those publishers uses keep_files: true, and so does this one. A
+# root publish with keep_files: false would delete all of the above, and removing
+# /updater/*.json silently breaks auto-update for every client already installed:
+# nothing fails at deploy time, clients just stop updating.
+#
+# The cost of keep_files: true is that superseded files linger. Astro emits
+# content-hashed names under /_astro so stale assets are inert, and index.html
+# and wiki/** are always overwritten. Removing the old hand-authored site
+# (index.js, css/, tailwind.config.js, …) is a one-time manual commit to
+# gh-pages, because keep_files: true will never do it.
+
+# A push to this branch is the only trigger that works from here.
+#
+# workflow_dispatch and repository_dispatch both require the workflow file to
+# exist on the repository's DEFAULT branch (beta) to be dispatchable at all —
+# GitHub resolves the workflow id from the default branch's workflow list, so a
+# manual run of a workflow that lives only on gh-pages-src cannot be requested,
+# from the UI or the API. It is left out rather than left in and broken.
+#
+# To force a redeploy without a content change:  git commit --allow-empty && git push
+# release.yml's `update-site-version` job pushes the version here on release,
+# which is what makes a released version reach the site.
+on:
+  push:
+    branches: [gh-pages-src]
+
+concurrency:
+  # Shared with the deploy-docs / deploy-openapi-docs / deploy-updater-manifest
+  # jobs on the code branches. All six publish to the gh-pages root and peaceiris
+  # does a fetch-commit-push, so two at once lose one to a non-fast-forward.
+  group: gh-pages-publish
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run check
+
+      # No PUBLIC_BVC_VERSION here: the fallback in src/lib/site.ts is the
+      # source of truth, and release.yml commits the new version into it.
+      - name: Build
+        run: npm run build
+
+      # Fail loudly rather than quietly clobbering something new. If another
+      # workflow starts publishing to the gh-pages root, add it to KNOWN.
+      - name: Check for unrecognised paths on gh-pages
+        env:
+          KNOWN: 'api websocket updater discord builds.json .well-known .gitignore'
+        run: |
+          set -euo pipefail
+          git clone --branch gh-pages --depth 1 \
+            "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" \
+            .gh-pages-live
+          cd .gh-pages-live
+          status=0
+          for entry in * .[!.]*; do
+            [ -e "$entry" ] || continue
+            case " $KNOWN " in *" $entry "*) continue ;; esac
+            # Anything this build emits is ours to overwrite.
+            [ -e "../dist/$entry" ] && continue
+            echo "::error::/$entry on gh-pages is owned by nothing this workflow knows about"
+            status=1
+          done
+          exit $status
+
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          keep_files: true
+          commit_message: 'deploy: site ${{ github.sha }}'

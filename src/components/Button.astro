@@ -1,0 +1,88 @@
+---
+interface Props {
+  href: string;
+  variant?: 'primary' | 'outline' | 'quiet';
+  size?: 'md' | 'sm';
+  external?: boolean;
+  class?: string;
+}
+
+const { href, variant = 'outline', size = 'md', external = false, class: cls } = Astro.props;
+const rel = external ? 'noopener' : undefined;
+const target = external ? '_blank' : undefined;
+---
+
+<a href={href} rel={rel} target={target} class:list={['btn', variant, size, cls]}>
+  <slot />
+</a>
+
+<style>
+  .btn {
+    font: inherit;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    background: transparent;
+    border: 1px solid var(--line-2);
+    color: var(--tx);
+    padding: 12px 22px;
+    border-radius: var(--r-sm);
+    transition: all 0.18s var(--ease);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    white-space: nowrap;
+    /* Guards against the flex-item min-width:auto trap: without these a nowrap
+       button reports its full text as its minimum and pushes the page wider. */
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  /* Below this, a label like "Read the install guide" is a large fraction of the
+     viewport. Let it wrap onto a second line rather than set an un-shrinkable
+     minimum for its row. */
+  @media (max-width: 620px) {
+    .btn {
+      white-space: normal;
+      text-align: center;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  .btn:hover {
+    border-color: var(--brand-lift);
+    background: rgb(173 118 247 / 0.14);
+  }
+
+  .primary {
+    background: var(--brand);
+    border-color: var(--brand);
+    color: #fff;
+    font-weight: 600;
+  }
+
+  .primary:hover {
+    background: var(--brand-lift);
+    border-color: var(--brand-lift);
+  }
+
+  .quiet {
+    border-color: transparent;
+    color: var(--faint);
+    padding-inline: 10px;
+  }
+
+  .quiet:hover {
+    color: var(--tx);
+    background: transparent;
+    border-color: transparent;
+  }
+
+  .sm {
+    padding: 9px 15px;
+    font-size: 11.5px;
+  }
+</style>

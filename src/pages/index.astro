@@ -1,0 +1,308 @@
+---
+/**
+ * THE COMPOSITION.
+ *
+ * The only file that decides what appears on the home page and in what order.
+ * Every block is a component that owns its styles, so moving, removing or
+ * duplicating one here needs no CSS changes.
+ *
+ *   1  Hero + track selector    who is this for
+ *   2  Your friend on ___       the claim nothing else can make
+ *   3  Compatibility            will it work on what I already have
+ *   4  Proximity, Channels      what it actually does
+ *   5  Recording
+ *   6  See it working           the two videos — proof, before any asking
+ *   7  Why not Discord          the objection, answered honestly
+ *   8  Three ways in            how to start
+ *   9  Downloads
+ *  10  Five minutes             the operator's whole job
+ *  11  Integrations             Stream Deck + the three APIs
+ *  12  FAQ                      catches the search that brought them here
+ *  13  Wiki                     hands them off to the docs
+ *
+ * Compatibility is third because the claim in 2 immediately raises "yes but my
+ * server is on Aternos", and an unanswered objection stops the read.
+ *
+ * Videos come before the Discord comparison because they are evidence, and
+ * evidence should land before argument.
+ *
+ * There was a Privacy section here. It was cut: on a self-hosted product the
+ * question mostly does not arise, and answering it at length invited a suspicion
+ * that was not there to begin with. The two facts worth keeping from it, latency
+ * and encryption, moved into the spec line under Downloads.
+ *
+ * Integrations moved after Downloads: it is an advanced concern that was jumping
+ * the queue ahead of "how do I start".
+ *
+ * FAQ then Wiki are last on purpose. They are the exit ramps — for someone with
+ * one specific question, and for someone ready to go and read.
+ *
+ * Built but not placed:  <Canvas kind="scene" />, <Canvas kind="band" />
+ */
+import Base from '../layouts/Base.astro';
+import Button from '../components/Button.astro';
+import CapabilityRow from '../components/CapabilityRow.astro';
+import Comparison from '../components/Comparison.astro';
+import ConsoleClaim from '../components/ConsoleClaim.astro';
+import Downloads from '../components/Downloads.astro';
+import Faq from '../components/Faq.astro';
+import Hero from '../components/Hero.astro';
+import InstallSteps from '../components/InstallSteps.astro';
+import Integrations from '../components/Integrations.astro';
+import Ladder from '../components/Ladder.astro';
+import Nav from '../components/Nav.astro';
+import Section from '../components/Section.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import StatGrid from '../components/StatGrid.astro';
+import StickyCta from '../components/StickyCta.astro';
+import Videos from '../components/Videos.astro';
+import WikiBlock from '../components/WikiBlock.astro';
+import { copy } from '../copy';
+import { LINKS } from '../lib/site';
+
+const cap = copy.capabilities;
+
+/** Spectrum stop per fact, parallel to the fact lists in the copy module. */
+const CAP_ACCENTS = {
+  compatibility: ['var(--sp-green)', 'var(--sp-cyan)', 'var(--sp-yellow)', 'var(--sp-teal)'],
+  proximity: ['var(--sp-violet)', 'var(--sp-blue)', 'var(--sp-azure)'],
+  channels: ['var(--sp-teal)', 'var(--sp-mint)', 'var(--sp-lime)'],
+  recording: ['var(--sp-orange)', 'var(--sp-ember)', 'var(--sp-red)'],
+} as const;
+
+const facts = (k: keyof typeof CAP_ACCENTS) =>
+  cap[k].facts.map((text, i) => ({ text, accent: CAP_ACCENTS[k][i]! }));
+
+// Range and volume sit beside the proximity row that explains them. Latency and
+// encryption live in <Trust>, where they answer a question someone asked.
+const STAT_ACCENTS = ['var(--sp-violet)', 'var(--sp-blue)', 'var(--sp-cyan)', 'var(--sp-teal)'];
+const proximityStats = copy.proximityStats.map((st, i) => ({ ...st, accent: STAT_ACCENTS[i]! }));
+---
+
+<Base
+  title={copy.meta.title}
+  description={copy.meta.description}
+>
+  <Nav />
+
+  <main id="main">
+    <Hero />
+
+    <Section tone="raised" center bordered={false}>
+      <ConsoleClaim />
+    </Section>
+
+    <Section id="how">
+      <div class="rows">
+        <CapabilityRow
+          eyebrow={cap.compatibility.eyebrow}
+          kind="matrix"
+          label={cap.compatibility.vizLabel}
+          captionKey={cap.compatibility.captionKey}
+          captionValue={cap.compatibility.captionValue}
+          facts={facts('compatibility')}
+        >
+          <Fragment slot="heading">
+            {cap.compatibility.heading.lead}<br /><b>{cap.compatibility.heading.strong}</b>
+          </Fragment>
+          <Fragment slot="body">{cap.compatibility.body}</Fragment>
+        </CapabilityRow>
+
+        <CapabilityRow
+          eyebrow={cap.proximity.eyebrow}
+          kind="ring"
+          label={cap.proximity.vizLabel}
+          captionKey={cap.proximity.captionKey}
+          captionValue={cap.proximity.captionValue}
+          facts={facts('proximity')}
+        >
+          <Fragment slot="heading">
+            {cap.proximity.heading.lead} <b>{cap.proximity.heading.strong}</b>
+          </Fragment>
+          <Fragment slot="body">{cap.proximity.body}</Fragment>
+        </CapabilityRow>
+
+        <CapabilityRow
+          eyebrow={cap.channels.eyebrow}
+          kind="channels"
+          label={cap.channels.vizLabel}
+          captionKey={cap.channels.captionKey}
+          captionValue={cap.channels.captionValue}
+          facts={facts('channels')}
+        >
+          <Fragment slot="heading">
+            {cap.channels.heading.lead}<br /><b>{cap.channels.heading.strong}</b>
+          </Fragment>
+          <Fragment slot="body">{cap.channels.body}</Fragment>
+        </CapabilityRow>
+
+        <CapabilityRow
+          id="creators"
+          eyebrow={cap.recording.eyebrow}
+          kind="tracks"
+          label={cap.recording.vizLabel}
+          captionKey={cap.recording.captionKey}
+          captionValue={cap.recording.captionValue}
+          facts={facts('recording')}
+        >
+          <Fragment slot="heading">
+            {cap.recording.heading.lead}<br /><b>{cap.recording.heading.strong}</b>
+          </Fragment>
+          <Fragment slot="body">{cap.recording.body}</Fragment>
+        </CapabilityRow>
+      </div>
+
+      <StatGrid stats={proximityStats} />
+    </Section>
+
+    <Section id="watch" tone="raised">
+      <p class="eyebrow">{copy.videos.eyebrow}</p>
+      <h2 class="display sec-h">{copy.videos.heading.lead} <b>{copy.videos.heading.strong}</b></h2>
+      <Videos />
+    </Section>
+
+
+    <Section id="versus" tone="raised">
+      <Comparison />
+    </Section>
+
+    <Section id="ladder">
+      <header class="head">
+        <p class="eyebrow">{copy.ladder.eyebrow}</p>
+        <h2 class="display">{copy.ladder.heading.lead} <b>{copy.ladder.heading.strong}</b></h2>
+      </header>
+      <Ladder />
+    </Section>
+
+    <Section id="download" tone="raised">
+      <p class="eyebrow">{copy.downloads.eyebrow}</p>
+      <h2 class="display sec-h">{copy.downloads.heading.lead} <b>{copy.downloads.heading.strong}</b></h2>
+      <Downloads set="client" />
+      <ul class="specs">
+        {copy.downloads.specs.map((sp) => <li>{sp}</li>)}
+      </ul>
+      <p class="note">{copy.downloads.note}</p>
+
+      <p class="eyebrow subhead">{copy.downloads.serverSubhead}</p>
+      <Downloads set="server" />
+    </Section>
+
+    <Section id="operators">
+      <div class="narrow">
+        <p class="eyebrow">{copy.operators.eyebrow}</p>
+        <h2 class="display sec-h">{copy.operators.heading.lead} <b>{copy.operators.heading.strong}</b></h2>
+        <InstallSteps />
+        <div class="acts">
+          <Button href={LINKS.install} variant="primary">{copy.operators.actions.guide}</Button>
+          <Button href={LINKS.curseforgeBedrock} external>{copy.operators.actions.bedrock}</Button>
+          <Button href={LINKS.modrinth} external>{copy.operators.actions.java}</Button>
+        </div>
+        <p class="note">{copy.operators.note}</p>
+      </div>
+    </Section>
+
+    <Section id="integrations" tone="raised">
+      <p class="eyebrow">{copy.integrations.eyebrow}</p>
+      <h2 class="display sec-h">{copy.integrations.heading.lead} <b>{copy.integrations.heading.strong}</b></h2>
+      <div class="pad">
+        <Integrations />
+      </div>
+    </Section>
+
+    <Section id="faq">
+      <Faq />
+    </Section>
+
+    <Section id="docs" tone="raised">
+      <WikiBlock />
+    </Section>
+  </main>
+
+  <SiteFooter />
+  <StickyCta />
+</Base>
+
+<style>
+  .rows {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-section);
+  }
+
+  .head {
+    text-align: center;
+    margin-bottom: 44px;
+  }
+
+  .head .display {
+    font-size: var(--fs-h2);
+    margin-inline: auto;
+  }
+
+  .sec-h {
+    font-size: var(--fs-h2);
+  }
+
+  .subhead {
+    margin-top: 52px;
+  }
+
+  .pad {
+    margin-top: 34px;
+  }
+
+  .narrow {
+    max-width: 1000px;
+    margin-inline: auto;
+  }
+
+  .acts {
+    margin-top: 28px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  /* Kept from the cut Privacy section: the two facts there that were about the
+     software rather than about reassurance. */
+  .specs {
+    margin: 22px 0 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    gap: 10px 26px;
+    flex-wrap: wrap;
+  }
+
+  .specs li {
+    font-family: var(--font-mono);
+    font-size: var(--fs-micro);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--faint);
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+
+  .specs li::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-radius: 1px;
+    background: var(--sp-teal);
+    flex: 0 0 auto;
+  }
+
+  .note {
+    margin-top: 24px;
+    padding: 16px 20px;
+    border-left: 3px solid var(--brand);
+    background: rgb(130 57 216 / 0.11);
+    border-radius: 0 var(--r-md) var(--r-md) 0;
+    font-size: 15px;
+    color: var(--dim);
+    max-width: 70ch;
+  }
+
+</style>

@@ -1,0 +1,82 @@
+---
+// base.css @imports tokens.css; see the note at the top of that file for why
+// the tokens are not a separate import here.
+import '../styles/base.css';
+import { copy } from '../copy';
+import { AUDIENCES, DEFAULT_AUDIENCE } from '../lib/site';
+
+interface Props {
+  title: string;
+  description: string;
+  /** Canonical path, e.g. "/" */
+  path?: string;
+}
+
+const { title, description, path = '/' } = Astro.props;
+const canonical = new URL(path, Astro.site ?? 'https://www.bedrockvoicechat.com').href;
+
+// Inlined so the correct audience is on <html> before first paint. Without
+// this the page renders the player track and then swaps, which reads as a bug.
+const audienceBootstrap = `(function(){try{
+var v=new URLSearchParams(location.search).get('you')||localStorage.getItem('bvc:audience');
+if(${JSON.stringify(AUDIENCES)}.indexOf(v)>-1)document.documentElement.dataset.audience=v;
+}catch(e){}})();`;
+---
+
+<!doctype html>
+<html lang="en" data-audience={DEFAULT_AUDIENCE}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-96x96.png" sizes="96x96" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#1c1132" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={new URL('/assets/images/og-image.jpeg', canonical).href} />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <script is:inline set:html={audienceBootstrap} />
+  </head>
+  <body>
+    <a class="skip vis-hidden" href="#main">{copy.common.skipToContent}</a>
+    <slot />
+    <script>
+      import '../lib/main';
+    </script>
+
+    <style>
+      .skip {
+        position: absolute;
+        left: 0;
+        top: 0;
+        z-index: 100;
+        background: var(--brand);
+        color: #fff;
+        padding: 12px 20px;
+        border-radius: 0 0 var(--r-md) 0;
+        font-family: var(--font-mono);
+        font-size: var(--fs-label);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        text-decoration: none;
+      }
+      .skip:focus {
+        position: absolute;
+        width: auto;
+        height: auto;
+        clip-path: none;
+        margin: 0;
+      }
+    </style>
+  </body>
+</html>

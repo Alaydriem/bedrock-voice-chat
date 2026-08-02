@@ -1,0 +1,86 @@
+---
+/**
+ * A framed live visual. Every animated graphic on the site goes through here,
+ * so they all get the same border, ratio handling and caption treatment.
+ *
+ * `kind` must match a painter registered in lib/canvas — see lib/main.ts for
+ * the list.
+ */
+interface Props {
+  kind: 'ring' | 'channels' | 'matrix' | 'tracks' | 'falloff' | 'scene' | 'band';
+  /** Accessible description. Visuals are decorative unless you give one. */
+  label?: string;
+  ratio?: string;
+  /** Small monospace caption pinned to the bottom-left. */
+  captionKey?: string;
+  captionValue?: string;
+  frame?: boolean;
+  class?: string;
+}
+
+const {
+  kind,
+  label,
+  ratio = '4 / 3',
+  captionKey,
+  captionValue,
+  frame = true,
+  class: cls,
+} = Astro.props;
+---
+
+<figure class:list={['viz', { framed: frame }, cls]} style={`--ratio:${ratio}`}>
+  <canvas
+    data-cv={kind}
+    role={label ? 'img' : 'presentation'}
+    aria-label={label}
+    aria-hidden={label ? undefined : 'true'}></canvas>
+  {
+    captionKey && captionKey.length > 0 && (
+      <figcaption class="stamp">
+        <span class="eyebrow">{captionKey}</span>
+        <span class="value">{captionValue}</span>
+      </figcaption>
+    )
+  }
+  <slot />
+</figure>
+
+<style>
+  .viz {
+    position: relative;
+    margin: 0;
+    aspect-ratio: var(--ratio);
+    overflow: hidden;
+    min-width: 0;
+  }
+
+  .viz.framed {
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    background: var(--void-2);
+  }
+
+  canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .stamp {
+    position: absolute;
+    left: 20px;
+    bottom: 16px;
+    z-index: 2;
+  }
+
+  .value {
+    display: block;
+    margin-top: 5px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    color: var(--dim);
+  }
+</style>

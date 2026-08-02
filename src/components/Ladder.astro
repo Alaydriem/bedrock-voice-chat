@@ -1,0 +1,108 @@
+---
+import Button from './Button.astro';
+import { copy } from '../copy';
+import { enabled, LADDER_RUNGS } from '../lib/site';
+
+/**
+ * The ways in, in ascending order of commitment: hear it, host it, or pay
+ * someone else to host it. The old site had exactly one CTA repeated five times,
+ * so a curious player and a server admin met the same single door.
+ *
+ * Rendered from the copy array rather than three hardcoded blocks, so adding or
+ * removing a rung is a copy edit plus one row in LADDER_RUNGS.
+ */
+const t = copy.ladder;
+// Pair copy with its structural row first, then drop whatever is gated off, so
+// hiding a rung cannot shift the accents or links of the ones that remain.
+const rungs = LADDER_RUNGS.map((s, i) => ({ s, c: t.rungs[i] }))
+  .filter((r) => r.c !== undefined && (!r.s.feature || enabled(r.s.feature)));
+---
+
+<div class="ladder">
+  {
+    rungs.map(({ s, c }) => {
+      const r = c!;
+      return (
+        <div class="rung" style={`--accent:${s.accent}`}>
+          <span class="lb">{r.label}</span>
+          <h3>{r.title}</h3>
+          <p>{r.body}</p>
+          <span class="meta">
+            {r.meta}
+            {s.pending && <span class="tbd">{copy.common.tbd}</span>}
+          </span>
+          <Button href={s.href} external={s.external}>{r.cta}</Button>
+        </div>
+      );
+    })
+  }
+</div>
+
+<style>
+  .ladder {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+    gap: 14px;
+  }
+
+  .rung {
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    background: var(--void);
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    transition: all 0.2s var(--ease);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .rung::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 3px;
+    background: var(--accent);
+  }
+
+  .rung:hover {
+    border-color: var(--accent);
+    transform: translateY(-3px);
+  }
+
+  .lb {
+    font-family: var(--font-mono);
+    font-size: var(--fs-label);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--accent-readable);
+  }
+
+  h3 {
+    margin: 0;
+    font-size: var(--fs-h4);
+    font-weight: 520;
+    letter-spacing: -0.018em;
+  }
+
+  p {
+    margin: 0;
+    font-size: var(--fs-small);
+    color: var(--dim);
+    line-height: 1.6;
+    flex: 1 1 auto;
+  }
+
+  .meta {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    letter-spacing: 0.06em;
+    color: var(--faint);
+  }
+
+  .meta code {
+    color: var(--dim);
+  }
+
+</style>

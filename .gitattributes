@@ -1,0 +1,18 @@
+# Normalise to LF in the repository regardless of platform.
+#
+# The code branches have no .gitattributes, which is why a Windows build there
+# marks ~70 generated files as modified with zero content change. This branch is
+# new, so it starts with the problem solved rather than inheriting it.
+* text=auto eol=lf
+
+# Never touch these.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+
+# Generated; keep diffs out of review.
+package-lock.json -diff linguist-generated

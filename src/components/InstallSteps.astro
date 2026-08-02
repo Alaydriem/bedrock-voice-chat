@@ -1,0 +1,89 @@
+---
+import { copy } from '../copy';
+
+/**
+ * Order matters: the voice server comes first because the addon needs an address
+ * to report positions to. Installing the addon first leaves an operator with a
+ * mod that appears broken.
+ */
+const STEPS = copy.operators.steps;
+---
+
+<ol class="steps">
+  {
+    STEPS.map((s, i) => (
+      <li data-reveal data-reveal-index={i}>
+        <span class="n num">{i + 1}</span>
+        <span class="body">
+          <span class="t">{s.title}</span>
+          <span class="d">{s.detail}</span>
+        </span>
+        <span class="time">{s.time}</span>
+      </li>
+    ))
+  }
+</ol>
+
+<style>
+  .steps {
+    margin: 34px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  li {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+    gap: 20px;
+    padding: 20px 0;
+    border-top: 1px solid var(--line);
+    align-items: baseline;
+  }
+
+  li:last-child {
+    border-bottom: 1px solid var(--line);
+  }
+
+  .n {
+    font-size: 13px;
+    color: var(--brand-lift);
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-sm);
+    text-align: center;
+    padding: 4px 0;
+  }
+
+  .t {
+    display: block;
+    font-size: 17px;
+    color: var(--tx);
+    font-weight: 520;
+  }
+
+  .d {
+    display: block;
+    font-size: var(--fs-small);
+    color: var(--dim);
+    margin-top: 5px;
+    line-height: 1.55;
+  }
+
+  .time {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    letter-spacing: 0.12em;
+    color: var(--faint);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 640px) {
+    li {
+      grid-template-columns: 36px minmax(0, 1fr);
+    }
+
+    .time {
+      display: none;
+    }
+  }
+</style>

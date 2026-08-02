@@ -1,0 +1,50 @@
+---
+import { Image } from 'astro:assets';
+import banner from '../assets/streamdeck.png';
+import { copy } from '../copy';
+
+/**
+ * The Stream Deck plugin banner.
+ *
+ * This replaces a hand-built CSS mockup of a Stream Deck. The real marketplace
+ * artwork wins on every count: it is the device people recognise, it is the art
+ * they will see again on Elgato's listing, and it cannot drift out of sync with
+ * the plugin the way a reimplementation does.
+ *
+ * Imported from src/assets rather than referenced out of public/, so Astro emits
+ * a hashed, format-converted, correctly-sized set instead of shipping the raw
+ * 667 KB PNG. `widths` covers the panel at its two real layout widths; intrinsic
+ * dimensions come from the import, so there is no layout shift.
+ *
+ * The banner already carries the wordmark and the words "Stream Deck Plugin", so
+ * the surrounding panel deliberately does not repeat them.
+ */
+---
+
+<figure class="banner">
+  <Image
+    src={banner}
+    alt={copy.integrations.deck.ariaLabel}
+    widths={[640, 960, 1280]}
+    sizes="(max-width: 900px) 100vw, 46vw"
+    loading="lazy"
+    decoding="async"
+  />
+</figure>
+
+<style>
+  .banner {
+    margin: 0;
+    /* The artwork is on a flat violet of its own, close to but not identical to
+       the panel ground. Bleeding it to the card edges turns that difference into
+       a deliberate banner rather than a visible seam around a floating image. */
+    background: #3a2e4a;
+    line-height: 0;
+  }
+
+  .banner :global(img) {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+</style>

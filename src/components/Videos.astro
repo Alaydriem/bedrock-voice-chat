@@ -1,0 +1,173 @@
+---
+/**
+ * The two videos the old site had and this one dropped.
+ *
+ * A 90-second setup video outperforms every paragraph on the page for the two
+ * questions that actually block a download: does this really work, and can I
+ * really do it in five minutes. The announcement answers the first, the setup
+ * guide answers the second.
+ *
+ * Facades, not iframes. An embedded YouTube player loads several hundred
+ * kilobytes and sets cookies before anyone has decided to watch; this ships a
+ * poster and swaps in the real player on click. That also keeps the page free of
+ * third-party requests until the visitor asks for one.
+ */
+import { copy } from '../copy';
+
+const t = copy.videos;
+
+/** Structural data. Titles and blurbs come from the copy module, joined by index. */
+const VIDEOS = [
+  { id: 'VON56xnHfnQ', accent: 'var(--sp-cyan)' },
+  { id: '0ciAc_d81a0', accent: 'var(--sp-green)' },
+] as const;
+---
+
+<ul class="grid">
+  {
+    VIDEOS.map((v, i) => (
+      <li style={`--accent:${v.accent}`} data-reveal data-reveal-index={i}>
+        <button class="facade" data-video={v.id} type="button" aria-label={`${t.playPrefix}: ${t.items[i]!.title}`}>
+          <img
+            src={`https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            width="480"
+            height="360"
+          />
+          <span class="scrim" aria-hidden="true" />
+          <span class="play" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M8 5.2v13.6L19.5 12z" />
+            </svg>
+          </span>
+          <span class="tag">{t.items[i]!.kind}</span>
+        </button>
+        <h3>{t.items[i]!.title}</h3>
+        <p>{t.items[i]!.blurb}</p>
+      </li>
+    ))
+  }
+</ul>
+
+<style>
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+    gap: clamp(18px, 3vw, 34px);
+    margin: 34px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .facade {
+    position: relative;
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    background: var(--void-2);
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.2s var(--ease);
+  }
+
+  .facade:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+  }
+
+  /* hqdefault is 4:3 with letterbox bars; crop to the 16:9 frame inside it. */
+  .facade img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .scrim {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgb(28 17 50 / 0.1), rgb(28 17 50 / 0.72));
+  }
+
+  .play {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 58px;
+    height: 58px;
+    border-radius: var(--r-pill);
+    background: color-mix(in srgb, var(--accent) 22%, rgb(20 12 38 / 0.85));
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    display: grid;
+    place-items: center;
+    transition: all 0.2s var(--ease);
+  }
+
+  .facade:hover .play {
+    background: var(--accent);
+    color: var(--void);
+    transform: translate(-50%, -50%) scale(1.06);
+  }
+
+  .play svg {
+    width: 24px;
+    height: 24px;
+    margin-left: 3px;
+  }
+
+  .tag {
+    position: absolute;
+    left: 14px;
+    bottom: 12px;
+    font-family: var(--font-mono);
+    font-size: var(--fs-micro);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent-readable);
+  }
+
+  h3 {
+    margin: 16px 0 0;
+    font-size: var(--fs-h4);
+    font-weight: 540;
+    letter-spacing: -0.016em;
+  }
+
+  p {
+    margin: 8px 0 0;
+    font-size: var(--fs-small);
+    color: var(--dim);
+    line-height: 1.6;
+    max-width: 46ch;
+  }
+</style>
+
+<script>
+  // Swap the facade for the real player only once someone asks for it, so the
+  // page makes no third-party request until then.
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-video]')) {
+    button.addEventListener('click', () => {
+      const id = button.dataset.video;
+      if (!id) return;
+      const frame = document.createElement('iframe');
+      frame.src = `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0`;
+      frame.title = button.getAttribute('aria-label') ?? 'Video';
+      frame.allow =
+        'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+      frame.allowFullscreen = true;
+      frame.referrerPolicy = 'strict-origin-when-cross-origin';
+      frame.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:0';
+      button.replaceChildren(frame);
+      button.disabled = true;
+      button.style.cursor = 'default';
+    });
+  }
+</script>
