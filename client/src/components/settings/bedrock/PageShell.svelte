@@ -10,7 +10,6 @@
     import ErrorBanner from "./ErrorBanner.svelte";
     import XboxLoginModal from "./XboxLoginModal.svelte";
     import BedrockConnectionInfoModal from "./BedrockConnectionInfoModal.svelte";
-    import GatingModal from "./GatingModal.svelte";
 
     interface Props {
         bedrockManager: BedrockManager;
@@ -57,5 +56,3 @@
 {/if}
 
 <BedrockConnectionInfoModal {bedrockManager} />
-
-<GatingModal {bedrockManager} />

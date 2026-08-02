@@ -1,16 +1,14 @@
 import { writable, derived, type Writable, type Readable } from 'svelte/store';
 import { invoke } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { Store } from '@tauri-apps/plugin-store';
 import { error as logError } from '@tauri-apps/plugin-log';
-import { onPurchaseUpdated } from '@choochmeque/tauri-plugin-iap-api';
 import type { BedrockStatus } from '../../../bindings/BedrockStatus';
 import type { BedrockLogEntry } from '../../../bindings/BedrockLogEntry';
 import type { BedrockConnectionInfo } from '../../../bindings/BedrockConnectionInfo';
 import type { RealmEntry } from '../../../bindings/RealmEntry';
 import type { NetworkInterface } from '../../../bindings/NetworkInterface';
 import type { ProtocolVersionOption } from '../../../bindings/ProtocolVersionOption';
-import type { RealmsGateStatus } from '../../../bindings/RealmsGateStatus';
-import type { IapOffer } from '../../../bindings/IapOffer';
 import type { ProxyServerEntry } from './ProxyServerEntry';
 import type { BedrockCapabilityManager } from './BedrockCapabilityManager';
 import { BedrockAuthManager } from './auth/BedrockAuthManager';
@@ -69,21 +67,17 @@ export class BedrockManager {
 
     public readonly canStartProxy: Readable<boolean>;
 
-    private gateStatusStore: Writable<RealmsGateStatus | null>;
-    public readonly gateStatus: Readable<RealmsGateStatus | null>;
-    private offersStore: Writable<IapOffer[]>;
-    public readonly offers: Readable<IapOffer[]>;
-    private offersLoadedStore: Writable<boolean>;
-    public readonly offersLoaded: Readable<boolean>;
-    private gatingModalStore: Writable<RealmsGateStatus | null>;
-    public readonly gatingModal: Readable<RealmsGateStatus | null>;
+    private realmsEnabledStore: Writable<boolean>;
+    public readonly realmsEnabled: Readable<boolean>;
+    private realmsUnavailableModalStore: Writable<boolean>;
+    public readonly realmsUnavailableModal: Readable<boolean>;
 
     public readonly capability: BedrockCapabilityManager;
     private capabilityUnsubscribe: (() => void) | null = null;
 
     private initialized = false;
     private store: Store | null = null;
-    private purchaseUnlisten: (() => void) | null = null;
+    private flagsUnlisten: UnlistenFn | null = null;
 
     constructor(capability: BedrockCapabilityManager) {
         this.statusMessageStore = writable('');
@@ -91,14 +85,10 @@ export class BedrockManager {
 
         const setStatus = (msg: string) => this.statusMessageStore.set(msg);
 
-        this.gateStatusStore = writable(null);
-        this.gateStatus = { subscribe: this.gateStatusStore.subscribe };
-        this.offersStore = writable([]);
-        this.offers = { subscribe: this.offersStore.subscribe };
-        this.offersLoadedStore = writable(false);
-        this.offersLoaded = { subscribe: this.offersLoadedStore.subscribe };
-        this.gatingModalStore = writable(null);
-        this.gatingModal = { subscribe: this.gatingModalStore.subscribe };
+        this.realmsEnabledStore = writable(true);
+        this.realmsEnabled = { subscribe: this.realmsEnabledStore.subscribe };
+        this.realmsUnavailableModalStore = writable(false);
+        this.realmsUnavailableModal = { subscribe: this.realmsUnavailableModalStore.subscribe };
 
         this.logsManager = new BedrockLogsManager();
         this.connectionManager = new BedrockConnectionManager(() => this.realmsManager);
@@ -110,9 +100,11 @@ export class BedrockManager {
                 reportError: (raw) => this.connectionManager.setConnectErrorFromInvoke(raw),
                 clearLogs: () => this.logsManager.clearLogs(),
                 clearConnectionError: () => this.connectionManager.clearError(),
-                onGateBlocked: (status) => {
-                    this.gateStatusStore.set(status);
-                    this.gatingModalStore.set(status);
+                // Only the modal. `realmsEnabled` mirrors the flag and is
+                // written solely by refreshRealmsEnabled, so a refused connect
+                // cannot desync this page from the sidebar's copy.
+                onRealmsUnavailable: () => {
+                    this.realmsUnavailableModalStore.set(true);
                 },
             },
         );
@@ -236,69 +228,38 @@ export class BedrockManager {
         return this.realmsManager.loadRealms();
     }
 
-    // Realms-only IAP init. Called by the Realms Connect page (never by Proxy
-    // Connect, never on the shared restoring path). Resolves the gate from the
-    // cached entitlement immediately, then corrects from a fresh store read and
-    // subscribes to purchase updates in the background so neither can stall the
-    // page.
+    // Called by the Realms Connect page on mount (never by Proxy Connect,
+    // never on the shared restoring path). The modal is a response to a
+    // blocked connect attempt, so it must not survive into a later mount.
     async initializeRealmsAccess(): Promise<void> {
-        await this.refreshGate();
-        void this.refreshEntitlementAndGate();
-        void this.loadOffers();
-        if (!this.purchaseUnlisten) {
-            onPurchaseUpdated(() => {
-                void this.refreshEntitlementAndGate();
-            })
-                .then((listener) => {
-                    this.purchaseUnlisten = () => listener.unregister();
-                })
-                .catch((e) => logError(`onPurchaseUpdated subscription failed: ${e}`));
+        this.realmsUnavailableModalStore.set(false);
+        await this.refreshRealmsEnabled();
+        if (!this.flagsUnlisten) {
+            try {
+                this.flagsUnlisten = await listen('feature-flags-updated', () => {
+                    void this.refreshRealmsEnabled();
+                });
+            } catch (e) {
+                logError(`feature-flags-updated subscription failed: ${e}`);
+            }
         }
     }
 
-    async refreshGate(): Promise<void> {
+    // Fails open on read failure, matching both the flag's own default and
+    // SettingsSidebarManager: the two must agree or the sidebar item and the
+    // page can disagree about whether the feature exists.
+    async refreshRealmsEnabled(): Promise<void> {
         try {
-            const status = await invoke<RealmsGateStatus>('bedrock_realms_gate');
-            this.gateStatusStore.set(status);
+            const enabled = await invoke<boolean>('bedrock_realms_enabled');
+            this.realmsEnabledStore.set(enabled);
         } catch (e) {
-            logError(`Gate check failed: ${e}`);
+            logError(`Realms Connect flag check failed: ${e}`);
+            this.realmsEnabledStore.set(true);
         }
     }
 
-    async loadOffers(): Promise<void> {
-        try {
-            const offers = await invoke<IapOffer[]>('iap_list_offers');
-            this.offersStore.set(offers);
-        } catch (e) {
-            logError(`Load offers failed: ${e}`);
-        } finally {
-            this.offersLoadedStore.set(true);
-        }
-    }
-
-    async purchase(productId: string): Promise<boolean> {
-        const ok = await invoke<boolean>('iap_purchase', { productId });
-        await this.refreshEntitlementAndGate();
-        return ok;
-    }
-
-    async restorePurchases(): Promise<boolean> {
-        const ok = await invoke<boolean>('iap_restore');
-        await this.refreshEntitlementAndGate();
-        return ok;
-    }
-
-    private async refreshEntitlementAndGate(): Promise<void> {
-        try {
-            await invoke<boolean>('iap_refresh');
-        } catch (e) {
-            logError(`Entitlement refresh failed: ${e}`);
-        }
-        await this.refreshGate();
-    }
-
-    dismissGatingModal(): void {
-        this.gatingModalStore.set(null);
+    dismissRealmsUnavailableModal(): void {
+        this.realmsUnavailableModalStore.set(false);
     }
 
     async refreshRealms(): Promise<void> {
@@ -402,9 +363,9 @@ export class BedrockManager {
         this.authManager.destroy();
         this.logsManager.destroy();
         this.connectionManager.destroy();
-        if (this.purchaseUnlisten) {
-            this.purchaseUnlisten();
-            this.purchaseUnlisten = null;
+        if (this.flagsUnlisten) {
+            this.flagsUnlisten();
+            this.flagsUnlisten = null;
         }
         // The capability manager itself is owned by SettingsSidebarManager;
         // only the subscription is ours to release.

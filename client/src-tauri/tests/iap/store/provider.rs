@@ -17,9 +17,9 @@ fn product(
     subscription_offer_details: Option<Vec<SubscriptionOffer>>,
 ) -> Product {
     Product {
-        product_id: "realms.annual".to_string(),
-        title: "Realms Connect".to_string(),
-        description: "Proximity voice on every Realm.".to_string(),
+        product_id: "example.annual".to_string(),
+        title: "Example Subscription".to_string(),
+        description: "An example subscription product.".to_string(),
         product_type: "subs".to_string(),
         formatted_price: formatted_price.map(str::to_string),
         price_currency_code: None,
@@ -30,7 +30,7 @@ fn product(
 
 // Android never sets the top-level price for subscriptions; it lives only under
 // the offer's pricing phases. The price must come from the recurring (last)
-// phase so the upsell tile is not blank.
+// phase so a subscription's price is not blank.
 #[test]
 fn android_subscription_uses_nested_recurring_phase() {
     let offer = SubscriptionOffer {

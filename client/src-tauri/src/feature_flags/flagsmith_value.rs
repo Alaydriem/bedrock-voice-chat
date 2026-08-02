@@ -15,11 +15,7 @@ pub trait FlagsmithValue: Sized {
 
 impl FlagsmithValue for bool {
     async fn fetch(svc: &FeatureFlagService, key: &str, default: bool) -> bool {
-        let result = svc.is_enabled(key).await;
-        if !result {
-            return default;
-        }
-        result
+        svc.lookup_bool(key).await.unwrap_or(default)
     }
 }
 

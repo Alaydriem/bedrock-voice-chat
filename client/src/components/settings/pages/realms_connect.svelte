@@ -3,7 +3,8 @@
     import type { BedrockManager } from "../../../js/app/managers/bedrock/BedrockManager";
     import PageShell from "../bedrock/PageShell.svelte";
     import RealmCard from "../bedrock/RealmCard.svelte";
-    import RealmsUpsell from "../bedrock/RealmsUpsell.svelte";
+    import RealmsUnavailableNotice from "../bedrock/RealmsUnavailableNotice.svelte";
+    import RealmsUnavailableModal from "../bedrock/RealmsUnavailableModal.svelte";
     import ServerCapabilityNotice from "../bedrock/ServerCapabilityNotice.svelte";
 
     interface Props {
@@ -15,7 +16,7 @@
     const capabilityStatus = bedrockManager.capability.status;
     const capabilityServerHost = bedrockManager.capability.serverHost;
     const capabilityChecking = bedrockManager.capability.isChecking;
-    const gateStatus = bedrockManager.gateStatus;
+    const realmsEnabled = bedrockManager.realmsEnabled;
     const proxyRunning = bedrockManager.proxyRunning;
     const realmsRunning = bedrockManager.realmsRunning;
     const favorites = bedrockManager.favorites;
@@ -30,26 +31,7 @@
 
 {#if $capabilityStatus !== "enabled"}
     <ServerCapabilityNotice status={$capabilityStatus} serverHost={$capabilityServerHost} isChecking={$capabilityChecking} onRetry={() => bedrockManager.capability.refresh()} />
-{:else if $gateStatus === null}
-    <div class="grid grid-cols-1 gap-4 sm:gap-5 lg:gap-6 pt-4 md:pt-0">
-        <div class="card flex flex-col items-center justify-center gap-5 px-6 py-16 text-center">
-            <div class="relative flex size-16 items-center justify-center">
-                <div class="absolute inset-0 animate-spin rounded-full border-2 border-slate-200 border-t-primary dark:border-navy-500 dark:border-t-accent-light"></div>
-                <svg xmlns="http://www.w3.org/2000/svg" class="size-7 text-primary dark:text-accent-light" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-                </svg>
-            </div>
-            <div class="space-y-1.5">
-                <h2 class="text-base font-semibold text-slate-700 dark:text-navy-100 lg:text-lg">
-                    Checking your access
-                </h2>
-                <p class="mx-auto max-w-sm text-sm leading-relaxed text-slate-500 dark:text-navy-300">
-                    Confirming your Realms Connect subscription. This only takes a moment.
-                </p>
-            </div>
-        </div>
-    </div>
-{:else if $gateStatus.status === "allowed"}
+{:else if $realmsEnabled}
     <PageShell
         {bedrockManager}
         title="Your Realms"
@@ -95,5 +77,10 @@
         {/snippet}
     </PageShell>
 {:else}
-    <RealmsUpsell {bedrockManager} />
+    <RealmsUnavailableNotice />
 {/if}
+
+<!-- Mounted outside the branches above: a blocked connect attempt flips
+     realmsEnabled false, which would otherwise unmount the modal in the same
+     tick it is asked to open. -->
+<RealmsUnavailableModal {bedrockManager} />

@@ -17,6 +17,12 @@ pub struct FeatureFlagService {
     client: RwLock<Option<open_feature::Client>>,
     ready_tx: watch::Sender<bool>,
     ready_rx: watch::Receiver<bool>,
+    // Bumped once per successful flag fetch, whichever path performed it.
+    // A watcher outside this service turns each bump into the Tauri
+    // `feature-flags-updated` event; keeping the AppHandle out of this struct
+    // is deliberate, so test binaries linking the service do not drag in the
+    // GUI stack through drop glue.
+    generation_tx: watch::Sender<u64>,
     api_key: String,
     server_url: String,
     install_id: String,
@@ -46,10 +52,12 @@ impl FeatureFlagService {
         analytics: Option<Arc<AnalyticsService>>,
     ) -> Self {
         let (ready_tx, ready_rx) = watch::channel(false);
+        let (generation_tx, _) = watch::channel(0u64);
         Self {
             client: RwLock::new(None),
             ready_tx,
             ready_rx,
+            generation_tx,
             api_key,
             server_url,
             install_id,
@@ -79,6 +87,7 @@ impl FeatureFlagService {
             self.http_client.clone(),
             self.discord_state.clone(),
             self.analytics.clone(),
+            self.generation_tx.clone(),
         );
 
         // Capture the provider's shared cache + normalized URL before it's
@@ -117,6 +126,7 @@ impl FeatureFlagService {
                     &roles,
                     &cache,
                     self.analytics.as_ref(),
+                    &self.generation_tx,
                 )
                 .await
                 .map_err(|e| e.to_string())?;
@@ -124,6 +134,36 @@ impl FeatureFlagService {
                 Ok(())
             }
             _ => Err("Feature flags are not initialized yet".to_string()),
+        }
+    }
+
+    // Receiver that ticks once per successful flag fetch, from any path:
+    // initial load, the background poll, or an on-demand `refresh`. The caller
+    // owns whatever side effect a change should have.
+    pub fn flags_changed(&self) -> watch::Receiver<u64> {
+        self.generation_tx.subscribe()
+    }
+
+    // Block until the provider has finished its first fetch, but never longer
+    // than this. `initialize` only signals ready once that fetch resolves, so
+    // without a bound a flag read inherits the fetch's worst case; the HTTP
+    // client's own timeout is the usual backstop, and this covers the case
+    // where `initialize` never completes at all. Falling through early yields
+    // the flag's default, which is the same answer an unreachable Flagsmith
+    // produces.
+    const READY_TIMEOUT: Duration = Duration::from_secs(10);
+
+    async fn await_ready(&self) {
+        let wait = async {
+            let mut rx = self.ready_rx.clone();
+            while !*rx.borrow_and_update() {
+                if rx.changed().await.is_err() {
+                    break;
+                }
+            }
+        };
+        if tokio::time::timeout(Self::READY_TIMEOUT, wait).await.is_err() {
+            warn!("feature flags not ready after {:?}; using defaults", Self::READY_TIMEOUT);
         }
     }
 
@@ -165,13 +205,12 @@ impl FeatureFlagService {
             .unwrap_or_default()
     }
 
-    pub async fn is_enabled(&self, flag: &str) -> bool {
-        let mut rx = self.ready_rx.clone();
-        while !*rx.borrow_and_update() {
-            if rx.changed().await.is_err() {
-                break;
-            }
-        }
+    // `None` means Flagsmith did not answer — no client configured, or the
+    // evaluation failed. `Some(false)` means Flagsmith answered false.
+    // Any flag whose fallback is not `false` MUST distinguish the two, so it
+    // does not treat a deliberate opt-out as an outage.
+    pub async fn lookup_bool(&self, flag: &str) -> Option<bool> {
+        self.await_ready().await;
 
         let guard = self.client.read().await;
         let result = match guard.as_ref() {
@@ -181,17 +220,24 @@ impl FeatureFlagService {
                 client
                     .get_bool_value(flag, Some(&context), None)
                     .await
-                    .unwrap_or(false)
+                    .ok()
             }
-            None => false,
+            None => None,
         };
-        log::info!("Feature flag '{}' = {}", flag, result);
+        match result {
+            Some(v) => log::info!("Feature flag '{}' = {}", flag, v),
+            None => log::info!("Feature flag '{}' = <unset>", flag),
+        }
         result
+    }
+
+    pub async fn is_enabled(&self, flag: &str) -> bool {
+        self.lookup_bool(flag).await.unwrap_or(false)
     }
 
     // Typed flag read. The `flag` value carries its own key + default; the
     // value type comes from `F::Value`. Boolean flags dispatch through
-    // `is_enabled`; integer flags through `get_int_value`. Adding a new
+    // `lookup_bool`; integer flags through `get_int_value`. Adding a new
     // value type means adding one `impl FlagsmithValue for …`, nothing
     // else changes at the service level.
     //
@@ -210,12 +256,7 @@ impl FeatureFlagService {
     // initialized. Used by integer dials like
     // `feature.minecraft.max_trusted_protocol`.
     pub async fn get_int_value(&self, flag: &str) -> Option<i64> {
-        let mut rx = self.ready_rx.clone();
-        while !*rx.borrow_and_update() {
-            if rx.changed().await.is_err() {
-                break;
-            }
-        }
+        self.await_ready().await;
 
         let guard = self.client.read().await;
         let result = match guard.as_ref() {

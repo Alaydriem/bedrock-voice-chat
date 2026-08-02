@@ -18,7 +18,7 @@ use open_feature::provider::{FeatureProvider, ProviderMetadata, ResolutionDetail
 use open_feature::{
     EvaluationContext, EvaluationError, EvaluationErrorCode, EvaluationResult, StructValue, Value,
 };
-use tokio::sync::RwLock;
+use tokio::sync::{RwLock, watch};
 
 use self::identity_response::FlagsmithIdentityResponse;
 use crate::analytics::AnalyticsService;
@@ -36,6 +36,7 @@ pub struct FlagsmithProvider {
     cache: Arc<RwLock<HashMap<String, FlagsmithFlag>>>,
     discord_state: Arc<StdRwLock<DiscordTraitState>>,
     analytics: Option<Arc<AnalyticsService>>,
+    generation: watch::Sender<u64>,
 }
 
 impl FlagsmithProvider {
@@ -48,6 +49,7 @@ impl FlagsmithProvider {
         http_client: reqwest::Client,
         discord_state: Arc<StdRwLock<DiscordTraitState>>,
         analytics: Option<Arc<AnalyticsService>>,
+        generation: watch::Sender<u64>,
     ) -> Self {
         let normalized_url = if server_url.ends_with("/api/v1/") {
             server_url
@@ -68,6 +70,7 @@ impl FlagsmithProvider {
             cache: Arc::new(RwLock::new(HashMap::new())),
             discord_state,
             analytics,
+            generation,
         }
     }
 
@@ -123,6 +126,9 @@ impl FlagsmithProvider {
     // load, the background poll loop, and on-demand refresh — all of which
     // write the same `Arc<RwLock<..>>` the resolvers read. Sends `build_number`
     // as a transient identity trait so flags can gate on the client build.
+    // Bumping `generation` here rather than at each call site is what makes
+    // every refresh path observable to a watcher, including the background
+    // poll.
     pub(crate) async fn fetch_flags(
         http_client: &reqwest::Client,
         server_url: &str,
@@ -132,6 +138,7 @@ impl FlagsmithProvider {
         discord_roles: &[String],
         cache: &RwLock<HashMap<String, FlagsmithFlag>>,
         analytics: Option<&Arc<AnalyticsService>>,
+        generation: &watch::Sender<u64>,
     ) -> Result<usize, anyhow::Error> {
         let url = format!("{}identities/", server_url);
 
@@ -171,6 +178,7 @@ impl FlagsmithProvider {
         }
         let count = c.len();
         drop(c);
+        generation.send_modify(|g| *g = g.wrapping_add(1));
         if let Some(analytics) = analytics {
             analytics.track(
                 AnalyticsEvent::FlagsmithFlagsFetched,
@@ -191,6 +199,7 @@ impl FlagsmithProvider {
             &roles,
             &self.cache,
             self.analytics.as_ref(),
+            &self.generation,
         )
         .await?;
         info!(
@@ -238,6 +247,7 @@ impl FeatureProvider for FlagsmithProvider {
         let refresh_interval = self.refresh_interval;
         let discord_state = self.discord_state.clone();
         let analytics = self.analytics.clone();
+        let generation = self.generation.clone();
 
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(refresh_interval);
@@ -254,6 +264,7 @@ impl FeatureProvider for FlagsmithProvider {
                     &roles,
                     &cache,
                     analytics.as_ref(),
+                    &generation,
                 )
                 .await
                 {
@@ -383,6 +394,7 @@ mod tests {
             reqwest::Client::new(),
             std::sync::Arc::new(std::sync::RwLock::new(crate::discord::DiscordTraitState::new())),
             None,
+            watch::channel(0u64).0,
         )
     }
 
