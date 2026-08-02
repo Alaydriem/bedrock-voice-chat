@@ -17,6 +17,25 @@
 # parallelizes up to `-j`. Raise this only with headroom to spare.
 heavy-relay-e2e = { max-threads = 2 }
 
+[profile.default]
+# Per test, not per run: a test is flagged slow after `period`, and killed after
+# `period * terminate-after`. nextest's default only warns and never terminates,
+# so a single deadlocked test blocks the whole run indefinitely — and with
+# `--no-fail-fast` it does so silently, having already printed nothing. This
+# turns that into a reported TIMEOUT instead of a stall.
+#
+# Sized against observed durations: every non-relay scenario finishes under 25s,
+# so 60s flags something genuinely unusual and 180s is ~7x the slowest. Relay
+# scenarios get their own, longer bound below.
+slow-timeout = { period = "60s", terminate-after = 3 }
+
 [[profile.default.overrides]]
 filter = 'test(/scenarios::relay_/)'
 test-group = 'heavy-relay-e2e'
+# `relay_dropped_link_reconnects_and_audio_resumes` legitimately takes ~52s: it
+# drops a peer link and waits for the reconnect to re-establish. The rest of the
+# relay set runs 25-33s. 120s therefore still means "unexpected", and 360s keeps
+# ~7x headroom so a contended machine cannot manufacture a false TIMEOUT — this
+# suite is load-sensitive enough to produce spurious failures under parallel
+# builds.
+slow-timeout = { period = "120s", terminate-after = 3 }
