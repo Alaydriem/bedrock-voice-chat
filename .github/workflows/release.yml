@@ -710,6 +710,13 @@ jobs:
     needs: [prepare-release, approve-publish]
     if: needs.approve-publish.result == 'success'
     runs-on: ubuntu-latest
+    concurrency:
+      # Five jobs publish to the gh-pages root; peaceiris does a
+      # fetch-commit-push, so two at once lose one to a non-fast-forward.
+      # Every publisher must share this group, including deploy.yml on
+      # the gh-pages-src branch.
+      group: gh-pages-publish
+      cancel-in-progress: false
     permissions:
       contents: write
     steps:
@@ -815,6 +822,13 @@ jobs:
     needs: [prepare-release, build-client, approve-publish, deploy-updater-manifest]
     if: always() && needs.approve-publish.result == 'success'
     runs-on: ubuntu-latest
+    concurrency:
+      # Five jobs publish to the gh-pages root; peaceiris does a
+      # fetch-commit-push, so two at once lose one to a non-fast-forward.
+      # Every publisher must share this group, including deploy.yml on
+      # the gh-pages-src branch.
+      group: gh-pages-publish
+      cancel-in-progress: false
     permissions:
       contents: write
     steps:
@@ -844,6 +858,13 @@ jobs:
     needs: [prepare-release, build-server, approve-publish, deploy-docs]
     if: always() && needs.approve-publish.result == 'success'
     runs-on: ubuntu-latest
+    concurrency:
+      # Five jobs publish to the gh-pages root; peaceiris does a
+      # fetch-commit-push, so two at once lose one to a non-fast-forward.
+      # Every publisher must share this group, including deploy.yml on
+      # the gh-pages-src branch.
+      group: gh-pages-publish
+      cancel-in-progress: false
     permissions:
       contents: write
     steps:
@@ -882,11 +903,19 @@ jobs:
         run: echo "OpenAPI docs deployed to https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/api/${{ needs.prepare-release.outputs.new_version }}"
 
   # Post-approval: Update version on GitHub Pages landing page (beta only for now)
-  update-gh-pages-version:
-    name: Update GitHub Pages Version
+  # The site is built from the gh-pages-src branch, so the version is a build
+  # input rather than a string to patch into published output. Committing it here
+  # is what triggers that branch's deploy workflow — repository_dispatch and
+  # workflow_dispatch both require the workflow to live on the default branch,
+  # which it does not, so a push is the only trigger available.
+  update-site-version:
+    name: Update Site Version
     needs: [prepare-release, approve-publish, deploy-openapi-docs]
     if: always() && needs.approve-publish.result == 'success' && contains(needs.prepare-release.outputs.new_version, '-beta')
     runs-on: ubuntu-latest
+    concurrency:
+      group: gh-pages-src-push
+      cancel-in-progress: false
     steps:
       - name: Generate GitHub App token
         id: generate-token
@@ -895,26 +924,27 @@ jobs:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
-      - name: Checkout gh-pages branch
+      - name: Checkout gh-pages-src branch
         uses: actions/checkout@v5
         with:
-          ref: gh-pages
+          ref: gh-pages-src
           token: ${{ steps.generate-token.outputs.token }}
 
-      - name: Update version in index.js
+      - name: Set the version
         run: |
+          set -euo pipefail
           VERSION="${{ needs.prepare-release.outputs.new_version }}"
-          sed -i "s|const BVC_VERSION = \".*\"|const BVC_VERSION = \"${VERSION}\"|" index.js
-          sed -i "s|const BVC_MODS_VERSION = \".*\"|const BVC_MODS_VERSION = \"mods-v${VERSION}\"|" index.js
-          echo "Updated index.js:"
-          head -3 index.js
+          FILE=src/lib/site.ts
+          test -f "$FILE"
+          sed -i "s|?? '1\.0\.0-beta\.[0-9]*'|?? '${VERSION}'|" "$FILE"
+          grep -n "PUBLIC_BVC_VERSION" "$FILE"
 
       - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add index.js
-          git diff --staged --quiet || git commit -m "chore: update version to ${{ needs.prepare-release.outputs.new_version }}"
+          git add src/lib/site.ts
+          git diff --staged --quiet || git commit -m "chore: site version ${{ needs.prepare-release.outputs.new_version }}"
           git push
 
   # Post-approval: Build and push Docker image

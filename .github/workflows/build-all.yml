@@ -247,6 +247,13 @@ jobs:
     needs: [changes, build-client]
     if: github.event_name == 'push' && needs.build-client.result == 'success'
     runs-on: ubuntu-latest
+    concurrency:
+      # Five jobs publish to the gh-pages root; peaceiris does a
+      # fetch-commit-push, so two at once lose one to a non-fast-forward.
+      # Every publisher must share this group, including deploy.yml on
+      # the gh-pages-src branch.
+      group: gh-pages-publish
+      cancel-in-progress: false
     permissions:
       contents: write
     steps:
@@ -273,6 +280,13 @@ jobs:
     needs: [changes, build-server, deploy-docs]
     if: always() && github.event_name == 'push' && needs.build-server.result == 'success'
     runs-on: ubuntu-latest
+    concurrency:
+      # Five jobs publish to the gh-pages root; peaceiris does a
+      # fetch-commit-push, so two at once lose one to a non-fast-forward.
+      # Every publisher must share this group, including deploy.yml on
+      # the gh-pages-src branch.
+      group: gh-pages-publish
+      cancel-in-progress: false
     permissions:
       contents: write
     steps:
