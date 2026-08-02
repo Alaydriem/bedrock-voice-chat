@@ -416,7 +416,7 @@ mod tests {
 
     #[test]
     fn mid_range_ramps_panning() {
-        // At 10 units, between panning_start (8.0) and close_threshold (12.0) -> partial panning
+        // At 10 units, between panning_start (8.0) and close_threshold (24.0) -> partial panning
         let emitter = Coordinate {
             x: 10.0,
             y: 0.0,
@@ -466,11 +466,13 @@ mod tests {
         let config = default_config();
         let orientation = Orientation { x: 0.0, y: 0.0 };
 
+        // Both samples sit inside the falloff band (close_threshold..falloff_distance),
+        // so each is attenuated and the pair is ordered.
         let near = JitterBuffer::calculate_spatial_audio_data(
             &Coordinate {
                 x: 0.0,
                 y: 0.0,
-                z: 15.0,
+                z: 30.0,
             },
             false,
             &listener_at_origin(),
@@ -482,7 +484,7 @@ mod tests {
             &Coordinate {
                 x: 0.0,
                 y: 0.0,
-                z: 35.0,
+                z: 40.0,
             },
             false,
             &listener_at_origin(),

@@ -6,7 +6,7 @@ fn default_broadcast_range() -> f32 {
 }
 
 fn default_close_threshold() -> f32 {
-    12.0
+    24.0
 }
 
 fn default_falloff_distance() -> f32 {
