@@ -38,6 +38,28 @@ pub struct QuicNetworkPacket {
     pub seq: Option<u32>,
 }
 
+// Exists so producers can write `..Default::default()` and leave `seq` alone, rather than
+// repeating `seq: None` at every construction site.
+//
+// Written out rather than derived on purpose. Deriving would require `Default` on `PacketType` and
+// `QuicNetworkPacketData`, which would make `PacketType::default()` callable and let a missing
+// assignment put a silently mis-tagged datagram on the wire. Every real construction overrides both
+// fields, so the values chosen here are never transmitted.
+impl Default for QuicNetworkPacket {
+    fn default() -> Self {
+        Self {
+            packet_type: PacketType::Debug,
+            owner: None,
+            data: QuicNetworkPacketData::Debug(super::debug_packet::DebugPacket {
+                owner: String::new(),
+                version: String::new(),
+                timestamp: 0,
+            }),
+            seq: None,
+        }
+    }
+}
+
 impl QuicNetworkPacket {
     // Stamps this envelope for one recipient. Called immediately before serialization, after every
     // decision not to send, so a suppressed packet consumes no number.

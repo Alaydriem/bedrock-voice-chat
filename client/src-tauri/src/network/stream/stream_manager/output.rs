@@ -75,7 +75,7 @@ impl common::traits::StreamTrait for OutputStream {
                     }
                 ),
                 // Client-to-server, not a server fan-out, so this envelope carries no sequence.
-                seq: None,
+                ..Default::default()
             };
 
             match debug_packet.to_datagram() {

@@ -470,7 +470,7 @@ impl QuicServerManager {
                                                 ),
                                             ),
                                                                                     // Not a server fan-out, so this envelope carries no sequence.
-                                            seq: None,
+                                            ..Default::default()
                                         };
 
                                         if let Err(e) = webhook_receiver.send_packet(leave_packet).await {
@@ -694,7 +694,7 @@ impl QuicServerManager {
                                         PlayerDataPacket::new(vec![player]),
                                     ),
                                     // Not a server fan-out, so this envelope carries no sequence.
-                                    seq: None,
+                                    ..Default::default()
                                 };
                                 connection_registry.send_positions_to_owners(&echo);
                             }

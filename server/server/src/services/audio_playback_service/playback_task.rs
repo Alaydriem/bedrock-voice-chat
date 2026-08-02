@@ -90,7 +90,7 @@ impl PlaybackTask {
                         owner: Some(packet_owner.clone()),
                         data: QuicNetworkPacketData::AudioFrame(audio_frame),
                                             // Not a server fan-out, so this envelope carries no sequence.
-                        seq: None,
+                        ..Default::default()
                     };
 
                     let result: Result<(), Box<dyn std::error::Error>> =

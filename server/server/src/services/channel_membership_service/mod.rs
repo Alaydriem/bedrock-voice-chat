@@ -101,7 +101,7 @@ impl ChannelMembershipService {
             packet_type: PacketType::ChannelEvent,
             data: QuicNetworkPacketData::ChannelEvent(event),
                     // Not a server fan-out, so this envelope carries no sequence.
-            seq: None,
+            ..Default::default()
         };
         if let Err(e) = webhook.send_packet(packet).await {
             tracing::error!("Failed to fan channel event: {}", e);

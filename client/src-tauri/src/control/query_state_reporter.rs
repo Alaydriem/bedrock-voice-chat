@@ -216,7 +216,7 @@ impl QueryStateReporter {
                 owner: None,
                 data,
                             // Not a server fan-out, so this envelope carries no sequence.
-                seq: None,
+                ..Default::default()
             },
         };
         if let Err(e) = producer.try_send(packet) {

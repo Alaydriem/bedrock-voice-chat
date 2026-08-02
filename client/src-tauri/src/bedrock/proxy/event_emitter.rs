@@ -32,7 +32,7 @@ impl BedrockEventEmitter {
                 owner: None,
                 data: QuicNetworkPacketData::BedrockEvent(bedrock_packet),
                             // Not a server fan-out, so this envelope carries no sequence.
-                seq: None,
+                ..Default::default()
             },
         };
 
@@ -55,7 +55,7 @@ impl BedrockEventEmitter {
                 owner: None,
                 data: QuicNetworkPacketData::ClientAction(ca_packet),
                             // Not a server fan-out, so this envelope carries no sequence.
-                seq: None,
+                ..Default::default()
             },
         };
 
@@ -77,7 +77,7 @@ impl BedrockEventEmitter {
                 owner: None,
                 data: QuicNetworkPacketData::PlayerPosition(PlayerPositionPacket { player }),
                             // Not a server fan-out, so this envelope carries no sequence.
-                seq: None,
+                ..Default::default()
             },
         };
 
@@ -101,7 +101,7 @@ impl BedrockEventEmitter {
                     token,
                 }),
                             // Not a server fan-out, so this envelope carries no sequence.
-                seq: None,
+                ..Default::default()
             },
         };
 
@@ -126,7 +126,7 @@ impl BedrockEventEmitter {
                     endpoint,
                 }),
                             // Not a server fan-out, so this envelope carries no sequence.
-                seq: None,
+                ..Default::default()
             },
         };
 

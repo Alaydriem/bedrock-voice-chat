@@ -117,7 +117,7 @@ impl RouteBench {
                 Some(true),
             )),
             // Not a server fan-out to one connection, so this envelope carries no sequence.
-            seq: None,
+            ..Default::default()
         }
     }
 
