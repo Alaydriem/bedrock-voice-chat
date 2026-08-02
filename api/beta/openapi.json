@@ -2445,7 +2445,7 @@
           "spatial_audio": {
             "default": {
               "broadcast_range": 48.0,
-              "close_threshold": 12.0,
+              "close_threshold": 24.0,
               "deafen_distance": 3.0,
               "falloff_distance": 48.0,
               "max_attenuation_db": 40.0,
@@ -2492,7 +2492,7 @@
             "format": "float"
           },
           "close_threshold": {
-            "default": 12.0,
+            "default": 24.0,
             "type": "number",
             "format": "float"
           },
