@@ -2,6 +2,7 @@ use std::sync::Mutex;
 
 use super::DeviceSnapshot;
 use crate::audio::types::AudioDeviceType;
+use crate::structs::StoredAudioDevice;
 
 
 // Cached device and mute state.
@@ -59,8 +60,6 @@ impl DeviceInfo {
         }
     }
 
-    // Absent until the user has chosen a device, in which case the app is on the system default
-    // and there is no stored name to report.
     // Test-only passthrough to the process-global flags, so an integration test can prove the
     // snapshot tracks them rather than reporting a default.
     #[cfg(any(test, feature = "e2e"))]
@@ -70,31 +69,23 @@ impl DeviceInfo {
         MuteFlags::set_output_muted(deafened);
     }
 
+    // `None` until the user has chosen a device, in which case the app is on the system default and
+    // there is no stored name to report.
+    //
+    // Goes through `StoredAudioDevice` rather than reading the JSON by hand so this and the startup
+    // path cannot disagree about the stored shape — notably that stream configs sit under `config`,
+    // not `stream_configs`.
     fn device_from_store(
         app_handle: &tauri::AppHandle,
         io: AudioDeviceType,
     ) -> Option<(String, Option<u32>)> {
         let store = tauri_plugin_store::StoreExt::store(app_handle, "store.json").ok()?;
-        let value = store.get(io.store_key())?;
+        let stored = StoredAudioDevice::peek(io, &store)?;
 
-        let name = value
-            .get("display_name")
-            .or_else(|| value.get("name"))
-            .and_then(|v| v.as_str())
-            .map(|s| s.trim_matches('"').to_string())?;
-
-        let rate = value
-            .get("config")
-            .and_then(|c| c.as_array())
-            .and_then(|configs| {
-                configs
-                    .iter()
-                    .filter_map(|c| c.get("sample_rate").and_then(|r| r.as_u64()))
-                    .max()
-            })
-            .map(|r| r as u32);
-
-        Some((name, rate))
+        Some((
+            stored.display_name().to_string(),
+            stored.best_sample_rate(),
+        ))
     }
 
     // Read live rather than cached. Mute toggles constantly and from several places — a keybind,

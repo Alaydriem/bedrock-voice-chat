@@ -58,6 +58,7 @@ pub(crate) struct OutputStream {
     recording_producer: Option<Arc<RecordingProducer>>,
     player_gain_cache: Arc<moka::sync::Cache<String, PlayerGainSettings>>,
     peer_registry: Arc<crate::diagnostics::PeerRegistry>,
+    session_config: Arc<crate::diagnostics::SessionConfig>,
     recording_active: Option<Arc<AtomicBool>>,
     #[allow(unused)]
     recovery_tx: RecoverySender,
@@ -211,6 +212,7 @@ impl OutputStream {
         recording_active: Option<Arc<AtomicBool>>,
         recovery_tx: RecoverySender,
         peer_registry: Arc<crate::diagnostics::PeerRegistry>,
+        session_config: Arc<crate::diagnostics::SessionConfig>,
         #[cfg(feature = "bedrock-protocol")] beacon_cache: Option<Arc<JukeboxBeaconCache>>,
         #[cfg(feature = "bedrock-protocol")] eject_injector: Option<Arc<JukeboxEjectInjector>>,
         #[cfg(feature = "bedrock-protocol")] presence_injector: Option<Arc<PresenceInjector>>,
@@ -253,6 +255,7 @@ impl OutputStream {
             recording_producer,
             player_gain_cache: Arc::new(player_gain_cache),
             peer_registry,
+            session_config,
             recording_active,
             recovery_tx,
             #[cfg(feature = "bedrock-protocol")]
@@ -402,11 +405,8 @@ impl OutputStream {
 
         // Recorded where the value is resolved, so a diagnostic reports the range this session
         // actually runs under rather than the compiled default.
-        if let Some(config) =
-            tauri::Manager::try_state::<Arc<crate::diagnostics::SessionConfig>>(&self.app_handle)
-        {
-            config.set_spatial(spatial_config.falloff_distance, "inverse-square");
-        }
+        self.session_config
+            .set_spatial(spatial_config.falloff_distance, "inverse-square");
 
         let panning_intensity = match metadata.get("panning_intensity").await {
             Some(val) => val.parse::<f32>().unwrap_or(0.8),

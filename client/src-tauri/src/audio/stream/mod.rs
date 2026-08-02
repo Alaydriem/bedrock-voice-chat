@@ -54,6 +54,10 @@ pub(crate) struct AudioStreamManager {
     // restart keeps writing into the same counters a diagnostic is already reading.
     input_stats: Arc<crate::diagnostics::InputPipelineStats>,
     peer_registry: Arc<crate::diagnostics::PeerRegistry>,
+    // Owned here for the same reason as `peer_registry`: the output stream writes into it while a
+    // diagnostic reads it, and a stream restart must not swap the instance out from under the
+    // reader.
+    session_config: Arc<crate::diagnostics::SessionConfig>,
     #[cfg(feature = "bedrock-protocol")]
     player_state_cache: Option<Arc<BedrockPlayerStateCache>>,
     #[cfg(feature = "bedrock-protocol")]
@@ -76,6 +80,10 @@ impl AudioStreamManager {
 
     pub fn peer_registry(&self) -> Arc<crate::diagnostics::PeerRegistry> {
         self.peer_registry.clone()
+    }
+
+    pub fn session_config(&self) -> Arc<crate::diagnostics::SessionConfig> {
+        self.session_config.clone()
     }
 
     /// Creates a new audio stream manager
@@ -137,6 +145,7 @@ impl AudioStreamManager {
         let (recovery_tx, recovery_rx) = mpsc::unbounded_channel::<StreamRecoveryEvent>();
         let input_stats = Arc::new(crate::diagnostics::InputPipelineStats::new());
         let peer_registry = crate::diagnostics::PeerRegistry::new_shared();
+        let session_config = Arc::new(crate::diagnostics::SessionConfig::new());
 
         Self {
             producer: producer.clone(),
@@ -164,6 +173,7 @@ impl AudioStreamManager {
                 None,
                 recovery_tx.clone(),
                 peer_registry.clone(),
+                session_config.clone(),
                 #[cfg(feature = "bedrock-protocol")]
                 beacon_cache.clone(),
                 #[cfg(feature = "bedrock-protocol")]
@@ -179,6 +189,7 @@ impl AudioStreamManager {
             recovery_rx: Some(recovery_rx),
             input_stats,
             peer_registry,
+            session_config,
             #[cfg(feature = "bedrock-protocol")]
             player_state_cache,
             #[cfg(feature = "bedrock-protocol")]
@@ -267,6 +278,7 @@ impl AudioStreamManager {
                     recording_flag,
                     self.recovery_tx.clone(),
                     self.peer_registry.clone(),
+                    self.session_config.clone(),
                     #[cfg(feature = "bedrock-protocol")]
                     self.beacon_cache.clone(),
                     #[cfg(feature = "bedrock-protocol")]
@@ -327,6 +339,7 @@ impl AudioStreamManager {
                     recording_flag,
                     self.recovery_tx.clone(),
                     self.peer_registry.clone(),
+                    self.session_config.clone(),
                     #[cfg(feature = "bedrock-protocol")]
                     self.beacon_cache.clone(),
                     #[cfg(feature = "bedrock-protocol")]
@@ -468,6 +481,7 @@ impl AudioStreamManager {
             recording_flag,
             self.recovery_tx.clone(),
             self.peer_registry.clone(),
+            self.session_config.clone(),
             #[cfg(feature = "bedrock-protocol")]
             self.beacon_cache.clone(),
             #[cfg(feature = "bedrock-protocol")]

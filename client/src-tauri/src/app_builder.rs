@@ -103,6 +103,10 @@ impl AppBuilder {
         // never has to take that lock to read a counter — it is contended with playback.
         let input_stats = audio_stream.input_stats();
         let peer_registry = audio_stream.peer_registry();
+        // Owned by the audio stream, because that is what writes into it. Taken from there rather
+        // than constructed here so the writer and the diagnostic share one instance, and pulled out
+        // before the move for the same reason as the two above.
+        let session_config = audio_stream.session_config();
 
         app.manage(Mutex::new(audio_stream));
 
@@ -172,7 +176,6 @@ impl AppBuilder {
         );
         app.manage(Mutex::new(network_stream));
 
-        let session_config = Arc::new(crate::diagnostics::SessionConfig::new());
         let device_info = Arc::new(crate::diagnostics::DeviceInfo::new());
         // Resolved spatial settings are recorded where the audio pipeline reads them, so a
         // report describes what this session runs under rather than the defaults.
