@@ -9,6 +9,7 @@ use common::structs::{
 use rocket::{State, http::Status, mtls::Certificate, serde::json::Json};
 use rocket_okapi::openapi;
 
+/// Rename a channel.
 #[openapi(tag = "Channels")]
 #[patch("/<id>", data = "<name>")]
 pub async fn channel_rename(

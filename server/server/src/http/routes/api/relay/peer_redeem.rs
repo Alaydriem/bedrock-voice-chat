@@ -4,17 +4,18 @@ use std::time::Instant;
 use common::structs::relay::{PeerCertResponse, PeerRedeemRequest};
 use rocket::{State, http::Status, serde::json::Json};
 
-use crate::http::guards::RelayRedeemRateLimit;
+use crate::http::guards::{RateLimited, RelayRedeemRateLimit};
 use crate::relay::{RedeemError, ServerPeerStore};
-use rocket_governor::RocketGovernor;
+use rocket_okapi::openapi;
 
-// Redeem a peer code (observed through the realm) for the in-memory peer cert.
-// Single-use and recipient-bound: the presenter endpoint must match the code's
-// bound recipient. The legacy proof-gated `/relay/peer-cert` path is superseded
-// by this code-redemption path.
+/// Redeem a peer code observed through the realm for the in-memory peer cert.
+///
+/// Single-use and recipient-bound: the presenter endpoint must match the code's
+/// bound recipient.
+#[openapi(tag = "Relay")]
 #[post("/peer-redeem", data = "<payload>")]
 pub fn peer_redeem(
-    _rate_limit: RocketGovernor<'_, RelayRedeemRateLimit>,
+    _rate_limit: RateLimited<'_, RelayRedeemRateLimit>,
     payload: Json<PeerRedeemRequest>,
     store: &State<Arc<ServerPeerStore>>,
 ) -> Result<Json<PeerCertResponse>, Status> {

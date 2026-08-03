@@ -26,10 +26,14 @@ inventory::submit! {
     }
 }
 
-// Submits a ClientAction. Self/preference actions are delivered ClientBound to the
-// actor's own connection; group actions mutate ChannelCollection. The actor is the
-// body `id` (the mod attributes it from the in-game player); the token gates the
-// route so players cannot call it. Returns the new nanoid for CreateGroup.
+/// Submit a client action on behalf of an in-game player.
+///
+/// Self and preference actions are delivered ClientBound to the actor's own
+/// connection; group actions mutate the channel collection. The actor is the body
+/// `id`, which the mod attributes from the in-game player, and the access token
+/// gates the route so players cannot call it directly.
+///
+/// Returns the new nanoid for CreateGroup.
 #[openapi(tag = "Control")]
 #[post("/control", data = "<action>")]
 pub async fn control(

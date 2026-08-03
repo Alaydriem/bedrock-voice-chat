@@ -9,6 +9,10 @@ use crate::http::guards::AdminGuard;
 use crate::http::pool::Db;
 use crate::services::{PermissionService, PermissionServiceError};
 
+/// Record an explicit allow or deny permission override for a player.
+///
+/// Overrides take precedence over the server-wide defaults in the `permissions`
+/// config block. Use DELETE to remove one.
 #[openapi(tag = "Admin")]
 #[put("/permission", data = "<payload>")]
 pub async fn set_permission(

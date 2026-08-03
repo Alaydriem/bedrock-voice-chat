@@ -1,0 +1,555 @@
+/* Choosing a server, and finding out whether voice will work on it.
+ *
+ * The screen between sign-in and the dashboard. A plate per server, where the glyph
+ * at size is the recognition object and the name only confirms it — identification
+ * wants recognition, not recall. The ring is deliberately not here: it is the empty
+ * state and the status oscilloscope, never a roster.
+ *
+ * Each plate carries a preflight strip of four blocks and a total, and opens the
+ * readout panel at the bottom of this file. Both read the same severities as the rest
+ * of the kit: ok, warn, bad.
+ *
+ *   <div class="rad-server-grid">
+ *     <div class="rad-server">
+ *       <span class="rad-server__art" style="background-image:url(…)">
+ *         <span class="rad-server-id rad-server__id"><canvas …></canvas></span>
+ *       </span>
+ *       <span class="rad-server__body">…</span>
+ *       <span class="rad-server__foot">…</span>
+ *     </div>
+ *   </div>
+ */
+
+/* ---- the strip above the list ---- */
+
+.rad-server-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 26px 12px;
+}
+
+.rad-server-head__line {
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--color-rad-line);
+}
+
+.rad-server-head__count {
+  flex: 0 0 auto;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-xs);
+  letter-spacing: var(--tracking-rad-wide);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-rad-faint);
+}
+
+.rad-server-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 26px 26px;
+}
+
+/* ---- identity ----
+ * `avatar.png` when the operator supplied one, the derived glyph when they did not.
+ * The glyph is the fallback rather than the other way round: it is the only one of
+ * the two that is guaranteed to exist and to agree across every client that knows
+ * the server's name.
+ */
+
+.rad-server-id {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--radius-rad-rail);
+  background: var(--color-rad-void);
+  box-shadow: 0 0 0 1px var(--color-rad-line);
+}
+
+.rad-server-id canvas,
+.rad-server-id img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius-rad-rail);
+  object-fit: cover;
+}
+
+/* ---- the plate ---- */
+
+.rad-server-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+  gap: 14px;
+}
+
+.rad-server {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: var(--color-rad-void-2);
+  border: 1px solid var(--color-rad-line);
+  border-radius: var(--radius-rad-lg);
+  transition: 0.2s;
+}
+
+.rad-server:hover {
+  border-color: var(--color-rad-line-2);
+  transform: translateY(-1px);
+}
+
+/* The plate the pointer is over and the plate the keyboard is on are the same state:
+   one server is under consideration. */
+.rad-server.is-focus {
+  border-color: var(--color-rad-brand-lift);
+}
+
+.rad-server__art {
+  display: block;
+  position: relative;
+  height: 96px;
+  background-position: center;
+  background-size: cover;
+  border-bottom: 1px solid var(--color-rad-line);
+}
+
+/* Sinks the art toward the plate body so the identity tile has something to sit on
+   and the two do not read as separate objects. */
+.rad-server__art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    var(--color-rad-void-2) 0%,
+    rgb(37 24 68 / 0.5) 46%,
+    rgb(37 24 68 / 0.14) 100%
+  );
+}
+
+/* No operator art: the server's own hue, taken from its glyph, at a wash. Never a
+   grey box — an absent asset should still look like this product. Set the hue with
+   `style="--rad-server-hue: #21d8d8"`. */
+.rad-server__art--derived::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(150deg, rgb(255 255 255 / 0.14), transparent 62%),
+    var(--rad-server-hue, var(--color-rad-brand));
+  opacity: 0.42;
+}
+
+.rad-server__id {
+  position: absolute;
+  left: 16px;
+  bottom: -20px;
+  z-index: 2;
+  box-shadow: 0 0 0 3px var(--color-rad-void-2);
+}
+
+.rad-server__body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  gap: 5px;
+  padding: 28px 16px 14px;
+}
+
+.rad-server__name {
+  font-size: var(--text-rad-base);
+  font-weight: 540;
+  letter-spacing: -0.012em;
+  color: var(--color-rad-tx);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rad-server__host {
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  letter-spacing: var(--tracking-rad-wide);
+  color: var(--color-rad-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rad-server__state {
+  margin-top: 9px;
+}
+
+.rad-server__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 14px 11px 16px;
+  border-top: 1px solid var(--color-rad-line);
+  background: rgb(20 12 38 / 0.35);
+}
+
+/* ---- add a server ----
+ * A tile in the same grid rather than a button in the header: adding a server is one
+ * of the things you can pick on a screen whose whole job is picking.
+ */
+
+.rad-server-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 120px;
+  padding: 22px;
+  font: inherit;
+  color: var(--color-rad-faint);
+  background: transparent;
+  border: 1px dashed var(--color-rad-line-2);
+  border-radius: var(--radius-rad-lg);
+  cursor: pointer;
+  transition: 0.18s;
+}
+
+.rad-server-add:hover {
+  color: var(--color-rad-tx);
+  border-color: var(--color-rad-brand-lift);
+  background: rgb(173 118 247 / 0.08);
+}
+
+.rad-server-add > [data-rad-icon] > svg {
+  width: 20px;
+  height: 20px;
+}
+
+.rad-server-add__label {
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-xs);
+  letter-spacing: var(--tracking-rad-caption);
+  text-transform: uppercase;
+}
+
+/* ---- the tally, for the bar under the list ---- */
+
+.rad-server-tally {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  min-width: 0;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-xs);
+  letter-spacing: var(--tracking-rad-wide);
+  color: var(--color-rad-faint);
+}
+
+.rad-server-tally__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rad-server-tally__item i {
+  display: block;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-rad-pill);
+  flex: 0 0 auto;
+}
+
+/* ---- the preflight summary ----
+ * One block per check and a total. Enough to see that something failed and roughly
+ * how far in, without opening anything.
+ */
+
+.rad-preflight {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-xs);
+  letter-spacing: var(--tracking-rad-wide);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-rad-faint);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  transition: color 0.16s;
+}
+
+.rad-preflight:hover {
+  color: var(--color-rad-tx);
+}
+
+.rad-preflight__blocks {
+  display: flex;
+  gap: 3px;
+  flex: 0 0 auto;
+}
+
+.rad-preflight__blocks i {
+  display: block;
+  width: 12px;
+  height: 4px;
+  border-radius: var(--radius-rad-block);
+  background: var(--color-rad-line-2);
+  transition: background 0.3s;
+}
+
+.rad-preflight__blocks i.is-run {
+  background: var(--color-rad-brand-lift);
+  animation: rad-pulse 0.9s ease-in-out infinite;
+}
+
+.rad-preflight__blocks i.is-ok {
+  background: var(--color-rad-ok);
+}
+
+.rad-preflight__blocks i.is-warn {
+  background: var(--color-rad-warn);
+}
+
+.rad-preflight__blocks i.is-bad {
+  background: var(--color-rad-fault);
+}
+
+/* A check that never ran because an earlier one failed. Distinguished from pending,
+   so a reader is not left waiting for a result that is not coming. */
+.rad-preflight__blocks i.is-skip {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--color-rad-line-2) 0 2px,
+    transparent 2px 4px
+  );
+}
+
+.rad-preflight__total {
+  flex: 0 0 auto;
+}
+
+@keyframes rad-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* ---- the readout panel ----
+ * A modal, widened. Head and foot are fixed and only the readout between them
+ * scrolls: without the flex column the body's own max-height is the only thing
+ * holding the panel inside the frame, and a long readout spills past the modal's
+ * rounded corner.
+ */
+
+.rad-preflight-panel {
+  display: flex;
+  flex-direction: column;
+  width: 620px;
+  max-width: calc(100% - 40px);
+  padding: 0;
+  overflow: hidden;
+}
+
+.rad-preflight-panel__head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--color-rad-line);
+}
+
+.rad-preflight-panel__text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.rad-preflight-panel__name {
+  display: block;
+  margin: 0;
+  font-size: var(--text-rad-subhead);
+  font-weight: 540;
+  letter-spacing: -0.016em;
+  color: var(--color-rad-tx);
+}
+
+.rad-preflight-panel__host {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  letter-spacing: var(--tracking-rad-wide);
+  color: var(--color-rad-faint);
+}
+
+.rad-preflight-panel__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 460px;
+  padding: 18px 20px;
+  overflow-y: auto;
+}
+
+.rad-preflight-panel__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--color-rad-line);
+  background: rgb(20 12 38 / 0.32);
+}
+
+/* ---- the checks themselves ----
+ * A check is a row and its duration is the point of the row: which one is slow and
+ * which one failed are the two questions this panel exists to answer.
+ */
+
+.rad-preflight-steps {
+  margin: 14px 0 0;
+  border-top: 1px solid var(--color-rad-line);
+}
+
+.rad-preflight-step {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) 74px;
+  gap: 13px;
+  align-items: baseline;
+  padding: 10px 2px;
+  border-bottom: 1px solid var(--color-rad-line);
+}
+
+.rad-preflight-step__dot {
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: var(--radius-rad-pill);
+  background: var(--color-rad-line-2);
+  transition: background 0.3s;
+}
+
+.rad-preflight-step.is-run .rad-preflight-step__dot {
+  background: var(--color-rad-brand-lift);
+  animation: rad-pulse 0.9s ease-in-out infinite;
+}
+
+.rad-preflight-step.is-ok .rad-preflight-step__dot {
+  background: var(--color-rad-ok);
+}
+
+.rad-preflight-step.is-warn .rad-preflight-step__dot {
+  background: var(--color-rad-warn);
+}
+
+.rad-preflight-step.is-bad .rad-preflight-step__dot {
+  background: var(--color-rad-fault);
+}
+
+.rad-preflight-step.is-skip .rad-preflight-step__dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--color-rad-line-2);
+}
+
+.rad-preflight-step__name {
+  display: block;
+  font-size: var(--text-rad-xs);
+  font-weight: 500;
+  color: var(--color-rad-tx);
+}
+
+.rad-preflight-step.is-skip .rad-preflight-step__name {
+  color: var(--color-rad-faint);
+}
+
+.rad-preflight-step__note {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  line-height: 1.5;
+  color: var(--color-rad-faint);
+}
+
+.rad-preflight-step.is-bad .rad-preflight-step__note {
+  color: var(--color-rad-fault);
+}
+
+.rad-preflight-step.is-warn .rad-preflight-step__note {
+  color: var(--color-rad-warn);
+}
+
+.rad-preflight-step__ms {
+  text-align: right;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-rad-dim);
+}
+
+.rad-preflight-step.is-skip .rad-preflight-step__ms,
+.rad-preflight-step.is-pending .rad-preflight-step__ms {
+  color: var(--color-rad-line-2);
+}
+
+.rad-preflight-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 2px 0;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  letter-spacing: var(--tracking-rad-wide);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-rad-faint);
+}
+
+.rad-preflight-total b {
+  color: var(--color-rad-dim);
+  font-weight: 400;
+}
+
+/* ================================================================== phone */
+
+@container rad (max-width: 560px) {
+  .rad-server-head {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 14px 16px 10px;
+  }
+
+  .rad-server-head__line {
+    display: none;
+  }
+
+  .rad-server-list {
+    padding: 6px 16px 22px;
+  }
+
+  .rad-server-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rad-preflight-panel {
+    width: auto;
+  }
+
+  .rad-preflight-panel__body {
+    max-height: 320px;
+    padding: 16px;
+  }
+
+  .rad-preflight-step {
+    grid-template-columns: 14px minmax(0, 1fr) 62px;
+    gap: 10px;
+  }
+}

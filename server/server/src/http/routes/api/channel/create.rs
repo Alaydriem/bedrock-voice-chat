@@ -4,6 +4,9 @@ use crate::stream::quic::{CacheManager, WebhookReceiver};
 use rocket::{State, http::Status, mtls::Certificate, serde::json::Json};
 use rocket_okapi::openapi;
 
+/// Create a channel and return its id.
+///
+/// Surfaced in the client as a group.
 #[openapi(tag = "Channels")]
 #[post("/", data = "<name>")]
 pub async fn channel_create(

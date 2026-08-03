@@ -25,6 +25,10 @@ inventory::submit! {
     }
 }
 
+/// Return the configuration a client needs before connecting.
+///
+/// Unauthenticated, and the usual way to confirm a server is reachable and its TLS is
+/// valid.
 #[openapi(tag = "Server")]
 #[get("/config")]
 pub async fn get_config(config: &State<Server>, voice: &State<Voice>) -> Json<ApiConfigResponse> {

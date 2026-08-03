@@ -17,7 +17,9 @@ inventory::submit! {
     }
 }
 
-// The mod reads a player's cached self-state to seed the in-game panel.
+/// Return a player's cached self-state.
+///
+/// Used by the Addon to seed the in-game control panel.
 #[openapi(tag = "Control")]
 #[get("/state?<id>")]
 pub async fn get_state(
@@ -39,8 +41,10 @@ pub async fn get_state(
     CustomJsonResponse::ok(state)
 }
 
-// The mod reads the owner's per-player preferences SCOPED to the players the panel
-// is showing (comma-separated targets) — never the whole store.
+/// Return the owner's per-player preferences for a set of targets.
+///
+/// Scoped to the comma-separated `targets` the panel is showing, never the whole
+/// preference store.
 #[openapi(tag = "Control")]
 #[get("/preferences?<owner>&<targets>")]
 pub async fn get_preferences(

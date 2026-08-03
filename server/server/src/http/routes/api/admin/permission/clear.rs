@@ -9,6 +9,10 @@ use crate::http::guards::AdminGuard;
 use crate::http::pool::Db;
 use crate::services::PermissionService;
 
+/// Remove a permission override, falling back to the server-wide default.
+///
+/// Not the same as denying: the permission returns to whatever `permissions.defaults`
+/// specifies.
 #[openapi(tag = "Admin")]
 #[delete("/permission", data = "<payload>")]
 pub async fn clear_permission(

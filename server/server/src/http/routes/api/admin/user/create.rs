@@ -11,6 +11,9 @@ use crate::http::guards::AdminGuard;
 use crate::http::pool::Db;
 use crate::services::{CertificateService, PlayerRegistrarService};
 
+/// Create a player record with a certificate and keypair.
+///
+/// Returns 409 if the player already exists.
 #[openapi(tag = "Admin")]
 #[post("/user", data = "<payload>")]
 pub async fn create_user(

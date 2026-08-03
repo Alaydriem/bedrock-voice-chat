@@ -6,6 +6,8 @@ use rocket_okapi::openapi;
 use crate::config::Audio;
 use crate::services::AudioStreamTokenCache;
 
+// Skipped in the OpenAPI spec: returns a `NamedFile` byte stream, which okapi
+// cannot derive a response schema for. Documented in the wiki instead.
 #[openapi(skip)]
 #[get("/stream?<token>")]
 pub async fn audio_file_stream(

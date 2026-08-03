@@ -14,6 +14,7 @@ use rocket::{State, http::Status, mtls::Certificate, serde::json::Json};
 use rocket_okapi::openapi;
 use std::sync::Arc;
 
+/// Update a channel's membership.
 #[openapi(tag = "Channels")]
 #[put("/<id>", data = "<event>")]
 pub async fn channel_event(

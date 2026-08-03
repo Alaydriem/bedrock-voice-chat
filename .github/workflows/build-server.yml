@@ -324,7 +324,10 @@ jobs:
         working-directory: ./server/server
         run: |
           mkdir -p ../../docs
-          cargo run --example openapi_spec > ../../docs/openapi.json
+          # --features bedrock: the Bedrock transfer route is behind that feature, and
+          # a spec generated without it silently omits the route from the published
+          # reference rather than failing.
+          cargo run --example openapi_spec --features bedrock > ../../docs/openapi.json
           echo "Generated OpenAPI spec:"
           head -20 ../../docs/openapi.json
 

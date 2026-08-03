@@ -35,6 +35,7 @@ use common::structs::channel::Channel;
 use rocket::{State, http::Status, mtls::Certificate};
 use rocket_okapi::openapi;
 
+/// List channels on the server.
 #[openapi(tag = "Channels")]
 #[get("/?<id>")]
 pub async fn channel_list(

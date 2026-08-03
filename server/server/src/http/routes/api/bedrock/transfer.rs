@@ -9,6 +9,10 @@ use crate::http::pool::Db;
 use crate::services::auth_service::AuthService;
 use crate::services::bedrock::TransferTargetCache;
 
+/// Register a Bedrock transfer target for the relay.
+///
+/// Used by Proxy Connect and Realms Connect to hand a client session off to the real
+/// backend server.
 #[openapi(tag = "Bedrock")]
 #[post("/bedrock/transfer", data = "<body>")]
 pub async fn register_transfer_target(

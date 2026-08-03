@@ -7,6 +7,9 @@ use rocket_okapi::openapi;
 
 use crate::services::PlayerIdentityService;
 
+/// Link a Java account to an existing Xbox identity.
+///
+/// Lets one player be recognised as the same person across both editions.
 #[openapi(tag = "Identity")]
 #[post("/auth/link-java", data = "<payload>")]
 pub async fn link_java_identity(

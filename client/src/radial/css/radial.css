@@ -27,6 +27,9 @@
 @import "./components/table.css" layer(components);
 @import "./components/overlay.css" layer(components);
 @import "./components/onboarding.css" layer(components);
+/* After overlay.css on purpose: `.rad-preflight-panel` widens `.rad-modal` at equal
+   specificity, so it only wins on source order. */
+@import "./components/server-select.css" layer(components);
 @import "./components/dashboard.css" layer(components);
 @import "./components/chat.css" layer(components);
 @import "./components/settings.css" layer(components);

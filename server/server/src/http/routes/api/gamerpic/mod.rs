@@ -29,6 +29,7 @@ use sea_orm::ColumnTrait;
 use sea_orm::EntityTrait;
 use sea_orm::QueryFilter;
 
+/// Return a player's gamerpic.
 #[openapi(tag = "Gamerpic")]
 #[get("/<game>/<gamertag>")]
 pub async fn get_gamerpic(

@@ -29,6 +29,9 @@ pub(crate) use original_filename::OriginalFilename;
 // resource bound, not the security boundary.
 pub const RELAY_CODE_RATE_PER_MINUTE: u32 = 30;
 
+mod rate_limited;
+pub(crate) use rate_limited::RateLimited;
+
 mod relay_offer_rate_limit;
 pub(crate) use relay_offer_rate_limit::RelayOfferRateLimit;
 

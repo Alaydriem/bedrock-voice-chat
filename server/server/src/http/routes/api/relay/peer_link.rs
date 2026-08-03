@@ -14,14 +14,16 @@ use crate::services::{AuthService, PermissionService};
 // How long a Flow-2 peer-link code stays redeemable.
 const PEER_LINK_CODE_TTL: Duration = Duration::from_secs(180);
 
-// Flow 2 (designated peer / operator): an mTLS-authenticated player who holds the
-// `PeerLink` permission requests a peer-link code for `hashed_world`, bound to the
-// endpoint it will dial from. Authorization is the player's granted permission —
-// not merely "has a cert" — so an authenticated player WITHOUT the grant is
-// refused (403). Unlike Flow 1, the code is returned directly (the grant is
-// proven over mTLS) rather than injected through the realm. The code is
-// single-use, recipient-bound, world-scoped, and short-TTL; the caller redeems it
-// at `/relay/peer-redeem` for a `server::`-CN peer cert.
+/// Request a peer-link code as a designated peer or operator.
+///
+/// Requires an mTLS-authenticated player holding the `peer_link` permission. The
+/// grant itself is the authorization, not merely holding a certificate, so an
+/// authenticated player without it is refused with 403.
+///
+/// The code is returned directly here, rather than injected through the realm,
+/// because the grant is proven over mTLS. It is single-use, recipient-bound,
+/// world-scoped and short-lived; redeem it at `/api/relay/peer-redeem` for a peer
+/// certificate.
 #[openapi(tag = "Relay")]
 #[post("/peer-link", data = "<payload>")]
 pub async fn peer_link(

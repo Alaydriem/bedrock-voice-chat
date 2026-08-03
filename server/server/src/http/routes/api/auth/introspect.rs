@@ -6,6 +6,10 @@ use crate::config::Permissions;
 use crate::http::pool::Db;
 use crate::services::{AuthService, PermissionService};
 
+/// Return the calling identity and its effective permissions.
+///
+/// Backs `bvc whoami`. Reports the identity, certificate expiry, and the permissions
+/// in force after overrides are applied to the defaults.
 #[openapi(tag = "Authentication")]
 #[get("/auth/introspect")]
 pub async fn introspect(

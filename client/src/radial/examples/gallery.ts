@@ -23,6 +23,7 @@ export class Gallery {
     // they are one page — splitting them would hide the routing between them, which is
     // the part worth reviewing.
     { href: "onboarding.html", label: "Onboarding" },
+    { href: "servers.html", label: "Servers" },
     { href: "dashboard.html", label: "Dashboard" },
     { href: "settings.html", label: "Settings" },
   ];

@@ -19,6 +19,8 @@ use crate::services::{
     AudioFileService, AudioPlaybackService, AudioStreamTokenCache, AuthService, PermissionService,
 };
 
+// Skipped in the OpenAPI spec: the body is a raw `Data<'_>` stream, which okapi
+// cannot derive a request schema for. Documented in the wiki instead.
 #[openapi(skip)]
 #[post("/file", data = "<data>")]
 pub async fn audio_file_upload(
@@ -66,6 +68,9 @@ pub async fn audio_file_upload(
     }
 }
 
+/// List clips in the server's audio library.
+///
+/// Paginated, sortable, and searchable.
 #[openapi(tag = "Audio")]
 #[get("/file?<page>&<page_size>&<sort_by>&<sort_order>&<search>")]
 pub async fn audio_file_list(
@@ -92,6 +97,7 @@ pub async fn audio_file_list(
     }
 }
 
+/// Delete a clip from the audio library. Requires the `audio_delete` permission.
 #[openapi(tag = "Audio")]
 #[delete("/file/<file_id>")]
 pub async fn audio_file_delete(
@@ -125,7 +131,11 @@ pub async fn audio_file_delete(
     }
 }
 
-#[openapi(skip)]
+/// Mint a short-lived playback token for a clip.
+///
+/// The token is what `/api/audio/stream` accepts, so a clip can be fetched without
+/// presenting a client certificate on the stream request itself.
+#[openapi(tag = "Audio")]
 #[post("/file/<file_id>/token")]
 pub async fn audio_file_token(
     identity: Certificate<'_>,

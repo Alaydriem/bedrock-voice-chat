@@ -10,6 +10,9 @@ use crate::http::dtos::health::ReadinessResponse;
 use crate::http::pool::Db;
 use crate::services::HealthService;
 
+/// Readiness probe. Reports that the server can accept traffic.
+///
+/// Unauthenticated. Gate a load balancer on this rather than on liveness.
 #[openapi(tag = "Health")]
 #[get("/readiness")]
 pub async fn readiness(

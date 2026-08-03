@@ -9,6 +9,9 @@ use crate::http::guards::AdminGuard;
 use crate::http::pool::Db;
 use crate::services::AuthCodeService;
 
+/// Generate a one-time login code for an existing player.
+///
+/// Returns 404 if the player does not exist. Codes default to one hour and cap at 24.
 #[openapi(tag = "Admin")]
 #[post("/user/code", data = "<payload>")]
 pub async fn generate_code(

@@ -9,6 +9,10 @@ use crate::http::guards::AdminGuard;
 use crate::http::pool::Db;
 use crate::services::PermissionService;
 
+/// List a player's explicit permission overrides.
+///
+/// An empty result means the player has no overrides and is governed entirely by the
+/// server-wide defaults.
 #[openapi(tag = "Admin")]
 #[get("/permission/<game>/<gamertag>")]
 pub async fn list_permissions(

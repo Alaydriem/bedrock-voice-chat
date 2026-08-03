@@ -13,6 +13,7 @@ use crate::http::pool::Db;
 use crate::services::{AuthService, CertificateService, PermissionService};
 use crate::stream::quic::CacheManager;
 
+/// Return the state of an in-progress sign-in flow.
 #[openapi(tag = "Identity")]
 #[get("/auth/state")]
 pub async fn auth_state(

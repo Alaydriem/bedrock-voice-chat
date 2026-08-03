@@ -1,0 +1,82 @@
+/* Page chrome for the server-selector reference page.
+ *
+ * The screen itself is `css/components/server-select.css`, which ships with the kit.
+ * What is left here belongs to the gallery around it: the identity specimens and the
+ * routing table, both of which sit outside the frame and use the page palette rather
+ * than the Radial tokens.
+ */
+
+@import "./standalone.css";
+
+/* ---- identity specimens ----
+ * Real plates rather than a mock-up of one, so the three asset cases are shown by the
+ * component that has to handle them. They carry no chip and no foot: the question here
+ * is what identity resolves to, not what state the server is in.
+ */
+
+.s-specs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 20px;
+  width: 100%;
+}
+
+.s-spec {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* The identity tile overhangs the art by 20px. In a live plate the body beneath it
+   provides that room; a specimen has no body, so it reserves the space itself. */
+.s-spec > .rad-server {
+  padding-bottom: 30px;
+  pointer-events: none;
+}
+
+.s-spec__caption {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* ---- the routing table ---- */
+
+.s-truth {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 14px;
+  align-items: baseline;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--page-line);
+  font-size: 0.7778rem;
+}
+
+.s-truth:last-child {
+  border-bottom: 0;
+}
+
+.s-truth__when {
+  font-family: var(--font-rad-mono);
+  font-size: 0.6667rem;
+  letter-spacing: 0.08em;
+  color: var(--page-faint);
+}
+
+.s-truth__then {
+  color: var(--page-dim);
+  line-height: 1.6;
+}
+
+.s-truth__then b {
+  color: var(--page-ink);
+  font-weight: 600;
+}
+
+.s-truth__then code {
+  font-family: var(--font-rad-mono);
+  font-size: 0.9em;
+  color: #c7a3ff;
+}

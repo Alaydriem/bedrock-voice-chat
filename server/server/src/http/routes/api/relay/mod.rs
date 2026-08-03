@@ -21,6 +21,8 @@ inventory::submit! {
         spec_fn: || {
             let settings = rocket_okapi::settings::OpenApiSettings::default();
             rocket_okapi::openapi_get_routes_spec![settings:
+                offer::offer,
+                peer_redeem::peer_redeem,
                 peer_link::peer_link
             ]
         },

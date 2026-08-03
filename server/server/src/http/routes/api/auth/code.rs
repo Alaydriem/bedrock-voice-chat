@@ -10,6 +10,9 @@ use crate::http::openapi::NcryptfJsonResponse;
 use crate::http::pool::Db;
 use crate::services::{AuthService, CertificateService};
 
+/// Redeem a one-time login code for an mTLS certificate bundle.
+///
+/// The non-interactive sign-in path, used by `bvc login`. Always enabled.
 #[openapi(tag = "Authentication")]
 #[post("/auth/code", data = "<payload>")]
 pub async fn code_authenticate(

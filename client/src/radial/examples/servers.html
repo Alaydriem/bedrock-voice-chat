@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Radial · server selector</title>
+    <link rel="stylesheet" href="./servers.css" />
+  </head>
+  <body>
+    <div class="g-wrap">
+      <header class="g-head">
+        <p class="g-kick">Radial · server selector</p>
+        <h1 class="g-title">Which of your servers, and will voice actually work on it</h1>
+        <p class="g-lede">
+          The screen between sign-in and the dashboard. A plate per server, where the glyph at
+          size is the recognition object and the name only confirms it. The ring is deliberately
+          absent: it is the empty state and the status oscilloscope, never a roster, because
+          picking a server wants recognition rather than recall.
+        </p>
+      </header>
+
+      <nav class="g-nav" data-g-nav></nav>
+
+      <!-- ======================= the screen ======================= -->
+      <section class="g-sec" id="selector">
+        <p class="g-sec__kick">The screen</p>
+        <h2 class="g-sec__title">Plates, and a preflight behind each one</h2>
+        <p class="g-sec__note">
+          Every plate carries the same five things: identity, name, host, state, and a preflight
+          strip of four blocks and a total. The blocks are the cheapest honest summary &mdash; you
+          can see that something failed and roughly how far in without opening anything. Every
+          breakpoint is <code>@container rad</code>, so the phone toggle is genuinely just a width
+          change.
+        </p>
+
+        <div class="g-bar">
+          <span class="g-tag">1280&times;800 &middot; the client's actual window</span>
+          <span class="g-seg" data-g-device="srv-frame">
+            <button data-g-size="desktop" aria-pressed="true">Desktop</button>
+            <button data-g-size="phone" aria-pressed="false">Phone</button>
+          </span>
+        </div>
+
+        <div class="g-bar">
+          <span class="g-ctls">
+            <label>Servers</label>
+            <button data-s-count="5" aria-pressed="true">5</button>
+            <button data-s-count="2" aria-pressed="false">2</button>
+            <button data-s-count="1" aria-pressed="false">1, unhealthy</button>
+          </span>
+        </div>
+
+        <div class="g-frame-stage">
+          <div class="rad-frame rad-frame--desktop" id="srv-frame">
+            <div class="rad-grain"></div>
+
+            <div class="rad-topbar">
+              <span class="rad-brand">
+                <canvas data-rad-mark></canvas>
+                <span class="rad-wordmark">Bedrock Voice Chat</span>
+              </span>
+              <span class="rad-footbar__actions">
+                <button class="rad-icon-btn" data-s-recheck title="Recheck every server">
+                  <span data-rad-icon="refresh"></span>
+                </button>
+                <button class="rad-btn" data-s-add>
+                  <span data-rad-icon="plus"></span>
+                  Add a server
+                </button>
+              </span>
+            </div>
+
+            <div class="rad-server-head">
+              <span class="rad-label">Select a server</span>
+              <span class="rad-server-head__line"></span>
+              <span class="rad-server-head__count" data-s-count-out></span>
+            </div>
+
+            <div class="rad-server-list" data-s-list></div>
+
+            <div class="rad-footbar">
+              <span class="rad-server-tally" data-s-agg></span>
+              <span class="rad-footbar__actions">
+                <button class="rad-btn" data-s-recheck>
+                  <span data-rad-icon="refresh"></span>
+                  Recheck all
+                </button>
+              </span>
+            </div>
+
+            <div class="rad-scrim rad-scrim--modal" data-rad-modal-scrim></div>
+            <div class="rad-modal rad-preflight-panel" data-rad-modal="preflight">
+              <div class="rad-preflight-panel__head">
+                <span class="rad-server-id" data-s-detail-id></span>
+                <span class="rad-preflight-panel__text">
+                  <span class="rad-modal__title rad-preflight-panel__name" data-s-detail-name></span>
+                  <span class="rad-preflight-panel__host" data-s-detail-host></span>
+                </span>
+                <button class="rad-icon-btn" data-rad-modal-close aria-label="Close">
+                  <span data-rad-icon="close"></span>
+                </button>
+              </div>
+              <div class="rad-preflight-panel__body" data-s-detail-body></div>
+              <div class="rad-preflight-panel__foot">
+                <button class="rad-btn rad-btn--danger" data-s-detail-remove>
+                  <span data-rad-icon="trash"></span>
+                  Remove
+                </button>
+                <span class="rad-footbar__actions">
+                  <button class="rad-btn" data-s-detail-recheck>
+                    <span data-rad-icon="refresh"></span>
+                    Recheck
+                  </button>
+                  <button class="rad-btn rad-btn--primary" data-s-detail-go></button>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================= preflight ======================= -->
+      <section class="g-sec" id="preflight">
+        <p class="g-sec__kick">Preflight</p>
+        <h2 class="g-sec__title">Four checks, in the order that already runs</h2>
+        <p class="g-sec__note">
+          Three of these are what <code>ServerHealthService.check</code> does today, in its order;
+          the panel names them and times them rather than collapsing them into one badge. The
+          verdict is first-failing-check-wins, matching <code>Diagnostics.verdict</code> &mdash;
+          somebody reading this has a problem, and a wall of green with one red line in the middle
+          makes them do the diagnosis themselves.
+        </p>
+
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">the sequence</span>
+            <span class="g-item__note">
+              A failed check skips the rest, and the skipped ones say so rather than sitting at
+              pending forever.
+            </span>
+          </div>
+          <div class="g-stage g-stage--alt">
+            <pre class="g-code"><b>1 Credentials</b>  get_credentials + is_certificate_expired
+<b>2 Handshake</b>    api_initialize_client + api_get_config
+<b>3 Protocol</b>     config.compatible / client_too_old
+<b>4 QUIC path</b>    UDP probe to the advertised QUIC port   <i>// ← the new one</i></pre>
+          </div>
+        </div>
+
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">certificate expiry is checked, never shown</span>
+            <span class="g-item__note">It is the mechanism, not the message.</span>
+          </div>
+          <div class="g-stage">
+            <p class="rad-body" style="max-width: 74ch">
+              <code>is_certificate_expired</code> is the reason a server asks for a fresh sign-in,
+              so it stays in check one &mdash; but it is folded into
+              <b>Credentials</b> and never named. Days-until-expiry, the issuing CA and the
+              rotation window are all facts about mTLS, and a player who sees them has been handed
+              a transport detail to interpret when the only thing they can act on is
+              <em>sign in again</em>. The readout says
+              <span class="rad-num">signed in as Petra</span>, or it says you are not.
+            </p>
+          </div>
+        </div>
+
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">why the fourth check earns its place</span>
+            <span class="g-item__note">The failure it catches is invisible to the other three.</span>
+          </div>
+          <div class="g-stage">
+            <p class="rad-body" style="max-width: 74ch">
+              Every check above it runs over TCP&nbsp;443. A network that permits HTTPS and drops
+              UDP passes all three, and then the connection cannot carry a single audio frame
+              &mdash; which surfaces later as a bare <code>QUIC01</code>. Probing the UDP path here
+              turns the most confusing failure the product has into a sentence on the screen you
+              were already looking at, before you committed to the server.
+            </p>
+            <div class="rad-callout" style="max-width: 74ch">
+              <span data-rad-icon="warn"></span>
+              <span>
+                <b>Voice blocked is a hard blocker, not a warning.</b> Voice is the product, so
+                there is nothing worth connecting to without a UDP path, and the connection would
+                fail anyway. The plate offers <b>Recheck</b> and nothing else &mdash; a
+                &ldquo;connect anyway&rdquo; button here would only sell a failure as a choice.
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================= states ======================= -->
+      <section class="g-sec" id="states">
+        <p class="g-sec__kick">States</p>
+        <h2 class="g-sec__title">Four that exist, one that is new</h2>
+        <p class="g-sec__note">
+          The first four are what <code>ServerCardManager.deriveBadge</code> and
+          <code>deriveButton</code> already produce, renamed only where the current wording is
+          vague. Nothing here invents a state the client cannot currently be in, except the last.
+        </p>
+        <div class="g-stage g-stage--alt" style="padding: 0">
+          <table class="g-table">
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>Chip</th>
+                <th>Primary action</th>
+                <th>Where it comes from</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>checking</code></td>
+                <td>Checking&hellip;</td>
+                <td>none, disabled</td>
+                <td>initial state, and during a recheck</td>
+              </tr>
+              <tr>
+                <td><code>connect</code></td>
+                <td>Ready &middot; Ready &middot; slow</td>
+                <td>Connect</td>
+                <td>compatible, signed in, UDP open</td>
+              </tr>
+              <tr>
+                <td><code>reauth</code></td>
+                <td>Sign in needed</td>
+                <td>Sign in</td>
+                <td>no saved sign-in, or it has expired</td>
+              </tr>
+              <tr>
+                <td><code>version_mismatch</code></td>
+                <td>Update needed</td>
+                <td>blocked, names both versions</td>
+                <td><code>client_too_old</code> either way</td>
+              </tr>
+              <tr>
+                <td><code>udp_blocked</code></td>
+                <td>Voice blocked</td>
+                <td>Recheck &mdash; never connect</td>
+                <td>new &mdash; the fourth preflight check</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ======================= identity ======================= -->
+      <section class="g-sec" id="identity">
+        <p class="g-sec__kick">Identity</p>
+        <h2 class="g-sec__title">Operator art on top of the derived glyph, never instead of it</h2>
+        <p class="g-sec__note">
+          <code>ServerCardManager.loadImages</code> already fetches
+          <code>{server}/assets/avatar.png</code> and <code>{server}/assets/canvas.png</code> on a
+          seven-day cache, and either can be absent. So the glyph is the floor and the art is the
+          override: <code>avatar.png</code> takes the identity tile when it exists, and
+          <code>canvas.png</code> fills the head of the plate, veiled into the violet ground before
+          it reaches any text.
+        </p>
+        <div class="g-item">
+          <div class="g-item__head">
+            <span class="g-item__name">all three asset cases</span>
+            <span class="g-item__note">
+              Real plate heads, not an illustration of one. The art here is generated from each
+              server's own hue &mdash; the reference pages reach nothing over the network. In the
+              client these are real fetches that can fail.
+            </span>
+          </div>
+          <div class="g-stage">
+            <div class="s-specs" data-s-identity></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================= routing ======================= -->
+      <section class="g-sec" id="routing">
+        <p class="g-sec__kick">Routing</p>
+        <h2 class="g-sec__title">This page has no empty state</h2>
+        <p class="g-sec__note">
+          <code>Server.initialize</code> resolves the list before revealing anything, and two of the
+          four cases never reach this screen at all. Designing an empty state for it would be
+          designing for a case the router already handles &mdash; so the &ldquo;1, unhealthy&rdquo;
+          scenario above is the smallest list this page can honestly render.
+        </p>
+        <div class="g-item">
+          <div class="g-stage g-stage--alt">
+            <div class="s-truth">
+              <span class="s-truth__when">0 servers</span>
+              <span class="s-truth__then">
+                Redirect to <code>/login</code>. <b>Never seen.</b>
+              </span>
+            </div>
+            <div class="s-truth">
+              <span class="s-truth__when">1, healthy</span>
+              <span class="s-truth__then">
+                Preflight passes, redirect straight to <code>/dashboard</code>.
+                <b>Never seen</b> &mdash; the preloader stays up so the list cannot flash.
+              </span>
+            </div>
+            <div class="s-truth">
+              <span class="s-truth__when">1, unhealthy</span>
+              <span class="s-truth__then">
+                <b>This page, one plate.</b> Only <code>version_mismatch</code> stops here today;
+                a failing UDP probe would join it.
+              </span>
+            </div>
+            <div class="s-truth">
+              <span class="s-truth__when">2 or more</span>
+              <span class="s-truth__then">
+                <b>This page.</b> Every server preflights in parallel, and the plates resolve as
+                their own checks land.
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./servers.ts"></script>
+  </body>
+</html>

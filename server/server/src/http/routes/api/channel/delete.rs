@@ -9,6 +9,7 @@ use common::structs::{
 use rocket::{State, http::Status, mtls::Certificate};
 use rocket_okapi::openapi;
 
+/// Delete a channel, removing every member.
 #[openapi(tag = "Channels")]
 #[delete("/<id>")]
 pub async fn channel_delete(

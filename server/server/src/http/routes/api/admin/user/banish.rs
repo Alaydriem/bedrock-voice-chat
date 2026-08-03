@@ -8,6 +8,9 @@ use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, QueryFilt
 use crate::http::guards::AdminGuard;
 use crate::http::pool::Db;
 
+/// Toggle a player's banished flag.
+///
+/// Reversible, and retains the player record.
 #[openapi(tag = "Admin")]
 #[patch("/user/banish", data = "<payload>")]
 pub async fn banish_user(

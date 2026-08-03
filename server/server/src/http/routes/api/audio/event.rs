@@ -10,6 +10,7 @@ use crate::http::guards::MCAccessToken;
 use crate::http::pool::Db;
 use crate::services::{AudioPlaybackService, BedrockEventService};
 
+/// Start playback of an audio clip as a positioned in-world event.
 #[openapi(tag = "Audio")]
 #[post("/event", data = "<request>")]
 pub async fn audio_event_play(
@@ -39,6 +40,7 @@ pub async fn audio_event_play(
     }
 }
 
+/// Stop a playing audio event.
 #[openapi(tag = "Audio")]
 #[delete("/event/<event_id>")]
 pub async fn audio_event_stop(

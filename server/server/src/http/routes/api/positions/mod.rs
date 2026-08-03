@@ -32,6 +32,10 @@ inventory::submit! {
     }
 }
 
+/// Report player positions from the game server.
+///
+/// Called by the Addon or Java mod on every position update, authenticated with the
+/// shared access token. This is what makes proximity audio possible.
 #[openapi(tag = "Positions")]
 #[post("/position", data = "<positions>")]
 pub async fn update_position(
@@ -86,6 +90,10 @@ pub async fn update_position(
     Status::Ok
 }
 
+/// Return the positions the server currently holds.
+///
+/// Useful for confirming the game server is actually relaying: an empty response means
+/// it is not.
 #[openapi(tag = "Positions")]
 #[get("/position")]
 pub async fn position(

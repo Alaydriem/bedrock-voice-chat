@@ -5,22 +5,24 @@ use common::structs::packet::PeerPresenceInjectPacket;
 use common::structs::relay::OfferRequest;
 use rocket::{State, http::Status, serde::json::Json};
 
-use crate::http::guards::RelayOfferRateLimit;
+use crate::http::guards::{RateLimited, RelayOfferRateLimit};
 use crate::relay::{CodeSealer, LocalInjectDelivery, ServerPeerStore};
-use rocket_governor::RocketGovernor;
+use rocket_okapi::openapi;
 
 // How long a freshly offered peer code stays redeemable.
 const OFFER_CODE_TTL: Duration = Duration::from_secs(180);
 
-// Asker → minter offer: mint a single-use, recipient-bound code for the asker's
-// endpoint scoped to `hashed_world`, SEAL it to the asker's public key, then
-// inject the ciphertext into the realm via THIS server's own client. Only a live
-// member of the world observes it, and only the bound asker can both unseal AND
-// redeem it. Returns 202 — the (sealed) code travels via the realm, never the HTTP
-// response.
+/// Mint a single-use, recipient-bound peer code.
+///
+/// Scoped to `hashed_world` and sealed to the asker's public key, then injected
+/// into the realm via this server's own client. Only a live member of the world
+/// observes it, and only the bound asker can both unseal and redeem it.
+///
+/// Returns 202: the sealed code travels via the realm, never the HTTP response.
+#[openapi(tag = "Relay")]
 #[post("/offer", data = "<payload>")]
 pub fn offer(
-    _rate_limit: RocketGovernor<'_, RelayOfferRateLimit>,
+    _rate_limit: RateLimited<'_, RelayOfferRateLimit>,
     payload: Json<OfferRequest>,
     store: &State<Arc<ServerPeerStore>>,
     inject: &State<Arc<dyn LocalInjectDelivery>>,
