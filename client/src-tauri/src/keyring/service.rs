@@ -1,4 +1,5 @@
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use common::Game;
 use common::response::LoginResponse;
 use common::structs::config::Keypair;
 use common::structs::permission::ServerPermissions;
@@ -16,6 +17,7 @@ const KEY_CERTIFICATE_CA: &str = "certificate_ca";
 const KEY_QUIC_CONNECT_STRING: &str = "quic_connect_string";
 const KEY_SERVER_PERMISSIONS: &str = "server_permissions";
 const KEY_MINECRAFT_USERNAME: &str = "minecraft_username";
+const KEY_GAME: &str = "game";
 
 const ALL_CREDENTIAL_KEYS: &[&str] = &[
     KEY_GAMERPIC,
@@ -28,6 +30,7 @@ const ALL_CREDENTIAL_KEYS: &[&str] = &[
     KEY_QUIC_CONNECT_STRING,
     KEY_SERVER_PERMISSIONS,
     KEY_MINECRAFT_USERNAME,
+    KEY_GAME,
 ];
 
 pub struct KeyringService {
@@ -88,6 +91,14 @@ impl KeyringService {
 
         if let Some(ref mc_username) = response.minecraft_username {
             self.set_keyring_password(server, KEY_MINECRAFT_USERNAME, mc_username)?;
+        }
+
+        // Stored rather than left to the caller: the game is the one part of an identity
+        // a code login cannot reconstruct from anything else, since the client sent only
+        // a code. A re-auth that read it back as None would silently downgrade to a
+        // guess.
+        if let Some(ref game) = response.game {
+            self.set_keyring_password(server, KEY_GAME, &serde_json::to_string(game)?)?;
         }
 
         self.cache.insert(server.to_string(), response.clone());
@@ -207,6 +218,14 @@ impl KeyringService {
             .get_keyring_password(server, KEY_MINECRAFT_USERNAME)
             .ok();
 
+        // Absent for any identity stored before the game was part of a login response.
+        // None is honest there — the keyring genuinely does not know — and the next
+        // successful login writes it.
+        let game = self
+            .get_keyring_password(server, KEY_GAME)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok());
+
         Ok(LoginResponse {
             gamerpic,
             gamertag,
@@ -218,6 +237,7 @@ impl KeyringService {
             quic_connect_string,
             server_permissions,
             minecraft_username,
+            game,
         })
     }
 
@@ -236,6 +256,10 @@ impl KeyringService {
                 .as_ref()
                 .and_then(|p| serde_json::to_string(p).ok()),
             KEY_MINECRAFT_USERNAME => response.minecraft_username.clone(),
+            KEY_GAME => response
+                .game
+                .as_ref()
+                .and_then(|g| serde_json::to_string(g).ok()),
             _ => None,
         }
     }
@@ -265,6 +289,9 @@ impl KeyringService {
                 }
                 KEY_MINECRAFT_USERNAME => {
                     cached.minecraft_username = Some(value.to_string());
+                }
+                KEY_GAME => {
+                    cached.game = serde_json::from_str::<Game>(value).ok();
                 }
                 _ => {}
             }

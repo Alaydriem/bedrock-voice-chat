@@ -8,7 +8,7 @@ import type { AudioDevice } from "../../js/bindings/AudioDevice.ts";
 import type { LoginResponse } from "../../js/bindings/LoginResponse.ts";
 import BVCApp from "./BVCApp";
 import Sidebar from "./components/dashboard/sidebar.ts";
-import Onboarding from './onboarding';
+import SetupFlow from './setup/SetupFlow';
 import PlatformDetector from './utils/PlatformDetector';
 import AgeGateService from './services/AgeGateService';
 import FeatureFlagService from './services/FeatureFlagService';
@@ -48,7 +48,7 @@ export default class Dashboard extends BVCApp {
     private eventUnlisteners: (() => void)[] = [];
     private currentServerCredentials: LoginResponse | null = null;
     private popperProfile: any = null;
-    private onboarding: Onboarding | undefined;
+    private setup: SetupFlow | undefined;
     private ageGate = new AgeGateService(new FeatureFlagService());
 
     // Manager instances for dependency injection
@@ -102,19 +102,19 @@ export default class Dashboard extends BVCApp {
             warn(`Failed to check/stop recording on refresh: ${e}`);
         }
 
-        // Check onboarding status before proceeding
-        this.onboarding = new Onboarding(this.store);
-        await this.onboarding.initialize();
+        // Device setup is re-checked on every launch: permissions and audio hardware
+        // change underneath the app, and the OS is the source of truth for both.
+        this.setup = new SetupFlow(this.store);
+        await this.setup.initialize();
 
-        info("Onboarding Status: " + this.onboarding.isComplete());
-        if (!this.onboarding.isComplete()) {
-            const nextStep = this.onboarding.getNextStep();
-            info(`Redirecting to onboarding: ${nextStep}`);
-            if (nextStep) {
-                window.location.href = nextStep;
-                return;
-            }
+        info("Setup complete: " + this.setup.isComplete());
+        if (!this.setup.isComplete()) {
+            info("Redirecting to setup");
+            window.location.href = "/setup";
+            return;
         }
+
+        Analytics.track("DashboardReached");
 
         const appWebview = getCurrentWebviewWindow();
 

@@ -2,7 +2,7 @@ use super::resampler::AudioResampler;
 use super::{AudioFrame, AudioFrameData};
 use audio_gate::NoiseGate;
 use common::consts::OPUS_FRAME_DURATION_MS;
-use common::structs::audio::NoiseGateSettings;
+use common::structs::audio::{InputLevel, NoiseGateSettings};
 use log::warn;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
@@ -25,6 +25,9 @@ pub(crate) struct InputProcessCore {
     tail_frame_count: u32,
     producer: flume::Sender<AudioFrame>,
     stats: Arc<InputPipelineStats>,
+    // A channel rather than an AppHandle: an AppHandle-bearing field drags the
+    // Tauri GUI into test binaries through drop glue. The owner emits.
+    level_tx: flume::Sender<InputLevel>,
 }
 
 impl InputProcessCore {
@@ -36,6 +39,7 @@ impl InputProcessCore {
         tail_frame_count: u32,
         producer: flume::Sender<AudioFrame>,
         stats: Arc<InputPipelineStats>,
+        level_tx: flume::Sender<InputLevel>,
     ) -> Self {
         Self {
             gate,
@@ -47,6 +51,7 @@ impl InputProcessCore {
             tail_frame_count,
             producer,
             stats,
+            level_tx,
         }
     }
 
@@ -113,7 +118,23 @@ impl InputProcessCore {
             mono_pcm
         };
 
-        let is_silent = mono_pcm.iter().all(|&e| f32::abs(e) == 0.0);
+        // Silence and amplitude come out of one traversal. This is the capture
+        // callback, so a second pass over the frame buys nothing.
+        let mut sum_squares = 0.0f32;
+        let mut nonzero = false;
+        for &sample in mono_pcm.iter() {
+            sum_squares += sample * sample;
+            if sample != 0.0 {
+                nonzero = true;
+            }
+        }
+        let is_silent = !nonzero;
+        let rms = if mono_pcm.is_empty() {
+            0.0
+        } else {
+            (sum_squares / mono_pcm.len() as f32).sqrt()
+        };
+
         let is_muted = MUTE_INPUT_STREAM.load(Ordering::Relaxed);
 
         // A frame that survives the gate with any nonzero sample is a frame the gate passed. The
@@ -124,6 +145,13 @@ impl InputProcessCore {
         // samples, so reporting the gate open while the mic is muted would print "gate open" and
         // "muted true" side by side in the same report.
         self.stats.record_frame(is_silent || is_muted);
+
+        // Dropped rather than queued when the consumer is behind: a meter rendering
+        // a level from two seconds ago is worse than one that skips a frame.
+        let _ = self.level_tx.try_send(InputLevel {
+            rms: if is_muted { 0.0 } else { rms },
+            gate_open: !(is_silent || is_muted),
+        });
 
         if is_muted {
             // Hard mute: reset state, send nothing
@@ -189,6 +217,7 @@ mod tests {
         let (producer, consumer) = flume::bounded::<AudioFrame>(10000);
 
         // 48 kHz mono → no resampler needed
+        let (level_tx, _) = flume::unbounded();
         let mut core = InputProcessCore::new(
             make_gate_disabled(),
             None,
@@ -197,6 +226,7 @@ mod tests {
             2,
             producer,
             Arc::new(InputPipelineStats::new()),
+            level_tx,
         );
 
         // 20 ms at 48 kHz = 960 frames per chunk

@@ -202,6 +202,7 @@ impl AuthService {
             // in its keyring.
             config.quic_ports()[0].to_string(),
             server_permissions,
+            game,
         ))
     }
 
@@ -214,9 +215,7 @@ impl AuthService {
         cert_service: &Arc<CertificateService>,
         perm_config_defaults: std::collections::HashMap<String, bool>,
     ) -> Result<LoginResponse, CodeLoginError> {
-        let player_record =
-            AuthCodeService::validate_and_consume_code(conn, &payload.code, &payload.gamertag)
-                .await?;
+        let player_record = AuthCodeService::validate_and_consume_code(conn, &payload.code).await?;
 
         let perm_service = PermissionService::new(perm_config_defaults);
         let response = Self::build_login_response(

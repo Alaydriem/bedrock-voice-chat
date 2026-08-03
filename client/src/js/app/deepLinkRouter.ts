@@ -22,10 +22,21 @@ export class DeepLinkRouter {
     private readonly PENDING_KEY = "pending_deep_link";
     private store: Store;
 
-    // URLs already routed by this instance. Both the live `deep-link-received`
-    // event and processPending() can deliver the same URL; a single-use OAuth
-    // code must be redeemed exactly once. Entries are never removed.
-    private routedUrls: Set<string> = new Set();
+    /**
+     * URLs already routed in this JS context. Entries are never removed.
+     *
+     * Static, not per instance. A single-use OAuth code must be redeemed exactly once,
+     * and there is more than one thing that can deliver it: the live
+     * `deep-link-received` event, `processPending()`, and — decisively — more than one
+     * manager. A screen may construct several (the login page has both `Login` and
+     * `LoginCode`), each of which extends `BVCApp` and so brings its own listener and
+     * its own router. Per-instance state cannot see a redemption another instance
+     * already made, and the second exchange fails with the code spent.
+     *
+     * A page navigation drops this along with the context. Surviving that is
+     * `pending_deep_link` in the store, which the handler clears before it navigates.
+     */
+    private static readonly routedUrls: Set<string> = new Set();
 
     constructor(store: Store) {
         this.store = store;
@@ -39,11 +50,11 @@ export class DeepLinkRouter {
     async route(url: string): Promise<void> {
         info(`DeepLinkRouter: Routing URL: ${url.split(/[?#]/)[0]}`);
 
-        if (this.routedUrls.has(url)) {
+        if (DeepLinkRouter.routedUrls.has(url)) {
             info(`DeepLinkRouter: URL already routed this session, skipping`);
             return;
         }
-        this.routedUrls.add(url);
+        DeepLinkRouter.routedUrls.add(url);
 
         for (const handler of this.handlers) {
             if (handler.canHandle(url)) {

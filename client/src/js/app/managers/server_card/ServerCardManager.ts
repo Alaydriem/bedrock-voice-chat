@@ -1,6 +1,7 @@
 import { writable, derived, get, type Writable, type Readable } from 'svelte/store';
 import { invoke } from '@tauri-apps/api/core';
 import { error as logError, info } from '@tauri-apps/plugin-log';
+import Analytics from '../../analytics';
 import ImageCacheOptions from '../../components/imageCacheOptions';
 import type { ServerCardStatus } from './ServerCardStatus';
 import type { ServerCardButtonState } from './ServerCardButtonState';
@@ -94,6 +95,7 @@ export class ServerCardManager {
                     game: entry.game ?? 'minecraft',
                 });
             }
+            Analytics.track('ServerSelected');
             return { kind: 'navigate', href: `/dashboard?server=${this.server}` };
         }
 

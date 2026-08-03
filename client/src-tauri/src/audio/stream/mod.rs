@@ -253,6 +253,12 @@ impl AudioStreamManager {
 
         match device.io {
             AudioDeviceType::InputDevice => {
+                // A rebuilt input stream is a fresh measurement. This is also what
+                // clears the setup screen's metering totals: that stream captures
+                // frames and sends none, and a full page navigation into the dashboard
+                // never gives the frontend a chance to stop it, so the reset has to sit
+                // on the path into the session rather than on the way out of setup.
+                self.input.reset_stats();
                 self.input = StreamTraitType::Input(stream_manager::InputStream::new(
                     Some(device),
                     stream_manager::AudioInputSource::Cpal,
@@ -385,6 +391,30 @@ impl AudioStreamManager {
             AudioDeviceType::OutputDevice => self.output.stop().await?,
         };
 
+        Ok(())
+    }
+
+    /// Start capturing purely to drive a level meter, before there is a session.
+    ///
+    /// Used by the setup screen's microphone test. The device has to be passed in: the
+    /// manager builds its input stream with no device and only learns one from `init`,
+    /// which nothing has called this early — the dashboard is what normally calls it, and
+    /// setup runs before the dashboard. Without this the capture config cannot resolve and
+    /// the meter reads flat.
+    ///
+    /// Safe to leave running into a navigation: `init` stops the input stream before it
+    /// replaces it, so the session's own stream cannot end up stacked on top of this one
+    /// even when the page tears down without the frontend getting a chance to stop it.
+    pub async fn start_input_metering(&mut self, device: AudioDevice) -> Result<(), Error> {
+        self.init(device).await;
+        self.input.start_metering().await
+    }
+
+    /// Stop the metering stream and discard what it counted, so the session's own
+    /// capture is measured from zero.
+    pub async fn stop_input_metering(&mut self) -> Result<(), Error> {
+        self.input.stop().await?;
+        self.input.reset_stats();
         Ok(())
     }
 

@@ -13,7 +13,7 @@ use anyhow::anyhow;
 use audio_gate::NoiseGate;
 use common::RecordingPlayerData;
 use common::consts::OPUS_FRAME_DURATION_MS;
-use common::structs::audio::{NoiseGateSettings, StreamEvent};
+use common::structs::audio::{InputLevel, NoiseGateSettings, StreamEvent};
 use common::structs::packet::{AudioFramePacket, QuicNetworkPacket, QuicNetworkPacketData};
 use log::{error, warn};
 use once_cell::sync::Lazy;
@@ -184,6 +184,39 @@ impl common::traits::StreamTrait for InputStream {
 }
 
 impl InputStream {
+    /// Capture and meter, without encoding or transmitting anything.
+    ///
+    /// What the setup screen's microphone test needs. It is `start` minus the network
+    /// sender and minus the `current_player` requirement, and it deliberately reuses
+    /// `listener` rather than growing a second capture path: the gate, the resampler,
+    /// the processing core and the level emitter are then provably the same ones the
+    /// real stream uses, so a meter that reads correctly here is evidence about the
+    /// pipeline that will carry the user's voice.
+    ///
+    /// The consumer is dropped immediately, so `try_send` in the processing core fails
+    /// from the first frame and the PCM is discarded where it is produced. Nothing
+    /// queues and nothing is held.
+    pub async fn start_metering(&mut self) -> Result<(), anyhow::Error> {
+        self.shutdown.store(false, Ordering::Relaxed);
+
+        let (producer, consumer) = flume::bounded::<AudioFrame>(1);
+        drop(consumer);
+
+        let capture_config = self.source.resolve_config(&self.device)?;
+
+        let job = self
+            .listener(capture_config, producer, self.shutdown.clone())
+            .inspect_err(|e| error!("input metering listener failed to start: {:?}", e))?;
+
+        self.jobs = vec![job.abort_handle()];
+        Ok(())
+    }
+
+    /// Discard capture accounting, so the next stream is measured from zero.
+    pub fn reset_stats(&self) {
+        self.input_stats.reset();
+    }
+
     pub fn new(
         device: Option<AudioDevice>,
         source: AudioInputSource,
@@ -279,6 +312,45 @@ impl InputStream {
             None => None,
         };
 
+        // The level leaves the callback on a channel and is emitted from a task, so
+        // no AppHandle reaches the processing core. Batched at 100 ms with a
+        // peak-hold, because a 20 ms transient between ticks is exactly what a
+        // meter exists to show.
+        let (level_tx, level_rx) = flume::unbounded::<InputLevel>();
+        let level_handle = self.app_handle.clone();
+        tokio::spawn(async move {
+            use tauri::Emitter;
+            let mut batch_timer = tokio::time::interval(Duration::from_millis(100));
+            let mut pending: Option<InputLevel> = None;
+
+            loop {
+                tokio::select! {
+                    received = level_rx.recv_async() => {
+                        match received {
+                            Ok(level) => {
+                                pending = Some(match pending {
+                                    Some(prev) if prev.rms >= level.rms => InputLevel {
+                                        rms: prev.rms,
+                                        gate_open: prev.gate_open || level.gate_open,
+                                    },
+                                    _ => level,
+                                });
+                            }
+                            // The core was dropped: the stream is gone and so is the meter.
+                            Err(_) => break,
+                        }
+                    }
+                    _ = batch_timer.tick() => {
+                        if let Some(level) = pending.take() {
+                            if let Err(e) = level_handle.emit("audio-input-level", &level) {
+                                log::warn!("Failed to emit input level: {}", e);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
         // The processing core owns the gate, resampler, buffers, and silence/tail
         // state. Its push sink is driven directly from the source so the real path
         // stays callback-driven with no intervening queue.
@@ -290,6 +362,7 @@ impl InputStream {
             tail_frame_count,
             producer,
             self.input_stats.clone(),
+            level_tx,
         );
 
         let process = move |data: &[f32]| {

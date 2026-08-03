@@ -3,10 +3,13 @@
 //! ncryptf-wrapped code login. A player presents their one-time code and receives
 //! their issued mTLS cert/key/CA bundle plus other identity material.
 //!
+//! The code is the whole credential. It resolves the player, so the response also
+//! reports the gamertag and the game rather than the caller asserting them.
+//!
 //! Contract:
-//! - 200 + LoginResponse on a fresh, unexpired code matching the gamertag
+//! - 200 + LoginResponse on a fresh, unexpired code
 //! - 404 on unknown code
-//! - 403 on gamertag mismatch / already-used code
+//! - 403 on an already-used ephemeral code
 //! - 410 (Gone) on expired code
 
 use crate::harness::{NcryptfLogin, TestServer};
@@ -21,10 +24,7 @@ async fn returns_404_on_unknown_code() {
     let env = TestServer::start().await.unwrap();
     let result = NcryptfLogin::perform(
         &env,
-        &CodeLoginRequest {
-            gamertag: "Bob".into(),
-            code: "DEFINITELY-NOT-A-REAL-CODE".into(),
-        },
+        &CodeLoginRequest { code: "DEFINITELY-NOT-A-REAL-CODE".into() },
     )
     .await;
     assert!(result.is_err(), "expected 404 for unknown code");
@@ -48,10 +48,7 @@ async fn returns_login_response_on_valid_code() {
 
     let response = NcryptfLogin::perform(
         &env,
-        &CodeLoginRequest {
-            gamertag: "Bob".into(),
-            code,
-        },
+        &CodeLoginRequest { code },
     )
     .await
     .expect("valid code should succeed");
@@ -81,10 +78,7 @@ async fn rejects_reused_code() {
     // First redemption of a fresh code succeeds.
     let first = NcryptfLogin::perform(
         &env,
-        &CodeLoginRequest {
-            gamertag: "Bob".into(),
-            code: code.clone(),
-        },
+        &CodeLoginRequest { code: code.clone() },
     )
     .await;
     assert!(
@@ -95,10 +89,7 @@ async fn rejects_reused_code() {
     // A code is single-use: the same code must not redeem a second time.
     let second = NcryptfLogin::perform(
         &env,
-        &CodeLoginRequest {
-            gamertag: "Bob".into(),
-            code,
-        },
+        &CodeLoginRequest { code },
     )
     .await;
     assert!(second.is_err(), "an already-used code must be rejected");
@@ -123,10 +114,7 @@ async fn non_ephemeral_code_redeems_more_than_once() {
 
     let first = NcryptfLogin::perform(
         &env,
-        &CodeLoginRequest {
-            gamertag: "Bob".into(),
-            code: code.clone(),
-        },
+        &CodeLoginRequest { code: code.clone() },
     )
     .await;
     assert!(
@@ -136,10 +124,7 @@ async fn non_ephemeral_code_redeems_more_than_once() {
 
     let second = NcryptfLogin::perform(
         &env,
-        &CodeLoginRequest {
-            gamertag: "Bob".into(),
-            code,
-        },
+        &CodeLoginRequest { code },
     )
     .await;
     assert!(
@@ -148,8 +133,13 @@ async fn non_ephemeral_code_redeems_more_than_once() {
     );
 }
 
+/// The code alone resolves who the caller is.
+///
+/// A client sends only a code, so the response is its only source for both fields. If
+/// either stopped being reported the CLI would store an identity under the wrong game,
+/// and the desktop client would have to ask the user and believe the answer.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn returns_403_on_gamertag_mismatch() {
+async fn resolves_the_player_and_game_from_the_code_alone() {
     let env = TestServer::start().await.unwrap();
     let _ = env.issue_player("Bob", &Game::Minecraft).await.unwrap();
 
@@ -164,13 +154,10 @@ async fn returns_403_on_gamertag_mismatch() {
         .await
         .unwrap();
 
-    let result = NcryptfLogin::perform(
-        &env,
-        &CodeLoginRequest {
-            gamertag: "Alice".into(),
-            code,
-        },
-    )
-    .await;
-    assert!(result.is_err(), "expected 403 for gamertag mismatch");
+    let response = NcryptfLogin::perform(&env, &CodeLoginRequest { code })
+        .await
+        .expect("a code identifies its player without a gamertag");
+
+    assert_eq!(response.gamertag, "Bob");
+    assert_eq!(response.game, Some(Game::Minecraft));
 }

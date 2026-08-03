@@ -37,6 +37,17 @@ pub enum AnalyticsEvent {
     DiscordAccountResynced,
     FlagsmithFlagsFetched,
     ClientLinkQuality,
+    LoginShown,
+    DashboardReached,
+    ServerSelected,
+    OnboardingShown,
+    NoServerClicked,
+    WikiCtaClicked,
+    HostingCtaClicked,
+    // Voice arrived: the first time in a session that audio from another player reached
+    // this client. The end of the funnel, and the only step in it no amount of UI can
+    // fake — every earlier event says someone got somewhere, this one says it worked.
+    Activated,
 }
 
 impl AnalyticsEvent {
@@ -75,6 +86,14 @@ impl AnalyticsEvent {
             Self::DiscordAccountResynced => "DiscordAccountResynced",
             Self::FlagsmithFlagsFetched => "FlagsmithFlagsFetched",
             Self::ClientLinkQuality => "ClientLinkQuality",
+            Self::LoginShown => "LoginShown",
+            Self::DashboardReached => "DashboardReached",
+            Self::ServerSelected => "ServerSelected",
+            Self::OnboardingShown => "OnboardingShown",
+            Self::NoServerClicked => "NoServerClicked",
+            Self::WikiCtaClicked => "WikiCtaClicked",
+            Self::HostingCtaClicked => "HostingCtaClicked",
+            Self::Activated => "Activated",
         }
     }
 }

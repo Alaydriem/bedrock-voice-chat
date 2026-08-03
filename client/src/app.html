@@ -14,8 +14,16 @@
     <link rel="icon" href="%sveltekit.assets%/images/app-logo.png" />
 
     <!-- Render-blocking on purpose: the preloader below must be styled at
-         first paint, before the app bundle injects the main stylesheet. -->
-    <link rel="stylesheet" href="%sveltekit.assets%/preloader/app-preloader.css" />
+         first paint, before the app bundle injects the main stylesheet.
+
+         ?v= is cache busting. These two are plain static assets, so nothing hashes
+         their filenames and the webview would otherwise serve a stale copy across
+         reloads and restarts. The value is the content hash of both files, computed in
+         vite.config.js — there is nothing to remember to bump. -->
+    <link
+      rel="stylesheet"
+      href="%sveltekit.assets%/preloader/app-preloader.css?v=%sveltekit.env.PUBLIC_PRELOADER_VERSION%"
+    />
 
     %sveltekit.head%
 
@@ -32,13 +40,20 @@
     x-data
     class=" is-sidebar-open is-header-blur"
   >
-    <!-- App preloader: markup only. Styling and behavior live in
-         static/preloader/ - served outside the app bundle so the overlay
-         works even when a page hangs during init. -->
+    <!-- App preloader: markup only. Styling lives in
+         static/preloader/app-preloader.css, hand-written.
+
+         Behaviour is static/preloader/app-preloader.js, which is GENERATED from
+         src/preloader/index.ts by vite.preloader.config.ts — do not edit it. Run
+         `yarn preloader:build`, or just `yarn dev` / `yarn build`, which run it first.
+
+         Both are served outside the app bundle so the overlay works even when a page
+         hangs during init, which is the only reason it exists. -->
     <div class="app-preloader">
       <div class="app-preloader-column">
         <div class="app-preloader-card" role="status" aria-live="polite">
-          <div class="app-preloader-ring"></div>
+          <!-- The mark, drawn by app-preloader.js from the design system. -->
+          <canvas id="app-preloader-mark" class="app-preloader-mark"></canvas>
           <p id="app-preloader-headline" class="app-preloader-headline" hidden>Loading…</p>
           <div class="app-preloader-status-row">
             <span id="app-preloader-frame" class="app-preloader-frame" aria-hidden="true">⠋</span>
@@ -66,7 +81,10 @@
         </div>
       </div>
     </div>
-    <script src="%sveltekit.assets%/preloader/app-preloader.js"></script>
+    <!-- ?v= as on the stylesheet above, from the same content hash. -->
+    <script
+      src="%sveltekit.assets%/preloader/app-preloader.js?v=%sveltekit.env.PUBLIC_PRELOADER_VERSION%"
+    ></script>
     <div style="display: contents">%sveltekit.body%</div>
   </body>
 

@@ -1,8 +1,22 @@
 <script lang="ts">
     import "../css/app.css";
+    import { onMount } from "svelte";
+    import Loader from "$radial/components/Loader.svelte";
+    import RadFrame from "../components/shell/RadFrame.svelte";
+    import RadScreen from "../components/shell/RadScreen.svelte";
     import Splash from "../js/app/splash.ts";
 
-    import { onMount } from 'svelte';
+    /**
+     * The launch check runs before anything else, so this is the first thing anyone
+     * sees — and it has to be legible immediately. The boot sequence holds gain at
+     * zero for its first 1.6s, so it opens on the steady dance instead: an update
+     * check is a wait, not an arrival.
+     */
+    const PHRASES: readonly string[] = [
+        "Checking for updates…",
+        "Looking for your servers…",
+        "Almost there…",
+    ];
 
     onMount(async () => {
         window.App = new Splash();
@@ -11,23 +25,26 @@
     });
 </script>
 
+<RadFrame>
+    <RadScreen label="Starting up">
+        <div class="rad-launch">
+            <Loader loading={true} withIntro={false} phrases={PHRASES} slowAfterSeconds={4} />
+        </div>
 
-<div id="root" class="min-h-80vh cloak flex grow bg-slate-50 dark:bg-navy-900">
-    <main class="grid w-full grow grid-cols-1 place-items-center">
-    <div class="w-full max-w-[26rem] p-4 sm:px-5">
-        <div class="text-center">
-        <img
-            class="mx-auto h-32 w-32"
-            src="/images/app-logo-transparent.png"
-            alt="Bedrock Voice Chat Logo"
-        />
-        <div class="mt-4">
-            <h2 class="text-2xl font-semibold text-slate-600 dark:text-navy-100">
-            Bedrock Voice Chat
-            </h2>
-            <p class="mt-4">Checking for updates and other stuff...</p>
-        </div>
-        </div>
-    </div>
-    </main>
-</div>
+        {#snippet footbar()}
+            <span class="rad-label">Bedrock Voice Chat</span>
+        {/snippet}
+    </RadScreen>
+</RadFrame>
+
+<style>
+    /* The loader is the whole screen here, so it gets centred rather than put in a
+       pane beside copy. */
+    .rad-launch {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+</style>

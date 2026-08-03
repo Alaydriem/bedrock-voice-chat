@@ -12,7 +12,10 @@ use crate::structs::reachability::{
 };
 
 pub struct ReachabilityProbe {
-    cache: Cache<String, ServerReachability>,
+    // The measured port set travels with the report. Keyed on host alone a preflight
+    // over one port would answer a later connect that dials more, and the verdict
+    // would be asserting something about an endpoint nobody probed.
+    cache: Cache<String, (Vec<u16>, ServerReachability)>,
 }
 
 impl ReachabilityProbe {
@@ -37,13 +40,25 @@ impl ReachabilityProbe {
     }
 
     pub async fn evaluate(&self, request: &ReachabilityRequest) -> ServerReachability {
-        if let Some(cached) = self.cache.get(&request.host).await {
-            return cached;
+        // A cached report answers only if it measured every port being asked about.
+        // A wider one answers a narrower question; a narrower one never answers a
+        // wider one.
+        if let Some((measured, cached)) = self.cache.get(&request.host).await {
+            if request
+                .quic_ports
+                .iter()
+                .all(|port| measured.contains(port))
+            {
+                return cached;
+            }
         }
 
         let report = Self::measure(request).await;
         self.cache
-            .insert(request.host.clone(), report.clone())
+            .insert(
+                request.host.clone(),
+                (request.quic_ports.clone(), report.clone()),
+            )
             .await;
         report
     }

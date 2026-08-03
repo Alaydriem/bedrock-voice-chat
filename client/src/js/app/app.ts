@@ -1,4 +1,5 @@
 import Alpine from "alpinejs";
+import BootOverlay from "./shell/BootOverlay";
 
 // AlpineJS Plugins
 import persist from "@alpinejs/persist"; // @see https://alpinejs.dev/plugins/persist
@@ -180,24 +181,8 @@ export default class App {
     }
 
     public preloader(): void {
-        // Diagnostic hold: ?preloader-hold keeps the overlay up as if the
-        // page never finished initializing, so the stuck-loading escape
-        // hatch can be exercised without wedging a real subsystem.
-        if (new URLSearchParams(window.location.search).has("preloader-hold")) {
-            return;
-        }
-
-        const preloader = document.querySelector(".app-preloader");
-        if (preloader) {
-            setTimeout(() => {
-                preloader.classList.add(
-                    "animate-[cubic-bezier(0.4,0,0.2,1)_fade-out_500ms_forwards]"
-                );
-                // Remove only after the 500ms fade completes; an earlier
-                // removal cuts the animation short and pops the overlay away.
-                setTimeout(() => preloader.remove(), 600);
-                this.isPreloadedHandled = true;
-            }, 150);
+        if (BootOverlay.dismiss()) {
+            this.isPreloadedHandled = true;
         }
     }
 

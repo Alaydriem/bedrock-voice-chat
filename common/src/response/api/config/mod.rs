@@ -1,10 +1,12 @@
 pub mod age;
 pub mod bedrock;
 mod check;
+mod compatibility;
 
 pub use age::ApiConfigAge;
 pub use bedrock::{ApiConfigBedrock, ApiConfigBedrockServer};
 pub use check::ApiConfigCheckResponse;
+pub use compatibility::ProtocolCompatibility;
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;

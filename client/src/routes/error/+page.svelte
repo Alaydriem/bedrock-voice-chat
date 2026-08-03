@@ -1,6 +1,7 @@
 <script lang="ts">
   import "../../css/app.css";
   import App from "../../js/app/app.ts";
+  import Loader from "$radial/components/Loader.svelte";
   import { onMount } from 'svelte';
   import { invoke } from "@tauri-apps/api/core";
   import { stopForegroundService, isServiceRunning } from 'tauri-plugin-audio-permissions';
@@ -271,6 +272,12 @@
     danger: 'btn mt-3 w-full bg-error font-medium text-white hover:bg-error-focus focus:bg-error-focus active:bg-error-focus/90'
   };
 
+  const UPDATE_PHRASES: readonly string[] = [
+    'Downloading the update…',
+    'Verifying the signature…',
+    'Almost there…',
+  ];
+
   let isUpdating = $state(false);
   let updateError = $state<string | null>(null);
 
@@ -362,8 +369,19 @@
 
           <div class="card mt-5 rounded-lg p-5 lg:p-7">
             <div class="text-center">
-              <!-- Error Icon -->
-              {#if currentError.icon}
+              <!-- While an update downloads the mark is the progress indicator: a
+                   borrowed spinner said only that something was happening, and the
+                   download is the longest wait in the app. -->
+              {#if isUpdating}
+                <div class="mb-4 flex justify-center">
+                  <Loader
+                    loading={true}
+                    size={180}
+                    phrases={UPDATE_PHRASES}
+                    slowAfterSeconds={4}
+                  />
+                </div>
+              {:else if currentError.icon}
                 <div class="mb-4">
                   <i class="{currentError.icon} text-5xl {currentError.code === 'UPD01' ? 'text-success' : 'text-error'}"></i>
                 </div>
@@ -399,8 +417,7 @@
                   class="{BUTTON_STYLES[currentError.primaryAction.style || 'primary']}{isUpdating ? ' opacity-75 cursor-not-allowed' : ''}"
                 >
                   {#if isUpdating}
-                    <i class="fa-solid fa-spinner fa-spin mr-2"></i>
-                    Updating...
+                    Updating…
                   {:else}
                     {currentError.primaryAction.label}
                   {/if}

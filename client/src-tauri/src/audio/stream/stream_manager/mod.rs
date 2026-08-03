@@ -10,6 +10,7 @@ pub(crate) mod sink;
 mod sink_manager;
 pub(crate) mod source;
 
+use anyhow::anyhow;
 use common::structs::audio::StreamEvent;
 use std::sync::Arc;
 
@@ -127,6 +128,23 @@ impl StreamTraitType {
         match self {
             Self::Input(stream) => stream.mute_status(),
             Self::Output(stream) => stream.mute_status(),
+        }
+    }
+
+    /// Capture and meter with nothing attached to the network. Input only — there is no
+    /// output equivalent, because a level with no session behind it is a property of a
+    /// microphone and an output stream has nothing to measure.
+    pub async fn start_metering(&mut self) -> Result<(), anyhow::Error> {
+        match self {
+            Self::Input(stream) => stream.start_metering().await,
+            Self::Output(_) => Err(anyhow!("output streams cannot be metered")),
+        }
+    }
+
+    pub fn reset_stats(&self) {
+        match self {
+            Self::Input(stream) => stream.reset_stats(),
+            Self::Output(_) => {}
         }
     }
 }

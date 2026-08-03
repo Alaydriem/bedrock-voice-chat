@@ -1,15 +1,14 @@
 use crate::analytics::AnalyticsService;
 use crate::{NetworkStreamManager, structs::app_state::AppState};
-use common::net::CandidatePlan;
+use common::consts::version::PROTOCOL_VERSION;
+use common::net::{CandidatePlan, ReachabilityPlanner};
+use common::response::api::config::ProtocolCompatibility;
 use common::response::LoginResponse;
-use common::structs::network::QuicPortSelection;
-use common::structs::reachability::ReachabilityRequest;
+use common::structs::reachability::ServerReachability;
 use log::{error, info, warn};
-use std::net::IpAddr;
 use std::sync::Arc;
 use tauri::State;
 use tauri::async_runtime::Mutex;
-use url::Url;
 
 #[tauri::command]
 pub(crate) async fn stop_network_stream(
@@ -38,20 +37,6 @@ pub(crate) async fn change_network_stream(
         state.current_server = Some(server.clone());
     }
 
-    // Parse URL to extract just the hostname (without port) for DNS lookup and SNI
-    let server_fqdn = Url::parse(&server)
-        .ok()
-        .and_then(|u| u.host_str().map(|s| s.to_string()))
-        .unwrap_or_else(|| {
-            server
-                .replace("https://", "")
-                .replace("http://", "")
-                .split(':')
-                .next()
-                .unwrap_or(&server)
-                .to_string()
-        });
-
     // The keyring copy of the port is frozen at login. Ask the server what it
     // currently advertises so a server-side port change does not strand
     // already-authenticated clients; the stored value is the fallback for when the
@@ -76,56 +61,32 @@ pub(crate) async fn change_network_stream(
     };
 
     let (advertised_ports, advertised_scalar) = advertised.unwrap_or((Vec::new(), 0));
-    let ports = QuicPortSelection::resolve(
+
+    let request = match ReachabilityPlanner::plan(
+        &server,
         &advertised_ports,
         advertised_scalar,
         Some(&data.quic_connect_string),
-    );
+    )
+    .await
+    {
+        Ok(request) => request,
+        Err(e) => {
+            error!("Reachability planning failed for {}: {}", server, e);
+            return Err(format!("{}", e));
+        }
+    };
+
+    let server_fqdn = request.host.clone();
+    let resolved = request.addrs.clone();
+    let ports = request.quic_ports.clone();
 
     info!("QUIC candidate ports for {}: {:?}", server_fqdn, ports);
-
-    // One DNS lookup serves every candidate: the host is identical and only the
-    // port varies, so resolving per port would repeat the same query. Both families
-    // are kept — collapsing to a single IPv4 address here is what left an IPv6-only
-    // host with nothing to dial, and which family is tried first is the probe's
-    // decision below rather than DNS ordering.
-    let resolved: Vec<IpAddr> =
-        match tokio::net::lookup_host(format!("{}:{}", server_fqdn, ports[0])).await {
-            Ok(addrs) => {
-                let mut unique: Vec<IpAddr> = Vec::new();
-                for addr in addrs {
-                    if !unique.contains(&addr.ip()) {
-                        unique.push(addr.ip());
-                    }
-                }
-                unique
-            }
-            Err(e) => {
-                error!("System DNS resolution failed for {}: {}", server_fqdn, e);
-                return Err(format!("DNS_FAIL: {}", e));
-            }
-        };
-
-    if resolved.is_empty() {
-        error!("System DNS returned no IPs for {}", server_fqdn);
-        return Err("DNS_FAIL: System DNS returned no results".to_string());
-    }
 
     let (reachability, family_preference) = {
         let state = state.lock().await;
         (state.reachability(), state.family_preference())
     };
-
-    let request = ReachabilityRequest::new(
-        server_fqdn.clone(),
-        resolved.clone(),
-        ports.clone(),
-        format!("{}/api/config", server.trim_end_matches('/')),
-        Url::parse(&server)
-            .ok()
-            .and_then(|u| u.port())
-            .unwrap_or(ReachabilityRequest::DEFAULT_HTTPS_PORT),
-    );
 
     let report = reachability.evaluate(&request).await;
     family_preference.set(report.preference());
@@ -179,6 +140,42 @@ pub(crate) async fn change_network_stream(
     };
 
     Ok(())
+}
+
+// Runs before login, which is what the probe is built for: a Version Negotiation
+// reply or a rejected handshake both prove a live listener without a client
+// certificate, and neither exists yet at this point in the flow.
+//
+// The probe instance is the one change_network_stream reads, so a measurement made
+// while the address is being typed warms the connect path rather than duplicating
+// it.
+#[tauri::command]
+pub(crate) async fn probe_server(
+    server: String,
+    quic_ports: Vec<u32>,
+    quic_port: u32,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<ServerReachability, String> {
+    let request = ReachabilityPlanner::plan(&server, &quic_ports, quic_port, None)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let reachability = {
+        let state = state.lock().await;
+        state.reachability()
+    };
+
+    Ok(reachability.evaluate(&request).await)
+}
+
+// Compatibility is a different axis from reachability, and both are needed before a
+// player commits to a server: one answers "can voice get there", the other "will this
+// build understand it". Credential-free on purpose — the address field asks this of a
+// server nobody has signed into yet, so it takes the version the caller already read
+// from the unauthenticated /api/config rather than fetching it again.
+#[tauri::command]
+pub(crate) fn check_protocol_compatibility(server_version: String) -> ProtocolCompatibility {
+    ProtocolCompatibility::between(&server_version, PROTOCOL_VERSION)
 }
 
 #[tauri::command]

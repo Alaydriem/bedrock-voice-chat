@@ -15,6 +15,13 @@
     logoScale?: number;
     /** Rotation rate in radians per second. */
     spin?: number;
+    /**
+     * Mark amplitude, 0 to 1. Omit and the mode decides. Pass it when something is
+     * measuring a level, so the mark filling out to its full silhouette is the reading.
+     */
+    gain?: number;
+    /** Hold the bars at rest while the mark keeps moving. */
+    ringStill?: boolean;
     /** Fixed size in px. Omit to fill the parent, which must be positioned. */
     size?: number;
     class?: string;
@@ -26,6 +33,8 @@
     scale = 1,
     logoScale = 1,
     spin = 0,
+    gain,
+    ringStill = false,
     size,
     class: className = "",
   }: Props = $props();
@@ -34,7 +43,7 @@
   let binding = $state<RingBinding | null>(null);
 
   $effect(() => {
-    const b = new RingBinding(canvas, { mode, scale, logoScale, spin });
+    const b = new RingBinding(canvas, { mode, scale, logoScale, spin, gain, ringStill });
     binding = b;
     return () => {
       b.destroy();
@@ -44,6 +53,9 @@
 
   $effect(() => {
     if (binding) binding.mode = mode;
+  });
+  $effect(() => {
+    if (binding) binding.gain = gain;
   });
   $effect(() => {
     binding?.setSources(sources);

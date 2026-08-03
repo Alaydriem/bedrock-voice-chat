@@ -12,12 +12,8 @@ use super::login::JsonMessage;
 
 const CODE_AUTH_ENDPOINT: &str = "api/auth/code";
 
-pub(crate) async fn code_login(
-    server: String,
-    gamertag: String,
-    code: String,
-) -> Result<LoginResponse, bool> {
-    let payload = CodeLoginRequest { gamertag, code };
+pub(crate) async fn code_login(server: String, code: String) -> Result<LoginResponse, bool> {
+    let payload = CodeLoginRequest { code };
 
     let ek = match crate::auth::ncryptf::get_ek(server.clone()).await {
         Ok(ek) => ek,

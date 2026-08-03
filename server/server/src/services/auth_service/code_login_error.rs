@@ -17,8 +17,7 @@ impl CodeLoginError {
         match self {
             CodeLoginError::FeatureDisabled => Status::NotFound,
             CodeLoginError::Code(AuthCodeError::CodeNotFound) => Status::NotFound,
-            CodeLoginError::Code(AuthCodeError::GamertagMismatch)
-            | CodeLoginError::Code(AuthCodeError::CodeAlreadyUsed) => Status::Forbidden,
+            CodeLoginError::Code(AuthCodeError::CodeAlreadyUsed) => Status::Forbidden,
             CodeLoginError::Code(AuthCodeError::CodeExpired) => Status::Gone,
             CodeLoginError::Code(_) => Status::InternalServerError,
             CodeLoginError::Auth(AuthError::PlayerNotFound)

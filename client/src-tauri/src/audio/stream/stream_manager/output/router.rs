@@ -33,9 +33,17 @@ use common::{
         },
     },
 };
+use common::structs::analytics::{AnalyticsEvent, AnalyticsEventData};
 use log::{error, info, warn};
 use moka::future::Cache;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+// Activation is reported at most once per process, which is the same scope as the
+// `$session_id` the funnel is grouped by. A router is rebuilt on every reconnect, so a
+// flag on the struct would report the same activation again each time the connection
+// dropped and came back.
+static ACTIVATION_REPORTED: AtomicBool = AtomicBool::new(false);
 
 pub(crate) struct PacketRouter {
     producer: flume::Sender<EncodedAudioFramePacket>,
@@ -268,6 +276,29 @@ impl PacketRouter {
         }
     }
 
+    /// The first frame of another player's voice to reach this client.
+    ///
+    /// The last step of the install funnel, and the only one that cannot be reached by
+    /// clicking through the UI: everything before it says a user arrived somewhere,
+    /// this says voice actually worked end to end for them. It carries the game the
+    /// speaker is playing and nothing that identifies either party.
+    fn report_activation(&self, game: Option<String>) {
+        if ACTIVATION_REPORTED.swap(true, Ordering::SeqCst) {
+            return;
+        }
+
+        use tauri::Manager;
+        let Some(analytics) = self
+            .app_handle
+            .try_state::<Arc<crate::analytics::AnalyticsService>>()
+        else {
+            return;
+        };
+
+        let data = game.map(|game| AnalyticsEventData::new().insert("game", game));
+        analytics.track(AnalyticsEvent::Activated, data);
+    }
+
     /// Processes AudioFramePacket data
     async fn handle_audio_data(&self, data: &QuicNetworkPacket) {
         let current_player_name = match self.metadata.get("current_player").await {
@@ -300,6 +331,12 @@ impl PacketRouter {
                     // Always update the presence cache (stores game type alongside presence)
                     self.player_presence
                         .insert(player_name.clone(), game.clone());
+
+                    // Voice arrived. Reported here rather than beside the presence
+                    // event below because the debounce that guards presence is about
+                    // not spamming the UI with the same player, and activation must not
+                    // be lost to it.
+                    self.report_activation(game.clone());
 
                     // Only emit if not recently debounced
                     if self.player_presence_debounce.get(player_name).is_none() {

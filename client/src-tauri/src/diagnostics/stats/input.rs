@@ -29,6 +29,18 @@ impl InputPipelineStats {
         self.frames_sent.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Zero every counter.
+    ///
+    /// The metering stream on the setup screen captures frames and sends none of them,
+    /// so leaving its totals in place would have a session open on a diagnostic that
+    /// already reports thousands of captured frames against zero sent — the exact
+    /// signature of a broken encoder.
+    pub fn reset(&self) {
+        self.frames_captured.store(0, Ordering::Relaxed);
+        self.frames_with_signal.store(0, Ordering::Relaxed);
+        self.frames_sent.store(0, Ordering::Relaxed);
+    }
+
     pub fn frames_captured(&self) -> u64 {
         self.frames_captured.load(Ordering::Relaxed)
     }

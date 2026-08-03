@@ -16,7 +16,20 @@ interface AudioStreamRecoveryPayload {
 }
 
 export default class BVCApp extends App {
-    private deepLinkRouterPromise: Promise<DeepLinkRouter> | null = null;
+    /**
+     * One router for the whole context, so the de-dup that protects a single-use OAuth
+     * code is shared by every manager. A screen can construct more than one — the login
+     * page has both `Login` and `LoginCode` — and a router per manager means a redemption
+     * one of them made is invisible to the other.
+     */
+    private static deepLinkRouterPromise: Promise<DeepLinkRouter> | null = null;
+
+    /**
+     * Registered once per context, for the same reason. Two managers listening delivers
+     * one deep link twice, and each delivery attempts its own redemption.
+     */
+    private static deepLinkRegistered = false;
+
     private deepLinkUnlisten: UnlistenFn | null = null;
     private connectionHealthUnlisten: UnlistenFn | null = null;
     private audioRecoveryUnlisten: UnlistenFn | null = null;
@@ -47,6 +60,9 @@ export default class BVCApp extends App {
      * Synchronously register the Tauri event listener for deep links
      */
     private setupDeepLinkListener(): void {
+        if (BVCApp.deepLinkRegistered) return;
+        BVCApp.deepLinkRegistered = true;
+
         listen<DeepLink>('deep-link-received', (event) => {
             info(`BVCApp: Received deep-link-received event: ${event.payload.url.split(/[?#]/)[0]}`);
             this.handleDeepLinkEvent(event.payload.url).catch((err) => {
@@ -56,6 +72,9 @@ export default class BVCApp extends App {
             this.deepLinkUnlisten = unlisten;
             info('BVCApp: deep-link-received listener registered');
         }).catch((err) => {
+            // Registration is claimed before the await, so a failure has to release the
+            // claim or nothing would ever listen for deep links again.
+            BVCApp.deepLinkRegistered = false;
             logError(`BVCApp: Failed to register deep link listener: ${err}`);
         });
     }
@@ -112,18 +131,18 @@ export default class BVCApp extends App {
     }
 
     /**
-     * Get or create the deep link router (cached). A single shared promise
-     * ensures the live `deep-link-received` path and initializeDeepLinks() use
-     * the same router instance, so its per-session de-dup applies across both.
+     * Get or create the deep link router. One shared promise ensures the live
+     * `deep-link-received` path, `initializeDeepLinks()`, and every manager in the
+     * context use the same router, so its de-dup applies across all of them.
      */
     private getRouter(): Promise<DeepLinkRouter> {
-        if (!this.deepLinkRouterPromise) {
-            this.deepLinkRouterPromise = (async () => {
+        if (!BVCApp.deepLinkRouterPromise) {
+            BVCApp.deepLinkRouterPromise = (async () => {
                 const store = await this.getStore();
                 return new DeepLinkRouter(store);
             })();
         }
-        return this.deepLinkRouterPromise;
+        return BVCApp.deepLinkRouterPromise;
     }
 
     /**
@@ -180,6 +199,10 @@ export default class BVCApp extends App {
         if (this.deepLinkUnlisten) {
             this.deepLinkUnlisten();
             this.deepLinkUnlisten = null;
+            // Only the instance that registered holds the unlisten, and tearing it down
+            // removes the context's only deep-link listener. Releasing the claim lets the
+            // next manager register one rather than leaving deep links unhandled.
+            BVCApp.deepLinkRegistered = false;
         }
         if (this.connectionHealthUnlisten) {
             this.connectionHealthUnlisten();

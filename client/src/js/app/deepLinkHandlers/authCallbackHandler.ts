@@ -113,7 +113,7 @@ export class AuthCallbackHandler {
             await this.store.save();
 
             Analytics.track("LoginCompleted", { game_type: "minecraft" });
-            window.location.href = "/onboarding/welcome";
+            window.location.href = "/setup";
         } catch (e) {
             logError(`AuthCallbackHandler: Login failed: ${e}`);
             const errorStr = String(e).toLowerCase();

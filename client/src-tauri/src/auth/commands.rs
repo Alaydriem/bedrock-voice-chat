@@ -110,10 +110,9 @@ pub(crate) async fn code_login(
     app_state: State<'_, Mutex<AppState>>,
     keyring: State<'_, Mutex<KeyringService>>,
     server: String,
-    gamertag: String,
     code: String,
 ) -> Result<LoginResponse, String> {
-    let login_result = code_login::code_login(server.clone(), gamertag, code)
+    let login_result = code_login::code_login(server.clone(), code)
         .await
         .map_err(|_| "Code login failed".to_string())?;
 

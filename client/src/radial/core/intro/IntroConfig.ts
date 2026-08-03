@@ -8,6 +8,13 @@ export type IntroEndState =
 export interface IntroConfig {
   width: number;
   height: number;
+  /**
+   * Take the size from the canvas's layout box each frame instead of from `width`
+   * and `height`. What a sequence embedded in a responsive page wants: the
+   * stylesheet owns the size, so a narrow window and a phone both get a mark scaled
+   * to the space rather than the fixed box an exported PNG needs.
+   */
+  fluid: boolean;
   /** Null keeps the alpha channel, which a PNG or a VP9 WebM will preserve. */
   background: string | null;
   /** The colour blocks fade up from during `charge`. */
@@ -37,6 +44,7 @@ export interface IntroConfig {
 export const INTRO_DEFAULTS: IntroConfig = {
   width: 1080,
   height: 1080,
+  fluid: false,
   background: "#251844",
   idleTint: "#7a68a0",
   markTint: null,

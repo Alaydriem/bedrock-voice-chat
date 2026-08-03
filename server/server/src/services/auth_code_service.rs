@@ -10,7 +10,6 @@ pub enum AuthCodeError {
     CodeNotFound,
     CodeExpired,
     CodeAlreadyUsed,
-    GamertagMismatch,
     PlayerNotFound,
     DatabaseError(String),
 }
@@ -21,7 +20,6 @@ impl std::fmt::Display for AuthCodeError {
             AuthCodeError::CodeNotFound => write!(f, "Auth code not found"),
             AuthCodeError::CodeExpired => write!(f, "Auth code has expired"),
             AuthCodeError::CodeAlreadyUsed => write!(f, "Auth code has already been used"),
-            AuthCodeError::GamertagMismatch => write!(f, "Gamertag does not match auth code"),
             AuthCodeError::PlayerNotFound => write!(f, "Player not found for auth code"),
             AuthCodeError::DatabaseError(msg) => write!(f, "Database error: {}", msg),
         }
@@ -64,10 +62,14 @@ impl AuthCodeService {
         Ok(code)
     }
 
+    /// Redeem a code and return the player it was issued for.
+    ///
+    /// The code is the only credential. It identifies the player through `player_id`, so
+    /// this row is the authority on who is signing in and there is nothing for a caller
+    /// to cross-check it against.
     pub async fn validate_and_consume_code<C: ConnectionTrait>(
         conn: &C,
         code: &str,
-        gamertag: &str,
     ) -> Result<player::Model, AuthCodeError> {
         let auth_code = player_auth_code::Entity::find()
             .filter(player_auth_code::Column::Code.eq(code))
@@ -102,12 +104,6 @@ impl AuthCodeService {
             Some(p) => p,
             None => return Err(AuthCodeError::PlayerNotFound),
         };
-
-        // Verify gamertag matches
-        match &player_record.gamertag {
-            Some(gt) if gt == gamertag => {}
-            _ => return Err(AuthCodeError::GamertagMismatch),
-        }
 
         // Ephemeral codes are atomically consumed: only the redemption that flips
         // used false->true wins, so a concurrent or repeat redemption updates zero

@@ -378,3 +378,57 @@ pub(crate) async fn restart_audio_stream(
         err_msg
     })
 }
+
+/// Capture only to drive the level meter on the setup screen. Emits
+/// `audio-input-level` exactly as a session stream does, and transmits nothing.
+///
+/// The device comes from `AppState`, which is the same place the device selector reads
+/// its preselected value from. The stream manager keeps its own copy and has none until
+/// `init`, so metering the selection means handing it over rather than assuming the
+/// manager already knows it.
+#[tauri::command]
+pub(crate) async fn start_input_meter(
+    state: State<'_, Mutex<AppState>>,
+    asm: State<'_, Mutex<AudioStreamManager>>,
+) -> Result<(), String> {
+    let device = {
+        let mut state = state.lock().await;
+        state.get_audio_device(AudioDeviceType::InputDevice)?
+    };
+
+    let mut asm = asm.lock().await;
+    asm.start_input_metering(device)
+        .await
+        .map_err(|e| format!("Failed to start input meter: {:?}", e))
+}
+
+/// Play a chime through the selected output device, so the user can confirm they will hear
+/// other people. Resolves once the chime has finished, which is what lets the button
+/// disable itself for exactly as long as it is playing.
+///
+/// `spawn_blocking` because the rodio stream is not `Send` and dropping it cuts playback,
+/// so it has to live and die on one thread rather than be held across an await.
+#[tauri::command]
+pub(crate) async fn test_output_device(
+    state: State<'_, Mutex<AppState>>,
+) -> Result<(), String> {
+    let device = {
+        let mut state = state.lock().await;
+        state.get_audio_device(AudioDeviceType::OutputDevice)?
+    };
+
+    tokio::task::spawn_blocking(move || crate::audio::SpeakerTest::new().play(device))
+        .await
+        .map_err(|e| format!("Speaker test task failed: {:?}", e))?
+        .map_err(|e| format!("Could not play through that device: {:?}", e))
+}
+
+#[tauri::command]
+pub(crate) async fn stop_input_meter(
+    asm: State<'_, Mutex<AudioStreamManager>>,
+) -> Result<(), String> {
+    let mut asm = asm.lock().await;
+    asm.stop_input_metering()
+        .await
+        .map_err(|e| format!("Failed to stop input meter: {:?}", e))
+}

@@ -1,4 +1,5 @@
 mod analytics;
+mod audio;
 #[cfg(feature = "bedrock-protocol")]
 mod bedrock;
 mod control;

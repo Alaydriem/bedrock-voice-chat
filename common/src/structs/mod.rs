@@ -13,7 +13,6 @@ pub mod iap;
 pub mod keybinds;
 pub mod metrics;
 pub mod network;
-pub mod onboarding;
 pub mod packet;
 pub mod permission;
 pub mod players;
@@ -22,6 +21,7 @@ pub mod reachability;
 pub mod recording;
 pub mod relay;
 pub mod server_list_entry;
+pub mod setup;
 pub mod spatial_audio_config;
 
 pub use analytics::{AnalyticsEvent, AnalyticsEventData};

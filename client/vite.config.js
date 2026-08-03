@@ -2,9 +2,35 @@ import { defineConfig } from "vite";
 import { sveltekit } from "@sveltejs/kit/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { sentryVitePlugin } from "@sentry/vite-plugin";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
-// @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
+
+const PRELOADER_FILES = ["app-preloader.js", "app-preloader.css"];
+
+// The boot preloader's two files are plain static assets: nothing hashes their
+// filenames, so a webview serves a stale copy across reloads and app restarts unless
+// the URL itself changes. Their combined content hash becomes the ?v= on both tags in
+// app.html, so the URL moves exactly when the files do and never because an unrelated
+// rebuild happened.
+//
+// Read from disk rather than tracked through the bundler because these deliberately are
+// not bundle inputs — app-preloader.js is built by vite.preloader.config.ts, which `dev`
+// and `build` both run first, and app-preloader.css is hand-written.
+function preloaderVersion() {
+  const hash = createHash("sha256");
+  for (const name of PRELOADER_FILES) {
+    try {
+      hash.update(readFileSync(fileURLToPath(new URL(`./static/preloader/${name}`, import.meta.url))));
+    } catch {
+      // Absent until the first `yarn preloader:build`. Hashing what exists still yields
+      // a value that changes once the file lands.
+    }
+  }
+  return hash.digest("hex").slice(0, 12);
+}
 
 // Patches webaudio-controls `const` reassignment bug that Rolldown rejects
 function patchWebaudioControls() {
@@ -17,6 +43,11 @@ function patchWebaudioControls() {
     },
   };
 }
+
+// Set at module scope, not from a plugin hook: SvelteKit reads the environment in a
+// `config` hook ordered 'pre', so a plugin of ours would always assign this after
+// app.html had already been substituted.
+process.env.PUBLIC_PRELOADER_VERSION = preloaderVersion();
 
 // https://vitejs.dev/config/
 export default defineConfig(async () => ({

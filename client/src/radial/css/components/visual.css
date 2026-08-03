@@ -69,6 +69,19 @@ canvas[data-rad-level] {
   display: block;
 }
 
+/* A ring that fills an absolutely-positioned pane.
+ *
+ * The reference pages put a bare canvas straight into `.rad-visual`, where
+ * `.rad-visual > canvas` sizes it. The Svelte component brings its own `.rad-ring`
+ * wrapper, so that direct-child rule stops matching and the wrapper — having no
+ * height of its own and only an absolutely-positioned child — collapses to nothing.
+ * A component-based caller uses this instead.
+ */
+.rad-ring--fill {
+  position: absolute;
+  inset: 0;
+}
+
 /* A ring at a stated size, for a header or an empty state rather than a pane. */
 .rad-ring--fixed {
   width: 330px;
@@ -143,6 +156,17 @@ canvas[data-rad-level] {
     height: 288px;
   }
 
+  /* The same treatment for a ring that came from the Svelte component, whose canvas is
+     a grandchild so the rule above cannot reach it. Without a box of its own the
+     absolutely-positioned wrapper contributes no height, and a visual pane that is no
+     longer absolute collapses to just its caption — which is what left the ring drawn
+     at a few pixels behind the caption text instead of above it. */
+  .rad-visual > .rad-ring--fill {
+    position: relative;
+    inset: auto;
+    height: 288px;
+  }
+
   /* The caption stops floating over the art and becomes a bar under it, where it
      cannot cover the thing it is describing on a narrow screen. */
   .rad-caption {
@@ -171,4 +195,51 @@ canvas[data-rad-level] {
   .rad-timeline-lanes {
     height: 210px;
   }
+
+  /* The panes have stacked, so the mark has the whole width to itself rather than the
+     44% it shares with a column of copy. Sized to the height a stacked visual gets, so
+     a loader and a landed ring are the same object at the same size. */
+  .rad-loader > canvas {
+    width: min(86cqi, 288px);
+  }
+}
+
+/* ---- the loader, and what it says when the wait runs long ---- */
+
+.rad-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+/* The loader owns no size of its own — the sequence measures this box every frame.
+   Same pair of inputs as a visual pane's mark, so the boot overlay, the launch screen
+   and a pane all render the mark at one size and handing over between them does not
+   jump: 44% of the container against the height left once the bars and the status line
+   are accounted for. */
+.rad-loader > canvas {
+  display: block;
+  width: max(180px, min(44cqi, calc(100dvh - 260px)));
+  aspect-ratio: 1;
+}
+
+.rad-loader__status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 22px;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  letter-spacing: var(--tracking-rad-wide);
+  color: var(--color-rad-dim);
+}
+
+.rad-loader__glyph {
+  color: var(--color-rad-brand-lift);
+}
+
+.rad-loader__aside {
+  display: flex;
+  justify-content: center;
 }

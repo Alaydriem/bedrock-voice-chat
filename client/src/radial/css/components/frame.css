@@ -361,18 +361,19 @@
 /* ================= phone ================= */
 
 @container rad (max-width: 560px) {
-  /* Flow, not absolute positioning: every visual sizes to its own content and the
-     whole screen scrolls past it. */
+  /* The screen keeps its column and the two bars stay flex items, so both are on
+     screen at every content length. The body between them is what scrolls.
+
+     `position: sticky` on the bars cannot do this job. A sticky offset is clamped to
+     the element's containing block, and the footbar is the last child of the screen —
+     there is no room below it to lift off from, so it sat wherever the flow left it.
+     On a short step that happened to be on screen and on a long one it was far past
+     the bottom of the window, with the primary action inside it. */
   .rad-screen.is-on {
-    display: block;
-    overflow-y: auto;
     overflow-x: hidden;
-    -webkit-overflow-scrolling: touch;
   }
 
   .rad-topbar {
-    position: sticky;
-    top: 0;
     height: 60px;
     padding: 0 18px;
   }
@@ -382,8 +383,6 @@
   }
 
   .rad-footbar {
-    position: sticky;
-    bottom: 0;
     min-height: 72px;
     padding: 12px 18px;
     box-shadow: 0 -10px 24px -14px rgb(0 0 0 / 0.75);
@@ -399,8 +398,13 @@
     gap: 8px;
   }
 
+  /* Block, so the visual and the content stack instead of sharing a row — and the
+     scroll container, because everything tall on a phone is inside here. */
   .rad-split {
     display: block;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
   }
 
   .rad-visual-pane {

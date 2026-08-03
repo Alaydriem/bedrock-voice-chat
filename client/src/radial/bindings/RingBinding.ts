@@ -25,6 +25,19 @@ export interface RingOptions {
   fill?: number;
   /** Rotation rate in radians per second. */
   spin?: number;
+  /**
+   * Mark amplitude, 0 to 1. Omit and the mode decides — full for a live ring, collapsed
+   * for an empty one. Set it when something is actually measuring a level, so the mark
+   * rising to its full silhouette is the readout rather than decoration.
+   */
+  gain?: number;
+  /**
+   * Hold the bar profile still, so the ring keeps its shape and `spin` sweeps it round
+   * rather than the bars moving under their own steam. For a screen where the mark alone
+   * is the reading: a border animating independently makes two things move and leaves the
+   * viewer to work out which one is answering the question.
+   */
+  ringStill?: boolean;
   base?: string;
   emptyBase?: string;
   loop?: AnimationLoop;
@@ -68,6 +81,10 @@ export class RingBinding implements Binding {
     this.#options.mode = value;
   }
 
+  set gain(value: number | undefined) {
+    this.#options.gain = value;
+  }
+
   /**
    * Geometry of the last painted frame, or null before the first.
    * The handoff needs it: a card flies out from where its bar actually was.
@@ -103,6 +120,7 @@ export class RingBinding implements Binding {
       hum: dead ? 0.07 : 0.15,
       base: dead ? (o.emptyBase ?? "#54407c") : (o.base ?? "#6a4f96"),
       rot: o.spin ? t * 0.001 * o.spin : 0,
+      still: o.ringStill === true,
       reduce: this.#reduce,
     });
 
@@ -113,7 +131,7 @@ export class RingBinding implements Binding {
       cell,
       gap,
       t,
-      gain: dead ? 0.08 : 1,
+      gain: o.gain ?? (dead ? 0.08 : 1),
       still: dead,
       tint: dead ? "#7a68a0" : null,
       mortarColor: dead ? "#2c1f4d" : "#43306e",

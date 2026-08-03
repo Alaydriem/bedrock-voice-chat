@@ -34,7 +34,9 @@ declare global {
 export type LoginAttemptResult =
   | { status: 'invalid'; sanitized?: string }
   | { status: 'navigating'; sanitized: string }
-  | { status: 'redirecting'; sanitized: string }
+  // `authUrl` is the address handed to the system browser. Carried back so the
+  // handoff screen can offer it for copying when no browser window appeared.
+  | { status: 'redirecting'; sanitized: string; authUrl?: string }
   | { status: 'error'; sanitized: string };
 
 /**
@@ -49,13 +51,6 @@ export const CONNECTING_STATUS_PHRASES: readonly string[] = [
   'Negotiating a secure channel…',
   'Almost there…',
 ];
-
-/**
- * Braille spinner frames cycled beneath the connecting view, mirroring the
- * indicator CLI tools render when working. Presentation-only; the login view
- * imports this to drive its JS spinner fallback.
- */
-export const BRAILLE_FRAMES: readonly string[] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
 /**
  * Connection-flow view state the login page renders: the editable form
@@ -105,6 +100,7 @@ export default class Login extends BVCApp {
   private attemptServerStore: Writable<string>;
   private isHandoffStore: Writable<boolean>;
   private isFinishingStore: Writable<boolean>;
+  private authUrlStore: Writable<string>;
 
   public readonly isMobileReadable: Readable<boolean>;
   public readonly appVersionReadable: Readable<string>;
@@ -116,6 +112,8 @@ export default class Login extends BVCApp {
   public readonly attemptServer: Readable<string>;
   public readonly isHandoff: Readable<boolean>;
   public readonly isFinishing: Readable<boolean>;
+  /** The address handed to the browser, so the handoff screen can offer it. */
+  public readonly authUrl: Readable<string>;
 
   // Monotonic token identifying the current attempt. Bumped on each new attempt
   // and on cancel so a late-resolving request can't clobber the UI.
@@ -140,6 +138,7 @@ export default class Login extends BVCApp {
     this.attemptServerStore = writable('');
     this.isHandoffStore = writable(false);
     this.isFinishingStore = writable(false);
+    this.authUrlStore = writable('');
     this.isMobileReadable = { subscribe: this.isMobileStore.subscribe };
     this.appVersionReadable = { subscribe: this.appVersionStore.subscribe };
     this.formError = { subscribe: this.formErrorStore.subscribe };
@@ -150,6 +149,7 @@ export default class Login extends BVCApp {
     this.attemptServer = { subscribe: this.attemptServerStore.subscribe };
     this.isHandoff = { subscribe: this.isHandoffStore.subscribe };
     this.isFinishing = { subscribe: this.isFinishingStore.subscribe };
+    this.authUrl = { subscribe: this.authUrlStore.subscribe };
     this.platformDetector = new PlatformDetector();
   }
 
@@ -243,9 +243,34 @@ export default class Login extends BVCApp {
     }
   }
 
-  handleCodeLoginNavigate(rawValue: string): string {
+  /**
+   * The server portion of a `code@<host>` value.
+   *
+   * The code flow is a screen rather than a route, so this returns the address and
+   * navigates nowhere: the page reacts to `isCodeLogin`.
+   */
+  codeLoginServer(rawValue: string): string {
     const server = rawValue.replace(/^(https?:\/\/)?code@/, (_, proto) => proto ?? 'https://');
-    return `/login/code?server=${encodeURIComponent(server)}`;
+    return this.sanitizeServerUrl(server);
+  }
+
+  /**
+   * The server a `code@<host>` entry points at, or null while the host is not yet a
+   * usable address.
+   *
+   * `code@` is a prefix, so it matches from the moment the `@` is typed and keeps
+   * matching for every keystroke of the host after it. Null is what distinguishes
+   * "the user is still typing" from "this is a complete instruction", and it has to be
+   * answered before anything acts on the value: a server URL built from a half-typed
+   * host is a different server.
+   *
+   * Pure, with no error reported and no store touched, so a view can ask it on every
+   * keystroke to describe the field.
+   */
+  codeLoginTarget(rawValue: string): string | null {
+    if (!Login.isCodeLoginInput(rawValue)) return null;
+    const host = rawValue.trim().replace(/^(https?:\/\/)?code@/, '');
+    return this.validateServerUrl(host).valid ? this.sanitizeServerUrl(host) : null;
   }
 
   public sanitizeServerUrl(url: string): string {
@@ -386,9 +411,6 @@ export default class Login extends BVCApp {
     }
   }
 
-  public navigateCodeLogin(): void {
-    window.location.href = this.handleCodeLoginNavigate(get(this.serverInputStore));
-  }
 
   /**
    * Drive an attempt through the idle -> connecting -> redirect/error flow.
@@ -404,10 +426,10 @@ export default class Login extends BVCApp {
       ? get(this.attemptServerStore)
       : get(this.serverInputStore);
 
-    // Code-login navigates away in the same window - never enter the connecting
-    // view (otherwise the 'navigating' result would strand us on the spinner).
+    // Code-login is a screen the page has already switched to, so there is no
+    // attempt to make here. Returning early also keeps it out of the connecting
+    // view, which it would otherwise be stranded on.
     if (Login.isCodeLoginInput(value)) {
-      window.location.href = this.handleCodeLoginNavigate(value);
       return;
     }
 
@@ -525,6 +547,7 @@ export default class Login extends BVCApp {
       case 'redirecting':
         // Auth URL opened in the system browser; hold the connecting view and
         // arm the return detector so we know when the user comes back.
+        this.authUrlStore.set(result.authUrl ?? '');
         this.isHandoffStore.set(true);
         this.isFinishingStore.set(false);
         this.wasHiddenDuringHandoff = false;
@@ -576,10 +599,9 @@ export default class Login extends BVCApp {
 
     const trimmed = rawValue.trim();
     if (Login.isCodeLoginInput(trimmed)) {
-      const serverPart = trimmed.replace(/^(https?:\/\/)?code@/, '');
-      const sanitized = this.sanitizeServerUrl(serverPart);
-      window.location.href = `/login/code?server=${encodeURIComponent(sanitized)}`;
-      return { status: 'navigating', sanitized };
+      // The code flow is a screen the page switches to on `isCodeLogin`. Nothing to
+      // navigate to, and no attempt to make here.
+      return { status: 'navigating', sanitized: this.codeLoginServer(trimmed) };
     }
 
     const validation = this.validateServerUrl(rawValue);
@@ -619,7 +641,7 @@ export default class Login extends BVCApp {
         `https://login.live.com/oauth20_authorize.srf?client_id=${clientId}&response_type=code&redirect_uri=${redirectUrl}&scope=XboxLive.signin%20offline_access&state=${secretState}&prompt=select_account`;
 
       await this.openUrlWithLogging(authLoginUrl);
-      return { status: 'redirecting', sanitized: sanitizedUrl };
+      return { status: 'redirecting', sanitized: sanitizedUrl, authUrl: authLoginUrl };
     } catch (e) {
       warn(String(e));
       return { status: 'error', sanitized: sanitizedUrl };
@@ -756,7 +778,7 @@ export default class Login extends BVCApp {
       await store.save();
 
       Analytics.track("LoginCompleted", { game_type: "hytale" });
-      window.location.href = "/onboarding/welcome";
+      window.location.href = "/setup";
     } catch (e) {
       error(`Failed to save login data: ${String(e)}`);
     }

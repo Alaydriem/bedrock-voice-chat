@@ -41,6 +41,7 @@ export { IntroSequence } from "./core/intro/IntroSequence";
 export { INTRO_DEFAULTS, BRAND_LIFT, type IntroConfig, type IntroEndState } from "./core/intro/IntroConfig";
 export { INTRO_PHASES, IntroMarks, type IntroPhase } from "./core/intro/IntroPhases";
 export { Loader, type LoaderOptions } from "./core/intro/Loader";
+export { LoaderStatus, type LoaderStatusFrame, type LoaderStatusOptions } from "./core/intro/LoaderStatus";
 export { CanvasRecorder } from "./core/intro/CanvasRecorder";
 
 // ---- where data comes from ----

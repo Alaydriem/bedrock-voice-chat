@@ -4,8 +4,9 @@
   "description": "",
   "type": "module",
   "scripts": {
-    "dev": "vite dev",
-    "build": "vite build",
+    "dev": "yarn preloader:build && vite dev",
+    "build": "yarn preloader:build && vite build",
+    "preloader:build": "vite build --config vite.preloader.config.ts",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
@@ -14,10 +15,17 @@
     "radial:build": "vite build --config vite.radial.config.ts",
     "radial:preview": "vite preview --config vite.radial.config.ts",
     "radial:test": "node --test --experimental-strip-types --import ./src/radial/tests/register.mjs \"./src/radial/tests/*.test.ts\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "bindings:index": "node scripts/generate-bindings-index.mjs",
+    "bindings:check": "node scripts/generate-bindings-index.mjs && git diff --exit-code --quiet src/js/bindings/index.ts",
     "tauri:ios:init": "tauri ios init && cp src-tauri/Info.ios.plist src-tauri/gen/apple/bedrock-voice-chat-client_iOS/Info.plist && cp -R src-tauri/icons/Assets.xcassets src-tauri/gen/apple/ && node ../.github/scripts/patch-apple-plists.js && node ../.github/scripts/patch-entitlements.js",
     "asyncapi-docs": "cargo run --manifest-path ../common/websocket-types/Cargo.toml --bin generate-asyncapi-docs"
   },
   "license": "UNLICENSED",
+  "resolutions": {
+    "vite": "^8.0.16"
+  },
   "dependencies": {
     "@choochmeque/tauri-plugin-iap-api": "0.10.0-rc.1",
     "@sentry/browser": "^10.43.0",
@@ -56,6 +64,10 @@
     "@tailwindcss/postcss": "^4.0",
     "@tailwindcss/vite": "^4.2",
     "@tauri-apps/cli": "^2",
+    "@testing-library/dom": "^10.4",
+    "@testing-library/jest-dom": "^7.0",
+    "@testing-library/svelte": "^5.4",
+    "@testing-library/user-event": "^14.6",
     "@types/node": "^25",
     "alpinejs": "^3.14",
     "apexcharts": "^4.4",
@@ -86,7 +98,9 @@
     "tippy.js": "^6.3",
     "toastify-js": "^1.12",
     "tom-select": "^2.4",
+    "happy-dom": "^20.11",
     "typescript": "^6.0",
-    "vite": "^8.0.16"
+    "vite": "^8.0.16",
+    "vitest": "^4.1"
   }
 }

@@ -1,92 +1,96 @@
 import { info, error as logError } from '@tauri-apps/plugin-log';
 import { invoke } from '@tauri-apps/api/core';
+import { writable, type Readable, type Writable } from 'svelte/store';
 import BVCApp from './BVCApp.ts';
 import type { LoginResponse } from '../bindings/LoginResponse';
 import type { Game } from '../bindings/Game';
 import type { ServerListEntry } from '../bindings/ServerListEntry';
 import { ServerListStore } from './services/ServerListStore';
 
+export interface CodeLoginInput {
+    readonly code: string;
+}
+
+/**
+ * The sign-in-code flow: the player types the code they were given, and nothing else.
+ *
+ * The gamertag and the game arrive on the response, because the server resolves both from
+ * the code. That is what the stored identity is written from — the server is the authority
+ * on which game an account belongs to, not the person signing in.
+ *
+ * Values arrive as arguments rather than being read back out of the DOM, so the
+ * screen owns its inputs and this owns the attempt.
+ */
 export default class LoginCode extends BVCApp {
-    private serverUrl = "";
+    private serverUrl = '';
+    private readonly errorStore: Writable<string>;
+    private readonly isSubmittingStore: Writable<boolean>;
 
-    async initialize() {
-        const params = new URLSearchParams(window.location.search);
-        this.serverUrl = params.get("server") || "";
+    public readonly error: Readable<string>;
+    public readonly isSubmitting: Readable<boolean>;
 
-        const serverDisplay = document.querySelector("#code-server-display") as HTMLInputElement;
-        if (serverDisplay) {
-            serverDisplay.value = this.serverUrl;
-        }
+    constructor() {
+        super();
+        this.errorStore = writable('');
+        this.isSubmittingStore = writable(false);
+        this.error = { subscribe: this.errorStore.subscribe };
+        this.isSubmitting = { subscribe: this.isSubmittingStore.subscribe };
     }
 
-    async submit(event: Event) {
-        event.preventDefault();
+    setServer(server: string): void {
+        this.serverUrl = server;
+    }
 
-        const gamertagInput = document.querySelector("#code-gamertag-input") as HTMLInputElement;
-        const codeInput = document.querySelector("#code-input") as HTMLInputElement;
-        const gameSelect = document.querySelector("#code-game-select") as HTMLSelectElement;
-        const errorEl = document.querySelector("#code-error-message");
-        const submitBtn = document.querySelector("#code-submit-btn") as HTMLButtonElement;
+    async submit(input: CodeLoginInput): Promise<void> {
+        this.errorStore.set('');
 
-        errorEl?.classList.add("invisible");
-
-        const gamertag = gamertagInput?.value.trim() || "";
-        const code = codeInput?.value.trim().toUpperCase() || "";
-        const game = (gameSelect?.value || "minecraft") as Game;
-
-        if (!gamertag || !code) {
-            this.showError(errorEl, "Please enter both your gamertag and code.");
+        const code = input.code.trim().toUpperCase();
+        if (!code) {
+            this.errorStore.set('Please enter your code.');
             return;
         }
 
-        if (submitBtn) {
-            submitBtn.disabled = true;
-        }
-
+        this.isSubmittingStore.set(true);
         try {
             info(`Attempting code login to ${this.serverUrl}`);
-
-            const response = await invoke<LoginResponse>("code_login", {
+            const response = await invoke<LoginResponse>('code_login', {
                 server: this.serverUrl,
-                gamertag,
                 code,
             });
 
-            const store = await this.getStore();
+            // A server too old to report the game predates this being anything but
+            // Minecraft, which is what the picker this replaced always defaulted to.
+            const game: Game = response.game ?? 'minecraft';
 
+            const store = await this.getStore();
             const [rawServerList] = await Promise.all([
-                store.get("server_list") as Promise<ServerListEntry[] | null>,
-                store.set("current_server", this.serverUrl),
-                store.set("current_player", response.gamertag),
-                store.set("active_game", game),
+                store.get('server_list') as Promise<ServerListEntry[] | null>,
+                store.set('current_server', this.serverUrl),
+                store.set('current_player', response.gamertag),
+                store.set('active_game', game),
             ]);
 
             const serverList = rawServerList || [];
-            const existing = serverList.find(s => s.server === this.serverUrl);
+            const existing = serverList.find((s) => s.server === this.serverUrl);
             if (existing) {
                 existing.game = game;
             } else {
-                serverList.push({ server: this.serverUrl, player: response.gamertag, game });
+                serverList.push({
+                    server: this.serverUrl,
+                    player: response.gamertag,
+                    game,
+                });
             }
-            await store.set("server_list", serverList);
+            await store.set('server_list', serverList);
             await store.save();
             ServerListStore.mirrorServerCount(serverList);
 
-            info("Code login successful, navigating to onboarding");
-            window.location.href = "/onboarding/welcome";
+            info('Code login successful, continuing to setup');
+            window.location.href = '/setup';
         } catch (e) {
             logError(`Code login failed: ${String(e)}`);
-            this.showError(errorEl, "Login failed. Check your code and gamertag.");
-            if (submitBtn) {
-                submitBtn.disabled = false;
-            }
-        }
-    }
-
-    private showError(errorEl: Element | null, message: string) {
-        if (errorEl instanceof HTMLElement) {
-            errorEl.innerText = message;
-            errorEl.classList.remove("invisible");
+            this.errorStore.set('That code was not accepted. Check it and try again.');
+            this.isSubmittingStore.set(false);
         }
     }
 }

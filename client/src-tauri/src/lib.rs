@@ -257,6 +257,9 @@ pub fn run() {
             crate::commands::audio::is_recording,
             crate::commands::audio::get_current_players,
             crate::commands::audio::restart_audio_stream,
+            crate::commands::audio::start_input_meter,
+            crate::commands::audio::stop_input_meter,
+            crate::commands::audio::test_output_device,
             // Recordings Management
             crate::commands::recordings::get_recording_sessions,
             crate::commands::recordings::delete_recording_session,
@@ -264,6 +267,8 @@ pub fn run() {
             // Stream Information
             crate::commands::network::stop_network_stream,
             crate::commands::network::change_network_stream,
+            crate::commands::network::probe_server,
+            crate::commands::network::check_protocol_compatibility,
             crate::commands::network::reset_nsm,
             // API implementation
             crate::api::commands::api_initialize_client,

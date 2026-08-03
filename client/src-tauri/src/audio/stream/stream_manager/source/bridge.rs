@@ -124,6 +124,9 @@ mod tests {
 
         // Its own counters. This bridge drives a test source rather than a capture device, so its
         // frame accounting must not be reported as a real microphone's.
+        // No meter here: this bridge drives a test source, and there is no window for
+        // a level to reach. The receiver is dropped, so every send is a no-op.
+        let (level_tx, _) = flume::unbounded();
         let mut core = InputProcessCore::new(
             gate,
             audio_resampler,
@@ -132,6 +135,7 @@ mod tests {
             2,
             producer,
             Arc::new(crate::diagnostics::InputPipelineStats::new()),
+            level_tx,
         );
 
         let shutdown_thread = shutdown.clone();

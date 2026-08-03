@@ -49,49 +49,55 @@
   /* ---- type ----
    * Sized in rem against the app root of 112.5% (18px), so the scale renders at
    * the design's px values and still tracks a change to the root.
+   *
+   * One knob scales the whole set. It multiplies only `--text-rad-*`, which nothing
+   * outside this design system reads, so turning it up cannot touch the parts of the
+   * app still on the old theme.
    */
-  --text-rad-display: 2.4444rem;
+  --rad-type-scale: 1.05;
+
+  --text-rad-display: calc(2.4444rem * var(--rad-type-scale));
   --text-rad-display--line-height: 1.06;
   --text-rad-display--letter-spacing: -0.032em;
   --text-rad-display--font-weight: 300;
 
-  --text-rad-title: 1.5556rem;
+  --text-rad-title: calc(1.5556rem * var(--rad-type-scale));
   --text-rad-title--line-height: 1.14;
   --text-rad-title--letter-spacing: -0.024em;
 
-  --text-rad-heading: 1.3889rem;
+  --text-rad-heading: calc(1.3889rem * var(--rad-type-scale));
   --text-rad-heading--line-height: 1.2;
   --text-rad-heading--letter-spacing: -0.018em;
 
-  --text-rad-subhead: 1.1111rem;
+  --text-rad-subhead: calc(1.1111rem * var(--rad-type-scale));
   --text-rad-subhead--line-height: 1.3;
   --text-rad-subhead--letter-spacing: -0.018em;
 
-  --text-rad-lead: 0.9444rem;
+  --text-rad-lead: calc(0.9444rem * var(--rad-type-scale));
   --text-rad-lead--line-height: 1.68;
 
-  --text-rad-base: 0.8889rem;
+  --text-rad-base: calc(0.8889rem * var(--rad-type-scale));
   --text-rad-base--line-height: 1.5;
 
-  --text-rad-md: 0.8333rem;
+  --text-rad-md: calc(0.8333rem * var(--rad-type-scale));
   --text-rad-md--line-height: 1.45;
 
-  --text-rad-sm: 0.7778rem;
+  --text-rad-sm: calc(0.7778rem * var(--rad-type-scale));
   --text-rad-sm--line-height: 1.55;
 
-  --text-rad-xs: 0.75rem;
+  --text-rad-xs: calc(0.75rem * var(--rad-type-scale));
   --text-rad-xs--line-height: 1.5;
 
-  --text-rad-mono: 0.6667rem;
+  --text-rad-mono: calc(0.6667rem * var(--rad-type-scale));
   --text-rad-mono--line-height: 1.4;
 
-  --text-rad-mono-sm: 0.6389rem;
+  --text-rad-mono-sm: calc(0.6389rem * var(--rad-type-scale));
   --text-rad-mono-sm--line-height: 1.4;
 
-  --text-rad-mono-xs: 0.6111rem;
+  --text-rad-mono-xs: calc(0.6111rem * var(--rad-type-scale));
   --text-rad-mono-xs--line-height: 1.4;
 
-  --text-rad-mono-2xs: 0.5833rem;
+  --text-rad-mono-2xs: calc(0.5833rem * var(--rad-type-scale));
   --text-rad-mono-2xs--line-height: 1.4;
 
   --tracking-rad-label: 0.2em;
