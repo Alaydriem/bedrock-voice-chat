@@ -88,44 +88,6 @@
         ]
       }
     },
-    "/api/gamerpic/{game}/{gamertag}": {
-      "get": {
-        "tags": [
-          "Gamerpic"
-        ],
-        "operationId": "get_gamerpic",
-        "parameters": [
-          {
-            "name": "game",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/Game"
-            }
-          },
-          {
-            "name": "gamertag",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GamerpicResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/ping": {
       "get": {
         "tags": [
@@ -919,6 +881,44 @@
         }
       }
     },
+    "/api/gamerpic/{game}/{gamertag}": {
+      "get": {
+        "tags": [
+          "Gamerpic"
+        ],
+        "operationId": "get_gamerpic",
+        "parameters": [
+          {
+            "name": "game",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Game"
+            }
+          },
+          {
+            "name": "gamertag",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GamerpicResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/control": {
       "post": {
         "tags": [
@@ -1323,25 +1323,6 @@
           },
           "game": {
             "$ref": "#/components/schemas/Game"
-          }
-        }
-      },
-      "GamerpicResponse": {
-        "type": "object",
-        "required": [
-          "game",
-          "gamertag"
-        ],
-        "properties": {
-          "gamertag": {
-            "type": "string"
-          },
-          "game": {
-            "$ref": "#/components/schemas/Game"
-          },
-          "gamerpic": {
-            "type": "string",
-            "nullable": true
           }
         }
       },
@@ -2228,6 +2209,25 @@
           }
         }
       },
+      "GamerpicResponse": {
+        "type": "object",
+        "required": [
+          "game",
+          "gamertag"
+        ],
+        "properties": {
+          "gamertag": {
+            "type": "string"
+          },
+          "game": {
+            "$ref": "#/components/schemas/Game"
+          },
+          "gamerpic": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
       "ClientAction": {
         "type": "object",
         "required": [
@@ -2621,10 +2621,6 @@
       "description": "Player position updates from game mods. Used by the Minecraft/Hytale server plugin to push player coordinates for spatial audio calculations."
     },
     {
-      "name": "Gamerpic",
-      "description": "Player avatar/gamerpic retrieval by gamertag and game type."
-    },
-    {
       "name": "Health",
       "description": "Health and readiness probes. Liveness and readiness are unauthenticated for use with Kubernetes."
     },
@@ -2651,6 +2647,10 @@
     {
       "name": "Channels",
       "description": "Voice channel management. Create, delete, rename, join, and leave channels. Channel membership is broadcast to connected QUIC clients."
+    },
+    {
+      "name": "Gamerpic",
+      "description": "Player avatar/gamerpic retrieval by gamertag and game type."
     },
     {
       "name": "Control",
