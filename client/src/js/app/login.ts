@@ -616,7 +616,7 @@ export default class Login extends BVCApp {
 
       const redirectUrl = this.getRedirectUrl();
       const authLoginUrl =
-        `https://login.live.com/oauth20_authorize.srf?client_id=${clientId}&response_type=code&redirect_uri=${redirectUrl}&scope=XboxLive.signin%20offline_access&state=${secretState}`;
+        `https://login.live.com/oauth20_authorize.srf?client_id=${clientId}&response_type=code&redirect_uri=${redirectUrl}&scope=XboxLive.signin%20offline_access&state=${secretState}&prompt=select_account`;
 
       await this.openUrlWithLogging(authLoginUrl);
       return { status: 'redirecting', sanitized: sanitizedUrl };

@@ -15,7 +15,7 @@ impl McOauthWindow {
         let tx = std::sync::Mutex::new(Some(tx));
 
         let oauth_url = format!(
-            "https://login.live.com/oauth20_authorize.srf?client_id={}&response_type=code&redirect_uri={}&scope=XboxLive.signin%20offline_access",
+            "https://login.live.com/oauth20_authorize.srf?client_id={}&response_type=code&redirect_uri={}&scope=XboxLive.signin%20offline_access&prompt=select_account",
             MC_CLIENT_ID, REDIRECT_URI_ENCODED,
         );
 
