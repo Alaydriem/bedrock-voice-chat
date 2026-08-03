@@ -102,7 +102,7 @@ export const LADDER_RUNGS: readonly Rung[] = [
   { accent: 'var(--sp-cyan)', href: '#download', external: false, pending: true, feature: 'demoServer' },
   { accent: 'var(--sp-green)', href: '/wiki/', external: false, pending: false },
   { accent: 'var(--sp-orange)', href: 'https://www.patreon.com/c/Alaydriem', external: true, pending: true, feature: 'communityServer' },
-  { accent: 'var(--sp-violet)', href: 'https://www.patreon.com/c/Alaydriem', external: true, pending: true, feature: 'privateInstances' },
+  { accent: 'var(--sp-violet)', href: '#', external: false, pending: true, feature: 'privateInstances' },
 ];
 
 /* ------------------------------------------------------------------ *

@@ -1,0 +1,17 @@
+---
+/**
+ * Starlight `Head` override.
+ *
+ * Advertises the raw-markdown twin of each page. An agent that lands on any URL
+ * can discover the markdown without knowing the `.md` convention in advance,
+ * which is the gap /llms.txt alone does not close.
+ */
+import Default from '@astrojs/starlight/components/Head.astro';
+
+const { id } = Astro.locals.starlightRoute.entry;
+const path = id.replace(/\/?index$/, '');
+const markdown = new URL(`/${path}.md`, Astro.site ?? Astro.url).href;
+---
+
+<Default><slot /></Default>
+<link rel="alternate" type="text/markdown" href={markdown} />

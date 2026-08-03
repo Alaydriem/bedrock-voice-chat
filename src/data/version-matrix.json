@@ -1,0 +1,78 @@
+{
+  "latest": 2169,
+  "released_latest": 1001,
+  "versions": [
+    {
+      "protocol": 422,
+      "client_version": "1.16.201",
+      "has_codec": false,
+      "released": true
+    },
+    {
+      "protocol": 431,
+      "client_version": "1.16.220",
+      "has_codec": false,
+      "released": true
+    },
+    {
+      "protocol": 554,
+      "client_version": "1.19.30",
+      "has_codec": false,
+      "released": true
+    },
+    {
+      "protocol": 649,
+      "client_version": "1.20.61",
+      "has_codec": false,
+      "released": true
+    },
+    {
+      "protocol": 766,
+      "client_version": "1.21.50",
+      "has_codec": false,
+      "released": true
+    },
+    {
+      "protocol": 786,
+      "client_version": "1.21.90",
+      "has_codec": false,
+      "released": true
+    },
+    {
+      "protocol": 897,
+      "client_version": null,
+      "has_codec": true,
+      "released": false
+    },
+    {
+      "protocol": 924,
+      "client_version": "1.26.0",
+      "has_codec": true,
+      "released": true
+    },
+    {
+      "protocol": 944,
+      "client_version": "1.26.12",
+      "has_codec": true,
+      "released": true
+    },
+    {
+      "protocol": 975,
+      "client_version": "1.26.20",
+      "has_codec": true,
+      "released": true
+    },
+    {
+      "protocol": 1001,
+      "client_version": "1.26.30",
+      "has_codec": true,
+      "released": true
+    },
+    {
+      "protocol": 2169,
+      "client_version": "1.26.50",
+      "has_codec": true,
+      "released": false
+    }
+  ]
+}

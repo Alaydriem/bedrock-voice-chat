@@ -205,7 +205,7 @@ export const en = {
         label: 'Hear it first',
         title: 'The demo server',
         body: "Install the client, put in one address, and walk around with whoever's on. Nothing to configure and nothing to host. It's the quickest way to hear what this page is describing.",
-        meta: 'demo address',
+        meta: 'Coming soon',
         cta: 'Get the client',
       },
       {
@@ -218,8 +218,8 @@ export const en = {
       {
         label: 'Skip the hosting',
         title: 'Patreon and Youtube Members Server',
-        body: "A seat on a server that's already up with people on it, for anyone who'd sooner play than administrate. It helps fund the work at the same time.",
-        meta: 'Patreon tier + price',
+        body: "Patreon and Youtube Members can link their Bedrock Dedicated Server instance to a shared server and experience BVC without hosting anything. This is a paid tier for people who would rather not run a server themselves. More information about this offering will be coming soon!",
+        meta: 'Tier Support Coming Soon',
         cta: 'See tiers',
       },
       {

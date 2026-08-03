@@ -176,3 +176,42 @@ header.header {
   border-bottom: 1px solid var(--line);
   color: var(--dim);
 }
+
+/* ---- screenshot placeholders ------------------------------------------- */
+
+/* Marks where a screenshot belongs but has not been captured yet. Deliberately
+   loud in the rendered page: an empty slot that looks intentional is one that
+   ships. Delete the element when the image lands. */
+.shot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 8rem;
+  margin: 1.5rem 0;
+  padding: 1.25rem;
+  border: 2px dashed var(--line-2);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--faint);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.shot::before {
+  content: 'SCREENSHOT NEEDED';
+  display: block;
+  margin-bottom: 0.4rem;
+  color: var(--line-2);
+  letter-spacing: 0.16em;
+}
+
+.shot > span {
+  display: block;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  line-height: 1.5;
+}

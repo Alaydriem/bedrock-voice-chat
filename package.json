@@ -3,13 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "bedrockvoicechat.com \u2014 marketing site and wiki",
+  "description": "bedrockvoicechat.com — marketing site and wiki",
   "scripts": {
-    "dev": "astro dev --host",
-    "build": "astro build",
+    "dev": "npm run gen:versions && astro dev --host",
+    "build": "npm run gen:versions && astro build && npm run check:links",
+    "gen:versions": "node scripts/version-support.mjs",
     "preview": "astro preview --host",
     "check": "astro check",
-    "dev:local": "astro dev"
+    "dev:local": "npm run gen:versions && astro dev",
+    "check:links": "node scripts/check-links.mjs"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.41.6",
