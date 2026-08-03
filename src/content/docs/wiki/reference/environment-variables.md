@@ -96,7 +96,6 @@ These are read by the CLI, not the server:
 |---|---|
 | `BVC_SERVER` | `--server-url` for `login`. Doubles as the listen override above, distinguished by whether the value is a URL. |
 | `BVC_IDENTITY` | `--identity`, as `<gamertag>:<game>` |
-| `BVC_GAMERTAG` | `login` only |
 
 See [CLI](/wiki/reference/cli/).
 

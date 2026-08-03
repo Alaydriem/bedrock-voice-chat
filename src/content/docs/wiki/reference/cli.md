@@ -18,8 +18,6 @@ Available since beta.11.
 | `--server-url <url>` | `BVC_SERVER` | `https://127.0.0.1:3000` | Target for `login`. Other commands read it from the stored identity. |
 | `--identity <gamertag:game>` | `BVC_IDENTITY` | — | Which stored identity to act as, when more than one exists. |
 
-`BVC_GAMERTAG` is also honoured, but only by `login`.
-
 ## Identity
 
 | Command | Auth | Transport | Does |
@@ -28,7 +26,10 @@ Available since beta.11.
 | `logout` | mTLS | local | Delete the active stored identity. |
 | `whoami` | mTLS | `GET /api/auth/introspect` | Print identity, server URL, certificate expiry, and effective permissions. |
 
-`login` flags: `-p, --gamertag <name>` (env `BVC_GAMERTAG`), `--code <code>` (prompted on stdin if omitted), `-g, --game <minecraft>` (default `minecraft`).
+`login` takes one flag: `--code <code>`, prompted on stdin if omitted.
+
+The code is the whole credential. It identifies the player it was issued for, so the
+server resolves the gamertag and the game and returns both.
 
 ## Server
 
@@ -86,7 +87,7 @@ bvc admin generate-code -p Alice -g minecraft -d 3600
 # -> Code: ABCD1234
 
 # Anywhere with network access
-bvc login --gamertag Alice --code ABCD1234
+bvc login --code ABCD1234
 
 # Server host
 bvc admin bootstrap -p Alice -g minecraft

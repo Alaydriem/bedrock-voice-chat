@@ -20,7 +20,7 @@ bvc admin generate-code -p Alice -g minecraft -d 3600
 # -> Code: ABCD1234
 
 # Anywhere with network access
-bvc login --gamertag Alice --code ABCD1234
+bvc login --code ABCD1234
 
 # Back on the server host
 bvc admin bootstrap -p Alice -g minecraft
