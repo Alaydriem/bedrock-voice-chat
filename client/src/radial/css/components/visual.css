@@ -93,6 +93,37 @@ canvas[data-rad-level] {
   inset: auto;
 }
 
+/* ---- a failure, and the one screen that is not one ---- */
+
+/* Its own size container. The glyph is a fraction of the ring's inner radius and the ring
+   is a fraction of the pane's shorter axis, so `cqmin` states that whole relationship in
+   one declaration: the glyph keeps its proportion when the pane stacks on a phone, and
+   nothing measures anything per frame. 12.3cqmin is 0.72 of `RingGeometry.inner`. */
+.rad-fault {
+  position: absolute;
+  inset: 0;
+  container-type: size;
+  color: var(--color-rad-fault);
+}
+
+.rad-fault--warn {
+  color: var(--color-rad-warn);
+}
+
+.rad-fault--ok {
+  color: var(--color-rad-ok);
+}
+
+.rad-fault__glyph {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 2;
+  transform: translate(-50%, -50%);
+  font-size: 12.3cqmin;
+  line-height: 0;
+}
+
 /* ---- a visual pane's contents ---- */
 
 .rad-visual {
@@ -162,6 +193,14 @@ canvas[data-rad-level] {
      longer absolute collapses to just its caption — which is what left the ring drawn
      at a few pixels behind the caption text instead of above it. */
   .rad-visual > .rad-ring--fill {
+    position: relative;
+    inset: auto;
+    height: 288px;
+  }
+
+  /* Same treatment for a fault visual, which is the ring plus its glyph and so sits
+     between the pane and that `.rad-ring--fill`. */
+  .rad-visual > .rad-fault {
     position: relative;
     inset: auto;
     height: 288px;

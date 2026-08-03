@@ -1,4 +1,5 @@
 import { Color } from "../color/Color";
+import { MarkData } from "../mark/MarkData";
 import { RingGeometry } from "./RingGeometry";
 import type { RingSource } from "./RingSource";
 
@@ -19,6 +20,19 @@ export interface RingPaint {
   /** Draw the hairline circle just inside the bars. */
   hairline?: boolean;
   hairlineColor?: string;
+  /**
+   * Draw the hairline as an arc between two angles rather than a closed circle, so a
+   * ring with bars missing is severed through the whole assembly. A hairline left closed
+   * reads as bars that happen to be absent rather than as a circle that cannot close.
+   */
+  hairlineArc?: readonly [from: number, to: number];
+  /**
+   * Take each bar's colour from the mark's own columns, spread across the circle,
+   * instead of `base`. Sources still tint on top. The spectrum is what the product looks
+   * like when it is working, so a ring painted this way is the mark alive rather than a
+   * second palette.
+   */
+  spectrum?: boolean;
   /** Per-bar radial offset, for the implosion. */
   offsetFor?: (bar: number) => number;
   /** Per-bar alpha, for the implosion. */
@@ -98,7 +112,13 @@ export class RingRenderer {
           0.035 * Math.sin(angle * 7 - phase * 0.0015);
       }
 
-      let color = base;
+      // Indexed off the bar rather than the angle, so `rot` turns the ring and takes the
+      // colours with it instead of sweeping bars through a fixed rainbow.
+      const barBase = paint.spectrum
+        ? MarkData.COLUMNS[Math.min(MarkData.COLS - 1, Math.floor((b / BARS) * MarkData.COLS))][2]
+        : base;
+
+      let color = barBase;
       for (const source of sources) {
         // Wrapped to [-PI, PI] by subtracting whole turns. The atan2(sin, cos) form
         // this replaces cost three trig calls per bar per source — with eight voices
@@ -108,7 +128,7 @@ export class RingRenderer {
         const delta = raw - RingRenderer.TWO_PI * Math.round(raw / RingRenderer.TWO_PI);
         if (delta > RingRenderer.CUTOFF || delta < -RingRenderer.CUTOFF) continue;
         const weight = Math.exp(-(delta * delta) / denom);
-        if (weight > 0.22) color = Color.mix(base, source.hue, Math.min(1, weight * 1.3));
+        if (weight > 0.22) color = Color.mix(barBase, source.hue, Math.min(1, weight * 1.3));
         amp = Math.max(amp, hum + source.volume * weight * 0.86);
       }
 
@@ -132,8 +152,9 @@ export class RingRenderer {
     }
 
     if (paint.hairline !== false) {
+      const [from, to] = paint.hairlineArc ?? [0, Math.PI * 2];
       x.beginPath();
-      x.arc(g.cx, g.cy, g.inner, 0, Math.PI * 2);
+      x.arc(g.cx, g.cy, g.inner, from, to);
       x.strokeStyle = paint.hairlineColor ?? "rgba(148,131,182,.42)";
       x.lineWidth = 1;
       x.stroke();

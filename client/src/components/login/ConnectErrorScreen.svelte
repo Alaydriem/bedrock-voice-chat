@@ -1,5 +1,5 @@
 <script lang="ts">
-    import Ring from "$radial/components/Ring.svelte";
+    import Fault from "$radial/components/Fault.svelte";
     import RadScreen from "../shell/RadScreen.svelte";
 
     interface Props {
@@ -14,18 +14,18 @@
 </script>
 
 <!--
-  The design has no screen for a failed connect, but the flow has one and it carries
-  the only recovery actions available at that point. Composed from the kit rather than
-  left on the old card.
+  A failed connect during login is the same event as CONN01 on the error route, so it gets
+  the same severed ring rather than the empty one it used to borrow — an empty ring means
+  nobody is in range, which is a resting state and not this.
 -->
 <RadScreen label="Not connected">
     <div class="rad-split">
         <div class="rad-visual-pane">
             <div class="rad-visual">
-                <Ring mode="empty" class="rad-ring--fill" />
+                <Fault icon="unlink" />
                 <span class="rad-caption">
-                    <span class="rad-label">No answer</span>
-                    <span class="rad-caption__value">CONNECT FAILED</span>
+                    <span class="rad-label">Voice path</span>
+                    <span class="rad-caption__value">NO ANSWER · CONN01</span>
                 </span>
             </div>
         </div>

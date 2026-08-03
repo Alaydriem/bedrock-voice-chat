@@ -22,6 +22,14 @@
     gain?: number;
     /** Hold the bars at rest while the mark keeps moving. */
     ringStill?: boolean;
+    /** An angular window removed from the ring: `[centre, half-width]` in radians. */
+    cut?: readonly [centre: number, half: number];
+    /** Colour flared at the two cut ends. */
+    cutTone?: string;
+    /** Paint each bar from the mark's own columns instead of one base colour. */
+    spectrum?: boolean;
+    /** Draw the mark at the centre. Off when something else occupies it. */
+    mark?: boolean;
     /** Fixed size in px. Omit to fill the parent, which must be positioned. */
     size?: number;
     class?: string;
@@ -35,6 +43,10 @@
     spin = 0,
     gain,
     ringStill = false,
+    cut,
+    cutTone,
+    spectrum = false,
+    mark = true,
     size,
     class: className = "",
   }: Props = $props();
@@ -42,8 +54,21 @@
   let canvas: HTMLCanvasElement;
   let binding = $state<RingBinding | null>(null);
 
+  // A cut, a tone, the spectrum and the mark are all fixed for the life of a screen, so
+  // they remount the binding rather than being pushed onto it per frame like `gain`.
   $effect(() => {
-    const b = new RingBinding(canvas, { mode, scale, logoScale, spin, gain, ringStill });
+    const b = new RingBinding(canvas, {
+      mode,
+      scale,
+      logoScale,
+      spin,
+      gain,
+      ringStill,
+      cut,
+      cutTone,
+      spectrum,
+      mark,
+    });
     binding = b;
     return () => {
       b.destroy();

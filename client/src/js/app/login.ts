@@ -8,6 +8,7 @@ import { writable, derived, get, type Writable, type Readable } from 'svelte/sto
 import { stopForegroundService, isServiceRunning } from 'tauri-plugin-audio-permissions';
 import { ServerListStore } from './services/ServerListStore';
 import BVCApp from './BVCApp.ts';
+import HelpLinks from './HelpLinks';
 import Analytics from './analytics';
 import PlatformDetector from './utils/PlatformDetector.ts';
 import type { HytaleDeviceFlowStartResponse, HytaleDeviceFlowStatusResponse, LoginResponse, ServerListEntry } from '../bindings/index.ts';
@@ -79,11 +80,6 @@ export default class Login extends BVCApp {
   // neither happens the deep link was likely lost, so we fail visibly rather
   // than stranding the user on a spinner.
   private static readonly FINISH_TIMEOUT_MS = 30000;
-
-  // External help links surfaced on the connection-error view.
-  private static readonly WIKI_URL = "https://github.com/alaydriem/bedrock-voice-chat";
-  private static readonly DISCORD_URL = "https://discord.gg/WGXy5kBP9E";
-  private static readonly PRIVACY_URL = "https://raw.githubusercontent.com/Alaydriem/bedrock-voice-chat/refs/heads/master/PRIVACY_STATEMENT.md";
 
   readonly CONFIG_ENDPOINT = "/api/config";
   readonly AUTH_ENDPOINT = "/api/auth";
@@ -526,15 +522,15 @@ export default class Login extends BVCApp {
   }
 
   public openWiki(): Promise<void> {
-    return openUrl(Login.WIKI_URL);
+    return HelpLinks.openWiki();
   }
 
   public openDiscord(): Promise<void> {
-    return openUrl(Login.DISCORD_URL);
+    return HelpLinks.openDiscord();
   }
 
   public openPrivacyNotice(): Promise<void> {
-    return openUrl(Login.PRIVACY_URL);
+    return HelpLinks.openPrivacyNotice();
   }
 
   public teardownLoginFlow(): void {
