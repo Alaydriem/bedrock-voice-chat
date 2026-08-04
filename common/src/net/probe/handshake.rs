@@ -1,18 +1,17 @@
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use s2n_quic::Client;
 use s2n_quic::client::Connect;
 
 use super::{ProbeCertVerifier, ProbeTlsProvider, RouteProbe};
+use crate::net::NetTimeouts;
 use crate::structs::reachability::{AnsweredVia, ObservedCertificate, ReachabilityOutcome};
 
 pub struct HandshakeProbe;
 
 impl HandshakeProbe {
-    pub const BUDGET: Duration = Duration::from_secs(3);
-
     pub async fn probe(
         dest: SocketAddr,
         server_name: &str,
@@ -34,7 +33,7 @@ impl HandshakeProbe {
 
         let connect = Connect::new(dest).with_server_name(server_name.to_string());
         let started = Instant::now();
-        let result = tokio::time::timeout(Self::BUDGET, client.connect(connect)).await;
+        let result = tokio::time::timeout(NetTimeouts::HANDSHAKE, client.connect(connect)).await;
         let rtt_micros = started.elapsed().as_micros().min(u32::MAX as u128) as u32;
 
         let certificate = observed

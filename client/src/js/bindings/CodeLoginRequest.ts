@@ -3,10 +3,9 @@
 /**
  * A sign-in code, and nothing else.
  *
- * The code row carries the player it was issued for, so the server already knows the
- * gamertag and the game before it reads anything from the request. Asking for the
- * gamertag alongside the code added no entropy — gamertags are public, the code is the
- * secret — while adding a way for a valid code to be rejected over a typo or a
- * difference in capitalisation.
+ * The code is the credential and the identifier both: its row carries the player it was
+ * issued for, so the server resolves the gamertag and the game without being told
+ * either. A gamertag alongside it would carry no secret — gamertags are public — and
+ * could only disagree with what the code already says.
  */
 export type CodeLoginRequest = { code: string, };

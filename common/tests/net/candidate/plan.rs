@@ -1,4 +1,4 @@
-use common::net::CandidatePlan;
+use common::net::{CandidatePlan, NetTimeouts};
 use common::structs::reachability::{
     AddressFamily, AnsweredVia, EndpointReachability, ReachabilityOutcome, ServerReachability,
 };
@@ -137,26 +137,16 @@ fn measured_latency_orders_addresses_within_a_family() {
     assert_eq!(dialed, vec![fast, slow]);
 }
 
-// The preferred family is the one a probe endorsed, so it earns the full budget;
-// the other is a fallback whose only job is to not be skipped.
+// The probe's verdict decides the order and nothing else. A shorter budget for the
+// fallback family gave the least time to the attempt made after the preferred family had
+// already failed — the one most likely to be the unusual path that works.
 #[test]
-fn the_preferred_family_gets_the_longer_attempt_budget() {
+fn every_family_gets_the_same_attempt_budget() {
     let plan = CandidatePlan::build(&[v6(1), v4(1)], &[443], &ipv6_preferred());
 
-    let v6_candidate = plan
-        .candidates()
-        .iter()
-        .find(|c| c.family() == AddressFamily::Ipv6)
-        .unwrap();
-    let v4_candidate = plan
-        .candidates()
-        .iter()
-        .find(|c| c.family() == AddressFamily::Ipv4)
-        .unwrap();
-
-    assert_eq!(v6_candidate.budget(), CandidatePlan::PREFERRED_BUDGET);
-    assert_eq!(v4_candidate.budget(), CandidatePlan::FALLBACK_BUDGET);
-    assert!(CandidatePlan::FALLBACK_BUDGET < CandidatePlan::PREFERRED_BUDGET);
+    for candidate in plan.candidates() {
+        assert_eq!(candidate.budget(), NetTimeouts::HANDSHAKE);
+    }
 }
 
 // The rebind path after a failed [::] bind: v6 candidates become undialable, so

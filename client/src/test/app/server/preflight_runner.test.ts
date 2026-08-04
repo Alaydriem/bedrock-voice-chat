@@ -187,6 +187,35 @@ describe("a handshake that fails", () => {
     expect(outcome.status).toBe("unreachable");
     expect(steps[1].note).toBe("no response");
   });
+
+  /**
+   * The public config the diagnosis already fetched carries the port list, so the UDP path
+   * is still measurable. The protocol check is not: nothing produced an authenticated
+   * response for it to read.
+   */
+  it("still measures the UDP path when the server answered but refused the credentials", async () => {
+    ipc({
+      api_get_config: () => {
+        throw new Error("certificate rejected");
+      },
+    });
+    const { steps } = await run();
+    expect(steps[2].state).toBe("skipped");
+    expect(steps[3].state).toBe("ok");
+    expect(steps[3].note).toMatch(/udp\/443 open/);
+  });
+
+  it("does not probe a server that answered nothing", async () => {
+    ipc({
+      api_get_config: () => {
+        throw new Error("connection refused");
+      },
+    });
+    answering = false;
+    const { steps } = await run();
+    expect(steps[3].state).toBe("skipped");
+    expect(invokeCalls().map((call) => call.cmd)).not.toContain("probe_server");
+  });
 });
 
 describe("protocol", () => {
@@ -221,7 +250,7 @@ describe("protocol", () => {
     expect(steps[2].note).toMatch(/server is too old/);
   });
 
-  it("carries the versions out even though the sequence stopped", async () => {
+  it("carries the versions out alongside the verdict", async () => {
     ipc({
       api_get_config: () =>
         config({
@@ -233,6 +262,56 @@ describe("protocol", () => {
     const { outcome } = await run();
     expect(outcome.serverVersion).toBe("2.2.0");
     expect(outcome.clientVersion).toBe("2.1.0");
+  });
+
+  /**
+   * A mismatch does not stop the UDP path: it needs the port list, which the handshake
+   * produced, and a blocked client cannot connect and find out for itself — so this is the
+   * only place the measurement is available at all.
+   */
+  it("still measures the UDP path on a server it cannot speak to", async () => {
+    ipc({
+      api_get_config: () =>
+        config({
+          config: { protocol_version: "2.2.0", quic_port: 443, quic_ports: [443] },
+          compatible: false,
+          client_too_old: true,
+        }),
+    });
+    const { steps } = await run();
+    expect(steps[2].state).toBe("bad");
+    expect(steps[3].state).toBe("ok");
+    expect(steps[3].note).toMatch(/udp\/443 open/);
+  });
+
+  it("reports every check as having run when only the protocol failed", async () => {
+    ipc({
+      api_get_config: () =>
+        config({
+          config: { protocol_version: "2.2.0", quic_port: 443, quic_ports: [443] },
+          compatible: false,
+          client_too_old: true,
+        }),
+    });
+    const { steps } = await run();
+    expect(steps.some((step) => step.state === "skipped")).toBe(false);
+  });
+
+  // First failing check wins, and the protocol check runs before the UDP path — so a server
+  // that is both outdated and voice-blocked still leads with the update.
+  it("keeps the protocol verdict when the UDP path also fails", async () => {
+    ipc({
+      api_get_config: () =>
+        config({
+          config: { protocol_version: "2.2.0", quic_port: 443, quic_ports: [443] },
+          compatible: false,
+          client_too_old: true,
+        }),
+      probe_server: () => reachability("VoiceBlocked", 443, null),
+    });
+    const { outcome, steps } = await run();
+    expect(outcome.status).toBe("version_mismatch");
+    expect(steps[3].state).toBe("bad");
   });
 });
 

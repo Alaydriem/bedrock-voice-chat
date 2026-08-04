@@ -16,9 +16,12 @@ export type PreflightObserver = (steps: readonly PreflightStep[]) => void;
  * The four checks a server has to pass before it is worth connecting to.
  *
  * Sequential within one server and concurrent across servers, which is why a list resolves
- * in a ragged order rather than top to bottom. A failing check stops the sequence: the ones
- * after it never ran and say so, because a reader left at "pending" is waiting for a result
- * that is not coming.
+ * in a ragged order rather than top to bottom.
+ *
+ * A check is skipped when something it needed did not happen, not merely because something
+ * before it failed — so a protocol mismatch still measures the UDP path, whose port list came
+ * from the handshake rather than from the verdict. Skipped checks say so, because a reader
+ * left at "pending" is waiting for a result that is not coming.
  *
  * Certificate expiry is checked and never named. It is the mechanism behind "you are not
  * signed in any more", and naming it asks a player to understand mTLS to work out that they
@@ -46,43 +49,61 @@ export class PreflightRunner {
         this.emit();
 
         const credentials = await this.credentials(server);
-        if (!credentials) return this.stop(0, 'reauth');
+        if (!credentials) {
+            this.skipFrom(1);
+            return PreflightRunner.blank('reauth');
+        }
 
         const handshake = await this.handshake(server, credentials);
         if (!handshake) {
             // The server refusing a certificate and the server not being there both fail
             // here, and they lead to different places: one to a sign-in, one to whoever
-            // runs it. Asking the one question a server answers to anybody settles it.
-            const answering = await PublicServerConfig.isAnswering(server);
-            this.note(1, answering ? 'server refused these credentials' : 'no response');
-            return this.stop(1, answering ? 'reauth' : 'unreachable');
+            // runs it. Asking the one question a server answers to anybody settles it —
+            // and the answer carries the port list, so the UDP path is still measurable.
+            const answered = await PublicServerConfig.read(server).catch(() => null);
+            this.note(1, answered ? 'server refused these credentials' : 'no response');
+
+            // Protocol needs the authenticated response. Nothing produced one.
+            this.skipFrom(2, 2);
+
+            if (!answered) {
+                this.skipFrom(3);
+                return PreflightRunner.blank('unreachable');
+            }
+
+            const quic = await this.quicPath(server, answered.quic_port, answered.quic_ports);
+            return { ...PreflightRunner.blank('reauth'), quicPort: quic.port };
         }
 
         const { response, rtt } = handshake;
-        const slow = rtt > PreflightRunner.SLOW_MS;
-        const versions = {
+        const measured = {
             rtt,
-            slow,
+            slow: rtt > PreflightRunner.SLOW_MS,
             serverVersion: response.config.protocol_version,
             clientVersion: response.client_version,
             clientTooOld: response.client_too_old,
         };
-        const advertised = response.config.quic_port;
 
-        if (!this.protocol(response)) {
-            return {
-                ...this.stop(2, 'version_mismatch'),
-                ...versions,
-                quicPort: advertised,
-            };
-        }
+        /*
+         * The protocol check does not gate the UDP path. A check is skipped when something
+         * it needed did not happen, not merely because something before it failed — and the
+         * UDP path needs the port list, which the handshake produced.
+         *
+         * It is also the case where the measurement is worth the most: a blocked client
+         * cannot connect and find out for itself, so this is the only place the answer is
+         * available at all.
+         */
+        const compatible = this.protocol(response);
+        const quic = await this.quicPath(
+            server,
+            response.config.quic_port,
+            response.config.quic_ports,
+        );
 
-        const quic = await this.quicPath(server, response);
-        return {
-            status: quic.open ? 'connect' : 'udp_blocked',
-            ...versions,
-            quicPort: quic.port ?? advertised,
-        };
+        // First failing check wins, and the protocol check runs before this one.
+        const status = !compatible ? 'version_mismatch' : quic.open ? 'connect' : 'udp_blocked';
+
+        return { status, ...measured, quicPort: quic.port };
     }
 
     /**
@@ -155,14 +176,14 @@ export class PreflightRunner {
      */
     private async quicPath(
         server: string,
-        response: ApiConfigCheckResponse,
-    ): Promise<{ open: boolean; port: number | null }> {
+        advertised: number,
+        ports: number[],
+    ): Promise<{ open: boolean; port: number }> {
         const done = this.begin(3);
-        const advertised = response.config.quic_port;
         try {
             const report = await invoke<ServerReachability>('probe_server', {
                 server,
-                quicPorts: response.config.quic_ports,
+                quicPorts: ports,
                 quicPort: advertised,
             });
 
@@ -216,11 +237,21 @@ export class PreflightRunner {
         this.set(index, { note });
     }
 
-    /** Everything after a failure is marked as never having run, and the status stands. */
-    private stop(index: number, status: PreflightOutcome['status']): PreflightOutcome {
-        for (let i = index + 1; i < this.steps.length; i++) {
+    /**
+     * Mark checks as never having run.
+     *
+     * Named for what it says on the panel rather than for stopping: a check is skipped when
+     * something it needed did not happen, which is not the same as something before it
+     * having failed.
+     */
+    private skipFrom(from: number, to: number = this.steps.length - 1): void {
+        for (let i = from; i <= to; i++) {
             this.set(i, { state: 'skipped', note: 'not run', ms: 0 });
         }
+    }
+
+    /** An outcome with nothing measured, for a preflight that never reached the server. */
+    private static blank(status: PreflightOutcome['status']): PreflightOutcome {
         return {
             status,
             rtt: 0,

@@ -1,4 +1,4 @@
-use common::net::{NegotiationProbe, ProbeInitialPacket};
+use common::net::{NegotiationProbe, NetTimeouts, ProbeInitialPacket};
 use common::structs::reachability::{AnsweredVia, ReachabilityOutcome};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use tokio::net::UdpSocket;
@@ -54,9 +54,9 @@ async fn a_negotiating_server_answers_with_a_measured_round_trip() {
         ReachabilityOutcome::Answered { via, rtt_micros } => {
             assert_eq!(via, AnsweredVia::VersionNegotiation);
             assert!(
-                (rtt_micros as u128) <= NegotiationProbe::BUDGET.as_micros(),
+                (rtt_micros as u128) <= NetTimeouts::NEGOTIATION.as_micros(),
                 "measured {rtt_micros}us, budget is {}us",
-                NegotiationProbe::BUDGET.as_micros()
+                NetTimeouts::NEGOTIATION.as_micros()
             );
         }
         other => panic!("expected Answered, got {other:?}"),

@@ -1,13 +1,12 @@
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
+use crate::net::NetTimeouts;
 use crate::structs::reachability::{AddressFamily, AnsweredVia, ReachabilityOutcome};
 
 pub struct HttpsProbe;
 
 impl HttpsProbe {
-    pub const BUDGET: Duration = Duration::from_secs(5);
-
     // Pinning the local address is what forces the request onto the family being
     // measured; the connector would otherwise pick for itself and the result would
     // not describe either family.
@@ -19,7 +18,7 @@ impl HttpsProbe {
 
         let client = match reqwest::Client::builder()
             .use_rustls_tls()
-            .timeout(Self::BUDGET)
+            .timeout(NetTimeouts::HTTPS)
             .local_address(local)
             .build()
         {

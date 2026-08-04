@@ -1,6 +1,6 @@
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
-use common::net::NegotiationProbe;
+use common::net::{NegotiationProbe, NetTimeouts};
 use common::structs::reachability::{AnsweredVia, ReachabilityOutcome};
 
 use crate::harness::server::EmbeddedServer;
@@ -41,9 +41,9 @@ async fn a_real_quic_server_answers_the_version_negotiation_probe() {
                 "a live QUIC server must answer via version negotiation"
             );
             assert!(
-                (rtt_micros as u128) <= NegotiationProbe::BUDGET.as_micros(),
+                (rtt_micros as u128) <= NetTimeouts::NEGOTIATION.as_micros(),
                 "measured {rtt_micros}us against a {}us budget",
-                NegotiationProbe::BUDGET.as_micros()
+                NetTimeouts::NEGOTIATION.as_micros()
             );
         }
         other => panic!(

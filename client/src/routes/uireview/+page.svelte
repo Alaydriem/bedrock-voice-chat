@@ -51,19 +51,23 @@
      * same screen at once.
      */
     /**
-     * A preflight that stopped at a given check, with the ones after it never run — the shape
-     * a real failure produces.
+     * A preflight that failed at a given check, skipping only what that failure actually
+     * denies the checks after it — which is what the runner does. A protocol mismatch skips
+     * nothing, because the UDP path needs the port list rather than the verdict.
      */
     function steps(failedAt: number | null, warnHandshake = false) {
+        const denied = failedAt === 0 ? 1 : failedAt === 1 ? 2 : PREFLIGHT_STEPS.length;
+
         return PREFLIGHT_STEPS.map((name, i) => {
-            if (failedAt === null) {
-                const state: PreflightStepState = warnHandshake && i === 1 ? "warn" : "ok";
-                return { name, state, note: NOTES[i], ms: 20 + i * 9 };
+            const ms = 20 + i * 9;
+            if (i === failedAt) {
+                return { name, state: "bad" as PreflightStepState, note: FAILURES[i], ms };
             }
-            if (i < failedAt) return { name, state: "ok" as PreflightStepState, note: NOTES[i], ms: 20 + i * 9 };
-            if (i === failedAt)
-                return { name, state: "bad" as PreflightStepState, note: FAILURES[i], ms: 20 + i * 9 };
-            return { name, state: "skipped" as PreflightStepState, note: "not run", ms: 0 };
+            if (i >= denied) {
+                return { name, state: "skipped" as PreflightStepState, note: "not run", ms: 0 };
+            }
+            const state: PreflightStepState = warnHandshake && i === 1 ? "warn" : "ok";
+            return { name, state, note: NOTES[i], ms };
         });
     }
 

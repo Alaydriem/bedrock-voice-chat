@@ -10,7 +10,12 @@ import type { ApiConfigResponse } from '../../bindings/ApiConfigResponse';
  * credentials are stale. Both are the same request, so it lives in one place.
  */
 export class PublicServerConfig {
-    private static readonly TIMEOUT_MS = 5000;
+    /**
+     * Mirrors `NetTimeouts::HTTPS` in `common/src/net/timeouts.rs`, which is the source of
+     * this number and carries the reasoning. Hand-copied because ts-rs exports types and not
+     * constants; if that one moves, this moves with it.
+     */
+    private static readonly TIMEOUT_MS = 7_000;
 
     /**
      * A cleared timer rather than AbortSignal.timeout: the Tauri http plugin never removes
@@ -30,16 +35,6 @@ export class PublicServerConfig {
             return (await response.json()) as ApiConfigResponse;
         } finally {
             clearTimeout(timer);
-        }
-    }
-
-    /** Whether the server answered at all. The verdict on its credentials is separate. */
-    static async isAnswering(server: string): Promise<boolean> {
-        try {
-            await PublicServerConfig.read(server);
-            return true;
-        } catch (_) {
-            return false;
         }
     }
 }

@@ -1,7 +1,7 @@
 use std::net::{IpAddr, SocketAddr};
-use std::time::Duration;
 
 use super::ConnectCandidate;
+use crate::net::NetTimeouts;
 use crate::structs::reachability::{AddressFamily, ServerReachability};
 
 #[derive(Debug, Clone)]
@@ -11,18 +11,15 @@ pub struct CandidatePlan {
 }
 
 impl CandidatePlan {
-    // The budget a probe-endorsed family earns. Matches the per-port budget that
-    // shipped before any family logic existed.
-    pub const PREFERRED_BUDGET: Duration = Duration::from_secs(3);
-
-    // The fallback family's budget. Shorter because reaching it means the preferred
-    // family already failed, and the walk is bounded by the sum.
-    pub const FALLBACK_BUDGET: Duration = Duration::from_millis(1500);
-
     // Ordered attempt list: port order is the operator's, family order is the
     // probe's verdict, and measured latency breaks ties inside a family. A negative
     // verdict changes order only — every candidate stays, so a wrong verdict costs
     // time and never connectivity.
+    //
+    // Every candidate gets the same budget. A shorter one for the fallback family bounded
+    // the walk, but it also meant the attempt made after the preferred family had already
+    // failed — the one most likely to be the unusual path that actually works — was the
+    // attempt given the least time to complete.
     pub fn build(addrs: &[IpAddr], ports: &[u16], reachability: &ServerReachability) -> Self {
         let preference = reachability.preference();
         let v6_socket = addrs
@@ -42,18 +39,12 @@ impl CandidatePlan {
                 // silent endpoint never displaces one known to answer.
                 of_family.sort_by_key(|ip| reachability.rtt_for(ip, *port).unwrap_or(u32::MAX));
 
-                let budget = if preference.is_preferred(family) {
-                    Self::PREFERRED_BUDGET
-                } else {
-                    Self::FALLBACK_BUDGET
-                };
-
                 for ip in of_family {
                     candidates.push(ConnectCandidate::new(
                         Self::dial_address(*ip, *port, v6_socket),
                         family,
                         *port,
-                        budget,
+                        NetTimeouts::HANDSHAKE,
                     ));
                 }
             }
