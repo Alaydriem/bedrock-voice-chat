@@ -13,8 +13,11 @@
     import DevicesScreen from "../../components/setup/DevicesScreen.svelte";
     import FaultScreen from "../../components/error/FaultScreen.svelte";
     import ServerListScreen from "../../components/server/ServerListScreen.svelte";
+    import PreflightPanel from "../../components/server/PreflightPanel.svelte";
     import FaultCatalog from "../../js/app/error/FaultCatalog";
     import type { ResolveVerdict } from "../../js/app/login/AddressResolver";
+    import { PREFLIGHT_STEPS } from "../../js/app/server/preflight/PreflightStepName";
+    import type { PreflightStepState } from "../../js/app/server/preflight/PreflightStepState";
     import type { RosterStatus } from "../../js/app/server/RosterStatus";
     import type { ServerRosterEntry } from "../../js/app/server/ServerRosterEntry";
 
@@ -48,41 +51,86 @@
      * same screen at once.
      */
     /**
-     * A server list with one row in every state at once, which no real device can produce:
-     * it needs a live server, a lapsed sign-in, a dead host and two mismatched protocols
-     * saved side by side. Mocking store.json reaches the layout but only ever the failing
-     * states, because a made-up host cannot pass a health check.
+     * A preflight that stopped at a given check, with the ones after it never run — the shape
+     * a real failure produces.
      */
-    function row(host: string, status: RosterStatus, extra: Partial<ServerRosterEntry> = {}) {
+    function steps(failedAt: number | null, warnHandshake = false) {
+        return PREFLIGHT_STEPS.map((name, i) => {
+            if (failedAt === null) {
+                const state: PreflightStepState = warnHandshake && i === 1 ? "warn" : "ok";
+                return { name, state, note: NOTES[i], ms: 20 + i * 9 };
+            }
+            if (i < failedAt) return { name, state: "ok" as PreflightStepState, note: NOTES[i], ms: 20 + i * 9 };
+            if (i === failedAt)
+                return { name, state: "bad" as PreflightStepState, note: FAILURES[i], ms: 20 + i * 9 };
+            return { name, state: "skipped" as PreflightStepState, note: "not run", ms: 0 };
+        });
+    }
+
+    const NOTES = [
+        "signed in as Alaydriem",
+        "mTLS · TLS 1.3 · 24 ms round trip",
+        "2.1.0 · server 2.1.0",
+        "udp/443 open · 28 ms",
+    ];
+
+    const FAILURES = [
+        "no valid sign-in for this server",
+        "no response",
+        "client 2.1.0 · server 2.2.0 — client is too old",
+        "udp/443 unreachable · 3 probes, no response",
+    ];
+
+    /**
+     * A plate in every state at once, which no real device can produce: it needs a live
+     * server, a slow one, a lapsed sign-in, a dead host, a blocked UDP path and two
+     * mismatched protocols saved side by side. Mocking store.json reaches the layout but only
+     * ever the failing states, because a made-up host cannot pass a preflight.
+     */
+    function plate(host: string, status: RosterStatus, extra: Partial<ServerRosterEntry> = {}) {
         return {
             server: `https://${host}`,
             host,
             player: "Alaydriem",
             game: "minecraft",
             status,
-            serverVersion: "",
-            clientVersion: "",
+            steps: steps(null),
+            rtt: 24,
+            slow: false,
+            quicPort: 443,
+            serverVersion: "2.1.0",
+            clientVersion: "2.1.0",
             clientTooOld: false,
-            isCurrent: false,
+            avatarUrl: "",
+            canvasUrl: "",
             ...extra,
         } as ServerRosterEntry;
     }
 
     const ROSTER: ServerRosterEntry[] = [
-        row("s4.bedrock-legends.bedrockvc.stream", "connect", { isCurrent: true }),
-        row("voice.hearthhold.net", "reauth"),
-        row("bvc.tinyaxolotl.gg", "unreachable"),
-        row("old.example.com", "version_mismatch", {
-            serverVersion: "2.0.0",
-            clientVersion: "2.1.0",
+        plate("s4.bedrock-legends.bedrockvc.stream", "connect"),
+        plate("voice.copperandcobble.eu", "connect", {
+            slow: true,
+            rtt: 186,
+            quicPort: 8443,
+            steps: steps(null, true),
         }),
-        row("ahead.example.com", "version_mismatch", {
+        plate("voice.hearthhold.net", "udp_blocked", { steps: steps(3) }),
+        plate("bvc.tinyaxolotl.gg", "reauth", { steps: steps(0) }),
+        plate("down.example.com", "unreachable", { steps: steps(1) }),
+        plate("ahead.example.com", "version_mismatch", {
             clientTooOld: true,
             serverVersion: "2.2.0",
-            clientVersion: "2.1.0",
+            steps: steps(2),
         }),
-        row("checking.example.com", "checking"),
+        plate("old.example.com", "version_mismatch", {
+            serverVersion: "2.0.0",
+            steps: steps(2),
+        }),
+        plate("checking.example.com", "checking", { steps: steps(null).map((s) => ({ ...s, state: "pending" as PreflightStepState, note: "", ms: 0 })) }),
     ];
+
+    let reading = $state<ServerRosterEntry | null>(null);
 
     const FAULT_CODES = Object.keys(FaultCatalog.DEFINITIONS);
     let faultCode = $state("QUIC01");
@@ -216,26 +264,50 @@
             <ServerListScreen
                 entries={ROSTER}
                 isRefreshing={false}
-                appVersion="1.0.0-beta.8"
                 onchoose={noop}
-                onforget={noop}
+                onopen={(server) => (reading = ROSTER.find((p) => p.server === server) ?? null)}
                 onadd={noop}
-                onrefresh={noop}
-                onsettings={noop}
+                onrecheckall={noop}
+            />
+            <PreflightPanel
+                entry={reading}
+                onclose={() => (reading = null)}
+                onrecheck={noop}
+                onremove={noop}
+                onchoose={noop}
             />
         {/snippet}
 
-        {@render pair("Servers · one, re-checking", rosterOneBody)}
+        <!-- The smallest list this page can honestly render: `Server.initialize` sends a lone
+             healthy server straight to the dashboard, so one plate means one problem. -->
+        {@render pair("Servers · one, unhealthy", rosterOneBody)}
         {#snippet rosterOneBody()}
             <ServerListScreen
-                entries={[ROSTER[0]]}
+                entries={[ROSTER[5]]}
                 isRefreshing={true}
-                appVersion="1.0.0-beta.8"
                 onchoose={noop}
-                onforget={noop}
+                onopen={noop}
                 onadd={noop}
-                onrefresh={noop}
-                onsettings={noop}
+                onrecheckall={noop}
+            />
+        {/snippet}
+
+        {@render pair("Servers · the readout", rosterPanelBody)}
+        {#snippet rosterPanelBody()}
+            <ServerListScreen
+                entries={ROSTER.slice(0, 3)}
+                isRefreshing={false}
+                onchoose={noop}
+                onopen={noop}
+                onadd={noop}
+                onrecheckall={noop}
+            />
+            <PreflightPanel
+                entry={ROSTER[2]}
+                onclose={noop}
+                onrecheck={noop}
+                onremove={noop}
+                onchoose={noop}
             />
         {/snippet}
 

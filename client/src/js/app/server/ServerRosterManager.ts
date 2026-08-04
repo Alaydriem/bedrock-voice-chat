@@ -1,26 +1,31 @@
 import { invoke } from '@tauri-apps/api/core';
 import { error as logError, info } from '@tauri-apps/plugin-log';
 import { get, writable, type Readable, type Writable } from 'svelte/store';
-import { ServerHealthService } from '../services/ServerHealthService';
+import ImageCache from '../components/imageCache';
+import ImageCacheOptions from '../components/imageCacheOptions';
 import { ServerListStore } from '../services/ServerListStore';
 import type { NextAction } from '../shell/NextAction';
-import { RosterRowView } from './RosterRowView';
+import { PlateView } from './PlateView';
+import { PreflightRunner } from './preflight/PreflightRunner';
 import type { ServerRosterDeps } from './ServerRosterDeps';
 import type { ServerRosterEntry } from './ServerRosterEntry';
 
 /**
- * Every saved server, and what each one is worth right now.
+ * Every saved server, and whether voice will actually work on it.
  *
- * Rows appear before their checks finish and settle one at a time, because the alternative
- * is an empty screen for as long as the slowest server takes to time out — and the server
- * someone wants is usually not that one.
+ * Plates appear before their preflights finish and settle one at a time, because the
+ * alternative is an empty screen for as long as the slowest server takes to time out — and
+ * the server someone wants is usually not that one.
  *
- * Choosing a row is returned as a destination rather than performed, so which row leads
+ * Choosing a plate is returned as a destination rather than performed, so which plate leads
  * where is testable without a browser.
  */
 export class ServerRosterManager {
     static readonly ADD_HREF = '/login?addserver=true&return=/server';
     static readonly SIGN_IN_HREF = '/login';
+
+    /** A week, matching what the old card used. Operator art does not change often. */
+    private static readonly ART_TTL_SECONDS = 60 * 60 * 24 * 7;
 
     private readonly deps: ServerRosterDeps;
 
@@ -32,8 +37,11 @@ export class ServerRosterManager {
 
     constructor(deps?: Partial<ServerRosterDeps>) {
         this.deps = {
-            health: deps?.health ?? new ServerHealthService(),
             serverList: deps?.serverList ?? new ServerListStore(),
+            preflight:
+                deps?.preflight ??
+                ((server, observer) => new PreflightRunner(observer).run(server)),
+            imageCache: deps?.imageCache ?? new ImageCache(),
             forgetCredentials:
                 deps?.forgetCredentials ??
                 ((server: string) => invoke<void>('delete_credentials', { server })),
@@ -48,17 +56,14 @@ export class ServerRosterManager {
     }
 
     /**
-     * Draw the list, unchecked, and report how many rows there are.
+     * Draw the plates, unchecked, and report how many there are.
      *
-     * Checking is a separate step so the caller decides whether to wait for it. One saved
-     * server is worth waiting on, because the answer may be to skip this screen entirely;
-     * several are not, because the list is the destination either way.
+     * Preflighting is a separate step so the caller decides whether to wait for it. One
+     * saved server is worth waiting on, because the answer may be to skip this screen
+     * entirely; several are not, because the list is the destination either way.
      */
     async load(): Promise<number> {
-        const [saved, current] = await Promise.all([
-            this.deps.serverList.getServerList(),
-            this.deps.serverList.getCurrentServer(),
-        ]);
+        const saved = await this.deps.serverList.getServerList();
 
         this.entriesStore.set(
             saved.map((entry) => ({
@@ -67,12 +72,21 @@ export class ServerRosterManager {
                 player: entry.player,
                 game: entry.game ?? 'minecraft',
                 status: 'checking' as const,
+                steps: PreflightRunner.pending(),
+                rtt: 0,
+                slow: false,
+                quicPort: 443,
                 serverVersion: '',
                 clientVersion: '',
                 clientTooOld: false,
-                isCurrent: entry.server === current,
+                avatarUrl: '',
+                canvasUrl: '',
             })),
         );
+
+        // Art is decorative and slow, so it never gates a plate. A fetch that fails leaves
+        // the derived glyph and hue in place, which is the case that always works.
+        for (const entry of saved) void this.loadArt(entry.server);
 
         return saved.length;
     }
@@ -88,36 +102,40 @@ export class ServerRosterManager {
     }
 
     /**
-     * Check all servers at once. One slow host must not hold up the rest, so each row is
-     * published as its own answer lands rather than all of them at the end.
+     * Preflight every server at once. Sequential within one server, concurrent across them,
+     * which is why the plates resolve in a ragged order rather than top to bottom.
      */
     async sweep(): Promise<void> {
         const servers = get(this.entriesStore).map((entry) => entry.server);
         await Promise.all(servers.map((server) => this.checkOne(server)));
     }
 
-    /** The rows as they stand, for a caller deciding what to do after a sweep. */
+    /** The plates as they stand, for a caller deciding what to do after a sweep. */
     current(): readonly ServerRosterEntry[] {
         return get(this.entriesStore);
     }
 
-    /** Re-check one server, for a row whose answer was "not answering". */
+    /** Re-run one server's preflight, leaving the others alone. */
     async recheck(server: string): Promise<void> {
-        this.patch(server, { status: 'checking', note: undefined });
+        this.patch(server, {
+            status: 'checking',
+            steps: PreflightRunner.pending(),
+            note: undefined,
+        });
         await this.checkOne(server);
     }
 
     /**
-     * Where this row leads.
+     * Where this plate leads.
      *
-     * A row that cannot lead anywhere returns `none` and says why on the row itself,
-     * because a button that navigates nowhere is worse than one that explains.
+     * A plate that cannot lead anywhere returns `none` and says why on itself, because a
+     * button that navigates nowhere is worse than one that explains.
      */
     async choose(server: string): Promise<NextAction> {
         const entry = this.find(server);
         if (!entry) return { kind: 'none' };
 
-        switch (entry.status) {
+        switch (PlateView.of(entry).kind) {
             case 'connect':
                 await this.deps.serverList.setCurrent({
                     server: entry.server,
@@ -126,30 +144,25 @@ export class ServerRosterManager {
                 });
                 return { kind: 'navigate', href: `/dashboard?server=${entry.server}` };
 
-            case 'reauth':
-            case 'missing':
-                return {
-                    kind: 'navigate',
-                    href: `/login?reauth=true&server=${entry.server}`,
-                };
+            case 'signin':
+                return { kind: 'navigate', href: `/login?reauth=true&server=${entry.server}` };
 
-            case 'version_mismatch':
-                return entry.clientTooOld ? this.offerUpdate(server) : { kind: 'none' };
-
-            case 'unreachable':
+            case 'recheck':
                 await this.recheck(server);
                 return { kind: 'none' };
 
-            case 'checking':
-                return { kind: 'none' };
+            case 'blocked':
+                return entry.status === 'version_mismatch' && entry.clientTooOld
+                    ? this.offerUpdate(server)
+                    : { kind: 'none' };
         }
     }
 
     /**
      * Forget a server.
      *
-     * The credentials go first: a list entry with no credentials behind it is a row that
-     * offers a sign-in, while credentials with no row are invisible and stay on the device.
+     * The credentials go first: a list entry with no credentials behind it is a plate that
+     * offers a sign-in, while credentials with no plate are invisible and stay on the device.
      */
     async remove(server: string): Promise<NextAction> {
         try {
@@ -175,13 +188,13 @@ export class ServerRosterManager {
     /**
      * The server to join without asking, or null to show the list.
      *
-     * One saved server that is ready is not a choice, so it is not presented as one.
-     * Anything else about that server — a lapsed sign-in, a protocol it cannot speak — is
-     * something to be told, and the list is where that is said.
+     * One saved server that passes its preflight is not a choice, so it is not presented as
+     * one. Anything else about that server is something to be told, and the list is where
+     * that is said.
      */
     static autoJoin(entries: readonly ServerRosterEntry[]): string | null {
         if (entries.length !== 1) return null;
-        return RosterRowView.isJoinable(entries[0]) ? entries[0].server : null;
+        return PlateView.isJoinable(entries[0]) ? entries[0].server : null;
     }
 
     static hostOf(server: string): string {
@@ -210,13 +223,28 @@ export class ServerRosterManager {
     }
 
     private async checkOne(server: string): Promise<void> {
-        const result = await this.deps.health.check(server);
-        this.patch(server, {
-            status: result.status,
-            serverVersion: result.serverVersion,
-            clientVersion: result.clientVersion,
-            clientTooOld: result.clientTooOld,
+        const outcome = await this.deps.preflight(server, (steps) => {
+            this.patch(server, { steps });
         });
+        this.patch(server, outcome);
+    }
+
+    /**
+     * `avatar.png` and `canvas.png`, either of which can be absent. `getImage` answers with
+     * an empty string rather than throwing, so an absent asset and a failed fetch arrive the
+     * same way — which is what the derived fallback is for.
+     */
+    private async loadArt(server: string): Promise<void> {
+        const ttl = ServerRosterManager.ART_TTL_SECONDS;
+        const [avatarUrl, canvasUrl] = await Promise.all([
+            this.deps.imageCache
+                .getImage(new ImageCacheOptions(`${server}/assets/avatar.png`, ttl))
+                .catch(() => ''),
+            this.deps.imageCache
+                .getImage(new ImageCacheOptions(`${server}/assets/canvas.png`, ttl))
+                .catch(() => ''),
+        ]);
+        this.patch(server, { avatarUrl, canvasUrl });
     }
 
     private find(server: string): ServerRosterEntry | undefined {

@@ -1,110 +1,98 @@
 <script lang="ts">
     import Icon from "$radial/components/Icon.svelte";
-    import ProximityRing from "$radial/components/ProximityRing.svelte";
-    import { RosterRowView } from "../../js/app/server/RosterRowView";
+    import Mark from "$radial/components/Mark.svelte";
+    import { PlateView } from "../../js/app/server/PlateView";
     import type { ServerRosterEntry } from "../../js/app/server/ServerRosterEntry";
-    import RadScreen from "../shell/RadScreen.svelte";
-    import ServerRow from "./ServerRow.svelte";
+    import ServerPlate from "./ServerPlate.svelte";
 
     interface Props {
         entries: readonly ServerRosterEntry[];
         isRefreshing: boolean;
-        appVersion: string;
         onchoose: (server: string) => void;
-        onforget: (entry: ServerRosterEntry) => void;
+        onopen: (server: string) => void;
         onadd: () => void;
-        onrefresh: () => void;
-        onsettings: () => void;
+        onrecheckall: () => void;
     }
-    let {
-        entries,
-        isRefreshing,
-        appVersion,
-        onchoose,
-        onforget,
-        onadd,
-        onrefresh,
-        onsettings,
-    }: Props = $props();
+    let { entries, isRefreshing, onchoose, onopen, onadd, onrecheckall }: Props = $props();
 
-    /**
-     * The row the ring is reading, or null when nothing is being pointed at.
-     *
-     * With nothing considered it rests on the row that can be joined rather than on
-     * whichever server happens to be stored first, so the pane opens on the answer.
-     */
-    let considering = $state<ServerRosterEntry | null>(null);
-    let reading = $derived(considering ?? RosterRowView.resting(entries));
-    let view = $derived(reading ? RosterRowView.of(reading) : null);
+    const SEVERITY_DOT: Record<string, string> = {
+        ok: "var(--color-rad-ok)",
+        warn: "var(--color-rad-warn)",
+        bad: "var(--color-rad-fault)",
+        busy: "var(--color-rad-brand-lift)",
+    };
+
+    let tally = $derived(PlateView.tally(entries));
 </script>
 
-<RadScreen label="Servers">
-    <div class="rad-split">
-        <div class="rad-visual-pane">
-            <div class="rad-visual">
-                <ProximityRing mode={view?.ring ?? "empty"} class="rad-ring--fill" />
-                <span class="rad-caption">
-                    <span class="rad-label">{reading ? reading.host : "No server"}</span>
-                    <span class="rad-caption__value">{view?.caption ?? "NOTHING SAVED"}</span>
-                </span>
-            </div>
-        </div>
+<!--
+  Not RadScreen: this screen's top bar carries controls rather than a label, and its body is
+  a head plus a scrolling list rather than a split. The ring is deliberately absent — it is
+  the empty state and the status oscilloscope, never a roster, because picking a server wants
+  recognition rather than recall.
+-->
+<section class="rad-screen is-on">
+    <div class="rad-topbar">
+        <span class="rad-brand">
+            <Mark />
+            <span class="rad-wordmark">Bedrock Voice Chat</span>
+        </span>
+        <span class="rad-footbar__actions">
+            <button
+                class="rad-icon-btn"
+                onclick={onrecheckall}
+                disabled={isRefreshing}
+                title="Recheck every server"
+                aria-label="Recheck every server"
+            >
+                <Icon name="refresh" spin={isRefreshing} />
+            </button>
+            <button class="rad-btn" onclick={onadd}>
+                <Icon name="plus" /> Add a server
+            </button>
+        </span>
+    </div>
 
-        <div class="rad-content-pane rad-content-pane--top">
-            <span class="rad-label rad-rise" style="--d: 50">Your servers</span>
-            <h2 class="rad-display rad-rise" style="--d: 120; margin-top: 12px; font-size: 2rem">
-                Choose where you're <b>playing.</b>
-            </h2>
+    <div class="rad-server-head">
+        <span class="rad-label">Select a server</span>
+        <span class="rad-server-head__line"></span>
+        <span class="rad-server-head__count">
+            {entries.length}
+            {entries.length === 1 ? "server" : "servers"}
+        </span>
+    </div>
+
+    <div class="rad-server-list">
+        <div class="rad-server-grid">
+            {#each entries as entry, index (entry.server)}
+                <ServerPlate {entry} {index} {onchoose} {onopen} />
+            {/each}
+
             <!--
-              The list is checked as it draws, so the states below are worth explaining
-              once rather than per row: a lapsed sign-in and a server that is down look
-              similar in a list and are not the same problem.
+              A tile in the same grid rather than a button in the header alone: adding a
+              server is one of the things you can pick on a screen whose whole job is picking.
             -->
-            <p class="rad-body rad-rise" style="--d: 200">
-                Each one is checked as it loads. A sign-in that has lapsed can be renewed
-                here; a server that isn't answering is a question for whoever runs it.
-            </p>
-
-            <div class="rad-rise srv-list" style="--d: 280">
-                {#each entries as entry (entry.server)}
-                    <ServerRow
-                        {entry}
-                        onconsider={(e) => (considering = e)}
-                        {onchoose}
-                        {onforget}
-                    />
-                {/each}
-            </div>
-
-            <div class="rad-sheet__divider"></div>
-
-            <button class="rad-list-row" onclick={onadd}>
-                <span class="rad-list-row__icon"><Icon name="plus" /></span> Add a server
-            </button>
-            <button class="rad-list-row" onclick={onrefresh} disabled={isRefreshing}>
-                <span class="rad-list-row__icon"><Icon name="refresh" spin={isRefreshing} /></span>
-                {isRefreshing ? "Checking every server…" : "Check them again"}
-            </button>
-            <button class="rad-list-row" onclick={onsettings}>
-                <span class="rad-list-row__icon"><Icon name="gear" /></span> Settings
+            <button class="rad-server-add" onclick={onadd}>
+                <Icon name="plus" />
+                <span class="rad-server-add__label">Add a server</span>
             </button>
         </div>
     </div>
 
-    {#snippet footbar()}
-        <span class="rad-label">
-            {entries.length}
-            {entries.length === 1 ? "server saved" : "servers saved"}
+    <div class="rad-footbar">
+        <span class="rad-server-tally">
+            {#each tally as item (item.label)}
+                <span class="rad-server-tally__item">
+                    <i style="background: {SEVERITY_DOT[item.severity]}"></i>{item.count}
+                    {item.label}
+                </span>
+            {/each}
         </span>
-        <span class="rad-label rad-num">v{appVersion}</span>
-    {/snippet}
-</RadScreen>
-
-<style>
-    .srv-list {
-        margin-top: 22px;
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-    }
-</style>
+        <span class="rad-footbar__actions">
+            <button class="rad-btn" onclick={onrecheckall} disabled={isRefreshing}>
+                <Icon name="refresh" spin={isRefreshing} />
+                {isRefreshing ? "Rechecking…" : "Recheck all"}
+            </button>
+        </span>
+    </div>
+</section>
