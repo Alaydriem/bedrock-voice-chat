@@ -1,7 +1,5 @@
 <script lang="ts">
-    import Ring from "$radial/components/Ring.svelte";
-    import type { RingSource } from "$radial/core/ring/RingSource";
-    import { AnimationLoop } from "$radial/core/canvas/AnimationLoop";
+    import ProximityRing from "$radial/components/ProximityRing.svelte";
     import RadScreen from "../shell/RadScreen.svelte";
     import type { CodeLoginInput } from "../../js/app/loginCode";
 
@@ -17,21 +15,6 @@
 
     let code = $state("");
 
-    // Slow, steady, single source: the client is waiting on a person, not on a
-    // network.
-    let sources = $state<RingSource[]>([]);
-    $effect(() =>
-        AnimationLoop.shared().add((t) => {
-            sources = [
-                {
-                    angle: -Math.PI / 2,
-                    volume: 0.4 + 0.3 * Math.abs(Math.sin(t * 0.0009)),
-                    hue: "#bb8dfa",
-                },
-            ];
-        }),
-    );
-
     function submit(event: Event): void {
         event.preventDefault();
         onsubmit({ code });
@@ -42,7 +25,7 @@
     <div class="rad-split">
         <div class="rad-visual-pane">
             <div class="rad-visual">
-                <Ring mode="lock" {sources} class="rad-ring--fill" />
+                <ProximityRing mode="lock" class="rad-ring--fill" />
                 <span class="rad-caption">
                     <span class="rad-label">{isSubmitting ? "Checking" : "Waiting"}</span>
                     <span class="rad-caption__value">

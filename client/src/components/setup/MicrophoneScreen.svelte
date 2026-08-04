@@ -1,6 +1,6 @@
 <script lang="ts">
     import Loader from "$radial/components/Loader.svelte";
-    import Ring from "$radial/components/Ring.svelte";
+    import ProximityRing from "$radial/components/ProximityRing.svelte";
     import type { PermissionFlowState } from "../../js/app/PermissionRequestManager";
     import RadScreen from "../shell/RadScreen.svelte";
     import StepDots from "../shell/StepDots.svelte";
@@ -34,7 +34,10 @@
                 <Loader loading={true} phrases={PHRASES} slowAfterSeconds={0} />
             {:else}
                 <div class="rad-visual">
-                    <Ring mode={state === "denied" ? "empty" : "lock"} class="rad-ring--fill" />
+                    <ProximityRing
+                        mode={state === "denied" ? "empty" : "lock"}
+                        class="rad-ring--fill"
+                    />
                     <span class="rad-caption">
                         <span class="rad-label">Input</span>
                         <span class="rad-caption__value">

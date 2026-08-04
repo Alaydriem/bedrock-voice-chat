@@ -25,6 +25,7 @@
   let code: LoginCode | null = null;
   let resolver: AddressResolver | null = null;
   let flow: ScreenFlow | null = null;
+  const gate = new LaunchGate();
   const unsubs: Array<() => void> = [];
 
   let codeError = $state("");
@@ -115,11 +116,11 @@
 
     (async () => {
       const params = new URLSearchParams(window.location.search);
-      // An unreadable server list is not evidence of a first run. Someone who has signed in
-      // before should not be handed the introduction again because a read failed, so the
-      // benefit of the doubt goes to the sign-in screen.
-      const hasServers = await new LaunchGate().hasServers().catch(() => true);
-      const entry = LaunchGate.resolveEntry(hasServers, params);
+      // An unreadable store is not evidence of a first run. Someone who has been through the
+      // introduction should not be handed it again because a read failed, so the benefit of
+      // the doubt goes to the sign-in screen.
+      const seen = await gate.hasSeenOnboarding().catch(() => true);
+      const entry = LaunchGate.resolveEntry(seen, params);
       if (entry !== "login") flow?.go(entry);
 
       const pageState = await instance.initializePage();
@@ -266,12 +267,26 @@
       {/snippet}
     </RadScreen>
   {:else if screen === "intro"}
+    <!--
+      Leaving the introduction is what retires it, whether that was the last step or the
+      skip. Opening it is not: quitting the app part-way through should bring it back.
+    -->
     <IntroScreen
       {step}
       onstep={(n) => flow?.goStep(n)}
-      onnext={() => (flow?.isLastStep() ? flow?.go("gate") : flow?.nextStep())}
+      onnext={() => {
+        if (!flow?.isLastStep()) {
+          flow?.nextStep();
+          return;
+        }
+        void gate.markSeen();
+        flow?.go("gate");
+      }}
       onback={() => flow?.backStep()}
-      onskip={() => flow?.go("gate")}
+      onskip={() => {
+        void gate.markSeen();
+        flow?.go("gate");
+      }}
     />
   {:else if screen === "gate"}
     <GateScreen
