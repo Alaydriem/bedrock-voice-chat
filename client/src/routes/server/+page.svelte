@@ -1,68 +1,96 @@
 <script lang="ts">
   import "../../css/app.css";
+  import { onMount, onDestroy } from "svelte";
+  import RadFrame from "../../components/shell/RadFrame.svelte";
+  import RadConfirm from "../../components/shell/RadConfirm.svelte";
+  import ServerListScreen from "../../components/server/ServerListScreen.svelte";
   import Server from "../../js/app/server.ts";
-  import ServerSelectTopBar from "../../components/ServerSelectTopBar.svelte";
-  import ServerCard from "../../components/ServerCard.svelte";
-  import { onMount, onDestroy } from 'svelte';
-  // @ts-ignore
-  import murmurHash3 from "murmurhash3js";
-  import type { ServerListEntry } from "../../js/bindings/ServerListEntry";
+  import Analytics from "../../js/app/analytics";
+  import type { NextAction } from "../../js/app/shell/NextAction";
+  import type { ServerRosterEntry } from "../../js/app/server/ServerRosterEntry";
 
-  let appInstance: Server | null = $state(null);
+  let app: Server | null = null;
+  const unsubs: Array<() => void> = [];
+
+  let entries = $state<readonly ServerRosterEntry[]>([]);
   let isRefreshing = $state(false);
-  let servers: ServerListEntry[] = $state([]);
+  let appVersion = $state("");
 
-  let unsubRefreshing: (() => void) | null = null;
-  let unsubServers: (() => void) | null = null;
+  /** The row a removal is being confirmed for, or null when nothing is being confirmed. */
+  let forgetting = $state<ServerRosterEntry | null>(null);
+
+  function apply(action: NextAction): void {
+    if (action.kind === "navigate") window.location.href = action.href;
+  }
 
   onMount(() => {
     const instance = new Server();
-    appInstance = instance;
+    app = instance;
     window.App = instance;
     window.dispatchEvent(new CustomEvent("app:mounted"));
 
-    unsubRefreshing = instance.isRefreshing.subscribe((value) => {
-      isRefreshing = value;
-    });
-    unsubServers = instance.servers.subscribe((value) => {
-      servers = value;
-    });
+    unsubs.push(instance.roster.entries.subscribe((v) => (entries = v)));
+    unsubs.push(instance.roster.isRefreshing.subscribe((v) => (isRefreshing = v)));
+    unsubs.push(instance.appVersion.subscribe((v) => (appVersion = v)));
 
-    instance.initialize().catch(() => instance.showPreloader());
+    instance
+      .initialize()
+      .then((landing) => {
+        // The overlay comes down only when this page is the destination. A redirect and a
+        // deep-link handoff are both already navigating, and showing the list on the way
+        // past would flash a screen nobody asked for.
+        if (landing.kind === "navigate") window.location.href = landing.href;
+        else if (landing.kind === "show") instance.showPreloader();
+      })
+      .catch(() => instance.showPreloader());
+
     document.querySelector("body")?.classList.remove("has-min-sidebar");
   });
 
   onDestroy(() => {
-    unsubRefreshing?.();
-    unsubServers?.();
+    for (const off of unsubs) off();
   });
 
-  function hashServerId(server: string): string {
-    const bytes = new TextEncoder().encode(server);
-    const byteString = Array.from(bytes)
-      .map((byte) => String.fromCharCode(byte))
-      .join('');
-    return murmurHash3.x86.hash128(byteString);
+  async function choose(server: string): Promise<void> {
+    const next = await app!.roster.choose(server);
+    if (next.kind === "navigate" && next.href.startsWith("/dashboard")) {
+      Analytics.track("ServerSelected");
+    }
+    apply(next);
+  }
+
+  async function confirmForget(): Promise<void> {
+    const entry = forgetting;
+    forgetting = null;
+    if (entry) apply(await app!.roster.remove(entry.server));
   }
 </script>
 
-<div id="root" class="min-h-100vh flex grow">
-  <main class="w-full px-[var(--margin-x)] pb-8 mt-8 pt-8">
-    <div class="mb-8">
-      <ServerSelectTopBar
-        isRefreshing={isRefreshing}
-        onRefreshAll={() => appInstance?.refreshAll()}
-        onAddServer={() => appInstance?.addServer()}
-      />
-    </div>
-    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 xl:grid-cols-3">
-      {#each servers as entry (entry.server)}
-        <ServerCard
-          id={hashServerId(entry.server)}
-          server={entry.server}
-          onRemoved={() => appInstance?.refreshAll()}
-        />
-      {/each}
-    </div>
-  </main>
-</div>
+<RadFrame>
+  <ServerListScreen
+    {entries}
+    {isRefreshing}
+    {appVersion}
+    onchoose={choose}
+    onforget={(entry) => (forgetting = entry)}
+    onadd={() => apply(app!.addServer())}
+    onrefresh={() => void app!.roster.refreshAll()}
+    onsettings={() => (window.location.href = "/settings")}
+  />
+
+  <RadConfirm
+    open={forgetting !== null}
+    title="Forget this server?"
+    confirmLabel="Forget it"
+    cancelLabel="Keep it"
+    destructive={true}
+    onconfirm={confirmForget}
+    oncancel={() => (forgetting = null)}
+  >
+    {#snippet body()}
+      <b>{forgetting?.host}</b> is removed from this list and its saved sign-in is cleared
+      from this device. Nothing on the server changes, and you can add it again with its
+      address.
+    {/snippet}
+  </RadConfirm>
+</RadFrame>

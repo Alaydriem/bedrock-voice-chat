@@ -1,11 +1,12 @@
-import { info, error } from '@tauri-apps/plugin-log';
-import { writable, type Writable, type Readable } from 'svelte/store';
+import { getVersion } from '@tauri-apps/api/app';
+import { info } from '@tauri-apps/plugin-log';
+import { writable, type Readable, type Writable } from 'svelte/store';
 
 import BVCApp from './BVCApp.ts';
 
-import { ServerHealthService } from './services/ServerHealthService';
-import { ServerListStore } from './services/ServerListStore';
-import type { ServerListEntry } from './services/ServerListStore';
+import { ServerRosterManager } from './server/ServerRosterManager';
+import type { ServerLanding } from './server/ServerLanding';
+import type { NextAction } from './shell/NextAction';
 
 declare global {
   interface Window {
@@ -14,90 +15,65 @@ declare global {
 }
 
 export default class Server extends BVCApp {
-  private isRefreshingStore: Writable<boolean>;
-  public readonly isRefreshing: Readable<boolean>;
+  public readonly roster: ServerRosterManager;
 
-  private serversStore: Writable<ServerListEntry[]>;
-  public readonly servers: Readable<ServerListEntry[]>;
+  private appVersionStore: Writable<string>;
+  public readonly appVersion: Readable<string>;
 
-  private healthService: ServerHealthService;
-  private serverListStore: ServerListStore;
-
-  constructor() {
+  constructor(roster: ServerRosterManager = new ServerRosterManager()) {
     super();
-    this.isRefreshingStore = writable(false);
-    this.isRefreshing = { subscribe: this.isRefreshingStore.subscribe };
-    this.serversStore = writable([]);
-    this.servers = { subscribe: this.serversStore.subscribe };
-    this.healthService = new ServerHealthService();
-    this.serverListStore = new ServerListStore();
+    this.roster = roster;
+    this.appVersionStore = writable('');
+    this.appVersion = { subscribe: this.appVersionStore.subscribe };
   }
 
-  async initialize() {
+  /**
+   * Decide whether this page is the destination.
+   *
+   * Returns the destination when it is somewhere else, so the caller can keep the boot
+   * overlay up. A list that flashed on screen before redirecting past itself would be
+   * worse than a slightly longer wait.
+   */
+  async initialize(): Promise<ServerLanding> {
     if (await this.initializeDeepLinks()) {
-      return;
+      return { kind: 'handoff' };
     }
 
-    const serverList = await this.serverListStore.getServerList();
+    void this.loadAppVersion();
 
-    if (serverList.length === 0) {
-      info("No servers found, redirecting to login page");
-      window.location.href = "/login";
-      return;
+    const count = await this.roster.load();
+
+    if (count === 0) {
+      info('No servers saved, going to sign-in');
+      return { kind: 'navigate', href: ServerRosterManager.SIGN_IN_HREF };
     }
 
-    if (serverList.length === 1) {
-      const server = serverList[0].server;
-
-      try {
-        const result = await this.healthService.check(server);
-        switch (result.status) {
-          case 'connect':
-            window.location.href = "/dashboard";
-            return;
-          case 'reauth':
-            window.location.href = `/login?reauth=true&server=${server}`;
-            return;
-          case 'missing':
-            window.location.href = "/login";
-            return;
-          case 'version_mismatch':
-            break;
-        }
-      } catch (e) {
-        error(`Server unreachable or credentials invalid for ${server}: ${e}`);
-        window.location.href = `/login?reauth=true&server=${server}`;
-        return;
+    // A single server is worth waiting for a verdict on, because the verdict may be that
+    // this page has nothing to ask. Several are not: the list is the destination either
+    // way, so the rows settle in front of the user rather than behind the overlay.
+    if (count === 1) {
+      await this.roster.sweep();
+      const only = ServerRosterManager.autoJoin(this.roster.current());
+      if (only) {
+        const next = await this.roster.choose(only);
+        if (next.kind === 'navigate') return next;
       }
+    } else {
+      void this.roster.sweep();
     }
 
-    // Reveal the selection UI only once we know we are staying on this page.
-    // Every branch above either redirects or returns, keeping the preloader
-    // overlay up so a single-server auto-redirect never flashes the grid.
-    this.serversStore.set(serverList);
-    this.showPreloader();
+    return { kind: 'show' };
   }
 
-  async refreshAll(): Promise<void> {
-    this.isRefreshingStore.set(true);
-    try {
-      const serverList = await this.serverListStore.getServerList();
-      if (serverList.length === 0) {
-        info("Server list empty after refresh, redirecting to login page");
-        window.location.href = "/login";
-        return;
-      }
-      this.serversStore.set(serverList);
-    } finally {
-      this.isRefreshingStore.set(false);
-    }
-  }
-
-  addServer(): void {
-    window.location.href = "/login?addserver=true&return=/server";
+  addServer(): NextAction {
+    return { kind: 'navigate', href: ServerRosterManager.ADD_HREF };
   }
 
   showPreloader(): void {
     this.preloader();
+  }
+
+  private async loadAppVersion(): Promise<void> {
+    this.appVersionStore.set(await getVersion());
   }
 }

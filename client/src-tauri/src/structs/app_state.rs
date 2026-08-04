@@ -83,6 +83,18 @@ impl AppState {
         pool.insert(endpoint, api);
     }
 
+    /// Add a client to the pool without claiming the current server.
+    ///
+    /// `current_server` decides which server `logout` clears credentials for, and which
+    /// one commands called without an explicit endpoint act on. A status sweep over every
+    /// saved server must leave it alone, or whichever check finishes last becomes the
+    /// server a later action lands on.
+    pub async fn pool_api_client(&self, endpoint: String, ca_cert: String, pem: String) {
+        let api = Api::new(endpoint.clone(), ca_cert, pem, self.family_preference.clone());
+        let mut pool = self.server_pool.write().await;
+        pool.insert(endpoint, api);
+    }
+
     /// Get the API client, returning an error if not initialized
     pub(crate) fn get_api_client(&self) -> Result<&Api, String> {
         self.api_client

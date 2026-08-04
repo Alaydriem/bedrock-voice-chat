@@ -272,6 +272,7 @@ pub fn run() {
             crate::commands::network::reset_nsm,
             // API implementation
             crate::api::commands::api_initialize_client,
+            crate::api::commands::api_pool_client,
             crate::api::commands::api_ping,
             crate::api::commands::api_get_config,
             crate::api::commands::api_create_channel,

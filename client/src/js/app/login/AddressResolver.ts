@@ -1,11 +1,10 @@
 import { invoke } from '@tauri-apps/api/core';
-import { fetch } from '@tauri-apps/plugin-http';
 import { warn } from '@tauri-apps/plugin-log';
 import { writable, type Readable, type Writable } from 'svelte/store';
 import type { RingMode } from '$radial/bindings/RingBinding';
-import type { ApiConfigResponse } from '../../bindings/ApiConfigResponse';
 import type { ProtocolCompatibility } from '../../bindings/ProtocolCompatibility';
 import type { ServerReachability } from '../../bindings/ServerReachability';
+import { PublicServerConfig } from '../services/PublicServerConfig';
 
 export interface ResolveVerdict {
     readonly state: 'editing' | 'ok' | 'bad';
@@ -32,7 +31,6 @@ export interface ResolveVerdict {
 export default class AddressResolver {
     static readonly HOSTNAME = /^[a-z0-9.-]+\.[a-z]{2,}$/i;
     static readonly DEBOUNCE_MS = 700;
-    private static readonly CONFIG_TIMEOUT_MS = 5000;
     private static readonly STANDARD_QUIC_PORT = 443;
 
     private static readonly EDITING: ResolveVerdict = {
@@ -161,7 +159,7 @@ export default class AddressResolver {
     private async measure(host: string, generation: number): Promise<void> {
         const server = `https://${host}`;
         try {
-            const config = await this.fetchConfig(server);
+            const config = await PublicServerConfig.read(server);
 
             // Compatibility is checked before reachability is reported: a server this
             // build cannot speak to is not made better by having a fast voice path,
@@ -187,27 +185,6 @@ export default class AddressResolver {
             warn(`Address probe failed for ${host}: ${String(e)}`);
             if (generation !== this.generation) return;
             this.verdictStore.set(AddressResolver.NO_RESPONSE);
-        }
-    }
-
-    /**
-     * A cleared timer rather than AbortSignal.timeout: the Tauri http plugin never
-     * removes its abort listener, so a timeout firing after a completed request
-     * cancels a resource id that has already been dropped — which is the invalid
-     * resource id error that once flooded Sentry.
-     */
-    private async fetchConfig(server: string): Promise<ApiConfigResponse> {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), AddressResolver.CONFIG_TIMEOUT_MS);
-        try {
-            const response = await fetch(`${server}/api/config`, {
-                method: 'GET',
-                signal: controller.signal,
-            });
-            if (response.status !== 200) throw new Error(`config returned ${response.status}`);
-            return (await response.json()) as ApiConfigResponse;
-        } finally {
-            clearTimeout(timer);
         }
     }
 }

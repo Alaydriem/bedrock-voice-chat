@@ -12,8 +12,11 @@
     import NotificationsScreen from "../../components/setup/NotificationsScreen.svelte";
     import DevicesScreen from "../../components/setup/DevicesScreen.svelte";
     import FaultScreen from "../../components/error/FaultScreen.svelte";
+    import ServerListScreen from "../../components/server/ServerListScreen.svelte";
     import FaultCatalog from "../../js/app/error/FaultCatalog";
     import type { ResolveVerdict } from "../../js/app/login/AddressResolver";
+    import type { RosterStatus } from "../../js/app/server/RosterStatus";
+    import type { ServerRosterEntry } from "../../js/app/server/ServerRosterEntry";
 
     /**
      * Every login and setup screen, at both reference frame sizes, on one page.
@@ -44,6 +47,43 @@
      * needs an update to exist and then commits to installing it, and any two states of the
      * same screen at once.
      */
+    /**
+     * A server list with one row in every state at once, which no real device can produce:
+     * it needs a live server, a lapsed sign-in, a dead host and two mismatched protocols
+     * saved side by side. Mocking store.json reaches the layout but only ever the failing
+     * states, because a made-up host cannot pass a health check.
+     */
+    function row(host: string, status: RosterStatus, extra: Partial<ServerRosterEntry> = {}) {
+        return {
+            server: `https://${host}`,
+            host,
+            player: "Alaydriem",
+            game: "minecraft",
+            status,
+            serverVersion: "",
+            clientVersion: "",
+            clientTooOld: false,
+            isCurrent: false,
+            ...extra,
+        } as ServerRosterEntry;
+    }
+
+    const ROSTER: ServerRosterEntry[] = [
+        row("s4.bedrock-legends.bedrockvc.stream", "connect", { isCurrent: true }),
+        row("voice.hearthhold.net", "reauth"),
+        row("bvc.tinyaxolotl.gg", "unreachable"),
+        row("old.example.com", "version_mismatch", {
+            serverVersion: "2.0.0",
+            clientVersion: "2.1.0",
+        }),
+        row("ahead.example.com", "version_mismatch", {
+            clientTooOld: true,
+            serverVersion: "2.2.0",
+            clientVersion: "2.1.0",
+        }),
+        row("checking.example.com", "checking"),
+    ];
+
     const FAULT_CODES = Object.keys(FaultCatalog.DEFINITIONS);
     let faultCode = $state("QUIC01");
     const fault = $derived(FaultCatalog.resolve(faultCode));
@@ -168,6 +208,34 @@
                 onchangeserver={noop}
                 onwiki={noop}
                 ondiscord={noop}
+            />
+        {/snippet}
+
+        {@render pair("Servers · every state", rosterBody)}
+        {#snippet rosterBody()}
+            <ServerListScreen
+                entries={ROSTER}
+                isRefreshing={false}
+                appVersion="1.0.0-beta.8"
+                onchoose={noop}
+                onforget={noop}
+                onadd={noop}
+                onrefresh={noop}
+                onsettings={noop}
+            />
+        {/snippet}
+
+        {@render pair("Servers · one, re-checking", rosterOneBody)}
+        {#snippet rosterOneBody()}
+            <ServerListScreen
+                entries={[ROSTER[0]]}
+                isRefreshing={true}
+                appVersion="1.0.0-beta.8"
+                onchoose={noop}
+                onforget={noop}
+                onadd={noop}
+                onrefresh={noop}
+                onsettings={noop}
             />
         {/snippet}
 
