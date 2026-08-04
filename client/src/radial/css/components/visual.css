@@ -238,7 +238,7 @@ canvas[data-rad-level] {
   /* The panes have stacked, so the mark has the whole width to itself rather than the
      44% it shares with a column of copy. Sized to the height a stacked visual gets, so
      a loader and a landed ring are the same object at the same size. */
-  .rad-loader > canvas {
+  .rad-loader > .rad-ring {
     width: min(86cqi, 288px);
   }
 }
@@ -252,13 +252,15 @@ canvas[data-rad-level] {
   gap: 18px;
 }
 
-/* The loader owns no size of its own — the sequence measures this box every frame.
+/* The loader owns no size of its own — the binding measures this box every frame.
    Same pair of inputs as a visual pane's mark, so the boot overlay, the launch screen
    and a pane all render the mark at one size and handing over between them does not
    jump: 44% of the container against the height left once the bars and the status line
-   are accounted for. */
-.rad-loader > canvas {
-  display: block;
+   are accounted for.
+
+   The box belongs on the wrapper: the loader's canvas is a grandchild, and a `.rad-ring`
+   given no size contributes no height, because its canvas is absolutely positioned. */
+.rad-loader > .rad-ring {
   width: max(180px, min(44cqi, calc(100dvh - 260px)));
   aspect-ratio: 1;
 }

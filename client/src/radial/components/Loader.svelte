@@ -1,24 +1,26 @@
 <script lang="ts">
-  import { onDestroy, type Snippet } from "svelte";
+  import { type Snippet } from "svelte";
+  import ProximityRing from "./ProximityRing.svelte";
   import { AnimationLoop } from "$radial/core/canvas/AnimationLoop";
-  import { IntroSequence } from "$radial/core/intro/IntroSequence";
   import { LoaderStatus } from "$radial/core/intro/LoaderStatus";
 
   interface Props {
-    /** While true the mark dances. Flip to false and it collapses to its flat row. */
+    /** While true the ring is live and the mark dances. Off holds it empty. */
     loading?: boolean;
-    /** Play the full boot sequence before settling into the dance. */
-    withIntro?: boolean;
     /**
      * A fixed size in CSS px. Omit and the stylesheet owns the size, which is what
      * every screen wants — a 330px mark is most of a phone and a tenth of a desktop
      * window, so a fixed number cannot be right in both places.
      */
     size?: number;
-    /** Null keeps the alpha channel, so the loader sits on whatever is behind it. */
-    background?: string | null;
-    /** Fires once the collapse has landed. */
-    onfinished?: () => void;
+    /**
+     * Mark amplitude while it dances, 0 to 1.
+     *
+     * Full by default: this is the same object the introduction, the gate and a resolved
+     * address show, and it should not be recognisably quieter here. Lower it for a screen
+     * that wants the mark to defer to something beside it.
+     */
+    idleGain?: number;
     /** Cycled beneath the mark once the wait is long enough. Omit for silence. */
     phrases?: readonly string[];
     slowAfterSeconds?: number;
@@ -28,47 +30,19 @@
 
   let {
     loading = true,
-    withIntro = false,
     size,
-    background = null,
-    onfinished,
+    idleGain = 1,
     phrases = [],
     slowAfterSeconds = 4,
     children,
   }: Props = $props();
 
-  let canvas: HTMLCanvasElement;
-  let sequence: IntroSequence | null = null;
-  let collapsing = false;
-
   let visible = $state(false);
   let glyph = $state("");
   let phrase = $state("");
 
-  $effect(() => {
-    sequence = new IntroSequence(
-      canvas,
-      size === undefined
-        ? { fluid: true, background }
-        : { width: size, height: size, background },
-    );
-    sequence.startLoading(withIntro);
-    return () => {
-      sequence?.stop();
-      sequence = null;
-    };
-  });
-
-  // The collapse is the completion signal, so the caller can route on a finished
-  // animation rather than on a timeout that may or may not have been long enough.
-  $effect(() => {
-    if (loading || collapsing || !sequence) return;
-    collapsing = true;
-    void sequence.finishCollapse().then(() => onfinished?.());
-  });
-
   // Stepped from the kit's shared rAF loop rather than an interval: motion has to
-  // survive Android WebView settings that suppress CSS animation, and the mark
+  // survive Android WebView settings that suppress CSS animation, and the ring
   // already depends on this loop, so a second timer buys nothing.
   $effect(() => {
     if (!loading || phrases.length === 0) {
@@ -87,12 +61,14 @@
       phrase = frame.phrase;
     });
   });
-
-  onDestroy(() => sequence?.stop());
 </script>
 
+<!--
+  A wait, drawn as the product's own object: `ProximityRing`, the same component the
+  introduction's proximity step, the gate and a resolved address show.
+-->
 <div class="rad-loader">
-  <canvas bind:this={canvas}></canvas>
+  <ProximityRing mode={loading ? "live" : "empty"} gain={idleGain} {size} />
   {#if visible}
     <p class="rad-loader__status" role="status" aria-live="polite">
       <span class="rad-loader__glyph" aria-hidden="true">{glyph}</span>

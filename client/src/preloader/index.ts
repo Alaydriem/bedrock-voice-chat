@@ -2,8 +2,7 @@ import { RingBinding } from "$radial/bindings/RingBinding";
 import { AnimationLoop } from "$radial/core/canvas/AnimationLoop";
 import { Visibility } from "$radial/core/canvas/Visibility";
 import { LoaderStatus } from "$radial/core/intro/LoaderStatus";
-import { MarkData } from "$radial/core/mark/MarkData";
-import type { RingSource } from "$radial/core/ring/RingSource";
+import { ProximityCast } from "$radial/core/sources/ProximityCast";
 
 /**
  * The boot preloader in `app.html`.
@@ -14,11 +13,10 @@ import type { RingSource } from "$radial/core/ring/RingSource";
  * imports — everything it uses is compiled in — which is the constraint the previous
  * hand-written version stated and this one keeps.
  *
- * It draws the same thing the introduction's first step does, through the same
- * renderer: a live ring with voices on it and the mark at full amplitude in its own
- * spectrum. Deliberately not the boot sequence, which rests at a third of its gain
- * with the ring drained toward violet-grey — correct as an arrival, but this overlay
- * is a wait, and it was reading as grey circles.
+ * It draws what `ProximityRing` draws in the app — the cast of `ProximityCast` placed on a
+ * live ring, with the mark dancing at full amplitude — so the overlay and the first screen
+ * it hands over to are the same object. Expressed through `RingBinding` rather than the
+ * component, because Svelte is in the bundle this file exists to run without.
  */
 
 // Routes that can hang before they put a screen up, leaving this overlay as the only
@@ -29,10 +27,15 @@ const ESCAPE_HATCH_ROUTES = ["/", "/dashboard", "/settings", "/server", "/setup"
 const ESCAPE_HATCH_DELAY_MS = 10000;
 
 // Staged reveal: the mark shows instantly, the status copy only once a load is slow
-// enough for text to be worth reading.
-const STATUS_AFTER_SECONDS = 1;
+// enough for text to be worth reading. Three seconds, not one — a normal launch finishes
+// inside that, and a line of text that appears and is gone again reads as a glitch rather
+// than as an explanation.
+const STATUS_AFTER_SECONDS = 3;
 const FRAME_SECONDS = 0.09;
 const PHRASE_SECONDS = 1.6;
+
+/** Withholds the paint but keeps the box, so revealing these costs no layout. */
+const QUIET_CLASS = "app-preloader-quiet";
 
 const STATUS_PHRASES = [
     "Getting things ready…",
@@ -40,12 +43,8 @@ const STATUS_PHRASES = [
     "Almost there…",
 ];
 
-// Three voices, hues taken from columns of the mark so the ring is provably part of
-// the palette rather than picked next to it. Same cast shape as the gate's live state.
-const VOICES = [1, 8, 14].map((column, i) => ({
-    hue: MarkData.hueAt(column),
-    phase: i * 1.6,
-}));
+/** As many of the cast as `ProximityRing` places in the app. */
+const CAST_COUNT = 4;
 
 class AppPreloaderController {
     private readonly root: HTMLElement;
@@ -73,11 +72,11 @@ class AppPreloaderController {
     }
 
     /**
-     * The ring, live, with voices moving on it.
+     * The ring, live, with the cast placed on it.
      *
-     * No size is passed: `RingBinding` fits itself to the canvas's CSS box every
-     * frame, so the stylesheet owns the size and a window resize needs no handling
-     * here at all.
+     * No size is passed: `RingBinding` fits itself to the canvas's CSS box every frame, so
+     * the stylesheet owns the size and a resize needs no handling here at all. A live ring
+     * dances the mark at full amplitude, which is what the app's own loader shows.
      */
     private startMark(): void {
         if (!this.markEl) return;
@@ -85,12 +84,7 @@ class AppPreloaderController {
 
         const ring = this.ring;
         this.stopSources = AnimationLoop.shared().add((t) => {
-            const sources: RingSource[] = VOICES.map((v, i) => ({
-                angle: -Math.PI / 2 + i * ((Math.PI * 2) / 3) + Math.sin(t * 0.0005 + i) * 0.4,
-                volume: 0.55 + 0.45 * Math.abs(Math.sin(t * 0.0018 + v.phase)),
-                hue: v.hue,
-            }));
-            ring.setSources(sources);
+            ring.setSources(ProximityCast.placements(t, CAST_COUNT));
         });
     }
 
@@ -112,12 +106,15 @@ class AppPreloaderController {
             const settled = status.at(STATUS_AFTER_SECONDS);
             this.frameEl.textContent = settled.glyph;
             this.statusEl.textContent = settled.phrase;
-            this.headlineEl.hidden = false;
-            this.statusEl.hidden = false;
+            this.reveal();
             return;
         }
 
         let start: number | null = null;
+        let revealed = false;
+        let glyph = "";
+        let phrase = "";
+
         this.stopFrames = AnimationLoop.shared().add((t) => {
             if (this.isDismissed()) {
                 this.teardown();
@@ -126,11 +123,39 @@ class AppPreloaderController {
             start ??= t;
             const frame = status.at((t - start) / 1000);
             if (!frame.visible) return;
-            this.headlineEl!.hidden = false;
-            this.statusEl!.hidden = false;
-            this.frameEl!.textContent = frame.glyph;
-            this.statusEl!.textContent = frame.phrase;
+
+            if (!revealed) {
+                revealed = true;
+                this.reveal();
+            }
+
+            /*
+             * Written only when they change.
+             *
+             * The glyph turns eleven times a second and the phrase every 1.6, on a loop
+             * that runs sixty times a second — so all but a fraction of these assignments
+             * set the text to what it already said. They were not free: assigning
+             * `textContent` invalidates layout, and `Surface.fit` measures the canvas with
+             * `getBoundingClientRect` on the very next callback, which turns an invalidated
+             * layout into a synchronous reflow. One per frame, on the screen that is up
+             * precisely because the device is already busy.
+             */
+            if (frame.glyph !== glyph) {
+                glyph = frame.glyph;
+                this.frameEl!.textContent = glyph;
+            }
+            if (frame.phrase !== phrase) {
+                phrase = frame.phrase;
+                this.statusEl!.textContent = phrase;
+            }
         });
+    }
+
+    /** Paints what was already holding its place in the layout. */
+    private reveal(): void {
+        this.frameEl?.classList.remove(QUIET_CLASS);
+        this.statusEl?.classList.remove(QUIET_CLASS);
+        this.headlineEl?.classList.remove(QUIET_CLASS);
     }
 
     private armHatch(): void {
@@ -158,18 +183,22 @@ class AppPreloaderController {
             ?.addEventListener("click", () => {
                 if (this.actionsEl) this.actionsEl.hidden = true;
                 if (this.headlineEl) this.headlineEl.textContent = "Loading…";
-                this.scheduleReveal();
+                this.scheduleHatch();
             });
 
-        this.scheduleReveal();
+        this.scheduleHatch();
     }
 
-    private scheduleReveal(): void {
+    /**
+     * Unlike the status line, this one is meant to change the layout: it is a different
+     * state with something to act on, not the same wait with a caption.
+     */
+    private scheduleHatch(): void {
         setTimeout(() => {
             if (this.isDismissed()) return;
             if (this.headlineEl) {
                 this.headlineEl.textContent = "This is taking longer than expected.";
-                this.headlineEl.hidden = false;
+                this.headlineEl.classList.remove(QUIET_CLASS);
             }
             if (this.actionsEl) this.actionsEl.hidden = false;
         }, ESCAPE_HATCH_DELAY_MS);

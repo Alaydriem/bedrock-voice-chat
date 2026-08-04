@@ -1,12 +1,10 @@
 <script lang="ts">
-    import Ring from "$radial/components/Ring.svelte";
+    import ProximityRing from "$radial/components/ProximityRing.svelte";
     import LevelMeter from "$radial/components/LevelMeter.svelte";
     import { AnimationLoop } from "$radial/core/canvas/AnimationLoop";
-    import { MarkData } from "$radial/core/mark/MarkData";
-    import { PositionalSource } from "$radial/core/sources/PositionalSource";
+    import { ProximityCast } from "$radial/core/sources/ProximityCast";
     import { TimelineBinding } from "$radial/bindings/TimelineBinding";
     import { StepFlow } from "$radial/core/controllers/StepFlow";
-    import type { RingSource } from "$radial/core/ring/RingSource";
     import RadScreen from "../shell/RadScreen.svelte";
     import StepDots from "../shell/StepDots.svelte";
 
@@ -32,29 +30,11 @@
      * Eight people, placed on the ring and moving.
      *
      * Synthetic on purpose: the introduction runs before there is a server, so there
-     * is no real data to show. Hues come from columns of the mark, so a player's
-     * colour is provably part of the palette rather than picked next to it.
-     *
-     * Phases are spread across the whole cycle and radii stay inside the audible
-     * range. Both matter: a cast that falls silent together, or wanders past 80 m,
-     * makes the screen that sells proximity look like it has broken.
+     * is no real data to show. The cast, the falloff and the always-talking level live in
+     * `ProximityCast` because the sign-in gate shows the same demonstration; the reasoning
+     * about phases, radii and the speaking threshold is there with them.
      */
-    /**
-     * The four on step one are close, and that is load-bearing rather than cosmetic.
-     * Falloff is quadratic, so a player at 0.7 of range contributes (1 - 0.7)² = 0.09
-     * — under the meter's own 0.08 speaking threshold, which greys the row out. Anyone
-     * meant to look audible has to actually be near.
-     */
-    const ROSTER = [
-        { name: "ALAYDRIEM", hue: MarkData.hueAt(1), bearing: 0.55, drift: 0.00040, radius: 0.14, breathe: 0.00009 },
-        { name: "PETRA", hue: MarkData.hueAt(4), bearing: 1.8, drift: -0.00029, radius: 0.22, breathe: 0.00006 },
-        { name: "JUNO", hue: MarkData.hueAt(8), bearing: 3.0, drift: 0.00022, radius: 0.3, breathe: 0.00004 },
-        { name: "MARROW", hue: MarkData.hueAt(11), bearing: 4.2, drift: -0.00018, radius: 0.38, breathe: 0.00007 },
-        { name: "VESPER", hue: MarkData.hueAt(14), bearing: 5.4, drift: 0.00031, radius: 0.26, breathe: 0.00005 },
-        { name: "CASS", hue: MarkData.hueAt(17), bearing: 2.4, drift: 0.00026, radius: 0.34, breathe: 0.00008 },
-        { name: "RILEY", hue: MarkData.hueAt(19), bearing: 4.9, drift: -0.00024, radius: 0.2, breathe: 0.00005 },
-        { name: "ODEN", hue: MarkData.hueAt(22), bearing: 1.1, drift: 0.00019, radius: 0.42, breathe: 0.00006 },
-    ];
+    const ROSTER = ProximityCast.ROSTER;
 
     /**
      * Step one shows four, not the whole roster: five rows of readout overflowed the
@@ -63,23 +43,8 @@
      */
     const NEARBY = ROSTER.slice(0, 4);
 
-    /**
-     * A voice that is always saying something.
-     *
-     * `SyntheticLevelSource` gates half of its cycle to exact silence, which is
-     * honest for a roster but wrong here: below 0.03 a voice leaves the ring
-     * entirely and its row greys out, so a screen meant to show constant activity
-     * spent half its time looking dead. Same two-sine shape as the mark's own dance,
-     * floored so it never reaches zero.
-     */
-    function voice(t: number, index: number): number {
-        const phase = (index * Math.PI * 2) / ROSTER.length;
-        const a = 0.5 + 0.5 * Math.sin(t * 0.0027 + phase);
-        const b = 0.5 + 0.5 * Math.sin(t * 0.0011 + phase * 1.7);
-        return 0.34 + 0.66 * (a * 0.62 + b * 0.38);
-    }
-
-    let placements = $state<RingSource[]>([]);
+    // The ring is `ProximityRing`, which places the cast itself and reports how many are in
+    // earshot. What is left here is the readout beside it: the same cast, read as rows.
     let audible = $state(0);
     let levels = $state(NEARBY.map(() => 0));
     let readouts = $state(NEARBY.map(() => ({ live: false, gain: "––", range: "–" })));
@@ -87,35 +52,23 @@
     $effect(() =>
         AnimationLoop.shared().add((t) => {
             if (step !== 1) return;
-            const next: RingSource[] = [];
             const nextLevels: number[] = [];
-            const rows = NEARBY.map((p, i) => {
-                const distance =
-                    Math.max(0.08, Math.min(0.55, p.radius + Math.sin(t * p.breathe + i) * 0.08)) *
-                    PositionalSource.RANGE;
-                const source = PositionalSource.toRingSource(
-                    { bearing: p.bearing + t * p.drift, distance, hue: p.hue },
-                    voice(t, i),
-                );
+            readouts = NEARBY.map((_p, i) => {
+                const distance = ProximityCast.distance(i, t);
                 // The meter shows the player's own voice, exactly as the channel step
                 // does: raw, floored, always moving. Falloff belongs to the ring and to
                 // the percentage — how loud they are *to you* — not to the waveform,
                 // which greyed out the moment distance pushed it under the meter's
                 // 0.08 speaking threshold.
-                const own = voice(t, i);
-                const volume = source?.volume ?? 0;
-                if (source) next.push(source);
-                nextLevels.push(own);
+                nextLevels.push(ProximityCast.voice(t, i));
+                const volume = ProximityCast.placement(i, t)?.volume ?? 0;
                 return {
                     live: volume > 0,
                     gain: `${Math.round(volume * 100)}%`,
                     range: `${Math.round(distance)} m`,
                 };
             });
-            placements = next;
             levels = nextLevels;
-            readouts = rows;
-            audible = next.length;
         }),
     );
 
@@ -125,7 +78,7 @@
     $effect(() => {
         if (step !== 2) return;
         return AnimationLoop.shared().add((t) => {
-            channelLevels = ROSTER.map((_, i) => voice(t, i));
+            channelLevels = ROSTER.map((_, i) => ProximityCast.voice(t, i));
         });
     });
 
@@ -196,7 +149,11 @@
         <div class="rad-visual-pane">
             {#if step === 1}
                 <div class="rad-visual">
-                    <Ring mode="live" sources={placements} class="rad-ring--fill" />
+                    <ProximityRing
+                        count={NEARBY.length}
+                        onaudible={(n) => (audible = n)}
+                        class="rad-ring--fill"
+                    />
                     <span class="rad-caption">
                         <span class="rad-label">Your range</span>
                         <span class="rad-caption__value">80 M &middot; {audible} IN EARSHOT</span>

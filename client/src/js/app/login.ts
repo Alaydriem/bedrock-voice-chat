@@ -7,6 +7,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { writable, derived, get, type Writable, type Readable } from 'svelte/store';
 import { stopForegroundService, isServiceRunning } from 'tauri-plugin-audio-permissions';
 import { ServerListStore } from './services/ServerListStore';
+import MinecraftAuthUrl from './auth/MinecraftAuthUrl';
+import FinishWatchdog from './login/FinishWatchdog';
 import BVCApp from './BVCApp.ts';
 import HelpLinks from './HelpLinks';
 import Analytics from './analytics';
@@ -75,11 +77,6 @@ export default class Login extends BVCApp {
   // user on a frozen "connecting" view.
   static readonly LOGIN_ERROR_KEY = "login_error";
 
-  // Once the user returns from the external browser we expect the auth callback
-  // to either navigate away (success) or surface an error within this window. If
-  // neither happens the deep link was likely lost, so we fail visibly rather
-  // than stranding the user on a spinner.
-  private static readonly FINISH_TIMEOUT_MS = 30000;
 
   readonly CONFIG_ENDPOINT = "/api/config";
   readonly AUTH_ENDPOINT = "/api/auth";
@@ -119,7 +116,7 @@ export default class Login extends BVCApp {
   // real app resume (mobile) should start the finishing flow; a desktop window
   // that merely keeps focus while the browser is open must not.
   private wasHiddenDuringHandoff = false;
-  private finishWatchdog: ReturnType<typeof setTimeout> | null = null;
+  private readonly finishWatchdog: FinishWatchdog;
 
   private platformDetector: PlatformDetector;
 
@@ -147,6 +144,16 @@ export default class Login extends BVCApp {
     this.isFinishing = { subscribe: this.isFinishingStore.subscribe };
     this.authUrl = { subscribe: this.authUrlStore.subscribe };
     this.platformDetector = new PlatformDetector();
+    this.finishWatchdog = new FinishWatchdog(
+      () => get(this.loginStateStore) === 'connecting',
+      () => this.callbackInFlight(),
+      () => {
+        this.isHandoffStore.set(false);
+        this.isFinishingStore.set(false);
+        this.loginStateStore.set('error');
+      },
+      info,
+    );
   }
 
   async initialize() {
@@ -573,21 +580,29 @@ export default class Login extends BVCApp {
 
   private beginFinishing(): void {
     this.isFinishingStore.set(true);
-    this.clearFinishWatchdog();
-    this.finishWatchdog = setTimeout(() => {
-      if (get(this.loginStateStore) === 'connecting') {
-        this.isHandoffStore.set(false);
-        this.isFinishingStore.set(false);
-        this.loginStateStore.set('error');
-      }
-    }, Login.FINISH_TIMEOUT_MS);
+    this.finishWatchdog.start();
+  }
+
+  /**
+   * Whether an auth callback has arrived and not yet been disposed of.
+   *
+   * `pending_deep_link` is the one piece of state both halves maintain: Rust writes it for
+   * every intent, and the handler clears it once the redemption has succeeded, failed, or
+   * been recognised as a duplicate.
+   */
+  private async callbackInFlight(): Promise<boolean> {
+    try {
+      const store = await Store.load("store.json", { autoSave: false, defaults: {} });
+      return (await store.get<string>("pending_deep_link")) != null;
+    } catch (e) {
+      // An unreadable store is not evidence of progress; let the deadline stand.
+      warn(`Login: could not check for a pending auth callback: ${e}`);
+      return false;
+    }
   }
 
   private clearFinishWatchdog(): void {
-    if (this.finishWatchdog !== null) {
-      clearTimeout(this.finishWatchdog);
-      this.finishWatchdog = null;
-    }
+    this.finishWatchdog.cancel();
   }
 
   async login(rawValue: string): Promise<LoginAttemptResult> {
@@ -632,9 +647,7 @@ export default class Login extends BVCApp {
       await store.set("auth_state_endpoint", sanitizedUrl);
       await store.save();
 
-      const redirectUrl = this.getRedirectUrl();
-      const authLoginUrl =
-        `https://login.live.com/oauth20_authorize.srf?client_id=${clientId}&response_type=code&redirect_uri=${redirectUrl}&scope=XboxLive.signin%20offline_access&state=${secretState}&prompt=select_account`;
+      const authLoginUrl = MinecraftAuthUrl.build(clientId, secretState);
 
       await this.openUrlWithLogging(authLoginUrl);
       return { status: 'redirecting', sanitized: sanitizedUrl, authUrl: authLoginUrl };
@@ -642,10 +655,6 @@ export default class Login extends BVCApp {
       warn(String(e));
       return { status: 'error', sanitized: sanitizedUrl };
     }
-  }
-
-  private getRedirectUrl(): string {
-    return 'bedrock-voice-chat://auth';
   }
 
   private async openUrlWithLogging(url: string): Promise<void> {

@@ -100,6 +100,16 @@ pub(crate) async fn server_login(
             StatusCode::FORBIDDEN => Err(anyhow!(
                 "403 Forbidden: the server denied access for this account"
             )),
+            // The sign-in itself did not complete: the authorization code was spent,
+            // expired, or refused. Retryable, and nothing to do with the account — so the
+            // wording avoids the words the caller reads as a denial.
+            StatusCode::UNAUTHORIZED => Err(anyhow!(
+                "401 Unauthorized: the sign-in did not complete; please sign in again"
+            )),
+            // Upstream identity providers, not us and not the account.
+            StatusCode::BAD_GATEWAY => Err(anyhow!(
+                "502 Bad Gateway: Xbox Live could not be reached; please try again"
+            )),
             status => Err(anyhow!("Login failed: server returned HTTP {}", status)),
         },
         Err(e) => {

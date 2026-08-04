@@ -1,9 +1,6 @@
 <script lang="ts">
-    import Ring from "$radial/components/Ring.svelte";
-    import { AnimationLoop } from "$radial/core/canvas/AnimationLoop";
-    import { MarkData } from "$radial/core/mark/MarkData";
+    import ProximityRing from "$radial/components/ProximityRing.svelte";
     import type { RingMode } from "$radial/bindings/RingBinding";
-    import type { RingSource } from "$radial/core/ring/RingSource";
     import RadScreen from "../shell/RadScreen.svelte";
 
     interface Props {
@@ -20,69 +17,22 @@
      */
     let considering = $state<"yes" | "no" | null>(null);
 
-    const VOICES = [1, 8, 14].map((column, i) => ({
-        hue: MarkData.hueAt(column),
-        phase: i * 1.6,
-    }));
-
-    let sources = $state<RingSource[]>([]);
-
     /**
-     * How alive the ring is, 0 to 1, eased toward its target each frame.
-     *
-     * A hard switch to `empty` cuts the colour and the amplitude in one frame, which
-     * reads as a glitch rather than an answer. Fading the amplitude first and only
-     * swapping the mode once the bars are already small makes it land as a decay.
+     * The answer being considered, as a ring state. `ProximityRing` eases the voices out
+     * before the colour follows, so switching reads as a decay rather than a cut.
      */
-    let alive = $state(1);
-    const DECAY_TARGET = 0.02;
-
-    // Colour follows amplitude rather than leading it, so the drained palette arrives
-    // after the bars have already gone quiet.
     let mode = $derived<RingMode>(
-        alive < 0.12 ? "empty" : considering === "yes" ? "live" : "lock",
+        considering === "yes" ? "live" : considering === "no" ? "empty" : "lock",
     );
+
+    let audible = $state(0);
 
     let caption = $derived(
         considering === "yes"
-            ? "THREE PEOPLE TALKING"
+            ? `${audible} IN EARSHOT`
             : considering === "no"
               ? "NOBODY IN RANGE"
               : "WAITING ON YOUR ANSWER",
-    );
-
-    $effect(() =>
-        AnimationLoop.shared().add((t) => {
-            // Exponential approach: quick out of the gate, settling rather than
-            // arriving. Down faster than up, because "there is nobody there" should
-            // land immediately and coming back to life can afford to bloom.
-            const target = considering === "no" ? DECAY_TARGET : 1;
-            const rate = target < alive ? 0.22 : 0.12;
-            alive += (target - alive) * rate;
-
-            if (alive <= DECAY_TARGET + 0.001) {
-                sources = [];
-                return;
-            }
-
-            if (considering === "yes") {
-                sources = VOICES.map((v, i) => ({
-                    angle: -Math.PI / 2 + i * ((Math.PI * 2) / 3) + Math.sin(t * 0.0005 + i) * 0.4,
-                    volume:
-                        (0.55 + 0.45 * Math.abs(Math.sin(t * 0.0018 + v.phase))) * alive,
-                    hue: v.hue,
-                }));
-                return;
-            }
-
-            sources = [
-                {
-                    angle: -Math.PI / 2,
-                    volume: (0.42 + 0.28 * Math.abs(Math.sin(t * 0.0011))) * alive,
-                    hue: "#bb8dfa",
-                },
-            ];
-        }),
     );
 </script>
 
@@ -90,7 +40,11 @@
     <div class="rad-split">
         <div class="rad-visual-pane">
             <div class="rad-visual">
-                <Ring {mode} {sources} class="rad-ring--fill" />
+                <ProximityRing
+                    {mode}
+                    onaudible={(n) => (audible = n)}
+                    class="rad-ring--fill"
+                />
                 <span class="rad-caption">
                     <span class="rad-label">Your world</span>
                     <span class="rad-caption__value">{caption}</span>

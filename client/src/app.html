@@ -54,10 +54,20 @@
         <div class="app-preloader-card" role="status" aria-live="polite">
           <!-- The mark, drawn by app-preloader.js from the design system. -->
           <canvas id="app-preloader-mark" class="app-preloader-mark"></canvas>
-          <p id="app-preloader-headline" class="app-preloader-headline" hidden>Loading…</p>
+          <!-- Held back rather than absent: `app-preloader-quiet` hides these without
+               taking their space out of the layout, so the wait explaining itself does not
+               move the mark above it. app-preloader.js drops the class when it does. -->
+          <p id="app-preloader-headline" class="app-preloader-headline app-preloader-quiet">
+            Loading…
+          </p>
           <div class="app-preloader-status-row">
-            <span id="app-preloader-frame" class="app-preloader-frame" aria-hidden="true">⠋</span>
-            <span id="app-preloader-status" class="app-preloader-status" hidden
+            <span
+              id="app-preloader-frame"
+              class="app-preloader-frame app-preloader-quiet"
+              aria-hidden="true"
+              >⠋</span
+            >
+            <span id="app-preloader-status" class="app-preloader-status app-preloader-quiet"
               >Getting things ready…</span
             >
           </div>

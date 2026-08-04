@@ -24,20 +24,35 @@
   display: none !important;
 }
 
-/* Wide enough for the mark at the size a visual pane renders it, which the script
-   computes from the viewport. `fit-content` rather than a fixed width so the escape
-   actions keep their own comfortable measure when the mark is small.
+/* Not yet said, but already accounted for.
  *
- * The floor is capped by the same expression as the ceiling because `min-width` beats
- * `max-width`: an uncapped 26rem floor is wider than a 412px phone, and the column then
- * overflows the viewport it was supposed to fit inside — taking the right-hand edge of
- * the escape-hatch buttons off screen, on the one screen whose entire job is to be
- * usable when everything else has failed. */
+ * `hidden` takes an element out of flow, so revealing the headline and the status line
+ * lengthened the column and moved everything above them. `visibility` keeps the box and
+ * only withholds the paint, which is what makes the reveal cost no layout at all — and it
+ * is why the mark neither moves nor changes size when the wait starts explaining itself. */
+.app-preloader-quiet {
+  visibility: hidden;
+}
+
+/* The box everything else is measured against.
+ *
+ * Its width comes from the viewport and from nothing else. It was `fit-content` between a
+ * floor and a ceiling, which made the width a function of its widest child — so it
+ * changed with the status phrase, and the mark inside it moved every time the phrase did.
+ *
+ * Declared a container so the mark can be sized in `cqi`, the way the kit sizes its own
+ * loader. That is what keeps the two the same size, and it is also what makes overflow
+ * impossible: a width taken from the container cannot exceed the container. `cqi` needs an
+ * inline size that does not depend on the contents, which is the other reason the width
+ * above is fixed rather than `fit-content`.
+ *
+ * Full width rather than the 26rem text measure, because the mark is sized against this
+ * box and the kit's proportion assumes the whole frame. The text and the escape actions
+ * take that measure themselves, below. */
 .app-preloader-column {
-  width: fit-content;
-  min-width: min(26rem, calc(100vw - 2rem));
-  max-width: calc(100vw - 2rem);
+  width: calc(100vw - 2rem);
   padding: 1rem;
+  container-type: inline-size;
 }
 
 /* No card. The mark sits on the violet ground exactly as it does inside the app
@@ -61,11 +76,20 @@
  * Those are 44% of the frame width by the frame less its top and foot bars, and
  * RingGeometry fits to the smaller of the two — so this is the same pair of inputs
  * expressed in CSS. RingBinding measures this box every frame, which is what makes a
- * window resize need no script at all. */
+ * window resize need no script at all.
+ *
+ * `44cqi`, not `44vw`, and wrapped in `min(100%, …)`.
+ *
+ * A width in viewport units inside a box that is not the viewport can exceed that box, and
+ * an overflowing block resolves both auto margins to zero — so `margin: 0 auto` centres
+ * nothing and the mark sits right of centre by the overflow. The column's padding alone
+ * guaranteed that on every phone. Whatever else shifted, this is why it landed off centre
+ * and why the amount moved with the layout. Container units cannot overflow their
+ * container, and the `100%` is a floor under the `max(180px, …)`, which still can. */
 .app-preloader-mark {
   display: block;
   margin: 0 auto;
-  width: max(180px, min(44vw, calc(100dvh - 150px)));
+  width: min(100%, max(180px, min(44cqi, calc(100dvh - 150px))));
   aspect-ratio: 1;
 }
 
@@ -75,18 +99,21 @@
  * with a column of copy. Nothing shares the width here, so on a tall screen that
  * fraction leaves a small object adrift in a lot of violet.
  *
- * Keyed to aspect ratio rather than to a width in px: this file paints before the
- * bundle and so cannot use the kit's container queries, and a ratio is the one viewport
- * test that gives the same answer whether or not the webview honoured the viewport meta
- * tag — a proportion does not care what a CSS pixel turned out to be. */
+ * Keyed to aspect ratio rather than to a width in px: a ratio is the one viewport test
+ * that gives the same answer whether or not the webview honoured the viewport meta tag —
+ * a proportion does not care what a CSS pixel turned out to be. */
 @media (max-aspect-ratio: 3 / 4) {
   .app-preloader-mark {
-    width: min(86vw, calc(100dvh - 220px));
+    width: min(100%, 86cqi, calc(100dvh - 220px));
   }
 }
 
+/* The copy and the escape actions keep the 26rem measure the column used to impose on
+   everything. Applied here rather than to the column because the mark is sized against the
+   column and wants the whole frame's width; a shared measure cannot serve both. */
 .app-preloader-headline {
-  margin: 1rem 0 0;
+  max-width: 26rem;
+  margin: 1rem auto 0;
   font-size: 0.875rem;
   line-height: 1.25rem;
   font-weight: 600;
@@ -95,7 +122,8 @@
 }
 
 .app-preloader-status-row {
-  margin-top: 1rem;
+  max-width: 26rem;
+  margin: 1rem auto 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -118,7 +146,11 @@
   color: #bb8dfa;
 }
 
+/* Left, against the centred card, so a phrase that wraps stays beside the braille rather
+   than centring itself in whatever width is left over — which read as two unrelated things
+   at opposite ends of the row. */
 .app-preloader-status {
+  text-align: left;
   /* --text-rad-sm */
   font-size: 0.8125rem;
   line-height: 1.125rem;
@@ -149,7 +181,8 @@
 }
 
 .app-preloader-actions {
-  margin-top: 1.5rem;
+  max-width: 26rem;
+  margin: 1.5rem auto 0;
 }
 
 .app-preloader-hint {

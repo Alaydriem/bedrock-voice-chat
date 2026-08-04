@@ -94,22 +94,33 @@
 
     Analytics.track("LoginShown");
 
+    /*
+     * Built before anything awaits, so no store read can leave it null — every screen
+     * change on this page goes through it, including "What is this?", which is the only
+     * route back into the introduction.
+     *
+     * It opens on sign-in because that is the answer for anyone who has signed in before.
+     * The gate below only has to move someone forward into the introduction.
+     */
+    flow = new ScreenFlow({
+      screens: SCREENS,
+      initial: "login",
+      steps: 4,
+      onScreen: (name) => {
+        screen = name;
+        if (name === "intro") Analytics.track("OnboardingShown");
+      },
+    });
+    unsubs.push(flow.step.subscribe((v) => (step = v)));
+
     (async () => {
       const params = new URLSearchParams(window.location.search);
-      const entry = LaunchGate.resolveEntry(await new LaunchGate().hasServers(), params);
-
-      flow = new ScreenFlow({
-        screens: SCREENS,
-        initial: entry,
-        steps: 4,
-        onScreen: (name) => {
-          screen = name;
-          if (name === "intro") Analytics.track("OnboardingShown");
-        },
-      });
-      screen = entry;
-      if (entry === "intro") Analytics.track("OnboardingShown");
-      unsubs.push(flow.step.subscribe((v) => (step = v)));
+      // An unreadable server list is not evidence of a first run. Someone who has signed in
+      // before should not be handed the introduction again because a read failed, so the
+      // benefit of the doubt goes to the sign-in screen.
+      const hasServers = await new LaunchGate().hasServers().catch(() => true);
+      const entry = LaunchGate.resolveEntry(hasServers, params);
+      if (entry !== "login") flow?.go(entry);
 
       const pageState = await instance.initializePage();
       if (pageState.prefilledServer) {

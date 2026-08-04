@@ -116,7 +116,7 @@ impl MinecraftAuthProvider {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
             tracing::error!("Token exchange failed ({}): {}", status, body);
-            return Err(AuthError::AuthenticationFailed(format!(
+            return Err(AuthError::CodeRejected(format!(
                 "Token exchange failed ({})",
                 status
             )));

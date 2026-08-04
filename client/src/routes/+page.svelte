@@ -28,7 +28,7 @@
 <RadFrame>
     <RadScreen label="Starting up">
         <div class="rad-launch">
-            <Loader loading={true} withIntro={false} phrases={PHRASES} slowAfterSeconds={4} />
+            <Loader loading={true} phrases={PHRASES} slowAfterSeconds={4} />
         </div>
 
         {#snippet footbar()}

@@ -5,6 +5,7 @@ import Analytics from '../analytics';
 import { type LoginResponse } from "../../bindings/LoginResponse";
 import { type ServerListEntry } from "../../bindings/ServerListEntry";
 import { ServerListStore } from '../services/ServerListStore';
+import MinecraftRedirect from '../auth/MinecraftRedirect';
 import type { DeepLinkOutcome } from '../deepLinkRouter.ts';
 
 export class AuthCallbackHandler {
@@ -19,6 +20,20 @@ export class AuthCallbackHandler {
     // Must match DeepLinkRouter.PENDING_KEY. Cleared here, before navigating, so
     // the single-use callback is never re-redeemed on the next page mount.
     private readonly PENDING_KEY = "pending_deep_link";
+    /**
+     * Fingerprints of authorization codes already sent for exchange, most recent last.
+     *
+     * `DeepLinkRouter.routedUrls` answers the same question in memory and cannot answer it
+     * across a page load. Every deep-link intent both writes `pending_deep_link` and emits
+     * `deep-link-received`, and on Android an intent arrives while the app is backgrounded
+     * or cold — so the callback routinely lands either side of a navigation, and the new
+     * context starts with an empty set and a pending entry the old one had not yet cleared.
+     * The second exchange spends a code the provider has already retired, which comes back
+     * as an invalid code and reads on screen as the account being refused.
+     */
+    private readonly REDEEMED_KEY = "redeemed_auth_codes";
+    /** Enough to cover a retried sign-in; this is a duplicate guard, not an audit log. */
+    private readonly REDEEMED_LIMIT = 5;
     private store: Store;
 
     constructor(store: Store) {
@@ -50,6 +65,20 @@ export class AuthCallbackHandler {
     }
 
     private async processAuthCallback(code: string, state: string): Promise<void> {
+        /*
+         * Before the state comparison, because a successful login deletes the state token.
+         * A duplicate arriving after that would fail the comparison instead of being
+         * recognised as the copy it is, and failLogin would take someone who is already
+         * signed in and part-way through setup back to the login page under an
+         * authentication error.
+         */
+        if (await this.alreadyRedeemed(code)) {
+            info("AuthCallbackHandler: Authorization code already exchanged, ignoring duplicate");
+            await this.store.delete(this.PENDING_KEY);
+            await this.store.save();
+            return;
+        }
+
         const authStateToken = await this.store.get<string>("auth_state_token");
         const authStateEndpoint = await this.store.get<string>("auth_state_endpoint");
 
@@ -64,6 +93,8 @@ export class AuthCallbackHandler {
             await this.failLogin("Login failed. Please check your server URL and try again.");
             return;
         }
+
+        await this.claimCode(code);
 
         const redirectUri = this.getRedirectUrl();
 
@@ -119,6 +150,12 @@ export class AuthCallbackHandler {
             const errorStr = String(e).toLowerCase();
             if (errorStr.includes("403") || errorStr.includes("forbidden") || errorStr.includes("denied") || errorStr.includes("banned") || errorStr.includes("whitelist")) {
                 await this.denyLogin();
+            } else if (errorStr.includes("401")) {
+                // The sign-in did not complete. Sending someone to check their server URL
+                // for this points them at the one thing that was working.
+                await this.failLogin("That sign-in could not be completed. Please sign in again.");
+            } else if (errorStr.includes("502")) {
+                await this.failLogin("Xbox Live could not be reached. Please try again in a moment.");
             } else {
                 await this.failLogin("Login failed. Please check your server URL and try again.");
             }
@@ -126,7 +163,33 @@ export class AuthCallbackHandler {
     }
 
     private getRedirectUrl(): string {
-        return "bedrock-voice-chat://auth";
+        return MinecraftRedirect.URI;
+    }
+
+    private async alreadyRedeemed(code: string): Promise<boolean> {
+        const seen = (await this.store.get<string[]>(this.REDEEMED_KEY)) ?? [];
+        return seen.includes(this.fingerprint(code));
+    }
+
+    /**
+     * Record this code as spent.
+     *
+     * Written before the exchange, not after: a code is spent the moment it is sent, so a
+     * failed exchange must not leave it looking available. Retrying it cannot succeed, and
+     * the failure it produces is indistinguishable from a rejected account.
+     *
+     * Stored as a fingerprint. A whole authorization code is a live credential until it is
+     * redeemed, and this only ever needs to answer whether two of them are the same one.
+     */
+    private async claimCode(code: string): Promise<void> {
+        const seen = (await this.store.get<string[]>(this.REDEEMED_KEY)) ?? [];
+        const kept = [...seen, this.fingerprint(code)].slice(-this.REDEEMED_LIMIT);
+        await this.store.set(this.REDEEMED_KEY, kept);
+        await this.store.save();
+    }
+
+    private fingerprint(code: string): string {
+        return code.slice(-32);
     }
 
     /**

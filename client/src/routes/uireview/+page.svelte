@@ -11,6 +11,8 @@
     import MicrophoneScreen from "../../components/setup/MicrophoneScreen.svelte";
     import NotificationsScreen from "../../components/setup/NotificationsScreen.svelte";
     import DevicesScreen from "../../components/setup/DevicesScreen.svelte";
+    import FaultScreen from "../../components/error/FaultScreen.svelte";
+    import FaultCatalog from "../../js/app/error/FaultCatalog";
     import type { ResolveVerdict } from "../../js/app/login/AddressResolver";
 
     /**
@@ -35,6 +37,22 @@
     };
 
     let introStep = $state(1);
+
+    /**
+     * `/error?code=X` reaches any one of these in the real app and is the better way to
+     * check a single screen. Two things it cannot reach: the update mid-install, which
+     * needs an update to exist and then commits to installing it, and any two states of the
+     * same screen at once.
+     */
+    const FAULT_CODES = Object.keys(FaultCatalog.DEFINITIONS);
+    let faultCode = $state("QUIC01");
+    const fault = $derived(FaultCatalog.resolve(faultCode));
+    const faultActions = $derived([
+        { label: fault.primaryAction.label, onclick: noop, primary: true },
+        ...(fault.secondaryAction
+            ? [{ label: fault.secondaryAction.label, onclick: noop, primary: false }]
+            : []),
+    ]);
 </script>
 
 {#if !DEV}
@@ -175,13 +193,80 @@
             />
         {/snippet}
 
+        <div class="steps">
+            Fault:
+            {#each FAULT_CODES as code (code)}
+                <button class:on={faultCode === code} onclick={() => (faultCode = code)}>
+                    {code}
+                </button>
+            {/each}
+        </div>
+
+        {@render pair(`Error · ${fault.code} · ${fault.severity}`, faultBody)}
+        {#snippet faultBody()}
+            <FaultScreen
+                code={fault.code}
+                title={fault.title}
+                message={fault.message}
+                icon={fault.icon}
+                severity={fault.severity}
+                category={fault.category}
+                chip={fault.chip}
+                caption={fault.caption}
+                label={fault.label}
+                hint={fault.hint}
+                appVersion="1.0.0-beta.8"
+                actions={faultActions}
+            >
+                {#snippet footnote()}
+                    {#if fault.severity !== "ok"}
+                        <span
+                            class="rad-label rad-rise"
+                            style="--d: 360; display: block; margin-top: 26px"
+                        >
+                            Still stuck?
+                        </span>
+                        <div class="rad-swatchrow rad-rise" style="--d: 390">
+                            <button class="rad-pill-link">
+                                Wiki <span class="rad-pill-link__ext">&#8599;</span>
+                            </button>
+                            <button class="rad-pill-link">
+                                Discord <span class="rad-pill-link__ext">&#8599;</span>
+                            </button>
+                        </div>
+                    {/if}
+                {/snippet}
+            </FaultScreen>
+        {/snippet}
+
+        <!-- The one state the route cannot be talked into showing: pressing Update Now
+             installs the update for real. -->
+        {@render pair("Error · UPD01 · installing", updatingBody)}
+        {#snippet updatingBody()}
+            <FaultScreen
+                code="UPD01"
+                title={FaultCatalog.DEFINITIONS.UPD01.title}
+                message={FaultCatalog.DEFINITIONS.UPD01.message}
+                icon="download"
+                severity="ok"
+                category={FaultCatalog.DEFINITIONS.UPD01.category}
+                chip={FaultCatalog.DEFINITIONS.UPD01.chip}
+                caption={FaultCatalog.DEFINITIONS.UPD01.caption}
+                label={FaultCatalog.DEFINITIONS.UPD01.label}
+                hint={FaultCatalog.DEFINITIONS.UPD01.hint}
+                appVersion="1.0.0-beta.8"
+                actions={[{ label: "Updating…", onclick: noop, primary: true, disabled: true }]}
+                working={true}
+                workingPhrases={FaultCatalog.UPDATE_PHRASES}
+            />
+        {/snippet}
+
         {@render pair("Launch", launchBody)}
         {#snippet launchBody()}
             <RadScreen label="Starting up">
                 <div class="launch">
                     <Loader
                         loading={true}
-                        withIntro={false}
                         phrases={["Checking for updates…", "Almost there…"]}
                         slowAfterSeconds={0}
                     />

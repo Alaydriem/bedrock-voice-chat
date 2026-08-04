@@ -1,8 +1,5 @@
 <script lang="ts">
-    import Ring from "$radial/components/Ring.svelte";
-    import type { RingSource } from "$radial/core/ring/RingSource";
-    import { AnimationLoop } from "$radial/core/canvas/AnimationLoop";
-    import { onDestroy } from "svelte";
+    import ProximityRing from "$radial/components/ProximityRing.svelte";
     import RadScreen from "../shell/RadScreen.svelte";
     import type { ResolveVerdict } from "../../js/app/login/AddressResolver";
 
@@ -32,26 +29,8 @@
         onrevisit,
     }: Props = $props();
 
-    // One source, breathing: the address resolving. It goes quiet the moment the field
-    // changes and comes back when a name resolves, so the ring reads as a readout
-    // rather than decoration.
-    let sources = $state<RingSource[]>([]);
-
-    $effect(() => {
-        if (verdict.state !== "ok") {
-            sources = [];
-            return;
-        }
-        return AnimationLoop.shared().add((t) => {
-            sources = [
-                {
-                    angle: -Math.PI / 2 + 0.5,
-                    volume: 0.72 + 0.28 * Math.abs(Math.sin(t * 0.0022)),
-                    hue: "#ad76f7",
-                },
-            ];
-        });
-    });
+    // The ring is a readout: quiet while the field is being typed into, alive once a name
+    // resolves. `verdict.ring` carries that state; `ProximityRing` fills a live one.
 
     let resolveClass = $derived(
         verdict.state === "ok"
@@ -61,16 +40,13 @@
               : "rad-resolve",
     );
 
-    onDestroy(() => {
-        sources = [];
-    });
 </script>
 
 <RadScreen label="Connect">
     <div class="rad-split">
         <div class="rad-visual-pane">
             <div class="rad-visual">
-                <Ring mode={verdict.ring} {sources} class="rad-ring--fill" />
+                <ProximityRing mode={verdict.ring} class="rad-ring--fill" />
                 <span class="rad-caption">
                     <span class="rad-label">Acquiring</span>
                     <span class="rad-caption__value">{verdict.caption}</span>
