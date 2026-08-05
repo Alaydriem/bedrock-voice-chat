@@ -464,6 +464,19 @@ impl ConnectionRegistry {
         delivered
     }
 
+    /// Who currently holds a voice connection, by authenticated name.
+    ///
+    /// The position cache the mod feeds carries the whole world, most of which is not on
+    /// voice at all — the same asymmetry `send_positions_to_owners` exploits. This is what
+    /// lets the position feed report "in range, and nothing you say reaches them" rather
+    /// than omitting those players and making them indistinguishable from nobody.
+    pub fn on_voice_names(&self) -> std::collections::HashSet<String> {
+        self.name_index
+            .iter()
+            .map(|entry| entry.key().clone())
+            .collect()
+    }
+
     // Delivers a single packet to one connected player (by bare gamertag) via the
     // O(1) name index. Returns whether a live connection received it; a closed
     // sender is reaped. Used by the control plane to route a ClientBound action to

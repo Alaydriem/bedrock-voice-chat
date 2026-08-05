@@ -73,9 +73,18 @@ pub struct JitterBufferSource {
     // survives, so anything a diagnostic needs has to be written into shared state created
     // before the move.
     receive_stats: Arc<PlayerReceiveStats>,
+    // Consecutive frames served from an empty ring, for telling a gap apart from a pause.
+    starved_frames: u32,
 }
 
 impl JitterBufferSource {
+    // How long an empty ring is still a gap in speech rather than a speaker who has stopped.
+    //
+    // Frames are 20 ms, so this is 100 ms of nothing arriving. Jitter that the buffer cannot
+    // cover sits well inside that; a pause between words, with the noise gate shut and no
+    // packets being sent at all, runs past it immediately.
+    const CONCEAL_GRACE_FRAMES: u32 = 5;
+
     pub fn new_with_activity(
         packet_receiver: flume::Receiver<Option<EncodedAudioFramePacket>>,
         initial_packet: EncodedAudioFramePacket,
@@ -134,6 +143,7 @@ impl JitterBufferSource {
             pending_recordings,
             current_recording: None,
             receive_stats,
+            starved_frames: 0,
         };
 
         source
@@ -294,6 +304,7 @@ impl JitterBufferSource {
     /// Process next packet from ring
     fn process_next_packet(&mut self) -> Option<f32> {
         if let Some(packet) = self.packet_ring.pop_front() {
+            self.starved_frames = 0;
             match self.audio_processor.decode_opus(&packet.data) {
                 Ok(frames_written) => {
                     self.audio_processor.reset_plc_counter();
@@ -308,7 +319,8 @@ impl JitterBufferSource {
                 }
                 Err(e) => {
                     error!("Failed to process packet: {}", e);
-                    self.generate_plc_sample()
+                    // A packet arrived and could not be used. Concealment either way.
+                    self.generate_plc_sample(true)
                 }
             }
         } else {
@@ -323,22 +335,45 @@ impl JitterBufferSource {
             // warmup, and reorder tolerance do not move. Correcting that clamp belongs to the
             // buffer redesign.
             self.metrics_collector.record_underrun();
-            self.receive_stats.record_underrun();
-            self.generate_plc_sample()
+
+            // An empty ring means either a late packet inside speech or a speaker who has
+            // stopped talking, and the two must not be reported as the same thing. The noise
+            // gate sends nothing between utterances, so a silent speaker starves this buffer on
+            // every single frame — which drove "reconstructed" toward 100% for anyone who was
+            // mostly listening, and put a "voices will sound rough" verdict on a link that was
+            // carrying speech perfectly. Beyond the grace window the speaker is treated as
+            // silent, and their silence is not something the network failed to deliver.
+            //
+            // `metrics_collector` is fed regardless: it is the adaptation engine's input, and
+            // congestion should keep seeing every starved frame.
+            self.starved_frames = self.starved_frames.saturating_add(1);
+            let concealing = self.starved_frames <= Self::CONCEAL_GRACE_FRAMES;
+            if concealing {
+                self.receive_stats.record_underrun();
+            }
+            self.generate_plc_sample(concealing)
         }
     }
 
     /// Generate PLC sample
-    fn generate_plc_sample(&mut self) -> Option<f32> {
+    ///
+    /// `record` is false when the gap is a speaker's pause rather than a delivery failure. The
+    /// samples are produced either way — playback needs something to emit — they are just not
+    /// counted against the link.
+    fn generate_plc_sample(&mut self, record: bool) -> Option<f32> {
         match self.audio_processor.generate_plc() {
             Ok(()) => {
                 self.metrics_collector.record_plc_generation();
-                self.receive_stats.record_plc();
+                if record {
+                    self.receive_stats.record_plc();
+                }
                 self.audio_processor.next_sample()
             }
             Err(_) => {
                 self.metrics_collector.record_silence_generation();
-                self.receive_stats.record_silence();
+                if record {
+                    self.receive_stats.record_silence();
+                }
                 Some(0.0) // Fallback to silence
             }
         }

@@ -14,6 +14,7 @@ mod peer_diagnostics;
 mod jukebox;
 mod library;
 mod path_exhaustion;
+mod position_feed;
 mod provision;
 mod reachability_probe;
 mod proxy_audio;

@@ -129,7 +129,19 @@ export default defineConfig(async () => ({
       : undefined,
     watch: {
       // 3. tell vite to ignore watching `src-tauri`
-      ignored: ["**/src-tauri/**"],
+      //
+      // The radial gallery is a separate app on its own config (vite.radial.config.ts) and
+      // nothing outside `src/radial/examples/` imports it, so an edit there can only ever cost
+      // the running client a reload it has no reason to perform. `dist-radial/` is that app's
+      // build output, rewritten wholesale — one `radial:build` otherwise reloads the client
+      // once per emitted asset.
+      //
+      // Only `examples/` is excluded, not `src/radial/`: the kit's components, controllers and
+      // CSS underneath it are real app imports and must keep hot-reloading.
+      //
+      // Appended to Vite's own defaults rather than replacing them — `resolvedWatchOptions`
+      // merges this list with `**/.git/**`, `**/node_modules/**` and the cache dir.
+      ignored: ["**/src-tauri/**", "**/dist-radial/**", "**/src/radial/examples/**"],
     },
   },
 }));

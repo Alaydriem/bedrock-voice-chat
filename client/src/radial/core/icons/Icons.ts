@@ -31,6 +31,10 @@ export const RAD_ICONS = {
     '<path d="M6.6 10.6a5.4 5.4 0 0 1 9.2-3.9"/><path d="M17.4 12.6v-2a5.4 5.4 0 0 0-.2-1.5"/><path d="M5.4 16.4s1.2-1.3 1.2-5.8"/><path d="M17.4 12.6c0 3.2 1.2 3.8 1.2 3.8H5.4"/><path d="M10 19.3a2.3 2.3 0 0 0 4 0"/><path d="M3.6 3.4l16.8 17.2"/>',
   rec: '<circle cx="12" cy="12" r="8.2"/><circle cx="12" cy="12" r="3.6" fill="currentColor" stroke="none"/>',
   refresh: '<path d="M20.5 12a8.5 8.5 0 1 1-2.6-6.1"/><path d="M20.5 3.5V9h-5.5"/>',
+  // Deliberately the mirror of `refresh`, turning the other way. The two sit next to each other
+  // in the status panel — reconnect and reset stats — and a second clockwise arrow there would
+  // read as the same action drawn twice.
+  reset: '<path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 3.5V9H9"/>',
   plus: '<path d="M12 4.5v15"/><path d="M4.5 12h15"/>',
   minus: '<path d="M4.5 12h15"/>',
   close: '<path d="M6.5 6.5l11 11"/><path d="M17.5 6.5l-11 11"/>',

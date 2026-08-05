@@ -7,6 +7,7 @@ import type { PlayerGainSettings } from '../../bindings/PlayerGainSettings';
 import type { PlayerGainStore } from '../../bindings/PlayerGainStore';
 import type { PlayerSource } from '../../bindings/PlayerSource';
 import type { Store } from '@tauri-apps/plugin-store';
+import { Coalescer } from '../utils/Coalescer';
 import GameNameUtils from '../utils/GameNameUtils';
 
 // Define PlayerData interface locally
@@ -23,6 +24,15 @@ interface PlayerData {
  * Consolidates player presence, multi-source tracking, and audio controls.
  */
 export class PlayerManager {
+    /**
+     * How often gain changes are allowed out of the webview.
+     *
+     * The compromise between the two things a flush does: the audio has to track the finger
+     * closely enough to set a level by ear, and the disk does not need writing sixty times a
+     * second to record where a slider ended up.
+     */
+    private static readonly GAIN_WRITE_GAP_MS = 120;
+
     // Internal reactive stores
     private playersMapStore: Writable<Map<string, PlayerData>>;
     private currentUserStore: Writable<string>;
@@ -30,6 +40,12 @@ export class PlayerManager {
     private gainStoreUnlisten: UnlistenFn | null = null;
     private visibilityHandler: (() => void) | null = null;
     private reseedInterval: ReturnType<typeof setInterval> | null = null;
+
+    /** Settings changed in the webview that have not yet crossed to the backend. */
+    private pendingGains: Record<string, Partial<PlayerGainSettings>> = {};
+    private readonly gainWrites = new Coalescer(PlayerManager.GAIN_WRITE_GAP_MS, () =>
+        this.flushGains(),
+    );
 
     // Readonly exports for components
     public readonly playersMap: Readable<Map<string, PlayerData>>;
@@ -367,33 +383,48 @@ export class PlayerManager {
      * Private method to update the persistent Tauri store
      */
     private async updatePlayerGainStore(playerName: string, newSettings: Partial<PlayerGainSettings>): Promise<void> {
+        // The persisted store keys on the bare gamertag — the same key the
+        // sink's name remap and the control plane use.
+        const key = PlayerManager.key(playerName);
+        this.pendingGains[key] = { ...this.pendingGains[key], ...newSettings };
+        this.gainWrites.request();
+    }
+
+    /**
+     * Persist and push whatever has accumulated since the last flush.
+     *
+     * Reads the pending set rather than taking an argument, which is what lets a drag's worth of
+     * events collapse: each one overwrites the last in `pendingGains`, and this runs once against
+     * the result. Previously every input event did this work itself — a `get`, a `set`, a `save`
+     * to disk and an `update_stream_metadata` carrying the whole serialised store, four crossings
+     * per pixel of travel on a channel Android serialises.
+     */
+    private async flushGains(): Promise<void> {
         if (!this.store) return;
 
+        const pending = this.pendingGains;
+        this.pendingGains = {};
+        if (Object.keys(pending).length === 0) return;
+
         try {
-            // The persisted store keys on the bare gamertag — the same key the
-            // sink's name remap and the control plane use.
-            playerName = PlayerManager.key(playerName);
-            // Get current store
-            let playerGainStore = await this.store.get("player_gain_store") as PlayerGainStore || {};
+            const current = (await this.store.get("player_gain_store")) as PlayerGainStore || {};
+            const merged: PlayerGainStore = { ...current };
+            for (const [key, settings] of Object.entries(pending)) {
+                merged[key] = { ...(current[key] ?? { gain: 1.0, muted: false }), ...settings };
+            }
 
-            // Get existing settings or defaults
-            const existingSettings = playerGainStore[playerName] || { gain: 1.0, muted: false };
-
-            // Merge with new settings
-            const updatedSettings = { ...existingSettings, ...newSettings };
-            playerGainStore[playerName] = updatedSettings;
-
-            // Save to Tauri store
-            await this.store.set("player_gain_store", playerGainStore);
+            await this.store.set("player_gain_store", merged);
             await this.store.save();
 
-            // Send to backend
             await invoke("update_stream_metadata", {
                 key: "player_gain_store",
-                value: JSON.stringify(playerGainStore),
+                value: JSON.stringify(merged),
                 device: "OutputDevice"
             });
         } catch (err) {
+            // Put the work back so the next request retries it. Dropping it would lose whatever
+            // the user just set with no indication that it had not taken.
+            this.pendingGains = { ...pending, ...this.pendingGains };
             error(`PlayerManager: Failed to update player gain store: ${err}`);
         }
     }
@@ -443,6 +474,12 @@ export class PlayerManager {
     private static readonly RESEED_BACKSTOP_MS = 10_000;
 
     cleanup(): void {
+        // Flushed rather than cancelled: a level set in the last fraction of a second before
+        // teardown is still a level the user set, and the coalescer's whole job is that the
+        // trailing value survives.
+        this.gainWrites.cancel();
+        void this.flushGains();
+
         if (this.gainStoreUnlisten) {
             this.gainStoreUnlisten();
             this.gainStoreUnlisten = null;

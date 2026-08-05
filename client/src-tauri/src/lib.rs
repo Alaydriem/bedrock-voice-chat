@@ -225,6 +225,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::diagnostics::get_link_diagnostics,
             commands::diagnostics::get_diagnostics_report,
+            commands::diagnostics::reset_link_diagnostics,
             // About
             crate::commands::about::get_app_info,
             crate::commands::about::export_logs,
@@ -247,6 +248,8 @@ pub fn run() {
             crate::commands::audio::stop_audio_device,
             crate::commands::audio::get_devices,
             crate::commands::audio::mute,
+            crate::commands::audio::set_mute,
+            crate::commands::audio::set_deafened,
             crate::commands::audio::mute_status,
             crate::commands::audio::is_stopped,
             crate::commands::audio::update_stream_metadata,
@@ -275,6 +278,7 @@ pub fn run() {
             crate::api::commands::api_pool_client,
             crate::api::commands::api_ping,
             crate::api::commands::api_get_config,
+            crate::api::commands::api_websocket_ticket,
             crate::api::commands::api_create_channel,
             crate::api::commands::api_delete_channel,
             crate::api::commands::api_list_channels,

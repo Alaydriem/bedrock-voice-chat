@@ -133,16 +133,60 @@ describe("exchanging an authorization code", () => {
 
   /**
    * A successful login deletes the state token, so a duplicate intent arriving afterwards
-   * cannot pass the state comparison. Recognised as a duplicate it is silently dropped;
-   * treated as a state mismatch it persists a login error and sends someone who is signed
-   * in and part-way through setup back to the login page.
+   * cannot pass the state comparison. Recognised as a duplicate it must not be treated as a
+   * state mismatch, which would persist a login error and send somebody who is signed in and
+   * part-way through setup back to the login page.
    */
-  it("ignores a duplicate that arrives after the login succeeded", async () => {
+  it("does not report an error for a duplicate that arrives after the login succeeded", async () => {
+    mockInvoke({
+      get_credentials: () => ({ gamertag: "Someone", certificate: "PEM" }),
+    });
     const spent = fakeStore({ redeemed_auth_codes: ["CODE_H"], auth_state_endpoint: SERVER });
 
     await new AuthCallbackHandler(spent as never).handle(callback("CODE_H"));
 
     expect(loginAttempts()).toBe(0);
     expect(spent.set).not.toHaveBeenCalledWith("login_error", expect.anything());
+  });
+
+  /**
+   * A code is claimed before it is exchanged, so "spent" does not mean "signed in". On Android
+   * the auth intent routinely reloads the webview mid-exchange: the in-flight `server_login`
+   * dies with the context, the pending callback survives because only success clears it, and
+   * the fresh context routes it again and finds the code already claimed.
+   *
+   * Dropping it there was silent — no error, no navigation — so the sign-in appeared to do
+   * nothing at all. Whether it worked is a question about the session, not about the code.
+   */
+  it("carries a spent code through to setup when the session exists", async () => {
+    mockInvoke({
+      get_credentials: () => ({ gamertag: "Someone", certificate: "PEM" }),
+    });
+    const spent = fakeStore({ redeemed_auth_codes: ["CODE_I"], auth_state_endpoint: SERVER });
+
+    await new AuthCallbackHandler(spent as never).handle(callback("CODE_I"));
+
+    expect(spent.set).toHaveBeenCalledWith("current_server", SERVER);
+    expect(spent.set).toHaveBeenCalledWith("current_player", "Someone");
+  });
+
+  it("reports a failure for a spent code when no session was established", async () => {
+    // Unmocked, so the credential lookup rejects exactly as it does with an empty keyring.
+    mockInvoke({});
+    const spent = fakeStore({ redeemed_auth_codes: ["CODE_J"], auth_state_endpoint: SERVER });
+
+    await new AuthCallbackHandler(spent as never).handle(callback("CODE_J"));
+
+    expect(spent.set).toHaveBeenCalledWith("login_error", expect.any(String));
+    expect(spent.set).not.toHaveBeenCalledWith("current_server", expect.anything());
+  });
+
+  it("reports a failure for a spent code with no server to check", async () => {
+    mockInvoke({});
+    const spent = fakeStore({ redeemed_auth_codes: ["CODE_K"] });
+
+    await new AuthCallbackHandler(spent as never).handle(callback("CODE_K"));
+
+    expect(spent.set).toHaveBeenCalledWith("login_error", expect.any(String));
   });
 });

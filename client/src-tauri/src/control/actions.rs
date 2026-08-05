@@ -41,7 +41,7 @@ impl ControlActionsManager {
                 actions.broadcast_state().await;
             }
             ClientActionType::SetDeafened(on) => {
-                actions.set_mute(AudioDeviceType::OutputDevice, *on).await;
+                actions.set_deafened(*on).await;
                 actions.broadcast_state().await;
             }
             ClientActionType::SetRecording(on) => {
@@ -133,6 +133,7 @@ impl ControlActionsManager {
             .or_insert(PlayerGainSettings {
                 gain: 1.0,
                 muted: false,
+                last_seen: None,
             });
         if let Some(v) = volume {
             entry.gain = v;

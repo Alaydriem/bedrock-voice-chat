@@ -18,6 +18,11 @@ import ImageCacheOptions from './components/imageCacheOptions';
 import { PlayerManager } from './managers/PlayerManager';
 import ChannelManager from './managers/ChannelManager';
 import { AudioActivityManager } from './managers/AudioActivityManager';
+import { SelfController } from './dashboard/SelfController';
+import { RailView, type RailServer } from './dashboard/RailView';
+import { NearbyManager } from './dashboard/NearbyManager';
+import { PlayerLevelSources } from './dashboard/PlayerLevelSources';
+import type { ScreenLanding } from './shell/ScreenLanding';
 import Analytics from './analytics';
 import type { KeybindConfig } from '../bindings/KeybindConfig.ts';
 import type { NoiseGateSettings } from '../bindings/NoiseGateSettings.ts';
@@ -56,6 +61,24 @@ export default class Dashboard extends BVCApp {
     public channelManager: ChannelManager | undefined;
     public audioActivityManager: AudioActivityManager | undefined;
     public platformDetector: PlatformDetector | undefined;
+    public selfController: SelfController | undefined;
+    public nearby: NearbyManager | undefined;
+    public levels: PlayerLevelSources | undefined;
+
+    /** The rail's servers, resolved during initialize so the shell can draw immediately. */
+    public rail: readonly RailServer[] = [];
+    public currentServer = '';
+    public gamertag = '';
+
+    /**
+     * The server's own proximity range and how far the position feed reaches past it.
+     *
+     * Read from `/api/config` rather than assumed, so the boundary the roster draws is the
+     * boundary the audio router uses. The kit's 80 m default belongs to a reference page; a
+     * real server's is 48 unless its operator says otherwise.
+     */
+    public voiceRange = 48;
+    public feedScope = 120;
 
     // Per-server age gate. Fetches the server's declared minimum age from
     // /api/config and asks AgeGateService for a decision. Fail-open: any error,
@@ -82,7 +105,22 @@ export default class Dashboard extends BVCApp {
         }
     }
 
-    async initialize() {
+    /**
+     * Where a failure inside the boot sequence leads.
+     *
+     * Recorded rather than performed, because several of these are decided inside callbacks
+     * and `.catch` blocks that cannot return a landing to `initialize`. It reports its
+     * destination there instead, so the boot overlay stays up over the redirect rather than
+     * lifting to show a dashboard that is already on its way somewhere else.
+     */
+    private pendingHref: string | null = null;
+
+    private redirect(href: string): ScreenLanding {
+        this.pendingHref = href;
+        return { kind: 'navigate', href };
+    }
+
+    async initialize(): Promise<ScreenLanding> {
         this.store = await Store.load("store.json", {
             autoSave: false,
             defaults: {}
@@ -110,8 +148,7 @@ export default class Dashboard extends BVCApp {
         info("Setup complete: " + this.setup.isComplete());
         if (!this.setup.isComplete()) {
             info("Redirecting to setup");
-            window.location.href = "/setup";
-            return;
+            return this.redirect("/setup");
         }
 
         Analytics.track("DashboardReached");
@@ -127,8 +164,7 @@ export default class Dashboard extends BVCApp {
                 if (expired) {
                     warn("Certificate expired for " + currentServer + ", logging out and redirecting to login");
                     await invoke("logout");
-                    window.location.href = "/login?reauth=true&server=" + currentServer;
-                    return;
+                    return this.redirect("/login?reauth=true&server=" + currentServer);
                 }
             } catch (e) {
                 warn("Could not check certificate expiry: " + e);
@@ -181,8 +217,7 @@ export default class Dashboard extends BVCApp {
             }
 
             if (await this.isAgeBlocked(currentServer, this.currentServerCredentials)) {
-                window.location.href = "/error?code=AGE01";
-                return;
+                return this.redirect("/error?code=AGE01");
             }
 
             const isInputStreamStopped = await invoke("is_stopped", { device: "InputDevice" }).then((stopped) => stopped as boolean);
@@ -197,16 +232,14 @@ export default class Dashboard extends BVCApp {
 
                 if (!audioPermission.granted) {
                     warn("Audio permission denied");
-                    window.location.href = "/error?code=PERM1";
-                    return;
+                    return this.redirect("/error?code=PERM1");
                 }
 
                 const notificationGranted = await checkPermission({ permissionType: PermissionType.Notification });
 
                 if (!notificationGranted.granted) {
                     warn("Notification permission denied - notifications may not be visible");
-                    window.location.href = "/error?code=PERM2";
-                    return;
+                    return this.redirect("/error?code=PERM2");
                 }
 
                 // On mobile we need a running background service to allow microphone capture if the
@@ -216,14 +249,13 @@ export default class Dashboard extends BVCApp {
                     const serviceResult: ServiceResponse = await startForegroundService({
                         onPermissionRevoked: (event) => {
                             warn(`Permission revoked: ${event.permissionType}`);
-                            window.location.href = "/error?code=PERM1";
+                            this.redirect("/error?code=PERM1");
                         }
                     });
 
                     if (!serviceResult.started) {
                         warn("Foreground service could not be started.");
-                        window.location.href = "/error?code=SERV01";
-                        return;
+                        return this.redirect("/error?code=SERV01");
                     }
                 }
 
@@ -252,7 +284,128 @@ export default class Dashboard extends BVCApp {
             }
         }
 
+        // A failure decided inside a callback or a `.catch` reports its destination here,
+        // because it could not return one from where it happened.
+        if (this.pendingHref) {
+            return { kind: 'navigate', href: this.pendingHref };
+        }
+
+        await this.loadIdentity();
+        await this.startNearby();
+        return { kind: 'show' };
+    }
+
+    /**
+     * The rail's servers and who you are, read once the session is settled.
+     *
+     * Separate from `initializeManagers` because it runs after `refresh_server_state` may
+     * have reissued credentials: reading the gamertag before that would show the name from
+     * a certificate that is no longer the one in use.
+     */
+    private async loadIdentity(): Promise<void> {
+        if (!this.store) return;
+        const saved = (await this.store.get<ServerListEntry[]>("server_list")) ?? [];
+        this.currentServer = (await this.store.get<string>("current_server")) ?? '';
+        this.rail = RailView.rows(saved, this.currentServer);
+        this.gamertag =
+            this.currentServerCredentials?.gamertag ??
+            (await this.store.get<string>("current_player")) ??
+            '';
+    }
+
+    /**
+     * Open the position feed and the per-player level adapter.
+     *
+     * Last, because it needs both the server's range and a settled session: a feed opened
+     * before `refresh_server_state` could reissue credentials would be holding a ticket
+     * bought with a certificate that is no longer in use.
+     */
+    private async startNearby(): Promise<void> {
+        if (!this.store || !this.currentServer) return;
+
+        // Both are reused rather than replaced, because a reconnect calls this again and the
+        // screen is already holding references into them: a level source is handed to a meter
+        // at mount, and the roster subscribes to these stores once at boot. Swapping either
+        // object leaves every card on screen bound to one that nothing writes to any more.
+        if (!this.levels) {
+            this.levels = new PlayerLevelSources();
+            await this.levels.start();
+        }
+        if (!this.nearby) {
+            this.nearby = new NearbyManager(this.store);
+        }
+
+        // `start` stops itself first, so re-entering it re-opens the feed on a fresh ticket
+        // without stranding the old socket.
+        await this.nearby.start(this.currentServer, this.voiceRange);
+    }
+
+    showPreloader(): void {
         this.preloader();
+    }
+
+    /**
+     * Retry the voice connection in place.
+     *
+     * Runs the whole connect sequence, not just the QUIC dial. `changeNetworkStream` alone
+     * re-dials and leaves everything downstream of the old session in place: the audio streams
+     * keep their per-speaker jitter buffers and decoder state from a connection that no longer
+     * exists, the position feed goes on retrying against a ticket bought with the previous
+     * session, and the channel list is whatever it was before the server went away. Pressing
+     * Reconnect appeared to work and nobody could be heard afterwards.
+     *
+     * `initializeAudioDevicesAndNetworkStream` is the same function boot uses, deliberately:
+     * one path for connecting means a reconnect cannot drift out of step with a cold start.
+     *
+     * Its failures are recorded as a destination rather than thrown, which is right for boot and
+     * wrong for a button inside a status readout — a retry that fails should say so where it was
+     * pressed rather than throwing the whole screen away. So the recorded destination is
+     * restored afterwards and reported as a return value instead.
+     */
+    async reconnect(): Promise<boolean> {
+        if (!this.store || !this.currentServer) return false;
+        const before = this.pendingHref;
+        try {
+            // Closed before the dial rather than after: the feed's retry would otherwise spend
+            // the reconnect asking for tickets the dead session cannot authorise.
+            this.nearby?.stop();
+
+            await this.initializeAudioDevicesAndNetworkStream(
+                this.store,
+                this.currentServer,
+                this.currentServerCredentials,
+            );
+
+            // The world moved on while the link was down. Membership is the server's to state.
+            await this.channelManager?.initialize();
+            await this.startNearby();
+        } catch (e) {
+            warn(`Reconnect failed: ${e}`);
+        }
+        const failed = this.pendingHref !== before;
+        this.pendingHref = before;
+        return !failed;
+    }
+
+    /** The current server's hostname, which is what the glyph is derived from. */
+    host(): string {
+        return this.currentServer.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    }
+
+    /**
+     * Sign out of this server and go to the sign-in.
+     *
+     * Returns the destination rather than assigning it: the same reason `initialize` does,
+     * and it keeps the audio shutdown ordered ahead of the navigation instead of racing it.
+     */
+    async signOut(): Promise<ScreenLanding> {
+        try {
+            await invoke("logout");
+            await this.shutdown();
+        } catch (e) {
+            error(`Logout failed: ${e}`);
+        }
+        return { kind: 'navigate', href: '/login' };
     }
 
     /**
@@ -273,6 +426,9 @@ export default class Dashboard extends BVCApp {
             this.playerManager = new PlayerManager(this.store, currentUser);
             await this.playerManager.listenForBackendUpdates();
             this.channelManager = new ChannelManager(this.playerManager, this.store, serverUrl);
+
+            this.selfController = new SelfController(this.store);
+            await this.selfController.start();
 
             // Initialize AudioActivityManager (independent)
             this.audioActivityManager = new AudioActivityManager(this.store);
@@ -522,6 +678,12 @@ export default class Dashboard extends BVCApp {
                             value: JSON.stringify(configResponse.config.spatial_audio),
                             device: "OutputDevice"
                         });
+
+                        // The same number the audio router uses, so the line the roster draws
+                        // and the line a voice actually stops at are one line. The feed reaches
+                        // 2.5x past it, which is what gives the ring an approach to animate.
+                        this.voiceRange = configResponse.config.spatial_audio.broadcast_range;
+                        this.feedScope = Math.min(256, this.voiceRange * 2.5);
                     }
                 } catch (e) {
                     warn(`Failed to fetch server config, using stored values: ${e}`);
@@ -535,17 +697,17 @@ export default class Dashboard extends BVCApp {
                     const errStr = String(e);
                     if (errStr.includes("INCOMPATIBLE_DEVICE")) {
                         error(`Incompatible audio device: ${e}`);
-                        window.location.href = "/error?code=AUDI01";
+                        this.redirect("/error?code=AUDI01");
                         return;
                     }
                     if (errStr.includes("NO_INPUT_DEVICE")) {
                         error(`No input device available: ${e}`);
-                        window.location.href = "/error?code=AUDI02";
+                        this.redirect("/error?code=AUDI02");
                         return;
                     }
                     if (errStr.includes("NO_OUTPUT_DEVICE")) {
                         error(`No output device available: ${e}`);
-                        window.location.href = "/error?code=AUDI03";
+                        this.redirect("/error?code=AUDI03");
                         return;
                     }
                     error(`Audio device error: ${e}`);
@@ -556,7 +718,7 @@ export default class Dashboard extends BVCApp {
         } else {
             warn("No current server found in store!");
             await this.shutdown();
-            window.location.href = "/server";
+            this.redirect("/server");
         }
     }
 
@@ -590,13 +752,13 @@ export default class Dashboard extends BVCApp {
             const errStr = String(e);
             if (errStr.includes("DNS_FAIL")) {
                 error(`DNS resolution failed: ${e}`);
-                window.location.href = "/error?code=DNS01";
+                this.redirect("/error?code=DNS01");
             } else if (errStr.includes("QUIC_FAIL")) {
                 error(`QUIC connection failed: ${e}`);
-                window.location.href = "/error?code=QUIC01";
+                this.redirect("/error?code=QUIC01");
             } else {
                 error(`Error changing network stream: ${e}`);
-                window.location.href = "/error?code=CONN01";
+                this.redirect("/error?code=CONN01");
             }
         }
     }
@@ -604,6 +766,15 @@ export default class Dashboard extends BVCApp {
     async cleanup(): Promise<void> {
         // Clean up managers
         try {
+            if (this.nearby) {
+                this.nearby.stop();
+            }
+            if (this.levels) {
+                this.levels.stop();
+            }
+            if (this.selfController) {
+                this.selfController.cleanup();
+            }
             if (this.channelManager) {
                 this.channelManager.cleanup();
             }

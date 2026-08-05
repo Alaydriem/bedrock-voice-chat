@@ -1,6 +1,7 @@
-use bvc_server_lib::services::{PositionHandle, PositionService};
+use bvc_server_lib::services::{FAR_TIER_MAX, PositionService};
 use common::game_data::Dimension;
 use common::players::MinecraftPlayer;
+use common::structs::position::PresenceKind;
 use common::{Coordinate, Orientation, PlayerEnum};
 
 const WORLD: &str = "8f14e45f-ea8f-4b62-9f2a-1c0d7e3b4a55";
@@ -21,31 +22,13 @@ fn player(name: &str, x: f32, z: f32, world: &str, dimension: Dimension) -> Play
     })
 }
 
-// The UI animates an entry by matching it frame to frame, so one player must
-// map to one handle for the life of a session.
-#[test]
-fn a_player_keeps_one_handle_within_a_session() {
-    let session = PositionHandle::new_session();
-
-    assert_eq!(session.handle_for("Alice"), session.handle_for("Alice"));
+/// Everyone is on voice unless a test says otherwise.
+fn all_on_voice(_name: &str) -> bool {
+    true
 }
 
-#[test]
-fn different_players_get_different_handles() {
-    let session = PositionHandle::new_session();
-
-    assert_ne!(session.handle_for("Alice"), session.handle_for("Bob"));
-}
-
-// Two sessions must not agree on a player's handle. If they did, the handle
-// would be a stable pseudonym -- a tracking identifier by another name -- and
-// two cooperating observers could correlate sightings of the same person.
-#[test]
-fn handles_do_not_correlate_across_sessions() {
-    let first = PositionHandle::new_session();
-    let second = PositionHandle::new_session();
-
-    assert_ne!(first.handle_for("Alice"), second.handle_for("Alice"));
+fn nobody_on_voice(_name: &str) -> bool {
+    false
 }
 
 // The whole point is to see someone before hearing them, so scope must exceed
@@ -74,39 +57,112 @@ fn scope_is_clamped_to_the_maximum() {
 #[test]
 fn the_observer_is_excluded_from_their_own_snapshot() {
     let service = PositionService::for_voice_range(48.0);
-    let handles = PositionHandle::new_session();
     let alice = player("Alice", 0.0, 0.0, WORLD, Dimension::Overworld);
 
-    let positions = service.snapshot_positions(&alice, &[alice.clone()], &handles);
+    let positions = service.snapshot_positions(&alice, &[alice.clone()], &all_on_voice);
 
     assert!(positions.is_empty());
 }
 
+// The name is the certificate CN form, because that is the identity channel membership,
+// the recorded track and the colour beside the name are all keyed on.
 #[test]
-fn a_nearby_player_in_the_same_world_is_included() {
+fn an_entry_is_named_by_its_cn_form() {
     let service = PositionService::for_voice_range(48.0);
-    let handles = PositionHandle::new_session();
     let alice = player("Alice", 0.0, 0.0, WORLD, Dimension::Overworld);
     let bob = player("Bob", 30.0, 0.0, WORLD, Dimension::Overworld);
 
-    let positions = service.snapshot_positions(&alice, &[alice.clone(), bob], &handles);
+    let positions = service.snapshot_positions(&alice, &[alice.clone(), bob], &all_on_voice);
 
     assert_eq!(positions.len(), 1);
-    assert_eq!(positions[0].handle, handles.handle_for("Bob"));
+    assert_eq!(positions[0].name, "minecraft:Bob");
     assert_eq!(positions[0].distance, 30);
+}
+
+// Somebody in the world without BVC is the most common confusion this product produces:
+// they are standing in front of you and nothing you say reaches them. Omitting them would
+// make them indistinguishable from nobody being there.
+#[test]
+fn a_player_not_on_voice_is_reported_as_present_and_unreachable() {
+    let service = PositionService::for_voice_range(48.0);
+    let alice = player("Alice", 0.0, 0.0, WORLD, Dimension::Overworld);
+    let bob = player("Bob", 10.0, 0.0, WORLD, Dimension::Overworld);
+
+    let positions = service.snapshot_positions(&alice, &[bob], &nobody_on_voice);
+
+    assert_eq!(positions.len(), 1);
+    assert_eq!(positions[0].presence, PresenceKind::Game);
+}
+
+#[test]
+fn a_player_on_voice_is_reported_as_such() {
+    let service = PositionService::for_voice_range(48.0);
+    let alice = player("Alice", 0.0, 0.0, WORLD, Dimension::Overworld);
+    let bob = player("Bob", 10.0, 0.0, WORLD, Dimension::Overworld);
+
+    let positions = service.snapshot_positions(&alice, &[bob], &all_on_voice);
+
+    assert_eq!(positions[0].presence, PresenceKind::Voice);
+}
+
+// The roster is the near tier, so it cannot be truncated: a card without a distance is a
+// card that lies about how far away somebody is.
+#[test]
+fn everybody_within_voice_range_is_sent() {
+    let service = PositionService::for_voice_range(48.0);
+    let alice = player("Alice", 0.0, 0.0, WORLD, Dimension::Overworld);
+    let crowd: Vec<PlayerEnum> = (0..40)
+        .map(|i| player(&format!("Near{i}"), 5.0 + (i as f32) * 0.5, 0.0, WORLD, Dimension::Overworld))
+        .collect();
+
+    let positions = service.snapshot_positions(&alice, &crowd, &all_on_voice);
+
+    assert_eq!(positions.len(), 40);
+}
+
+// Beyond voice range only a handful are ever drawn, so a crowded square two hundred blocks
+// away must not become kilobytes of JSON twice a second.
+#[test]
+fn the_far_tier_is_capped() {
+    let service = PositionService::for_voice_range(48.0);
+    let alice = player("Alice", 0.0, 0.0, WORLD, Dimension::Overworld);
+    let crowd: Vec<PlayerEnum> = (0..40)
+        .map(|i| player(&format!("Far{i}"), 60.0 + (i as f32), 0.0, WORLD, Dimension::Overworld))
+        .collect();
+
+    let positions = service.snapshot_positions(&alice, &crowd, &all_on_voice);
+
+    assert_eq!(positions.len(), FAR_TIER_MAX);
+}
+
+// Nearest first is what makes the far tier's cap safe: it can only ever drop somebody
+// already beyond voice range.
+#[test]
+fn entries_are_ordered_nearest_first() {
+    let service = PositionService::for_voice_range(48.0);
+    let alice = player("Alice", 0.0, 0.0, WORLD, Dimension::Overworld);
+    let world = vec![
+        player("Far", 100.0, 0.0, WORLD, Dimension::Overworld),
+        player("Mid", 40.0, 0.0, WORLD, Dimension::Overworld),
+        player("Close", 5.0, 0.0, WORLD, Dimension::Overworld),
+    ];
+
+    let positions = service.snapshot_positions(&alice, &world, &all_on_voice);
+
+    let distances: Vec<u16> = positions.iter().map(|entry| entry.distance).collect();
+    assert_eq!(distances, vec![5, 40, 100]);
 }
 
 // A different world is a different reality; nothing there may appear.
 #[test]
 fn a_player_in_another_world_is_excluded() {
     let service = PositionService::for_voice_range(48.0);
-    let handles = PositionHandle::new_session();
     let alice = player("Alice", 0.0, 0.0, WORLD, Dimension::Overworld);
     let bob = player("Bob", 5.0, 0.0, OTHER_WORLD, Dimension::Overworld);
 
     assert!(
         service
-            .snapshot_positions(&alice, &[bob], &handles)
+            .snapshot_positions(&alice, &[bob], &all_on_voice)
             .is_empty()
     );
 }
@@ -116,13 +172,12 @@ fn a_player_in_another_world_is_excluded() {
 #[test]
 fn a_player_in_another_dimension_is_excluded() {
     let service = PositionService::for_voice_range(48.0);
-    let handles = PositionHandle::new_session();
     let alice = player("Alice", 0.0, 0.0, WORLD, Dimension::Overworld);
     let bob = player("Bob", 5.0, 0.0, WORLD, Dimension::TheNether);
 
     assert!(
         service
-            .snapshot_positions(&alice, &[bob], &handles)
+            .snapshot_positions(&alice, &[bob], &all_on_voice)
             .is_empty()
     );
 }
@@ -130,13 +185,12 @@ fn a_player_in_another_dimension_is_excluded() {
 #[test]
 fn a_player_beyond_scope_is_excluded() {
     let service = PositionService::for_voice_range(48.0);
-    let handles = PositionHandle::new_session();
     let alice = player("Alice", 0.0, 0.0, WORLD, Dimension::Overworld);
     let far = player("Far", 100_000.0, 0.0, WORLD, Dimension::Overworld);
 
     assert!(
         service
-            .snapshot_positions(&alice, &[far], &handles)
+            .snapshot_positions(&alice, &[far], &all_on_voice)
             .is_empty()
     );
 }
@@ -146,7 +200,6 @@ fn a_player_beyond_scope_is_excluded() {
 fn a_player_outside_voice_range_is_still_visible() {
     let voice_range = 48.0;
     let service = PositionService::for_voice_range(voice_range);
-    let handles = PositionHandle::new_session();
     let alice = player("Alice", 0.0, 0.0, WORLD, Dimension::Overworld);
     let approaching = player("Approaching", 120.0, 0.0, WORLD, Dimension::Overworld);
 
@@ -156,7 +209,7 @@ fn a_player_outside_voice_range_is_still_visible() {
     );
     assert_eq!(
         service
-            .snapshot_positions(&alice, &[approaching], &handles)
+            .snapshot_positions(&alice, &[approaching], &all_on_voice)
             .len(),
         1
     );
@@ -167,11 +220,10 @@ fn a_player_outside_voice_range_is_still_visible() {
 #[test]
 fn bearing_is_relative_to_observer_facing() {
     let service = PositionService::for_voice_range(48.0);
-    let handles = PositionHandle::new_session();
     let alice = player("Alice", 0.0, 0.0, WORLD, Dimension::Overworld);
     let ahead = player("Ahead", 0.0, 50.0, WORLD, Dimension::Overworld);
 
-    let positions = service.snapshot_positions(&alice, &[ahead], &handles);
+    let positions = service.snapshot_positions(&alice, &[ahead], &all_on_voice);
 
     assert_eq!(positions.len(), 1);
     assert!(positions[0].bearing_deg < 360);

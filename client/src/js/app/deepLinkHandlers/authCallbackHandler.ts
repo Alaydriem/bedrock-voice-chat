@@ -73,9 +73,22 @@ export class AuthCallbackHandler {
          * authentication error.
          */
         if (await this.alreadyRedeemed(code)) {
-            info("AuthCallbackHandler: Authorization code already exchanged, ignoring duplicate");
+            info("AuthCallbackHandler: Authorization code already exchanged");
             await this.store.delete(this.PENDING_KEY);
             await this.store.save();
+            // A spent code is not evidence the sign-in finished, and this branch used to assume
+            // it was — it returned, navigating nowhere and reporting nothing.
+            //
+            // The code is claimed *before* the exchange, deliberately, so a code sent once is
+            // spent whatever happened next. On Android the auth intent routinely reloads the
+            // webview mid-exchange: the in-flight `server_login` dies with the context, the
+            // pending callback survives because only success clears it, and the fresh context
+            // routes it again and lands exactly here. Silence then looked like a login that did
+            // nothing — no error, still on the sign-in page, or still holding "continue in the
+            // window that just opened" — which is what the user was actually seeing.
+            //
+            // So ask whether the session exists instead of inferring it from the code.
+            await this.resumeOrFail();
             return;
         }
 
@@ -105,46 +118,7 @@ export class AuthCallbackHandler {
                 redirect: redirectUri
             }) as LoginResponse;
 
-            await this.store.set("current_server", authStateEndpoint);
-            await this.store.set("current_player", response.gamertag);
-            await this.store.set("active_game", "minecraft");
-
-            if (await this.store.has("server_list")) {
-                let serverList = await this.store.get("server_list") as ServerListEntry[];
-                let hasServer = false;
-                serverList.forEach(server => {
-                    if (server.server == authStateEndpoint) {
-                        hasServer = true;
-                        server.game = "minecraft";
-                    }
-                });
-
-                if (!hasServer) {
-                    serverList.push({
-                        "server": authStateEndpoint,
-                        "player": response.gamertag,
-                        "game": "minecraft"
-                    });
-                }
-                await this.store.set("server_list", serverList);
-                ServerListStore.mirrorServerCount(serverList);
-            } else {
-                const serverList: ServerListEntry[] = [{
-                    "server": authStateEndpoint,
-                    "player": response.gamertag,
-                    "game": "minecraft"
-                }];
-                await this.store.set("server_list", serverList);
-                ServerListStore.mirrorServerCount(serverList);
-            }
-
-            await this.store.delete("auth_state_token");
-            await this.store.delete("auth_state_endpoint");
-            await this.store.delete(this.PENDING_KEY);
-            await this.store.save();
-
-            Analytics.track("LoginCompleted", { game_type: "minecraft" });
-            window.location.href = "/setup";
+            await this.establishSession(authStateEndpoint, response);
         } catch (e) {
             logError(`AuthCallbackHandler: Login failed: ${e}`);
             const errorStr = String(e).toLowerCase();
@@ -164,6 +138,86 @@ export class AuthCallbackHandler {
 
     private getRedirectUrl(): string {
         return MinecraftRedirect.URI;
+    }
+
+    /**
+     * Record a completed sign-in and go on to setup.
+     *
+     * Shared with the resume path rather than duplicated, because the two must agree about what
+     * being signed in consists of. `server_login` writes the credentials from Rust; everything
+     * here is the webview-side bookkeeping the rest of the app reads, and a resume that restored
+     * only some of it would produce a session that authenticates and then cannot find itself.
+     *
+     * `/setup`, not `/dashboard`: setup is re-checked on every launch and forwards to the
+     * dashboard by itself, so this cannot skip a permission prompt nobody has answered.
+     */
+    private async establishSession(endpoint: string, response: LoginResponse): Promise<void> {
+        await this.store.set("current_server", endpoint);
+        await this.store.set("current_player", response.gamertag);
+        await this.store.set("active_game", "minecraft");
+
+        const existing = ((await this.store.get<ServerListEntry[]>("server_list")) ?? []).map(
+            (server) =>
+                server.server === endpoint ? { ...server, game: "minecraft" as const } : server,
+        );
+        const serverList = existing.some((server) => server.server === endpoint)
+            ? existing
+            : [
+                  ...existing,
+                  { server: endpoint, player: response.gamertag, game: "minecraft" as const },
+              ];
+
+        await this.store.set("server_list", serverList);
+        ServerListStore.mirrorServerCount(serverList);
+
+        await this.store.delete("auth_state_token");
+        await this.store.delete("auth_state_endpoint");
+        await this.store.delete(this.PENDING_KEY);
+        await this.store.save();
+
+        Analytics.track("LoginCompleted", { game_type: "minecraft" });
+        window.location.href = "/setup";
+    }
+
+    /**
+     * Carry on, or say plainly that the sign-in did not finish.
+     *
+     * Credentials are the only honest answer to "did that work". `server_login` writes them from
+     * Rust, so they can exist even when the webview died before recording anything — which is the
+     * case this exists for. Their presence for the server this callback was issued against means
+     * the exchange completed, whoever was around to see it.
+     *
+     * `auth_state_endpoint` names that server and is deleted only on success, so it is the more
+     * accurate of the two. Falling back to `current_server` covers the exchange that completed
+     * and cleared it; without the fallback a duplicate arriving after a clean login would report
+     * a failure to somebody who is signed in.
+     */
+    private async resumeOrFail(): Promise<void> {
+        const endpoint =
+            (await this.store.get<string>("auth_state_endpoint")) ??
+            (await this.store.get<string>("current_server"));
+
+        if (!endpoint) {
+            await this.failLogin("That sign-in could not be completed. Please sign in again.");
+            return;
+        }
+
+        let credentials: LoginResponse;
+        try {
+            credentials = await invoke<LoginResponse>("get_credentials", { server: endpoint });
+        } catch (e) {
+            logError(`AuthCallbackHandler: no session for ${endpoint} after a spent code: ${e}`);
+            await this.failLogin("That sign-in could not be completed. Please sign in again.");
+            return;
+        }
+
+        if (!credentials?.certificate) {
+            await this.failLogin("That sign-in could not be completed. Please sign in again.");
+            return;
+        }
+
+        info(`AuthCallbackHandler: session for ${endpoint} already exists, continuing`);
+        await this.establishSession(endpoint, credentials);
     }
 
     private async alreadyRedeemed(code: string): Promise<boolean> {

@@ -21,6 +21,22 @@ export interface DiagnosticsInput {
   reconnecting: boolean;
   /** Attempt number, when reconnecting. */
   attempt?: number;
+  /**
+   * Sending while nothing comes back.
+   *
+   * A live connection always produces acknowledgements, so silence in one direction only is
+   * the signature of a server that has stopped processing this client — path-budget
+   * exhaustion being the known cause. Nothing else on this panel reveals it: the microphone
+   * is fine, the link reads as up, and every other number looks healthy.
+   */
+  stalled?: boolean;
+  /**
+   * How much of what was heard had to be reconstructed rather than decoded.
+   *
+   * Not loss, and never labelled as such — it is what a listener actually experienced, which
+   * makes it the most meaningful figure here.
+   */
+  concealmentPercent?: number;
   muted: boolean;
   deafened: boolean;
   /** Push-to-talk on but not currently held. */
@@ -55,6 +71,11 @@ export class Diagnostics {
       const attempt = d.attempt ? ` — attempt ${d.attempt}` : "";
       return ["bad", `Reconnecting${attempt}. Nobody can hear you right now.`];
     }
+    // Above loss, because it outranks it: your microphone is fine, the link reads as up, and
+    // nothing you say is arriving. Every other number on this panel looks healthy.
+    if (d.stalled) {
+      return ["bad", "Your audio is not reaching the server. Try reconnecting."];
+    }
     if (d.deafened) return ["warn", "You are deafened. You cannot hear anyone."];
     if (d.muted) return ["bad", "You are muted. Nobody can hear you."];
     if (d.pttIdle) return ["warn", "Push-to-talk is on. Hold the mic button to speak."];
@@ -62,6 +83,18 @@ export class Diagnostics {
       return [
         "warn",
         `Your input device is running at ${(d.inputRate / 1000).toFixed(1)} kHz. BVC expects 48 kHz.`,
+      ];
+    }
+    // Above loss, because this is what somebody actually heard. Loss is a cause; concealment
+    // is the symptom they came to the panel about.
+    //
+    // Attributed to one speaker rather than to the session, because it is a maximum across
+    // everybody audible. Phrased as "what you heard" it accused the whole link of something one
+    // person's uplink was doing, and sent the reader looking for a fault at this end.
+    if ((d.concealmentPercent ?? 0) > 5) {
+      return [
+        "warn",
+        `${d.concealmentPercent}% of the worst speaker's audio had to be reconstructed. They will sound rough.`,
       ];
     }
     if (d.lossPercent > 3) {
@@ -98,7 +131,18 @@ export class Diagnostics {
           ["Device", d.outputDevice],
           ["Sample rate", rate(d.outputRate)],
           ["Receiving", `${d.datagramsIn} datagrams/s`],
-          ["Muted by you", d.mutedOthers ? `${d.mutedOthers} of ${d.visiblePlayers}` : "none"],
+          [
+            "Muted by you",
+            // The denominator is dropped when it is not known rather than printed as zero:
+            // "1 of 0" is arithmetic nobody can act on, and the two figures come from different
+            // places — the count from this client's own mixer, the population from the position
+            // feed, which answers with nothing until it is connected.
+            d.mutedOthers
+              ? d.visiblePlayers > 0
+                ? `${d.mutedOthers} of ${d.visiblePlayers}`
+                : `${d.mutedOthers}`
+              : "none",
+          ],
         ],
       },
       {
@@ -108,7 +152,9 @@ export class Diagnostics {
             "State",
             d.reconnecting
               ? `reconnecting (${d.attempt ?? 1})`
-              : `connected  ${Diagnostics.duration(d.uptimeSeconds)}`,
+              : d.stalled
+                ? `connected  ${Diagnostics.duration(d.uptimeSeconds)}  ← stalled`
+                : `connected  ${Diagnostics.duration(d.uptimeSeconds)}`,
           ],
           ["Round trip", `${d.rtt} ms`],
           ["Packet loss", `${d.lossPercent} %`],

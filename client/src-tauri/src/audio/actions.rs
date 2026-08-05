@@ -82,6 +82,22 @@ impl AudioActionsManager {
         status
     }
 
+    /// Deafen, and the mute that has to come with it.
+    ///
+    /// Hearing nobody while they can still hear you is a state people reach by accident
+    /// and cannot detect from their own screen, so deafening drives the input too.
+    /// Undeafening clears both, because the fix for "I cannot hear anyone" must not be a
+    /// second button they have no reason to suspect.
+    ///
+    /// The pairing lives here rather than in each caller so the in-game action, the global
+    /// hotkey and the app cannot disagree about what deafen means. Each leg still emits its
+    /// own `mute:*` event, which is how every surface learns the resulting pair.
+    pub async fn set_deafened(&self, desired: bool) -> bool {
+        self.set_mute(AudioDeviceType::OutputDevice, desired).await;
+        self.set_mute(AudioDeviceType::InputDevice, desired).await;
+        desired
+    }
+
     /// Drive recording to `desired`, starting/stopping only if it differs — the
     /// check and the transition happen under a single `RecordingManager` lock.
     pub async fn set_recording(&self, desired: bool) -> Result<bool, anyhow::Error> {

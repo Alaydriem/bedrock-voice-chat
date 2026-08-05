@@ -149,6 +149,12 @@
   color: var(--color-rad-dim);
 }
 
+/* The route from noticing a dead link to diagnosing it. Present only while the link is down,
+   which is the one state on this screen with somewhere to go. */
+.rad-idle__action {
+  margin-top: 16px;
+}
+
 /* ---- the roster ---- */
 
 .rad-roster {
@@ -374,6 +380,334 @@
   color: var(--color-rad-fault);
 }
 
+/* ---- the dense roster ----
+ * What a section becomes once a card each stops fitting: a handful of cards for whoever
+ * is worth one, then everybody else as an avatar. Nobody is hidden — the question is
+ * only who gets a whole card right now.
+ */
+
+.rad-roster__section:not(:last-child) {
+  margin-bottom: 24px;
+}
+
+.rad-roster__empty {
+  margin: 0;
+  font-size: var(--text-rad-sm);
+  color: var(--color-rad-faint);
+}
+
+/* ---- a recently-seen player, in settings ----
+ * The same controls a card carries, on a row: this is where you adjust somebody who is no
+ * longer in front of you, so it wants a name and a slider rather than a face and a meter.
+ */
+
+.rad-recent-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-rad-line);
+}
+
+.rad-recent-row__id {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-rad-sm);
+}
+
+.rad-recent-row__id canvas,
+.rad-recent-row__id img {
+  border-radius: inherit;
+}
+
+.rad-recent-row__text {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.rad-recent-row__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-rad-md);
+  color: var(--color-rad-tx);
+}
+
+.rad-recent-row__seen {
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-2xs);
+  letter-spacing: var(--tracking-rad-tag);
+  color: var(--color-rad-faint);
+}
+
+/* ---- a group row's members ----
+ * Who is in there, rather than how loud it is. A channel's audio reaches its members and
+ * nobody else, so a client outside one has nothing to measure — the faces are the honest
+ * signal, and a drained one is somebody in the group this client cannot currently hear.
+ */
+
+.rad-group-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.rad-group-row__since {
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-2xs);
+  letter-spacing: var(--tracking-rad-tag);
+  color: var(--color-rad-faint);
+}
+
+.rad-group-cluster {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+}
+
+/* Overlapped, so a cluster reads as a group rather than as a row of separate things. */
+.rad-group-cluster__face + .rad-group-cluster__face {
+  margin-left: -7px;
+}
+
+.rad-group-cluster__id {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-rad-xs);
+  box-shadow: 0 0 0 1px var(--color-rad-void);
+}
+
+.rad-group-cluster__id canvas,
+.rad-group-cluster__id img {
+  border-radius: inherit;
+}
+
+.rad-group-cluster__face.is-quiet {
+  filter: grayscale(1);
+  opacity: 0.5;
+}
+
+.rad-group-cluster__more {
+  margin-left: 5px;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-2xs);
+  color: var(--color-rad-faint);
+}
+
+/* Somebody joined or left. Movement rather than a meter: it is the one thing that genuinely
+   happened, and it fades on its own. */
+@keyframes rad-group-stir {
+  0%,
+  100% {
+    border-color: transparent;
+  }
+  50% {
+    border-color: var(--color-rad-brand-lift);
+  }
+}
+
+.rad-group-row.is-stirring {
+  animation: rad-group-stir 1.4s ease-in-out 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rad-group-row.is-stirring {
+    animation: none;
+    border-color: var(--color-rad-brand-lift);
+  }
+}
+
+.rad-avatar-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 12px 10px;
+}
+
+.rad-avatar-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* The positioning box, not the clipped one: the ring and the badge sit outside the
+ * identity's bounds, and `.rad-server-id` hides its overflow. */
+.rad-avatar-chip__face {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  transition: transform 0.18s;
+}
+
+/* A player's identity is a server's identity. `ServerGlyph` derives a mark and a hue
+ * from any name, so a player with no gamerpic still has one every client agrees on —
+ * and `.rad-server-id` is already the box that holds either.
+ *
+ * These win on source order, not specificity: `.rad-server-id canvas` is equally
+ * specific and dashboard.css is imported after server-select.css. */
+.rad-avatar-chip__id,
+.rad-player__id {
+  width: 100%;
+  height: 100%;
+}
+
+.rad-avatar-chip__id {
+  border-radius: var(--radius-rad-md);
+}
+
+.rad-player__id {
+  border-radius: var(--radius-rad-lg);
+}
+
+.rad-avatar-chip__id canvas,
+.rad-avatar-chip__id img,
+.rad-player__id canvas,
+.rad-player__id img {
+  border-radius: inherit;
+}
+
+.rad-avatar-chip:hover .rad-avatar-chip__face {
+  transform: translateY(-2px);
+}
+
+/* The level, without a canvas per entry. `--level` is written on the chip and read
+ * here, so forty avatars cost forty style writes rather than forty render loops. */
+.rad-avatar-chip__ring {
+  position: absolute;
+  inset: -3px;
+  border: 2px solid currentColor;
+  border-radius: 15px;
+  opacity: calc(var(--level, 0) * 0.9);
+  transform: scale(calc(1 + var(--level, 0) * 0.06));
+  transition:
+    opacity 0.12s linear,
+    transform 0.12s linear;
+}
+
+.rad-avatar-chip__name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-rad-xs);
+  color: var(--color-rad-dim);
+}
+
+.rad-avatar-chip__meta {
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-2xs);
+  letter-spacing: var(--tracking-rad-tag);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-rad-faint);
+}
+
+.rad-avatar-chip.is-pinned .rad-avatar-chip__face {
+  outline: 2px solid var(--color-rad-brand-lift);
+  outline-offset: 3px;
+}
+
+/* An opened avatar expands where it stands. Promoting it to a band at the top of the
+ * roster put the card off-screen for anyone scrolled into a long list, so the tap
+ * appeared to do nothing at all. */
+.rad-avatar-grid__open {
+  grid-column: 1 / -1;
+  margin: 4px 0 8px;
+}
+
+/* In the world, not on voice. Drained rather than hidden: they are present, and the
+ * one thing worth knowing about them is that talking will not reach them. */
+.rad-avatar-chip--game .rad-avatar-chip__id {
+  filter: grayscale(1);
+  opacity: 0.55;
+}
+
+.rad-avatar-chip--game .rad-avatar-chip__name {
+  color: var(--color-rad-faint);
+}
+
+.rad-avatar-chip__badge {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--color-rad-void);
+  border-radius: var(--radius-rad-pill);
+  background: var(--color-rad-panel);
+  color: var(--color-rad-faint);
+}
+
+.rad-avatar-chip__badge > [data-rad-icon] > svg {
+  width: 9px;
+  height: 9px;
+}
+
+/* A card for somebody who cannot hear you. The gain controls are absent rather than
+ * disabled — there is no audio to turn down, and a greyed slider invites the reading
+ * that they have been muted. */
+.rad-player--game .rad-player__id {
+  filter: grayscale(1);
+  opacity: 0.55;
+}
+
+.rad-player__note {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--text-rad-xs);
+  color: var(--color-rad-faint);
+}
+
+.rad-player__note > [data-rad-icon] > svg {
+  width: 12px;
+  height: 12px;
+}
+
+.rad-player__dismiss {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--color-rad-line-2);
+  border-radius: var(--radius-rad-sm);
+  background: transparent;
+  color: var(--color-rad-faint);
+  cursor: pointer;
+  transition: 0.16s;
+}
+
+.rad-player__dismiss:hover {
+  border-color: var(--color-rad-brand-lift);
+  color: var(--color-rad-tx);
+}
+
+.rad-player__dismiss > [data-rad-icon] > svg {
+  width: 12px;
+  height: 12px;
+}
+
+@container rad (max-width: 560px) {
+  .rad-avatar-grid {
+    grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  }
+}
+
 /* ---- groups ---- */
 
 .rad-new-group {
@@ -402,6 +736,195 @@
 .rad-new-group > [data-rad-icon] > svg {
   width: 14px;
   height: 14px;
+}
+
+/* ---- the group list as a card ----
+ * Transparent rows that fill on hover and when joined read as separate lozenges floating in
+ * the panel, which is what the 9px radius was doing rather than the radius itself. The kit's
+ * `.rad-card` is the grouped-list idiom already used on settings, so the list borrows it and
+ * the rows go flush inside it.
+ *
+ * Flush is also a fix, not only a look: the swipe tray is clipped by the row's own radius, so
+ * a rounded row sliding over the tray shows a crescent of gap at the seam.
+ */
+
+.rad-group-list {
+  overflow: hidden;
+  border: 1px solid var(--color-rad-line);
+  border-radius: var(--radius-rad-lg);
+  background: var(--color-rad-void-2);
+}
+
+.rad-group-list .rad-swipe,
+.rad-group-list .rad-group-row,
+.rad-group-list .rad-new-group {
+  border-radius: 0;
+}
+
+/* One hairline between rows, none at the ends — the card's own border closes those. */
+.rad-group-list > * + * {
+  border-top: 1px solid var(--color-rad-line);
+}
+
+.rad-group-list .rad-new-group {
+  margin-bottom: 0;
+  background: transparent;
+}
+
+.rad-group-list .rad-group-row {
+  border-left: 3px solid transparent;
+  background: transparent;
+}
+
+/* A left accent rather than a full outline. A border on four sides of a flush row draws
+   lines the list already has, and doubles them against its neighbours. */
+.rad-group-list .rad-group-row.is-on {
+  border-color: transparent;
+  border-left-color: var(--color-rad-brand-lift);
+}
+
+/* Flattened into the card: its own frame inside a framed list is two boxes deep for one
+   thing. The darker ground is what separates it from the rows instead. */
+.rad-group-list .rad-group-edit {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--color-rad-void);
+}
+
+/* ---- swipe to reveal ----
+ * The row slides left over a tray of actions. A gesture rather than a row of small controls,
+ * because the alternative on a phone is three targets inside a 44px row inside a bottom sheet,
+ * and every one of them is a mis-tap that joins or leaves a group instead.
+ *
+ * The tray is behind the row, not beside it, so revealing it costs no layout and the row's own
+ * width never changes.
+ */
+
+.rad-swipe {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-rad-md);
+}
+
+.rad-swipe__track {
+  position: relative;
+  z-index: 1;
+  background: var(--color-rad-void);
+  /* Vertical scrolling stays the browser's; horizontal is ours. Without this the sheet
+     scrolls under the finger and the swipe never accumulates. */
+  touch-action: pan-y;
+  transition: transform 0.26s var(--ease-rad-out);
+}
+
+/* No transition while a finger is down: the row must track the finger, not chase it. */
+.rad-swipe__track.is-dragging {
+  transition: none;
+}
+
+/* Stated on the row as well as the track, because the row is the element the pointer is
+   actually over and effective touch-action is read from there upward. */
+.rad-swipe .rad-group-row {
+  touch-action: pan-y;
+}
+
+.rad-swipe__tray {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: stretch;
+}
+
+.rad-swipe__action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  /* Wide enough to be a thumb target once revealed; the gesture already did the aiming. */
+  min-width: 78px;
+  padding: 0 12px;
+  border: 0;
+  font: inherit;
+  font-size: var(--text-rad-xs);
+  background: var(--color-rad-panel);
+  color: var(--color-rad-tx);
+  cursor: pointer;
+}
+
+.rad-swipe__action > [data-rad-icon] > svg {
+  width: 17px;
+  height: 17px;
+}
+
+.rad-swipe__action:hover {
+  background: var(--color-rad-brand);
+}
+
+.rad-swipe__action--danger {
+  background: var(--color-rad-fault);
+  color: var(--color-rad-void);
+}
+
+/* ---- group edit ---- */
+
+.rad-group-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 8px 0 14px;
+  padding: 14px;
+  border: 1px solid var(--color-rad-line-2);
+  border-radius: var(--radius-rad-md);
+  background: var(--color-rad-void-2);
+}
+
+.rad-group-edit__row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rad-group-edit__id {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  text-align: left;
+  font: inherit;
+  border: 1px solid var(--color-rad-line);
+  border-radius: var(--radius-rad-sm);
+  background: var(--color-rad-void);
+  color: var(--color-rad-dim);
+  cursor: pointer;
+}
+
+.rad-group-edit__id code {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  color: var(--color-rad-tx);
+}
+
+.rad-group-edit__copy {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--text-rad-xs);
+  color: var(--color-rad-brand-lift);
+}
+
+.rad-group-edit__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .rad-group-row {
@@ -594,15 +1117,23 @@
   color: var(--color-rad-tx);
 }
 
+/* Filled, not tinted.
+ *
+ * A quarter-opacity wash over a violet ground reads as a slightly different shade of the same
+ * button, which is not what "nobody can hear you" deserves — and on a phone it is the only
+ * thing in reach that says it. The glyph goes dark against the fill so the whole control reads
+ * as one coloured object rather than a coloured box holding a pale icon. */
 .rad-self__btn[aria-pressed="true"] {
-  background: rgb(255 130 102 / 0.24);
-  color: var(--color-rad-fault);
+  background: var(--color-rad-fault);
+  border-color: var(--color-rad-fault);
+  color: var(--color-rad-void);
 }
 
 /* Deafen is warn, not fault: you chose it, and it is recoverable in one press. */
 .rad-self__btn--deafen[aria-pressed="true"] {
-  background: rgb(255 207 77 / 0.24);
-  color: var(--color-rad-warn);
+  background: var(--color-rad-warn);
+  border-color: var(--color-rad-warn);
+  color: var(--color-rad-void);
 }
 
 /* Push-to-talk held down. Green because it is the only state in which you are
@@ -760,6 +1291,21 @@
     opacity 0.3s ease;
 }
 
+/* The tab strip and the chat dock go with the roster they belong to.
+ *
+ * The roster slides away but its tabs and the chat bar are siblings of it, so they stayed
+ * behind under the panel — a chat input at the bottom of a diagnostics readout, and a pair of
+ * tabs offering to switch to a view that is no longer on screen.
+ *
+ * The third selector carries `.is-chat` because the phone rule that shows the dock is itself
+ * three classes deep. Both are inside container queries, which contribute no specificity, so
+ * this wins on count alone and does not depend on which stylesheet loads last. */
+.rad-frame.is-status .rad-tabs,
+.rad-frame.is-status .rad-chat-dock,
+.rad-frame.is-status.is-chat .rad-chat-dock {
+  display: none;
+}
+
 .rad-status__head {
   flex: 0 0 auto;
   display: flex;
@@ -864,6 +1410,25 @@
     display: none;
   }
 
+  /* ---- the status bar's own space ----
+   * The frame is pinned to the visible viewport with `inset: 0`, which on a phone includes the
+   * area under the clock and the battery indicator — so the top bar was rendering beneath them
+   * and its controls could not be pressed. `env()` resolves to 0 without `viewport-fit=cover`
+   * on the viewport meta, so both halves of this are load-bearing.
+   *
+   * A floor of 44px on the controls as well: nothing else in the kit guaranteed a touch target,
+   * and a 34px glyph in a corner is not one. */
+  .rad-dash-top {
+    height: calc(60px + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .rad-dash-top .rad-header-btn,
+  .rad-dash-top .rad-header-glyph {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
   .rad-idle {
     padding-bottom: 90px;
   }
@@ -944,6 +1509,16 @@
   .rad-self-capsule .rad-self__btn {
     width: 44px;
     height: 44px;
+  }
+
+  /* Resting only.
+   *
+   * `.rad-self-capsule .rad-self__btn` is two classes; `.rad-self__btn[aria-pressed="true"]`
+   * is one class and one attribute. Equal specificity, and the capsule block is later in the
+   * file, so an unqualified background here silently reverted every pressed and held state to
+   * the resting ground while the dark glyph colour survived — a dark icon on a dark button.
+   * The phone treatment is the desktop treatment; only the metrics differ. */
+  .rad-self-capsule .rad-self__btn:not([aria-pressed="true"], .is-holding) {
     background: rgb(20 12 38 / 0.7);
   }
 
@@ -953,8 +1528,46 @@
   }
 
   /* The mic is the primary control on a phone and is lifted out of the row. */
-  .rad-self-capsule .rad-self__btn--primary {
+  .rad-self-capsule .rad-self__btn--primary:not([aria-pressed="true"], .is-holding) {
     background: var(--color-rad-panel);
     color: var(--color-rad-tx);
   }
+}
+
+/* ---- the dashboard's own scale ----
+ *
+ * The dashboard is denser than any other screen and needs to read from further away than the
+ * onboarding does, so it gets its own type scale rather than pushing the whole app up.
+ *
+ * `--rad-type-scale` has to be overridden HERE, on the root, and not on the frame. Custom
+ * properties are substituted at the element that declares them: every `--text-rad-*` token is
+ * `calc(<ratio> * var(--rad-type-scale))` declared in `:root`, so it resolves the scale against
+ * the root's value and descendants inherit the already-substituted result. Setting the scale on
+ * a descendant changes nothing at all — the tokens were computed before it was reached.
+ *
+ * `data-rad-dash` is stamped on the document element by `DashboardScreen` and removed with it, so
+ * the override cannot leak into a route that merely shares the stylesheet.
+ *
+ * Two knobs, both adjustable on their own:
+ *   --rad-dash-type-scale   all dashboard text
+ *   --rad-idle-ring         the logo in the empty state
+ */
+:root[data-rad-dash] {
+  --rad-dash-type-scale: 1.18;
+  --rad-type-scale: var(--rad-dash-type-scale);
+}
+
+/* The logo scales with the window rather than sitting at one size.
+ *
+ * A fixed 330px was a coin in the middle of a desktop window, which is most of why the stage read
+ * as empty space around a small object. Measured in `vmin` because the stage is height-bound on a
+ * desktop window and width-bound on a phone, so the smaller axis is the one that decides whether
+ * a circle fits. The floor keeps it from shrinking below the old size on a phone, where `vmin` is
+ * the narrow width; the ceiling stops it crowding the roster on a tall window.
+ *
+ * `--rad-idle-ring` is the knob. */
+.rad-idle__ring {
+  width: var(--rad-idle-ring, clamp(330px, 48vmin, 470px));
+  height: var(--rad-idle-ring, clamp(330px, 48vmin, 470px));
+  flex: 0 0 auto;
 }

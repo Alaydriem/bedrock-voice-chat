@@ -239,6 +239,44 @@ impl Api {
         }
     }
 
+    /// Trade this client's mTLS identity for a single-use WebSocket ticket.
+    ///
+    /// The webview can present neither a client certificate nor a request header, so it
+    /// cannot open an authenticated socket by itself. This call happens here, where the
+    /// certificate is, and hands back something the webview can offer as a subprotocol.
+    ///
+    /// Never cached: a ticket is single-use and expires within the minute, so every
+    /// reconnect wants a fresh one and holding one only buys a failed handshake.
+    pub(crate) async fn websocket_ticket(
+        &self,
+    ) -> Result<common::response::websocket::WebsocketTicketResponse, String> {
+        let client = self.get_client();
+
+        let mut headers = HeaderMap::new();
+        headers.insert("Content-Type", HeaderValue::from_static("application/json"));
+        headers.insert("Accept", HeaderValue::from_static("application/json"));
+
+        let url = format!("{}/api/websocket/ticket", self.endpoint);
+
+        let response = match self.send(client.post(url).headers(headers)).await {
+            Ok(response) => response,
+            // The breaker's own error carries no message worth relaying, and the caller only
+            // needs to know it did not arrive so it can try again in a few seconds.
+            Err(_) => return Err("Ticket request did not reach the server".to_string()),
+        };
+
+        if response.status() != StatusCode::OK {
+            return Err(format!("Ticket request returned {}", response.status()));
+        }
+
+        let body = response
+            .text()
+            .await
+            .map_err(|e| format!("Failed to read ticket response: {}", e))?;
+
+        serde_json::from_str(&body).map_err(|e| format!("Failed to parse ticket response: {}", e))
+    }
+
     pub(crate) async fn get_config(&self) -> Result<ApiConfigResponse, String> {
         let client = self.get_client();
 

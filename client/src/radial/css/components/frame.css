@@ -191,22 +191,33 @@
 
 /* ---- rail ---- */
 
+/* Every measurement in the rail derives from the plate, so widening it is one number rather
+   than six that have to be kept in agreement. The rail is the plate plus its breathing room; the
+   glyph inside each plate is sized from the same base in `ServerRail`. */
 .rad-rail {
-  flex: 0 0 76px;
+  --rad-rail-plate: 58px;
+  --rad-rail-gutter: 17px;
+
+  flex: 0 0 calc(var(--rad-rail-plate) + var(--rad-rail-gutter) * 2);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 14px 0 96px;
+  gap: 12px;
+  padding: 18px 0 104px;
   background: rgb(20 12 38 / 0.55);
   border-right: 1px solid var(--color-rad-line);
 }
 
+/* The gap inside the list separates two servers. This margin separates the servers from the add
+   button below them, which is a different kind of boundary and has to read as one — at a matched
+   gap the add button sat in the rhythm of the list and looked like another server, and at twice
+   the gap it still read as a wider member of the same list rather than as the end of it. */
 .rad-rail__list {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
+  margin-bottom: 28px;
   overflow-y: auto;
 }
 
@@ -216,8 +227,8 @@
 
 .rad-rail-item {
   position: relative;
-  width: 48px;
-  height: 48px;
+  width: var(--rad-rail-plate, 58px);
+  height: var(--rad-rail-plate, 58px);
   padding: 0;
   display: grid;
   place-items: center;
@@ -243,11 +254,11 @@
 .rad-rail-item.is-on::before {
   content: "";
   position: absolute;
-  left: -14px;
+  left: calc(var(--rad-rail-gutter, 17px) * -1);
   top: 50%;
   transform: translateY(-50%);
   width: 4px;
-  height: 22px;
+  height: 26px;
   border-radius: 0 3px 3px 0;
   background: var(--color-rad-brand-lift);
 }
@@ -258,8 +269,8 @@
 }
 
 .rad-rail-btn {
-  width: 48px;
-  height: 48px;
+  width: var(--rad-rail-plate, 58px);
+  height: var(--rad-rail-plate, 58px);
   display: grid;
   place-items: center;
   border: 0;
@@ -281,15 +292,22 @@
 }
 
 .rad-rail-btn svg {
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   display: block;
 }
 
 /* ---- the second column ---- */
 
+/* Wide enough that the pane's right edge clears the self pill.
+ *
+ * The pill is positioned against the frame, not against the stage, so it floats over the bottom
+ * of the rail and this pane. At the old width the pill's own record button reached past the pane's
+ * edge and sat on top of the last group in the list — so the bottom of a scrolled group list, and
+ * the chat controls under it, were unreachable behind a control that looked like it belonged to
+ * something else. The pane has to be wider than the pill is, not merely wide enough to read. */
 .rad-panel {
-  flex: 0 0 246px;
+  flex: 0 0 var(--rad-panel-width, 350px);
   display: flex;
   flex-direction: column;
   min-height: 0;

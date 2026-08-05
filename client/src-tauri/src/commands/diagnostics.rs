@@ -22,3 +22,17 @@ pub(crate) async fn get_diagnostics_report(
 ) -> Result<String, String> {
     Ok(service.render_report())
 }
+
+// Restarts every measurement from now, without touching the connection.
+//
+// Almost everything on the status panel counts from the start of the session: drops, concealment
+// and the loss ratios are all cumulative, so a rough first minute stays in the numbers for as long
+// as the session lasts and "is it bad right now" cannot be read off the panel at all. This is how
+// a change gets measured against the thing it changed.
+#[tauri::command]
+pub(crate) async fn reset_link_diagnostics(
+    service: State<'_, Arc<LinkDiagnosticsService>>,
+) -> Result<(), String> {
+    service.reset_stats();
+    Ok(())
+}

@@ -219,17 +219,10 @@ impl LinkDiagnosticsService {
         self.reset_window();
     }
 
-    fn build_snapshot(&self, advance: bool) -> LinkDiagnosticsSnapshot {
+    // Every cumulative counter this service measures deltas against, read at one instant.
+    fn readings_at(&self, now: Instant) -> CounterReadings {
         let quic = self.quic_stats.borrow().clone();
-        let now = Instant::now();
-
-        let previous = self
-            .last
-            .lock()
-            .map(|g| g.clone())
-            .unwrap_or_default();
-
-        let current = CounterReadings {
+        CounterReadings {
             at: Some(now),
             datagrams_sent: self.transport.datagrams_sent(),
             datagrams_received: self.transport.datagrams_received(),
@@ -240,7 +233,48 @@ impl LinkDiagnosticsService {
             sequence_received: quic.downlink_loss().map(|(_, r)| r).unwrap_or(0),
             sequence_lost: quic.downlink_loss().map(|(l, _)| l).unwrap_or(0),
             burst_loss: quic.burst_loss(),
-        };
+        }
+    }
+
+    // Restarts every measurement from now, on a link that stays up.
+    //
+    // Distinct from `reset_for_disconnect`, which zeroes the baseline because the next session's
+    // counters will start from zero too. Here the QUIC counters keep climbing, so the baseline is
+    // re-read rather than cleared: zeroing it would make the next tick's delta the whole
+    // session's traffic and publish one tick of nonsense before settling.
+    pub fn reset_stats(&self) {
+        let now = Instant::now();
+        let current = self.readings_at(now);
+
+        self.peers.reset();
+        if let Ok(mut ring) = self.ring.lock() {
+            ring.clear();
+        }
+        if let Ok(mut last) = self.last.lock() {
+            *last = current;
+        }
+        if let Ok(mut stall) = self.stall.lock() {
+            *stall = StallState::default();
+        }
+        self.reset_window();
+        // Dropped rather than kept: it holds the peer rows and aggregates that were just
+        // zeroed, and serving it would show the old numbers until the next tick lands.
+        if let Ok(mut latest) = self.latest.lock() {
+            *latest = None;
+        }
+    }
+
+    fn build_snapshot(&self, advance: bool) -> LinkDiagnosticsSnapshot {
+        let quic = self.quic_stats.borrow().clone();
+        let now = Instant::now();
+
+        let previous = self
+            .last
+            .lock()
+            .map(|g| g.clone())
+            .unwrap_or_default();
+
+        let current = self.readings_at(now);
 
         let elapsed = previous
             .at

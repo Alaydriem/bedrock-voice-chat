@@ -34,6 +34,9 @@ pub struct RocketManager {
     metrics: Arc<crate::services::MetricsService>,
     readiness: Arc<crate::runtime::ReadinessState>,
     shutdown_handle: Arc<Mutex<Option<rocket::Shutdown>>>,
+    /// Stops the shared position pass when the HTTP server does, so a restart does not
+    /// leave a second ticker rebuilding the index alongside the first.
+    feed_cancel: tokio_util::sync::CancellationToken,
     #[cfg(feature = "bedrock")]
     transfer_target_cache: crate::services::bedrock::TransferTargetCache,
 }
@@ -73,6 +76,7 @@ impl RocketManager {
             metrics,
             readiness,
             shutdown_handle: Arc::new(Mutex::new(None)),
+            feed_cancel: tokio_util::sync::CancellationToken::new(),
             #[cfg(feature = "bedrock")]
             transfer_target_cache,
         }
@@ -172,7 +176,25 @@ impl RocketManager {
                     )
                     .allow_credentials(cors_config.allow_credentials);
 
+                // One pass per tick, feeding every open position socket. Spawned here rather
+                // than per connection: the scan it replaced ran per socket over the whole
+                // player cache, which is quadratic in observers times players.
+                //
+                // Bucketed at the feed's scope rather than voice range, so an observer's own
+                // cell and the eight around it are guaranteed to hold everyone in scope of
+                // them.
+                let position_feed = crate::services::PositionFeedService::new_shared(
+                    crate::services::PositionService::for_voice_range(
+                        self.config.voice.spatial_audio.broadcast_range,
+                    )
+                    .scope_range(),
+                );
+                position_feed
+                    .clone()
+                    .spawn(self.cache_manager.clone(), self.feed_cancel.clone());
+
                 let mut rocket = rocket::custom(figment)
+                    .manage(position_feed)
                     .manage(crate::services::HealthService::new_shared(
                         self.readiness.clone(),
                         self.config.server.tls.certificate.clone(),
@@ -285,6 +307,7 @@ impl RocketManager {
     /// while a `start()` future is still being polled.
     pub async fn stop(&self) -> Result<(), Error> {
         tracing::info!("Stopping Rocket HTTP server");
+        self.feed_cancel.cancel();
         if let Some(handle) = self.shutdown_handle.lock().unwrap().take() {
             handle.notify();
         }

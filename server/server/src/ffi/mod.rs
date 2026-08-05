@@ -996,3 +996,103 @@ pub unsafe extern "C" fn bvc_provision_login_code(
     }
     })
 }
+
+/// Mint a WebSocket ticket for a gamertag, without an mTLS round trip.
+///
+/// The HTTP route that issues these exchanges an mTLS identity for a ticket, and the
+/// response it hands back is ncryptf-encrypted. An in-process harness would have to
+/// reimplement both to watch the position feed, which is a lot of machinery to test a
+/// socket — so the same provisioning seam `bvc_provision_login_code` uses is offered here.
+///
+/// The ticket is single-use and short-lived exactly as an HTTP-issued one is; nothing about
+/// its lifetime or its redemption differs.
+///
+/// # Returns
+/// * Pointer to a heap-allocated ticket string on success (free via `bvc_free_string`)
+/// * NULL on error (call `bvc_get_last_error()` for details)
+///
+/// # Safety
+/// * `handle` must be a valid pointer from `bvc_server_create()`
+/// * `gamertag` must be a valid null-terminated UTF-8 string
+/// * Server must be running (after `bvc_server_start()` has been called)
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn bvc_provision_websocket_ticket(
+    handle: *mut RuntimeHandle,
+    gamertag: *const c_char,
+    game: *const c_char,
+) -> *mut c_char {
+    ffi_guard!("bvc_provision_websocket_ticket", ptr::null_mut(), {
+    if handle.is_null() {
+        set_last_error("handle is null");
+        return ptr::null_mut();
+    }
+
+    if gamertag.is_null() || game.is_null() {
+        set_last_error("gamertag or game is null");
+        return ptr::null_mut();
+    }
+
+    let gamertag_str = match unsafe { CStr::from_ptr(gamertag) }.to_str() {
+        Ok(s) => s.to_string(),
+        Err(e) => {
+            set_last_error(&format!("Invalid UTF-8 in gamertag: {}", e));
+            return ptr::null_mut();
+        }
+    };
+
+    let game_type = match unsafe { CStr::from_ptr(game) }.to_str() {
+        Ok("minecraft") => Game::Minecraft,
+        Ok("hytale") => Game::Hytale,
+        Ok(other) => {
+            set_last_error(&format!("Invalid game '{}'", other));
+            return ptr::null_mut();
+        }
+        Err(e) => {
+            set_last_error(&format!("Invalid UTF-8 in game: {}", e));
+            return ptr::null_mut();
+        }
+    };
+
+    let handle_ref = unsafe { &*handle };
+
+    let tokio_rt = match &handle_ref.tokio_runtime {
+        Some(rt) => rt,
+        None => {
+            set_last_error("Tokio runtime not available");
+            return ptr::null_mut();
+        }
+    };
+
+    let cache_manager = match handle_ref.cache_manager.read() {
+        Ok(guard) => match guard.as_ref() {
+            Some(cm) => cm.clone(),
+            None => {
+                set_last_error("Server not started - cache_manager not available");
+                return ptr::null_mut();
+            }
+        },
+        Err(e) => {
+            set_last_error(&format!("Failed to read cache_manager: {}", e));
+            return ptr::null_mut();
+        }
+    };
+
+    let ticket = tokio_rt.block_on(async {
+        cache_manager
+            .websocket_tickets()
+            .issue(crate::stream::quic::TicketIdentity {
+                gamertag: gamertag_str,
+                game: game_type,
+            })
+            .await
+    });
+
+    match CString::new(ticket) {
+        Ok(cstr) => cstr.into_raw(),
+        Err(e) => {
+            set_last_error(&format!("Failed to create CString: {}", e));
+            ptr::null_mut()
+        }
+    }
+    })
+}

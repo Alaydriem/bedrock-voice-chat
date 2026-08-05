@@ -22,6 +22,7 @@ pub mod permission_service;
 pub mod metrics_service;
 pub mod player_identity_service;
 pub mod player_registrar_service;
+pub mod position_feed;
 pub mod position_service;
 
 pub use audio_file_service::{AudioFileError, AudioFileService};
@@ -40,4 +41,5 @@ pub use permission_service::{PermissionService, PermissionServiceError};
 pub use metrics_service::MetricsService;
 pub use player_identity_service::PlayerIdentityService;
 pub use player_registrar_service::{PlayerRegistrarService, RegisteredPlayersCache};
-pub use position_service::{PositionHandle, PositionService};
+pub use position_feed::{GridCell, PositionFeedService, WorldIndex};
+pub use position_service::{FAR_TIER_MAX, PositionService};

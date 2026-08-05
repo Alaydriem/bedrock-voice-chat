@@ -1,266 +1,493 @@
 <script lang="ts">
-  // The sidebar and related functionality is not available in this version.
-  // It can be enabled by setting the variable `isGroupChatSidebarAvailable` to true.
-  let isGroupChatSidebarAvailable = true;
-
-  import MainSidebar from "../../components/dashboard/sidebar/MainSidebar.svelte";
-  import MainSidebarGroupVcPanel from "../../components/dashboard/sidebar/MainSidebarGroupVCPanel.svelte";
-  import PlayerPresenceList from "../../components/PlayerPresenceList.svelte";
-  import Notification from "../../components/events/Notification.svelte";
   import "../../css/app.css";
+  import { onDestroy, onMount } from "svelte";
+  import { Store } from "@tauri-apps/plugin-store";
+  import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+  import { error as logError, info } from "@tauri-apps/plugin-log";
+  import type { SelfSnapshot } from "$radial/core/controllers/SelfState";
+  import type { LevelSource } from "$radial/core/sources/LevelSource";
+  import { ConstantLevelSource } from "$radial/core/sources/LevelSource";
+  import RadFrame from "../../components/shell/RadFrame.svelte";
+  import DashboardScreen from "../../components/dashboard/DashboardScreen.svelte";
+  import GroupsPanel from "../../components/dashboard/GroupsPanel.svelte";
+  import NearbyRing from "../../components/dashboard/NearbyRing.svelte";
+  import Roster from "../../components/dashboard/Roster.svelte";
+  import StatusPanel from "../../components/dashboard/StatusPanel.svelte";
+  import Notification from "../../components/events/Notification.svelte";
   import Dashboard from "../../js/app/dashboard.ts";
   import { PlayerPresenceManager } from "../../js/app/components/dashboard/presence.ts";
-  import { Store } from '@tauri-apps/plugin-store';
-  import PlatformDetector from "../../js/app/utils/PlatformDetector";
-  import SwipeGestureManager from "../../js/app/utils/SwipeGestureManager";
-  import { platform } from "@tauri-apps/plugin-os";
+  import Analytics from "../../js/app/analytics";
+  import { DiagnosticsManager, type LinkHealth } from "../../js/app/dashboard/DiagnosticsManager";
+  import { GroupsView } from "../../js/app/dashboard/GroupsView";
+  import type { GroupRowView } from "../../js/app/dashboard/GroupRowView";
+  import type { NearbyPlayer } from "../../js/app/dashboard/NearbyPlayer";
+  import type { RailServer } from "../../js/app/dashboard/RailView";
+  import { RosterHandoff } from "../../js/app/dashboard/RosterHandoff";
+  import { RosterView } from "../../js/app/dashboard/RosterView";
+  import GameNameUtils from "../../js/app/utils/GameNameUtils";
 
-  import { error } from '@tauri-apps/plugin-log';
-  import { onMount, onDestroy, mount } from "svelte";
+  let app = $state<Dashboard | null>(null);
+  let presence: PlayerPresenceManager | undefined;
+  const diagnostics = new DiagnosticsManager();
+  const groupsView = new GroupsView();
+  const unsubs: Array<() => void> = [];
 
-  let playerPresenceManager: PlayerPresenceManager | undefined;
-  let swipeGesture: any = null;
-  let isMobile = false;
-  let mainContentElement: HTMLElement;
+  let servers = $state<readonly RailServer[]>([]);
+  let player = $state("");
+  let currentHost = $state("");
+  let ready = $state(false);
+  let scope = $state(120);
 
-  let playerManager: any = undefined;
-  let channelManager: any = undefined;
-  let audioActivityManager: any = undefined;
+  let inEarshot = $state<readonly NearbyPlayer[]>([]);
+  let approaching = $state<readonly NearbyPlayer[]>([]);
+  let groupRows = $state<readonly GroupRowView[]>([]);
+  let joinedId = $state<string | null>(null);
+  let now = $state(Date.now());
 
-  // Initialize utilities
-  const platformDetector = new PlatformDetector();
-  const swipeGestureManager = new SwipeGestureManager();
+  /** The one avatar expanded for adjustment, by CN name. */
+  let opened = $state<string | null>(null);
+  let statusOpen = $state(false);
+  let reconnecting = $state(false);
 
-  const isSidebarOpen = () => {
-    return document.querySelector("body")?.classList.contains("is-sidebar-open") || false;
-  };
+  let snapshot = $state<import("../../js/bindings/LinkDiagnosticsSnapshot").LinkDiagnosticsSnapshot | null>(null);
+  let health = $state<LinkHealth>({ connected: true, reconnecting: false });
 
-  const openSidebar = () => {
-    const currentlyOpen = isSidebarOpen();
+  /**
+   * The roster, gated on the link.
+   *
+   * A card that survives a dead link asserts that person can hear you. That is the misleading
+   * kind of wrong — it keeps somebody talking into nothing — so the screen falls back to the ring
+   * and says so. Gated here rather than by clearing the managers, so everything is still there
+   * the moment the link returns and nothing has to be re-fetched.
+   */
+  const linkUp = $derived(health.connected);
+  const nearby = $derived<readonly NearbyPlayer[]>(linkUp ? inEarshot : []);
+  const nearing = $derived<readonly NearbyPlayer[]>(linkUp ? approaching : []);
 
-    if (!currentlyOpen) {
-      const body = document.querySelector("body");
-      const toggleButton = document.querySelector("#sidebar-toggle");
+  let selfState = $state<SelfSnapshot>({
+    muted: false,
+    deafened: false,
+    recording: false,
+    mode: "activated",
+    holding: false,
+    transmitting: true,
+  });
 
-      body?.classList.add("is-sidebar-open");
-      toggleButton?.classList.add("active");
-    }
-  };
+  const headline = $derived(RosterView.headline(nearby.length, nearing.length));
+  const groupName = $derived(groupRows.find((g) => g.joined)?.name ?? "");
+  const inGroup = $derived(groupRows.find((g) => g.joined));
 
-  const closeSidebar = () => {
-    const currentlyOpen = isSidebarOpen();
+  /**
+   * Group members as roster entries.
+   *
+   * A channel member is at full volume whatever the distance, which is what a channel is for,
+   * so they are shown without one rather than with a number that does not govern anything.
+   */
+  const groupRoster = $derived<readonly NearbyPlayer[]>(
+    (linkUp ? (inGroup?.members ?? []) : [])
+      .filter((member) => member.gamertag !== player)
+      .map((member) => ({
+      name: member.name,
+      gamertag: member.gamertag,
+      game: "minecraft",
+      hue: "var(--color-rad-brand-lift)",
+      presence: "voice" as const,
+      distance: 0,
+      bearing: 0,
+      elevation: 0,
+      inEarshot: true,
+    })),
+  );
 
-    if (currentlyOpen) {
-      const body = document.querySelector("body");
-      const toggleButton = document.querySelector("#sidebar-toggle");
+  const silent = new ConstantLevelSource(0);
+  function sourceFor(name: string): LevelSource {
+    return app?.levels?.for(name) ?? silent;
+  }
 
-      body?.classList.remove("is-sidebar-open");
-      toggleButton?.classList.remove("active");
-    }
-  };
+  let nearbyRing = $state<ReturnType<typeof NearbyRing> | null>(null);
+  let rosterEl = $state<HTMLElement | null>(null);
 
-  const openGroupChatPanel = () => {
-    openSidebar();
-  };
+  /** Cards waiting for their flyer. Held back so the mark reads as becoming the card. */
+  let pending = $state<ReadonlySet<string>>(new Set());
 
-  const closeGroupChatPanel = () => {
-    closeSidebar();
-  };
+  const handoff = new RosterHandoff((player) => nearbyRing?.pointFor(player) ?? null);
 
-  const toggleSidebar = () => {
-    const currentlyOpen = isSidebarOpen();
+  /** Everyone currently holding a card, which is what flies in either direction. */
+  const carded = $derived<readonly NearbyPlayer[]>([...groupRoster, ...nearby]);
 
-    if (currentlyOpen) {
-      closeSidebar();
-    } else {
-      openSidebar();
-    }
+  /**
+   * The flight between the ring and the roster.
+   *
+   * Two halves, because the two directions need opposite moments. Departures have to be measured
+   * before Svelte removes the cards — a detached element measures as 0x0 at the origin, which
+   * would fling every flyer out of the top-left corner — so `$effect.pre` reads them while they
+   * are still on screen. Arrivals need the card to exist first, so the plain `$effect` does those
+   * after the DOM has settled.
+   */
+  $effect.pre(() => {
+    handoff.capture(rosterEl, carded.length > 0);
+  });
 
-    // Verify the state changed
-    setTimeout(() => {
-      const newState = isSidebarOpen();
-    }, 100);
-  };
+  $effect(() => {
+    const flying = handoff.settle(rosterEl, carded, (name) => {
+      const next = new Set(pending);
+      next.delete(name);
+      pending = next;
+    });
+    if (flying) pending = flying;
+  });
 
-  const setupMobileGestures = () => {
-    if (!isMobile || !isGroupChatSidebarAvailable || !mainContentElement) {
-      return;
-    }
+  /**
+   * Per-player gain and mute, held reactively.
+   *
+   * Reading these through `playerManager.get()` inside the template was a plain function call
+   * with no dependency behind it, so pressing mute changed the store and re-rendered nothing —
+   * the button never turned red because the card never re-ran.
+   */
+  let settings = $state<Map<string, { gain: number; muted: boolean }>>(new Map());
 
-    try {
-      swipeGesture = swipeGestureManager.create({
-        target: mainContentElement,
-        threshold: 50, // Lower threshold for easier testing
-        velocity: 0.2, // Lower velocity for easier testing
-        debug: true, // Enable debug mode
-        swipeLeft: ({ distance, velocity }: { distance: number; velocity: number }) => {
-          closeGroupChatPanel();
-        },
-        swipeRight: ({ distance, velocity }: { distance: number; velocity: number }) => {
-          openGroupChatPanel();
-        },
-        tap: ({ element }: { element: Element }) => {
-          // Tap to dismiss sidebar when it's open
-          if (isSidebarOpen()) {
-            closeGroupChatPanel();
-          }
+  function gainFor(name: string): number {
+    return settings.get(GameNameUtils.stripPrefix(name))?.gain ?? 1;
+  }
+
+  function mutedFor(name: string): boolean {
+    return settings.get(GameNameUtils.stripPrefix(name))?.muted ?? false;
+  }
+
+  onMount(() => {
+    const instance = new Dashboard();
+    app = instance;
+    window.App = instance;
+    window.dispatchEvent(new CustomEvent("app:mounted"));
+
+    const clock = setInterval(() => (now = Date.now()), 1_000);
+    unsubs.push(() => clearInterval(clock));
+
+    instance
+      .initialize()
+      .then(async (landing) => {
+        // The overlay stays up over a redirect. Lifting it there shows a dashboard already on
+        // its way to the sign-in or an error page.
+        if (landing.kind === "navigate") {
+          window.location.href = landing.href;
+          return;
         }
-      });
-    } catch (e) {
-      error(`Dashboard: Error creating swipe gesture: ${e}`);
-    }
-  };
 
-  // Reactive statement to setup gestures when conditions are met
-  $: {
-    if (isMobile && isGroupChatSidebarAvailable && mainContentElement) {
-      setupMobileGestures();
+        servers = instance.rail;
+        player = instance.gamertag;
+        currentHost = instance.host();
+        scope = instance.feedScope;
+
+        if (instance.selfController) {
+          unsubs.push(instance.selfController.state.subscribe((s) => (selfState = s)));
+        }
+        if (instance.playerManager) {
+          unsubs.push(
+            instance.playerManager.playersMap.subscribe((map) => {
+              const next = new Map<string, { gain: number; muted: boolean }>();
+              for (const [key, player] of map) next.set(key, { ...player.settings });
+              settings = next;
+            }),
+          );
+        }
+        if (instance.nearby) {
+          unsubs.push(instance.nearby.inEarshot.subscribe((v) => (inEarshot = v)));
+          unsubs.push(instance.nearby.approaching.subscribe((v) => (approaching = v)));
+        }
+
+        ready = true;
+        instance.showPreloader();
+
+        await diagnostics.start();
+        unsubs.push(diagnostics.snapshot.subscribe((v) => (snapshot = v)));
+        unsubs.push(diagnostics.health.subscribe((v) => (health = v)));
+
+        /**
+         * Automatic recovery, which had no listener at all.
+         *
+         * The backend probes a lost server and emits `trigger_refresh` the moment it answers
+         * again. The only handler for it lived on the old dashboard's sidebar — a component this
+         * screen does not mount — so on this screen the event went nowhere: the server came back,
+         * the client was told, and it sat on "Trying to reach the server" until somebody
+         * intervened. That is the "it never reconnected" case.
+         */
+        try {
+          const webview = getCurrentWebviewWindow();
+          unsubs.push(
+            await webview.listen("trigger_refresh", () => {
+              info("Dashboard: server is reachable again, reconnecting");
+              void reconnect();
+            }),
+          );
+        } catch (e) {
+          logError(`Dashboard: could not listen for a recovery signal: ${e}`);
+        }
+
+        groupsView.start();
+        unsubs.push(() => groupsView.stop());
+        await startGroups(instance);
+
+        // Audio-driven presence stays wired as the roster's fallback: if the position feed is
+        // unreachable, cards still appear for whoever can be heard, just without a distance.
+        try {
+          const store = await Store.load("store.json", { autoSave: false, defaults: {} });
+          if (instance.playerManager) {
+            presence = new PlayerPresenceManager(store, instance.playerManager);
+            await presence.initialize();
+          }
+        } catch (e) {
+          logError(`Dashboard: could not start presence: ${e}`);
+        }
+      })
+      .catch(() => instance.showPreloader());
+
+    document.querySelector("body")?.classList.remove("has-min-sidebar");
+  });
+
+  /** The server's channels, mirrored so the rows can be rebuilt from a rune. */
+  let channelList = $state<readonly import("../../js/bindings/Channel").Channel[]>([]);
+
+  async function startGroups(instance: Dashboard): Promise<void> {
+    const channels = instance.channelManager;
+    if (!channels) return;
+    try {
+      // Loads the list and recovers membership. Without it the pane rendered nothing at all:
+      // `channel_event` carries changes, and channels that existed before this page loaded
+      // never announce themselves.
+      await channels.initialize();
+      await channels.startListening();
+    } catch (e) {
+      logError(`Dashboard: could not start channels: ${e}`);
+    }
+
+    unsubs.push(
+      channels.currentUserChannelId.subscribe((id) => {
+        joinedId = id;
+        // A join or leave is the only activity signal available for a group you are not in, so
+        // it is what makes the row stir.
+        if (id) groupsView.stir(id);
+      }),
+    );
+    unsubs.push(channels.channels.subscribe((list) => (channelList = list)));
+  }
+
+  /**
+   * Who is audible, as a value that only changes when the answer does.
+   *
+   * Depending on `nearby` directly would rebuild every row twice a second — snapshots arrive at
+   * 2 Hz and each one is a fresh array — to express a set that only changes when somebody walks
+   * in or out. A string compares by value, so this stops propagating while membership holds.
+   *
+   * Joined on a newline rather than a space: Xbox gamertags contain spaces, and splitting on one
+   * would turn "Some Gamer" into two names that match nobody.
+   */
+  const audibleKey = $derived(
+    [...new Set(nearby.map((p) => p.name))].sort().join("\n"),
+  );
+
+  /**
+   * One rows subscription, rebuilt whenever any of its inputs move.
+   *
+   * `rows` is a snapshot over values rather than a live view of them, so binding it once to the
+   * channel list left the others frozen: joining a group you were already listed in moved
+   * `joinedId` and nothing else, so the row went on offering Join; and the can-you-hear-them dot
+   * beside each member stayed at whatever earshot was when the list last changed.
+   *
+   * The effect's cleanup releases the previous subscription before the next is made. Pushing
+   * each new one onto the teardown list instead freed nothing until the page was destroyed, so
+   * ordinary activity left a growing crowd of stores writing to one variable.
+   */
+  $effect(() => {
+    const audible = new Set(audibleKey === "" ? [] : audibleKey.split("\n"));
+    return groupsView
+      .rows(channelList, joinedId, audible, player)
+      .subscribe((v) => (groupRows = v));
+  });
+
+  /** The group whose editor is open. Set on create so the new one opens ready to be named. */
+  let editId = $state<string | null>(null);
+
+  /**
+   * Create, join, and open for editing.
+   *
+   * Creating a group you are not in is never what was meant — the reason to make one is to talk
+   * in it. And "New group" is a placeholder, not a name, so the editor opens on it rather than
+   * leaving the user to discover that renaming is behind a swipe.
+   */
+  async function createGroup(): Promise<void> {
+    const channels = app?.channelManager;
+    if (!channels) return;
+    const id = await channels.createChannel("New group");
+    if (!id) return;
+    await channels.joinChannel(id, player);
+    editId = id;
+  }
+
+  function leaveGroup(id: string): void {
+    void app?.channelManager?.leaveChannel(id, player);
+  }
+
+  /** Closing is deleting. Only the creator can, and the server is the one that enforces it. */
+  function closeGroup(id: string): void {
+    void app?.channelManager?.deleteChannel(id);
+  }
+
+  function renameGroup(id: string, name: string): void {
+    void app?.channelManager?.renameChannel(id, name);
+  }
+
+  onDestroy(() => {
+    for (const off of unsubs) off();
+    presence?.cleanup();
+    diagnostics.stop();
+  });
+
+  function signOut(): void {
+    Analytics.track("Logout");
+    void app?.signOut().then((next) => {
+      if (next.kind === "navigate") window.location.href = next.href;
+    });
+  }
+
+  function onmute(name: string, muted: boolean): void {
+    void app?.playerManager?.updatePlayerMute(name, muted);
+  }
+
+  function ongain(name: string, gain: number): void {
+    void app?.playerManager?.updatePlayerGain(name, gain);
+  }
+
+  function joinGroup(id: string): void {
+    const channels = app?.channelManager;
+    if (!channels) return;
+    if (joinedId === id) void channels.leaveChannel(id, player);
+    else void channels.joinChannel(id, player);
+  }
+
+  /**
+   * Reconnect without leaving the panel.
+   *
+   * `Dashboard.changeNetworkStream` routes its failures to an error page, which is right for
+   * boot and wrong for a button inside a status readout: a retry that fails should say so
+   * where it was pressed.
+   */
+  async function reconnect(): Promise<void> {
+    if (reconnecting || !app) return;
+    reconnecting = true;
+    try {
+      await app.reconnect();
+    } finally {
+      reconnecting = false;
     }
   }
 
-  onMount(async () => {
-    try {
-      isMobile = await platformDetector.checkMobile();
-      document.querySelector("body")!.style = "min-height: 100dvh !important;";
-
-      const os = platform();
-      if (os === "android") document.body.classList.add("android");
-      if (os === "ios") document.body.classList.add("ios");
-    } catch (error) {
-      isMobile = false;
-    }
-
-    if (!isMobile && window.innerWidth <= 768) {
-      isMobile = true;
-    }
-
-    window.App = new Dashboard();
-    window.dispatchEvent(new CustomEvent("app:mounted"));
-
-    // Initialize the Dashboard first to get managers
-    await window.App.initialize();
-
-    // Get managers and store from the Dashboard instance
-    const managers = window.App.getManagers();
-    playerManager = managers.playerManager;
-    channelManager = managers.channelManager;
-    audioActivityManager = managers.audioActivityManager;
-    const store =await Store.load("store.json", {
-        autoSave: false,
-        defaults: {}
-    });
-    const serverUrl = await store.get<string>("current_server") || "";
-
-    const mainSidebarContainer = document.getElementById(
-      "main-sidebar-container",
-    );
-
-    if (mainSidebarContainer) {
-      // Mount MainSidebar first
-      const mainSidebarComponent = mount(MainSidebar, {
-        target: mainSidebarContainer,
-      });
-
-      // Mount MainSidebarGroupVcPanel to the same container (it will position itself using pl-[var(--main-sidebar-width)])
-      const groupVcPanelComponent = mount(MainSidebarGroupVcPanel, {
-        target: mainSidebarContainer,
-        props: {
-          playerManager,
-          channelManager,
-          store,
-          serverUrl,
-          onClose: closeSidebar
-        }
-      });
-
-      // Now that MainSidebar is mounted, we can render the server links
-      await window.App.renderSidebar(store, serverUrl);
-
-      // Set the player avatar now that the DOM element exists
-      await window.App.setPlayerAvatar();
-
-      if (isGroupChatSidebarAvailable) {
-        if (isMobile) {
-          closeSidebar();
-        } else {
-          openSidebar();
-        }
-      }
-    }
-
-    // Initialize PlayerPresenceManager at page level
-    try {
-      playerPresenceManager = new PlayerPresenceManager(store, playerManager);
-      await playerPresenceManager.initialize();
-
-      // Make presence manager available to child components via context
-      //setContext('presenceManager', playerPresenceManager);
-    } catch (err) {
-      error("Failed to initialize PlayerPresenceManager" + err);
-    }
-  });
-
-  onDestroy(() => {
-    // Clean up swipe gesture
-    if (swipeGesture) {
-      swipeGesture.destroy();
-    }
-
-    // Clean up PlayerPresenceManager when page is destroyed
-    if (playerPresenceManager) {
-      playerPresenceManager.cleanup();
-    }
-  });
+  async function copyReport(): Promise<void> {
+    const report = await diagnostics.report();
+    if (report) await navigator.clipboard.writeText(report).catch(() => {});
+  }
 </script>
 
-<div id="root" class="h-100vh cloak flex grow bg-slate-50 dark:bg-navy-900 overflow-hidden max-w-[100vw] supports-[height:1dvh]:h-dvh">
-  <div id="main-sidebar-container" class="sidebar print:hidden"></div>
-
-  <!-- Mobile backdrop overlay - closes sidebar when tapped -->
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div
-    class="sidebar-backdrop fixed inset-0 bg-black/50 z-30 md:hidden"
-    onclick={closeSidebar}
-    style="touch-action: manipulation;"
-  ></div>
-
-  <main
-    bind:this={mainContentElement}
-    class="main-content chat-app h-100vh mt-0 flex flex-col w-full min-w-0 overflow-hidden supports-[height:1dvh]:h-dvh"
-  >
-    <div
-      class="chat-header relative z-10 flex h-[61px] w-full shrink-0 items-center justify-between border-b border-slate-150 bg-white px-[calc(var(--margin-x)-.5rem)] shadow-xs transition-[padding,width] duration-[.25s] dark:border-navy-700 dark:bg-navy-800"
+<RadFrame>
+  {#if ready && app?.selfController}
+    <DashboardScreen
+      {servers}
+      serverName={currentHost}
+      {currentHost}
+      {player}
+      self={app.selfController}
+      {selfState}
+      {headline}
+      {groupName}
+      {statusOpen}
+      onswitch={(server) => (window.location.href = `/dashboard?server=${encodeURIComponent(server)}`)}
+      onadd={() => (window.location.href = "/server")}
+      onsettings={() => (window.location.href = "/settings#audio")}
+      onsignout={signOut}
+      onstatus={(open) => (statusOpen = open)}
     >
-      {#if isGroupChatSidebarAvailable}
-        <div class="flex min-w-0 items-center gap-1">
-          <div class="ml-1 size-7">
-            <button
-              id="sidebar-toggle"
-              onclick={toggleSidebar}
-              aria-label="Toggle sidebar"
-              style="touch-action: manipulation;"
-              class="menu-toggle cursor-pointer ml-0.5 flex size-7 flex-col justify-center space-y-1.5 text-primary outline-hidden focus:outline-hidden dark:text-accent-light/80 active"
-            >
-              <span></span>
-              <span></span>
-              <span></span>
-            </button>
+      {#snippet groups()}
+        <GroupsPanel
+          groups={groupRows}
+          {now}
+          onjoin={joinGroup}
+          oncreate={() => void createGroup()}
+          {editId}
+          onedit={(id) => (editId = id)}
+          onleave={leaveGroup}
+          onclosegroup={closeGroup}
+          onrename={renameGroup}
+        />
+      {/snippet}
+
+      {#snippet main()}
+        <!-- The ring is the empty state and the approach. Once anybody is close enough to
+             hear, the roster owns the stage and the ring gets out of the way. -->
+        <NearbyRing
+          bind:this={nearbyRing}
+          approaching={nearing}
+          {scope}
+          gone={nearby.length > 0 || groupRoster.length > 0}
+          connected={linkUp}
+          reconnecting={health.reconnecting}
+          onstatus={() => (statusOpen = true)}
+        />
+
+        {#if nearby.length || groupRoster.length}
+          <div class="rad-roster" bind:this={rosterEl}>
+            <!-- The group leads. Joining a channel is deliberate and proximity is ambient, so
+                 the people you went out of your way to talk to are never below a list of
+                 neighbours. -->
+            {#if inGroup}
+              <Roster
+                title={inGroup.name}
+                players={groupRoster}
+                inGroup={true}
+                {sourceFor}
+                {gainFor}
+                {mutedFor}
+                {onmute}
+                {ongain}
+                {opened}
+                onopen={(name) => (opened = name)}
+                {pending}
+              >
+                {#snippet action()}
+                  <button class="rad-leave-btn" onclick={() => joinGroup(inGroup.id)}>
+                    Leave
+                  </button>
+                {/snippet}
+              </Roster>
+            {/if}
+
+            <Roster
+              title="In earshot"
+              players={nearby}
+              {sourceFor}
+              {gainFor}
+              {mutedFor}
+              {onmute}
+              {ongain}
+              {opened}
+              onopen={(name) => (opened = name)}
+              {pending}
+            />
           </div>
-        </div>
-      {/if}
-      <div class="flex space-x-3 items-center">
-        <div class="flex space-x-2"></div>
-      </div>
-    </div>
-    <Notification />
-    <div id="notification-container" class="notification-container"></div>
-    <!-- Player Presence List - Now using reactive Svelte component -->
-    {#if playerManager && audioActivityManager}
-      <PlayerPresenceList
-        {playerManager}
-        {audioActivityManager}
-      />
-    {/if}
-  </main>
-</div>
+        {/if}
+
+        <StatusPanel
+            {snapshot}
+            {health}
+            pttIdle={selfState.mode === "ptt" && !selfState.holding}
+            visiblePlayers={nearby.length}
+            {reconnecting}
+            onreconnect={reconnect}
+            oncopy={copyReport}
+            onreset={() => void diagnostics.reset()}
+            onclose={() => (statusOpen = false)}
+          />
+      {/snippet}
+    </DashboardScreen>
+  {/if}
+</RadFrame>
+
+<Notification />

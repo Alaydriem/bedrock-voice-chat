@@ -1,0 +1,109 @@
+import { get } from "svelte/store";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mockInvoke } from "../../tauri";
+import type { ConnectionHealth } from "../../../js/bindings/ConnectionHealth";
+
+const listeners = new Map<string, (event: { payload: unknown }) => void>();
+
+vi.mock("@tauri-apps/api/webviewWindow", () => ({
+    getCurrentWebviewWindow: () => ({
+        listen: async (event: string, run: (e: { payload: unknown }) => void) => {
+            listeners.set(event, run);
+            return () => listeners.delete(event);
+        },
+    }),
+}));
+
+const { DiagnosticsManager } = await import("../../../js/app/dashboard/DiagnosticsManager");
+
+async function started() {
+    mockInvoke({ get_link_diagnostics: () => null });
+    const manager = new DiagnosticsManager();
+    await manager.start();
+    return manager;
+}
+
+function report(health: ConnectionHealth): void {
+    listeners.get("connection_health")?.({ payload: health });
+}
+
+/**
+ * The decode, through the store it feeds.
+ *
+ * This existed as a private static reading `'Reconnecting' in health` — and `ConnectionHealth` is
+ * a *tagged* union, `{ status: "Reconnecting", attempt }`, with no `Reconnecting` key. The test
+ * was always false, so `reconnecting` was permanently false and every unhealthy status collapsed
+ * into a link reading as fine. Nothing failed; the dashboard simply never learned it was down.
+ */
+describe("DiagnosticsManager health", () => {
+    beforeEach(() => {
+        listeners.clear();
+    });
+
+    // The dashboard mounts after a connection, and health arrives on change rather than on a
+    // clock — so opening disconnected and waiting for an event would blank a working roster.
+    it("assumes the link is up until told otherwise", async () => {
+        const manager = await started();
+
+        expect(get(manager.health).connected).toBe(true);
+    });
+
+    it("reports a reconnect, counting attempts from one", async () => {
+        const manager = await started();
+        report({ status: "Reconnecting", attempt: 0 });
+
+        const health = get(manager.health);
+        expect(health.connected).toBe(false);
+        expect(health.reconnecting).toBe(true);
+        // Zero on the wire; a verdict reading "attempt 0" looks like a bug, not a first try.
+        expect(health.attempt).toBe(1);
+    });
+
+    it("reports a plain disconnect as down but not retrying", async () => {
+        const manager = await started();
+        report({ status: "Disconnected" });
+
+        expect(get(manager.health)).toMatchObject({ connected: false, reconnecting: false });
+    });
+
+    // Each of these used to read as a healthy link.
+    it.each([
+        ["Failed", { status: "Failed" } as ConnectionHealth],
+        [
+            "VersionMismatch",
+            {
+                status: "VersionMismatch",
+                client_version: "1.0.0",
+                server_version: "1.2.0",
+                client_too_old: true,
+            } as ConnectionHealth,
+        ],
+        ["Unauthorized", { status: "Unauthorized", reason: "not whitelisted" } as ConnectionHealth],
+    ])("treats %s as down, and says why it will not recover", async (_name, payload) => {
+        const manager = await started();
+        report(payload);
+
+        const health = get(manager.health);
+        expect(health.connected).toBe(false);
+        expect(health.reconnecting).toBe(false);
+        expect(health.fatal).toBeTruthy();
+    });
+
+    it("comes back up on a reconnect", async () => {
+        const manager = await started();
+        report({ status: "Disconnected" });
+        expect(get(manager.health).connected).toBe(false);
+
+        report({ status: "Connected" });
+        expect(get(manager.health)).toMatchObject({ connected: true, reconnecting: false });
+    });
+
+    // An unrecognised tag is not evidence of a broken link, and blanking the roster on one would
+    // be a worse failure than ignoring it.
+    it("keeps the link up on a status it does not recognise", async () => {
+        const manager = await started();
+        report({ status: "SomethingNew" } as unknown as ConnectionHealth);
+
+        expect(get(manager.health).connected).toBe(true);
+    });
+});

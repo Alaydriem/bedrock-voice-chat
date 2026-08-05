@@ -475,22 +475,42 @@
  * their volume slider without the slider knowing whose it is.
  */
 
+/* The rail is drawn on the track pseudo-element, not on the input itself.
+ *
+ * Two problems, one cause: a 4px-tall input is a 4px touch target, unhittable on a phone, and
+ * the Android WebView paints its own track over the input's background — so the rail was
+ * invisible there while the thumb still showed, which reads as a dot floating in space. The
+ * input is transparent and tall enough for a thumb; the 4px the eye sees is the track inside
+ * it. */
 .rad-range {
   flex: 1 1 auto;
   min-width: 0;
-  height: 4px;
+  height: 34px;
   appearance: none;
   -webkit-appearance: none;
-  background: var(--color-rad-line-2);
-  border-radius: var(--radius-rad-pill);
+  background: transparent;
   outline: 0;
   cursor: pointer;
+}
+
+.rad-range::-webkit-slider-runnable-track {
+  height: 4px;
+  background: var(--color-rad-line-2);
+  border-radius: var(--radius-rad-pill);
+}
+
+.rad-range::-moz-range-track {
+  height: 4px;
+  background: var(--color-rad-line-2);
+  border-radius: var(--radius-rad-pill);
 }
 
 .rad-range::-webkit-slider-thumb {
   -webkit-appearance: none;
   width: 14px;
   height: 14px;
+  /* Centres the thumb on a 4px track: half the thumb, less half the track. */
+  margin-top: -5px;
   border-radius: var(--radius-rad-pill);
   background: currentColor;
   border: 2px solid var(--color-rad-void);

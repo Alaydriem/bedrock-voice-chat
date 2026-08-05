@@ -308,6 +308,99 @@ impl EmbeddedServer {
         code
     }
 
+    /// Mint a single-use WebSocket ticket for a gamertag.
+    ///
+    /// Provisioned rather than fetched: the HTTP route trades an mTLS identity for a ticket
+    /// and answers ncryptf-encrypted, so reaching it from here would mean reimplementing
+    /// both to watch a feed. Same seam `login_code` uses, and the ticket itself is no
+    /// different from an HTTP-issued one.
+    pub fn websocket_ticket(&self, gamertag: &str) -> String {
+        let c_gamertag = CString::new(gamertag).expect("gamertag contains no nul byte");
+        let c_game = CString::new("minecraft").expect("game contains no nul byte");
+
+        let ptr = unsafe {
+            (self.lib.provision_websocket_ticket)(
+                self.handle.0,
+                c_gamertag.as_ptr(),
+                c_game.as_ptr(),
+            )
+        };
+
+        if ptr.is_null() {
+            let err = Self::last_error(&self.lib);
+            panic!("bvc_provision_websocket_ticket returned null: {err}");
+        }
+
+        let ticket = unsafe { CStr::from_ptr(ptr) }
+            .to_string_lossy()
+            .into_owned();
+
+        unsafe { (self.lib.free_string)(ptr) };
+
+        ticket
+    }
+
+    /// Read snapshots from `/api/websocket/positions` for one observer.
+    ///
+    /// Returns once `wanted` snapshots carrying at least one entry have arrived, or the
+    /// deadline passes — whichever comes first. Empty frames are counted but not returned:
+    /// an observer the world does not know about yet produces them normally, and a test
+    /// waiting on positions wants the ones that say something.
+    pub async fn position_snapshots(
+        &self,
+        gamertag: &str,
+        wanted: usize,
+        timeout: Duration,
+    ) -> Vec<common::structs::position::PositionSnapshot> {
+        use futures_util::StreamExt;
+        use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+        use tokio_tungstenite::tungstenite::http::HeaderValue;
+
+        let ticket = self.websocket_ticket(gamertag);
+        let url = format!("wss://127.0.0.1:{}/api/websocket/positions", self.rocket_port);
+
+        let mut request = url.into_client_request().expect("build ws request");
+        // The credential travels as a subprotocol rather than a header or a query parameter,
+        // because a browser can offer subprotocols and cannot set headers — and a ticket in
+        // a URL lands in every access log between here and the server.
+        request.headers_mut().insert(
+            "Sec-WebSocket-Protocol",
+            HeaderValue::from_str(&format!("ticket.{ticket}, bvc.positions.v1"))
+                .expect("ticket is header-safe"),
+        );
+
+        let connector = tokio_tungstenite::Connector::Rustls(Arc::new(
+            crate::harness::insecure_tls::trust_anything(),
+        ));
+        let (mut socket, _) = tokio_tungstenite::connect_async_tls_with_config(
+            request,
+            None,
+            false,
+            Some(connector),
+        )
+        .await
+        .expect("connect position feed");
+
+        let mut out = Vec::new();
+        let deadline = Instant::now() + timeout;
+        while out.len() < wanted && Instant::now() < deadline {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            let Ok(Some(Ok(message))) = tokio::time::timeout(remaining, socket.next()).await else {
+                break;
+            };
+            if let tokio_tungstenite::tungstenite::Message::Text(body) = message {
+                if let Ok(snapshot) =
+                    serde_json::from_str::<common::structs::position::PositionSnapshot>(&body)
+                {
+                    if !snapshot.positions.is_empty() {
+                        out.push(snapshot);
+                    }
+                }
+            }
+        }
+        out
+    }
+
     /// Drive player positions into the server's QUIC fan-out via the
     /// `bvc_update_positions` FFI.  Each entry is `(name, x, y, z)`.  The game
     /// is always `"minecraft"` and non-position fields are defaulted (overworld

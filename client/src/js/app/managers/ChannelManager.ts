@@ -115,8 +115,40 @@ export default class ChannelManager {
         this.currentUserGamepic = gamerpic;
     }
 
-    // Public API methods
+    /**
+     * Load the server's channels and work out which one this client is already in.
+     *
+     * This was empty, so the groups pane started blank and stayed blank: `startListening`
+     * subscribes to `channel_event`, which reports *changes*, and the channels that existed
+     * before the page loaded generate no events. Nothing ever asked for the list.
+     *
+     * Membership has to be recovered here too. A join is remembered by the server, not by the
+     * webview, so after a reload the row for the channel you are in would render as one you
+     * had never joined — offering Join, and hiding the group roster and its way out.
+     */
     async initialize(): Promise<void> {
+        await this.fetchChannels();
+        this.recoverMembership();
+    }
+
+    /**
+     * Adopt the joined channel from the freshly fetched list.
+     *
+     * Compared with `namesMatch` because membership is stored in whatever form the
+     * certificate's CN carried while this client knows itself by its gamertag.
+     */
+    private recoverMembership(): void {
+        const currentUser = this.getCurrentUserName();
+        if (!currentUser) return;
+
+        const joined = get(this.channelsStore).find((channel) =>
+            channel.players.some((player) => GameNameUtils.namesMatch(player, currentUser)),
+        );
+        if (!joined) return;
+
+        info(`ChannelManager: recovered membership of ${joined.id}`);
+        this.currentUserChannelIdStore.set(joined.id);
+        void this.addExistingGroupMembers(joined.id, currentUser);
     }
 
     async fetchChannels(): Promise<void> {

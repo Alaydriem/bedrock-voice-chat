@@ -78,4 +78,16 @@ impl PeerRegistry {
     pub fn peer_count(&self) -> u32 {
         self.peers().len() as u32
     }
+
+    // Zeroes every speaker's counters in place.
+    //
+    // In place rather than by invalidating the cache: the entries are the same `Arc`s the live
+    // jitter buffers write into, and those buffers are inside rodio's graph with no handle left
+    // to re-register them. Dropping the entries would leave every currently-heard speaker
+    // unreportable for the rest of their sink's life.
+    pub fn reset(&self) {
+        for (_, stats) in self.entries.iter() {
+            stats.reset_counters();
+        }
+    }
 }

@@ -1,0 +1,27 @@
+{
+  // The preloader's own tsconfig, deliberately not extending the app's, for the same
+  // reason `src/radial/tsconfig.json` exists: `client/tsconfig.json` extends
+  // `.svelte-kit/tsconfig.json`, which only exists after `svelte-kit sync`.
+  //
+  // `yarn preloader:build` is a plain Vite build with no SvelteKit plugin, and it runs
+  // before the app build that would have generated that file, so on a fresh checkout it
+  // would resolve the app tsconfig and fail on the missing extends target.
+  "compilerOptions": {
+    "module": "esnext",
+    "target": "ES2024",
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "moduleResolution": "bundler",
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "$radial/*": ["../radial/*"]
+    }
+  },
+  "include": ["./**/*.ts"]
+}

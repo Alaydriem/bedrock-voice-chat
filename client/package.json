@@ -4,6 +4,7 @@
   "description": "",
   "type": "module",
   "scripts": {
+    "prepare": "svelte-kit sync || echo ''",
     "dev": "yarn preloader:build && vite dev",
     "build": "yarn preloader:build && vite build",
     "preloader:build": "vite build --config vite.preloader.config.ts",

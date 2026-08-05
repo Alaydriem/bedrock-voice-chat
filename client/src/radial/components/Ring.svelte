@@ -94,6 +94,16 @@
     return binding?.geometry ?? null;
   }
 
+  /**
+   * The canvas the geometry is measured against.
+   *
+   * Both are needed together: the geometry is in canvas coordinates and the handoff flies in
+   * viewport coordinates, so a bar's position is only recoverable from the pair.
+   */
+  export function element(): HTMLCanvasElement | null {
+    return canvas ?? null;
+  }
+
   onDestroy(() => binding?.destroy());
 </script>
 

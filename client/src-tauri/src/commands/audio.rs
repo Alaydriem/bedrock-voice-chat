@@ -236,6 +236,41 @@ pub(crate) async fn mute(
     Ok(())
 }
 
+/// Drive a device to an absolute state.
+///
+/// A toggle is enough for a button press, but not for reconciling with a state something
+/// else set: deciding whether to flip requires reading first, and a hotkey firing between
+/// the read and the flip leaves the two permanently inverted. Returns the state actually
+/// reached, though every surface learns it from the `mute:*` event either way.
+#[tauri::command]
+pub(crate) async fn set_mute(
+    device: AudioDeviceType,
+    muted: bool,
+    actions: State<'_, AudioActionsManager>,
+) -> Result<bool, String> {
+    // At info so it lands in logcat on a device build: "did my press reach Rust at all" is the
+    // first question when a button appears to do nothing, and it cannot be answered from the
+    // webview alone.
+    info!("set_mute({:?}, {}) requested", device, muted);
+    let status = actions.set_mute(device.clone(), muted).await;
+    info!("set_mute({:?}) resolved to {}", device, status);
+    actions.broadcast_state().await;
+    Ok(status)
+}
+
+/// Deafen, which also drives the input — see `AudioActionsManager::set_deafened`.
+#[tauri::command]
+pub(crate) async fn set_deafened(
+    deafened: bool,
+    actions: State<'_, AudioActionsManager>,
+) -> Result<bool, String> {
+    info!("set_deafened({}) requested", deafened);
+    let status = actions.set_deafened(deafened).await;
+    info!("set_deafened resolved to {}", status);
+    actions.broadcast_state().await;
+    Ok(status)
+}
+
 #[tauri::command]
 pub(crate) async fn record(asm: State<'_, Mutex<AudioStreamManager>>) -> Result<(), ()> {
     let mut asm = asm.lock().await;

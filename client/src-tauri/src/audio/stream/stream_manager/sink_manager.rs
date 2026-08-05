@@ -283,6 +283,7 @@ impl SinkManager {
                         .unwrap_or(PlayerGainSettings {
                             gain: 1.0,
                             muted: false,
+                            last_seen: None,
                         })
                 };
                 if gain_settings.muted {

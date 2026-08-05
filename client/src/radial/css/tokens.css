@@ -54,7 +54,7 @@
    * outside this design system reads, so turning it up cannot touch the parts of the
    * app still on the old theme.
    */
-  --rad-type-scale: 1.05;
+  --rad-type-scale: 1.2;
 
   --text-rad-display: calc(2.4444rem * var(--rad-type-scale));
   --text-rad-display--line-height: 1.06;

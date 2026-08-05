@@ -33,10 +33,19 @@
         <div class="g-bar">
           <span class="g-ctls">
             <label>Nearby</label>
-            <button data-act="minus">&minus; Player</button>
-            <button data-act="plus">+ Player</button>
+            <button data-act="minus">&minus;</button>
+            <button data-act="plus">+</button>
+            <button data-act="preset" data-n="6">6</button>
+            <button data-act="preset" data-n="15">15</button>
+            <button data-act="preset" data-n="16">16</button>
+            <button data-act="preset" data-n="40">40</button>
+            <button data-act="game" style="margin-left: 10px" aria-pressed="false">
+              Off voice: 0
+            </button>
             <label style="margin-left: 10px">Mode</label>
             <button data-act="ptt" aria-pressed="false">Push-to-talk</button>
+            <button data-act="approach" style="margin-left: 10px">Approaching: 0</button>
+            <button data-act="link" style="margin-left: 10px">Link: up</button>
             <button data-act="fault" style="margin-left: 10px">Fault: none</button>
             <button data-act="status" style="margin-left: 10px">Status</button>
             <button data-act="reset" style="margin-left: 10px">Reset</button>
@@ -63,8 +72,7 @@
               <div class="rad-panel">
                 <div class="rad-panel__head">Groups</div>
                 <div class="rad-panel__body">
-                  <button class="rad-new-group"><span data-rad-icon="plus"></span> New group</button>
-                  <div data-groups></div>
+                  <div class="rad-group-list" data-groups></div>
                 </div>
               </div>
 
@@ -106,15 +114,23 @@
                 </div>
 
                 <div class="rad-main" data-main>
+                  <!--
+                    Scanning by default, not at rest. A proximity client with nobody nearby is
+                    looking, which is the register the loader shows while it waits; `empty` is
+                    kept for the one case that really is nothing happening, a link that is down.
+                  -->
                   <div class="rad-idle" data-idle>
-                    <div class="rad-ring rad-ring--fixed"><canvas data-rad-ring="empty" data-rad-id="idle-ring"></canvas></div>
+                    <div class="rad-ring rad-ring--fixed"><canvas data-rad-ring="live" data-rad-id="idle-ring"></canvas></div>
                     <span class="rad-idle__caption">
-                      <span class="rad-idle__kicker">Listening</span>
-                      <span class="rad-idle__headline">Nobody within 80 m</span>
-                      <span class="rad-idle__note">
+                      <span class="rad-idle__kicker" data-idle-kicker>Listening</span>
+                      <span class="rad-idle__headline" data-idle-headline>Nobody nearby</span>
+                      <span class="rad-idle__note" data-idle-note>
                         Voices appear here the moment someone walks into range. Nothing to join,
                         nothing to dial.
                       </span>
+                      <button class="rad-btn rad-idle__action" data-idle-status hidden>
+                        Connection status
+                      </button>
                     </span>
                   </div>
 
@@ -201,9 +217,7 @@
             <div class="rad-sheet" data-rad-sheet="groups">
               <span class="rad-sheet__handle"></span>
               <h4 class="rad-sheet__title">Groups</h4>
-              <div data-sheet-groups></div>
-              <div class="rad-sheet__divider"></div>
-              <button class="rad-list-row"><span class="rad-list-row__icon" data-rad-icon="plus"></span> New group</button>
+              <div class="rad-group-list" data-sheet-groups></div>
             </div>
           </div>
         </div>

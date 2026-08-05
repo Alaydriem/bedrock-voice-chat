@@ -246,3 +246,29 @@ pub(crate) async fn api_get_player_gamerpic(
 
     api.get_gamerpic(game.as_str(), &gamertag).await
 }
+
+/// Fetch a WebSocket ticket for a saved server.
+///
+/// The webview opens the socket itself — it cannot present a certificate, which is why the
+/// ticket exists — so this is the one part of the handshake that has to happen in Rust.
+#[tauri::command(async)]
+pub(crate) async fn api_websocket_ticket(
+    app_state: State<'_, Mutex<AppState>>,
+    server: Option<String>,
+) -> Result<common::response::websocket::WebsocketTicketResponse, String> {
+    let state = app_state.lock().await;
+
+    let api = match server {
+        Some(endpoint) => {
+            drop(state);
+            app_state
+                .lock()
+                .await
+                .get_api_client_for_server(&endpoint)
+                .await?
+        }
+        None => state.get_api_client()?.clone(),
+    };
+
+    api.websocket_ticket().await
+}
