@@ -16,7 +16,23 @@ export interface MenuItem {
 /** A divider between groups of items. */
 export const MENU_DIVIDER = "-" as const;
 
-export type MenuEntry = MenuItem | typeof MENU_DIVIDER;
+/**
+ * A labelled heading above a run of items.
+ *
+ * For a select whose options come from more than one source and where the source
+ * changes what picking one means — an audio device under WASAPI and the same box
+ * under ASIO are different latencies, not a duplicate entry. A divider alone would
+ * separate them without saying which is which.
+ */
+export interface MenuSection {
+  section: string;
+}
+
+export type MenuEntry = MenuItem | MenuSection | typeof MENU_DIVIDER;
+
+function isSection(entry: MenuEntry): entry is MenuSection {
+  return entry !== MENU_DIVIDER && "section" in entry;
+}
 
 /**
  * One dropdown, two jobs.
@@ -89,6 +105,9 @@ export class Menu {
 
   static #render(entry: MenuEntry, index: number): string {
     if (entry === MENU_DIVIDER) return '<div class="rad-menu__divider" role="separator"></div>';
+    if (isSection(entry)) {
+      return `<div class="rad-menu__section" role="presentation">${Menu.#escape(entry.section)}</div>`;
+    }
     const classes = ["rad-menu__item"];
     if (entry.danger) classes.push("rad-menu__item--danger");
     const tick = entry.on
@@ -117,7 +136,7 @@ export class Menu {
     const button = (e.target as HTMLElement).closest<HTMLElement>("[data-rad-mi]");
     if (!button) return;
     const entry = this.#entries[Number(button.dataset.radMi)];
-    if (entry === MENU_DIVIDER) return;
+    if (entry === MENU_DIVIDER || isSection(entry)) return;
     const pick = this.#onPick;
     this.close();
     pick?.(entry);

@@ -101,6 +101,22 @@
   background: var(--color-rad-line);
 }
 
+/* A heading over the run of items below it. Indented to the item text rather than to
+   the panel, so the label lines up with the names it governs and not with their tick
+   column. */
+.rad-menu__section {
+  padding: 11px 10px 5px 32px;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-2xs);
+  letter-spacing: var(--tracking-rad-label);
+  text-transform: uppercase;
+  color: var(--color-rad-faint);
+}
+
+.rad-menu__section:first-child {
+  padding-top: 4px;
+}
+
 /* ---- scrim ---- */
 
 .rad-scrim {
@@ -196,6 +212,106 @@
 .rad-modal__scroll {
   max-height: 206px;
   overflow-y: auto;
+}
+
+/* ---- cover ----
+ * A whole screen presented over another one: settings over the dashboard.
+ *
+ * A cover is not a modal and not a sheet. A modal is a question about the screen
+ * underneath and a sheet is a shortcut to part of it; a cover is a second screen that
+ * happens to have been reached from the first. So it takes the full width, carries its
+ * own rail, and the screen it came from stays visible at the top edge — the one piece
+ * of evidence that dismissing goes back rather than forward.
+ *
+ * The gap at the top is deliberate and load-bearing. Full-bleed, this is
+ * indistinguishable from a navigation, and a user who cannot see what they will return
+ * to has no reason to expect the back gesture to do anything in particular.
+ *
+ *   <div class="rad-under is-covered"> … the dashboard … </div>
+ *   <div class="rad-scrim rad-scrim--cover is-on"></div>
+ *   <div class="rad-cover is-open" data-rad-cover="settings"> … </div>
+ */
+
+.rad-cover {
+  position: absolute;
+  inset: var(--rad-cover-peek, 14px) 0 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-top: 1px solid var(--color-rad-line-2);
+  border-radius: var(--radius-rad-xl) var(--radius-rad-xl) 0 0;
+  background: var(--color-rad-void);
+  box-shadow: var(--shadow-rad-sheet);
+  transform: translateY(101%);
+  visibility: hidden;
+  transition:
+    transform 0.36s var(--ease-rad-rise),
+    visibility 0s linear 0.36s;
+}
+
+.rad-cover.is-open {
+  transform: translateY(0);
+  visibility: visible;
+  transition:
+    transform 0.36s var(--ease-rad-rise),
+    visibility 0s;
+}
+
+/* The cover holds a shell, which expects to be the thing that fills a frame. */
+.rad-cover > .rad-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* The screen underneath. Scaled from the bottom, so the movement is away from the
+   cover rather than toward it, and the top edge — the only part still visible — is
+   what travels furthest. */
+.rad-under {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 100%;
+  transition:
+    transform 0.36s var(--ease-rad-rise),
+    filter 0.36s ease;
+}
+
+.rad-under.is-covered {
+  transform: scale(0.977);
+  filter: brightness(0.72) saturate(0.9);
+}
+
+.rad-scrim--cover {
+  z-index: 29;
+  background: rgb(8 3 16 / 0.45);
+}
+
+/* Motion here is the whole message — where the screen went, and that it is still
+   there. Without it, the two screens have to be distinguished by content alone, so
+   the cover fades rather than being removed. */
+@media (prefers-reduced-motion: reduce) {
+  .rad-cover {
+    transform: none;
+    opacity: 0;
+    transition:
+      opacity 0.2s linear,
+      visibility 0s linear 0.2s;
+  }
+
+  .rad-cover.is-open {
+    opacity: 1;
+    transition:
+      opacity 0.2s linear,
+      visibility 0s;
+  }
+
+  .rad-under {
+    transition: filter 0.2s linear;
+  }
+
+  .rad-under.is-covered {
+    transform: none;
+  }
 }
 
 /* ---- bottom sheet ----

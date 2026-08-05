@@ -35,6 +35,10 @@ export const RAD_ICONS = {
   // in the status panel — reconnect and reset stats — and a second clockwise arrow there would
   // read as the same action drawn twice.
   reset: '<path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 3.5V9H9"/>',
+  // Drawn open. A favourite is filled by `fill: currentColor` on the button that
+  // holds it, so the on and off states are one shape at two weights rather than two
+  // drawings that have to be kept in agreement.
+  star: '<path d="M12 3.4l2.65 5.37 5.93.86-4.29 4.18 1.01 5.9L12 16.92l-5.3 2.79 1.01-5.9L3.42 9.63l5.93-.86z"/>',
   plus: '<path d="M12 4.5v15"/><path d="M4.5 12h15"/>',
   minus: '<path d="M4.5 12h15"/>',
   close: '<path d="M6.5 6.5l11 11"/><path d="M17.5 6.5l-11 11"/>',

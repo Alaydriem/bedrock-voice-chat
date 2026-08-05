@@ -72,11 +72,12 @@ export { IconBinding } from "./bindings/IconBinding";
 
 // ---- behaviour ----
 export { Toast } from "./core/controllers/Toast";
-export { Menu, MENU_DIVIDER, type MenuItem, type MenuEntry } from "./core/controllers/Menu";
+export { Menu, MENU_DIVIDER, type MenuItem, type MenuSection, type MenuEntry } from "./core/controllers/Menu";
 export { Modal } from "./core/controllers/Modal";
 export { Sheet } from "./core/controllers/Sheet";
+export { Cover, type CoverOptions } from "./core/controllers/Cover";
 export { FormControls, type FormControlHooks } from "./core/controllers/FormControls";
-export { SelectControl } from "./core/controllers/SelectControl";
+export { SelectControl, type SelectOption } from "./core/controllers/SelectControl";
 export { KeybindCapture } from "./core/controllers/KeybindCapture";
 export { DragReorder } from "./core/controllers/DragReorder";
 export { TableController, type TableOptions, type TableView, type TableColumn } from "./core/controllers/TableController";

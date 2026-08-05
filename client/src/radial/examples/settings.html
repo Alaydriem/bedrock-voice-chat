@@ -10,559 +10,982 @@
     <div class="g-wrap">
       <header class="g-head">
         <p class="g-kick">Radial · settings</p>
-        <h1 class="g-title">A component set, not a page count</h1>
+        <h1 class="g-title">A second screen, not a second app</h1>
         <p class="g-lede">
-          Settings reuses the dashboard's shell &mdash; the same rail, the same second column, now a
-          section list. What matters is the kit: rows, toggles, selects, one dropdown that serves both
-          selects and row actions, tables, chips, callouts, empty states and a confirm. The panes are
-          built out on top of it so the kit gets tested against real content rather than lorem.
+          Settings is presented <em>over</em> the dashboard rather than instead of it. The dashboard
+          behind is holding a voice link, a roster and a position feed; replacing it to show a
+          checkbox means rebuilding all of that on the way back. So it stays mounted, scaled back and
+          visible at the top edge &mdash; which is also the only evidence a reader has that dismissing
+          goes backwards.
         </p>
       </header>
 
       <nav class="g-nav" data-g-nav></nav>
 
-      <section class="g-sec" id="settings">
-        <p class="g-sec__kick">Panes</p>
-        <h2 class="g-sec__title">Nine surfaces, one kit</h2>
+      <section class="g-sec" id="presentation">
+        <p class="g-sec__kick">Presentation</p>
+        <h2 class="g-sec__title">Rises, covers, dismisses</h2>
         <p class="g-sec__note">
-          Realms is a routing problem, not a settings page: the question is where position data comes
-          from, so the page leads with the choice and everything else appears in response. The warning
-          that you must join <code>127.0.0.1</code> rather than the Realm is the single most
-          support-generating fact in the product, so it is a callout rather than a footnote.
+          The whole shell travels as one surface, rail included: the rail's gear is lit while settings
+          is up, so the rail belongs to this screen for as long as it is here. The gap at the top is
+          load-bearing rather than decorative &mdash; full-bleed, a cover is indistinguishable from a
+          navigation, and nothing about it suggests that Escape or the back gesture will return you to
+          what you were doing.
+        </p>
+        <p class="g-sec__note">
+          Dismissal follows the platform, not the component. On a phone the first back climbs from a
+          pane to the section list, and the second closes; the back control says which by being an
+          arrow or an <b>&times;</b>. On desktop the section list is never hidden, so there is nothing
+          to climb and Escape closes. A menu or a modal open on top always takes Escape first.
         </p>
 
         <div class="g-bar">
           <span class="g-ctls">
-            <label>Pane</label>
-            <button data-pane-to="account">Account</button>
-            <button data-pane-to="audio">Audio</button>
-            <button data-pane-to="recordings">Recordings</button>
-            <button data-pane-to="keybinds">Keybinds</button>
-            <button data-pane-to="ws" aria-pressed="true">WebSocket</button>
-            <button data-pane-to="proxy">Proxy</button>
-            <button data-pane-to="realms">Realms</button>
-            <button data-pane-to="about">About</button>
+            <label>Cover</label>
+            <button data-g-cover="open" aria-pressed="true">Open</button>
+            <button data-g-cover="close" aria-pressed="false">Dismiss</button>
           </span>
           <span class="g-seg" data-g-device="set-frame">
             <button data-g-size="desktop" aria-pressed="true">Desktop</button>
             <button data-g-size="phone" aria-pressed="false">Phone</button>
           </span>
         </div>
+      </section>
+
+      <section class="g-sec" id="settings">
+        <p class="g-sec__kick">Panes</p>
+        <h2 class="g-sec__title">Nine surfaces, one kit</h2>
+        <p class="g-sec__note">
+          Rows, toggles, selects, one dropdown that serves both selects and row actions, tables,
+          chips, callouts, empty states and a confirm. Every pane is built from those, on real content
+          rather than lorem, so the kit gets tested against the awkward cases: a device list that
+          comes from two audio hosts, a backend that is chosen by recognition, a capability the server
+          may or may not have told us about.
+        </p>
+        <p class="g-sec__note">
+          Proxy and Realms are the server-select screen wearing a different hat. Both are asking the
+          same question &mdash; which place should this point at &mdash; so both use its plate, with
+          favourites and the operator's own entries folded in. The warning that you must join
+          <code>127.0.0.1</code> rather than the server itself is the most support-generating fact in
+          the product, so it is a callout on both of them and not a footnote on either.
+        </p>
+
+        <div class="g-bar">
+          <span class="g-ctls">
+            <label>Pane</label>
+            <button data-pane-to="account" aria-pressed="true">Account</button>
+            <button data-pane-to="audio">Audio</button>
+            <button data-pane-to="recordings">Recordings</button>
+            <button data-pane-to="library">Library</button>
+            <button data-pane-to="keybinds">Keybinds</button>
+            <button data-pane-to="ws">WebSocket</button>
+            <button data-pane-to="proxy">Proxy</button>
+            <button data-pane-to="realms">Realms</button>
+            <button data-pane-to="about">About</button>
+          </span>
+        </div>
+
+        <div class="g-bar">
+          <span class="g-ctls">
+            <label>State</label>
+            <button data-g-state="xbl" aria-pressed="true">Signed in to Microsoft</button>
+            <button data-g-cap>Bedrock support: on</button>
+            <button data-g-list>Lists: loaded</button>
+            <button data-g-state="update" aria-pressed="false">Update available</button>
+            <button data-g-state="libadmin" aria-pressed="true">Can manage the library</button>
+            <button data-g-state="mobile" aria-pressed="false">Mobile build</button>
+          </span>
+        </div>
+
+        <p class="g-sec__note">
+          <b>Mobile build and phone width are different switches, deliberately.</b> A narrow window on
+          a desktop is still a desktop: it records, it picks its own audio device, it has more than one
+          network interface to bind to. Driving capability off the container width is how a resized
+          window loses features it still has.
+        </p>
 
         <div class="g-frame-stage">
-          <div class="rad-frame rad-frame--desktop rad-frame--settings is-list" id="set-frame" data-rad-state="realm ws">
+          <div
+            class="rad-frame rad-frame--desktop"
+            id="set-frame"
+            data-rad-state="ws gate xbl cap proxyup libadmin"
+          >
             <div class="rad-grain"></div>
-            <div class="rad-shell">
-              <div class="rad-rail">
-                <div class="rad-rail__list">
-                  <button class="rad-rail-item"><canvas data-rad-glyph="bvc.alaydriem.com" data-size="36"></canvas></button>
-                  <button class="rad-rail-item"><canvas data-rad-glyph="voice.hearthhold.net" data-size="36"></canvas></button>
-                </div>
-                <button class="rad-rail-btn" aria-label="Add a server"><span data-rad-icon="plus"></span></button>
-                <span class="rad-rail__spacer"></span>
-                <button class="rad-rail-btn is-on" aria-label="Settings"><span data-rad-icon="gear"></span></button>
-              </div>
 
-              <div class="rad-panel">
-                <div class="rad-panel__head">Settings</div>
-                <div class="rad-panel__body" data-nav></div>
-              </div>
+            <!-- ============================================================
+                 The dashboard, still mounted.
 
-              <div class="rad-stage">
-                <div class="rad-dash-top">
-                  <span class="rad-dash-top__who"><span class="rad-dash-top__server" data-pane-title>WebSocket server</span></span>
-                </div>
-
-                <div class="rad-backbar">
-                  <button class="rad-backbar__btn" data-mobile-back aria-label="Back">
-                    <span data-rad-icon="close"></span>
-                  </button>
-                  <span class="rad-backbar__title" data-mobile-title>Settings</span>
-                  <button class="rad-header-glyph" aria-label="Servers">
-                    <canvas data-rad-glyph="bvc.alaydriem.com" data-size="34"></canvas>
+                 A stand-in here rather than the whole screen: what this page has to
+                 show is the relationship between the two surfaces, and the dashboard
+                 has a reference page of its own.
+                 ============================================================ -->
+            <div class="rad-under" data-rad-under>
+              <div class="rad-shell">
+                <div class="rad-rail">
+                  <div class="rad-rail__list">
+                    <button class="rad-rail-item is-on">
+                      <canvas data-rad-glyph="bvc.alaydriem.com" data-size="36"></canvas>
+                    </button>
+                    <button class="rad-rail-item">
+                      <canvas data-rad-glyph="voice.hearthhold.net" data-size="36"></canvas>
+                    </button>
+                  </div>
+                  <button class="rad-rail-btn" aria-label="Add a server"><span data-rad-icon="plus"></span></button>
+                  <span class="rad-rail__spacer"></span>
+                  <button class="rad-rail-btn" data-rad-cover-open="settings" aria-label="Settings">
+                    <span data-rad-icon="gear"></span>
                   </button>
                 </div>
 
-                <div class="rad-mobile-list" data-mobile-list></div>
+                <div class="rad-panel">
+                  <div class="rad-panel__head">Groups</div>
+                  <div class="rad-panel__body"></div>
+                </div>
 
-                <div class="rad-settings-body">
-                  <div class="rad-settings-measure">
-                    <!-- ============ ACCOUNT ============ -->
-                    <section data-pane="account" hidden>
-                      <div class="rad-section">
-                        <div class="rad-section__note">
-                          Who you are on this server. Signing out removes the certificate for this
-                          server only &mdash; your other servers stay signed in.
-                        </div>
-                        <div class="rad-card">
-                          <div class="rad-account">
-                            <span class="rad-account__badge" style="background: var(--color-rad-brand)">AL</span>
-                            <span class="rad-account__text">
-                              <span class="rad-account__name">Alaydriem</span>
-                              <span class="rad-account__meta">SIGNED IN WITH XBOX LIVE</span>
-                            </span>
-                            <span class="rad-status-chip rad-status-chip--ok">Signed in</span>
-                          </div>
-                        </div>
-                        <div class="rad-card">
-                          <div class="rad-card__head">Accounts you play on</div>
-                          <div class="rad-account">
-                            <span class="rad-account__badge" style="background: #107c10">XB</span>
-                            <span class="rad-account__text">
-                              <span class="rad-account__name">Xbox Live</span>
-                              <span class="rad-account__meta">HOW YOU SIGN IN &middot; BEDROCK</span>
-                            </span>
-                            <button class="rad-btn" disabled>Linked</button>
-                          </div>
-                          <div class="rad-account">
-                            <span class="rad-account__badge" style="background: #5c8a3c">JA</span>
-                            <span class="rad-account__text">
-                              <span class="rad-account__name">Minecraft Java</span>
-                              <span class="rad-account__meta">NOT LINKED</span>
-                            </span>
-                            <button class="rad-btn">Link</button>
-                          </div>
-                          <div class="rad-account">
-                            <span class="rad-account__badge" style="background: #5865f2">DC</span>
-                            <span class="rad-account__text">
-                              <span class="rad-account__name">Discord</span>
-                              <span class="rad-account__meta">NOT LINKED</span>
-                            </span>
-                            <button class="rad-btn">Link</button>
-                          </div>
-                        </div>
-                        <div class="rad-callout">
-                          <span>
-                            Link your Java account and you keep <b>one voice identity across both
-                            editions</b> &mdash; the same name, the same colour, the same per-player
-                            volumes, whichever one you log in on.
-                          </span>
-                        </div>
-                        <div class="rad-card">
-                          <div class="rad-row">
-                            <span class="rad-row__text">
-                              <span class="rad-row__label">Sign out of this server</span>
-                              <span class="rad-row__note">Your other servers stay signed in.</span>
-                            </span>
-                            <span class="rad-row__control"><button class="rad-btn rad-btn--danger">Sign out</button></span>
-                          </div>
-                        </div>
-                      </div>
-                    </section>
+                <div class="rad-stage">
+                  <div class="rad-dash-top">
+                    <span class="rad-dash-top__who">
+                      <span class="rad-dash-top__server">Alaydriem's SMP</span>
+                    </span>
+                    <span class="rad-dash-top__state">
+                      <span class="rad-health-dot"></span>
+                      <span>NOBODY IN EARSHOT</span>
+                    </span>
+                  </div>
+                  <div class="rad-empty" style="flex: 1 1 auto; justify-content: center">
+                    <canvas data-rad-mark data-cell="5" data-gain="0.4" data-still="true"></canvas>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-                    <!-- ============ AUDIO ============ -->
-                    <section data-pane="audio" hidden>
-                      <div class="rad-section">
-                        <div class="rad-section__note">
-                          Devices must support 48 kHz. Some Android hardware runs at 44.1 kHz and is
-                          handled as an exception.
-                        </div>
-                        <div class="rad-card">
-                          <div class="rad-card__head">Devices</div>
-                          <div class="rad-row">
-                            <span class="rad-row__text"><span class="rad-row__label">Input</span></span>
-                            <span class="rad-row__control">
-                              <button class="rad-select" data-rad-select="Focusrite Scarlett 2i2|Realtek High Definition Audio|Blue Yeti">
-                                <span class="rad-select__value">Focusrite Scarlett 2i2</span><span data-rad-icon="chev"></span>
-                              </button>
-                            </span>
-                          </div>
-                          <div class="rad-row">
-                            <span class="rad-row__text">
-                              <span class="rad-row__label">Test your microphone</span>
-                              <span class="rad-row__note">Speak and watch the meter. Nothing is sent to the server.</span>
-                            </span>
-                            <span class="rad-row__control rad-meter-row">
-                              <canvas data-rad-level data-source="none" data-rad-id="test-meter" data-cell="3"></canvas>
-                              <button class="rad-btn" data-test-mic><span data-rad-icon="play"></span> Test</button>
-                            </span>
-                          </div>
-                          <div class="rad-row">
-                            <span class="rad-row__text"><span class="rad-row__label">Output</span></span>
-                            <span class="rad-row__control">
-                              <button class="rad-select" data-rad-select="Sennheiser HD 560S|Speakers (Realtek)|Steam Streaming Speakers">
-                                <span class="rad-select__value">Sennheiser HD 560S</span><span data-rad-icon="chev"></span>
-                              </button>
-                            </span>
-                          </div>
-                        </div>
-                        <div class="rad-card">
-                          <div class="rad-card__head">Voice</div>
-                          <div class="rad-row">
-                            <span class="rad-row__text"><span class="rad-row__label">Voice mode</span></span>
-                            <span class="rad-row__control">
-                              <span class="rad-segmented" role="group" aria-label="Voice mode" data-rad-segment-group="voice">
-                                <button data-rad-segment="va" aria-pressed="true">Voice activated</button>
-                                <button data-rad-segment="ptt" aria-pressed="false">Push-to-talk</button>
-                              </span>
-                            </span>
-                          </div>
-                          <div class="rad-row">
-                            <span class="rad-row__text">
-                              <span class="rad-row__label">Noise gate</span>
-                              <span class="rad-row__note">Cuts your mic when you are not speaking.</span>
-                            </span>
-                            <span class="rad-row__control">
-                              <button class="rad-toggle" role="switch" aria-checked="true" data-rad-toggle="gate" aria-label="Noise gate"></button>
-                            </span>
-                          </div>
-                          <div class="rad-row rad-row--stack">
-                            <span class="rad-row__text">
-                              <span class="rad-row__label">Gate threshold</span>
-                              <span class="rad-row__note">
-                                Everything below this is treated as silence. Currently
-                                <b style="color: var(--color-rad-tx)" data-gate-value>-42 dBFS</b>.
-                              </span>
-                            </span>
-                            <input class="rad-range" type="range" min="-70" max="-10" value="-42" data-gate style="width: 100%" aria-label="Gate threshold" />
-                          </div>
-                        </div>
-                      </div>
-                    </section>
+            <div class="rad-scrim rad-scrim--cover" data-rad-cover-scrim></div>
 
-                    <!-- ============ RECORDINGS ============ -->
-                    <section data-pane="recordings" hidden>
-                      <div class="rad-section">
-                        <div class="rad-section__note">
-                          Every session is stored as one track per player. Export as a multitrack BWAV
-                          for an editor, a mixdown for sharing, or the raw tracks.
-                        </div>
-                        <div class="rad-swatchrow" style="margin-bottom: 4px">
-                          <button class="rad-btn" data-toggle-empty>Toggle empty state</button>
-                          <button class="rad-btn rad-btn--danger" data-rad-modal-open="wipe">Delete all&hellip;</button>
-                          <span class="rad-status-chip" data-rec-meta>4 sessions &middot; 1.7 GB</span>
-                        </div>
-                        <div class="rad-selection-bar" data-rec-selbar hidden>
-                          <span class="rad-selection-bar__count"><b data-rec-selcount>0</b> selected</span>
-                          <span class="rad-spacer"></span>
-                          <button class="rad-btn" data-rec-export>Export&hellip;</button>
-                          <button class="rad-btn rad-btn--danger" data-rec-delete>Delete</button>
-                          <button class="rad-btn" data-rec-clear>Clear</button>
-                        </div>
-                        <div class="rad-card" data-rec-table>
-                          <div class="rad-table-wrap">
-                            <table class="rad-table">
-                              <thead>
-                                <tr>
-                                  <th class="rad-select-cell">
-                                    <button class="rad-checkbox rad-checkbox--compact" role="checkbox" aria-checked="false" data-rec-selall aria-label="Select all">
-                                      <span class="rad-checkbox__box" data-rad-icon="check"></span>
-                                    </button>
-                                  </th>
-                                  <th class="rad-sortable" data-rec-sort="name">Session<span class="rad-caret">&#9650;</span></th>
-                                  <th class="rad-sortable rad-num" data-rec-sort="date">Recorded<span class="rad-caret">&#9650;</span></th>
-                                  <th class="rad-num">Length</th>
-                                  <th class="rad-num">Tracks</th>
-                                  <th class="rad-sortable rad-num" data-rec-sort="size">Size<span class="rad-caret">&#9650;</span></th>
-                                  <th></th>
-                                </tr>
-                              </thead>
-                              <tbody data-rec-body></tbody>
-                            </table>
-                          </div>
-                        </div>
-                        <div class="rad-card" data-rec-empty hidden>
-                          <div class="rad-empty">
-                            <canvas data-rad-mark data-cell="4" data-gain="0.35" data-still="true"></canvas>
-                            <span class="rad-empty__title">Nothing recorded yet</span>
-                            <span class="rad-empty__note">
-                              Arm recording from the controls on the dashboard. Each player lands on
-                              their own timecoded track.
-                            </span>
-                            <span class="rad-swatchrow" style="justify-content: center">
-                              <button class="rad-btn rad-btn--primary">Open the dashboard</button>
-                            </span>
-                          </div>
-                        </div>
-                        <div class="rad-callout">
-                          <span>Exports are written to <b>Documents / BVC / Exports</b>. Change this in Storage.</span>
-                        </div>
-                      </div>
-                    </section>
+            <!-- ============================================================
+                 Settings, over it.
+                 ============================================================ -->
+            <div class="rad-cover is-open" data-rad-cover="settings">
+              <div class="rad-shell rad-settings is-list" data-settings>
+                <div class="rad-rail">
+                  <div class="rad-rail__list">
+                    <button class="rad-rail-item">
+                      <canvas data-rad-glyph="bvc.alaydriem.com" data-size="36"></canvas>
+                    </button>
+                    <button class="rad-rail-item">
+                      <canvas data-rad-glyph="voice.hearthhold.net" data-size="36"></canvas>
+                    </button>
+                  </div>
+                  <button class="rad-rail-btn" aria-label="Add a server"><span data-rad-icon="plus"></span></button>
+                  <span class="rad-rail__spacer"></span>
+                  <button class="rad-rail-btn is-on" data-rad-cover-close aria-label="Close settings">
+                    <span data-rad-icon="gear"></span>
+                  </button>
+                </div>
 
-                    <!-- ============ KEYBINDS ============ -->
-                    <section data-pane="keybinds" hidden>
-                      <div class="rad-section">
-                        <div class="rad-section__note">
-                          Global shortcuts. They work while Minecraft has focus, which is the entire
-                          point of them.
-                        </div>
-                        <div class="rad-card">
-                          <div class="rad-row">
-                            <span class="rad-row__text">
-                              <span class="rad-row__label">Push-to-talk</span>
-                              <span class="rad-row__note">Hold to transmit while push-to-talk mode is on.</span>
-                            </span>
-                            <span class="rad-row__control"><button class="rad-keycap" data-rad-keybind="ptt">Mouse 4</button></span>
-                          </div>
-                          <div class="rad-row">
-                            <span class="rad-row__text"><span class="rad-row__label">Toggle mute</span></span>
-                            <span class="rad-row__control"><button class="rad-keycap" data-rad-keybind="mute">Ctrl + Shift + M</button></span>
-                          </div>
-                          <div class="rad-row">
-                            <span class="rad-row__text"><span class="rad-row__label">Toggle deafen</span></span>
-                            <span class="rad-row__control"><button class="rad-keycap" data-rad-keybind="deafen">Ctrl + Shift + D</button></span>
-                          </div>
-                          <div class="rad-row">
-                            <span class="rad-row__text"><span class="rad-row__label">Start / stop recording</span></span>
-                            <span class="rad-row__control"><button class="rad-keycap" data-rad-keybind="record">Not set</button></span>
-                          </div>
-                        </div>
-                        <div class="rad-callout">
-                          <span>Click a binding, then press the combination. <b>Escape cancels, Delete clears it.</b></span>
-                        </div>
-                      </div>
-                    </section>
+                <div class="rad-panel">
+                  <div class="rad-panel__head">Settings</div>
+                  <div class="rad-panel__body" data-nav></div>
+                </div>
 
-                    <!-- ============ WEBSOCKET ============ -->
-                    <section data-pane="ws">
-                      <div class="rad-section">
-                        <div class="rad-section__note">
-                          Lets other software drive BVC &mdash; mute, deafen, record, and read state.
-                          The Stream Deck plugin uses this. Nothing leaves your machine.
-                        </div>
-                        <div class="rad-card">
-                          <div class="rad-row">
-                            <span class="rad-row__text">
-                              <span class="rad-row__label">Enable the server</span>
-                              <span class="rad-row__note">Listens on localhost only.</span>
-                            </span>
-                            <span class="rad-row__control">
-                              <span class="rad-status-chip rad-status-chip--ok" data-ws-state>Listening</span>
-                              <button class="rad-toggle" role="switch" aria-checked="true" data-rad-toggle="ws" aria-label="Enable the WebSocket server"></button>
-                            </span>
-                          </div>
-                          <div class="rad-row" data-rad-when="ws">
-                            <span class="rad-row__text">
-                              <span class="rad-row__label">Address</span>
-                              <span class="rad-row__note">Point your plugin here.</span>
-                            </span>
-                            <span class="rad-row__control">
-                              <span class="rad-input" style="width: 240px"><input type="text" value="ws://127.0.0.1:8444" readonly aria-label="Address" /></span>
-                              <button class="rad-icon-btn" data-rad-copy="ws://127.0.0.1:8444" aria-label="Copy address">
-                                <span data-rad-icon="copy"></span>
-                              </button>
-                            </span>
-                          </div>
-                          <div class="rad-row" data-rad-when="ws">
-                            <span class="rad-row__text">
-                              <span class="rad-row__label">Access token</span>
-                              <span class="rad-row__note">
-                                Required on connect. Regenerating disconnects anything using the old one.
-                              </span>
-                            </span>
-                            <span class="rad-row__control">
-                              <span class="rad-input" style="width: 240px"><input type="text" value="••••••••••••••••••••" readonly aria-label="Access token" /></span>
-                              <button class="rad-icon-btn" data-rad-copy="the access token" aria-label="Copy token"><span data-rad-icon="copy"></span></button>
-                              <button class="rad-btn">Regenerate</button>
-                            </span>
-                          </div>
-                        </div>
+                <div class="rad-stage">
+                  <div class="rad-dash-top">
+                    <span class="rad-dash-top__who">
+                      <span class="rad-dash-top__server" data-pane-title>Account</span>
+                    </span>
+                    <span class="rad-dash-top__state">
+                      <button class="rad-header-btn" data-rad-cover-close aria-label="Close settings">
+                        <span data-rad-icon="close"></span>
+                      </button>
+                    </span>
+                  </div>
 
-                        <div class="rad-section" data-rad-when="ws">
-                          <div class="rad-section__head" style="font-size: var(--text-rad-lead)">Connected clients</div>
+                  <div class="rad-backbar">
+                    <button class="rad-backbar__btn" data-mobile-back aria-label="Back">
+                      <span data-rad-icon="close"></span>
+                    </button>
+                    <span class="rad-backbar__title" data-mobile-title>Settings</span>
+                    <button class="rad-header-glyph" aria-label="Servers">
+                      <canvas data-rad-glyph="bvc.alaydriem.com" data-size="34"></canvas>
+                    </button>
+                  </div>
+
+                  <div class="rad-mobile-list" data-mobile-list></div>
+
+                  <div class="rad-settings-body">
+                    <div class="rad-settings-measure" data-measure>
+                      <!-- ============ ACCOUNT ============ -->
+                      <section data-pane="account">
+                        <div class="rad-section">
+                          <div class="rad-section__note">
+                            Who you are on this server. Signing out removes the certificate for this
+                            server only &mdash; your other servers stay signed in.
+                          </div>
                           <div class="rad-card">
+                            <div class="rad-account">
+                              <span class="rad-account__badge" style="background: var(--color-rad-brand)">AL</span>
+                              <span class="rad-account__text">
+                                <span class="rad-account__name">Alaydriem</span>
+                                <span class="rad-account__meta">SIGNED IN WITH XBOX LIVE</span>
+                              </span>
+                              <span class="rad-status-chip rad-status-chip--ok">Signed in</span>
+                            </div>
+                          </div>
+                          <div class="rad-card">
+                            <div class="rad-card__head">Accounts you play on</div>
+                            <div class="rad-account">
+                              <span class="rad-account__badge" style="background: #107c10">XB</span>
+                              <span class="rad-account__text">
+                                <span class="rad-account__name">Xbox Live</span>
+                                <span class="rad-account__meta">HOW YOU SIGN IN &middot; BEDROCK</span>
+                              </span>
+                              <button class="rad-btn" disabled>Linked</button>
+                            </div>
+                            <div class="rad-account">
+                              <span class="rad-account__badge" style="background: #5c8a3c">JA</span>
+                              <span class="rad-account__text">
+                                <span class="rad-account__name">Minecraft Java</span>
+                                <span class="rad-account__meta" data-link-meta="java">NOT LINKED</span>
+                              </span>
+                              <button class="rad-btn" data-link="java">Link</button>
+                            </div>
+                            <div class="rad-account">
+                              <span class="rad-account__badge" style="background: #5865f2">DC</span>
+                              <span class="rad-account__text">
+                                <span class="rad-account__name">Discord</span>
+                                <span class="rad-account__meta" data-link-meta="discord">NOT LINKED</span>
+                              </span>
+                              <button class="rad-btn" data-link="discord">Link</button>
+                            </div>
+                          </div>
+                          <div class="rad-callout">
+                            <span>
+                              Link your Java account and you keep <b>one voice identity across both
+                              editions</b> &mdash; the same name, the same colour, the same per-player
+                              volumes, whichever one you log in on.
+                            </span>
+                          </div>
+                          <div class="rad-card">
+                            <div class="rad-row">
+                              <span class="rad-row__text">
+                                <span class="rad-row__label">Sign out of this server</span>
+                                <span class="rad-row__note">Your other servers stay signed in.</span>
+                              </span>
+                              <span class="rad-row__control"><button class="rad-btn rad-btn--danger">Sign out</button></span>
+                            </div>
+                          </div>
+                        </div>
+                      </section>
+
+                      <!-- ============ AUDIO ============ -->
+                      <section data-pane="audio" hidden>
+                        <div class="rad-section">
+                          <div class="rad-section__note">
+                            Devices must support 48 kHz. Some Android hardware runs at 44.1 kHz and is
+                            handled as an exception.
+                          </div>
+                          <!-- Android and iOS route audio themselves: the OS follows the headset,
+                               and an app-level picker there is a control that either lies or fights
+                               the system. The test stays, because "is this thing on" is the question
+                               a picker was only ever a proxy for. -->
+                          <div class="rad-card" data-rad-when="mobile">
+                            <div class="rad-card__head">Devices</div>
+                            <div class="rad-row">
+                              <span class="rad-row__text">
+                                <span class="rad-row__label">Chosen by the system</span>
+                                <span class="rad-row__note">
+                                  Your phone routes voice to whatever you last connected. Plug in a
+                                  headset and it follows &mdash; there is nothing to pick here.
+                                </span>
+                              </span>
+                              <span class="rad-row__control">
+                                <span class="rad-status-chip rad-status-chip--muted" data-mobile-device>Galaxy Buds Pro</span>
+                              </span>
+                            </div>
+                            <div class="rad-row">
+                              <span class="rad-row__text">
+                                <span class="rad-row__label">Test your microphone</span>
+                                <span class="rad-row__note">Speak and watch the meter. Nothing is sent to the server.</span>
+                              </span>
+                              <span class="rad-row__control rad-meter-row">
+                                <canvas data-rad-level data-source="none" data-rad-id="test-meter-m" data-cell="3"></canvas>
+                                <button class="rad-btn" data-test-mic><span data-rad-icon="play"></span> Test</button>
+                              </span>
+                            </div>
+                          </div>
+
+                          <div class="rad-card" data-rad-when="desktop">
+                            <div class="rad-card__head">Devices</div>
+                            <div class="rad-row">
+                              <span class="rad-row__text">
+                                <span class="rad-row__label">Input</span>
+                                <span class="rad-row__note">
+                                  Grouped by audio host. The same interface under ASIO and under WASAPI
+                                  is not the same choice &mdash; it is a different latency.
+                                </span>
+                              </span>
+                              <span class="rad-row__control">
+                                <button
+                                  class="rad-select"
+                                  data-rad-select="~WASAPI|Realtek High Definition Audio|Blue Yeti|Focusrite Scarlett 2i2|~ASIO|Focusrite USB ASIO|ASIO4ALL v2"
+                                >
+                                  <span class="rad-select__value">Focusrite USB ASIO</span><span data-rad-icon="chev"></span>
+                                </button>
+                              </span>
+                            </div>
+                            <div class="rad-row">
+                              <span class="rad-row__text">
+                                <span class="rad-row__label">Test your microphone</span>
+                                <span class="rad-row__note">Speak and watch the meter. Nothing is sent to the server.</span>
+                              </span>
+                              <span class="rad-row__control rad-meter-row">
+                                <canvas data-rad-level data-source="none" data-rad-id="test-meter" data-cell="3"></canvas>
+                                <button class="rad-btn" data-test-mic><span data-rad-icon="play"></span> Test</button>
+                              </span>
+                            </div>
+                            <div class="rad-row">
+                              <span class="rad-row__text"><span class="rad-row__label">Output</span></span>
+                              <span class="rad-row__control">
+                                <button
+                                  class="rad-select"
+                                  data-rad-select="~WASAPI|Sennheiser HD 560S|Speakers (Realtek)|Steam Streaming Speakers|~ASIO|Focusrite USB ASIO"
+                                >
+                                  <span class="rad-select__value">Sennheiser HD 560S</span><span data-rad-icon="chev"></span>
+                                </button>
+                              </span>
+                            </div>
+                          </div>
+
+                          <div class="rad-card">
+                            <div class="rad-card__head">Voice</div>
+                            <div class="rad-row">
+                              <span class="rad-row__text"><span class="rad-row__label">Voice mode</span></span>
+                              <span class="rad-row__control">
+                                <span class="rad-segmented" role="group" aria-label="Voice mode" data-rad-segment-group="voice">
+                                  <button data-rad-segment="va" aria-pressed="true">Voice activated</button>
+                                  <button data-rad-segment="ptt" aria-pressed="false">Push-to-talk</button>
+                                </span>
+                              </span>
+                            </div>
+                            <div class="rad-row rad-row--stack">
+                              <span class="rad-row__text">
+                                <span class="rad-row__label">Spatial panning</span>
+                                <span class="rad-row__note">
+                                  How hard voices are pushed left and right by where their speaker is
+                                  standing. At <b style="color: var(--color-rad-tx)">0%</b> everyone is
+                                  centred; distance still governs volume either way. Currently
+                                  <b style="color: var(--color-rad-tx)" data-pan-value>80%</b>.
+                                </span>
+                              </span>
+                              <input
+                                class="rad-range"
+                                type="range"
+                                min="0"
+                                max="100"
+                                value="80"
+                                data-pan
+                                style="width: 100%"
+                                aria-label="Spatial panning"
+                              />
+                            </div>
+                          </div>
+
+                          <div class="rad-card">
+                            <div class="rad-card__head">Noise gate</div>
+                            <div class="rad-row">
+                              <span class="rad-row__text">
+                                <span class="rad-row__label">Cut my mic when I am not speaking</span>
+                                <span class="rad-row__note">Runs on this machine. Nothing below the gate is ever encoded.</span>
+                              </span>
+                              <span class="rad-row__control">
+                                <button class="rad-toggle" role="switch" aria-checked="true" data-rad-toggle="gate" aria-label="Noise gate"></button>
+                              </span>
+                            </div>
+                            <div data-rad-when="gate">
+                              <div class="rad-knobs">
+                                <div class="rad-knob">
+                                  <span class="rad-knob__head">
+                                    <span class="rad-knob__label">Opens above</span>
+                                    <span class="rad-knob__value" data-knob-value="open">-40 dBFS</span>
+                                  </span>
+                                  <input class="rad-range" type="range" min="-70" max="-10" value="-40" data-knob="open" aria-label="Opens above" />
+                                  <span class="rad-knob__note">Loud enough to count as speech.</span>
+                                </div>
+                                <div class="rad-knob">
+                                  <span class="rad-knob__head">
+                                    <span class="rad-knob__label">Closes below</span>
+                                    <span class="rad-knob__value" data-knob-value="close">-50 dBFS</span>
+                                  </span>
+                                  <input class="rad-range" type="range" min="-80" max="-20" value="-50" data-knob="close" aria-label="Closes below" />
+                                  <span class="rad-knob__note">Kept under the open threshold, so a steady voice at the edge does not chatter the gate.</span>
+                                </div>
+                                <div class="rad-knob">
+                                  <span class="rad-knob__head">
+                                    <span class="rad-knob__label">Attack</span>
+                                    <span class="rad-knob__value" data-knob-value="attack">4 ms</span>
+                                  </span>
+                                  <input class="rad-range" type="range" min="1" max="40" value="4" data-knob="attack" aria-label="Attack" />
+                                  <span class="rad-knob__note">Slow enough to hear as a fade, fast enough not to clip a word.</span>
+                                </div>
+                                <div class="rad-knob">
+                                  <span class="rad-knob__head">
+                                    <span class="rad-knob__label">Release</span>
+                                    <span class="rad-knob__value" data-knob-value="release">120 ms</span>
+                                  </span>
+                                  <input class="rad-range" type="range" min="20" max="400" value="120" data-knob="release" aria-label="Release" />
+                                  <span class="rad-knob__note">How long the gate takes to shut once you stop.</span>
+                                </div>
+                                <div class="rad-knob">
+                                  <span class="rad-knob__head">
+                                    <span class="rad-knob__label">Hold</span>
+                                    <span class="rad-knob__value" data-knob-value="hold">200 ms</span>
+                                  </span>
+                                  <input class="rad-range" type="range" min="0" max="1000" value="200" data-knob="hold" aria-label="Hold" />
+                                  <span class="rad-knob__note">Held open through the gap between two words.</span>
+                                </div>
+                              </div>
+                              <div class="rad-row">
+                                <span class="rad-row__text">
+                                  <span class="rad-row__label">Back to the defaults</span>
+                                  <span class="rad-row__note">Five numbers is four more than most people want to meet.</span>
+                                </span>
+                                <span class="rad-row__control"><button class="rad-btn" data-knob-reset><span data-rad-icon="reset"></span> Reset</button></span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </section>
+
+                      <!-- ============ RECORDINGS ============ -->
+                      <section data-pane="recordings" hidden>
+                        <div class="rad-section">
+                          <div class="rad-section__note">
+                            Every session is stored as one track per player, timecoded together. Export
+                            writes the mix and the tracks you pick into the session's own folder.
+                          </div>
+                          <div class="rad-swatchrow" style="margin-bottom: 4px">
+                            <button class="rad-btn" data-toggle-empty>Toggle empty state</button>
+                            <button class="rad-btn rad-btn--danger" data-rad-modal-open="wipe">Delete all&hellip;</button>
+                            <span class="rad-status-chip" data-rec-meta>4 sessions &middot; 1.7 GB</span>
+                          </div>
+                          <div class="rad-selection-bar" data-rec-selbar hidden>
+                            <span class="rad-selection-bar__count"><b data-rec-selcount>0</b> selected</span>
+                            <span class="rad-spacer"></span>
+                            <button class="rad-btn" data-rec-export>Export&hellip;</button>
+                            <button class="rad-btn rad-btn--danger" data-rec-delete>Delete</button>
+                            <button class="rad-btn" data-rec-clear>Clear</button>
+                          </div>
+                          <div class="rad-card" data-rec-table>
                             <div class="rad-table-wrap">
                               <table class="rad-table">
                                 <thead>
-                                  <tr><th>Client</th><th class="rad-num">Connected</th><th class="rad-num">Commands</th><th></th></tr>
+                                  <tr>
+                                    <th class="rad-select-cell">
+                                      <button class="rad-checkbox rad-checkbox--compact" role="checkbox" aria-checked="false" data-rec-selall aria-label="Select all">
+                                        <span class="rad-checkbox__box" data-rad-icon="check"></span>
+                                      </button>
+                                    </th>
+                                    <th class="rad-sortable" data-rec-sort="name">Session<span class="rad-caret">&#9650;</span></th>
+                                    <th class="rad-sortable rad-num" data-rec-sort="date">Recorded<span class="rad-caret">&#9650;</span></th>
+                                    <th class="rad-num">Length</th>
+                                    <th class="rad-num">Tracks</th>
+                                    <th class="rad-sortable rad-num" data-rec-sort="size">Size<span class="rad-caret">&#9650;</span></th>
+                                    <th></th>
+                                  </tr>
                                 </thead>
-                                <tbody>
-                                  <tr>
-                                    <td><span class="rad-table__name">Elgato Stream Deck</span></td>
-                                    <td class="rad-num">00:42:11</td><td class="rad-num">318</td>
-                                    <td class="rad-table__actions"><button class="rad-kebab" aria-label="Actions"><span data-rad-icon="kebab"></span></button></td>
-                                  </tr>
-                                  <tr>
-                                    <td><span class="rad-table__name">bvc-cli</span></td>
-                                    <td class="rad-num">00:03:47</td><td class="rad-num">6</td>
-                                    <td class="rad-table__actions"><button class="rad-kebab" aria-label="Actions"><span data-rad-icon="kebab"></span></button></td>
-                                  </tr>
-                                </tbody>
+                                <tbody data-rec-body></tbody>
                               </table>
                             </div>
                           </div>
-                          <div class="rad-link-grid">
-                            <button class="rad-link-card">API documentation <span data-rad-icon="ext"></span></button>
-                            <button class="rad-link-card">Stream Deck plugin <span data-rad-icon="ext"></span></button>
-                          </div>
-                        </div>
-                      </div>
-                    </section>
-
-                    <!-- ============ PROXY ============ -->
-                    <section data-pane="proxy" hidden>
-                      <div class="rad-section">
-                        <div class="rad-section__note">
-                          Bedrock cannot tell BVC where you are standing. The proxy sits between
-                          Minecraft and a server you do not administer, and forwards position as you
-                          play.
-                        </div>
-                        <div class="rad-card">
-                          <div class="rad-row">
-                            <span class="rad-row__text">
-                              <span class="rad-row__label">Backend server</span>
-                              <span class="rad-row__note">The world you actually want to join.</span>
-                            </span>
-                            <span class="rad-row__control">
-                              <span class="rad-input" style="width: 220px"><input type="text" value="mc.alaydriem.com:19132" aria-label="Backend server" /></span>
-                            </span>
-                          </div>
-                          <div class="rad-row">
-                            <span class="rad-row__text">
-                              <span class="rad-row__label">Point Minecraft here</span>
-                              <span class="rad-row__note">Add this as a server in Minecraft and join it instead.</span>
-                            </span>
-                            <span class="rad-row__control">
-                              <span class="rad-input" style="width: 190px"><input type="text" value="127.0.0.1:19132" readonly aria-label="Local address" /></span>
-                              <button class="rad-icon-btn" data-rad-copy="127.0.0.1:19132" aria-label="Copy"><span data-rad-icon="copy"></span></button>
-                            </span>
-                          </div>
-                          <div class="rad-row">
-                            <span class="rad-row__text">
-                              <span class="rad-row__label">Advertised version</span>
-                              <span class="rad-row__note">
-                                What the proxy reports to Minecraft. Auto mirrors the backend, which is
-                                right almost always.
+                          <div class="rad-card" data-rec-empty hidden>
+                            <div class="rad-empty">
+                              <canvas data-rad-mark data-cell="4" data-gain="0.35" data-still="true"></canvas>
+                              <span class="rad-empty__title">Nothing recorded yet</span>
+                              <span class="rad-empty__note">
+                                Arm recording from the controls on the dashboard. Each player lands on
+                                their own timecoded track.
                               </span>
-                            </span>
-                            <span class="rad-row__control">
-                              <button class="rad-select" data-rad-select="Auto — mirror the backend|Latest released|1.21.100|1.21.90|1.21.80">
-                                <span class="rad-select__value">Auto &mdash; mirror the backend</span><span data-rad-icon="chev"></span>
-                              </button>
-                            </span>
+                              <span class="rad-swatchrow" style="justify-content: center">
+                                <button class="rad-btn rad-btn--primary" data-rad-cover-close>Open the dashboard</button>
+                              </span>
+                            </div>
                           </div>
-                          <div class="rad-row">
-                            <span class="rad-row__text">
-                              <span class="rad-row__label">Status</span>
-                              <span class="rad-row__note">Uptime 00:42:11 &middot; 1 client connected</span>
-                            </span>
-                            <span class="rad-row__control">
-                              <span class="rad-status-chip rad-status-chip--ok">Listening</span>
-                              <button class="rad-btn rad-btn--danger"><span data-rad-icon="stop"></span> Stop</button>
+                          <div class="rad-callout">
+                            <span>
+                              An export is written beside the recording it came from, in that session's
+                              own folder. Nothing is uploaded &mdash; <b>a recording never leaves this
+                              machine unless you move it yourself.</b>
                             </span>
                           </div>
                         </div>
-                        <div class="rad-callout rad-callout--warn">
-                          <span>
-                            Join <b>127.0.0.1:19132</b> in Minecraft, not the server itself. Joining
-                            directly skips the proxy and voice stays non-positional.
-                          </span>
-                        </div>
+                      </section>
 
-                        <div class="rad-disclosure is-open">
-                          <button class="rad-disclosure__head" data-rad-disclosure-head aria-expanded="true">
-                            <span data-rad-icon="terminal"></span> Proxy log
-                            <span class="rad-status-chip rad-status-chip--live" style="margin-left: 8px">Live</span>
-                            <span class="rad-disclosure__caret" data-rad-icon="chev"></span>
-                          </button>
-                          <div class="rad-disclosure__body">
-                            <div class="rad-log" data-log></div>
-                            <div class="rad-log-bar">
-                              <button class="rad-select" style="min-width: 112px" data-rad-select="All|Info|Warnings|Errors" data-log-filter>
-                                <span class="rad-select__value">All</span><span data-rad-icon="chev"></span>
-                              </button>
-                              <span class="rad-spacer"></span>
-                              <button class="rad-btn" data-log-copy><span data-rad-icon="copy"></span> Copy</button>
-                              <button class="rad-btn" data-log-clear>Clear</button>
+                      <!-- ============ AUDIO LIBRARY ============ -->
+                      <section data-pane="library" hidden>
+                        <div class="rad-section">
+                          <div class="rad-section__note">
+                            Sounds held on the server and played into the world by the jukebox. Shared
+                            by everyone on this server, so what you upload here, everyone hears.
+                          </div>
+
+                          <div class="rad-callout" data-rad-when="libguest">
+                            <span>
+                              You can see what is in the library and play it in game. <b>Uploading and
+                              deleting are the operator's to grant</b> &mdash; ask them if you need it.
+                            </span>
+                          </div>
+
+                          <div class="rad-card" data-rad-when="libadmin">
+                            <div class="rad-row">
+                              <span class="rad-row__text">
+                                <span class="rad-row__label">Add a sound</span>
+                                <span class="rad-row__note">Ogg or MP3, up to 10 MB each. Uploaded for everyone on this server.</span>
+                              </span>
+                              <span class="rad-row__control">
+                                <button class="rad-btn rad-btn--primary" data-lib-upload><span data-rad-icon="plus"></span> Upload&hellip;</button>
+                              </span>
+                            </div>
+                          </div>
+
+                          <div class="rad-swatchrow" style="margin-bottom: 4px">
+                            <span class="rad-search" style="flex: 1 1 220px">
+                              <span data-rad-icon="search"></span>
+                              <input type="search" placeholder="Search sounds" data-lib-search aria-label="Search sounds" />
+                            </span>
+                            <span class="rad-status-chip" data-lib-meta>0 sounds</span>
+                          </div>
+
+                          <div class="rad-selection-bar" data-lib-selbar hidden>
+                            <span class="rad-selection-bar__count"><b data-lib-selcount>0</b> selected</span>
+                            <span class="rad-spacer"></span>
+                            <button class="rad-btn rad-btn--danger" data-lib-delete>Delete</button>
+                            <button class="rad-btn" data-lib-clear>Clear</button>
+                          </div>
+
+                          <div class="rad-card" data-lib-table>
+                            <div class="rad-table-wrap">
+                              <table class="rad-table">
+                                <thead>
+                                  <tr>
+                                    <th class="rad-select-cell" data-rad-when="libadmin">
+                                      <button class="rad-checkbox rad-checkbox--compact" role="checkbox" aria-checked="false" data-lib-selall aria-label="Select all">
+                                        <span class="rad-checkbox__box" data-rad-icon="check"></span>
+                                      </button>
+                                    </th>
+                                    <th class="rad-sortable" data-lib-sort="name">Sound<span class="rad-caret">&#9650;</span></th>
+                                    <th>Uploaded by</th>
+                                    <th class="rad-sortable rad-num" data-lib-sort="date">Added<span class="rad-caret">&#9650;</span></th>
+                                    <th class="rad-sortable rad-num" data-lib-sort="length">Length<span class="rad-caret">&#9650;</span></th>
+                                    <th class="rad-sortable rad-num" data-lib-sort="size">Size<span class="rad-caret">&#9650;</span></th>
+                                    <th class="rad-num">ID</th>
+                                    <th></th>
+                                  </tr>
+                                </thead>
+                                <tbody data-lib-body></tbody>
+                              </table>
+                            </div>
+                            <div class="rad-pager" data-lib-pager hidden>
+                              <span data-lib-count>&nbsp;</span>
+                              <span class="rad-pager__pages" data-lib-pages></span>
+                            </div>
+                          </div>
+
+                          <div class="rad-callout">
+                            <span>
+                              The <b>ID</b> is what the jukebox command takes. Copy it from the row rather
+                              than typing the filename &mdash; they are not the same string.
+                            </span>
+                          </div>
+
+                          <div class="rad-card" data-lib-empty hidden>
+                            <div class="rad-empty">
+                              <canvas data-rad-mark data-cell="4" data-gain="0.35" data-still="true"></canvas>
+                              <span class="rad-empty__title">No sounds yet</span>
+                              <span class="rad-empty__note">
+                                Upload one and it becomes available to the jukebox for everyone on this
+                                server.
+                              </span>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    </section>
+                      </section>
 
-                    <!-- ============ REALMS ============ -->
-                    <section data-pane="realms" hidden>
-                      <div class="rad-section">
-                        <div class="rad-section__note">
-                          Read from the Microsoft account you signed in with. Choosing a Realm points
-                          the proxy at it &mdash; you still join
-                          <b style="color: var(--color-rad-tx)">127.0.0.1</b> in Minecraft.
-                        </div>
-                        <div class="rad-card">
-                          <div class="rad-account">
-                            <canvas data-rad-glyph="alaydriem-realm" data-size="38"></canvas>
-                            <span class="rad-account__text">
-                              <span class="rad-account__name">Alaydriem's Realm</span>
-                              <span class="rad-account__meta">OWNER &middot; 4 / 10 ONLINE</span>
-                            </span>
-                            <button class="rad-btn" data-use-realm="Alaydriem's Realm" aria-pressed="true">In use</button>
+                      <!-- ============ KEYBINDS ============ -->
+                      <section data-pane="keybinds" hidden>
+                        <div class="rad-section">
+                          <div class="rad-section__note">
+                            Global shortcuts. They work while Minecraft has focus, which is the entire
+                            point of them.
                           </div>
-                          <div class="rad-account">
-                            <canvas data-rad-glyph="hearthhold-realm" data-size="38"></canvas>
-                            <span class="rad-account__text">
-                              <span class="rad-account__name">Hearthhold</span>
-                              <span class="rad-account__meta">MEMBER &middot; 1 / 10 ONLINE</span>
-                            </span>
-                            <button class="rad-btn" data-use-realm="Hearthhold" aria-pressed="false">Use</button>
+                          <div class="rad-card">
+                            <div class="rad-row">
+                              <span class="rad-row__text">
+                                <span class="rad-row__label">Push-to-talk</span>
+                                <span class="rad-row__note">Hold to transmit while push-to-talk mode is on.</span>
+                              </span>
+                              <span class="rad-row__control"><button class="rad-keycap" data-rad-keybind="ptt">Mouse 4</button></span>
+                            </div>
+                            <div class="rad-row">
+                              <span class="rad-row__text"><span class="rad-row__label">Toggle mute</span></span>
+                              <span class="rad-row__control"><button class="rad-keycap" data-rad-keybind="mute">Ctrl + [</button></span>
+                            </div>
+                            <div class="rad-row">
+                              <span class="rad-row__text"><span class="rad-row__label">Toggle deafen</span></span>
+                              <span class="rad-row__control"><button class="rad-keycap" data-rad-keybind="deafen">Ctrl + ]</button></span>
+                            </div>
+                            <div class="rad-row">
+                              <span class="rad-row__text"><span class="rad-row__label">Start / stop recording</span></span>
+                              <span class="rad-row__control"><button class="rad-keycap" data-rad-keybind="record">Not set</button></span>
+                            </div>
                           </div>
-                          <div class="rad-account">
-                            <canvas data-rad-glyph="tinyaxolotl-realm" data-size="38"></canvas>
-                            <span class="rad-account__text">
-                              <span class="rad-account__name">Tiny Axolotl SMP</span>
-                              <span class="rad-account__meta">MEMBER &middot; OFFLINE</span>
-                            </span>
-                            <button class="rad-btn" disabled>Use</button>
+                          <div class="rad-callout">
+                            <span>Click a binding, then press the combination. <b>Escape cancels, Delete clears it.</b></span>
                           </div>
                         </div>
-                        <div class="rad-card">
-                          <div class="rad-row">
-                            <span class="rad-row__text"><span class="rad-row__label">Point Minecraft here</span></span>
-                            <span class="rad-row__control">
-                              <span class="rad-input" style="width: 190px"><input type="text" value="127.0.0.1:19132" readonly aria-label="Local address" /></span>
-                              <button class="rad-icon-btn" data-rad-copy="127.0.0.1:19132" aria-label="Copy"><span data-rad-icon="copy"></span></button>
-                            </span>
-                          </div>
-                          <div class="rad-row">
-                            <span class="rad-row__text"><span class="rad-row__label">Forwarding to</span></span>
-                            <span class="rad-row__control"><span class="rad-status-chip rad-status-chip--ok" data-proxy-backend>Alaydriem's Realm</span></span>
-                          </div>
-                        </div>
-                      </div>
-                    </section>
+                      </section>
 
-                    <!-- ============ ABOUT ============ -->
-                    <section data-pane="about" hidden>
-                      <div class="rad-section">
-                        <div class="rad-section__note">Proximity voice for Minecraft Bedrock. Source available.</div>
-                        <div class="rad-card">
-                          <div class="rad-row">
-                            <span class="rad-row__text">
-                              <span class="rad-row__label">You are up to date</span>
-                              <span class="rad-row__note">Last checked 4 minutes ago.</span>
-                            </span>
-                            <span class="rad-row__control"><button class="rad-btn">Check again</button></span>
+                      <!-- ============ WEBSOCKET ============ -->
+                      <section data-pane="ws" hidden>
+                        <div class="rad-section">
+                          <div class="rad-section__note">
+                            Lets other software drive BVC &mdash; mute, deafen, record, and read state.
+                            The Stream Deck plugin uses this. Nothing leaves your machine.
+                          </div>
+                          <div class="rad-card">
+                            <div class="rad-row">
+                              <span class="rad-row__text">
+                                <span class="rad-row__label">Enable the server</span>
+                                <span class="rad-row__note">Off by default. Nothing can drive the client until this is on.</span>
+                              </span>
+                              <span class="rad-row__control">
+                                <span class="rad-status-chip rad-status-chip--ok" data-ws-state>Listening</span>
+                                <button class="rad-toggle" role="switch" aria-checked="true" data-rad-toggle="ws" aria-label="Enable the WebSocket server"></button>
+                              </span>
+                            </div>
+                            <div class="rad-row" data-rad-when="ws">
+                              <span class="rad-row__text">
+                                <span class="rad-row__label">Listen on this machine only</span>
+                                <span class="rad-row__note">
+                                  Turn this off only to drive BVC from another device on your network.
+                                  <b>It exposes the port to everything that can reach you.</b>
+                                </span>
+                              </span>
+                              <span class="rad-row__control">
+                                <button class="rad-toggle" role="switch" aria-checked="true" data-rad-toggle="wslocal" aria-label="Listen on this machine only"></button>
+                              </span>
+                            </div>
+                            <div class="rad-row" data-rad-when="ws">
+                              <span class="rad-row__text">
+                                <span class="rad-row__label">Port</span>
+                                <span class="rad-row__note">Changing it restarts the server and drops anything connected.</span>
+                              </span>
+                              <span class="rad-row__control">
+                                <span class="rad-input" style="width: 104px">
+                                  <input type="text" inputmode="numeric" value="8444" data-ws-port aria-label="Port" />
+                                </span>
+                              </span>
+                            </div>
+                            <div class="rad-row" data-rad-when="ws">
+                              <span class="rad-row__text">
+                                <span class="rad-row__label">Address</span>
+                                <span class="rad-row__note">Point your plugin here.</span>
+                              </span>
+                              <span class="rad-row__control">
+                                <span class="rad-input" style="width: 230px">
+                                  <input type="text" value="ws://127.0.0.1:8444" readonly data-ws-addr aria-label="Address" />
+                                </span>
+                                <button class="rad-icon-btn" data-ws-copy aria-label="Copy address">
+                                  <span data-rad-icon="copy"></span>
+                                </button>
+                              </span>
+                            </div>
+                            <div class="rad-row" data-rad-when="ws">
+                              <span class="rad-row__text">
+                                <span class="rad-row__label">Access token</span>
+                                <span class="rad-row__note">
+                                  Required on connect. Regenerating disconnects anything using the old one.
+                                </span>
+                              </span>
+                              <span class="rad-row__control">
+                                <span class="rad-input" style="width: 230px"><input type="text" value="••••••••••••••••••••" readonly aria-label="Access token" /></span>
+                                <button class="rad-icon-btn" data-rad-copy="the access token" aria-label="Copy token"><span data-rad-icon="copy"></span></button>
+                                <button class="rad-btn">Regenerate</button>
+                              </span>
+                            </div>
+                          </div>
+
+                          <div class="rad-section" data-rad-when="ws">
+                            <div class="rad-section__head" style="font-size: var(--text-rad-lead)">Connected clients</div>
+                            <div class="rad-card">
+                              <div class="rad-table-wrap">
+                                <table class="rad-table">
+                                  <thead>
+                                    <tr><th>Client</th><th class="rad-num">Connected</th><th class="rad-num">Commands</th><th></th></tr>
+                                  </thead>
+                                  <tbody data-ws-clients></tbody>
+                                </table>
+                              </div>
+                            </div>
+                            <div class="rad-link-grid">
+                              <button class="rad-link-card" data-ext="https://www.bedrockvoicechat.com/wiki/creator/websocket-api/">
+                                WebSocket API <span data-rad-icon="ext"></span>
+                              </button>
+                              <button class="rad-link-card" data-ext="https://www.bedrockvoicechat.com/wiki/creator/stream-deck/">
+                                Stream Deck plugin <span data-rad-icon="ext"></span>
+                              </button>
+                            </div>
                           </div>
                         </div>
-                        <div class="rad-card">
-                          <div class="rad-card__head">Build</div>
-                          <dl class="rad-deflist">
-                            <dt>Version</dt><dd><span>1.0.0-beta.7</span></dd>
-                            <dt>Protocol</dt><dd><span>1.3.0</span></dd>
-                            <dt>Commit</dt>
-                            <dd>
-                              <span>8fa727ab</span>
-                              <button class="rad-icon-btn" data-rad-copy="8fa727ab" aria-label="Copy commit"><span data-rad-icon="copy"></span></button>
-                            </dd>
-                            <dt>Platform</dt><dd><span>Windows 11 &middot; 26200</span></dd>
-                          </dl>
+                      </section>
+
+                      <!-- ============ PROXY ============ -->
+                      <section data-pane="proxy" hidden>
+                        <div class="rad-section">
+                          <div class="rad-section__note">
+                            Bedrock cannot tell BVC where you are standing. The proxy sits between
+                            Minecraft and a server you do not administer, and forwards position as you
+                            play.
+                          </div>
+
+                          <!-- The proxy logs in to the backend as you, so it needs the same
+                               Microsoft account Realms does. Nothing below is worth showing
+                               until it has one. -->
+                          <div class="rad-card" data-rad-when="xblout">
+                            <div class="rad-account">
+                              <span class="rad-account__badge" style="background: #107c10">MS</span>
+                              <span class="rad-account__text">
+                                <span class="rad-account__name">Sign in with Microsoft</span>
+                                <span class="rad-account__meta">THE PROXY JOINS THE SERVER AS YOU</span>
+                              </span>
+                              <button class="rad-btn rad-btn--primary" data-rad-modal-open="devicecode">Sign in</button>
+                            </div>
+                          </div>
+
+                          <div data-rad-when="xbl">
+                            <div class="rad-callout rad-callout--warn" data-rad-when="capunknown">
+                              <span>
+                                <b>We could not reach this server to ask whether Bedrock support is on.</b>
+                                You can start the proxy anyway &mdash; if position is refused, this is
+                                why. <button class="rad-btn rad-btn--quiet" data-cap-retry>Check again</button>
+                              </span>
+                            </div>
+
+                            <div class="rad-section__head" style="font-size: var(--text-rad-lead)">Where you play</div>
+                            <div data-proxy-list></div>
+
+                            <div class="rad-card">
+                              <div class="rad-row">
+                                <span class="rad-row__text">
+                                  <span class="rad-row__label">Point Minecraft here</span>
+                                  <span class="rad-row__note" data-join-note>Add this as a server in Minecraft and join it instead.</span>
+                                </span>
+                                <span class="rad-row__control">
+                                  <span class="rad-input" style="width: 190px"><input type="text" value="127.0.0.1:19132" readonly data-join-addr aria-label="Local address" /></span>
+                                  <button class="rad-icon-btn" data-join-copy data-rad-copy="127.0.0.1:19132" aria-label="Copy"><span data-rad-icon="copy"></span></button>
+                                </span>
+                              </div>
+                              <div class="rad-row" data-iface-row>
+                                <span class="rad-row__text">
+                                  <span class="rad-row__label">Listen on</span>
+                                  <span class="rad-row__note" data-iface-note></span>
+                                </span>
+                                <span class="rad-row__control" data-iface-control></span>
+                              </div>
+                              <div class="rad-row">
+                                <span class="rad-row__text">
+                                  <span class="rad-row__label">Advertised version</span>
+                                  <span class="rad-row__note">
+                                    What the proxy reports to Minecraft. Auto mirrors the backend, which is
+                                    right almost always.
+                                  </span>
+                                </span>
+                                <span class="rad-row__control">
+                                  <button class="rad-select" data-rad-select="Auto — mirror the backend|1.21.100|1.21.90|1.21.80">
+                                    <span class="rad-select__value">Auto &mdash; mirror the backend</span><span data-rad-icon="chev"></span>
+                                  </button>
+                                </span>
+                              </div>
+                              <div class="rad-row">
+                                <span class="rad-row__text">
+                                  <span class="rad-row__label">Status</span>
+                                  <span class="rad-row__note" data-proxy-note>Running for 00:42:11 &middot; Minecraft is connected</span>
+                                </span>
+                                <span class="rad-row__control">
+                                  <span class="rad-status-chip rad-status-chip--ok" data-proxy-chip>Listening</span>
+                                  <button class="rad-btn rad-btn--danger" data-proxy-stop><span data-rad-icon="stop"></span> Stop</button>
+                                </span>
+                              </div>
+                            </div>
+
+                            <div class="rad-callout rad-callout--warn">
+                              <span>
+                                Join <b data-join-warn>127.0.0.1:19132</b> in Minecraft, not the server
+                                itself. Joining directly skips the proxy and voice stays non-positional.
+                              </span>
+                            </div>
+                          </div>
+
+                          <div class="rad-disclosure is-open">
+                            <button class="rad-disclosure__head" data-rad-disclosure-head aria-expanded="true">
+                              <span data-rad-icon="terminal"></span> Proxy log
+                              <span class="rad-status-chip rad-status-chip--live" style="margin-left: 8px">Live</span>
+                              <span class="rad-disclosure__caret" data-rad-icon="chev"></span>
+                            </button>
+                            <div class="rad-disclosure__body">
+                              <div class="rad-log" data-log></div>
+                              <div class="rad-log-bar">
+                                <button class="rad-select" style="min-width: 112px" data-rad-select="All|Info|Warnings|Errors" data-log-filter>
+                                  <span class="rad-select__value">All</span><span data-rad-icon="chev"></span>
+                                </button>
+                                <span class="rad-spacer"></span>
+                                <button class="rad-btn" data-log-copy><span data-rad-icon="copy"></span> Copy</button>
+                                <button class="rad-btn" data-log-clear>Clear</button>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                        <div class="rad-link-grid">
-                          <button class="rad-link-card">Wiki <span data-rad-icon="ext"></span></button>
-                          <button class="rad-link-card">Discord <span data-rad-icon="ext"></span></button>
-                          <button class="rad-link-card">Website <span data-rad-icon="ext"></span></button>
-                          <button class="rad-link-card">Source code <span data-rad-icon="ext"></span></button>
-                          <button class="rad-link-card">Privacy notice <span data-rad-icon="ext"></span></button>
-                          <button class="rad-link-card" data-rad-copy="a diagnostics bundle">Copy diagnostics <span data-rad-icon="copy"></span></button>
+                      </section>
+
+                      <!-- ============ REALMS ============ -->
+                      <section data-pane="realms" hidden>
+                        <div class="rad-section">
+                          <div class="rad-section__note">
+                            Read from the Microsoft account you signed in with. Choosing a Realm points
+                            the proxy at it &mdash; you still join
+                            <b style="color: var(--color-rad-tx)">127.0.0.1</b> in Minecraft.
+                          </div>
+
+                          <div class="rad-card" data-rad-when="xblout">
+                            <div class="rad-account">
+                              <span class="rad-account__badge" style="background: #107c10">MS</span>
+                              <span class="rad-account__text">
+                                <span class="rad-account__name">Sign in with Microsoft</span>
+                                <span class="rad-account__meta">TO LIST THE REALMS YOU CAN JOIN</span>
+                              </span>
+                              <button class="rad-btn rad-btn--primary" data-rad-modal-open="devicecode">Sign in</button>
+                            </div>
+                          </div>
+
+                          <div data-rad-when="xbl">
+                            <div class="rad-section__head" style="font-size: var(--text-rad-lead)">Your Realms</div>
+                            <div data-realm-list></div>
+
+                            <div class="rad-card">
+                              <div class="rad-row">
+                                <span class="rad-row__text">
+                                  <span class="rad-row__label">Point Minecraft here</span>
+                                  <span class="rad-row__note" data-join-note></span>
+                                </span>
+                                <span class="rad-row__control">
+                                  <span class="rad-input" style="width: 190px"><input type="text" value="127.0.0.1:19132" readonly data-join-addr aria-label="Local address" /></span>
+                                  <button class="rad-icon-btn" data-join-copy data-rad-copy="127.0.0.1:19132" aria-label="Copy"><span data-rad-icon="copy"></span></button>
+                                </span>
+                              </div>
+                              <div class="rad-row" data-iface-row>
+                                <span class="rad-row__text">
+                                  <span class="rad-row__label">Listen on</span>
+                                  <span class="rad-row__note" data-iface-note></span>
+                                </span>
+                                <span class="rad-row__control" data-iface-control></span>
+                              </div>
+                              <div class="rad-row">
+                                <span class="rad-row__text"><span class="rad-row__label">Forwarding to</span></span>
+                                <span class="rad-row__control">
+                                  <span class="rad-status-chip rad-status-chip--ok" data-realm-backend>Alaydriem's Realm</span>
+                                </span>
+                              </div>
+                            </div>
+
+                            <div class="rad-callout rad-callout--warn">
+                              <span>
+                                Join <b data-join-warn>127.0.0.1:19132</b> in Minecraft, not the Realm.
+                                Joining the Realm from the Friends tab skips the proxy and voice stays
+                                non-positional.
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                        <div class="rad-callout">
-                          <span>
-                            Copy diagnostics gathers versions, device names and the last connection
-                            states. <b>It contains no audio and no account details.</b>
-                          </span>
+                      </section>
+
+                      <!-- ============ ABOUT ============ -->
+                      <section data-pane="about" hidden>
+                        <div class="rad-section">
+                          <div class="rad-section__note">Proximity voice for Minecraft Bedrock. Source available.</div>
+
+                          <div class="rad-card">
+                            <div class="rad-row">
+                              <span class="rad-row__text">
+                                <span class="rad-row__label" data-upd-title>You are up to date</span>
+                                <span class="rad-row__note" data-upd-note>Last checked 4 minutes ago.</span>
+                              </span>
+                              <span class="rad-row__control" data-upd-control>
+                                <button class="rad-btn" data-upd-check>Check again</button>
+                              </span>
+                            </div>
+                          </div>
+
+                          <div class="rad-card">
+                            <div class="rad-card__head">Build</div>
+                            <dl class="rad-deflist">
+                              <dt>Version</dt><dd><span>1.0.0-beta.8</span></dd>
+                              <dt>Protocol</dt><dd><span>2.1.0</span></dd>
+                              <dt>Release</dt>
+                              <dd>
+                                <span data-variant title="Three presses reveals the platform identifier">stable</span>
+                              </dd>
+                              <dt>Commit</dt>
+                              <dd>
+                                <span>8fa727ab</span>
+                                <button class="rad-icon-btn" data-rad-copy="8fa727ab" aria-label="Copy commit"><span data-rad-icon="copy"></span></button>
+                              </dd>
+                              <dt>Platform</dt><dd><span>Windows 11 &middot; 26200</span></dd>
+                              <dt data-platform-row hidden>Platform ID</dt>
+                              <dd data-platform-row hidden>
+                                <span data-platform-id>b6f1c0e2-4d33-4a71-9c58-2f0e9a71d55c</span>
+                                <button class="rad-icon-btn" data-rad-copy="the platform identifier" aria-label="Copy platform ID"><span data-rad-icon="copy"></span></button>
+                              </dd>
+                            </dl>
+                          </div>
+
+                          <div class="rad-card">
+                            <div class="rad-card__head">Diagnostics and privacy</div>
+                            <div class="rad-row">
+                              <span class="rad-row__text">
+                                <span class="rad-row__label">Send anonymous usage and crash reports</span>
+                                <span class="rad-row__note">
+                                  Counts and errors. <b>Never audio, never chat, never your position.</b>
+                                </span>
+                              </span>
+                              <span class="rad-row__control">
+                                <button class="rad-toggle" role="switch" aria-checked="true" data-rad-toggle="telemetry" aria-label="Send anonymous usage and crash reports"></button>
+                              </span>
+                            </div>
+                            <div class="rad-row" data-rad-when="desktop">
+                              <span class="rad-row__text">
+                                <span class="rad-row__label">Save the logs to a file</span>
+                                <span class="rad-row__note">For a bug report. Written to your Documents folder.</span>
+                              </span>
+                              <span class="rad-row__control"><button class="rad-btn" data-export-logs><span data-rad-icon="download"></span> Export logs</button></span>
+                            </div>
+                            <div class="rad-row">
+                              <span class="rad-row__text">
+                                <span class="rad-row__label">Re-check what this build can do</span>
+                                <span class="rad-row__note" data-flags-note>Features are switched on remotely. This asks again without a restart.</span>
+                              </span>
+                              <span class="rad-row__control"><button class="rad-btn" data-flags-refresh><span data-rad-icon="refresh"></span> Refresh</button></span>
+                            </div>
+                          </div>
+
+                          <div class="rad-link-grid">
+                            <button class="rad-link-card" data-ext="https://www.bedrockvoicechat.com/wiki/">Wiki <span data-rad-icon="ext"></span></button>
+                            <button class="rad-link-card" data-ext="https://discord.gg/MAHckcEATj">Discussions <span data-rad-icon="ext"></span></button>
+                            <button class="rad-link-card" data-ext="https://github.com/alaydriem/bedrock-voice-chat/issues">Report a bug <span data-rad-icon="ext"></span></button>
+                            <button class="rad-link-card" data-ext="https://www.bedrockvoicechat.com">Website <span data-rad-icon="ext"></span></button>
+                            <button class="rad-link-card" data-ext="https://github.com/alaydriem/bedrock-voice-chat">Source code <span data-rad-icon="ext"></span></button>
+                            <button class="rad-link-card" data-ext="https://www.bedrockvoicechat.com/privacy/">Privacy notice <span data-rad-icon="ext"></span></button>
+                          </div>
                         </div>
-                      </div>
-                    </section>
+                      </section>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -571,6 +994,7 @@
             <div class="rad-menu" data-rad-menu></div>
             <div class="rad-scrim rad-scrim--modal" data-rad-modal-scrim></div>
 
+            <!-- ---- delete one recording ---- -->
             <div class="rad-modal" data-rad-modal="delete">
               <h5 class="rad-modal__title">Delete this recording?</h5>
               <p><span data-delete-name></span> and all of its tracks will be removed from disk. This cannot be undone.</p>
@@ -580,6 +1004,51 @@
               </div>
             </div>
 
+            <!-- ---- rename a recording ----
+                 A session arrives named after the moment it happened, which is unique and
+                 unmemorable. The name is ours to keep, so renaming writes to the session's
+                 own manifest and nothing on disk moves. -->
+            <div class="rad-modal" data-rad-modal="rename">
+              <h5 class="rad-modal__title">Rename this recording</h5>
+              <p>Only the name changes. The recording and its tracks stay where they are.</p>
+              <span class="rad-input" style="margin-top: 12px; width: 100%">
+                <input type="text" data-rename-input aria-label="Recording name" />
+              </span>
+              <div class="rad-modal__actions">
+                <button class="rad-btn" data-rad-modal-close>Cancel</button>
+                <button class="rad-btn rad-btn--primary" data-rename-go>Rename</button>
+              </div>
+            </div>
+
+            <!-- ---- export ---- -->
+            <div class="rad-modal rad-modal--wide" data-rad-modal="export">
+              <h5 class="rad-modal__title">Export this recording</h5>
+              <p>Pick who to include. Each player is written as their own track alongside the mix.</p>
+              <div class="rad-card" style="margin-top: 14px">
+                <div class="rad-modal__scroll" data-x-tracks></div>
+              </div>
+              <div class="rad-card" style="margin-top: 12px">
+                <div class="rad-row">
+                  <span class="rad-row__text">
+                    <span class="rad-row__label">Mix in the spatial positions</span>
+                    <span class="rad-row__note">
+                      Places each voice where it was standing. Off writes every track flat and centred,
+                      which is what you want if you are going to mix it yourself.
+                    </span>
+                  </span>
+                  <span class="rad-row__control">
+                    <button class="rad-toggle" role="switch" aria-checked="true" data-rad-toggle="spatial" aria-label="Mix in the spatial positions"></button>
+                  </span>
+                </div>
+              </div>
+              <div class="rad-progress" data-x-progress style="display: none"><i></i></div>
+              <div class="rad-modal__actions">
+                <button class="rad-btn" data-rad-modal-close>Cancel</button>
+                <button class="rad-btn rad-btn--primary" data-x-go>Export <span data-x-count>5</span> tracks</button>
+              </div>
+            </div>
+
+            <!-- ---- delete every recording ---- -->
             <div class="rad-modal" data-rad-modal="wipe">
               <h5 class="rad-modal__title">Delete every recording?</h5>
               <p>This removes <b data-wipe-count>4 sessions</b> and all of their tracks from disk. It cannot be undone.</p>
@@ -592,6 +1061,59 @@
               <div class="rad-modal__actions">
                 <button class="rad-btn" data-rad-modal-close>Cancel</button>
                 <button class="rad-btn rad-btn--danger" data-wipe-go disabled>Delete everything</button>
+              </div>
+            </div>
+
+            <!-- ---- add or edit a proxy backend ---- -->
+            <div class="rad-modal" data-rad-modal="backend">
+              <h5 class="rad-modal__title" data-backend-title>Add a server</h5>
+              <p>Where Minecraft would have connected if BVC were not in the way.</p>
+              <div class="rad-card" style="margin-top: 14px">
+                <div class="rad-row">
+                  <span class="rad-row__text"><span class="rad-row__label">Name</span></span>
+                  <span class="rad-row__control">
+                    <span class="rad-input" style="width: 220px"><input type="text" data-backend-name aria-label="Name" /></span>
+                  </span>
+                </div>
+                <div class="rad-row">
+                  <span class="rad-row__text"><span class="rad-row__label">Address</span></span>
+                  <span class="rad-row__control">
+                    <span class="rad-input" style="width: 220px"><input type="text" placeholder="play.example.com:19132" data-backend-host aria-label="Address" /></span>
+                  </span>
+                </div>
+              </div>
+              <div class="rad-modal__actions">
+                <button class="rad-btn" data-rad-modal-close>Cancel</button>
+                <button class="rad-btn rad-btn--primary" data-backend-go>Save</button>
+              </div>
+            </div>
+
+            <!-- ---- Microsoft device code ---- -->
+            <div class="rad-modal" data-rad-modal="devicecode">
+              <h5 class="rad-modal__title">Sign in with Microsoft</h5>
+              <p>
+                Open the page below on any device and enter this code. This window updates by itself
+                once you are done.
+              </p>
+              <div class="rad-card" style="margin-top: 14px">
+                <div class="rad-row">
+                  <span class="rad-row__text"><span class="rad-row__label">Go to</span></span>
+                  <span class="rad-row__control">
+                    <span class="rad-input" style="width: 210px"><input type="text" value="microsoft.com/link" readonly aria-label="Sign-in address" /></span>
+                    <button class="rad-icon-btn" data-rad-copy="microsoft.com/link" aria-label="Copy address"><span data-rad-icon="copy"></span></button>
+                  </span>
+                </div>
+                <div class="rad-row">
+                  <span class="rad-row__text"><span class="rad-row__label">Enter the code</span></span>
+                  <span class="rad-row__control">
+                    <span class="rad-kbd" style="font-size: var(--text-rad-lead)">JQ4H-7TDM</span>
+                    <button class="rad-icon-btn" data-rad-copy="JQ4H-7TDM" aria-label="Copy code"><span data-rad-icon="copy"></span></button>
+                  </span>
+                </div>
+              </div>
+              <div class="rad-modal__actions">
+                <button class="rad-btn" data-rad-modal-close>Cancel</button>
+                <button class="rad-btn rad-btn--primary" data-devicecode-done>I have signed in</button>
               </div>
             </div>
           </div>

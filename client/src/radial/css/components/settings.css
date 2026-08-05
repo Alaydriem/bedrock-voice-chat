@@ -19,6 +19,80 @@
   max-width: 760px;
 }
 
+/* Panes whose content is plates rather than rows. The measure exists to stop a label
+   and its control drifting apart; a grid of tiles has no such pair in it, and holding
+   those panes to 760px costs a column for nothing. */
+.rad-settings-measure.is-wide {
+  max-width: 1000px;
+}
+
+/* ---- ranges with a readout ----
+ * A slider whose number is elsewhere is a slider you tune by looking away from it. The
+ * value sits on the label line, right-aligned over the track it belongs to.
+ */
+
+.rad-knobs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 16px 22px;
+  padding: 14px 16px 16px;
+}
+
+.rad-knob {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.rad-knob__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.rad-knob__label {
+  font-size: var(--text-rad-xs);
+  color: var(--color-rad-dim);
+}
+
+.rad-knob__value {
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-rad-tx);
+}
+
+.rad-knob__note {
+  font-size: var(--text-rad-2xs);
+  line-height: 1.45;
+  color: var(--color-rad-faint);
+}
+
+/* ---- plates inside a pane ----
+ * Proxy and Realms are the server-select screen wearing a different hat: a set of
+ * places to point at, chosen by recognition. They use its plate rather than a row so
+ * that picking a backend looks the same wherever it is done.
+ */
+
+.rad-server__state {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* A favourite is a state of the plate, not an action on the row, so it lives in the
+   foot beside the action and fills rather than moves when it is on. */
+.rad-fav[aria-pressed="true"] {
+  color: var(--color-rad-warn);
+}
+
+.rad-fav[aria-pressed="true"] > [data-rad-icon] > svg {
+  fill: currentColor;
+}
+
 /* ---- nav ---- */
 
 .rad-nav-item {
@@ -233,22 +307,23 @@
     padding: 20px 18px 40px;
   }
 
-  /* Scoped to a settings frame. Unscoped, these hid the dashboard's phone header
-     too — the dashboard and settings share a shell, so a bare `.rad-dash-top`
-     rule here reaches a surface it knows nothing about. */
-  .rad-frame--settings .rad-backbar {
+  /* Scoped to the settings shell, not to the frame. Settings is presented over the
+     dashboard and both are inside one frame, so a frame-level rule here reaches the
+     dashboard's own header and hides it while it is still on screen behind the cover.
+     `is-list` is a state of this surface for the same reason. */
+  .rad-settings .rad-backbar {
     display: flex;
   }
 
-  .rad-frame--settings .rad-dash-top {
+  .rad-settings .rad-dash-top {
     display: none;
   }
 
-  .rad-frame--settings.is-list .rad-mobile-list {
+  .rad-settings.is-list .rad-mobile-list {
     display: block;
   }
 
-  .rad-frame--settings.is-list .rad-settings-body {
+  .rad-settings.is-list .rad-settings-body {
     display: none;
   }
 }
