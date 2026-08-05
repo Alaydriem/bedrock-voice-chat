@@ -74,7 +74,6 @@
     transmitting: true,
   });
 
-  const headline = $derived(RosterView.headline(nearby.length, nearing.length));
   const groupName = $derived(groupRows.find((g) => g.joined)?.name ?? "");
   const inGroup = $derived(groupRows.find((g) => g.joined));
 
@@ -100,6 +99,29 @@
     })),
   );
 
+  /**
+   * Earshot, with the group taken out of it.
+   *
+   * Somebody in your group who is also standing next to you satisfied both lists and got a card in
+   * each — the same person twice, once at full volume and once with a distance beside them. The
+   * distance was the misleading half: a channel routes their audio whatever it says, so the number
+   * described nothing that was happening.
+   *
+   * The group wins because it is the stronger statement. Compared on the bare gamertag, since the
+   * two lists arrive by different routes: channel membership carries whatever form the certificate
+   * CN had, and the position feed carries the name the mod posts.
+   */
+  const groupTags = $derived(
+    new Set(groupRoster.map((member) => GameNameUtils.stripPrefix(member.gamertag))),
+  );
+  const earshot = $derived<readonly NearbyPlayer[]>(
+    nearby.filter((person) => !groupTags.has(GameNameUtils.stripPrefix(person.gamertag))),
+  );
+
+  // Counted off the list it names, so the number in the top bar and the number on the section
+  // rule cannot disagree about the same room.
+  const headline = $derived(RosterView.headline(earshot.length, nearing.length));
+
   const silent = new ConstantLevelSource(0);
   function sourceFor(name: string): LevelSource {
     return app?.levels?.for(name) ?? silent;
@@ -114,7 +136,7 @@
   const handoff = new RosterHandoff((player) => nearbyRing?.pointFor(player) ?? null);
 
   /** Everyone currently holding a card, which is what flies in either direction. */
-  const carded = $derived<readonly NearbyPlayer[]>([...groupRoster, ...nearby]);
+  const carded = $derived<readonly NearbyPlayer[]>([...groupRoster, ...earshot]);
 
   /**
    * The flight between the ring and the roster.
@@ -444,13 +466,13 @@
           bind:this={nearbyRing}
           approaching={nearing}
           {scope}
-          gone={nearby.length > 0 || groupRoster.length > 0}
+          gone={carded.length > 0}
           connected={linkUp}
           reconnecting={health.reconnecting}
           onstatus={() => (statusOpen = true)}
         />
 
-        {#if nearby.length || groupRoster.length}
+        {#if carded.length}
           <div class="rad-roster" bind:this={rosterEl}>
             <!-- The group leads. Joining a channel is deliberate and proximity is ambient, so
                  the people you went out of your way to talk to are never below a list of
@@ -479,7 +501,7 @@
 
             <Roster
               title="In earshot"
-              players={nearby}
+              players={earshot}
               {sourceFor}
               {gainFor}
               {mutedFor}
@@ -496,7 +518,7 @@
             {snapshot}
             {health}
             pttIdle={selfState.mode === "ptt" && !selfState.holding}
-            visiblePlayers={nearby.length}
+            visiblePlayers={carded.length}
             {reconnecting}
             onreconnect={reconnect}
             oncopy={copyReport}
