@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { mockInvoke } from "../../tauri";
+import { invokeCalls, mockInvoke } from "../../tauri";
 
 /** The feed's socket, under the test's control. */
 let opened: { url: string; protocols: string[] } | null = null;
@@ -142,10 +142,8 @@ describe("NearbyManager", () => {
      * socket that issued it.
      *
      * Carrying it across a reconnect made the guard reject every frame of the new socket until
-     * its counter passed the old one's high-water mark. The server closes a feed whose observer
-     * it cannot see after sixty frames, so that mark was reliably sixty and the replacement
-     * socket spent its first thirty seconds discarding everything — including the arrival that
-     * prompted it. That is the half-minute delay before anybody appeared.
+     * its counter passed the old one's high-water mark, so a replacement socket discarded
+     * everything up to that mark — including the arrival that prompted it.
      */
     it("forgets the sequence when the socket is replaced", async () => {
         vi.useFakeTimers();
@@ -196,6 +194,41 @@ describe("NearbyManager", () => {
         expect(gains["Petra"]).toBeDefined();
         expect(typeof gains["Petra"].last_seen).toBe("number");
         nearby.stop();
+    });
+
+    /**
+     * Tickets are single-use and issuing one revokes the identity's previous, so two attempts
+     * overlapping is not merely wasteful: the second revokes the first's credential, the first
+     * is refused at redeem time, and its retry revokes the second's in turn. The roster stayed
+     * empty for as long as that ran.
+     */
+    it("spends one ticket per socket", async () => {
+        const nearby = new NearbyManager(store());
+        await nearby.start("https://voice.example.com", 48);
+
+        expect(invokeCalls().filter((c) => c.cmd === "api_websocket_ticket")).toHaveLength(1);
+        expect(sockets).toHaveLength(1);
+        nearby.stop();
+    });
+
+    it("abandons an attempt that stop() overtook while it waited for a ticket", async () => {
+        let release: (ticket: unknown) => void = () => {};
+        mockInvoke({
+            api_websocket_ticket: () =>
+                new Promise((resolve) => {
+                    release = resolve;
+                }),
+        });
+
+        const nearby = new NearbyManager(store());
+        const starting = nearby.start("https://voice.example.com", 48);
+        nearby.stop();
+        release({ ticket: "abc", expires_in: 60 });
+        await starting;
+
+        // A socket opened after the feed was stopped belongs to nobody, and the ticket it
+        // spends is the one the replacement feed needs.
+        expect(sockets).toHaveLength(0);
     });
 
     it("reports somebody in the world but not on voice", async () => {
