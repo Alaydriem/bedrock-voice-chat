@@ -373,16 +373,60 @@
   transform: translateY(0);
 }
 
+/* The transition would fight the finger. */
+.rad-sheet.is-dragging {
+  transition: none;
+}
+
+/* A sheet that opens to the top of the frame instead of parking at the bottom.
+ *
+ * For a sheet whose contents grow while it is open: parked at the bottom, anything that
+ * appears inside it pushes every row upward, so the thing being read moves out from under
+ * the eye. Anchored to the top, growth extends downward into space that is already there.
+ * The peek matches the settings cover, so both read as the same object. */
+.rad-sheet--full {
+  top: calc(env(safe-area-inset-top, 0px) + var(--rad-cover-peek, 14px));
+  max-height: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.rad-sheet--full > .rad-sheet__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* The bar is what reads as a handle; the padding around it is what a thumb can hit.
+ *
+ * `touch-action: none` is required: without it the browser claims the vertical drag as a
+ * scroll and delivers `pointercancel` instead of `pointermove`. */
 .rad-sheet__handle {
   display: block;
+  flex: 0 0 auto;
   width: 38px;
   height: 4px;
-  margin: 6px auto 14px;
+  margin: 11px auto 19px;
   border-radius: var(--radius-rad-pill);
   background: var(--color-rad-line-2);
+  touch-action: none;
+  cursor: grab;
+  box-shadow:
+    0 -11px 0 -6px transparent,
+    0 11px 0 -6px transparent;
+}
+
+.rad-sheet__handle:hover,
+.rad-sheet.is-dragging .rad-sheet__handle {
+  background: var(--color-rad-dim);
+}
+
+.rad-sheet__handle:active {
+  cursor: grabbing;
 }
 
 .rad-sheet__title {
+  flex: 0 0 auto;
   margin: 0 0 12px;
   font-family: var(--font-rad-mono);
   font-size: var(--text-rad-mono-xs);

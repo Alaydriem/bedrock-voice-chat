@@ -149,7 +149,7 @@
 
         <SettingRow
             label="Send anonymous usage and crash reports"
-            note="Counts and errors. Never audio, never chat, never your position."
+            note="Anonymous usage statistics and crash reports help us improve the app. No personal data is sent."
         >
             {#snippet control()}
                 <Toggle
@@ -179,9 +179,9 @@
         {/if}
 
         <SettingRow
-            label="Re-check what this build can do"
+            label="Check for new features and entitlements"
             note={refreshMessage ||
-                "Features are switched on remotely. This asks again without a restart."}
+                "Some users may have access to features or entitlements. You can manually refresh to check."}
         >
             {#snippet control()}
                 <button

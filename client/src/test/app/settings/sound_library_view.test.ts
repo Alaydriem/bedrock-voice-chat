@@ -110,6 +110,25 @@ describe("SoundLibraryView.fileNameFrom", () => {
         expect(SoundLibraryView.fileNameFrom(uri)).toBe("bell.ogg");
     });
 
+    // The content provider is the only place a media-store URI's name exists, so when it
+    // answers, its answer wins over anything read out of the URI.
+    it("prefers the name the content provider gave", () => {
+        const uri = "content://com.android.providers.media.documents/document/audio%3A1000000123";
+        expect(SoundLibraryView.fileNameFrom(uri, "airhorn.ogg")).toBe("airhorn.ogg");
+    });
+
+    it("still reads the URI when the provider had no name", () => {
+        const uri = "content://com.android.externalstorage.documents/document/primary%3Abell.ogg";
+        expect(SoundLibraryView.fileNameFrom(uri, null)).toBe("bell.ogg");
+        expect(SoundLibraryView.fileNameFrom(uri, "")).toBe("bell.ogg");
+    });
+
+    // A provider can answer with a row id of its own. That is not a name either.
+    it("ignores a provider answer that is not a filename", () => {
+        const uri = "content://media/external/audio/media/1234";
+        expect(SoundLibraryView.fileNameFrom(uri, "1000000123")).toBe("upload.ogg");
+    });
+
     it("falls back for anything without an extension", () => {
         expect(SoundLibraryView.fileNameFrom("")).toBe("upload.ogg");
         expect(SoundLibraryView.fileNameFrom("/tmp/noextension")).toBe("upload.ogg");

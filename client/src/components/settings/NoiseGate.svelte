@@ -99,7 +99,7 @@
 
     <SettingRow
         label="Back to the defaults"
-        note="Five numbers is four more than most people want to meet."
+        note=""
     >
         {#snippet control()}
             <button

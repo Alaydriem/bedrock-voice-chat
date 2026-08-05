@@ -192,7 +192,7 @@
         {/if}
 
         <div class="rad-section__head" style="font-size: var(--text-rad-lead)">Where you play</div>
-
+        <br />
         <ListShell
             state={listState}
             count={plates.length}

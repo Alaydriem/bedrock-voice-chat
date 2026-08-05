@@ -132,7 +132,7 @@
         </div>
     {:else}
         <div class="rad-section__head" style="font-size: var(--text-rad-lead)">Your Realms</div>
-
+        <br />
         <ListShell
             state={listState}
             count={plates.length}

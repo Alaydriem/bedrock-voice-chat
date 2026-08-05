@@ -8,13 +8,22 @@
  *   <div class="rad-scrim" data-rad-sheet-scrim></div>
  *   <div class="rad-sheet" data-rad-sheet="servers"> … </div>
  *   <button data-rad-sheet-open="servers">…</button>
+ *
+ * A sheet can be dragged down to dismiss from its handle or from any part of it that is
+ * scrolled to the top. `rad-sheet--full` opens one to the top of the frame instead of
+ * parking it at the bottom.
  */
+import { CoverDrag } from "./CoverDrag";
+
 export class Sheet {
   readonly frame: HTMLElement;
 
   #open: HTMLElement | null = null;
   #returnTo: HTMLElement | null = null;
   #onKey: (e: KeyboardEvent) => void;
+  #dragging: HTMLElement | null = null;
+  #startY = 0;
+  #offset = 0;
 
   constructor(frame: HTMLElement) {
     this.frame = frame;
@@ -27,6 +36,10 @@ export class Sheet {
     }
     for (const el of frame.querySelectorAll<HTMLElement>("[data-rad-sheet-scrim]")) {
       el.addEventListener("click", () => this.close());
+    }
+
+    for (const el of frame.querySelectorAll<HTMLElement>("[data-rad-sheet]")) {
+      this.#drag(el);
     }
 
     this.#onKey = (e) => {
@@ -53,7 +66,10 @@ export class Sheet {
   }
 
   close(): void {
-    for (const sheet of this.#all()) sheet.classList.remove("is-open");
+    for (const sheet of this.#all()) {
+      sheet.classList.remove("is-open", "is-dragging");
+      sheet.style.transform = "";
+    }
     this.#scrim(false);
     this.#open = null;
     this.#returnTo?.focus();
@@ -62,6 +78,58 @@ export class Sheet {
 
   destroy(): void {
     document.removeEventListener("keydown", this.#onKey);
+  }
+
+  /**
+   * Drag the handle down to dismiss.
+   *
+   * The handle was a bar that looked draggable and was not, which is worse than no handle:
+   * the one gesture a bottom sheet advertises did nothing, and the way out was the scrim.
+   * Bound to the sheet rather than to the bar so a drag anywhere in a sheet scrolled to its
+   * top closes it, which is what the same gesture does on the settings cover.
+   */
+  #drag(sheet: HTMLElement): void {
+    sheet.addEventListener("pointerdown", (e) => {
+      if (sheet !== this.#open) return;
+      const target = e.target as HTMLElement;
+      // A press on a row is a press on that row, and a slider owns its own drag.
+      if (target.closest("button, a, input, select, .rad-range")) return;
+      if (!CoverDrag.canStart(sheet.scrollTop)) return;
+      this.#dragging = sheet;
+      this.#startY = e.clientY;
+      this.#offset = 0;
+      try {
+        sheet.setPointerCapture(e.pointerId);
+      } catch {
+        // Synthetic events have no live pointer.
+      }
+    });
+
+    sheet.addEventListener("pointermove", (e) => {
+      if (this.#dragging !== sheet) return;
+      const dy = e.clientY - this.#startY;
+      if (!CoverDrag.isDrag(dy) && this.#offset === 0) return;
+      this.#offset = CoverDrag.offset(dy);
+      sheet.classList.add("is-dragging");
+      sheet.style.transform = `translateY(${this.#offset}px)`;
+    });
+
+    const end = (e: PointerEvent) => {
+      if (this.#dragging !== sheet) return;
+      const travelled = this.#offset;
+      this.#dragging = null;
+      this.#offset = 0;
+      sheet.classList.remove("is-dragging");
+      sheet.style.transform = "";
+      try {
+        sheet.releasePointerCapture(e.pointerId);
+      } catch {
+        // Never captured, so nothing to release.
+      }
+      if (CoverDrag.dismisses(travelled)) this.close();
+    };
+    sheet.addEventListener("pointerup", end);
+    sheet.addEventListener("pointercancel", end);
   }
 
   /**

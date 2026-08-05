@@ -115,9 +115,13 @@
             // Read here rather than in Rust: Android's picker returns a `content://` URI,
             // which no filesystem call can open. The fs plugin resolves it.
             const bytes = await readFile(picked);
+            // The picker's URI rarely carries the name; the content provider has it.
+            const resolved = await invoke<string | null>("resolve_display_name", {
+                path: picked,
+            }).catch(() => null);
             await invoke("upload_audio_bytes", {
                 bytes: Array.from(bytes),
-                fileName: SoundLibraryView.fileNameFrom(picked),
+                fileName: SoundLibraryView.fileNameFrom(picked, resolved),
             });
             await load();
         } catch (e) {
@@ -137,17 +141,12 @@
 </script>
 
 <div class="rad-section">
-    <div class="rad-section__note">
-        Sounds held on the server and played into the world by the jukebox. Shared by everyone on
-        this server, so what you upload here, everyone hears.
-    </div>
-
     {#if canUpload}
         <div class="rad-card">
             <div class="rad-row">
                 <span class="rad-row__text">
                     <span class="rad-row__label">Add a sound</span>
-                    <span class="rad-row__note">Uploaded for everyone on this server.</span>
+                    <span class="rad-row__note">Uploaded sounds can be played on a Jukeboxes</span>
                 </span>
                 <span class="rad-row__control">
                     <button
@@ -333,8 +332,7 @@
 
     <div class="rad-callout">
         <span>
-            The <b>ID</b> is what the jukebox command takes. Copy it from the row rather than typing
-            the filename &mdash; they are not the same string.
+            In game, run <code>/bvc:disc &lt;id&gt;</code> to give yourself a music disc that plays the sound.
         </span>
     </div>
 </div>

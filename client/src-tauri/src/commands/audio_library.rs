@@ -1,9 +1,19 @@
 use common::request::AudioFileListQuery;
 use common::response::{AudioFileResponse, PaginatedResponse};
 
+use crate::android::ContentUriName;
 use crate::audio::encode::AudioFileEncoder;
 use crate::structs::app_state::AppState;
 use tauri::{State, async_runtime::Mutex};
+
+// Android's picker returns a `content://` URI, which usually holds no filename. The
+// provider knows it, so it is asked; everywhere else the caller already has a path.
+#[tauri::command(async)]
+pub(crate) async fn resolve_display_name(path: String) -> Result<Option<String>, String> {
+    Ok(tokio::task::spawn_blocking(move || ContentUriName::resolve(&path))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?)
+}
 
 #[tauri::command(async)]
 pub(crate) async fn upload_audio_file(

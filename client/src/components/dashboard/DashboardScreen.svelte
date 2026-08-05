@@ -392,9 +392,17 @@
     {/each}
 </div>
 
-<!-- The phone's route into groups. Its absence is why the groups button opened nothing. -->
-<div class="rad-sheet" data-rad-sheet="groups">
+<!--
+  The phone's route into groups. Its absence is why the groups button opened nothing.
+
+  Full height rather than parked at the bottom: the panel grows when a group is being
+  renamed, and a sheet anchored to the bottom answers that by pushing everything above it
+  upward — the row being edited moves while it is being read.
+-->
+<div class="rad-sheet rad-sheet--full" data-rad-sheet="groups">
     <span class="rad-sheet__handle"></span>
     <h4 class="rad-sheet__title">Groups</h4>
-    {#if groups}{@render groups()}{/if}
+    <div class="rad-sheet__body">
+        {#if groups}{@render groups()}{/if}
+    </div>
 </div>

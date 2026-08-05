@@ -153,4 +153,18 @@ describe("AudioPane", () => {
         expect(view.text()).toContain("Voice mode");
         expect(view.text()).toContain("Noise gate");
     });
+
+    // A bare slider says nothing about where it is set, and the thing it governs is only
+    // audible with two people in earshot — so the readout is the only feedback there is.
+    it("reads out where the panning slider is set", async () => {
+        const view = mount(AudioPane, { mobile: true });
+        await waitFor(() => expect(view.text()).toContain("Spatial panning"));
+
+        const slider = view.host.querySelector<HTMLInputElement>('[aria-label="Spatial panning"]');
+        expect(slider).not.toBeNull();
+        expect(view.host.querySelector(".rad-knob__value")?.textContent?.trim()).toBe(
+            `${slider?.value}%`,
+        );
+        expect(slider?.getAttribute("aria-valuetext")).toBe(`${slider?.value}%`);
+    });
 });

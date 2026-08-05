@@ -32,11 +32,6 @@
 </script>
 
 <div class="rad-section">
-    <div class="rad-section__note">
-        Devices must support 48 kHz. Some Android hardware runs at 44.1 kHz and is handled as an
-        exception.
-    </div>
-
     <div class="rad-card">
         <div class="rad-card__head">Devices</div>
         {#if mobile}
@@ -76,6 +71,12 @@
             note="How hard voices are pushed left and right by where their speaker is standing. At 0% everyone is centred; distance still governs volume either way."
             stack
         >
+            <div class="rad-knob__head">
+                <span class="rad-knob__label">
+                    {panning === 0 ? "Everyone centred" : "Left and right"}
+                </span>
+                <span class="rad-knob__value">{panning}%</span>
+            </div>
             <input
                 class="rad-range"
                 type="range"
@@ -84,6 +85,7 @@
                 value={panning}
                 style="width: 100%"
                 aria-label="Spatial panning"
+                aria-valuetext="{panning}%"
                 oninput={(e) =>
                     void audio.handlePanningIntensityChange(
                         Number((e.target as HTMLInputElement).value),

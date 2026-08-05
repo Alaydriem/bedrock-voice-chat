@@ -19,6 +19,7 @@ use common::structs::DeepLink;
 use deep_links::DeepLinkHandler;
 
 mod analytics;
+pub mod android;
 // Re-exported for the integration test crate (a separate crate root that can
 // only reach `pub` items) to cover first-run and install-date resolution.
 pub use analytics::InstallMarker;
@@ -315,6 +316,7 @@ pub fn run() {
             // Audio Library
             crate::commands::audio_library::upload_audio_file,
             crate::commands::audio_library::upload_audio_bytes,
+            crate::commands::audio_library::resolve_display_name,
             crate::commands::audio_library::list_audio_files,
             crate::commands::audio_library::delete_audio_file,
             crate::auth::commands::refresh_server_state,

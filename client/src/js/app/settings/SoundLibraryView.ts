@@ -72,11 +72,15 @@ export class SoundLibraryView {
     /**
      * A display name for a picked file.
      *
-     * A desktop pick is a path. An Android pick is a `content://` URI whose last segment is
-     * percent-encoded and may carry no extension at all, so this takes the best available
-     * name and falls back rather than uploading something called `audio%3A1000000123`.
+     * A desktop pick is a path, so its basename is the name. An Android pick is a
+     * `content://` URI whose last segment is usually a row id — `audio%3A1000000123` — and
+     * the only place the real name exists is the provider, which `resolved` carries when it
+     * answered.
      */
-    static fileNameFrom(picked: string): string {
+    static fileNameFrom(picked: string, resolved?: string | null): string {
+        const fromProvider = this.clean(resolved ?? "");
+        if (fromProvider) return fromProvider;
+
         const last = picked.split(/[\\/]/).pop() ?? "";
         let decoded = last;
         try {
@@ -84,7 +88,12 @@ export class SoundLibraryView {
         } catch {
             // Not percent-encoded.
         }
-        const cleaned = decoded.split(":").pop()?.trim() ?? "";
-        return /^[^.]+\.[A-Za-z0-9]{1,5}$/.test(cleaned) ? cleaned : "upload.ogg";
+        return this.clean(decoded.split(":").pop() ?? "") ?? "upload.ogg";
+    }
+
+    /** A candidate is a name only if it carries an extension to encode by. */
+    private static clean(candidate: string): string | null {
+        const trimmed = candidate.trim();
+        return /^[^.]+\.[A-Za-z0-9]{1,5}$/.test(trimmed) ? trimmed : null;
     }
 }

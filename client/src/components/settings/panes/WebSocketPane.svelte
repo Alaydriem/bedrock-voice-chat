@@ -80,8 +80,7 @@
 
 <div class="rad-section">
     <div class="rad-section__note">
-        Lets other software drive BVC &mdash; mute, deafen, record, and read state. The Stream Deck
-        plugin uses this. Nothing leaves your machine.
+        Enabling the Websocket Server lets you connect to BVC from other devices, such as a Stream Deck. Recommended for content creators and streamers.
     </div>
 
     <div class="rad-card">
@@ -105,7 +104,7 @@
             <SettingRow
                 label="Listen on this device only"
                 note={mobile
-                    ? "Always off on a phone. Whatever drives BVC is on another device, so this answers on your network — and anything that can reach it needs the token below."
+                    ? "On mobile, this is always off."
                     : "Turn this off only to drive BVC from another device on your network. It exposes the port to everything that can reach you."}
             >
                 {#snippet control()}

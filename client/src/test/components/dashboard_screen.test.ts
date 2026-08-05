@@ -241,6 +241,35 @@ describe("DashboardScreen frame state", () => {
     });
 });
 
+describe("DashboardScreen groups sheet", () => {
+    /**
+     * The panel grows while a group is being renamed. Anchored to the bottom, that growth
+     * pushes every row upward — the row being edited moves out from under the eye — so the
+     * sheet opens to the top of the frame instead.
+     */
+    it("opens the groups sheet to the top of the frame", () => {
+        const { frame } = mount();
+        const sheet = frame.querySelector('[data-rad-sheet="groups"]');
+        expect(sheet?.classList.contains("rad-sheet--full")).toBe(true);
+    });
+
+    // A full-height sheet has to scroll inside itself. Without a body the whole sheet
+    // scrolls, which takes the handle off the top of it.
+    it("gives the groups sheet a body to scroll", () => {
+        const { frame } = mount();
+        const sheet = frame.querySelector('[data-rad-sheet="groups"]');
+        expect(sheet?.querySelector(".rad-sheet__body")).not.toBeNull();
+        expect(sheet?.querySelector(".rad-sheet__handle")).not.toBeNull();
+    });
+
+    // The servers sheet is a fixed list of actions, so it stays where it was.
+    it("leaves the servers sheet at the bottom", () => {
+        const { frame } = mount();
+        const sheet = frame.querySelector('[data-rad-sheet="servers"]');
+        expect(sheet?.classList.contains("rad-sheet--full")).toBe(false);
+    });
+});
+
 describe("DashboardScreen chat", () => {
     beforeEach(() => {
         document.body.innerHTML = "";
