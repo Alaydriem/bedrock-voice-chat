@@ -51,9 +51,19 @@ export class DiagnosticsManager {
 
         // Seeded before the first push so the panel opens on real numbers, including the
         // scope's whole history, rather than filling in over the next seventy seconds.
+        //
+        // Absence is also the health seed, and the reason this is not merely cosmetic: the
+        // backend returns nothing precisely when the session is not connected, so a null here is
+        // a positive statement that the link is down.
+        //
+        // Without it the optimistic default stood unchallenged. `connection_health` is emitted on
+        // change, and a webview reload leaves the Rust side running with no change left to
+        // report — so a dashboard that came up over a dead link showed a full roster of people
+        // who could not hear a word, which is the one thing this screen is not allowed to say.
         try {
             const initial = await invoke<LinkDiagnosticsSnapshot | null>('get_link_diagnostics');
             if (initial) this.snapshotStore.set(initial);
+            else this.healthStore.set({ connected: false, reconnecting: false });
         } catch (e) {
             warn(`DiagnosticsManager: could not read the initial snapshot: ${e}`);
         }

@@ -1,6 +1,7 @@
 <script lang="ts">
   import "../../css/app.css";
   import { onDestroy, onMount } from "svelte";
+  import { get } from "svelte/store";
   import { Store } from "@tauri-apps/plugin-store";
   import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
   import { error as logError, info } from "@tauri-apps/plugin-log";
@@ -221,6 +222,23 @@
           );
         } catch (e) {
           logError(`Dashboard: could not listen for a recovery signal: ${e}`);
+        }
+
+        /**
+         * Come up connected, or make it so.
+         *
+         * `initialize` decides whether to build the session from whether the *audio streams* are
+         * stopped, and they are not: the Rust side outlives a webview reload, so a reload takes
+         * the warm path and rebuilds nothing. That is right for audio and says nothing about the
+         * voice link, which can be gone — after which the position feed reconnects on its own
+         * ticket and fills the roster with people who cannot hear you.
+         *
+         * The seeded health is the evidence, since the backend reports no diagnostics at all
+         * while disconnected.
+         */
+        if (!get(diagnostics.health).connected) {
+          info("Dashboard: mounted over a dead link, reconnecting");
+          void reconnect();
         }
 
         groupsView.start();

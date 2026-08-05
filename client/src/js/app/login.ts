@@ -118,6 +118,23 @@ export default class Login extends BVCApp {
   private wasHiddenDuringHandoff = false;
   private readonly finishWatchdog: FinishWatchdog;
 
+  /**
+   * Polls for a callback that landed without announcing itself.
+   *
+   * The handoff view has exactly one way out on its own: `deep-link-received` fires, the router
+   * routes it, and the handler navigates. Nothing guarantees that event is heard — on Android the
+   * intent arrives while the activity is being recreated, so it can be emitted before this page's
+   * listener exists or after a teardown has released it. The redemption then never starts, and the
+   * screen sits on "continue in the window that just opened" having already been signed in.
+   *
+   * `pending_deep_link` is the durable half of the same delivery and is written for every intent,
+   * so asking the store on a timer closes that hole without depending on any event at all. It
+   * runs only while the handoff is showing, which is the only time an unheard callback is what is
+   * being waited for.
+   */
+  private static readonly PENDING_POLL_MS = 1_500;
+  private pendingPoll: ReturnType<typeof setInterval> | null = null;
+
   private platformDetector: PlatformDetector;
 
   constructor() {
@@ -148,6 +165,7 @@ export default class Login extends BVCApp {
       () => get(this.loginStateStore) === 'connecting',
       () => this.callbackInFlight(),
       () => {
+        this.stopPendingPoll();
         this.isHandoffStore.set(false);
         this.isFinishingStore.set(false);
         this.loginStateStore.set('error');
@@ -554,6 +572,9 @@ export default class Login extends BVCApp {
         this.isHandoffStore.set(true);
         this.isFinishingStore.set(false);
         this.wasHiddenDuringHandoff = false;
+        // The return detector is a visibility round-trip, and a phone does not reliably provide
+        // one. This does not depend on being told anything.
+        this.startPendingPoll();
         break;
       case 'error':
         this.attemptServerStore.set(result.sanitized);
@@ -601,8 +622,36 @@ export default class Login extends BVCApp {
     }
   }
 
+  /**
+   * Both ways of waiting for the browser, stopped together.
+   *
+   * Every caller that leaves the handoff — an error, a cancel, a fresh attempt, teardown —
+   * already cancelled the watchdog here, so the poll belongs in the same place rather than in
+   * five call sites that would each have to remember it.
+   */
   private clearFinishWatchdog(): void {
     this.finishWatchdog.cancel();
+    this.stopPendingPoll();
+  }
+
+  private startPendingPoll(): void {
+    this.stopPendingPoll();
+    this.pendingPoll = setInterval(() => {
+      // Still the same attempt, and still waiting for the browser. Anything else means the poll
+      // outlived what it was watching for.
+      if (get(this.loginStateStore) !== 'connecting' || !get(this.isHandoffStore)) {
+        this.stopPendingPoll();
+        return;
+      }
+      void this.resumePendingDeepLink();
+    }, Login.PENDING_POLL_MS);
+  }
+
+  private stopPendingPoll(): void {
+    if (this.pendingPoll !== null) {
+      clearInterval(this.pendingPoll);
+      this.pendingPoll = null;
+    }
   }
 
   async login(rawValue: string): Promise<LoginAttemptResult> {

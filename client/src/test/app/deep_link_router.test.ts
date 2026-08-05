@@ -102,4 +102,46 @@ describe("DeepLinkRouter redemption is once per URL", () => {
 
     expect(handler).toHaveBeenCalledTimes(2);
   });
+
+  /**
+   * The property the login page's pending poll rests on.
+   *
+   * `deep-link-received` is the only half of a delivery anything listens to while a page is
+   * already open, and on Android it can be emitted before this page's listener exists or after a
+   * teardown has released it — so the screen waits for an event that has already been and gone.
+   * The poll asks the store instead, which is only a fix if an entry written *after* the boot
+   * check is still routed by a later call.
+   */
+  it("routes a pending entry written after an earlier check found none", async () => {
+    const store = fakeStore();
+    const router = new DeepLinkRouter(store as never);
+    const handler = vi.fn(async () => "handled" as const);
+    (router as never as { handlers: unknown[] }).handlers = [
+      { canHandle: () => true, handle: handler },
+    ];
+
+    // Boot: nothing has arrived yet.
+    expect(await router.processPending()).toBe(false);
+    expect(handler).not.toHaveBeenCalled();
+
+    // The intent lands while the handoff view is up, and nothing announces it.
+    await store.set("pending_deep_link", url);
+
+    expect(await router.processPending()).toBe(true);
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  /** The poll runs on a timer, so a tick that finds nothing waiting has to be inert. */
+  it("stays inert while polled with nothing pending", async () => {
+    const router = new DeepLinkRouter(fakeStore() as never);
+    const handler = vi.fn(async () => "handled" as const);
+    (router as never as { handlers: unknown[] }).handlers = [
+      { canHandle: () => true, handle: handler },
+    ];
+
+    for (let tick = 0; tick < 4; tick += 1) {
+      expect(await router.processPending()).toBe(false);
+    }
+    expect(handler).not.toHaveBeenCalled();
+  });
 });

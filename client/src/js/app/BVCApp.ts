@@ -193,6 +193,32 @@ export default class BVCApp extends App {
     }
 
     /**
+     * Route a callback that is already sitting in the store.
+     *
+     * `initializeDeepLinks` is one-shot by design — it is the boot check. This is the same work
+     * without that guard, for a caller that knows it is waiting for a callback and cannot assume
+     * anything will announce it.
+     *
+     * Every intent writes `pending_deep_link` *and* emits `deep-link-received`, and the emit is
+     * the only half anything listens to while a page is already open. If it is missed — fired
+     * before the listener was registered, or after a teardown released it — the entry sits in the
+     * store with nothing to consume it, and the screen waits for an event that has already been
+     * and gone. Asking the store instead makes the durable half of the pair sufficient on its own.
+     *
+     * Safe to call repeatedly: `DeepLinkRouter` records what it has routed and ignores a repeat,
+     * and the handler clears the entry once it is dealt with.
+     */
+    async resumePendingDeepLink(): Promise<boolean> {
+        try {
+            const router = await this.getRouter();
+            return await router.processPending();
+        } catch (err) {
+            logError(`BVCApp: Error resuming pending deep link: ${err}`);
+            return false;
+        }
+    }
+
+    /**
      * Cleanup listeners
      */
     async cleanup(): Promise<void> {

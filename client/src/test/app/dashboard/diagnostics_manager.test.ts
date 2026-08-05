@@ -16,8 +16,12 @@ vi.mock("@tauri-apps/api/webviewWindow", () => ({
 
 const { DiagnosticsManager } = await import("../../../js/app/dashboard/DiagnosticsManager");
 
-async function started() {
-    mockInvoke({ get_link_diagnostics: () => null });
+/**
+ * @param snapshot what `get_link_diagnostics` answers. Null is not "no data yet": the backend
+ *   returns nothing precisely while the session is disconnected, so it is the seed for health.
+ */
+async function started(snapshot: unknown = null) {
+    mockInvoke({ get_link_diagnostics: () => snapshot });
     const manager = new DiagnosticsManager();
     await manager.start();
     return manager;
@@ -40,12 +44,29 @@ describe("DiagnosticsManager health", () => {
         listeners.clear();
     });
 
-    // The dashboard mounts after a connection, and health arrives on change rather than on a
-    // clock — so opening disconnected and waiting for an event would blank a working roster.
-    it("assumes the link is up until told otherwise", async () => {
-        const manager = await started();
+    // `connection_health` arrives on change rather than on a clock, so a link that was already up
+    // when this mounted has no event left to send. A snapshot is what says so.
+    it("takes a snapshot as evidence the link is up", async () => {
+        const manager = await started({ link: {} });
 
         expect(get(manager.health).connected).toBe(true);
+    });
+
+    /**
+     * The dashboard does not only mount after a connection.
+     *
+     * A webview reload leaves the Rust side running, so the dashboard rebuilds nothing and no
+     * health event is outstanding to correct an optimistic default. Assuming up meant a reload
+     * over a dead link drew a full roster of people who could not hear a word — the one thing
+     * this screen must never assert. The backend answers nothing at all while disconnected, which
+     * makes absence positive evidence rather than missing data.
+     */
+    it("treats an absent snapshot as the link being down", async () => {
+        const manager = await started(null);
+
+        const health = get(manager.health);
+        expect(health.connected).toBe(false);
+        expect(health.reconnecting).toBe(false);
     });
 
     it("reports a reconnect, counting attempts from one", async () => {

@@ -18,11 +18,27 @@ pub struct PlayerCache {
 }
 
 impl PlayerCache {
+    /// How long a player survives their last position packet.
+    ///
+    /// This is a presence lifetime, and it was five minutes — which the note above already called
+    /// short, because five minutes is short for a cache and enormous for presence. The mod posts
+    /// at 4 Hz, so a player quiet for this long has missed sixty consecutive posts: they have left
+    /// the world, changed dimension, or crashed. Until it lapsed, everyone else was still being
+    /// told they were standing there, and the client's own falloff was added on top of it.
+    ///
+    /// Not shorter, because the audio hot path resolves coordinates through these same entries: a
+    /// lag spike outliving the TTL would cost a speaker their position, not merely their place on
+    /// a roster.
+    ///
+    /// A TTL cannot be prompt, only bounded. Dropping the moment somebody leaves needs the mod to
+    /// say so explicitly; this is the floor for how long silence takes to be believed.
+    const PRESENCE_TTL: Duration = Duration::from_secs(15);
+
     pub fn new() -> Self {
         Self {
             cache: Arc::new(
                 Cache::builder()
-                    .time_to_live(Duration::from_secs(300))
+                    .time_to_live(Self::PRESENCE_TTL)
                     .max_capacity(256)
                     .build(),
             ),

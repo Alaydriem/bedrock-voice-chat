@@ -1311,6 +1311,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
   padding: 18px 26px 0;
 }
 
@@ -1318,6 +1320,14 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+}
+
+/* The dismiss is the one control in this row that must survive being crowded: everything else
+   in the panel is readable elsewhere, and a status panel that cannot be closed is a screen with
+   no way out. It is also last in the row, so it is the first thing an overflow pushes away. */
+.rad-status__close {
+  flex: 0 0 auto;
 }
 
 .rad-status__act {
@@ -1445,9 +1455,16 @@
     padding: 14px 18px 0;
   }
 
+  /* Icons only. Three labelled actions and a close button do not fit a phone row, and the
+     labels are the part a glyph can carry on its own — each button keeps its `aria-label`, so
+     nothing is lost but the width. */
   .rad-status__act {
-    padding: 9px 13px;
+    padding: 9px;
     font-size: var(--text-rad-mono-sm);
+  }
+
+  .rad-status__act-label {
+    display: none;
   }
 
   .rad-status__body {

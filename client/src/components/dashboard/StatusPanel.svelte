@@ -91,27 +91,39 @@
 <div class="rad-status" data-status>
     <div class="rad-status__head">
         <span class="rad-label">Status</span>
+        <!--
+          Each label is a span with the button carrying its own `aria-label`, because a phone
+          drops the labels and keeps the icons. Three labelled actions plus a close button
+          overran the row, and the close button is last — so the one control that dismisses the
+          panel was the one pushed off the edge, leaving no way out of it at all.
+        -->
         <span class="rad-status__actions">
-            <button class="rad-status__act" onclick={oncopy}>
-                <Icon name="copy" /> Copy report
+            <button class="rad-status__act" aria-label="Copy report" onclick={oncopy}>
+                <Icon name="copy" />
+                <span class="rad-status__act-label">Copy report</span>
             </button>
             <button
                 class="rad-status__act"
+                aria-label="Reset stats"
                 title="Restart every counter from now"
                 onclick={pressReset}
             >
-                <Icon name="reset" /> Reset stats
+                <Icon name="reset" />
+                <span class="rad-status__act-label">Reset stats</span>
             </button>
             <button
                 class="rad-status__act"
                 class:is-busy={reconnecting}
                 disabled={reconnecting}
+                aria-label={reconnecting ? "Reconnecting" : "Reconnect"}
                 onclick={onreconnect}
             >
                 <Icon name="refresh" spin={reconnecting} />
-                {reconnecting ? "Reconnecting…" : "Reconnect"}
+                <span class="rad-status__act-label">
+                    {reconnecting ? "Reconnecting…" : "Reconnect"}
+                </span>
             </button>
-            <button class="rad-icon-btn" aria-label="Close status" onclick={onclose}>
+            <button class="rad-icon-btn rad-status__close" aria-label="Close status" onclick={onclose}>
                 <Icon name="close" />
             </button>
         </span>
