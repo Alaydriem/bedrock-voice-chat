@@ -48,7 +48,7 @@ const SCRIPT_ENTRY = 'scripts/main.js';
 
 const BP_MODULE_DEPENDENCIES = [
   { version: '2.2.0-beta', module_name: '@minecraft/server-ui' },
-  { version: '2.9.0-beta', module_name: '@minecraft/server' },
+  { version: '2.10.0-beta', module_name: '@minecraft/server' },
   { version: '1.0.0-beta', module_name: '@minecraft/server-net' },
   { version: '1.0.0-beta', module_name: '@minecraft/server-admin' },
 ];

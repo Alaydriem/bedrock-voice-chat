@@ -15,10 +15,10 @@
     "lint:fix": "eslint . --fix"
   },
   "devDependencies": {
-    "@minecraft/server": "2.9.0-beta.1.26.33-stable",
+    "@minecraft/server": "2.10.0-beta.1.26.40-stable",
     "@minecraft/server-admin": "^1.0.0-beta",
     "@minecraft/server-net": "^1.0.0-beta",
-    "@minecraft/server-ui": "2.2.0-beta.1.26.33-stable",
+    "@minecraft/server-ui": "2.2.0-beta.1.26.40-stable",
     "@stylistic/eslint-plugin": "^2",
     "@types/archiver": "^6.0.2",
     "@types/node": "^20.11.0",
