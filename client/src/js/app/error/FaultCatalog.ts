@@ -74,7 +74,7 @@ export default class FaultCatalog {
       caption: "FORMAT UNSUPPORTED",
       label: "Can't start",
       hint: "48kHz is the sample rate to look for",
-      primaryAction: { label: "Change Audio Devices", url: "/settings" },
+      primaryAction: { label: "Change Audio Devices", url: "/settings#audio" },
       secondaryAction: {
         label: "View FAQ",
         url: "https://github.com/Alaydriem/bedrock-voice-chat/discussions/32",
@@ -92,7 +92,7 @@ export default class FaultCatalog {
       label: "Can't start",
       hint: "A muted or unplugged headset is the usual cause",
       primaryAction: { label: "Try Again", url: "/dashboard" },
-      secondaryAction: { label: "Change Audio Devices", url: "/settings" },
+      secondaryAction: { label: "Change Audio Devices", url: "/settings#audio" },
     },
     AUDI03: {
       code: "AUDI03",
@@ -106,7 +106,7 @@ export default class FaultCatalog {
       label: "Can't start",
       hint: "A muted or unplugged headset is the usual cause",
       primaryAction: { label: "Try Again", url: "/dashboard" },
-      secondaryAction: { label: "Change Audio Devices", url: "/settings" },
+      secondaryAction: { label: "Change Audio Devices", url: "/settings#audio" },
     },
     VER01: {
       code: "VER01",

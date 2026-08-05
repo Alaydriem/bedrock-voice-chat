@@ -9,6 +9,7 @@
     "deep-link:default",
     "os:default",
     "audio-permissions:mobile-audio-permissions",
-    "age-signals:default"
+    "age-signals:default",
+    "dialog:allow-open"
   ]
 }

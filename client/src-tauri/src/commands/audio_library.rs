@@ -39,6 +39,44 @@ pub(crate) async fn upload_audio_file(
     .await
 }
 
+// The bytes route. Android's picker returns a `content://` URI, which is not a path any
+// filesystem call can open, so the frontend reads it through the fs plugin instead.
+#[tauri::command(async)]
+pub(crate) async fn upload_audio_bytes(
+    app_state: State<'_, Mutex<AppState>>,
+    bytes: Vec<u8>,
+    #[allow(non_snake_case)] fileName: String,
+    server: Option<String>,
+    game: Option<String>,
+) -> Result<AudioFileResponse, String> {
+    let name = fileName.clone();
+    let encode_result =
+        tokio::task::spawn_blocking(move || AudioFileEncoder::encode_bytes(bytes, name))
+            .await
+            .map_err(|e| format!("Task join error: {}", e))?
+            .map_err(|e| format!("Encoding failed: {}", e))?;
+
+    let state = app_state.lock().await;
+    let api = match server {
+        Some(endpoint) => {
+            drop(state);
+            app_state
+                .lock()
+                .await
+                .get_api_client_for_server(&endpoint)
+                .await?
+        }
+        None => state.get_api_client()?.clone(),
+    };
+
+    api.upload_audio_file(
+        encode_result.opus_bytes,
+        &encode_result.original_filename,
+        game.as_deref(),
+    )
+    .await
+}
+
 #[tauri::command(async)]
 pub(crate) async fn list_audio_files(
     app_state: State<'_, Mutex<AppState>>,

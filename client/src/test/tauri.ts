@@ -28,6 +28,41 @@ vi.mock("@tauri-apps/api/core", () => ({
     }),
 }));
 
+/**
+ * The key/value store, held in memory.
+ *
+ * The plugin reaches straight for the real IPC rather than the mocked one, so it has to
+ * be replaced whole. A test file that wants particular values still mocks it itself.
+ */
+vi.mock("@tauri-apps/plugin-store", () => {
+    const values = new Map<string, unknown>([["current_server", "https://bvc.example.com"]]);
+    return {
+        Store: {
+            load: async () => ({
+                get: async (key: string) => values.get(key),
+                set: async (key: string, value: unknown) => void values.set(key, value),
+                delete: async (key: string) => void values.delete(key),
+                save: async () => {},
+            }),
+        },
+    };
+});
+
+/**
+ * The webview, which does not exist here.
+ *
+ * `getCurrentWebviewWindow` reads `window.__TAURI_INTERNALS__.metadata` and throws
+ * without it, so any manager that subscribes to an app event takes its whole screen
+ * down under test.
+ */
+vi.mock("@tauri-apps/api/webviewWindow", () => ({
+    getCurrentWebviewWindow: () => ({
+        listen: async () => () => {},
+        emit: async () => {},
+        label: "main",
+    }),
+}));
+
 vi.mock("@tauri-apps/plugin-log", () => ({
     info: vi.fn(),
     warn: vi.fn(),

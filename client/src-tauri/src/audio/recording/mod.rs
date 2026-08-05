@@ -1,4 +1,5 @@
 mod manager;
+mod manifest_store;
 pub mod renderer;
 
 use common::structs::recording::{
@@ -23,6 +24,7 @@ use tokio::task::AbortHandle;
 use uuid::{NoContext, Timestamp, Uuid};
 
 pub use manager::RecordingManager;
+pub use manifest_store::ManifestStore;
 
 pub type RecordingProducer = flume::Sender<RawRecordingData>;
 pub type RecordingConsumer = flume::Receiver<RawRecordingData>;
@@ -96,6 +98,9 @@ impl Recorder {
             jukebox_participants: Vec::new(),
             created_at: format!("{}", start_timestamp.as_secs()),
             recording_version: Some(common::consts::version::RECORDING_VERSION.to_string()),
+            // Named by whoever recorded it, afterwards. A session is not worth naming
+            // until it is worth keeping.
+            name: None,
         };
 
         Ok(Self {

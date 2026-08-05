@@ -26,6 +26,7 @@ pub struct BedrockState {
     pub proxy_target_host: Option<String>,
     pub proxy_target_port: Option<u16>,
     pub proxy_listen_port: Option<u16>,
+    pub proxy_started_at: Option<u64>,
     pub active_realm_id: Option<u64>,
     pub active_realm_name: Option<String>,
 }
@@ -48,6 +49,7 @@ impl BedrockState {
             proxy_target_host: None,
             proxy_target_port: None,
             proxy_listen_port: None,
+            proxy_started_at: None,
             active_realm_id: None,
             active_realm_name: None,
         }

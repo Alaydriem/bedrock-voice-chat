@@ -1,20 +1,12 @@
 /**
- * One screen presented over another.
- *
- * Settings over the dashboard: a second screen reached from the first, which is why
- * the first stays mounted and visible at the top edge rather than being replaced. The
- * dashboard behind is doing real work — a link, a roster, a position feed — and
- * tearing it down to show a settings pane means rebuilding all of it on the way back.
+ * One screen presented over another. The screen behind stays mounted.
  *
  *   <div class="rad-under" data-rad-under> … the dashboard … </div>
  *   <div class="rad-scrim rad-scrim--cover" data-rad-cover-scrim></div>
  *   <div class="rad-cover" data-rad-cover="settings"> … </div>
  *   <button data-rad-cover-open="settings">…</button>
  *
- * Dismissal is a request, not an instruction. A cover with levels inside it — the
- * phone's section list and its detail — has to spend the first Escape or back gesture
- * climbing to its top level, because that is what the same gesture does everywhere
- * else. `onDismiss` returns true to absorb one.
+ * `onDismiss` returns true to absorb a dismissal, for a cover with levels inside it.
  */
 export interface CoverOptions {
   /** Return true to keep the cover open and handle the gesture internally. */

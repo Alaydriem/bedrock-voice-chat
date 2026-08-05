@@ -163,8 +163,12 @@ pub fn run() {
                 None => warn!("Second instance launched but no main window exists to focus"),
             }
         }));
-        builder = builder.plugin(tauri_plugin_dialog::init());
     }
+
+    // Every platform. It had been registered inside the desktop-only block above, next to
+    // single-instance, so on a phone `dialog.open` failed with "plugin not found" — and the
+    // audio library's upload is a file picker.
+    builder = builder.plugin(tauri_plugin_dialog::init());
 
     let sentry_logger = Arc::new(logging::SentryLogger::new(true));
 
@@ -266,6 +270,7 @@ pub fn run() {
             // Recordings Management
             crate::commands::recordings::get_recording_sessions,
             crate::commands::recordings::delete_recording_session,
+            crate::commands::recordings::rename_recording_session,
             crate::commands::recordings::export_recording,
             // Stream Information
             crate::commands::network::stop_network_stream,
@@ -291,6 +296,7 @@ pub fn run() {
             crate::commands::websocket::start_websocket_server,
             crate::commands::websocket::stop_websocket_server,
             crate::commands::websocket::is_websocket_running,
+            crate::commands::websocket::websocket_clients,
             crate::commands::websocket::generate_encryption_key,
             // Analytics
             crate::commands::analytics::track_event,
@@ -308,6 +314,7 @@ pub fn run() {
             crate::commands::discord::discord_unlink,
             // Audio Library
             crate::commands::audio_library::upload_audio_file,
+            crate::commands::audio_library::upload_audio_bytes,
             crate::commands::audio_library::list_audio_files,
             crate::commands::audio_library::delete_audio_file,
             crate::auth::commands::refresh_server_state,

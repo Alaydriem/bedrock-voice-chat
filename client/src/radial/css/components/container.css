@@ -302,6 +302,18 @@
   border-bottom: 0;
 }
 
+/* Below the width where a long label and its button share a line, the button wraps. */
+@container rad (max-width: 520px) {
+  .rad-account--stack {
+    flex-wrap: wrap;
+  }
+
+  .rad-account--stack > .rad-btn {
+    flex: 1 1 100%;
+    margin-left: 52px;
+  }
+}
+
 .rad-account__badge {
   flex: 0 0 auto;
   width: 38px;

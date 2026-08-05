@@ -6,9 +6,11 @@ use tauri_plugin_store::StoreExt;
 use tokio::sync::{broadcast, watch};
 use tokio::task::AbortHandle;
 
+pub mod clients;
 pub mod route;
 pub mod structs;
 
+pub use clients::{ClientRegistration, WebSocketClients};
 pub use route::{RejectReason, WebSocketRoute};
 pub use structs::{
     Command, CommandMessage, DeviceType, ErrorResponse, MuteData, PongData, RecordData,
@@ -28,7 +30,8 @@ impl Default for WebSocketConfig {
     fn default() -> Self {
         Self {
             enabled: false,
-            localhost_only: true,
+            // Loopback on desktop; a phone has nothing local to serve.
+            localhost_only: !cfg!(mobile),
             port: 9595,
             key: String::new(),
         }
@@ -72,6 +75,7 @@ pub struct WebSocketManager {
     app_handle: AppHandle,
     broadcast_tx: broadcast::Sender<String>,
     metrics_tx: broadcast::Sender<String>,
+    clients: Arc<WebSocketClients>,
 }
 
 impl WebSocketManager {
@@ -94,6 +98,7 @@ impl WebSocketManager {
             app_handle,
             broadcast_tx,
             metrics_tx,
+            clients: WebSocketClients::new_shared(),
         }
     }
 
@@ -103,6 +108,11 @@ impl WebSocketManager {
             commands: self.broadcast_tx.clone(),
             metrics: self.metrics_tx.clone(),
         }
+    }
+
+    /// The live connection registry, for the settings pane that lists them.
+    pub fn clients(&self) -> Arc<WebSocketClients> {
+        self.clients.clone()
     }
 
     pub fn update_config(&mut self, config: WebSocketConfig) {
@@ -180,6 +190,7 @@ impl WebSocketManager {
         let app_handle = self.app_handle.clone();
         let broadcast_tx = self.broadcast_tx.clone();
         let metrics_tx = self.metrics_tx.clone();
+        let clients = self.clients.clone();
 
         let handle = tokio::spawn(async move {
             while let Ok((stream, _)) = listener.accept().await {
@@ -188,6 +199,7 @@ impl WebSocketManager {
                 let broadcast_tx = broadcast_tx.clone();
                 let metrics_tx = metrics_tx.clone();
                 let shutdown_rx = shutdown_rx.clone();
+                let clients = clients.clone();
 
                 tokio::spawn(async move {
                     if let Err(e) = Self::handle_connection(
@@ -197,6 +209,7 @@ impl WebSocketManager {
                         broadcast_tx,
                         metrics_tx,
                         shutdown_rx,
+                        clients,
                     )
                     .await
                     {
@@ -231,6 +244,7 @@ impl WebSocketManager {
         broadcast_tx: broadcast::Sender<String>,
         metrics_tx: broadcast::Sender<String>,
         shutdown_rx: watch::Receiver<bool>,
+        clients: Arc<WebSocketClients>,
     ) -> Result<(), anyhow::Error> {
         use std::sync::Mutex as StdMutex;
         use tokio_tungstenite::accept_hdr_async;
@@ -245,8 +259,21 @@ impl WebSocketManager {
         let captured = resolved.clone();
         let key_for_callback = auth_key.clone();
 
+        // The only self-description a client offers, and the handshake is the only place
+        // it is available.
+        let agent: Arc<StdMutex<String>> = Arc::new(StdMutex::new(String::new()));
+        let captured_agent = agent.clone();
+
         let callback = move |request: &Request, response: Response| {
             let uri = request.uri().to_string();
+            if let Some(value) = request
+                .headers()
+                .get("user-agent")
+                .and_then(|v| v.to_str().ok())
+                && let Ok(mut slot) = captured_agent.lock()
+            {
+                *slot = value.to_string();
+            }
             match WebSocketRoute::resolve(&uri, &key_for_callback) {
                 Ok(route) => {
                     if let Ok(mut slot) = captured.lock() {
@@ -272,13 +299,26 @@ impl WebSocketManager {
             .and_then(|slot| *slot)
             .unwrap_or(WebSocketRoute::Command);
 
+        let name = agent.lock().map(|slot| slot.clone()).unwrap_or_default();
+        // Held for the life of the connection. Dropping it releases the registration,
+        // which is the only way to cover all three exits: an error, the shutdown watch,
+        // and a peer that simply went away.
+        let registration = ClientRegistration::new(clients, &name, route.as_str());
+
         match route {
             WebSocketRoute::Metrics => {
                 Self::serve_metrics(ws_stream, metrics_tx, shutdown_rx).await
             }
             WebSocketRoute::Command => {
-                Self::serve_commands(ws_stream, app_handle, auth_key, broadcast_tx, shutdown_rx)
-                    .await
+                Self::serve_commands(
+                    ws_stream,
+                    app_handle,
+                    auth_key,
+                    broadcast_tx,
+                    shutdown_rx,
+                    &registration,
+                )
+                .await
             }
         }
     }
@@ -331,6 +371,7 @@ impl WebSocketManager {
         auth_key: String,
         broadcast_tx: broadcast::Sender<String>,
         mut shutdown_rx: watch::Receiver<bool>,
+        registration: &ClientRegistration,
     ) -> Result<(), anyhow::Error> {
         use futures_util::{SinkExt, StreamExt};
 
@@ -364,13 +405,17 @@ impl WebSocketManager {
                         }
                     };
 
-                    // Validate authentication key if one is configured
-                    if !auth_key.is_empty() && parsed.key.as_deref() != Some(auth_key.as_str()) {
+                    // No configured key refuses everything rather than accepting everything.
+                    if auth_key.is_empty() || parsed.key.as_deref() != Some(auth_key.as_str()) {
                         let error_response = ErrorResponse::new("Invalid authentication key".to_string());
                         let json = serde_json::to_string(&error_response)?;
                         write.send(tokio_tungstenite::tungstenite::Message::Text(json.into())).await?;
                         continue;
                     }
+
+                    // Counted once it has been accepted and authenticated. Counting every
+                    // inbound frame would report rejected traffic as work done.
+                    registration.count_command();
 
                     // Check if this is a state-changing command
                     let is_state_changing = matches!(parsed.command, Command::Mute { .. } | Command::Record);

@@ -35,6 +35,11 @@
 	<string>Microphone for Bedrock Voice Chat</string>
 	<key>NSAgeRangeUsageDescription</key>
 	<string>Bedrock Voice Chat checks your age range to comply with regional requirements for voice communication.</string>
+	<!-- iOS 14 and later refuses to accept connections from the local network without this
+	     key and the consent prompt it produces. The WebSocket server binds every interface
+	     on a phone, because the software driving the client runs on another device. -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Bedrock Voice Chat can be controlled from another device on your network, such as a Stream Deck. This is off until you turn the WebSocket server on in Settings.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>

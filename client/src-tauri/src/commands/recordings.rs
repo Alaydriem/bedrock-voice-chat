@@ -1,4 +1,5 @@
 use crate::analytics::AnalyticsService;
+use crate::audio::recording::ManifestStore;
 use crate::audio::recording::renderer::AudioFormatRenderer;
 use common::structs::AudioFormat;
 use common::structs::recording::SessionManifest;
@@ -123,6 +124,21 @@ pub async fn delete_recording_session(
         .map_err(|e| format!("Failed to delete recording directory: {}", e))?;
 
     Ok(true)
+}
+
+#[tauri::command]
+pub async fn rename_recording_session(
+    app_handle: tauri::AppHandle,
+    session_id: String,
+    name: String,
+) -> Result<(), String> {
+    let recordings_dir = app_handle
+        .path()
+        .app_local_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?
+        .join("recordings");
+
+    ManifestStore::rename(&recordings_dir, &session_id, &name)
 }
 
 #[tauri::command]

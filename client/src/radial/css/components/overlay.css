@@ -101,9 +101,7 @@
   background: var(--color-rad-line);
 }
 
-/* A heading over the run of items below it. Indented to the item text rather than to
-   the panel, so the label lines up with the names it governs and not with their tick
-   column. */
+/* Indented to the item text, not the tick column. */
 .rad-menu__section {
   padding: 11px 10px 5px 32px;
   font-family: var(--font-rad-mono);
@@ -215,17 +213,8 @@
 }
 
 /* ---- cover ----
- * A whole screen presented over another one: settings over the dashboard.
- *
- * A cover is not a modal and not a sheet. A modal is a question about the screen
- * underneath and a sheet is a shortcut to part of it; a cover is a second screen that
- * happens to have been reached from the first. So it takes the full width, carries its
- * own rail, and the screen it came from stays visible at the top edge — the one piece
- * of evidence that dismissing goes back rather than forward.
- *
- * The gap at the top is deliberate and load-bearing. Full-bleed, this is
- * indistinguishable from a navigation, and a user who cannot see what they will return
- * to has no reason to expect the back gesture to do anything in particular.
+ * A whole screen presented over another one: settings over the dashboard. Full width,
+ * carrying its own rail, with the screen it came from left visible at the top edge.
  *
  *   <div class="rad-under is-covered"> … the dashboard … </div>
  *   <div class="rad-scrim rad-scrim--cover is-on"></div>
@@ -234,7 +223,9 @@
 
 .rad-cover {
   position: absolute;
-  inset: var(--rad-cover-peek, 14px) 0 0;
+  /* The peek carries the safe-area inset, so the cover begins below the status bar.
+     `env()` is 0 on desktop, leaving the plain 14px. */
+  inset: calc(env(safe-area-inset-top, 0px) + var(--rad-cover-peek, 14px)) 0 0;
   z-index: 30;
   display: flex;
   flex-direction: column;
@@ -264,16 +255,60 @@
   min-height: 0;
 }
 
-/* The screen underneath. Scaled from the bottom, so the movement is away from the
-   cover rather than toward it, and the top edge — the only part still visible — is
-   what travels furthest. */
+/* The grip is the touch target; the bar inside it is what reads as a handle.
+ *
+ * `touch-action: none` is required: without it the browser claims the vertical drag as a
+ * scroll and delivers `pointercancel` instead of `pointermove`. */
+.rad-cover__grip {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  height: 26px;
+  touch-action: none;
+  cursor: grab;
+}
+
+.rad-cover__grip:active {
+  cursor: grabbing;
+}
+
+.rad-cover__handle {
+  width: 38px;
+  height: 4px;
+  border-radius: var(--radius-rad-pill);
+  background: var(--color-rad-line-2);
+  transition: background 0.16s;
+}
+
+/* The transition would fight the finger. */
+.rad-cover.is-dragging {
+  transition: none;
+}
+
+.rad-cover.is-dragging .rad-cover__handle,
+.rad-cover__grip:hover .rad-cover__handle {
+  background: var(--color-rad-dim);
+}
+
+/* The screen underneath, scaled from the bottom.
+ *
+ * A flex column, standing in for the frame it replaced: the `.rad-shell` inside is
+ * `flex: 1 1 auto` and collapses to its content height in a block parent. */
 .rad-under {
   position: absolute;
   inset: 0;
+  display: flex;
+  flex-direction: column;
   transform-origin: 50% 100%;
   transition:
     transform 0.36s var(--ease-rad-rise),
     filter 0.36s ease;
+}
+
+.rad-under > .rad-shell,
+.rad-under > .rad-screen {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .rad-under.is-covered {
@@ -286,9 +321,7 @@
   background: rgb(8 3 16 / 0.45);
 }
 
-/* Motion here is the whole message — where the screen went, and that it is still
-   there. Without it, the two screens have to be distinguished by content alone, so
-   the cover fades rather than being removed. */
+/* Fades rather than slides. */
 @media (prefers-reduced-motion: reduce) {
   .rad-cover {
     transform: none;

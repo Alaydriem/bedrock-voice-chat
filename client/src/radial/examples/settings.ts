@@ -91,6 +91,7 @@ const NAV: readonly (readonly [string, readonly (readonly [string, string])[]])[
   ["", [
     ["account", "Account"],
     ["audio", "Audio settings"],
+    ["players", "Players"],
     ["recordings", "Recordings"],
     ["library", "Audio library"],
     ["keybinds", "Keybinds"],
@@ -119,6 +120,7 @@ function navFor(): typeof NAV {
 const TITLES: Record<string, string> = {
   account: "Account",
   audio: "Audio settings",
+  players: "Players",
   recordings: "Recordings",
   library: "Audio library",
   keybinds: "Keybinds",
@@ -129,7 +131,7 @@ const TITLES: Record<string, string> = {
 };
 
 /** Panes whose content is plates or a wide table rather than label-and-control rows. */
-const WIDE = new Set(["proxy", "realms", "library"]);
+const WIDE = new Set(["proxy", "realms", "library", "players"]);
 
 let pane = "account";
 let mobileLevel: "list" | "detail" = "list";
@@ -330,6 +332,11 @@ new FormControls(frame, {
   },
   onSegment: (group, value) => {
     if (group === "voice") Toast.show(value === "ptt" ? "Push-to-talk" : "Voice activated");
+    if (group === "players") {
+      playerScope = value === "all" ? "all" : "adjusted";
+      playerPage = 0;
+      renderPlayers();
+    }
   },
   onCheckbox: () => syncTrackCount(),
 });
@@ -501,8 +508,7 @@ function syncInterface(): void {
       label.textContent = "Reachable on this network";
       control.innerHTML = '<span class="rad-status-chip rad-status-chip--ok">Every interface</span>';
       note.textContent =
-        "Phones do not get to choose, so the proxy answers on all of them. A console on the " +
-        `same Wi-Fi joins ${MOBILE_INTERFACE.lan}:${PROXY_PORT}.`;
+        `Join on ${MOBILE_INTERFACE.lan}:${PROXY_PORT}.`;
       continue;
     }
 
@@ -564,6 +570,217 @@ frame.addEventListener("click", (e) => {
   const linked = button.textContent?.trim() === "Link";
   button.textContent = linked ? "Unlink" : "Link";
   if (meta) meta.textContent = linked ? LINKED[which] : "NOT LINKED";
+});
+
+/* ---------------------------------------------------------------- players
+ * Everyone who has been within earshot, and what you decided about them.
+ *
+ * The list is written by proximity, not by choice: a player entering earshot is stamped
+ * at 100% and unmuted whether or not you ever touch them. So the raw list is hundreds of
+ * rows carrying no decision, and the segment defaults to the ones that do. Search serves
+ * the other case — a name you remember and want to turn down before they are back.
+ */
+
+interface Player {
+    gamertag: string;
+    gain: number;
+    muted: boolean;
+    /** Unix ms, or null for an entry written before it was stamped. */
+    lastSeen: number | null;
+}
+
+const NAMES = [
+  "Alaydriem", "Petra", "Juno", "Kestrel", "Moth", "Wren", "Bram", "Sable", "Fen", "Ora",
+  "Thistle", "Corvid", "Marlow", "Pike", "Quill", "Rook", "Sorrel", "Tamsin", "Vesper", "Yarrow",
+];
+
+let PLAYERS: Player[] = NAMES.map((gamertag, i) => ({
+  gamertag,
+  // Four with an opinion attached, the rest as proximity left them.
+  gain: i === 1 ? 1.45 : i === 4 ? 0.35 : 1,
+  muted: i === 6 || i === 11,
+  lastSeen: i < 16 ? Date.now() - i * 37 * 60_000 : null,
+}));
+
+let playerScope: "adjusted" | "all" = "adjusted";
+let playerQuery = "";
+let playerPage = 0;
+
+const PLAYERS_PER_PAGE = 6;
+
+/** A row carries a decision when it is muted or no longer at unity gain. */
+function isAdjusted(player: Player): boolean {
+  return player.muted || Math.abs(player.gain - 1) > 0.001;
+}
+
+function ago(lastSeen: number | null): string {
+  if (lastSeen === null) return "not seen since this was added";
+  const minutes = Math.max(0, Math.round((Date.now() - lastSeen) / 60_000));
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  return hours < 24 ? `${hours} h ago` : `${Math.round(hours / 24)} d ago`;
+}
+
+function matchingPlayers(): Player[] {
+  const query = playerQuery.trim().toLowerCase();
+  return PLAYERS.filter((player) => {
+    if (playerScope === "adjusted" && !isAdjusted(player)) return false;
+    return !query || player.gamertag.toLowerCase().includes(query);
+  }).sort((a, b) => {
+    // Muted first: "why can't I hear them" is the question this pane answers, and the
+    // answer should never be on page two.
+    if (a.muted !== b.muted) return a.muted ? -1 : 1;
+    return (b.lastSeen ?? 0) - (a.lastSeen ?? 0);
+  });
+}
+
+function playerRow(player: Player): string {
+  const percent = Math.round(player.gain * 100);
+  return (
+    `<div class="rad-recent-row"${player.muted ? ' data-muted="true"' : ""}>` +
+    `<span class="rad-server-id rad-recent-row__id">` +
+    `<canvas data-plate-glyph="minecraft:${escape(player.gamertag.toLowerCase())}" width="34" height="34"></canvas>` +
+    `</span>` +
+    `<span class="rad-recent-row__text">` +
+    `<span class="rad-recent-row__name">${escape(player.gamertag)}</span>` +
+    `<span class="rad-recent-row__seen">${ago(player.lastSeen)}</span>` +
+    `</span>` +
+    `<button class="rad-player__mute" aria-pressed="${player.muted}" data-pl-mute="${escape(player.gamertag)}" ` +
+    `aria-label="${player.muted ? "Unmute" : "Mute"} ${escape(player.gamertag)}">` +
+    `<span data-rad-icon="${player.muted ? "micoff" : "mic"}"></span></button>` +
+    `<input class="rad-range" type="range" min="0" max="1.5" step="0.05" value="${player.gain}" ` +
+    `${player.muted ? "disabled" : ""} data-pl-gain="${escape(player.gamertag)}" ` +
+    `aria-label="Volume for ${escape(player.gamertag)}" />` +
+    `<span class="rad-player__percent">${player.muted ? "muted" : `${percent}%`}</span>` +
+    `<button class="rad-icon-btn" data-pl-forget="${escape(player.gamertag)}" ` +
+    `aria-label="Forget ${escape(player.gamertag)}"><span data-rad-icon="trash"></span></button>` +
+    `</div>`
+  );
+}
+
+function renderPlayers(): void {
+  const host = q("[data-pl-list]");
+  const card = q("[data-pl-card]");
+  const empty = q("[data-pl-empty]");
+  if (!host || !card || !empty) return;
+
+  const matching = matchingPlayers();
+  const pages = Math.max(1, Math.ceil(matching.length / PLAYERS_PER_PAGE));
+  playerPage = Math.min(playerPage, pages - 1);
+  const page = matching.slice(
+    playerPage * PLAYERS_PER_PAGE,
+    playerPage * PLAYERS_PER_PAGE + PLAYERS_PER_PAGE,
+  );
+
+  card.hidden = matching.length === 0;
+  empty.hidden = matching.length > 0;
+
+  // Three different absences, three different sentences. "No results" for a library you
+  // have never added to is the least useful of the three.
+  const title = q("[data-pl-empty-title]");
+  const note = q("[data-pl-empty-note]");
+  if (title && note) {
+    if (playerQuery.trim()) {
+      title.textContent = "Nobody matches that";
+      note.textContent = `No player ${playerScope === "adjusted" ? "you have adjusted " : ""}has that in their name.`;
+    } else if (playerScope === "adjusted") {
+      title.textContent = "Nothing changed yet";
+      note.textContent =
+        "Turn somebody up or down from the dashboard and they appear here, so you can change " +
+        "your mind after they have gone.";
+    } else {
+      title.textContent = "Nobody yet";
+      note.textContent =
+        "Anyone who comes within earshot on a server appears here, so their volume is still " +
+        "adjustable once they have wandered off.";
+    }
+  }
+
+  host.innerHTML = page.map(playerRow).join("");
+  hydrate(host);
+
+  const meta = q("[data-pl-meta]");
+  if (meta) {
+    const adjusted = PLAYERS.filter(isAdjusted).length;
+    meta.textContent =
+      playerScope === "adjusted"
+        ? `${adjusted} adjusted`
+        : `${PLAYERS.length} player${PLAYERS.length === 1 ? "" : "s"} · ${adjusted} adjusted`;
+  }
+  const resetCount = q("[data-pl-reset-count]");
+  if (resetCount) {
+    const adjusted = PLAYERS.filter(isAdjusted).length;
+    resetCount.textContent = `${adjusted} player${adjusted === 1 ? "" : "s"}`;
+  }
+
+  const pager = q("[data-pl-pager]");
+  if (pager) pager.hidden = pages < 2;
+  const count = q("[data-pl-count]");
+  if (count) count.textContent = `${matching.length} shown`;
+  const pageHost = q("[data-pl-pages]");
+  if (pageHost) {
+    const buttons = [`<button data-pl-page="prev"${playerPage === 0 ? " disabled" : ""}>‹</button>`];
+    for (let i = 0; i < pages; i++) {
+      buttons.push(`<button class="${i === playerPage ? "is-on" : ""}" data-pl-page="${i}">${i + 1}</button>`);
+    }
+    buttons.push(
+      `<button data-pl-page="next"${playerPage >= pages - 1 ? " disabled" : ""}>›</button>`,
+    );
+    pageHost.innerHTML = buttons.join("");
+  }
+}
+
+q<HTMLInputElement>("[data-pl-search]")?.addEventListener("input", (e) => {
+  playerQuery = (e.target as HTMLInputElement).value;
+  playerPage = 0;
+  renderPlayers();
+});
+
+frame.addEventListener("click", (e) => {
+  const target = e.target as HTMLElement;
+
+  const mute = target.closest<HTMLElement>("[data-pl-mute]");
+  if (mute) {
+    const player = PLAYERS.find((p) => p.gamertag === mute.dataset.plMute);
+    if (player) player.muted = !player.muted;
+    renderPlayers();
+    return;
+  }
+  const forget = target.closest<HTMLElement>("[data-pl-forget]");
+  if (forget) {
+    PLAYERS = PLAYERS.filter((p) => p.gamertag !== forget.dataset.plForget);
+    renderPlayers();
+    Toast.show(`Forgot ${forget.dataset.plForget}`);
+    return;
+  }
+  const pageButton = target.closest<HTMLElement>("[data-pl-page]");
+  if (pageButton) {
+    const value = pageButton.dataset.plPage ?? "";
+    if (value === "prev") playerPage = Math.max(0, playerPage - 1);
+    else if (value === "next") playerPage += 1;
+    else playerPage = Number(value);
+    renderPlayers();
+  }
+});
+
+frame.addEventListener("input", (e) => {
+  const slider = (e.target as HTMLElement).closest<HTMLInputElement>("[data-pl-gain]");
+  if (!slider) return;
+  const player = PLAYERS.find((p) => p.gamertag === slider.dataset.plGain);
+  if (!player) return;
+  player.gain = Number(slider.value);
+  // The readout only, not the whole list: rebuilding mid-drag takes the slider out from
+  // under the pointer and the drag stops dead.
+  const percent = slider.parentElement?.querySelector<HTMLElement>(".rad-player__percent");
+  if (percent) percent.textContent = `${Math.round(player.gain * 100)}%`;
+});
+
+q("[data-pl-reset-go]")?.addEventListener("click", () => {
+  PLAYERS = PLAYERS.map((player) => ({ ...player, gain: 1, muted: false }));
+  modal.close();
+  renderPlayers();
+  Toast.show("Everyone back to 100%");
 });
 
 /* ---------------------------------------------------------------- recordings */
@@ -1680,6 +1897,7 @@ recordings.render();
 library.render();
 renderBackends();
 renderRealms();
+renderPlayers();
 paintProxyStatus();
 paintUpdate();
 syncAddress(true);

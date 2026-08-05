@@ -238,6 +238,59 @@
   text-transform: uppercase;
 }
 
+/* ---- the compact plate ----
+ * Two rows instead of three: below the breakpoint the 96px artwork collapses to the
+ * identity tile beside the name. Opt-in — server-select keeps the tall plate.
+ */
+
+@container rad (max-width: 620px) {
+  .rad-server--compact {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      "id body"
+      "foot foot";
+    align-items: center;
+  }
+
+  .rad-server--compact .rad-server__art {
+    grid-area: id;
+    height: auto;
+    padding: 12px 0 12px 14px;
+    border-bottom: 0;
+    display: flex;
+    align-items: center;
+  }
+
+  /* Both belong to a full-height header. */
+  .rad-server--compact .rad-server__art::before,
+  .rad-server--compact .rad-server__art::after {
+    display: none;
+  }
+
+  /* Out of the corner and into the row. */
+  .rad-server--compact .rad-server__id {
+    position: static;
+    width: 38px;
+    height: 38px;
+    box-shadow: 0 0 0 1px var(--color-rad-line);
+  }
+
+  .rad-server--compact .rad-server__body {
+    grid-area: body;
+    padding: 12px 14px 12px 12px;
+    gap: 3px;
+  }
+
+  .rad-server--compact .rad-server__state {
+    margin-top: 3px;
+  }
+
+  .rad-server--compact .rad-server__foot {
+    grid-area: foot;
+  }
+}
+
 /* ---- the tally, for the bar under the list ---- */
 
 .rad-server-tally {

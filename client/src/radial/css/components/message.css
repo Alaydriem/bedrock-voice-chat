@@ -50,6 +50,9 @@
 .rad-status-chip {
   display: inline-flex;
   align-items: center;
+  /* Never shrinks in a flex row, where it would wrap its own label. */
+  flex: 0 0 auto;
+  white-space: nowrap;
   gap: 7px;
   padding: 6px 12px;
   border-radius: var(--radius-rad-pill);

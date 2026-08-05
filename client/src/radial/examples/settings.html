@@ -455,6 +455,74 @@
                         </div>
                       </section>
 
+                      <!-- ============ PLAYERS ============
+                           Every player who comes within earshot is written to the gain
+                           store at 100% and unmuted, so this list is hundreds of rows of
+                           which almost none carry a decision. Leading with everybody
+                           would bury the handful that do.
+
+                           So the segment leads, and it defaults to Adjusted. A row at
+                           100% unmuted tells a reader nothing they did not already know;
+                           a muted row is the answer to "why can't I hear them".
+                      -->
+                      <section data-pane="players" hidden>
+                        <div class="rad-section">
+                          <div class="rad-section__note">
+                            Volume and mute are remembered per player and survive them walking away
+                            &mdash; this is where you change them when the person is no longer in
+                            earshot. Both are yours alone: nobody else hears any of it.
+                          </div>
+
+                          <div class="rad-swatchrow" style="margin-bottom: 4px">
+                            <span class="rad-segmented" role="group" aria-label="Which players" data-rad-segment-group="players">
+                              <button data-rad-segment="adjusted" aria-pressed="true">Adjusted</button>
+                              <button data-rad-segment="all" aria-pressed="false">Everyone</button>
+                            </span>
+                            <span class="rad-search" style="flex: 1 1 200px">
+                              <span data-rad-icon="search"></span>
+                              <input type="search" placeholder="Search players" data-pl-search aria-label="Search players" />
+                            </span>
+                            <span class="rad-status-chip" data-pl-meta>0 players</span>
+                          </div>
+
+                          <div class="rad-card" data-pl-card>
+                            <div style="padding: 4px 16px 10px" data-pl-list></div>
+                            <div class="rad-pager" data-pl-pager hidden>
+                              <span data-pl-count>&nbsp;</span>
+                              <span class="rad-pager__pages" data-pl-pages></span>
+                            </div>
+                          </div>
+
+                          <div class="rad-card" data-pl-empty hidden>
+                            <div class="rad-empty">
+                              <canvas data-rad-mark data-cell="4" data-gain="0.35" data-still="true"></canvas>
+                              <span class="rad-empty__title" data-pl-empty-title>Nothing changed yet</span>
+                              <span class="rad-empty__note" data-pl-empty-note>
+                                Turn somebody up or down from the dashboard and they appear here, so
+                                you can change your mind after they have gone.
+                              </span>
+                            </div>
+                          </div>
+
+                          <div class="rad-card">
+                            <div class="rad-row">
+                              <span class="rad-row__text">
+                                <span class="rad-row__label">Put everyone back to normal</span>
+                                <span class="rad-row__note">
+                                  Clears every volume and unmutes everybody. The recovery when you
+                                  cannot hear somebody and do not remember muting them.
+                                </span>
+                              </span>
+                              <span class="rad-row__control">
+                                <button class="rad-btn rad-btn--danger" data-rad-modal-open="resetplayers">
+                                  Reset all&hellip;
+                                </button>
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </section>
+
                       <!-- ============ RECORDINGS ============ -->
                       <section data-pane="recordings" hidden>
                         <div class="rad-section">
@@ -1061,6 +1129,19 @@
               <div class="rad-modal__actions">
                 <button class="rad-btn" data-rad-modal-close>Cancel</button>
                 <button class="rad-btn rad-btn--danger" data-wipe-go disabled>Delete everything</button>
+              </div>
+            </div>
+
+            <!-- ---- put every player back to normal ---- -->
+            <div class="rad-modal" data-rad-modal="resetplayers">
+              <h5 class="rad-modal__title">Put everyone back to normal?</h5>
+              <p>
+                Every volume goes back to 100% and everybody is unmuted. <b data-pl-reset-count>0 players</b>
+                are currently adjusted. Nothing about the people themselves is forgotten.
+              </p>
+              <div class="rad-modal__actions">
+                <button class="rad-btn" data-rad-modal-close>Cancel</button>
+                <button class="rad-btn rad-btn--danger" data-pl-reset-go>Reset all</button>
               </div>
             </div>
 

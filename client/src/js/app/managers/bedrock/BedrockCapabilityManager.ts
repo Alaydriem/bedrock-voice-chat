@@ -33,6 +33,12 @@ export class BedrockCapabilityManager {
     // show progress and confirm the check actually ran.
     private checkingStore: Writable<boolean>;
     public readonly isChecking: Readable<boolean>;
+    // The transfer relay's port and the host its DNS override answers, both null
+    // unless the server runs them. Clients offer these beside the local addresses.
+    private transferPortStore: Writable<number | null>;
+    public readonly transferPort: Readable<number | null>;
+    private dnsOverrideHostStore: Writable<string | null>;
+    public readonly dnsOverrideHost: Readable<string | null>;
 
     private retryTimer: ReturnType<typeof setTimeout> | null = null;
     private focusHandler: (() => void) | null = null;
@@ -48,6 +54,10 @@ export class BedrockCapabilityManager {
         this.serverHost = { subscribe: this.serverHostStore.subscribe };
         this.checkingStore = writable(false);
         this.isChecking = { subscribe: this.checkingStore.subscribe };
+        this.transferPortStore = writable(null);
+        this.transferPort = { subscribe: this.transferPortStore.subscribe };
+        this.dnsOverrideHostStore = writable(null);
+        this.dnsOverrideHost = { subscribe: this.dnsOverrideHostStore.subscribe };
     }
 
     async refresh(): Promise<void> {
@@ -60,6 +70,8 @@ export class BedrockCapabilityManager {
             const check = await invoke<ApiConfigCheckResponse>('api_get_config');
             const bedrock = check.config.bedrock;
             this.statusStore.set(bedrock.enabled ? 'enabled' : 'disabled');
+            this.transferPortStore.set(bedrock.transfer_port ?? null);
+            this.dnsOverrideHostStore.set(bedrock.dns_override_host ?? null);
             this.serverProvidedStore.set(
                 bedrock.servers.map((s) => ({
                     // Deterministic id so favorites persist across restarts and
@@ -76,6 +88,8 @@ export class BedrockCapabilityManager {
             logError(`Bedrock capability check failed: ${e}`);
             this.statusStore.set('unknown');
             this.serverProvidedStore.set([]);
+            this.transferPortStore.set(null);
+            this.dnsOverrideHostStore.set(null);
             this.scheduleRetry();
         } finally {
             this.checkingStore.set(false);

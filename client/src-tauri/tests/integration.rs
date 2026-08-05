@@ -9,3 +9,4 @@ mod feature_flags;
 mod harness;
 mod iap;
 mod scenarios;
+mod websocket;

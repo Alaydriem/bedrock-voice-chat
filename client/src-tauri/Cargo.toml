@@ -60,6 +60,7 @@ tauri-plugin-http = { version = "^2", default-features = false, features = [
 tauri-plugin-audio-permissions = { git = "https://github.com/charlesportwoodii/tauri-plugin-audio-permissions" }
 tauri-plugin-keyring = { git = "https://github.com/charlesportwoodii/tauri-plugin-keyring" }
 tauri-plugin-store = { version = "^2" }
+tauri-plugin-dialog = { version = "^2" }
 tauri-plugin-notification = { version = "^2" }
 tauri-plugin-log = { version = "^2" }
 tauri-plugin-os = { version = "^2" }
@@ -99,7 +100,6 @@ tauri-plugin-updater = { version = "^2" }
 tauri-plugin-process = { version = "^2" }
 tauri-plugin-global-shortcut = { version = "^2" }
 sentry-rust-minidump = { version = "^0.14" }
-tauri-plugin-dialog = "^2"
 
 [target."cfg(any(target_os = \"windows\"))".dependencies]
 windows-targets = { version = "^0.53.0" }

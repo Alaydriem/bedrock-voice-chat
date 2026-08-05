@@ -22,6 +22,11 @@ pub struct ApiConfigBedrock {
     // this as a connection option distinct from the local proxy listen port.
     #[serde(default)]
     pub transfer_port: Option<u16>,
+    // The hostname the DNS override answers with this server's address, present
+    // only when the relay and DNS are both on. A player who points their device's
+    // DNS here joins it from Minecraft's featured servers and lands on the relay.
+    #[serde(default)]
+    pub dns_override_host: Option<String>,
     // Operator-curated Bedrock servers for the client's Proxy Connect list.
     // Populated only when `enabled`.
     #[serde(default)]

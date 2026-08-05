@@ -19,16 +19,13 @@
   max-width: 760px;
 }
 
-/* Panes whose content is plates rather than rows. The measure exists to stop a label
-   and its control drifting apart; a grid of tiles has no such pair in it, and holding
-   those panes to 760px costs a column for nothing. */
+/* Panes whose content is plates or a wide table rather than label-and-control rows. */
 .rad-settings-measure.is-wide {
   max-width: 1000px;
 }
 
 /* ---- ranges with a readout ----
- * A slider whose number is elsewhere is a slider you tune by looking away from it. The
- * value sits on the label line, right-aligned over the track it belongs to.
+ * The value sits on the label line, right-aligned over its track.
  */
 
 .rad-knobs {
@@ -70,11 +67,64 @@
   color: var(--color-rad-faint);
 }
 
-/* ---- plates inside a pane ----
- * Proxy and Realms are the server-select screen wearing a different hat: a set of
- * places to point at, chosen by recognition. They use its plate rather than a row so
- * that picking a backend looks the same wherever it is done.
+/* ---- addresses ----
+ * Every address a device answers on, each copyable. `0.0.0.0` is what it binds and is not
+ * something anything can connect to.
  */
+
+.rad-addresses {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.rad-address {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: var(--radius-rad-md);
+  background: var(--color-rad-void-2);
+}
+
+.rad-address__value {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  color: var(--color-rad-tx);
+  user-select: all;
+}
+
+.rad-address__label {
+  flex: 0 0 auto;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-2xs);
+  letter-spacing: var(--tracking-rad-tag);
+  text-transform: uppercase;
+  color: var(--color-rad-faint);
+}
+
+/* A way in offered by the server rather than by this machine. The note is part of the
+   row because each one means something different: one is typed into Minecraft, the
+   other is reached by redirecting the device's DNS. */
+.rad-address--offer {
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+
+.rad-address--offer > .rad-address__note {
+  flex: 1 0 100%;
+  font-size: var(--text-rad-xs);
+  line-height: 1.45;
+  color: var(--color-rad-faint);
+}
+
+/* ---- plates inside a pane ---- */
 
 .rad-server__state {
   display: flex;
@@ -83,14 +133,19 @@
   gap: 6px;
 }
 
-/* A favourite is a state of the plate, not an action on the row, so it lives in the
-   foot beside the action and fills rather than moves when it is on. */
+/* Fills rather than moves when it is on. */
 .rad-fav[aria-pressed="true"] {
   color: var(--color-rad-warn);
 }
 
 .rad-fav[aria-pressed="true"] > [data-rad-icon] > svg {
   fill: currentColor;
+}
+
+/* The build variant in About. Takes the three presses that reveal the platform id. */
+.rad-variant {
+  cursor: default;
+  user-select: none;
 }
 
 /* ---- nav ---- */
@@ -311,8 +366,16 @@
      dashboard and both are inside one frame, so a frame-level rule here reaches the
      dashboard's own header and hides it while it is still on screen behind the cover.
      `is-list` is a state of this surface for the same reason. */
+  /* No safe-area padding: `.rad-cover` already carries the inset in its top offset. */
   .rad-settings .rad-backbar {
     display: flex;
+  }
+
+  /* Nothing else in the kit guarantees a touch target. */
+  .rad-settings .rad-backbar__btn,
+  .rad-settings .rad-backbar .rad-header-glyph {
+    min-width: 44px;
+    min-height: 44px;
   }
 
   .rad-settings .rad-dash-top {

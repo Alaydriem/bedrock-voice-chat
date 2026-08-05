@@ -121,6 +121,12 @@ pub(crate) async fn bedrock_start_proxy(
     state.proxy_target_host = Some(target_host.clone());
     state.proxy_target_port = Some(target_port);
     state.proxy_listen_port = Some(effective_listen_port);
+    state.proxy_started_at = Some(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0),
+    );
 
     let info = BedrockConnectionInfo {
         local_address: "127.0.0.1".to_string(),
@@ -152,6 +158,7 @@ pub(crate) async fn bedrock_stop_proxy(
     state.proxy_target_host = None;
     state.proxy_target_port = None;
     state.proxy_listen_port = None;
+    state.proxy_started_at = None;
     Ok(())
 }
 
@@ -569,6 +576,7 @@ pub(crate) async fn bedrock_get_status(
         proxy_target_host: state.proxy_target_host.clone(),
         proxy_target_port: state.proxy_target_port,
         proxy_listen_port: state.proxy_listen_port,
+        proxy_started_at: state.proxy_started_at,
         active_realm_id: state.active_realm_id,
         active_realm_name: state.active_realm_name.clone(),
     })

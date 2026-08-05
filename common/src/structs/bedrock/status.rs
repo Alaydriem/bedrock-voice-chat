@@ -10,6 +10,10 @@ pub struct BedrockStatus {
     pub proxy_target_host: Option<String>,
     pub proxy_target_port: Option<u16>,
     pub proxy_listen_port: Option<u16>,
+    // When the proxy came up, in unix seconds, so the UI can count for itself. A
+    // duration computed here would be a snapshot that starts ageing the moment it is
+    // serialised, and the status is polled.
+    pub proxy_started_at: Option<u64>,
     pub active_realm_id: Option<u64>,
     pub active_realm_name: Option<String>,
 }

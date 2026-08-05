@@ -11,6 +11,16 @@ pub enum WebSocketRoute {
 }
 
 impl WebSocketRoute {
+    // Which endpoint a connection is on, for the settings pane that lists them. A
+    // metrics subscriber and a command client behave nothing alike, so an operator
+    // looking at two rows needs to know which is which.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Command => "command",
+            Self::Metrics => "metrics",
+        }
+    }
+
     pub fn resolve(uri: &str, configured_key: &str) -> Result<Self, RejectReason> {
         let (path, query) = match uri.split_once('?') {
             Some((path, query)) => (path, Some(query)),

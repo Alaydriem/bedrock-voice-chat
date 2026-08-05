@@ -93,4 +93,5 @@ export type { TransferTargetRequest } from './TransferTargetRequest';
 export type { TransferTargetResponse } from './TransferTargetResponse';
 export type { UploaderIdentity } from './UploaderIdentity';
 export type { VoiceMode } from './VoiceMode';
+export type { WebSocketClientInfo } from './WebSocketClientInfo';
 export type { WebsocketTicketResponse } from './WebsocketTicketResponse';

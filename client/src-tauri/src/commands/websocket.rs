@@ -1,58 +1,59 @@
 use crate::websocket::{WebSocketConfig, WebSocketManager};
+use common::structs::websocket::WebSocketClientInfo;
 use common::traits::StreamTrait;
 use tauri::State;
 use tauri::async_runtime::Mutex;
 
+// Available on mobile as well as desktop. The process survives backgrounding through the
+// Android audio foreground service and the iOS `audio` background mode.
+
 #[tauri::command]
 pub async fn stop_websocket_server(
-    #[allow(unused_variables)] ws_manager: State<'_, Mutex<WebSocketManager>>,
+    ws_manager: State<'_, Mutex<WebSocketManager>>,
 ) -> Result<(), String> {
-    #[cfg(desktop)]
-    {
-        let mut manager = ws_manager.lock().await;
-        manager.stop().await.map_err(|e| e.to_string())?;
-    }
+    let mut manager = ws_manager.lock().await;
+    manager.stop().await.map_err(|e| e.to_string())?;
     Ok(())
 }
 
 #[tauri::command]
 pub async fn is_websocket_running(
-    #[allow(unused_variables)] ws_manager: State<'_, Mutex<WebSocketManager>>,
+    ws_manager: State<'_, Mutex<WebSocketManager>>,
 ) -> Result<bool, String> {
-    #[cfg(desktop)]
-    {
-        let manager = ws_manager.lock().await;
-        Ok(!manager.is_stopped())
-    }
-    #[cfg(not(desktop))]
-    {
-        Ok(false)
-    }
+    let manager = ws_manager.lock().await;
+    Ok(!manager.is_stopped())
 }
 
 #[tauri::command]
 pub async fn update_websocket_config(
     config: WebSocketConfig,
-    #[allow(unused_variables)] ws_manager: State<'_, Mutex<WebSocketManager>>,
+    ws_manager: State<'_, Mutex<WebSocketManager>>,
 ) -> Result<(), String> {
-    #[cfg(desktop)]
-    {
-        let mut manager = ws_manager.lock().await;
-        manager.update_config(config);
+    // The last place that sees the config before it binds.
+    if config.enabled && config.key.trim().is_empty() {
+        return Err("The WebSocket server needs an access token before it can start".to_string());
     }
+
+    let mut manager = ws_manager.lock().await;
+    manager.update_config(config);
     Ok(())
 }
 
 #[tauri::command]
 pub async fn start_websocket_server(
-    #[allow(unused_variables)] ws_manager: State<'_, Mutex<WebSocketManager>>,
+    ws_manager: State<'_, Mutex<WebSocketManager>>,
 ) -> Result<(), String> {
-    #[cfg(desktop)]
-    {
-        let mut manager = ws_manager.lock().await;
-        manager.start().await.map_err(|e| e.to_string())?;
-    }
+    let mut manager = ws_manager.lock().await;
+    manager.start().await.map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[tauri::command]
+pub async fn websocket_clients(
+    ws_manager: State<'_, Mutex<WebSocketManager>>,
+) -> Result<Vec<WebSocketClientInfo>, String> {
+    let manager = ws_manager.lock().await;
+    Ok(manager.clients().snapshot())
 }
 
 #[tauri::command]

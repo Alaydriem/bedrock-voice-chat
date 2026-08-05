@@ -68,6 +68,8 @@ impl BedrockConfig {
             enabled: self.enabled,
             dns_enabled: self.dns.enabled,
             transfer_port: self.enabled.then_some(self.transfer_port),
+            dns_override_host: (self.enabled && self.dns.enabled)
+                .then(|| self.dns.override_host.clone()),
             servers: if self.enabled {
                 self.servers.iter().map(BedrockServerEntry::to_api).collect()
             } else {
