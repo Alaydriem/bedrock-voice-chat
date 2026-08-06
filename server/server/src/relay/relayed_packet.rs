@@ -50,7 +50,6 @@ mod tests {
     fn sample_packet() -> QuicNetworkPacket {
         QuicNetworkPacket {
             packet_type: PacketType::AudioFrame,
-            owner: None,
             data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
                 vec![1, 2, 3],
                 48000,

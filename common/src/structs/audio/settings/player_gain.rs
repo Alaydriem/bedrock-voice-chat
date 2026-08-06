@@ -20,3 +20,18 @@ pub struct PlayerGainSettings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_seen: Option<f64>,
 }
+
+impl PlayerGainSettings {
+    /// What a player nobody holds an opinion about sounds like: unchanged and audible.
+    ///
+    /// The default is deliberately not silence. A lookup that misses — a wrong key, a device
+    /// heard from before its settings arrived — then plays the speaker rather than dropping
+    /// them, so a keying mistake is audible instead of a silent absence nobody can debug.
+    pub fn unity() -> Self {
+        Self {
+            gain: 1.0,
+            muted: false,
+            last_seen: None,
+        }
+    }
+}

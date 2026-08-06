@@ -431,10 +431,10 @@ async fn run(args: Args) -> Result<(), Box<dyn Error>> {
                 let s = encoder.encode_vec(&mono_chunk, 960).unwrap();
 
                 let packet = QuicNetworkPacket {
-                    owner: Some(common::structs::packet::PacketOwner {
-                        name: id.clone(),
-                        client_id: client_id.clone(),
-                    }),
+                    sender: Some(common::structs::packet::PacketSender::new(
+                        id.clone(),
+                        0,
+                    )),
                     packet_type: common::structs::packet::PacketType::AudioFrame,
                     data: common::structs::packet::QuicNetworkPacketData::AudioFrame(
                         common::structs::packet::AudioFramePacket::new(

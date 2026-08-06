@@ -24,23 +24,23 @@ class ControlActionTest {
 
     @Test
     fun mute_serializes_as_bool_tagged_variant() {
-        assertJson("""{"id":"Alice","action":{"SetMuted":true}}""", ControlAction.Mute(true))
+        assertJson("""{"id":"Alice","game":"minecraft","action":{"SetMuted":true}}""", ControlAction.Mute(true))
     }
 
     @Test
     fun deafen_serializes_as_bool_tagged_variant() {
-        assertJson("""{"id":"Alice","action":{"SetDeafened":false}}""", ControlAction.Deafen(false))
+        assertJson("""{"id":"Alice","game":"minecraft","action":{"SetDeafened":false}}""", ControlAction.Deafen(false))
     }
 
     @Test
     fun record_serializes_as_bool_tagged_variant() {
-        assertJson("""{"id":"Alice","action":{"SetRecording":true}}""", ControlAction.Record(true))
+        assertJson("""{"id":"Alice","game":"minecraft","action":{"SetRecording":true}}""", ControlAction.Record(true))
     }
 
     @Test
     fun volume_percent_becomes_fraction() {
         assertJson(
-            """{"id":"Alice","action":{"SetVolume":{"target":"Steve","volume":0.7}}}""",
+            """{"id":"Alice","game":"minecraft","action":{"SetVolume":{"target":"Steve","volume":0.7}}}""",
             ControlAction.Volume("Steve", 70),
         )
     }
@@ -48,30 +48,30 @@ class ControlActionTest {
     @Test
     fun hear_flag_inverts_to_muted() {
         assertJson(
-            """{"id":"Alice","action":{"SetHeard":{"target":"Steve","muted":true}}}""",
+            """{"id":"Alice","game":"minecraft","action":{"SetHeard":{"target":"Steve","muted":true}}}""",
             ControlAction.Hear("Steve", false),
         )
         assertJson(
-            """{"id":"Alice","action":{"SetHeard":{"target":"Steve","muted":false}}}""",
+            """{"id":"Alice","game":"minecraft","action":{"SetHeard":{"target":"Steve","muted":false}}}""",
             ControlAction.Hear("Steve", true),
         )
     }
 
     @Test
     fun create_group_is_a_bare_string() {
-        assertJson("""{"id":"Alice","action":"CreateGroup"}""", ControlAction.CreateGroup)
+        assertJson("""{"id":"Alice","game":"minecraft","action":"CreateGroup"}""", ControlAction.CreateGroup)
     }
 
     @Test
     fun join_group_carries_channel() {
         assertJson(
-            """{"id":"Alice","action":{"JoinGroup":{"channel":"abc123"}}}""",
+            """{"id":"Alice","game":"minecraft","action":{"JoinGroup":{"channel":"abc123"}}}""",
             ControlAction.JoinGroup("abc123"),
         )
     }
 
     @Test
     fun leave_group_is_a_bare_string() {
-        assertJson("""{"id":"Alice","action":"LeaveGroup"}""", ControlAction.LeaveGroup)
+        assertJson("""{"id":"Alice","game":"minecraft","action":"LeaveGroup"}""", ControlAction.LeaveGroup)
     }
 }

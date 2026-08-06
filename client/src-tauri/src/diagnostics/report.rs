@@ -1,6 +1,7 @@
 use std::fmt::Write;
 use std::net::IpAddr;
 
+use common::structs::audio::NoiseGateStatus;
 use common::structs::metrics::{LinkDiagnosticsSnapshot, LinkSample};
 
 // The copyable support artifact.
@@ -150,7 +151,11 @@ impl DiagnosticsReport {
         let _ = writeln!(
             out,
             "  Noise gate        {}",
-            if m.gate_open { "open" } else { "closed" }
+            match m.noise_gate {
+                NoiseGateStatus::Disabled => "off (not in the audio path)",
+                NoiseGateStatus::Open => "on, open (passing audio)",
+                NoiseGateStatus::Closed => "on, closed (cutting the mic)",
+            }
         );
         let _ = writeln!(out, "  Muted             {}", m.muted);
         let _ = writeln!(out, "  Sending           {:.0} datagrams/s", m.datagrams_per_sec);

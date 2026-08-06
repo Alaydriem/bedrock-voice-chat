@@ -3,7 +3,7 @@ use crate::stream::quic::{CacheManager, WebhookReceiver};
 use common::structs::{
     channel::ChannelEvents::Rename,
     packet::{
-        ChannelEventPacket, PacketOwner, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
+        ChannelEventPacket, PacketSender, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
     },
 };
 use rocket::{State, http::Status, mtls::Certificate, serde::json::Json};
@@ -42,10 +42,7 @@ pub async fn channel_rename(
     channel_collection.rename(id, new_name.clone()).await;
 
     let packet = QuicNetworkPacket {
-        owner: Some(PacketOwner {
-            name: String::from("channel_api"),
-            client_id: vec![0u8; 0],
-        }),
+        sender: Some(PacketSender::synthetic(PacketSender::CHANNEL_API)),
         packet_type: PacketType::ChannelEvent,
         data: QuicNetworkPacketData::ChannelEvent(ChannelEventPacket::new_full(
             Rename,

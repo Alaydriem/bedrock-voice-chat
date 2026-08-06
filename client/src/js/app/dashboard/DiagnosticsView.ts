@@ -50,6 +50,7 @@ export class DiagnosticsView {
             stalled: link.stalled,
             concealmentPercent: DiagnosticsView.round(link.worst_concealment_pct),
             muted: mic.muted,
+            noiseGate: mic.noise_gate,
             deafened: playback.deafened,
             pttIdle: extra.pttIdle,
             mutedOthers: playback.muted_peer_count,

@@ -1159,6 +1159,9 @@ function diagnostics(): DiagnosticsInput {
     reconnecting: link.reconnecting || FAULTS[link.fault] === "reconnecting",
     attempt: 3,
     muted: s.muted,
+    // On in this demo, so the row shows both of the states that matter as you talk and
+    // stop. A gate that is switched off reads "off" instead, which is the third.
+    noiseGate: s.transmitting ? "Open" : "Closed",
     deafened: s.deafened,
     pttIdle: s.mode === "ptt" && !s.holding,
     mutedOthers,

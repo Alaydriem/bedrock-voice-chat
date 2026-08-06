@@ -3,7 +3,7 @@ use crate::stream::quic::{CacheManager, WebhookReceiver};
 use common::structs::{
     channel::ChannelEvents::Delete,
     packet::{
-        ChannelEventPacket, PacketOwner, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
+        ChannelEventPacket, PacketSender, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
     },
 };
 use rocket::{State, http::Status, mtls::Certificate};
@@ -38,10 +38,7 @@ pub async fn channel_delete(
             channel_collection.remove(id).await;
 
             let packet = QuicNetworkPacket {
-                owner: Some(PacketOwner {
-                    name: String::from("channel_api"),
-                    client_id: vec![0u8; 0],
-                }),
+                sender: Some(PacketSender::synthetic(PacketSender::CHANNEL_API)),
                 packet_type: PacketType::ChannelEvent,
                 data: QuicNetworkPacketData::ChannelEvent(ChannelEventPacket::new_full(
                     Delete,

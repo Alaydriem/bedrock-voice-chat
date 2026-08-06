@@ -1,53 +1,73 @@
 use bvc_client_lib::control::ControlActionsManager;
+use common::Game;
 
-// Preferences key on exact gamertags everywhere downstream (the sink's
-// name→client-id remap, the dashboard's player cards), so a typed control
-// target must resolve onto the canonical key — a raw pass-through of a case or
-// game-prefix variant forks a ghost entry that plays no audio and renders on
-// no card.
+// A control target arrives from a game mod as a bare in-game name, while every key it has to
+// land on — the persisted gain store, the mixer's gain projection, the dashboard's cards — is
+// the canonical `game:gamertag`. These pin the composition and the one looseness that survives
+// it, because a target that resolves to the wrong key forks a ghost entry that plays no audio
+// and renders on no card.
 
-#[test]
-fn exact_match_passes_through_untouched() {
-    assert_eq!(
-        ControlActionsManager::canonicalize_target("Alice", &["Alice", "alice"]),
-        "Alice"
-    );
+fn resolve(target: &str, candidates: &[&str]) -> String {
+    ControlActionsManager::canonicalize_target(target, &Game::Minecraft, candidates)
 }
 
 #[test]
-fn case_variant_resolves_to_the_tracked_casing() {
-    assert_eq!(
-        ControlActionsManager::canonicalize_target("alaydriem", &["Alaydriem"]),
-        "Alaydriem"
-    );
+fn a_bare_target_is_composed_against_the_actions_game() {
+    assert_eq!(resolve("Alice", &["minecraft:Alice"]), "minecraft:Alice");
 }
 
 #[test]
-fn game_prefix_variants_resolve_in_both_directions() {
+fn an_already_canonical_target_is_not_prefixed_twice() {
     assert_eq!(
-        ControlActionsManager::canonicalize_target("minecraft:alice", &["Alice"]),
-        "Alice"
-    );
-    assert_eq!(
-        ControlActionsManager::canonicalize_target("alice", &["minecraft:Alice"]),
+        resolve("minecraft:Alice", &["minecraft:Alice"]),
         "minecraft:Alice"
     );
 }
 
 #[test]
-fn earlier_candidates_win_so_tracked_names_beat_store_keys() {
-    // Callers order candidates by authority: tracked voice names first, then
-    // existing store keys.
+fn case_variance_in_the_gamertag_resolves_to_the_tracked_casing() {
+    // What a mod reports genuinely varies in case from what the certificate carried, so this
+    // is the one comparison that stays loose.
     assert_eq!(
-        ControlActionsManager::canonicalize_target("alice", &["Alice", "ALICE"]),
-        "Alice"
+        resolve("alaydriem", &["minecraft:Alaydriem"]),
+        "minecraft:Alaydriem"
     );
 }
 
 #[test]
-fn unknown_target_parks_unchanged() {
+fn the_game_prefix_must_match_exactly() {
+    // `minecraft:Bob` and `hytale:Bob` are two people. A prefix-insensitive match would let a
+    // control action from one game mute somebody in the other, which is the collision the
+    // canonical key exists to prevent.
     assert_eq!(
-        ControlActionsManager::canonicalize_target("Ghost", &["Alice", "Bob"]),
-        "Ghost"
+        ControlActionsManager::canonicalize_target("Bob", &Game::Minecraft, &["hytale:Bob"]),
+        "minecraft:Bob",
+        "a hytale candidate must not answer for a minecraft target"
+    );
+}
+
+#[test]
+fn earlier_candidates_win_so_tracked_names_beat_store_keys() {
+    // Callers order candidates by authority: tracked voice names first, then existing store
+    // keys.
+    assert_eq!(
+        resolve("alice", &["minecraft:Alice", "minecraft:ALICE"]),
+        "minecraft:Alice"
+    );
+}
+
+#[test]
+fn an_unknown_target_parks_under_its_canonical_form() {
+    // Not under the raw name. A bare key is one nothing downstream looks up, so the entry
+    // would be written and then never resolve; the canonical form resolves as soon as that
+    // player is tracked.
+    assert_eq!(resolve("Ghost", &["minecraft:Alice"]), "minecraft:Ghost");
+}
+
+#[test]
+fn a_hytale_action_composes_a_hytale_key() {
+    assert_eq!(
+        ControlActionsManager::canonicalize_target("Carol", &Game::Hytale, &["hytale:Carol"]),
+        "hytale:Carol"
     );
 }

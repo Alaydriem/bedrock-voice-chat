@@ -189,10 +189,12 @@ describe("NearbyManager", () => {
         await vi.waitFor(() => expect(s.values["player_gain_store"]).toBeDefined());
 
         const gains = s.values["player_gain_store"] as Record<string, { last_seen?: number }>;
-        // Keyed on the bare gamertag, which is what the audio pipeline and the persisted store
-        // use — the CN form here would fork a second entry that plays no audio.
-        expect(gains["Petra"]).toBeDefined();
-        expect(typeof gains["Petra"].last_seen).toBe("number");
+        // Keyed on the canonical identity, which is what the mixer's gain projection and the
+        // persisted store resolve against. A bare key here would write an entry that nothing
+        // downstream ever looks up.
+        expect(gains["minecraft:Petra"]).toBeDefined();
+        expect(typeof gains["minecraft:Petra"].last_seen).toBe("number");
+        expect(gains["Petra"]).toBeUndefined();
         nearby.stop();
     });
 

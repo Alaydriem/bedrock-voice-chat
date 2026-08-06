@@ -22,6 +22,7 @@ const healthy: DiagnosticsInput = {
   uptimeSeconds: 2531,
   reconnecting: false,
   muted: false,
+  noiseGate: "Open",
   deafened: false,
   pttIdle: false,
   mutedOthers: 0,
@@ -129,6 +130,54 @@ describe("Diagnostics.groups", () => {
     const groups = Diagnostics.groups({ ...healthy, inputRate: 44100 });
     const rate = groups[0].rows.find(([key]) => key === "Sample rate");
     assert.ok(rate?.[1].includes("expected 48.0"));
+  });
+
+  /**
+   * The row was labelled "Noise gate" and reported the mute flag, so it read `open`
+   * whenever you were not muted — whether the gate was disabled, bound, open or closed.
+   * Someone whose microphone had gone quiet could not tell from it whether the gate was
+   * even in the audio path, and `open` invited them to conclude that it was.
+   */
+  it("says the gate is off rather than open when it is not in the audio path", () => {
+    const groups = Diagnostics.groups({ ...healthy, noiseGate: "Disabled" });
+    const gate = groups[0].rows.find(([key]) => key === "Noise gate");
+    assert.ok(gate?.[1].includes("off"));
+    assert.ok(!gate?.[1].includes("open"));
+  });
+
+  it("distinguishes a gate that is open from one that is cutting", () => {
+    const open = Diagnostics.groups({ ...healthy, noiseGate: "Open" })[0].rows.find(
+      ([key]) => key === "Noise gate",
+    );
+    assert.ok(open?.[1].includes("open"));
+
+    const closed = Diagnostics.groups({ ...healthy, noiseGate: "Closed" })[0].rows.find(
+      ([key]) => key === "Noise gate",
+    );
+    assert.ok(closed?.[1].includes("closed"));
+  });
+
+  // Only a gate that is bound and shut can be the reason, so only that one says so.
+  it("points at the gate when it is the thing holding the mic shut", () => {
+    const closed = Diagnostics.groups({ ...healthy, noiseGate: "Closed" })[0].rows.find(
+      ([key]) => key === "Noise gate",
+    );
+    assert.ok(closed?.[1].includes("←"));
+
+    const disabled = Diagnostics.groups({ ...healthy, noiseGate: "Disabled" })[0].rows.find(
+      ([key]) => key === "Noise gate",
+    );
+    assert.ok(!disabled?.[1].includes("←"));
+  });
+
+  // Mute is its own row and its own verdict. Reporting it here said nothing about the gate
+  // and hid the one thing this row exists to show.
+  it("reports the gate rather than the mute flag", () => {
+    const muted = Diagnostics.groups({ ...healthy, muted: true, noiseGate: "Open" })[0].rows.find(
+      ([key]) => key === "Noise gate",
+    );
+    assert.ok(!muted?.[1].includes("muted"));
+    assert.ok(muted?.[1].includes("open"));
   });
 
   it("says so plainly when nothing is going out", () => {

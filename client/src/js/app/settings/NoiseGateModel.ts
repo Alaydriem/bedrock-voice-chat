@@ -18,7 +18,12 @@ export interface GateKnob {
  * round never shuts, and nothing in the audio path refuses it.
  */
 export class NoiseGateModel {
-    /** Matches what the previous knob UI wrote. */
+    /**
+     * The one set of defaults on this side of the boundary: what a launch seeds into the
+     * store and what Reset restores are the same numbers, and `NoiseGateSettings::default`
+     * in `common` carries them too. Two literals drifted apart once, and a gate the user
+     * never touched then behaved differently from one they had reset.
+     */
     static readonly DEFAULTS: NoiseGateSettings = {
         open_threshold: -40,
         close_threshold: -50,

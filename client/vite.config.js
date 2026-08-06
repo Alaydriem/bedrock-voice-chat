@@ -1,6 +1,5 @@
 import { defineConfig } from "vite";
 import { sveltekit } from "@sveltejs/kit/vite";
-import tailwindcss from "@tailwindcss/vite";
 import { sentryVitePlugin } from "@sentry/vite-plugin";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -32,18 +31,6 @@ function preloaderVersion() {
   return hash.digest("hex").slice(0, 12);
 }
 
-// Patches webaudio-controls `const` reassignment bug that Rolldown rejects
-function patchWebaudioControls() {
-  return {
-    name: "patch-webaudio-controls",
-    transform(code, id) {
-      if (id.includes("webaudio-controls")) {
-        return { code: code.replaceAll("const delta = this.step", "let delta = this.step") };
-      }
-    },
-  };
-}
-
 // Set at module scope, not from a plugin hook: SvelteKit reads the environment in a
 // `config` hook ordered 'pre', so a plugin of ours would always assign this after
 // app.html had already been substituted.
@@ -55,8 +42,6 @@ export default defineConfig(async () => ({
   envPrefix: ["VITE_", "SENTRY_"],
 
   plugins: [
-    patchWebaudioControls(),
-    tailwindcss(),
     sveltekit(),
     sentryVitePlugin({
       org: process.env.SENTRY_ORG,
@@ -73,13 +58,11 @@ export default defineConfig(async () => ({
     target: ['es2020', 'chrome87'],
   },
 
-  // SvelteKit route nodes are dynamically imported, so Vite's dep scanner
-  // never crawls into +page.svelte's transitive imports at startup. The heavy
-  // CJS libraries pulled in by js/app/app.ts are therefore discovered only on
-  // the first navigation to "/", triggering a second optimization pass whose
-  // "optimized dependencies changed. reloading" races the in-flight route node
-  // import and serves it malformed (SyntaxError). Pre-bundling them in the
-  // first pass eliminates the second pass and the reload race.
+  // SvelteKit route nodes are dynamically imported, so Vite's dep scanner never crawls
+  // into +page.svelte's transitive imports at startup. A dependency discovered only on
+  // the first navigation triggers a second optimization pass, whose "optimized
+  // dependencies changed. reloading" races the in-flight route node import and serves it
+  // malformed (SyntaxError). Pre-bundling in the first pass eliminates the race.
   optimizeDeps: {
     include: [
       "@sentry/browser",
@@ -88,26 +71,8 @@ export default defineConfig(async () => ({
       "@tauri-apps/plugin-log",
       "@tauri-apps/plugin-os",
       "@tauri-apps/plugin-store",
-      "alpinejs",
-      "@alpinejs/collapse",
-      "@alpinejs/intersect",
-      "@alpinejs/persist",
-      "@caneara/iodine",
-      "@popperjs/core",
-      "apexcharts",
-      "cleave.js/dist/cleave.min",
-      "dayjs",
-      "filepond",
-      "filepond-plugin-image-preview",
-      "flatpickr",
-      "gridjs",
-      "quill",
-      "simplebar",
-      "sortablejs",
-      "swiper/bundle",
-      "tippy.js",
-      "toastify-js",
-      "tom-select/dist/js/tom-select.complete.min",
+      "axios",
+      "murmurhash3js",
     ],
   },
 

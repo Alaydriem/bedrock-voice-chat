@@ -1,5 +1,4 @@
 use bytes::Bytes;
-use common::Game;
 use common::PlayerEnum;
 use common::structs::packet::{
     PacketType, PlayerDataPacket, QuicNetworkPacket, QuicNetworkPacketData,
@@ -25,16 +24,13 @@ pub enum RoutedPacket {
 }
 
 pub(crate) struct ConnectionEntry {
-    pub player_name: String,
+    // The canonical identity from this connection's mTLS certificate CN, `game:gamertag`. It is
+    // the key every other map in this registry uses, so nothing here has to compose or split one.
+    pub identity: String,
     // Outbound sequence for this connection, so a client can derive its own downlink loss from gaps
     // rather than being told by a report that travels the same lossy path.
     pub sequence: Arc<ConnectionSequence>,
-    // The game from this connection's mTLS certificate CN. Channel membership keys
-    // are `game:gamertag`, so holding it here lets membership be resolved from the
-    // authenticated identity instead of from position data the player may not have
-    // sent yet.
-    pub game: Game,
-    // Precomputed hash of player_name for interaction measurement, so the audio
+    // Precomputed hash of the identity for interaction measurement, so the audio
     // delivery path never hashes a recipient name per frame.
     pub name_hash: u64,
     pub tx: mpsc::Sender<RoutedPacket>,
@@ -42,11 +38,13 @@ pub(crate) struct ConnectionEntry {
 }
 
 pub struct ConnectionRegistry {
-    connections: DashMap<Vec<u8>, ConnectionEntry>,
-    // player_name (bare gamertag) -> client_id, for O(1) point-to-point delivery
+    // Keyed on the QUIC connection id, which the server mints at accept. It is unforgeable and
+    // unique per connection, which is what lets one player hold two of them.
+    connections: DashMap<u64, ConnectionEntry>,
+    // canonical identity -> connection id, for O(1) point-to-point delivery
     // (`send_to_player`) without scanning all connections.
-    name_index: DashMap<String, Vec<u8>>,
-    // player_name -> channel_id (one channel per player)
+    name_index: DashMap<String, u64>,
+    // canonical identity -> channel_id (one channel per player)
     player_channel: DashMap<String, String>,
     // Emits connect/disconnect counters + events. Installed after construction,
     // mirroring the peer_manager / observe_handler OnceLock pattern.
@@ -95,49 +93,42 @@ impl ConnectionRegistry {
         let _ = self.metrics.set(metrics);
     }
 
-    // Distinct connected players, not raw connection entries. client_id is minted
+    // Distinct connected players, not raw connection entries. A connection id is minted
     // fresh per connection, so a reconnecting player registers a second entry that
     // lives until the stale one is reaped. Counting entries double-counts them —
     // transient for the active gauge, but permanent for the peak high-water mark,
     // which only falls at the UTC day boundary.
     fn active_player_count(&self) -> i64 {
-        self.live_player_names().len() as i64
+        self.live_identities().len() as i64
     }
 
-    // The set of currently-connected players, by bare gamertag. Channel membership
+    // The set of currently-connected players, by canonical identity. Channel membership
     // legitimately outlives a QUIC drop (until the reaper runs), so gauges that must
-    // reflect *current* usage filter player_channel against this set. player_channel
-    // keys are the cert CN (`game:gamertag`); connections store the bare gamertag, so
-    // callers match on the post-`:` portion of the key.
-    fn live_player_names(&self) -> std::collections::HashSet<String> {
+    // reflect *current* usage filter player_channel against this set. Both sides are keyed
+    // on the same form, so the comparison is a plain lookup.
+    fn live_identities(&self) -> std::collections::HashSet<String> {
         self.connections
             .iter()
-            .map(|e| e.value().player_name.clone())
+            .map(|e| e.value().identity.clone())
             .collect()
     }
 
     fn active_channel_count(&self) -> i64 {
-        let live = self.live_player_names();
+        let live = self.live_identities();
         let distinct: std::collections::HashSet<String> = self
             .player_channel
             .iter()
-            .filter(|e| {
-                let bare = e.key().split_once(':').map(|(_, b)| b).unwrap_or(e.key());
-                live.contains(bare)
-            })
+            .filter(|e| live.contains(e.key()))
             .map(|e| e.value().clone())
             .collect();
         distinct.len() as i64
     }
 
     fn players_in_channels(&self) -> i64 {
-        let live = self.live_player_names();
+        let live = self.live_identities();
         self.player_channel
             .iter()
-            .filter(|e| {
-                let bare = e.key().split_once(':').map(|(_, b)| b).unwrap_or(e.key());
-                live.contains(bare)
-            })
+            .filter(|e| live.contains(e.key()))
             .count() as i64
     }
 
@@ -164,15 +155,14 @@ impl ConnectionRegistry {
     // evicting players mid-reconnect.
     pub fn reap_stale_channels(&self) {
         const REAP_GRACE_SWEEPS: u32 = 2;
-        let live = self.live_player_names();
+        let live = self.live_identities();
         self.channel_absent_ticks
             .retain(|k, _| self.player_channel.contains_key(k));
 
         let mut purge: Vec<String> = Vec::new();
         for e in self.player_channel.iter() {
             let key = e.key();
-            let bare = key.split_once(':').map(|(_, b)| b).unwrap_or(key);
-            if live.contains(bare) {
+            if live.contains(key) {
                 self.channel_absent_ticks.remove(key);
             } else {
                 let mut n = self.channel_absent_ticks.entry(key.clone()).or_insert(0);
@@ -267,57 +257,59 @@ impl ConnectionRegistry {
         None
     }
 
-    pub fn register(
-        &self,
-        client_id: Vec<u8>,
-        player_name: String,
-        game: Game,
-        tx: mpsc::Sender<RoutedPacket>,
-    ) {
+    pub fn register(&self, device: u64, identity: String, tx: mpsc::Sender<RoutedPacket>) {
         tracing::info!(
             "Registering connection for player: {} (connections: {})",
-            player_name,
+            identity,
             self.connections.len() + 1
         );
-        self.name_index.insert(player_name.clone(), client_id.clone());
-        let registered_name = player_name.clone();
-        let name_hash = InteractionTracker::hash_name(&player_name);
+        self.name_index.insert(identity.clone(), device);
+        let registered_name = identity.clone();
+        let name_hash = InteractionTracker::hash_name(&identity);
         let replaced = self.connections.insert(
-            client_id,
+            device,
             ConnectionEntry {
-                player_name,
+                identity,
                 sequence: ConnectionSequence::new_shared(),
-                game,
                 name_hash,
                 tx,
                 connected_at: Instant::now(),
             },
         );
         if let Some(metrics) = self.metrics.get() {
-            // A reconnect reusing the same client_id overwrites the prior entry;
-            // close out that session first so connect/disconnect counters and
-            // session durations stay balanced.
+            // A connection id is unique for the lifetime of the process, so this only
+            // replaces an entry the reaper has not reached yet; close out that session
+            // first so connect/disconnect counters and session durations stay balanced.
             if let Some(old) = replaced {
-                metrics.record_disconnect(&old.player_name, old.connected_at.elapsed());
+                metrics.record_disconnect(&old.identity, old.connected_at.elapsed());
             }
             metrics.record_connect(&registered_name);
         }
         self.push_gauges();
     }
 
-    pub fn unregister(&self, client_id: &[u8]) {
-        if let Some((_, entry)) = self.connections.remove(client_id) {
+    pub fn unregister(&self, device: u64) {
+        if let Some((_, entry)) = self.connections.remove(&device) {
             // Only clear the index if it still points at THIS connection — a
             // reconnect that already reused the name must not be evicted here.
-            self.name_index
-                .remove_if(&entry.player_name, |_, v| v.as_slice() == client_id);
-            self.player_channel.remove(&entry.player_name);
+            let is_current = self
+                .name_index
+                .get(&entry.identity)
+                .map(|v| *v == device)
+                .unwrap_or(false);
+            self.name_index.remove_if(&entry.identity, |_, v| *v == device);
+            // Guarded for the same reason, and it was not. A close arriving after the player
+            // has already reconnected dropped the live connection's channel membership, and
+            // their audio silently reverted to proximity until they rejoined the channel.
+            if is_current {
+                self.player_channel.remove(&entry.identity);
+            }
             if let Some(metrics) = self.metrics.get() {
-                metrics.record_disconnect(&entry.player_name, entry.connected_at.elapsed());
+                metrics.record_disconnect(&entry.identity, entry.connected_at.elapsed());
             }
             tracing::info!(
                 "Unregistered connection for player: {} (connections: {})",
-                entry.player_name,
+                entry.identity,
                 self.connections.len()
             );
             self.push_gauges();
@@ -361,7 +353,7 @@ impl ConnectionRegistry {
             return;
         }
 
-        let mut dead_keys: Vec<Vec<u8>> = Vec::new();
+        let mut dead_keys: Vec<u64> = Vec::new();
 
         // Serialized per recipient rather than once, because each carries that connection's own
         // sequence number. One postcard pass per listener replaces a `Bytes` refcount clone; at
@@ -379,17 +371,17 @@ impl ConnectionRegistry {
                 Err(mpsc::error::TrySendError::Full(_)) => {
                     tracing::debug!(
                         "Dropping broadcast packet for player {} (channel full)",
-                        entry.value().player_name,
+                        entry.value().identity,
                     );
                 }
                 Err(mpsc::error::TrySendError::Closed(_)) => {
-                    dead_keys.push(entry.key().clone());
+                    dead_keys.push(*entry.key());
                 }
             }
         }
 
         for key in dead_keys {
-            self.unregister(&key);
+            self.unregister(key);
         }
     }
 
@@ -409,7 +401,7 @@ impl ConnectionRegistry {
 
         let rebuild = |players: &[PlayerEnum]| QuicNetworkPacket {
             packet_type: packet.packet_type.clone(),
-            owner: packet.owner.clone(),
+            sender: packet.sender.clone(),
             data: QuicNetworkPacketData::PlayerData(PlayerDataPacket::new(players.to_vec())),
             // Each half is re-entered through `broadcast_to_all`, which stamps per recipient.
             ..Default::default()
@@ -438,17 +430,17 @@ impl ConnectionRegistry {
         let mut delivered = 0;
 
         for player in &data.players {
-            let name = player.get_name();
+            let identity = player.identity();
 
             // Most of the roster is not on voice at all; skipping the
             // non-connected majority is the entire saving.
-            if !self.name_index.contains_key(name) {
+            if !self.name_index.contains_key(&identity) {
                 continue;
             }
 
             let own = QuicNetworkPacket {
                 packet_type: packet.packet_type.clone(),
-                owner: packet.owner.clone(),
+                sender: packet.sender.clone(),
                 data: QuicNetworkPacketData::PlayerData(PlayerDataPacket::new(vec![
                     player.clone(),
                 ])),
@@ -456,7 +448,7 @@ impl ConnectionRegistry {
                 ..Default::default()
             };
 
-            if self.send_to_player(name, &own) {
+            if self.send_to_player(&identity, &own) {
                 delivered += 1;
             }
         }
@@ -464,31 +456,31 @@ impl ConnectionRegistry {
         delivered
     }
 
-    /// Who currently holds a voice connection, by authenticated name.
+    /// Who currently holds a voice connection, by canonical identity.
     ///
     /// The position cache the mod feeds carries the whole world, most of which is not on
     /// voice at all — the same asymmetry `send_positions_to_owners` exploits. This is what
     /// lets the position feed report "in range, and nothing you say reaches them" rather
     /// than omitting those players and making them indistinguishable from nobody.
-    pub fn on_voice_names(&self) -> std::collections::HashSet<String> {
+    pub fn on_voice_identities(&self) -> std::collections::HashSet<String> {
         self.name_index
             .iter()
             .map(|entry| entry.key().clone())
             .collect()
     }
 
-    // Delivers a single packet to one connected player (by bare gamertag) via the
+    // Delivers a single packet to one connected player (by canonical identity) via the
     // O(1) name index. Returns whether a live connection received it; a closed
     // sender is reaped. Used by the control plane to route a ClientBound action to
     // its authenticated actor.
-    pub fn send_to_player(&self, player_name: &str, packet: &QuicNetworkPacket) -> bool {
-        let client_id = match self.name_index.get(player_name) {
-            Some(id) => id.value().clone(),
+    pub fn send_to_player(&self, identity: &str, packet: &QuicNetworkPacket) -> bool {
+        let device = match self.name_index.get(identity) {
+            Some(id) => *id.value(),
             None => return false,
         };
         // Clone the sender and drop the DashMap ref before any send/unregister to
         // avoid holding a shard lock across a potential `unregister`.
-        let (tx, sequence) = match self.connections.get(&client_id) {
+        let (tx, sequence) = match self.connections.get(&device) {
             Some(entry) => (entry.value().tx.clone(), entry.value().sequence.clone()),
             None => return false,
         };
@@ -524,19 +516,19 @@ impl ConnectionRegistry {
             Ok(()) => true,
             Err(mpsc::error::TrySendError::Full(_)) => false,
             Err(mpsc::error::TrySendError::Closed(_)) => {
-                self.unregister(&client_id);
+                self.unregister(device);
                 false
             }
         }
     }
 
-    pub fn update_player_channel(&self, player_name: String, channel_id: String) {
-        self.player_channel.insert(player_name, channel_id);
+    pub fn update_player_channel(&self, identity: String, channel_id: String) {
+        self.player_channel.insert(identity, channel_id);
         self.push_gauges();
     }
 
-    pub fn remove_player_channel(&self, player_name: &str) {
-        self.player_channel.remove(player_name);
+    pub fn remove_player_channel(&self, identity: &str) {
+        self.player_channel.remove(identity);
         self.push_gauges();
     }
 
@@ -545,37 +537,20 @@ impl ConnectionRegistry {
         self.push_gauges();
     }
 
-    // Builds the `game:gamertag` key used to index `player_channel`.
-    // The player_channel map is written by the channel event handler using the
-    // cert CN, which is always in `game:gamertag` form (e.g. "minecraft:Alice").
-    fn channel_key(game: common::structs::game::Game, name: &str) -> String {
-        game.membership_key(name)
-    }
-
     // The precomputed reach hash for a locally-connected player. `None` means the
     // name belongs to no live local connection.
     //
     // That covers two different populations. Server-injected audio (jukebox, webhook)
-    // carries a synthetic owner and genuinely is not a player, which is the exclusion
+    // carries a synthetic sender and genuinely is not a player, which is the exclusion
     // this measurement wants. Relayed peers are real humans who happen to be
     // registered on their own server, and they are excluded too — so a deployment
     // whose conversation happens across the relay link reports near-zero reach, and
     // no emitted field distinguishes that from a quiet server.
-    fn connection_name_hash(&self, player_name: &str) -> Option<u64> {
-        let client_id = self.name_index.get(player_name)?.value().clone();
+    fn connection_name_hash(&self, identity: &str) -> Option<u64> {
+        let device = *self.name_index.get(identity)?.value();
         self.connections
-            .get(&client_id)
+            .get(&device)
             .map(|entry| entry.value().name_hash)
-    }
-
-    // The authenticated game for a live connection, by player name. `None` when the
-    // name has no connection — a server-injected sender such as a jukebox, or a
-    // player who has already disconnected.
-    fn connection_game(&self, player_name: &str) -> Option<Game> {
-        let client_id = self.name_index.get(player_name)?.value().clone();
-        self.connections
-            .get(&client_id)
-            .map(|entry| entry.value().game.clone())
     }
 
     pub async fn route_audio_frame(
@@ -587,9 +562,10 @@ impl ConnectionRegistry {
     ) {
         let route_started = Instant::now();
 
-        let sender_name = match &packet.owner {
-            Some(owner) => &owner.name,
-            None => return,
+        // The identity the server stamped from the certificate at ingress, already canonical.
+        // An unstamped packet has no authenticated sender and is not routable.
+        let Some(sender_identity) = packet.sender_identity() else {
+            return;
         };
 
         let audio_frame = match &packet.data {
@@ -597,34 +573,24 @@ impl ConnectionRegistry {
             _ => return,
         };
 
-        // Resolve sender's PlayerEnum once up-front so the game is available
-        // both for the channel-key derivation and for the proximity branch.
-        // player_cache is keyed by bare gamertag; audio_frame.sender carries the
-        // full PlayerEnum when the client has already sent a position packet.
+        // Every key below is the identity itself, so the cache and the channel map are both
+        // reachable before the player has sent a position. Server-injected senders (jukebox,
+        // webhook, relayed peer audio) have no connection and no cache entry — they carry their
+        // player data on the frame instead, which is the branch below that skips the cache.
         let sender_player: Option<PlayerEnum> = match &audio_frame.sender {
             Some(player) => Some(player.clone()),
-            None => player_cache.get(sender_name).await,
+            None => player_cache.get(sender_identity).await,
         };
 
-        // The sender's game comes from its authenticated certificate when it has a
-        // live connection, so channel membership resolves even before the player has
-        // sent a position. Server-injected senders (jukebox, webhook, relayed peer
-        // audio) have no connection, so they fall back to the game on the packet.
-        let sender_game: Option<Game> = self
-            .connection_game(sender_name)
-            .or_else(|| sender_player.as_ref().map(|sp| sp.get_game()));
-
-        let sender_channel: Option<String> = sender_game.and_then(|game| {
-            let key = Self::channel_key(game, sender_name);
-            self.player_channel.get(&key).map(|r| r.clone())
-        });
+        let sender_channel: Option<String> =
+            self.player_channel.get(sender_identity).map(|r| r.clone());
 
         let original_spatial = audio_frame.spatial;
         let has_sender = audio_frame.sender.is_some();
 
         tracing::debug!(
             "route_audio_frame: sender={} original_spatial={:?} has_sender={} sender_channel={:?}",
-            sender_name,
+            sender_identity,
             original_spatial,
             has_sender,
             sender_channel,
@@ -646,9 +612,8 @@ impl ConnectionRegistry {
 
         // Snapshot connections to release DashMap shard locks before any .await
         let snapshot: Vec<(
-            Vec<u8>,
+            u64,
             String,
-            Game,
             u64,
             mpsc::Sender<RoutedPacket>,
             Arc<ConnectionSequence>,
@@ -657,9 +622,8 @@ impl ConnectionRegistry {
             .iter()
             .map(|entry| {
                 (
-                    entry.key().clone(),
-                    entry.value().player_name.clone(),
-                    entry.value().game.clone(),
+                    *entry.key(),
+                    entry.value().identity.clone(),
                     entry.value().name_hash,
                     entry.value().tx.clone(),
                     entry.value().sequence.clone(),
@@ -667,32 +631,25 @@ impl ConnectionRegistry {
             })
             .collect();
 
-        let mut dead_keys: Vec<Vec<u8>> = Vec::new();
+        let mut dead_keys: Vec<u64> = Vec::new();
         // Reach measures humans reaching humans, so only a sender with a live local
         // connection qualifies — otherwise a server whose players never speak to each
         // other would report healthy reach purely from background music. See
         // `connection_name_hash` for why this also drops relayed peers, who are not
         // background music.
-        let sender_hash = self.connection_name_hash(sender_name);
+        let sender_hash = self.connection_name_hash(sender_identity);
 
-        for (client_id, recipient_name, recipient_game, recipient_hash, tx, sequence) in
-            &snapshot
-        {
-            if recipient_name == sender_name {
+        for (device, recipient_identity, recipient_hash, tx, sequence) in &snapshot {
+            if recipient_identity == sender_identity {
                 continue;
             }
 
             // Position data is required only by the proximity branch below, so a
             // recipient that has not sent one is still eligible for channel audio.
-            let recipient_player = player_cache.get(recipient_name).await;
+            let recipient_player = player_cache.get(recipient_identity).await;
 
-            // The recipient's game comes from its authenticated certificate, which is
-            // held on the connection being routed to, so its channel key resolves
-            // without position data.
-            let recipient_channel: Option<String> = {
-                let key = Self::channel_key(recipient_game.clone(), recipient_name);
-                self.player_channel.get(&key).map(|r| r.clone())
-            };
+            let recipient_channel: Option<String> =
+                self.player_channel.get(recipient_identity).map(|r| r.clone());
 
             // Channel membership is cross-game by design: a channel id is shared
             // across games, so `minecraft:Bob` and `hytale:Carol` in the same
@@ -710,8 +667,8 @@ impl ConnectionRegistry {
             let (use_channel_variant, route) = if in_same_channel {
                 tracing::debug!(
                     "route_audio_frame: {} -> {} IN_CHANNEL spatial={:?}",
-                    sender_name,
-                    recipient_name,
+                    sender_identity,
+                    recipient_identity,
                     original_spatial,
                 );
                 // Same-channel members always receive the non-spatial variant so
@@ -744,8 +701,8 @@ impl ConnectionRegistry {
                 if let Err(e) = sp.can_communicate_with(rp, effective_range) {
                     tracing::debug!(
                         "Audio packet {} -> {} rejected: {}",
-                        sender_name,
-                        recipient_name,
+                        sender_identity,
+                        recipient_identity,
                         e
                     );
                     continue;
@@ -780,17 +737,17 @@ impl ConnectionRegistry {
                     }
                     tracing::debug!(
                         "Dropping audio packet for player {} (channel full)",
-                        recipient_name,
+                        recipient_identity,
                     );
                 }
                 Err(mpsc::error::TrySendError::Closed(_)) => {
-                    dead_keys.push(client_id.clone());
+                    dead_keys.push(*device);
                 }
             }
         }
 
         for key in dead_keys {
-            self.unregister(&key);
+            self.unregister(key);
         }
 
         if let Some(m) = self.metrics.get() {
@@ -805,7 +762,7 @@ mod tests {
     use crate::relay::{AlwaysProven, PeerTable, RelayIngestSink, RelayedPacket as _RelayedPacket};
     use common::game_data::Dimension;
     use common::players::MinecraftPlayer;
-    use common::structs::packet::{AudioFramePacket, PacketOwner, PacketType};
+    use common::structs::packet::{AudioFramePacket, PacketSender, PacketType};
     use common::structs::relay::RelayEndpoint;
     use common::{Coordinate, Orientation};
     use std::time::Instant;
@@ -865,10 +822,7 @@ mod tests {
     fn audio_packet(sender: Option<PlayerEnum>) -> QuicNetworkPacket {
         QuicNetworkPacket {
             packet_type: PacketType::AudioFrame,
-            owner: Some(PacketOwner {
-                name: "alice".into(),
-                client_id: vec![1, 2, 3],
-            }),
+            sender: Some(PacketSender::new("minecraft:alice".into(), 1)),
             data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
                 vec![5, 5, 5],
                 48000,

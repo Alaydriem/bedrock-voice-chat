@@ -1,162 +1,138 @@
 <script lang="ts">
-    import { onMount } from 'svelte';
+    import { onMount } from "svelte";
     import { invoke } from "@tauri-apps/api/core";
-    import { mount } from "svelte";
-    import { info, error } from '@tauri-apps/plugin-log';
-    import { Store } from '@tauri-apps/plugin-store';
-    import PlatformDetector from '../../js/app/utils/PlatformDetector';
-    import Analytics from '../../js/app/analytics';
-    import selectSvelte from '../forms/select.svelte';
-    import type { AudioDevice } from '../../js/bindings/AudioDevice';
+    import { info, error } from "@tauri-apps/plugin-log";
+    import Loader from "$radial/components/Loader.svelte";
+    import SettingRow from "$radial/components/SettingRow.svelte";
+    import PlatformDetector from "../../js/app/utils/PlatformDetector";
+    import Analytics from "../../js/app/analytics";
+    import { AudioDeviceIdentity } from "../../js/app/settings/AudioDeviceIdentity";
+    import type { AudioDevice } from "../../js/bindings/AudioDevice";
+    import type { AudioDeviceType } from "../../js/bindings/AudioDeviceType";
 
-    // Props for customization
-    interface Props {
-        layoutMode?: "vertical" | "horizontal";
-        containerClass?: string;
-        deviceContainerClass?: string;
-        showLoadingText?: boolean;
-        store?: Store | null;
-        eventScope?: string; // CSS selector scope for event listeners
-    }
-
-    let {
-        layoutMode = "vertical",
-        containerClass = "space-y-4",
-        deviceContainerClass = "",
-        showLoadingText = true,
-        store = null,
-        eventScope = "#audio-device-selector-component"
-    }: Props = $props();
-
+    /**
+     * The input and output pickers, for the two screens that offer them.
+     *
+     * Mobile is asked first and answered by not rendering: Android and iOS route voice
+     * themselves, so a picker there is a control that either lies or fights the system.
+     */
     let isMobile = $state(false);
-    let inputDevices: AudioDevice[] = $state([]);
-    let outputDevices: AudioDevice[] = $state([]);
-    let platformDetector: PlatformDetector;
     let isLoading = $state(true);
+    let failure = $state("");
+
+    let inputDevices = $state<readonly AudioDevice[]>([]);
+    let outputDevices = $state<readonly AudioDevice[]>([]);
+    /** Identities rather than names: a name can belong to more than one device. */
+    let selectedInput = $state("");
+    let selectedOutput = $state("");
 
     onMount(async () => {
-        platformDetector = new PlatformDetector();
-        isMobile = await platformDetector.checkMobile();
-
-        if (!isMobile) {
-            await loadDevices();
-        }
-
+        isMobile = await new PlatformDetector().checkMobile();
+        if (!isMobile) await loadDevices();
         isLoading = false;
     });
 
-    async function loadDevices() {
+    async function loadDevices(): Promise<void> {
         try {
             const devices = await invoke<Record<string, AudioDevice[]>>("get_devices");
+            const inputs: AudioDevice[] = [];
+            const outputs: AudioDevice[] = [];
 
-            Object.keys(devices).forEach((type) => {
-                devices[type].forEach((device: AudioDevice) => {
-                    if (device.io === "InputDevice") {
-                        inputDevices.push(device);
-                    } else {
-                        outputDevices.push(device);
-                    }
-                });
-            });
-
-            inputDevices.sort();
-            outputDevices.sort();
-
-            // Mount input device selector
-            if (inputDevices.length > 0) {
-                const currentInputDevice = await invoke<AudioDevice>("get_audio_device", { io: "InputDevice" });
-                const inputContainer = document.getElementById("input-audio-device-container");
-                if (inputContainer) {
-                    mount(selectSvelte, {
-                        target: inputContainer,
-                        props: {
-                            label: "Input Device",
-                            id: "input-audio-device",
-                            options: inputDevices,
-                            defaultOption: currentInputDevice.display_name,
-                        }
-                    });
+            for (const group of Object.values(devices)) {
+                for (const device of group) {
+                    (device.io === "InputDevice" ? inputs : outputs).push(device);
                 }
             }
 
-            // Mount output device selector
-            if (outputDevices.length > 0) {
-                const currentOutputDevice = await invoke<AudioDevice>("get_audio_device", { io: "OutputDevice" });
-                const outputContainer = document.getElementById("output-audio-device-container");
-                if (outputContainer) {
-                    mount(selectSvelte, {
-                        target: outputContainer,
-                        props: {
-                            label: "Output Device",
-                            id: "output-audio-device",
-                            options: outputDevices,
-                            defaultOption: currentOutputDevice.display_name,
-                        }
-                    });
-                }
-            }
+            const byName = (a: AudioDevice, b: AudioDevice) =>
+                a.display_name.localeCompare(b.display_name);
+            inputDevices = AudioDeviceIdentity.unique(inputs.sort(byName));
+            outputDevices = AudioDeviceIdentity.unique(outputs.sort(byName));
 
-            // Add change event listeners
-            const selects = document.querySelectorAll(`${eventScope} select`);
-            selects.forEach((element) => {
-                element.addEventListener("change", async (e) => {
-                    const target = e.target as HTMLSelectElement;
-                    const selectedOption = target.options[target.selectedIndex];
-                    const deviceName = selectedOption.value;
-
-                    let targetDevice: AudioDevice | undefined;
-                    if (target.id === "input-audio-device") {
-                        targetDevice = inputDevices.find(d => d.display_name === deviceName);
-                    } else if (target.id === "output-audio-device") {
-                        targetDevice = outputDevices.find(d => d.display_name === deviceName);
-                    }
-
-                    if (targetDevice) {
-                        try {
-                            await invoke("set_audio_device", { device: targetDevice });
-                            info(`Audio device changed to ${targetDevice.display_name} for ${target.id}`);
-                            Analytics.track("AudioDeviceChanged", {
-                                device_type: target.id === "input-audio-device" ? "InputDevice" : "OutputDevice"
-                            });
-                            await invoke("change_audio_device");
-                        } catch (e) {
-                            error(`Error changing audio device: ${e}`);
-                        }
-                    }
-                });
-            });
+            selectedInput = await current("InputDevice");
+            selectedOutput = await current("OutputDevice");
         } catch (e) {
+            failure = `${e}`;
             error(`Error loading audio devices: ${e}`);
+        }
+    }
+
+    async function current(io: AudioDeviceType): Promise<string> {
+        const device = await invoke<AudioDevice>("get_audio_device", { io });
+        return AudioDeviceIdentity.keyOf(device);
+    }
+
+    async function choose(io: AudioDeviceType, key: string): Promise<void> {
+        const pool = io === "InputDevice" ? inputDevices : outputDevices;
+        const device = AudioDeviceIdentity.find(pool, key);
+        if (!device) return;
+
+        try {
+            await invoke("set_audio_device", { device });
+            info(`Audio device changed to ${device.display_name} for ${io}`);
+            Analytics.track("AudioDeviceChanged", { device_type: io });
+            await invoke("change_audio_device");
+        } catch (e) {
+            failure = `${e}`;
+            error(`Error changing audio device: ${e}`);
         }
     }
 </script>
 
-<div id="audio-device-selector-component" class="audio-device-selector">
-    {#if !isMobile}
-        <div class:hidden={!isLoading}>
-            {#if showLoadingText}
-                <div class="flex flex-col items-center justify-center py-8 gap-4">
-                    <div
-                        class="spinner is-elastic size-12 animate-spin rounded-full border-[3px] border-secondary/30 border-r-secondary"
-                    ></div>
-                    <p class="text-slate-600 dark:text-navy-300">Getting your audio devices...</p>
-                </div>
-            {:else}
-                <div class="flex justify-center">
-                    <div
-                        id="audio-device-select-spinner"
-                        class="spinner size-7 animate-spin rounded-full border-[3px] border-warning/30 border-r-warning"
-                    ></div>
-                </div>
-            {/if}
+{#if isMobile}
+    <SettingRow
+        label="Chosen by the system"
+        note="Your phone routes voice to whatever you last connected. Plug in a headset and it follows."
+    />
+{:else if isLoading}
+    <div class="rad-empty" style="padding: 34px 20px">
+        <Loader loading size={72} />
+        <span class="rad-empty__note">Getting your audio devices.</span>
+    </div>
+{:else}
+    <SettingRow label="Input device">
+        {#snippet control()}
+            <select
+                class="rad-select"
+                aria-label="Input device"
+                value={selectedInput}
+                onchange={(e) => {
+                    selectedInput = (e.target as HTMLSelectElement).value;
+                    void choose("InputDevice", selectedInput);
+                }}
+            >
+                {#each inputDevices as device (AudioDeviceIdentity.keyOf(device))}
+                    <option value={AudioDeviceIdentity.keyOf(device)}>
+                        {device.display_name}
+                    </option>
+                {/each}
+            </select>
+        {/snippet}
+    </SettingRow>
+
+    <SettingRow label="Output device">
+        {#snippet control()}
+            <select
+                class="rad-select"
+                aria-label="Output device"
+                value={selectedOutput}
+                onchange={(e) => {
+                    selectedOutput = (e.target as HTMLSelectElement).value;
+                    void choose("OutputDevice", selectedOutput);
+                }}
+            >
+                {#each outputDevices as device (AudioDeviceIdentity.keyOf(device))}
+                    <option value={AudioDeviceIdentity.keyOf(device)}>
+                        {device.display_name}
+                    </option>
+                {/each}
+            </select>
+        {/snippet}
+    </SettingRow>
+
+    {#if failure}
+        <div class="rad-callout rad-callout--warn" role="alert">
+            <span><b>The device list is incomplete.</b> {failure}</span>
         </div>
-        <div class={containerClass} class:hidden={isLoading}>
-            <div id="input-audio-device-container" class={deviceContainerClass}></div>
-            <div id="output-audio-device-container" class={deviceContainerClass}></div>
-        </div>
-    {:else}
-        <p class="text-sm text-slate-600 dark:text-navy-300 italic">
-            Device selection is not available on mobile platforms.
-        </p>
     {/if}
-</div>
+{/if}

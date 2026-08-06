@@ -2,8 +2,8 @@ import { defineConfig } from "vitest/config";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { fileURLToPath } from "node:url";
 
-// Runes are not forced: the app build detects them per file, and forcing them here
-// would fail on the legacy components that new screens still compose with.
+// Runes are not forced, matching the app build, which detects them per file. Every
+// component is on runes now, so this is a default rather than an accommodation.
 export default defineConfig({
   plugins: [svelte()],
   resolve: {

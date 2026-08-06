@@ -11,8 +11,8 @@ export default class BootOverlay {
     private static readonly HOLD_PARAM = 'preloader-hold';
     /** Long enough that a fast route does not flash the overlay away mid-paint. */
     private static readonly FADE_DELAY_MS = 150;
-    private static readonly FADE_CLASS =
-        'animate-[cubic-bezier(0.4,0,0.2,1)_fade-out_500ms_forwards]';
+    /** Defined in static/preloader/app-preloader.css, beside the overlay's own styles. */
+    private static readonly FADE_CLASS = 'app-preloader--leaving';
     /** Slightly past the 500ms fade: removing earlier cuts the animation short. */
     private static readonly REMOVE_AFTER_MS = 600;
 

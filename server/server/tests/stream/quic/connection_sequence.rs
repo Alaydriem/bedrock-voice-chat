@@ -6,7 +6,6 @@ use common::structs::packet::{
 fn envelope() -> QuicNetworkPacket {
     QuicNetworkPacket {
         packet_type: PacketType::HealthCheck,
-        owner: None,
         data: QuicNetworkPacketData::HealthCheck(HealthCheckPacket),
         ..Default::default()
     }

@@ -9,6 +9,7 @@ async fn control_rejects_missing_token() {
     let client = env.noauth_client().unwrap();
     let body = ClientAction {
         id: "Alice".into(),
+        game: None,
         action: ClientActionType::CreateGroup,
     };
     let resp = client
@@ -30,6 +31,7 @@ async fn control_create_group_with_token_returns_ok() {
     let client = env.noauth_client().unwrap();
     let body = ClientAction {
         id: "Alice".into(),
+        game: None,
         action: ClientActionType::CreateGroup,
     };
     let resp = client
@@ -71,6 +73,7 @@ async fn control_join_unknown_group_is_not_found() {
     let client = env.noauth_client().unwrap();
     let body = ClientAction {
         id: "Alice".into(),
+        game: None,
         action: ClientActionType::JoinGroup {
             channel: "does-not-exist".into(),
         },

@@ -14,7 +14,6 @@ use crate::services::{BedrockEventService, ClientActionService};
 use crate::stream::quic::connection_registry::ConnectionRegistry;
 use crate::stream::quic::webhook_receiver::WebhookReceiver;
 use anyhow::Error;
-use common::Game;
 use common::structs::channel::{ChannelCollection, ChannelEvents};
 use common::structs::control::PreferenceKey;
 use common::structs::packet::{
@@ -92,22 +91,30 @@ impl CacheManager {
         self.connection_registry.clone()
     }
 
-    // `authenticated_game` is the game from the sender's mTLS certificate CN, or
-    // `None` for server-injected packets that arrive without a certificate (the
-    // webhook path). It is only consulted where a membership key must be built.
-    pub async fn process_packet(
-        &self,
-        packet: QuicNetworkPacket,
-        authenticated_game: Option<common::Game>,
-    ) -> Result<(), Error> {
+    // Every guard below anchors to `packet.sender_identity()`, which the QUIC ingress
+    // stamped from the certificate. An unstamped packet was injected by this server rather
+    // than sent by a player, and the guards refuse to attribute it to anyone.
+    pub async fn process_packet(&self, packet: QuicNetworkPacket) -> Result<(), Error> {
         match packet.packet_type {
             PacketType::PlayerPosition => {
                 if let Some(data) = packet.get_data() {
                     let data: Result<PlayerPositionPacket, ()> = data.to_owned().try_into();
                     if let Ok(pos) = data {
-                        let author = packet.get_author();
-                        if !author.is_empty() {
-                            self.players.set(author, pos.player).await;
+                        // The stamped identity is authoritative; the name on `pos.player`
+                        // is the client's own claim and is never the key.
+                        //
+                        // Only the client's Bedrock proxy emits this type, always over an
+                        // authenticated connection. Unstamped there is no key any reader
+                        // could resolve, so caching it would be write-only.
+                        match packet.sender_identity() {
+                            Some(identity) => {
+                                self.players.set(identity.to_string(), pos.player).await;
+                            }
+                            None => {
+                                tracing::warn!(
+                                    "Dropping PlayerPosition with no authenticated sender"
+                                );
+                            }
                         }
                     }
                 }
@@ -118,11 +125,9 @@ impl CacheManager {
                     if let Ok(player_data) = data {
                         for player in player_data.players {
                             use common::traits::player_data::PlayerData;
-                            let player_name = player.get_name().to_string();
-                            self.players
-                                .set(player_name.clone(), player.clone())
-                                .await;
-                            tracing::debug!("Updated player position cache for: {}", player_name);
+                            let identity = player.identity();
+                            self.players.set(identity.clone(), player.clone()).await;
+                            tracing::debug!("Updated player position cache for: {}", identity);
                         }
                     }
                 }
@@ -210,7 +215,7 @@ impl CacheManager {
                     }
                 };
 
-                let authenticated_player = packet.get_author();
+                let authenticated_player = packet.sender_identity().unwrap_or_default().to_string();
                 if let Some(data) = packet.get_data() {
                     let event: Result<BedrockEventPacket, ()> = data.to_owned().try_into();
                     if let Ok(event) = event {
@@ -233,7 +238,7 @@ impl CacheManager {
                     if let Ok(qs) = data {
                         // A client may only report its OWN state; anchor to the
                         // connection identity so it can't poison another player's.
-                        let author = packet.get_author();
+                        let author = packet.sender_identity().unwrap_or_default();
                         if qs.state.id == author {
                             self.player_state.set(qs.state.id.clone(), qs.state).await;
                         } else {
@@ -250,7 +255,7 @@ impl CacheManager {
                 if let Some(data) = packet.get_data() {
                     let data: Result<PlayerPreferencePacket, ()> = data.to_owned().try_into();
                     if let Ok(pp) = data {
-                        let author = packet.get_author();
+                        let author = packet.sender_identity().unwrap_or_default();
                         if pp.preference.owner == author {
                             let key = PreferenceKey::new(
                                 pp.preference.owner.clone(),
@@ -280,7 +285,7 @@ impl CacheManager {
                 }
                 // The wire id is untrusted: anchor the actor to the connection
                 // author, the same guard QueryState/PlayerPreference use.
-                let author = packet.get_author();
+                let author = packet.sender_identity().unwrap_or_default();
                 if !ca.action.action.is_group_action() {
                     // Self/preference actions apply on the actor's own client
                     // (the no-net proxy shortcut); nothing to do server-side.
@@ -295,15 +300,8 @@ impl CacheManager {
                     );
                     return Ok(());
                 };
-                // The game comes from the authenticated certificate, so a Hytale
-                // actor is keyed as `hytale:name` rather than being assumed to be
-                // Minecraft. Falls back to Minecraft only for callers with no
-                // certificate context.
-                let actor_cn = authenticated_game
-                    .unwrap_or(Game::Minecraft)
-                    .membership_key(&author);
                 match ClientActionService::new()
-                    .route_group(&ca.action.action, &actor_cn, &self.channel_collection, webhook)
+                    .route_group(&ca.action.action, author, &self.channel_collection, webhook)
                     .await
                 {
                     Ok(created) => {
@@ -328,59 +326,38 @@ impl CacheManager {
         if packet.packet_type == PacketType::AudioFrame {
             packet.update_coordinates(self.players.inner_arc()).await;
             tracing::debug!(
-                "Updated coordinates for AudioFrame packet from player: {}",
-                packet.get_author()
+                "Updated coordinates for AudioFrame packet from player: {:?}",
+                packet.sender_identity()
             );
         }
         Ok(packet)
     }
 
-    pub async fn remove_player(
-        &self,
-        player_name: &str,
-        game: Option<common::Game>,
-    ) -> Result<Vec<String>, Error> {
-        use common::traits::player_data::PlayerData;
-
-        // Channel membership is keyed by the cert common name (`game:gamertag`),
-        // the same key the channel event handler and `route_audio_frame` use.
-        // The bare gamertag never matches it, so resolve the canonical key from
-        // the caller-supplied game — or, failing that, the cached player's game —
-        // before evicting the entry.
-        let resolved_game = match game {
-            Some(g) => Some(g),
-            None => self
-                .players
-                .get(&player_name.to_string())
-                .await
-                .map(|player| player.get_game()),
-        };
-
-        self.players.delete(&player_name.to_string()).await;
+    /// Evicts every cache entry a disconnecting player owns.
+    ///
+    /// `identity` is the canonical `game:gamertag`, because that is the key all five caches
+    /// share. A caller holding the game and the bare name loose composes it with
+    /// `Game::membership_key` first — passing a bare name here silently matches nothing.
+    pub async fn remove_player(&self, identity: &str) -> Result<Vec<String>, Error> {
+        self.players.delete(&identity.to_string()).await;
 
         // Evict this player's control-plane state so a disconnected player's mute/
         // record status and per-player prefs stop being served.
-        self.player_state.delete(&player_name.to_string()).await;
-        self.preferences.evict_owner(player_name).await;
-
-        let membership_key = match &resolved_game {
-            Some(g) => g.membership_key(player_name),
-            None => player_name.to_string(),
-        };
+        self.player_state.delete(&identity.to_string()).await;
+        self.preferences.evict_owner(identity).await;
 
         if let Some(registry) = &self.connection_registry {
-            registry.remove_player_channel(&membership_key);
+            registry.remove_player_channel(identity);
         }
 
         let removed_channels = self
             .channel_collection
-            .remove_player_from_all_channels(&membership_key)
+            .remove_player_from_all_channels(identity)
             .await;
 
         tracing::debug!(
-            "Removed player {} (membership key {}) from caches on disconnect (was in {} channels)",
-            player_name,
-            membership_key,
+            "Removed player {} from caches on disconnect (was in {} channels)",
+            identity,
             removed_channels.len()
         );
         Ok(removed_channels)

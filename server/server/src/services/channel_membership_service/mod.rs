@@ -1,6 +1,6 @@
 use common::structs::channel::{Channel, ChannelCollection, ChannelEvents};
 use common::structs::packet::{
-    ChannelEventPacket, PacketOwner, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
+    ChannelEventPacket, PacketSender, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
 };
 
 use crate::stream::quic::WebhookReceiver;
@@ -94,10 +94,7 @@ impl ChannelMembershipService {
 
     async fn fan(webhook: &WebhookReceiver, event: ChannelEventPacket) {
         let packet = QuicNetworkPacket {
-            owner: Some(PacketOwner {
-                name: String::from("channel_api"),
-                client_id: vec![0u8; 0],
-            }),
+            sender: Some(PacketSender::synthetic(PacketSender::CHANNEL_API)),
             packet_type: PacketType::ChannelEvent,
             data: QuicNetworkPacketData::ChannelEvent(event),
                     // Not a server fan-out, so this envelope carries no sequence.

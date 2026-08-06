@@ -46,16 +46,16 @@ pub async fn control(
     let mut action = action.0;
     // Resolve the in-game name to its canonical gamertag (Floodgate/Java aliases)
     // before routing, matching the position ingress so control actions key on the
-    // same identity the voice plane uses.
-    action.id = identity_service
-        .resolve_name(&action.id, &Game::Minecraft)
-        .await;
+    // same identity the voice plane uses. The alias table is per-game, so this uses
+    // the game the request declared rather than assuming one.
+    let game = action.game.clone().unwrap_or(Game::Minecraft);
+    action.id = identity_service.resolve_name(&action.id, &game).await;
 
     let svc = ClientActionService::new();
 
     if action.action.is_group_action() {
         let channels = cache_manager.get_channel_collection();
-        let actor_cn = Game::Minecraft.membership_key(&action.id);
+        let actor_cn = action.actor_key();
         match svc
             .route_group(&action.action, &actor_cn, &channels, webhook_receiver.inner())
             .await
@@ -73,7 +73,7 @@ pub async fn control(
             Some(registry) => {
                 svc.route_self_with_echo(
                     &action,
-                    &action.id,
+                    &action.actor_key(),
                     registry.as_ref(),
                     cache_manager.player_state(),
                     cache_manager.preferences(),

@@ -96,6 +96,26 @@ impl DeviceInfo {
         (MuteFlags::input_muted(), MuteFlags::output_muted())
     }
 
+    /// Whether the noise gate is bound to the capture path.
+    ///
+    /// Read live, from the flag the capture path itself consults. Reading the settings
+    /// store instead would report the copy the user set rather than the one the audio
+    /// thread obeys, and a disagreement between those two is the whole reason this is
+    /// worth reporting.
+    pub fn noise_gate_enabled() -> bool {
+        use crate::audio::stream::stream_manager::NoiseGateFlags;
+        NoiseGateFlags::enabled()
+    }
+
+    // Test-only setter, for the same reason as the mute ones: the flag is process-global and
+    // normally moved by the settings screen, so without this a test can only observe the
+    // default and cannot tell a wired field from a hardcoded one.
+    #[cfg(any(test, feature = "e2e"))]
+    pub fn set_noise_gate_enabled(enabled: bool) {
+        use crate::audio::stream::stream_manager::NoiseGateFlags;
+        NoiseGateFlags::set_enabled(enabled);
+    }
+
     fn muted_peer_count(app_handle: &tauri::AppHandle) -> u32 {
         let Some(store) = tauri_plugin_store::StoreExt::store(app_handle, "store.json").ok() else {
             return 0;

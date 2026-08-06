@@ -66,6 +66,13 @@
 
   let servers = $state<readonly RailServer[]>([]);
   let player = $state("");
+  /**
+   * The same client, as `game:gamertag`.
+   *
+   * Held beside `player` rather than instead of it: the top bar shows a gamertag, and every
+   * comparison against something the server sent needs the form the certificate carried.
+   */
+  let identity = $state("");
   let currentHost = $state("");
   let ready = $state(false);
   let scope = $state(120);
@@ -117,7 +124,7 @@
    */
   const groupRoster = $derived<readonly NearbyPlayer[]>(
     (linkUp ? (inGroup?.members ?? []) : [])
-      .filter((member) => member.gamertag !== player)
+      .filter((member) => member.name !== identity)
       .map((member) => ({
       name: member.name,
       gamertag: member.gamertag,
@@ -139,15 +146,14 @@
    * distance was the misleading half: a channel routes their audio whatever it says, so the number
    * described nothing that was happening.
    *
-   * The group wins because it is the stronger statement. Compared on the bare gamertag, since the
-   * two lists arrive by different routes: channel membership carries whatever form the certificate
-   * CN had, and the position feed carries the name the mod posts.
+   * The group wins because it is the stronger statement. Compared on the canonical identity,
+   * which both lists now carry: channel membership from the certificate's Common Name, the
+   * position feed from the same composition. On the bare gamertag this would also have hidden
+   * `hytale:Bob` from earshot because `minecraft:Bob` was in the group.
    */
-  const groupTags = $derived(
-    new Set(groupRoster.map((member) => GameNameUtils.stripPrefix(member.gamertag))),
-  );
+  const groupTags = $derived(new Set(groupRoster.map((member) => member.name)));
   const earshot = $derived<readonly NearbyPlayer[]>(
-    nearby.filter((person) => !groupTags.has(GameNameUtils.stripPrefix(person.gamertag))),
+    nearby.filter((person) => !groupTags.has(person.name)),
   );
 
   // Counted off the list it names, so the number in the top bar and the number on the section
@@ -202,11 +208,11 @@
   let settings = $state<Map<string, { gain: number; muted: boolean }>>(new Map());
 
   function gainFor(name: string): number {
-    return settings.get(GameNameUtils.stripPrefix(name))?.gain ?? 1;
+    return settings.get(GameNameUtils.canonical(name))?.gain ?? 1;
   }
 
   function mutedFor(name: string): boolean {
-    return settings.get(GameNameUtils.stripPrefix(name))?.muted ?? false;
+    return settings.get(GameNameUtils.canonical(name))?.muted ?? false;
   }
 
   onMount(() => {
@@ -237,6 +243,7 @@
 
         servers = instance.rail;
         player = instance.gamertag;
+        identity = instance.identity;
         currentHost = instance.host();
         scope = instance.feedScope;
 
@@ -322,8 +329,6 @@
         }
       })
       .catch(() => instance.showPreloader());
-
-    document.querySelector("body")?.classList.remove("has-min-sidebar");
   });
 
   /** The server's channels, mirrored so the rows can be rebuilt from a rune. */
@@ -382,7 +387,7 @@
   $effect(() => {
     const audible = new Set(audibleKey === "" ? [] : audibleKey.split("\n"));
     return groupsView
-      .rows(channelList, joinedId, audible, player)
+      .rows(channelList, joinedId, audible, identity)
       .subscribe((v) => (groupRows = v));
   });
 
@@ -401,12 +406,12 @@
     if (!channels) return;
     const id = await channels.createChannel("New group");
     if (!id) return;
-    await channels.joinChannel(id, player);
+    await channels.joinChannel(id, identity);
     editId = id;
   }
 
   function leaveGroup(id: string): void {
-    void app?.channelManager?.leaveChannel(id, player);
+    void app?.channelManager?.leaveChannel(id, identity);
   }
 
   /** Closing is deleting. Only the creator can, and the server is the one that enforces it. */
@@ -442,8 +447,8 @@
   function joinGroup(id: string): void {
     const channels = app?.channelManager;
     if (!channels) return;
-    if (joinedId === id) void channels.leaveChannel(id, player);
-    else void channels.joinChannel(id, player);
+    if (joinedId === id) void channels.leaveChannel(id, identity);
+    else void channels.joinChannel(id, identity);
   }
 
   /**

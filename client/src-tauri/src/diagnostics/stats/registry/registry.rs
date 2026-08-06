@@ -19,7 +19,7 @@ use crate::diagnostics::PlayerReceiveStats;
 // a speaker stopped being heard rather than a bookkeeping mistake.
 #[derive(Debug)]
 pub struct PeerRegistry {
-    entries: Cache<(Vec<u8>, PeerRoute), Arc<PlayerReceiveStats>>,
+    entries: Cache<(String, PeerRoute), Arc<PlayerReceiveStats>>,
 }
 
 impl Default for PeerRegistry {
@@ -47,8 +47,12 @@ impl PeerRegistry {
         Arc::new(Self::new())
     }
 
-    pub fn register(&self, client_id: Vec<u8>, route: PeerRoute, stats: Arc<PlayerReceiveStats>) {
-        self.entries.insert((client_id, route), stats);
+    /// Registers a receive-stats record for one speaker on one route.
+    ///
+    /// `sink_key` matches the mixer's sink key, so a diagnostics row and the sink it
+    /// describes cannot drift apart.
+    pub fn register(&self, sink_key: String, route: PeerRoute, stats: Arc<PlayerReceiveStats>) {
+        self.entries.insert((sink_key, route), stats);
     }
 
     // One record per speaker, with both routes folded together, sorted by name so a report and

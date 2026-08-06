@@ -18,9 +18,9 @@ use clap::Parser;
 use common::game_data::Dimension;
 use common::players::MinecraftPlayer;
 use common::structs::packet::{
-    AudioFramePacket, PacketOwner, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
+    AudioFramePacket, PacketSender, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
 };
-use common::{Coordinate, Orientation, PlayerEnum};
+use common::{Coordinate, Game, Orientation, PlayerEnum};
 use moka::future::Cache;
 use tokio::sync::mpsc;
 
@@ -105,10 +105,10 @@ impl RouteBench {
     fn audio_packet(&self, i: usize, sender: PlayerEnum) -> QuicNetworkPacket {
         QuicNetworkPacket {
             packet_type: PacketType::AudioFrame,
-            owner: Some(PacketOwner {
-                name: Self::player_name(i),
-                client_id: vec![i as u8, (i >> 8) as u8],
-            }),
+            sender: Some(PacketSender::new(
+                Game::Minecraft.membership_key(&Self::player_name(i)),
+                i as u64,
+            )),
             // 160 bytes ~= one 20ms Opus frame at 64kbps
             data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
                 vec![0u8; 160],
@@ -125,12 +125,16 @@ impl RouteBench {
         for i in 0..self.args.connections {
             let player = self.player(i);
             self.player_cache
-                .insert(Self::player_name(i), player)
+                .insert(Game::Minecraft.membership_key(&Self::player_name(i)), player)
                 .await;
 
             let (tx, mut rx) = mpsc::channel::<RoutedPacket>(500);
             self.registry
-                .register(vec![i as u8, (i >> 8) as u8], Self::player_name(i), common::Game::Minecraft, tx);
+                .register(
+                    i as u64,
+                    Game::Minecraft.membership_key(&Self::player_name(i)),
+                    tx,
+                );
 
             let delivered = self.delivered.clone();
             tokio::spawn(async move {

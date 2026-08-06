@@ -1,6 +1,26 @@
 import { describe, expect, it } from "vitest";
 import { NoiseGateModel } from "../../../js/app/settings/NoiseGateModel";
 
+describe("NoiseGateModel.DEFAULTS", () => {
+    /**
+     * A close threshold at or above the open one latches the gate open forever. Nothing in
+     * the audio path refuses it, so shipping it as a default would present as the noise
+     * gate quietly doing nothing for everyone who never opens this screen.
+     */
+    it("describes a gate that can shut", () => {
+        expect(NoiseGateModel.DEFAULTS.close_threshold).toBeLessThanOrEqual(
+            NoiseGateModel.DEFAULTS.open_threshold - NoiseGateModel.HYSTERESIS,
+        );
+    });
+
+    // Otherwise a slider opens already pinned to its own limit.
+    it("sits inside the range every knob offers", () => {
+        expect(NoiseGateModel.clampToRange(NoiseGateModel.DEFAULTS)).toEqual(
+            NoiseGateModel.DEFAULTS,
+        );
+    });
+});
+
 describe("NoiseGateModel.apply", () => {
     // A close threshold above the open one is a gate that never shuts. Nothing in the audio
     // path refuses it, so it presents as the feature not working.

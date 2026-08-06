@@ -56,8 +56,8 @@ impl PositionService {
     /// somebody already beyond voice range, never a player whose card is waiting on a
     /// distance.
     ///
-    /// `is_on_voice` answers by gamertag, because a voice connection is tracked under the
-    /// authenticated name and the world is keyed the same way.
+    /// `is_on_voice` answers by canonical identity, which is how the QUIC registry names
+    /// connections.
     pub fn snapshot_positions(
         &self,
         observer: &PlayerEnum,
@@ -115,18 +115,15 @@ impl PositionService {
         let absolute = dx.atan2(dz).to_degrees();
         let bearing = (absolute - observer.get_orientation().y).rem_euclid(360.0);
 
-        let name = candidate.get_name();
+        let identity = candidate.identity();
 
         RelativePosition {
-            // The CN form, which is what everything else about this player is keyed on: the
-            // certificate, channel membership, the recorded track and the colour beside the
-            // name. One field rather than two, because that is the shape they all share.
-            name: format!("{}:{}", candidate.get_game().as_str(), name),
-            presence: if is_on_voice(name) {
+            presence: if is_on_voice(&identity) {
                 PresenceKind::Voice
             } else {
                 PresenceKind::Game
             },
+            name: identity,
             bearing_deg: bearing.round() as u16 % 360,
             distance: distance.round().clamp(0.0, f32::from(u16::MAX)) as u16,
             elevation: dy.round().clamp(-32768.0, 32767.0) as i16,

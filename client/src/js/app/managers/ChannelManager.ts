@@ -90,7 +90,19 @@ export default class ChannelManager {
         info(`ChannelManager: Initialized with server URL: ${serverUrl || 'none'}`);
     }
 
-    // Helper function to get current user name from PlayerManager
+    /**
+     * The canonical `game:gamertag` for a name arriving from the webview.
+     *
+     * Channel membership is written by the server from the certificate's Common Name, so every
+     * name compared against `channel.players` or `channel.creator` has to be in that form.
+     * Composed through PlayerManager so the prefix is the game this session authenticated
+     * against rather than a guess made here.
+     */
+    private identity(name: string): string {
+        return this.playerManager.identity(name);
+    }
+
+    // The current user's canonical identity — PlayerManager composes it on the way in.
     private getCurrentUserName(): string {
         // Get current user from PlayerManager instead of store
         const currentUserStore = this.playerManager.currentUser;
@@ -134,15 +146,15 @@ export default class ChannelManager {
     /**
      * Adopt the joined channel from the freshly fetched list.
      *
-     * Compared with `namesMatch` because membership is stored in whatever form the
-     * certificate's CN carried while this client knows itself by its gamertag.
+     * An exact comparison: membership carries the certificate's Common Name and so does
+     * `currentUser`, so there is no form to reconcile here.
      */
     private recoverMembership(): void {
         const currentUser = this.getCurrentUserName();
         if (!currentUser) return;
 
         const joined = get(this.channelsStore).find((channel) =>
-            channel.players.some((player) => GameNameUtils.namesMatch(player, currentUser)),
+            channel.players.includes(currentUser),
         );
         if (!joined) return;
 
@@ -271,10 +283,15 @@ export default class ChannelManager {
         try {
             this.clearError();
 
+            // Composed once, here. The caller knows this client by its gamertag; every
+            // comparison below and the optimistic entry pushed into `players` have to be in the
+            // form the server will send back, or the row goes on offering Join after the join.
+            const actor = this.identity(currentUser);
+
             // If user is already in a channel, handle movement
             const currentChannelId = get(this.currentUserChannelIdStore);
             if (currentChannelId && currentChannelId !== channelId) {
-                await this.handleChannelMovement(currentChannelId, channelId, currentUser);
+                await this.handleChannelMovement(currentChannelId, channelId, actor);
             } else if (currentChannelId === channelId) {
                 warn(`ChannelManager: User already in channel ${channelId}, skipping join`);
                 return true;
@@ -283,7 +300,7 @@ export default class ChannelManager {
             // Check if user is already in the channel's player list (e.g. server added them on create)
             const existingChannels = get(this.channelsStore);
             const targetChannel = existingChannels.find(c => c.id === channelId);
-            if (targetChannel?.players.some(p => GameNameUtils.namesMatch(p, currentUser))) {
+            if (targetChannel?.players.includes(actor)) {
                 this.currentUserChannelIdStore.set(channelId);
                 const isMobile = await this.platformDetector.checkMobile();
                 if (isMobile) {
@@ -292,7 +309,7 @@ export default class ChannelManager {
                         message: "In public group channel"
                     });
                 }
-                await this.addExistingGroupMembers(channelId, currentUser);
+                await this.addExistingGroupMembers(channelId, actor);
                 return true;
             }
 
@@ -315,10 +332,10 @@ export default class ChannelManager {
                 this.currentUserChannelIdStore.set(channelId);
                 this.channelsStore.update((channels: Channel[]) =>
                     channels.map((channel: Channel) => {
-                        if (channel.id === channelId && !channel.players.some(p => GameNameUtils.namesMatch(p, currentUser))) {
+                        if (channel.id === channelId && !channel.players.includes(actor)) {
                             return {
                                 ...channel,
-                                players: [...channel.players, currentUser]
+                                players: [...channel.players, actor]
                             };
                         }
                         return channel;
@@ -334,7 +351,7 @@ export default class ChannelManager {
                     });
                 }
                 // Add existing group members to PlayerManager
-                await this.addExistingGroupMembers(channelId, currentUser);
+                await this.addExistingGroupMembers(channelId, actor);
             }
 
             return success;
@@ -353,6 +370,7 @@ export default class ChannelManager {
         try {
             this.clearError();
 
+            const actor = this.identity(currentUser);
             const event: ChannelEvent = { event: "Leave" as ChannelEvents, game: null };
 
             const success = await invoke<boolean>('api_channel_event', {
@@ -382,7 +400,7 @@ export default class ChannelManager {
                         if (channel.id === channelId) {
                             return {
                                 ...channel,
-                                players: channel.players.filter((p: string) => !GameNameUtils.namesMatch(p, currentUser))
+                                players: channel.players.filter((p: string) => p !== actor)
                             };
                         }
                         return channel;
@@ -398,7 +416,9 @@ export default class ChannelManager {
     }
 
     /**
-     * Add existing group members when joining a channel
+     * Add existing group members when joining a channel.
+     *
+     * @param currentUser This client's canonical identity, composed by the caller.
      */
     private async addExistingGroupMembers(channelId: string, currentUser: string): Promise<void> {
         if (!this.playerManager) {
@@ -415,7 +435,7 @@ export default class ChannelManager {
         }
 
         for (const member of channel.players) {
-            if (!GameNameUtils.namesMatch(member, currentUser)) {
+            if (member !== currentUser) {
                 try {
                     const success = await this.playerManager.addPlayerSource(member, 'Group');
                     if (!success) {
@@ -429,7 +449,9 @@ export default class ChannelManager {
     }
 
     /**
-     * Remove all group members from PlayerManager (used when current user leaves channel)
+     * Remove all group members from PlayerManager (used when current user leaves channel).
+     *
+     * @param currentUser This client's canonical identity, composed by the caller.
      */
     private removeAllGroupMembers(members: string[], currentUser: string, reason: string): void {
         if (!this.playerManager) {
@@ -438,14 +460,16 @@ export default class ChannelManager {
         }
 
         members.forEach(member => {
-            if (!GameNameUtils.namesMatch(member, currentUser)) {
+            if (member !== currentUser) {
                 this.playerManager.removePlayerSource(member, 'Group');
             }
         });
     }
 
     /**
-     * Handle movement between channels - ensures proper cleanup and setup
+     * Handle movement between channels - ensures proper cleanup and setup.
+     *
+     * @param currentUser This client's canonical identity, composed by the caller.
      */
     private async handleChannelMovement(fromChannelId: string, toChannelId: string, currentUser: string): Promise<void> {
         // Get members from the old channel before leaving
@@ -529,8 +553,7 @@ export default class ChannelManager {
                     channels.map((channel: Channel) => {
                         if (channel.id !== channel_id) return channel;
 
-                        const existingIndex = channel.players.findIndex(p => GameNameUtils.namesMatch(p, player_name));
-                        if (existingIndex >= 0) {
+                        if (channel.players.includes(player_name)) {
                             return channel;
                         }
 
@@ -541,8 +564,8 @@ export default class ChannelManager {
                 // Add player to group membership if current user is in this channel
                 if (currentUser && this.playerManager) {
                     const channels = get(this.channels);
-                    const userChannel = channels.find(c => c.players.some(p => GameNameUtils.namesMatch(p, currentUser)));
-                    if (userChannel && userChannel.id === channel_id && !GameNameUtils.namesMatch(player_name, currentUser)) {
+                    const userChannel = channels.find(c => c.players.includes(currentUser));
+                    if (userChannel && userChannel.id === channel_id && player_name !== currentUser) {
                         const playerGame = this.playerManager.getPlayerGame(player_name);
                         await this.playerManager.addPlayerSource(player_name, 'Group', undefined, undefined, playerGame);
                         this.fetchAndSetGroupMemberGamepic(player_name);
@@ -556,7 +579,7 @@ export default class ChannelManager {
                 let channelMembersBeforeLeave: string[] = [];
                 if (currentUser) {
                     const channels = get(this.channels);
-                    const userChannelBefore = channels.find(c => c.players.some(p => GameNameUtils.namesMatch(p, currentUser)));
+                    const userChannelBefore = channels.find(c => c.players.includes(currentUser));
                     wasCurrentUserInChannel = !!(userChannelBefore && userChannelBefore.id === channel_id);
 
                     // Capture channel members before any updates
@@ -570,7 +593,7 @@ export default class ChannelManager {
                 this.channelsStore.update((channels: Channel[]) =>
                     channels.map((channel: Channel) => {
                         if (channel.id === channel_id) {
-                            return { ...channel, players: channel.players.filter((p: string) => !GameNameUtils.namesMatch(p, player_name)) };
+                            return { ...channel, players: channel.players.filter((p: string) => p !== player_name) };
                         }
                         return channel;
                     })
@@ -578,7 +601,7 @@ export default class ChannelManager {
 
                 // Remove player from group membership if current user was in this channel
                 if (currentUser && wasCurrentUserInChannel && this.playerManager) {
-                    if (GameNameUtils.namesMatch(player_name, currentUser)) {
+                    if (player_name === currentUser) {
                         this.removeAllGroupMembers(channelMembersBeforeLeave, currentUser, 'current user leaving channel');
 
                         // Clear current user's channel

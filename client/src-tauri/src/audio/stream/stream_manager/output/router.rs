@@ -9,7 +9,6 @@ use crate::bedrock::JukeboxBeaconCache;
 use crate::bedrock::JukeboxEjectInjector;
 #[cfg(feature = "bedrock-protocol")]
 use crate::bedrock::PresenceInjector;
-use base64::engine::{Engine, general_purpose};
 #[cfg(feature = "bedrock-protocol")]
 use common::structs::packet::AudioFrameMetadata;
 #[cfg(feature = "bedrock-protocol")]
@@ -24,7 +23,7 @@ use common::traits::player_data::PlayerData;
 use common::{
     PlayerEnum, RecordingPlayerData,
     structs::{
-        audio::PlayerGainSettings,
+        audio::{GainProjection, PlayerGainSettings},
         network::ConnectionHealth,
         packet::{
             AudioFramePacket, ChannelEventPacket, ConnectionEventType, PacketType,
@@ -52,7 +51,7 @@ pub(crate) struct PacketRouter {
     player_gain_cache: Arc<moka::sync::Cache<String, PlayerGainSettings>>,
     player_presence: Arc<moka::sync::Cache<String, Option<String>>>,
     player_presence_debounce: Arc<moka::sync::Cache<String, ()>>,
-    client_id_to_player: Arc<moka::sync::Cache<String, String>>,
+    gain: Arc<GainProjection>,
     app_handle: tauri::AppHandle,
     #[cfg(feature = "bedrock-protocol")]
     beacon_cache: Option<Arc<JukeboxBeaconCache>>,
@@ -72,7 +71,7 @@ impl PacketRouter {
         player_gain_cache: Arc<moka::sync::Cache<String, PlayerGainSettings>>,
         player_presence: Arc<moka::sync::Cache<String, Option<String>>>,
         player_presence_debounce: Arc<moka::sync::Cache<String, ()>>,
-        client_id_to_player: Arc<moka::sync::Cache<String, String>>,
+        gain: Arc<GainProjection>,
         app_handle: tauri::AppHandle,
         #[cfg(feature = "bedrock-protocol")] beacon_cache: Option<Arc<JukeboxBeaconCache>>,
         #[cfg(feature = "bedrock-protocol")] eject_injector: Option<Arc<JukeboxEjectInjector>>,
@@ -86,7 +85,7 @@ impl PacketRouter {
             player_gain_cache,
             player_presence,
             player_presence_debounce,
-            client_id_to_player,
+            gain,
             app_handle,
             #[cfg(feature = "bedrock-protocol")]
             beacon_cache,
@@ -151,7 +150,7 @@ impl PacketRouter {
                             crate::control::ControlActionSender,
                         >(&self.app_handle)
                         {
-                            tx.send(p.action.action.clone());
+                            tx.send(p.action.clone());
                         }
                     }
                 }
@@ -307,16 +306,16 @@ impl PacketRouter {
         };
 
         // Check if this is a new player we haven't seen before
-        if let Some(owner) = &data.owner {
-            let player_name = &owner.name;
+        if let Some(sender) = &data.sender {
+            let player_name = &sender.identity;
 
             // Skip presence tracking for synthetic jukebox players
             if !player_name.starts_with(common::consts::audio::JUKEBOX_PLAYER_PREFIX) {
-                // Build client ID to player name mapping for gain control
-                if !player_name.is_empty() && !player_name.eq(&"api") {
-                    let client_id = general_purpose::STANDARD.encode(&owner.client_id);
-                    self.client_id_to_player
-                        .insert(client_id, player_name.clone());
+                // Tell the gain projection which player this device belongs to. Every frame,
+                // not just the first: a reconnect mints a new device id, and the projection
+                // has to learn it before the next lookup rather than after a store write.
+                if let Some(device) = sender.device {
+                    self.gain.observe(device, player_name);
                 }
 
                 // Don't emit events for ourselves
@@ -363,7 +362,7 @@ impl PacketRouter {
             }
         }
 
-        let owner = data.owner.clone();
+        let sender = data.sender.clone();
         let data: Result<AudioFramePacket, ()> = data.data.to_owned().try_into();
 
         match data {
@@ -382,14 +381,14 @@ impl PacketRouter {
                         }
                     }
                 }
-                // Create emitter RecordingPlayerData from packet owner and audio data
-                let emitter = owner
+                // Create emitter RecordingPlayerData from the server-stamped sender
+                let emitter = sender
                     .as_ref()
-                    .map(|o| {
-                        RecordingPlayerData::from_packet_owner(
-                            o,
+                    .map(|s| {
+                        RecordingPlayerData::from_packet_sender(
+                            s,
                             &data,
-                            self.player_gain_cache.get(&o.name),
+                            self.player_gain_cache.get(&s.identity),
                         )
                     })
                     .unwrap_or_else(RecordingPlayerData::unknown);

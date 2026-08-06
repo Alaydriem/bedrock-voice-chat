@@ -59,8 +59,6 @@
         }
       })
       .catch(() => instance.showPreloader());
-
-    document.querySelector("body")?.classList.remove("has-min-sidebar");
   });
 
   onDestroy(() => {

@@ -33,7 +33,6 @@ impl LocalInjectDelivery for BroadcastInjectDelivery {
     fn deliver_inject(&self, _hashed_world: &str, packet: PeerPresenceInjectPacket) {
         let quic_packet = QuicNetworkPacket {
             packet_type: PacketType::PeerPresenceInject,
-            owner: None,
             data: QuicNetworkPacketData::PeerPresenceInject(packet),
                     // Not a server fan-out, so this envelope carries no sequence.
             ..Default::default()
@@ -49,7 +48,6 @@ impl LocalInjectDelivery for BroadcastInjectDelivery {
     fn deliver_announce(&self, packet: PeerAnnounceInjectPacket) {
         let quic_packet = QuicNetworkPacket {
             packet_type: PacketType::PeerAnnounceInject,
-            owner: None,
             data: QuicNetworkPacketData::PeerAnnounceInject(packet),
                     // Not a server fan-out, so this envelope carries no sequence.
             ..Default::default()

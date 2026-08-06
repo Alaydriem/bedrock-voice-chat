@@ -7,7 +7,7 @@ use common::structs::{
         ChannelEvents::{Delete, Join, Leave},
     },
     packet::{
-        ChannelEventPacket, PacketOwner, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
+        ChannelEventPacket, PacketSender, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
     },
 };
 use rocket::{State, http::Status, mtls::Certificate, serde::json::Json};
@@ -76,10 +76,7 @@ fn channel_packet(
     id: &str,
 ) -> QuicNetworkPacket {
     QuicNetworkPacket {
-        owner: Some(PacketOwner {
-            name: String::from("channel_api"),
-            client_id: vec![0u8; 0],
-        }),
+        sender: Some(PacketSender::synthetic(PacketSender::CHANNEL_API)),
         packet_type: PacketType::ChannelEvent,
         data: QuicNetworkPacketData::ChannelEvent(ChannelEventPacket::new(
             event,

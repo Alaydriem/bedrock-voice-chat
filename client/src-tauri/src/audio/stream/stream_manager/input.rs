@@ -516,7 +516,6 @@ impl InputStream {
                     let packet = NetworkPacket {
                         data: QuicNetworkPacket {
                             packet_type: common::structs::packet::PacketType::AudioFrame,
-                            owner: None,
                             data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
                                 encoded_data.clone(),
                                 device_config.sample_rate,

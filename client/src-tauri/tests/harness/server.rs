@@ -406,9 +406,10 @@ impl EmbeddedServer {
     /// is always `"minecraft"` and non-position fields are defaulted (overworld
     /// dimension, no deafen/spectator, zero orientation).
     ///
-    /// The `name` must match the `PacketOwner.name` the QUIC client sets on its
-    /// audio frames — that value comes from the `gamertag` field of `LoginResponse`
-    /// (e.g. `"Alice"`, not `"minecraft:Alice"`).
+    /// The `name` is the bare gamertag (e.g. `"Alice"`, not `"minecraft:Alice"`), because
+    /// this is the payload a game mod sends. The server composes the canonical identity from
+    /// it and the game before caching, so a bare name here is correct and a prefixed one
+    /// would produce `minecraft:minecraft:Alice`.
     pub fn update_positions(&self, players: &[(&str, f32, f32, f32)]) {
         let player_jsons: Vec<serde_json::Value> = players
             .iter()

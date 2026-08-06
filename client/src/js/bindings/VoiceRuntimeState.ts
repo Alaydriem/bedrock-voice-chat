@@ -18,4 +18,13 @@ pttActive: boolean,
 /**
  * The flag the capture stream reads. `true` means frames are zeroed at the source.
  */
-inputMuted: boolean, outputMuted: boolean, };
+inputMuted: boolean, outputMuted: boolean, 
+/**
+ * Whether a recording session is open.
+ *
+ * Carried here for the same reason as the mute flag: a hotkey, a Stream Deck and an
+ * in-game command all arm recording without this window being asked, and the events
+ * that announce it are the only thing that told the UI. One dropped event left the
+ * button off over a backend that was recording, and nothing could ever put it right.
+ */
+recording: boolean, };

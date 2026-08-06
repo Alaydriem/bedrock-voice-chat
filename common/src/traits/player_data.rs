@@ -10,6 +10,18 @@ pub trait PlayerData: Send + Sync {
     }
     fn get_game(&self) -> Game;
     fn clone_box(&self) -> Box<dyn PlayerData>;
+
+    /// The canonical identity this player is keyed on everywhere: `game:gamertag`.
+    ///
+    /// Derived rather than stored, because the game is already the variant tag and the bare
+    /// name is already the `name` field. Holding the composed form as a third piece of state
+    /// is what let the two forms drift apart.
+    ///
+    /// This is the only place a canonical identity is produced in Rust. `Game::membership_key`
+    /// is its equivalent for callers that hold the game and the name loose.
+    fn identity(&self) -> String {
+        self.get_game().membership_key(self.get_name())
+    }
 }
 
 /// Spatial communication trait

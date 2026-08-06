@@ -1,5 +1,5 @@
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::sync::{Arc, Mutex as StdMutex};
+use std::sync::Arc;
 use std::time::Duration;
 
 use flume::Receiver;
@@ -18,7 +18,7 @@ use crate::audio::stream::stream_manager::mono_to_panned::MonoToPanned;
 use crate::diagnostics::{PeerRegistry, PeerRoute, PlayerReceiveStats};
 use common::PlayerEnum;
 use common::structs::SpatialAudioConfig;
-use common::structs::audio::{PlayerGainSettings, PlayerGainStore};
+use common::structs::audio::{GainProjection, PlayerGainSettings};
 use common::traits::player_data::PlayerData;
 
 // Negate pan on platforms where the audio backend outputs channels
@@ -116,8 +116,10 @@ pub struct SinkManager {
     panning_intensity: Arc<AtomicU32>,
     players: Cache<String, PlayerEnum>,
     current_player_name: String,
-    player_gain_store: Arc<StdMutex<PlayerGainStore>>,
-    sinks: Cache<Vec<u8>, PlayerSinks>,
+    gain: Arc<GainProjection>,
+    // Keyed on `EncodedAudioFramePacket::sink_key` — the emitter's device id, or its
+    // name when the server injected the audio.
+    sinks: Cache<String, PlayerSinks>,
     mixer: Arc<Mixer>,
     activity_tx: Option<flume::Sender<ActivityUpdate>>,
     #[allow(unused)]
@@ -133,7 +135,7 @@ impl SinkManager {
         consumer: Receiver<EncodedAudioFramePacket>,
         players: Cache<String, PlayerEnum>,
         current_player_name: String,
-        player_gain_store: Arc<StdMutex<PlayerGainStore>>,
+        gain: Arc<GainProjection>,
         mixer: Arc<Mixer>,
         app_handle: tauri::AppHandle,
         recording_producer: Option<RecordingProducer>,
@@ -180,7 +182,7 @@ impl SinkManager {
             )),
             players,
             current_player_name,
-            player_gain_store,
+            gain,
             sinks: Cache::builder()
                 .time_to_live(Duration::from_secs(15 * 60)) // 15 minutes TTL
                 .max_capacity(100)
@@ -192,12 +194,6 @@ impl SinkManager {
             recording_active,
             spatial_config,
             peer_registry,
-        }
-    }
-
-    pub fn update_player_store(&mut self, player_gain_store: PlayerGainStore) {
-        if let Ok(mut guard) = self.player_gain_store.lock() {
-            *guard = player_gain_store;
         }
     }
 
@@ -220,7 +216,7 @@ impl SinkManager {
             .ok_or_else(|| anyhow::anyhow!("SinkManager listener already started"))?;
         let players = self.players.clone();
         let current_player_name = self.current_player_name.clone();
-        let player_gain_store = self.player_gain_store.clone();
+        let gain = self.gain.clone();
         let sinks = self.sinks.clone();
         let mixer = self.mixer.clone();
         let global_mute = self.global_mute.clone();
@@ -238,13 +234,25 @@ impl SinkManager {
                     break;
                 }
 
-                let author = packet.get_author();
-                let author_bytes = packet.get_client_id();
+                let sink_key = packet.sink_key();
 
-                let display_name = match packet.emitter.name.clone() {
-                    name if !name.is_empty() && name != "api" => name,
-                    _ => author.clone(),
+                // The speaker's canonical `game:gamertag`, or the sink key when the server
+                // injected the audio and there is no player behind it. This is what the
+                // activity event carries, so a meter in the webview keys on the same identity
+                // as the card it sits on.
+                let identity = match packet.emitter.name.as_str() {
+                    name if !name.is_empty()
+                        && name != common::structs::packet::PacketSender::SERVER_API =>
+                    {
+                        name.to_string()
+                    }
+                    _ => sink_key.clone(),
                 };
+
+                // Display only — this is what a support log line and the diagnostics table
+                // name a speaker as, and a human reads "Alice", not "minecraft:Alice". Every
+                // lookup on this path uses `sink_key` or `identity` instead.
+                let display_name = common::Game::display_name(&identity).to_string();
 
                 let emitter_pos = packet
                     .emitter
@@ -276,26 +284,22 @@ impl SinkManager {
                 let use_spatial =
                     emitter_spatial && listener_info.is_some() && emitter_pos.is_some();
 
-                let gain_settings: PlayerGainSettings = {
-                    let store = player_gain_store.lock().ok();
-                    store
-                        .and_then(|s| s.0.get(&author).cloned())
-                        .unwrap_or(PlayerGainSettings {
-                            gain: 1.0,
-                            muted: false,
-                            last_seen: None,
-                        })
+                // A synthetic emitter — jukebox playback, channel API audio — has no device
+                // and so no per-player opinion to apply; its level is set where it is produced.
+                let gain_settings: PlayerGainSettings = match packet.emitter.device {
+                    Some(device) => gain.settings_for(device),
+                    None => PlayerGainSettings::unity(),
                 };
                 if gain_settings.muted {
                     continue;
                 }
 
-                let mut bundle = sinks.get(&author_bytes).unwrap_or_else(|| {
+                let mut bundle = sinks.get(&sink_key).unwrap_or_else(|| {
                     let b = PlayerSinks::default();
-                    if let Some(existing) = sinks.get(&author_bytes) {
+                    if let Some(existing) = sinks.get(&sink_key) {
                         existing
                     } else {
-                        sinks.insert(author_bytes.clone(), b.clone());
+                        sinks.insert(sink_key.clone(), b.clone());
                         b
                     }
                 });
@@ -347,14 +351,14 @@ impl SinkManager {
                     if bundle.spatial_handle.is_none() {
                         let stats = Arc::new(PlayerReceiveStats::new(display_name.clone()));
                         peer_registry.register(
-                            author_bytes.clone(),
+                            sink_key.clone(),
                             PeerRoute::Spatial,
                             stats.clone(),
                         );
                         match JitterBuffer::create_with_handle_and_activity(
                             packet.clone(),
-                            format!("spatial_{}", author),
-                            display_name.clone(),
+                            format!("spatial_{}", sink_key),
+                            identity.clone(),
                             activity_tx.clone(),
                             recording_producer.clone(),
                             recording_active.clone(),
@@ -373,7 +377,7 @@ impl SinkManager {
                             Err(e) => {
                                 warn!(
                                     "Failed to create spatial jitter buffer for {}: {:?}",
-                                    author, e
+                                    sink_key, e
                                 );
                                 continue;
                             }
@@ -402,14 +406,14 @@ impl SinkManager {
                     if bundle.normal_handle.is_none() {
                         let stats = Arc::new(PlayerReceiveStats::new(display_name.clone()));
                         peer_registry.register(
-                            author_bytes.clone(),
+                            sink_key.clone(),
                             PeerRoute::Normal,
                             stats.clone(),
                         );
                         match JitterBuffer::create_with_handle_and_activity(
                             packet.clone(),
-                            format!("normal_{}", author),
-                            display_name.clone(),
+                            format!("normal_{}", sink_key),
+                            identity.clone(),
                             activity_tx.clone(),
                             recording_producer.clone(),
                             recording_active.clone(),
@@ -425,7 +429,7 @@ impl SinkManager {
                             Err(e) => {
                                 warn!(
                                     "Failed to create normal jitter buffer for {}: {:?}",
-                                    author, e
+                                    sink_key, e
                                 );
                                 continue;
                             }
@@ -435,7 +439,7 @@ impl SinkManager {
                     }
                 }
 
-                sinks.insert(author_bytes.clone(), bundle);
+                sinks.insert(sink_key.clone(), bundle);
             }
         });
 

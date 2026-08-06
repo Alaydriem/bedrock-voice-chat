@@ -199,9 +199,11 @@ async fn proxy_ctl_group_create_reaches_server() {
 }
 
 /// No-net per-player preferences apply LOCALLY through the proxy shortcut:
-/// `bvc:ctl:vol` / `bvc:ctl:hear` must land in the persisted gain store under
-/// the target's key and fire the player-card render event — no server
-/// round-trip involved.
+/// `bvc:ctl:vol` / `bvc:ctl:hear` must land in the persisted gain store under the target's
+/// canonical identity and fire the player-card render event — no server round-trip involved.
+///
+/// The ctl target arrives bare (`vol:Bob:40`), because that is the name a player types in
+/// game. It has to land on `minecraft:Bob`, or the mixer's gain projection never resolves it.
 #[tokio::test(flavor = "multi_thread")]
 async fn proxy_ctl_volume_and_hear_apply_locally() {
     for v in ProtocolMatrix::last_two() {
@@ -216,7 +218,7 @@ async fn proxy_ctl_volume_and_hear_apply_locally() {
         assert!(
             w.proc("Alice")
                 .await_gain_store(
-                    |s| s["Bob"]["gain"].as_f64().is_some_and(|g| (g - 0.4).abs() < 1e-6),
+                    |s| s["minecraft:Bob"]["gain"].as_f64().is_some_and(|g| (g - 0.4).abs() < 1e-6),
                     Duration::from_secs(10),
                 )
                 .is_ok(),
@@ -227,7 +229,7 @@ async fn proxy_ctl_volume_and_hear_apply_locally() {
         assert!(
             w.proc("Alice")
                 .await_gain_store(
-                    |s| s["Bob"]["muted"] == serde_json::Value::Bool(true),
+                    |s| s["minecraft:Bob"]["muted"] == serde_json::Value::Bool(true),
                     Duration::from_secs(10),
                 )
                 .is_ok(),

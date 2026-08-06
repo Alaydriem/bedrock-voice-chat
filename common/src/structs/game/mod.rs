@@ -54,6 +54,22 @@ impl Game {
     pub fn membership_key(&self, gamertag: &str) -> String {
         format!("{}:{}", self.as_str(), gamertag)
     }
+
+    /// The bare gamertag out of a canonical identity, **for display only**.
+    ///
+    /// Nothing may be keyed on this. Two players in different games can share a gamertag,
+    /// so stripping the prefix merges two distinct identities into one — which is the exact
+    /// collision `membership_key` exists to prevent. Use it where a human reads the result
+    /// and nothing looks it up: a log line, a diagnostics table, a label.
+    ///
+    /// A string with no known game prefix is returned unchanged, so a value that was never
+    /// canonical in the first place is not silently truncated at some other colon.
+    pub fn display_name(identity: &str) -> &str {
+        match identity.split_once(':') {
+            Some((tag, name)) if Self::from_tag(tag).is_some() => name,
+            _ => identity,
+        }
+    }
 }
 
 impl fmt::Display for Game {
@@ -68,5 +84,16 @@ impl<'r> rocket::request::FromParam<'r> for Game {
 
     fn from_param(param: &'r str) -> Result<Self, Self::Error> {
         Game::from_tag(param).ok_or(param)
+    }
+}
+
+// Lets a route take `game` as a query parameter, not just a path segment. Both
+// positions parse through `from_tag`, so an unknown tag is rejected the same way
+// wherever it arrives.
+#[cfg(feature = "server")]
+impl<'v> rocket::form::FromFormField<'v> for Game {
+    fn from_value(field: rocket::form::ValueField<'v>) -> rocket::form::Result<'v, Self> {
+        Game::from_tag(field.value)
+            .ok_or_else(|| rocket::form::Error::validation("not a known game").into())
     }
 }

@@ -195,7 +195,15 @@ pub async fn export_recording(
         async move {
             for (index, player) in selected_players.iter().enumerate() {
                 let span = tracing::info_span!("render_player", index = index);
-                let output_path = render_path.join(format!("{}.{}", player, format.extension()));
+                // The identity carries a colon, which NTFS reads as an alternate-data-stream
+                // separator rather than part of the name — a render would vanish into an ADS
+                // instead of producing a file. The rendered track is also something a human
+                // opens, so it is named for the player, not for the key.
+                let output_path = render_path.join(format!(
+                    "{}.{}",
+                    common::Game::display_name(player),
+                    format.extension()
+                ));
                 async {
                     match format.render(&session_path, player, &output_path).await {
                         Ok(()) => {

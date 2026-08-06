@@ -44,8 +44,11 @@ sealed class ControlAction {
             is LeaveGroup -> Tag.LeaveGroup.name
         }
 
+    // `game` labels the actor the same way the /api/position body does, so the server
+    // builds this player's canonical `game:gamertag` key from a declared value instead
+    // of assuming one. A Java mod player is always Minecraft.
     fun toClientActionJson(actorId: String): String =
-        GSON.toJson(mapOf("id" to actorId, "action" to actionJson()))
+        GSON.toJson(mapOf("id" to actorId, "game" to "minecraft", "action" to actionJson()))
 
     companion object {
         private val GSON = Gson()

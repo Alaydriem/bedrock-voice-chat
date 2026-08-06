@@ -46,12 +46,12 @@ export class PlayerLevelSources {
     /**
      * The source for a player, by any name form.
      *
-     * Keyed on the bare gamertag because that is what the audio pipeline reports, while the
-     * roster holds the CN form — the mismatch that silently leaves every meter flat if it is
-     * not normalised in one place.
+     * Keyed on the canonical identity, which is what the audio pipeline reports and what the
+     * roster holds. Composed here anyway, so a caller holding a bare name still finds the one
+     * source for that player rather than opening a second one that nothing ever pushes to.
      */
     for(name: string): LevelSource {
-        const key = GameNameUtils.stripPrefix(name);
+        const key = GameNameUtils.canonical(name);
         let source = this.sources.get(key);
         if (!source) {
             source = new PushLevelSource();
@@ -63,7 +63,7 @@ export class PlayerLevelSources {
     private receive(activity: Record<string, number>): void {
         const now = performance.now();
         for (const [name, level] of Object.entries(activity)) {
-            const key = GameNameUtils.stripPrefix(name);
+            const key = GameNameUtils.canonical(name);
             this.seenAt.set(key, now);
             // Scaled for the same reason your own meter is: a linear RMS spends its whole
             // range on levels nobody produces.

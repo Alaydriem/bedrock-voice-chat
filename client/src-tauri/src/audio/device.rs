@@ -136,7 +136,10 @@ pub fn get_devices() -> Result<HashMap<String, Vec<AudioDevice>>, ()> {
         process_devices(&host, AudioDeviceType::InputDevice, &mut device_map);
         process_devices(&host, AudioDeviceType::OutputDevice, &mut device_map);
 
-        devices.insert(host.id().name().to_string(), device_map);
+        devices.insert(
+            host.id().name().to_string(),
+            AudioDevice::deduplicate(device_map),
+        );
     }
 
     return Ok(devices);

@@ -1,17 +1,14 @@
 /* Radial — the app-facing entry.
  *
- * Import this from a Tailwind entry that has already pulled in `tailwindcss`:
- *
  *   @import "../radial/css/radial.css";
  *
- * It declares tokens and component classes and nothing else — no reset, no base
- * styles, no `@import "tailwindcss"`. Adding it to the existing app cannot restyle
- * anything already there, because every selector it introduces is `rad-` prefixed.
- * (`bvc-` was avoided on purpose: `.bvc-ring`, `.bvc-badge` and `.bvc-shimmer`
- * already exist in `app.css` as the current preloader.)
+ * Plain CSS, with no build step of its own: tokens and component classes, no reset
+ * and no base styles. Every selector it introduces is `rad-` prefixed, so a host
+ * document keeps whatever it already had.
  *
- * The standalone reference pages import `examples/standalone.css` instead, which
- * wraps this with Tailwind and a page reset.
+ * The shell rules it assumes — the 112.5% root and a fixed, non-scrolling body — are
+ * the host's to supply. `src/css/shell.css` is the app's; the reference pages get
+ * theirs from `examples/standalone.css`, which imports this and adds page chrome.
  */
 
 @import "./tokens.css";

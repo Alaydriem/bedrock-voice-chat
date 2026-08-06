@@ -8,7 +8,7 @@
  * Dark only. There is no light counterpart: the product is a violet ground.
  */
 
-@theme {
+:root {
   --font-rad-sans: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
   --font-rad-mono: ui-monospace, Menlo, Consolas, monospace;
 
@@ -50,9 +50,8 @@
    * Sized in rem against the app root of 112.5% (18px), so the scale renders at
    * the design's px values and still tracks a change to the root.
    *
-   * One knob scales the whole set. It multiplies only `--text-rad-*`, which nothing
-   * outside this design system reads, so turning it up cannot touch the parts of the
-   * app still on the old theme.
+   * One knob scales the whole set. It multiplies only `--text-rad-*`, so it moves the
+   * design system's type and nothing else.
    */
   --rad-type-scale: 1.2;
 
@@ -126,9 +125,7 @@
   --ease-rad-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-rad-rise: cubic-bezier(0.2, 0.9, 0.25, 1);
   --ease-rad-fly: cubic-bezier(0.3, 0.9, 0.25, 1);
-}
 
-:root {
   /* Stagger delay for .rad-rise, in milliseconds. Set per element: style="--d:120" */
   --d: 0;
 

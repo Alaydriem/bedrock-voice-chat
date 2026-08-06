@@ -13,11 +13,11 @@ impl PlayerMetadata {
     pub fn with_identity(
         self,
         name: String,
-        client_id: Option<Vec<u8>>,
+        device: Option<u64>,
     ) -> super::RecordingPlayerData {
         super::RecordingPlayerData {
             name,
-            client_id,
+            device,
             player_data: self.player_data,
             spatial: self.spatial,
             gain_settings: self.gain_settings,

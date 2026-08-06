@@ -819,7 +819,7 @@ pub unsafe extern "C" fn bvc_client_action(
             }
         };
         let channels = cache_manager.get_channel_collection();
-        let actor_cn = common::Game::Minecraft.membership_key(&action.id);
+        let actor_cn = action.actor_key();
         let result = tokio_rt
             .block_on(async { svc.route_group(&action.action, &actor_cn, &channels, &webhook).await });
         match result {
@@ -846,7 +846,7 @@ pub unsafe extern "C" fn bvc_client_action(
                 tokio_rt.block_on(async {
                     svc.route_self_with_echo(
                         &action,
-                        &action.id,
+                        &action.actor_key(),
                         &registry,
                         cache_manager.player_state(),
                         cache_manager.preferences(),

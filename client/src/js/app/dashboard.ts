@@ -7,7 +7,6 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import type { AudioDevice } from "../../js/bindings/AudioDevice.ts";
 import type { LoginResponse } from "../../js/bindings/LoginResponse.ts";
 import BVCApp from "./BVCApp";
-import Sidebar from "./components/dashboard/sidebar.ts";
 import SetupFlow from './setup/SetupFlow';
 import PlatformDetector from './utils/PlatformDetector';
 import AgeGateService from './services/AgeGateService';
@@ -27,10 +26,12 @@ import { BootTimeline } from './shell/BootTimeline';
 import Analytics from './analytics';
 import type { KeybindConfig } from '../bindings/KeybindConfig.ts';
 import type { NoiseGateSettings } from '../bindings/NoiseGateSettings.ts';
+import { NoiseGateModel } from './settings/NoiseGateModel.ts';
 import type { PlayerGainStore } from '../bindings/PlayerGainStore.ts';
 import type { ApiConfigCheckResponse } from '../bindings/ApiConfigCheckResponse.ts';
 import type { ServerListEntry } from '../bindings/ServerListEntry.ts';
 import type { WebSocketConfig } from './managers/settings/WebSocketConfig';
+import GameNameUtils from './utils/GameNameUtils';
 
 import {
   checkPermission,
@@ -70,6 +71,19 @@ export default class Dashboard extends BVCApp {
     public rail: readonly RailServer[] = [];
     public currentServer = '';
     public gamertag = '';
+    /** The game this session authenticated against. */
+    public activeGame = 'minecraft';
+
+    /**
+     * This client's canonical `game:gamertag`.
+     *
+     * The screen holds the bare gamertag to show it, and needs this to recognise itself in
+     * anything the server sent: channel membership, the position feed and the gain store all
+     * carry the certificate's form.
+     */
+    public get identity(): string {
+        return GameNameUtils.canonical(this.gamertag, this.activeGame);
+    }
 
     /**
      * The server's own proximity range and how far the position feed reaches past it.
@@ -451,8 +465,11 @@ export default class Dashboard extends BVCApp {
             const currentServer = await this.store.get("current_server") as string | null;
             const currentUser = currentPlayer || '';
             const serverUrl = currentServer || '';
+            // Every key PlayerManager writes is prefixed with this, so it has to be the game the
+            // session actually authenticated against — the login paths all persist it.
+            this.activeGame = (await this.store.get("active_game") as string | null) || 'minecraft';
 
-            this.playerManager = new PlayerManager(this.store, currentUser);
+            this.playerManager = new PlayerManager(this.store, currentUser, this.activeGame);
             await this.playerManager.listenForBackendUpdates();
             this.channelManager = new ChannelManager(this.playerManager, this.store, serverUrl);
 
@@ -603,15 +620,6 @@ export default class Dashboard extends BVCApp {
         }
     }
 
-    async renderSidebar(store: Store, currentServer: string): Promise<void> {
-        const serverList = await store.get("server_list") as ServerListEntry[];
-
-        if (serverList) {
-            const sidebar = new Sidebar(serverList, currentServer);
-            await sidebar.render();
-        }
-    }
-
     async initializeAudioDevicesAndNetworkStream(store: Store, currentServer: string, credentials: LoginResponse | null): Promise<void> {
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.has("server")) {
@@ -641,19 +649,14 @@ export default class Dashboard extends BVCApp {
                     useNoiseGate = false;
                 }
 
-                let noiseGateSettings = await store.get("noise_gate_settings") as NoiseGateSettings | null;
-
-                if (noiseGateSettings == null) {
-                    await store.set("noise_gate_settings", {
-                        open_threshold: -36.0,
-                        close_threshold: -56.0,
-                        release_rate: 150.0,
-                        attack_rate: 5.0,
-                        hold_time: 150.0
-                    });
-                    await store.save();
-                    noiseGateSettings = await store.get("noise_gate_settings") as NoiseGateSettings | null;
-                }
+                // Seeded from the same constant the settings screen resets to. These were
+                // two separate literals, and the launch gate was therefore not the gate
+                // Reset restored — a microphone that passed nothing until it was reset.
+                let noiseGateSettings = NoiseGateModel.hydrate(
+                    await store.get("noise_gate_settings") as Partial<NoiseGateSettings> | null,
+                );
+                await store.set("noise_gate_settings", noiseGateSettings);
+                await store.save();
 
                 // Set the noise gate
                 await invoke("update_stream_metadata", {

@@ -12,7 +12,6 @@
 
 mod cache_manager;
 mod certificate_common_name;
-mod client_id_hasher;
 mod connection_id_format;
 mod connection_identity;
 pub mod connection_registry;
@@ -31,7 +30,6 @@ mod webhook_receiver;
 
 use crate::config::ApplicationConfig;
 use anyhow;
-use client_id_hasher::ClientIdHasher;
 use common::s2n_quic::{Connection, Server};
 use common::structs::network::QuicCloseCode;
 use common::structs::packet::{
@@ -228,7 +226,7 @@ impl StreamTrait for QuicServerManager {
                     // full packet clone (audio payload included) per frame.
                     if packet.packet_type != PacketType::AudioFrame {
                         // Server-injected: no certificate, so no authenticated game.
-                        if let Err(e) = cache_manager.process_packet(packet.clone(), None).await {
+                        if let Err(e) = cache_manager.process_packet(packet.clone()).await {
                             tracing::error!("Failed to process packet in cache manager: {}", e);
                         }
                     }
@@ -357,12 +355,16 @@ impl QuicServerManager {
 
     async fn accept_connections(&self, mut server: Server) -> Result<(), anyhow::Error> {
         while let Some(mut connection) = server.accept().await {
-            let connection_id = format!("{:?}", connection.id());
+            // The device id every outbound packet from this connection is stamped with, and
+            // the registry's key. Taken from the connection rather than declared by the
+            // client, which is what makes one player's two devices independently addressable
+            // without either being able to impersonate the other.
+            let device = connection.id();
+            let connection_id = format!("{:?}", device);
             tracing::info!("New QUIC connection accepted: {}", connection_id);
 
-            // Routing and trust are anchored to the mTLS certificate, never to the
-            // self-asserted `owner.name` on the wire. A connection with no readable
-            // certificate identity is refused outright rather than guessed at.
+            // Routing and trust are anchored to the mTLS certificate. A connection with no
+            // readable certificate identity is refused outright rather than guessed at.
             let authenticated_cn = match Self::authenticated_cn(&connection) {
                 Some(cn) => cn,
                 None => {
@@ -378,7 +380,9 @@ impl QuicServerManager {
             let (player_identity, peer_endpoint) = match ConnectionClassifier::classify(
                 &authenticated_cn,
             ) {
-                ConnectionKind::Player { game, name } => (Some((game, name)), None),
+                // The canonical identity is carried, not the bare name: it is the key every
+                // cache, the registry index and channel membership share.
+                ConnectionKind::Player { game, name } => (Some(game.membership_key(&name)), None),
                 ConnectionKind::Peer { endpoint, .. } => (None, Some(endpoint)),
                 ConnectionKind::Rejected { identity } => {
                     tracing::warn!(
@@ -414,23 +418,24 @@ impl QuicServerManager {
                     mpsc::channel::<connection_registry::RoutedPacket>(500);
 
                 let mut input_stream = InputStream::new(Some(conn_arc.clone()), None);
+                if let Some(identity) = &player_identity {
+                    input_stream.set_identity(identity.clone(), device);
+                }
                 let mut output_stream = OutputStream::new(Some(conn_arc.clone()));
                 output_stream.set_packet_receiver(packet_rx);
 
-                // Identity callback: set output stream identity + register in connection registry
-                let output_stream_identity_setter = {
+                // Registers this connection under its authenticated identity. Both the
+                // identity and the device id are known at accept, so this runs before the
+                // first packet rather than being triggered by one.
+                let register_connection = {
                     let player_id_lock = output_stream.player_id.clone();
-                    let client_id_lock = output_stream.client_id.clone();
                     let registry = connection_registry.clone();
                     let tx = packet_tx.clone();
-                    move |player_id: String, client_id: Vec<u8>, game: common::Game| {
-                        if player_id_lock.set(player_id.clone()).is_err() {
+                    move |identity: String| {
+                        if player_id_lock.set(identity.clone()).is_err() {
                             tracing::warn!("Player ID already set for connection");
                         }
-                        if client_id_lock.set(client_id.clone()).is_err() {
-                            tracing::warn!("Client ID already set for connection");
-                        }
-                        registry.register(client_id, player_id, game, tx.clone());
+                        registry.register(device, identity, tx.clone());
                     }
                 };
 
@@ -439,28 +444,27 @@ impl QuicServerManager {
                 let webhook_receiver_for_callback = webhook_receiver.clone();
                 let registry_for_callback = connection_registry.clone();
                 input_stream.set_disconnect_callback(Box::new(
-                    move |player_id: String, client_id: Vec<u8>| {
+                    move |player_id: String| {
                         let cache_manager = cache_manager_for_callback.clone();
                         let webhook_receiver = webhook_receiver_for_callback.clone();
                         let registry = registry_for_callback.clone();
                         tokio::spawn(async move {
-                            let client_hash = ClientIdHasher::hash(&client_id);
                             tracing::info!(
-                                "Player {} (client: {}) disconnected",
+                                "Player {} (device: {}) disconnected",
                                 player_id,
-                                client_hash
+                                device
                             );
 
-                            registry.unregister(&client_id);
+                            registry.unregister(device);
 
-                            match cache_manager.remove_player(&player_id, None).await {
+                            match cache_manager.remove_player(&player_id).await {
                                 Ok(removed_channels) => {
                                     for channel_id in removed_channels {
                                         let leave_packet = common::structs::packet::QuicNetworkPacket {
-                                            owner: Some(common::structs::packet::PacketOwner {
-                                                name: player_id.clone(),
-                                                client_id: client_id.clone(),
-                                            }),
+                                            sender: Some(common::structs::packet::PacketSender::new(
+                                                player_id.clone(),
+                                                device,
+                                            )),
                                             packet_type: common::structs::packet::PacketType::ChannelEvent,
                                             data: common::structs::packet::QuicNetworkPacketData::ChannelEvent(
                                                 common::structs::packet::ChannelEventPacket::new(
@@ -516,7 +520,7 @@ impl QuicServerManager {
                         broadcast_range,
                         deafen_distance,
                         input_shutdown_rx,
-                        Box::new(output_stream_identity_setter),
+                        Box::new(register_connection),
                         input_conn,
                         player_identity,
                         peer_endpoint,
@@ -552,9 +556,9 @@ impl QuicServerManager {
         broadcast_range: f32,
         deafen_distance: f32,
         mut shutdown_rx: oneshot::Receiver<()>,
-        player_callback: Box<dyn Fn(String, Vec<u8>, common::Game) + Send + Sync>,
+        register_connection: Box<dyn Fn(String) + Send + Sync>,
         connection: Arc<Connection>,
-        player_identity: Option<(common::Game, String)>,
+        player_identity: Option<String>,
         peer_endpoint: Option<String>,
     ) -> Result<(), anyhow::Error> {
         let (packet_tx, mut packet_rx) = mpsc::unbounded_channel();
@@ -567,8 +571,18 @@ impl QuicServerManager {
         // player's every inbound packet is stamped with its authenticated name; a
         // peer server feeds the relay ingest and is never stamped, because relayed
         // packets carry their original sender's identity single-hop.
-        let authenticated_game = player_identity.as_ref().map(|(game, _)| game.clone());
-        let mut registered = false;
+        //
+        // Read from the same connection this loop serves, so the stamped device id cannot
+        // drift from the connection it names.
+        let device = connection.id();
+
+        // A player's connection is registered here, before its first packet. Both keys the
+        // registry needs — the identity and the device id — come from the connection itself,
+        // so nothing is waiting on the wire to reveal them.
+        if let Some(identity) = &player_identity {
+            register_connection(identity.clone());
+            tracing::info!("Registered authenticated player identity: {identity}");
+        }
 
         // An inbound peer link registers with the relay up front rather than waiting
         // for a first packet to reveal who it is, then drains its outbound queue back
@@ -613,26 +627,10 @@ impl QuicServerManager {
                 Some(server_packet) = packet_rx.recv() => {
                     let mut packet = server_packet.data;
 
-                    // The wire owner is a claim; overwrite it with the certificate
-                    // identity before anything downstream reads it. Registration
-                    // still waits for the first owned packet, because the per-device
-                    // client_id it routes on only exists on the wire.
-                    if let Some((game, name)) = &player_identity {
-                        PacketIdentityStamp::apply(&mut packet, name);
-
-                        if !registered {
-                            if let Some(owner) = &packet.owner {
-                                player_callback(
-                                    name.clone(),
-                                    owner.client_id.clone(),
-                                    game.clone(),
-                                );
-                                tracing::info!(
-                                    "Registered authenticated player identity: {name}"
-                                );
-                                registered = true;
-                            }
-                        }
+                    // Stamp the certificate identity and this connection's device id before
+                    // anything downstream reads either.
+                    if let Some(identity) = &player_identity {
+                        PacketIdentityStamp::apply(&mut packet, identity, device);
                     }
 
                     // Inbound peer link: route every packet straight into the
@@ -649,7 +647,7 @@ impl QuicServerManager {
                     // full packet clone (audio payload included) per frame.
                     if packet.packet_type != PacketType::AudioFrame {
                         if let Err(e) = cache_manager
-                            .process_packet(packet.clone(), authenticated_game.clone())
+                            .process_packet(packet.clone())
                             .await
                         {
                             tracing::error!("Failed to process packet in cache manager: {}", e);
@@ -689,7 +687,7 @@ impl QuicServerManager {
                                 // only to the player it describes.
                                 let echo = QuicNetworkPacket {
                                     packet_type: PacketType::PlayerData,
-                                    owner: updated_packet.owner.clone(),
+                                    sender: updated_packet.sender.clone(),
                                     data: QuicNetworkPacketData::PlayerData(
                                         PlayerDataPacket::new(vec![player]),
                                     ),

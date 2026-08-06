@@ -283,6 +283,7 @@ if (kvHost) {
         uptimeSeconds: uptime,
         reconnecting: false,
         muted: false,
+        noiseGate: "Open",
         deafened: false,
         pttIdle: false,
         mutedOthers: 0,

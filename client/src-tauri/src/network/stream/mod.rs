@@ -9,7 +9,6 @@ use common::net::ConnectCandidate;
 use common::s2n_quic::Client;
 use common::s2n_quic::Connection;
 use common::s2n_quic::client::Connect;
-use common::structs::packet::PacketOwner;
 use std::error::Error;
 use std::sync::Arc;
 use stream_manager::StreamTrait;
@@ -58,7 +57,7 @@ impl NetworkStreamManager {
             )),
             output: StreamTraitType::Output(stream_manager::OutputStream::new(
                 consumer.clone(),
-                None,
+                String::new(),
                 None,
                 app_handle.clone(),
                 transport_stats.clone(),
@@ -77,7 +76,7 @@ impl NetworkStreamManager {
         server_fqdn: String,
         server_url: String,
         plan: CandidatePlan,
-        name: String,
+        identity: String,
         ca_cert: String,
         cert: String,
         key: String,
@@ -153,11 +152,6 @@ impl NetworkStreamManager {
         let conn_arc = Arc::new(connection);
         self.health_manager.reset();
 
-        let packet_owner = PacketOwner {
-            name,
-            client_id: (0..32).map(|_| rand::random::<u8>()).collect(),
-        };
-
         self.input = StreamTraitType::Input(stream_manager::InputStream::new(
             self.producer.clone(),
             Some(conn_arc.clone()),
@@ -169,7 +163,7 @@ impl NetworkStreamManager {
 
         self.output = StreamTraitType::Output(stream_manager::OutputStream::new(
             self.consumer.clone(),
-            Some(packet_owner.clone()),
+            identity.clone(),
             Some(conn_arc.clone()),
             self.app_handle.clone(),
             self.transport_stats.clone(),
@@ -177,17 +171,16 @@ impl NetworkStreamManager {
 
         self.input.start().await?;
         self.output.start().await?;
-        self.health_manager
-            .start(conn_arc, Some(packet_owner.clone()), server_url);
+        self.health_manager.start(conn_arc, server_url);
 
-        // The control plane reports as this connection's identity (the same
-        // name the OutputStream stamps as packet owner). Publish it, then nudge
-        // a full snapshot so a fresh player's server-side state is never empty.
-        if let Some(identity) = self
+        // The control plane reports under the same identity the server authenticated this
+        // connection as, because that is what the server compares every report against.
+        // Publish it, then nudge a full snapshot so a fresh player's state is never empty.
+        if let Some(connection_identity) = self
             .app_handle
             .try_state::<Arc<crate::control::ConnectionIdentity>>()
         {
-            identity.set(Some(packet_owner.name.clone()));
+            connection_identity.set(Some(identity));
         }
         if let Some(bus) = self.app_handle.try_state::<crate::control::ControlStateBus>() {
             bus.self_state();
@@ -336,7 +329,7 @@ impl NetworkStreamManager {
 
         self.output = StreamTraitType::Output(stream_manager::OutputStream::new(
             self.consumer.clone(),
-            None,
+            String::new(),
             None,
             self.app_handle.clone(),
             self.transport_stats.clone(),

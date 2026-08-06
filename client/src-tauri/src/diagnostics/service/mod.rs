@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use common::consts::version::PROTOCOL_VERSION;
+use common::structs::audio::NoiseGateStatus;
 use common::structs::metrics::{
     LinkDiagnostics, LinkDiagnosticsSnapshot, LinkQuality, LinkSample, MicDiagnostics,
     PeerDiagnostics, PlaybackDiagnostics, SessionDiagnostics,
@@ -378,7 +379,10 @@ impl LinkDiagnosticsService {
             mic: MicDiagnostics {
                 device: devices.input_name,
                 sample_rate: devices.input_sample_rate,
-                gate_open: signal_delta > 0,
+                noise_gate: NoiseGateStatus::of(
+                    DeviceInfo::noise_gate_enabled(),
+                    signal_delta > 0,
+                ),
                 muted: input_muted,
                 datagrams_per_sec: send_rate,
             },

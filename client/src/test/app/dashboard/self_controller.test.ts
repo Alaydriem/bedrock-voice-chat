@@ -370,4 +370,126 @@ describe("SelfController", () => {
         // a stamp of 0 would have produced.
         expect(self.state.elapsed(started)).toBeLessThan(50);
     });
+
+    /**
+     * Recording had neither of the two corrections the other controls have: the press did
+     * not settle on what the command returned, and the reconcile poll did not carry it. So
+     * a single dropped `recording:started` left the button off over a backend that was
+     * recording, and the next press answered "Recording already in progress" — the toggle
+     * and the truth permanently inverted, with nothing able to put them back.
+     */
+    it("adopts a recording the backend reports on the next poll", async () => {
+        let recording = false;
+        mockInvoke({
+            mute_status: () => false,
+            is_recording: () => recording,
+            voice_runtime_state: () => ({
+                voiceMode: "openMic",
+                pttActive: false,
+                inputMuted: false,
+                outputMuted: false,
+                recording,
+            }),
+        });
+
+        const self = new SelfController(store());
+        await self.start();
+        expect(self.state.snapshot.recording).toBe(false);
+
+        // Armed by something this window never saw: a hotkey, a Stream Deck, `/bvc`, or an
+        // event that simply did not arrive.
+        recording = true;
+        await self.refresh();
+
+        expect(self.state.snapshot.recording).toBe(true);
+    });
+
+    it("times a recording it learned about from the poll", async () => {
+        mockInvoke({
+            mute_status: () => false,
+            is_recording: () => false,
+            voice_runtime_state: () => ({
+                voiceMode: "openMic",
+                pttActive: false,
+                inputMuted: false,
+                outputMuted: false,
+                recording: true,
+            }),
+        });
+
+        const self = new SelfController(store());
+        await self.start();
+
+        const observed = performance.now();
+        await self.refresh();
+
+        expect(self.state.snapshot.recording).toBe(true);
+        // Stamped when the poll observed it, not left at 0 — which would read as a
+        // recording that started when this object was constructed.
+        expect(self.state.elapsed(observed)).toBeLessThan(50);
+    });
+
+    it("moves the button on the press rather than waiting for the event", async () => {
+        mockInvoke({
+            mute_status: () => false,
+            is_recording: () => false,
+            start_recording: () => "session-1",
+        });
+
+        const self = new SelfController(store());
+        await self.start();
+        self.pressRecord();
+
+        await vi.waitFor(() => expect(self.state.snapshot.recording).toBe(true));
+    });
+
+    /**
+     * The reported symptom. The backend refuses because it is already recording, which is
+     * the one case where the UI is provably the wrong one — so it re-reads rather than
+     * keeping its own answer.
+     */
+    /**
+     * The optimistic paint is a guess, and a refused command proves it wrong. Without the
+     * re-read the button keeps the guess — which is how the two ended up inverted with
+     * nothing able to put them back.
+     */
+    it("takes back the optimistic paint when the backend refuses the press", async () => {
+        mockInvoke({
+            mute_status: () => false,
+            // Recording throughout: the stop below does not take.
+            is_recording: () => true,
+            stop_recording: () => {
+                throw new Error("Failed to stop recording: No recording in progress");
+            },
+        });
+
+        const self = new SelfController(store());
+        await self.start();
+        expect(self.state.snapshot.recording).toBe(true);
+
+        self.pressRecord();
+
+        // Painted false on the press, then corrected: the backend is still recording.
+        await vi.waitFor(() => expect(self.state.snapshot.recording).toBe(true));
+    });
+
+    it("stops recording when the command succeeds", async () => {
+        let recording = true;
+        mockInvoke({
+            mute_status: () => false,
+            is_recording: () => recording,
+            stop_recording: () => {
+                recording = false;
+                return null;
+            },
+        });
+
+        const self = new SelfController(store());
+        await self.start();
+        expect(self.state.snapshot.recording).toBe(true);
+
+        self.pressRecord();
+        await vi.waitFor(() => expect(self.state.snapshot.recording).toBe(false));
+        expect(invokeCalls().some((c) => c.cmd === "stop_recording")).toBe(true);
+    });
 });

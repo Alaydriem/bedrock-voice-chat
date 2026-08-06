@@ -127,7 +127,6 @@ impl RelayOrchestrator {
     pub fn inject_packet(packet: PeerPresenceInjectPacket) -> QuicNetworkPacket {
         QuicNetworkPacket {
             packet_type: PacketType::PeerPresenceInject,
-            owner: None,
             data: QuicNetworkPacketData::PeerPresenceInject(packet),
             // Not a server fan-out to one connection, so this envelope carries no sequence.
             ..Default::default()

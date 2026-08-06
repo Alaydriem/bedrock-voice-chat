@@ -101,7 +101,6 @@ impl EjectScheduler {
         );
         let packet = QuicNetworkPacket {
             packet_type: PacketType::BedrockEvent,
-            owner: None,
             data: QuicNetworkPacketData::BedrockEvent(bedrock_packet),
                     // Not a server fan-out, so this envelope carries no sequence.
             ..Default::default()

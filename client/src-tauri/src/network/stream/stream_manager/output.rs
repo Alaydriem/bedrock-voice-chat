@@ -1,7 +1,7 @@
 use crate::NetworkPacket;
 use bytes::Bytes;
 use common::s2n_quic::Connection;
-use common::structs::packet::{DebugPacket, PacketOwner, QuicNetworkPacket};
+use common::structs::packet::{DebugPacket, QuicNetworkPacket};
 use log::{error, info};
 use std::sync::{
     Arc,
@@ -16,7 +16,10 @@ use common::consts::version::PROTOCOL_VERSION as CLIENT_VERSION;
 /// Then sends it to the server
 pub(crate) struct OutputStream {
     pub bus: Arc<flume::Receiver<NetworkPacket>>,
-    pub packet_owner: Option<PacketOwner>,
+    /// This connection's canonical identity. Reported in the opening Debug packet only —
+    /// every other packet leaves here unattributed, because the server takes the sender
+    /// from the certificate rather than from anything written here.
+    pub identity: String,
     pub connection: Option<Arc<Connection>>,
     jobs: Vec<AbortHandle>,
     shutdown: Arc<AtomicBool>,
@@ -56,7 +59,7 @@ impl common::traits::StreamTrait for OutputStream {
         let mut jobs = vec![];
         let rx = self.bus.clone();
         let connection = self.connection.clone().unwrap();
-        let packet_owner = self.packet_owner.clone();
+        let identity = self.identity.clone();
         let app_handle = self.app_handle.clone();
         let transport_stats = self.transport_stats.clone();
 
@@ -66,10 +69,9 @@ impl common::traits::StreamTrait for OutputStream {
             // Send a DEBUG Packet to initialize the stream on the server
             let debug_packet = QuicNetworkPacket {
                 packet_type: common::structs::packet::PacketType::Debug,
-                owner: packet_owner.clone(),
                 data: common::structs::packet::QuicNetworkPacketData::Debug(
                     DebugPacket {
-                        owner: packet_owner.clone().unwrap().name,
+                        identity: identity.clone(),
                         version: CLIENT_VERSION.to_string(),
                         timestamp: Instant::now().elapsed().as_millis() as u64,
                     }
@@ -97,8 +99,7 @@ impl common::traits::StreamTrait for OutputStream {
                             break;
                         }
 
-                        let mut quic_network_packet = network_packet.data;
-                        quic_network_packet.owner = packet_owner.clone();
+                        let quic_network_packet = network_packet.data;
 
                         // Send immediately for real-time performance
                         match quic_network_packet.to_datagram() {
@@ -149,14 +150,14 @@ impl common::traits::StreamTrait for OutputStream {
 impl OutputStream {
     pub fn new(
         consumer: Arc<flume::Receiver<NetworkPacket>>,
-        packet_owner: Option<PacketOwner>,
+        identity: String,
         connection: Option<Arc<Connection>>,
         app_handle: tauri::AppHandle,
         transport_stats: Arc<crate::diagnostics::TransportStats>,
     ) -> Self {
         Self {
             bus: consumer.clone(),
-            packet_owner,
+            identity,
             connection,
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),

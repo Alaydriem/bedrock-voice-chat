@@ -115,7 +115,7 @@
             </p>
 
             <div class="rad-rise" style="--d: 300; margin-top: 24px">
-                <AudioDeviceSelector layoutMode="vertical" showLoadingText={true} />
+                <AudioDeviceSelector />
             </div>
 
             {#if ontestspeaker}

@@ -23,31 +23,34 @@ impl ClientActionService {
         Self
     }
 
-    /// Delivers a self/preference action to the authenticated actor's own
-    /// connection. `actor_name` (the authenticated identity) is authoritative; the
-    /// wire `action.id` is overwritten with it. Returns whether a live connection
-    /// received it.
+    /// Delivers a self/preference action to the authenticated actor's own connection.
+    ///
+    /// `actor_identity` is the canonical `game:gamertag` and is authoritative; the wire
+    /// `action.id` is overwritten with it. A bare gamertag here matches no connection, so
+    /// callers holding one compose it with `ClientAction::actor_key` first.
+    ///
+    /// Returns whether a live connection received it.
     pub fn route_self(
         &self,
         action: &ClientAction,
-        actor_name: &str,
+        actor_identity: &str,
         registry: &ConnectionRegistry,
     ) -> bool {
         let packet = ClientActionPacket::new(
             ClientAction {
-                id: actor_name.to_string(),
+                id: actor_identity.to_string(),
+                game: action.game.clone(),
                 action: action.action.clone(),
             },
             PacketDirection::ClientBound,
         );
         let envelope = QuicNetworkPacket {
             packet_type: PacketType::ClientAction,
-            owner: None,
             data: QuicNetworkPacketData::ClientAction(packet),
                     // Not a server fan-out, so this envelope carries no sequence.
             ..Default::default()
         };
-        registry.send_to_player(actor_name, &envelope)
+        registry.send_to_player(actor_identity, &envelope)
     }
 
     /// `route_self` plus an optimistic cache echo: when a live connection actually
@@ -60,38 +63,38 @@ impl ClientActionService {
     pub async fn route_self_with_echo(
         &self,
         action: &ClientAction,
-        actor_name: &str,
+        actor_identity: &str,
         registry: &ConnectionRegistry,
         player_state: &PlayerStateCache,
         preferences: &PlayerPreferenceCache,
     ) -> bool {
-        if !self.route_self(action, actor_name, registry) {
+        if !self.route_self(action, actor_identity, registry) {
             return false;
         }
 
         match &action.action {
             ClientActionType::SetMuted(on) => {
-                Self::patch_self_state(player_state, actor_name, |s| s.muted = *on).await;
+                Self::patch_self_state(player_state, actor_identity, |s| s.muted = *on).await;
             }
             ClientActionType::SetDeafened(on) => {
-                Self::patch_self_state(player_state, actor_name, |s| s.deafened = *on).await;
+                Self::patch_self_state(player_state, actor_identity, |s| s.deafened = *on).await;
             }
             ClientActionType::SetRecording(on) => {
-                Self::patch_self_state(player_state, actor_name, |s| s.recording = *on).await;
+                Self::patch_self_state(player_state, actor_identity, |s| s.recording = *on).await;
             }
             ClientActionType::SetVolume { target, volume } => {
                 // Mirror the client's own sanitation (ignore non-finite, clamp to
                 // [0,1]) so the echo never publishes a gain the client won't apply.
                 if volume.is_finite() {
                     let volume = volume.clamp(0.0, 1.0);
-                    Self::patch_preference(preferences, actor_name, target, |p| {
+                    Self::patch_preference(preferences, actor_identity, target, |p| {
                         p.volume = volume
                     })
                     .await;
                 }
             }
             ClientActionType::SetHeard { target, muted } => {
-                Self::patch_preference(preferences, actor_name, target, |p| p.muted = *muted)
+                Self::patch_preference(preferences, actor_identity, target, |p| p.muted = *muted)
                     .await;
             }
             _ => {}
@@ -101,27 +104,27 @@ impl ClientActionService {
 
     async fn patch_self_state(
         player_state: &PlayerStateCache,
-        actor_name: &str,
+        actor_identity: &str,
         apply: impl FnOnce(&mut QueryState),
     ) {
-        if let Some(mut state) = player_state.get(&actor_name.to_string()).await {
+        if let Some(mut state) = player_state.get(&actor_identity.to_string()).await {
             apply(&mut state);
-            player_state.set(actor_name.to_string(), state).await;
+            player_state.set(actor_identity.to_string(), state).await;
         }
     }
 
     async fn patch_preference(
         preferences: &PlayerPreferenceCache,
-        actor_name: &str,
+        actor_identity: &str,
         target: &str,
         apply: impl FnOnce(&mut PlayerPreference),
     ) {
-        let key = PreferenceKey::new(actor_name, target);
+        let key = PreferenceKey::new(actor_identity, target);
         let mut pref = preferences
             .get(&key)
             .await
             .unwrap_or_else(|| PlayerPreference {
-                owner: actor_name.to_string(),
+                owner: actor_identity.to_string(),
                 target: target.to_string(),
                 volume: 1.0,
                 muted: false,

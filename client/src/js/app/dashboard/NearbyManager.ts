@@ -138,9 +138,11 @@ export class NearbyManager {
      */
     private async remember(player: NearbyPlayer): Promise<void> {
         try {
+            // `player.name` is already the canonical identity from the position feed;
+            // `player.gamertag` is the bare display form and would not resolve at the mixer.
             const gains = ((await this.store.get('player_gain_store')) as PlayerGainStore) || {};
-            const existing = gains[player.gamertag] ?? { gain: 1.0, muted: false };
-            gains[player.gamertag] = { ...existing, last_seen: Date.now() };
+            const existing = gains[player.name] ?? { gain: 1.0, muted: false };
+            gains[player.name] = { ...existing, last_seen: Date.now() };
             await this.store.set('player_gain_store', gains);
             await this.store.save();
         } catch (e) {

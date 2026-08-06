@@ -1,30 +1,19 @@
-use common::structs::packet::QuicNetworkPacket;
+use common::structs::packet::{PacketSender, QuicNetworkPacket};
 
-// Rewrites an inbound packet's declared owner name to the connection's
-// mTLS-authenticated identity.
+// Stamps an inbound packet with the connection's authenticated identity before anything
+// downstream reads it.
 //
-// The wire `owner.name` is client-controlled, so it is a claim, not a fact. Applying
-// this at the input boundary makes every downstream consumer — `get_author()`, the
-// cache guards, membership keying, outbound broadcast — read an authenticated value
-// without each having to know about certificates.
+// There is nothing to compare against and nothing to reject: a client has no field in which to
+// claim an identity, so this writes rather than corrects. Applying it at the input boundary is
+// what lets the cache guards, membership keying and outbound broadcast all read an
+// authenticated value without any of them knowing about certificates.
 //
-// `client_id` is deliberately untouched: it is the client's per-device routing key,
-// and preserving it is what keeps one player's two devices separately addressable.
-// An owner-less packet is left alone rather than given a synthesized owner, because
-// there is no client_id to attribute it to.
+// The write is unconditional. A packet arriving with a sender already set is either a relayed
+// peer's or a forgery, and either way this server fans it out under its own authority.
 pub struct PacketIdentityStamp;
 
 impl PacketIdentityStamp {
-    pub fn apply(packet: &mut QuicNetworkPacket, authenticated_name: &str) {
-        if let Some(owner) = packet.owner.as_mut() {
-            if owner.name != authenticated_name {
-                tracing::debug!(
-                    claimed = %owner.name,
-                    authenticated = %authenticated_name,
-                    "Rewriting packet owner to the authenticated identity"
-                );
-                owner.name = authenticated_name.to_string();
-            }
-        }
+    pub fn apply(packet: &mut QuicNetworkPacket, identity: &str, device: u64) {
+        packet.sender = Some(PacketSender::new(identity.to_string(), device));
     }
 }

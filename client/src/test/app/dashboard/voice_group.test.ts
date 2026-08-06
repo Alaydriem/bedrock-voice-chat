@@ -1,15 +1,28 @@
 import { describe, expect, it } from "vitest";
 import { DiagnosticsView } from "../../../js/app/dashboard/DiagnosticsView";
 import type { VoiceDiagnostics } from "../../../js/app/dashboard/SelfController";
+import type { VoiceRuntimeState } from "../../../js/bindings/VoiceRuntimeState";
+
+/**
+ * What the backend reports, defaulted so a case states only what it cares about.
+ *
+ * Each case used to write the DTO out whole, so adding one field to it broke every case
+ * here at once — none of which had anything to say about that field.
+ */
+function backend(over: Partial<VoiceRuntimeState> = {}): VoiceRuntimeState {
+    return {
+        voiceMode: "openMic",
+        pttActive: false,
+        inputMuted: false,
+        outputMuted: false,
+        recording: false,
+        ...over,
+    };
+}
 
 function voice(over: Partial<VoiceDiagnostics> = {}): VoiceDiagnostics {
     return {
-        backend: {
-            voiceMode: "openMic",
-            pttActive: false,
-            inputMuted: false,
-            outputMuted: false,
-        },
+        backend: backend(),
         mic: { events: 120, eventsPerSecond: 10, lastRms: 0.041, silentForMs: 90 },
         ...over,
     };
@@ -24,7 +37,7 @@ describe("the voice group", () => {
     it("reports the mode the backend holds", () => {
         expect(row(voice(), "Mode")).toBe("open mic");
         expect(
-            row(voice({ backend: { voiceMode: "pushToTalk", pttActive: false, inputMuted: true, outputMuted: false } }), "Mode"),
+            row(voice({ backend: backend({ voiceMode: "pushToTalk", pttActive: false, inputMuted: true, outputMuted: false  }) }), "Mode"),
         ).toBe("push-to-talk");
     });
 
@@ -33,7 +46,7 @@ describe("the voice group", () => {
     it("says whether the microphone is open", () => {
         expect(row(voice(), "Microphone")).toBe("open");
         expect(
-            row(voice({ backend: { voiceMode: "openMic", pttActive: false, inputMuted: true, outputMuted: false } }), "Microphone"),
+            row(voice({ backend: backend({ voiceMode: "openMic", pttActive: false, inputMuted: true, outputMuted: false  }) }), "Microphone"),
         ).toContain("muted");
     });
 
@@ -41,13 +54,13 @@ describe("the voice group", () => {
     // flag means opposite things, so the row says which one this is.
     it("distinguishes a resting mute from a broken one", () => {
         const resting = row(
-            voice({ backend: { voiceMode: "pushToTalk", pttActive: false, inputMuted: true, outputMuted: false } }),
+            voice({ backend: backend({ voiceMode: "pushToTalk", pttActive: false, inputMuted: true, outputMuted: false  }) }),
             "Microphone",
         );
         expect(resting).toContain("resting state");
 
         const broken = row(
-            voice({ backend: { voiceMode: "openMic", pttActive: false, inputMuted: true, outputMuted: false } }),
+            voice({ backend: backend({ voiceMode: "openMic", pttActive: false, inputMuted: true, outputMuted: false  }) }),
             "Microphone",
         );
         expect(broken).toContain("nothing is being captured");
@@ -55,12 +68,12 @@ describe("the voice group", () => {
 
     it("shows whether a hold is registered", () => {
         const held = voice({
-            backend: { voiceMode: "pushToTalk", pttActive: true, inputMuted: false, outputMuted: false },
+            backend: backend({ voiceMode: "pushToTalk", pttActive: true, inputMuted: false, outputMuted: false  }),
         });
         expect(row(held, "Hold")).toBe("held");
 
         const released = voice({
-            backend: { voiceMode: "pushToTalk", pttActive: false, inputMuted: true, outputMuted: false },
+            backend: backend({ voiceMode: "pushToTalk", pttActive: false, inputMuted: true, outputMuted: false  }),
         });
         expect(row(released, "Hold")).toBe("released");
     });
@@ -73,12 +86,7 @@ describe("the voice group", () => {
 });
 
 describe("the mode the button believes", () => {
-    const backendPtt = {
-        voiceMode: "pushToTalk" as const,
-        pttActive: false,
-        inputMuted: true,
-        outputMuted: false,
-    };
+    const backendPtt = backend({ voiceMode: "pushToTalk" as const, pttActive: false, inputMuted: true, outputMuted: false });
 
     /**
      * The mode reaches the button by event, and the button is what turns a tap into a hold.
@@ -111,7 +119,7 @@ describe("the capture stream row", () => {
      */
     it("separates a muted stream from one that is not running", () => {
         const muted = voice({
-            backend: { voiceMode: "pushToTalk", pttActive: false, inputMuted: true, outputMuted: false },
+            backend: backend({ voiceMode: "pushToTalk", pttActive: false, inputMuted: true, outputMuted: false  }),
             mic: { events: 300, eventsPerSecond: 10, lastRms: 0, silentForMs: 80 },
         });
         expect(row(muted, "Capture stream")).toContain("10.0/s");

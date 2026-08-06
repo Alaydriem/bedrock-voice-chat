@@ -1,15 +1,50 @@
 use bvc_server_lib::services::metrics_service::interaction::InteractionRoute;
 use bvc_server_lib::stream::quic::connection_registry::ConnectionRegistry;
-use common::Game;
 use tokio::sync::mpsc;
 
 use crate::harness::RoutingFixture;
+
+/// A disconnect clears channel membership at once, not on the reaper's schedule.
+///
+/// The removal keys on `ConnectionEntry.identity`. Keyed on a bare gamertag against a map of
+/// `game:gamertag`, it matched nothing and the entry survived until the grace sweep — which
+/// reads exactly like the grace working as intended.
+#[test]
+fn a_disconnect_clears_channel_membership() {
+    let reg = ConnectionRegistry::new();
+    let (tx, _rx) = mpsc::channel(4);
+    reg.register(1, "minecraft:Alaydriem".to_string(), tx);
+    reg.update_player_channel("minecraft:Alaydriem".to_string(), "abc".to_string());
+    assert_eq!(reg.channel_membership_count(), 1);
+
+    reg.unregister(1);
+
+    assert_eq!(reg.channel_membership_count(), 0);
+}
+
+/// A late close for a superseded connection must not evict the live one.
+///
+/// Reconnects arrive before the old connection's close on this branch's own recovery path. The
+/// name index was already guarded against this; the channel membership was not, so the player
+/// stayed in the channel by the server's own reckoning and heard proximity audio instead.
+#[test]
+fn a_stale_disconnect_leaves_a_reconnected_players_membership_alone() {
+    let reg = ConnectionRegistry::new();
+    let (tx, _rx) = mpsc::channel(4);
+    reg.register(1, "minecraft:Alaydriem".to_string(), tx.clone());
+    reg.register(2, "minecraft:Alaydriem".to_string(), tx);
+    reg.update_player_channel("minecraft:Alaydriem".to_string(), "abc".to_string());
+
+    reg.unregister(1);
+
+    assert_eq!(reg.channel_membership_count(), 1);
+}
 
 #[test]
 fn reaper_purges_absent_channel_membership_after_grace() {
     let reg = ConnectionRegistry::new();
     let (tx, _rx) = mpsc::channel(4);
-    reg.register(vec![1], "Alice".to_string(), Game::Minecraft, tx.clone());
+    reg.register(1, "minecraft:Alice".to_string(), tx.clone());
     reg.update_player_channel("minecraft:Alice".to_string(), "chan1".to_string());
     reg.update_player_channel("minecraft:Ghost".to_string(), "chan2".to_string());
     assert_eq!(reg.channel_membership_count(), 2);
@@ -30,7 +65,7 @@ fn reaper_resets_grace_when_player_reconnects() {
     reg.update_player_channel("minecraft:Bob".to_string(), "chan1".to_string());
 
     reg.reap_stale_channels(); // sweep 1 while Bob is absent
-    reg.register(vec![9], "Bob".to_string(), Game::Minecraft, tx.clone()); // Bob reconnects
+    reg.register(9, "minecraft:Bob".to_string(), tx.clone()); // Bob reconnects
     reg.reap_stale_channels(); // Bob live now -> grace reset, not purged
 
     assert_eq!(reg.channel_membership_count(), 1);
@@ -44,11 +79,11 @@ async fn same_channel_recipient_receives_channel_variant_at_any_distance() {
     let cache = RoutingFixture::player_cache(&[alice.clone(), bob.clone()]).await;
 
     let (bob_tx, mut bob_rx) = mpsc::channel(16);
-    reg.register(vec![2], "Bob".to_string(), Game::Minecraft, bob_tx);
+    reg.register(2, "minecraft:Bob".to_string(), bob_tx);
     reg.update_player_channel("minecraft:Alice".to_string(), "chan1".to_string());
     reg.update_player_channel("minecraft:Bob".to_string(), "chan1".to_string());
 
-    let packet = RoutingFixture::audio_packet(alice, "Alice");
+    let packet = RoutingFixture::audio_packet(alice, "minecraft:Alice");
     reg.route_audio_frame(&packet, &cache, 50.0, 5.0).await;
 
     assert_eq!(
@@ -71,12 +106,12 @@ async fn same_channel_members_hear_each_other_without_position_data() {
 
     let (alice_tx, _alice_rx) = mpsc::channel(16);
     let (bob_tx, mut bob_rx) = mpsc::channel(16);
-    reg.register(vec![1], "Alice".to_string(), Game::Minecraft, alice_tx);
-    reg.register(vec![2], "Bob".to_string(), Game::Minecraft, bob_tx);
+    reg.register(1, "minecraft:Alice".to_string(), alice_tx);
+    reg.register(2, "minecraft:Bob".to_string(), bob_tx);
     reg.update_player_channel("minecraft:Alice".to_string(), "chan1".to_string());
     reg.update_player_channel("minecraft:Bob".to_string(), "chan1".to_string());
 
-    let packet = RoutingFixture::audio_packet_without_position("Alice");
+    let packet = RoutingFixture::audio_packet_without_position("minecraft:Alice");
     reg.route_audio_frame(&packet, &cache, 50.0, 5.0).await;
 
     assert_eq!(
@@ -96,10 +131,10 @@ async fn positionless_sender_outside_a_channel_is_not_routed() {
 
     let (alice_tx, _alice_rx) = mpsc::channel(16);
     let (bob_tx, mut bob_rx) = mpsc::channel(16);
-    reg.register(vec![1], "Alice".to_string(), Game::Minecraft, alice_tx);
-    reg.register(vec![2], "Bob".to_string(), Game::Minecraft, bob_tx);
+    reg.register(1, "minecraft:Alice".to_string(), alice_tx);
+    reg.register(2, "minecraft:Bob".to_string(), bob_tx);
 
-    let packet = RoutingFixture::audio_packet_without_position("Alice");
+    let packet = RoutingFixture::audio_packet_without_position("minecraft:Alice");
     reg.route_audio_frame(&packet, &cache, 50.0, 5.0).await;
 
     assert_eq!(
@@ -117,9 +152,9 @@ async fn in_range_recipient_receives_spatial_variant() {
     let cache = RoutingFixture::player_cache(&[alice.clone(), bob.clone()]).await;
 
     let (bob_tx, mut bob_rx) = mpsc::channel(16);
-    reg.register(vec![2], "Bob".to_string(), Game::Minecraft, bob_tx);
+    reg.register(2, "minecraft:Bob".to_string(), bob_tx);
 
-    let packet = RoutingFixture::audio_packet(alice, "Alice");
+    let packet = RoutingFixture::audio_packet(alice, "minecraft:Alice");
     reg.route_audio_frame(&packet, &cache, 50.0, 5.0).await;
 
     assert_eq!(
@@ -137,9 +172,9 @@ async fn out_of_range_recipient_receives_nothing() {
     let cache = RoutingFixture::player_cache(&[alice.clone(), bob.clone()]).await;
 
     let (bob_tx, mut bob_rx) = mpsc::channel(16);
-    reg.register(vec![2], "Bob".to_string(), Game::Minecraft, bob_tx);
+    reg.register(2, "minecraft:Bob".to_string(), bob_tx);
 
-    let packet = RoutingFixture::audio_packet(alice, "Alice");
+    let packet = RoutingFixture::audio_packet(alice, "minecraft:Alice");
     reg.route_audio_frame(&packet, &cache, 50.0, 5.0).await;
 
     assert_eq!(RoutingFixture::delivered_spatial(&mut bob_rx).await, None);
@@ -152,9 +187,9 @@ async fn sender_does_not_receive_own_frame() {
     let cache = RoutingFixture::player_cache(&[alice.clone()]).await;
 
     let (alice_tx, mut alice_rx) = mpsc::channel(16);
-    reg.register(vec![1], "Alice".to_string(), Game::Minecraft, alice_tx);
+    reg.register(1, "minecraft:Alice".to_string(), alice_tx);
 
-    let packet = RoutingFixture::audio_packet(alice, "Alice");
+    let packet = RoutingFixture::audio_packet(alice, "minecraft:Alice");
     reg.route_audio_frame(&packet, &cache, 50.0, 5.0).await;
 
     assert_eq!(RoutingFixture::delivered_spatial(&mut alice_rx).await, None);
@@ -169,9 +204,9 @@ async fn deafened_sender_is_limited_to_deafen_distance() {
     let cache = RoutingFixture::player_cache(&[alice.clone(), bob.clone()]).await;
 
     let (bob_tx, mut bob_rx) = mpsc::channel(16);
-    reg.register(vec![2], "Bob".to_string(), Game::Minecraft, bob_tx);
+    reg.register(2, "minecraft:Bob".to_string(), bob_tx);
 
-    let packet = RoutingFixture::audio_packet(alice, "Alice");
+    let packet = RoutingFixture::audio_packet(alice, "minecraft:Alice");
     reg.route_audio_frame(&packet, &cache, 50.0, 10.0).await;
 
     assert_eq!(RoutingFixture::delivered_spatial(&mut bob_rx).await, None);
@@ -210,7 +245,7 @@ async fn synthetic_sender_audio_is_not_counted_as_an_interaction() {
     let cache = RoutingFixture::player_cache(&[jukebox.clone(), bob.clone()]).await;
 
     let (bob_tx, mut bob_rx) = mpsc::channel(16);
-    reg.register(vec![2], "Bob".to_string(), Game::Minecraft, bob_tx);
+    reg.register(2, "minecraft:Bob".to_string(), bob_tx);
 
     let packet = RoutingFixture::audio_packet(jukebox, "Jukebox");
     reg.route_audio_frame(&packet, &cache, 30.0, 0.0).await;
@@ -242,10 +277,10 @@ async fn audio_between_two_connected_players_counts_both() {
 
     let (alice_tx, _alice_rx) = mpsc::channel(16);
     let (bob_tx, mut bob_rx) = mpsc::channel(16);
-    reg.register(vec![1], "Alice".to_string(), Game::Minecraft, alice_tx);
-    reg.register(vec![2], "Bob".to_string(), Game::Minecraft, bob_tx);
+    reg.register(1, "minecraft:Alice".to_string(), alice_tx);
+    reg.register(2, "minecraft:Bob".to_string(), bob_tx);
 
-    let packet = RoutingFixture::audio_packet(alice, "Alice");
+    let packet = RoutingFixture::audio_packet(alice, "minecraft:Alice");
     reg.route_audio_frame(&packet, &cache, 30.0, 0.0).await;
 
     assert!(RoutingFixture::delivered_spatial(&mut bob_rx).await.is_some());

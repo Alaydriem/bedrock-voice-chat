@@ -1,6 +1,6 @@
 <script lang="ts">
   import "../../css/app.css";
-  import App from "../../js/app/app.ts";
+  import BootOverlay from "../../js/app/shell/BootOverlay";
   import RadFrame from "../../components/shell/RadFrame.svelte";
   import FaultScreen from "../../components/error/FaultScreen.svelte";
   import { onMount } from "svelte";
@@ -85,9 +85,8 @@
   });
 
   onMount(async () => {
-    window.App = new App();
     window.dispatchEvent(new CustomEvent("app:mounted"));
-    window.App.preloader();
+    BootOverlay.dismiss();
 
     try { appVersion = await getVersion(); } catch (_) {}
 

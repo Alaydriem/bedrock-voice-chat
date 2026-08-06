@@ -18,7 +18,7 @@ use super::GridCell;
 /// sending absolute coordinates — the one thing this feed exists not to do.
 pub struct WorldIndex {
     cells: HashMap<GridCell, Vec<PlayerEnum>>,
-    by_name: HashMap<String, PlayerEnum>,
+    by_identity: HashMap<String, PlayerEnum>,
     on_voice: HashSet<String>,
     cell_size: f32,
 }
@@ -26,17 +26,20 @@ pub struct WorldIndex {
 impl WorldIndex {
     pub fn build(world: Vec<PlayerEnum>, on_voice: HashSet<String>, cell_size: f32) -> Self {
         let mut cells: HashMap<GridCell, Vec<PlayerEnum>> = HashMap::new();
-        let mut by_name = HashMap::with_capacity(world.len());
+        let mut by_identity = HashMap::with_capacity(world.len());
 
         for player in world {
             let cell = GridCell::of(player.get_position(), cell_size);
-            by_name.insert(player.get_name().to_string(), player.clone());
+            // Keyed on the canonical identity, the same key `on_voice` uses. Keyed on the bare
+            // in-game name, one game's player shadowed the other's in a world that hosts both,
+            // and this struct answered two questions about two different people.
+            by_identity.insert(player.identity(), player.clone());
             cells.entry(cell).or_default().push(player);
         }
 
         Self {
             cells,
-            by_name,
+            by_identity,
             on_voice,
             cell_size,
         }
@@ -45,7 +48,7 @@ impl WorldIndex {
     pub fn empty(cell_size: f32) -> Self {
         Self {
             cells: HashMap::new(),
-            by_name: HashMap::new(),
+            by_identity: HashMap::new(),
             on_voice: HashSet::new(),
             cell_size,
         }
@@ -53,8 +56,11 @@ impl WorldIndex {
 
     /// The observer as the world last reported them, or `None` when they are authenticated
     /// but not in the game yet — a normal state rather than an error.
-    pub fn observer(&self, gamertag: &str) -> Option<&PlayerEnum> {
-        self.by_name.get(gamertag)
+    ///
+    /// `identity` is the canonical `game:gamertag`. A bare gamertag matches nobody, and the
+    /// miss is indistinguishable from not being in the game: an empty feed, forever.
+    pub fn observer(&self, identity: &str) -> Option<&PlayerEnum> {
+        self.by_identity.get(identity)
     }
 
     /// Everyone close enough to be worth testing against this observer.
@@ -72,15 +78,19 @@ impl WorldIndex {
         out
     }
 
-    pub fn is_on_voice(&self, gamertag: &str) -> bool {
-        self.on_voice.contains(gamertag)
+    /// Whether this canonical identity holds a voice connection.
+    ///
+    /// The registry names connections `game:gamertag`, so a bare gamertag never matches and
+    /// every player would read as game-only presence.
+    pub fn is_on_voice(&self, identity: &str) -> bool {
+        self.on_voice.contains(identity)
     }
 
     pub fn len(&self) -> usize {
-        self.by_name.len()
+        self.by_identity.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.by_name.is_empty()
+        self.by_identity.is_empty()
     }
 }

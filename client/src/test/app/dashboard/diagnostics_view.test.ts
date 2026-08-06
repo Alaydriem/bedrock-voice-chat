@@ -9,7 +9,7 @@ function snapshot(link: Partial<LinkDiagnosticsSnapshot["link"]> = {}): LinkDiag
         mic: {
             device: "Scarlett 2i2",
             sample_rate: 48000,
-            gate_open: true,
+            noise_gate: "Open",
             muted: false,
             datagrams_per_sec: 48,
         },

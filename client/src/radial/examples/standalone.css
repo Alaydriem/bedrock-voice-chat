@@ -1,12 +1,11 @@
 /* The reference pages' own entry.
  *
- * Wraps Radial with Tailwind and the page chrome the gallery needs. The app imports
- * `../css/radial.css` instead and brings its own Tailwind, so nothing here ships.
+ * Wraps Radial with the page chrome the gallery needs. The app imports
+ * `../css/radial.css` and brings its own shell, so nothing here ships.
  */
 
-@layer theme, base, components, gallery, utilities;
+@layer base, components, gallery;
 
-@import "tailwindcss";
 @import "../css/radial.css";
 
 /* ---- the page around the specimens ---- */

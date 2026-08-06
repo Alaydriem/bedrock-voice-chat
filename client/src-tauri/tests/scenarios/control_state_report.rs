@@ -95,27 +95,27 @@ async fn volume_action_fires_card_render_event_with_canonical_entry() {
         .await_connected(Duration::from_secs(30))
         .expect("Alice connects");
 
-    // First action establishes the entry under its exact key and must fire the
-    // card-render event with the persisted value.
+    // The target arrives bare from the control plane and must land under the canonical
+    // identity — the key the mixer's gain projection resolves against.
     server.post_control_setvolume("Alice", "Bob", 0.9).await;
     alice
         .await_gain_store(
-            |s| s["Bob"]["gain"].as_f64().is_some_and(|g| (g - 0.9).abs() < 1e-6),
+            |s| s["minecraft:Bob"]["gain"].as_f64().is_some_and(|g| (g - 0.9).abs() < 1e-6),
             Duration::from_secs(10),
         )
         .expect("SetVolume must fire the card-render event with Bob's gain persisted");
 
-    // A case-variant target must resolve onto the existing canonical key — the
-    // card keyed "Bob" updates; no ghost "bob" entry forks.
+    // A case-variant target must resolve onto the existing canonical key — the card keyed
+    // "minecraft:Bob" updates; no ghost entry forks under either name form.
     server.post_control_setvolume("Alice", "bob", 0.5).await;
     let store = alice
         .await_gain_store(
-            |s| s["Bob"]["gain"].as_f64().is_some_and(|g| (g - 0.5).abs() < 1e-6),
+            |s| s["minecraft:Bob"]["gain"].as_f64().is_some_and(|g| (g - 0.5).abs() < 1e-6),
             Duration::from_secs(10),
         )
         .expect("a case-variant SetVolume must update the canonical entry");
     assert!(
-        store.get("bob").is_none(),
+        store.get("minecraft:bob").is_none() && store.get("bob").is_none(),
         "a case-variant target must not fork a ghost store key: {store}"
     );
 }
@@ -149,10 +149,12 @@ async fn preference_change_reaches_server_cache() {
 
     server.post_control_setvolume("Alice", "Bob", 0.5).await;
 
+    // `await_preference` queries `/api/preferences?owner=Alice`, which the route composes into
+    // `minecraft:Alice`. The TARGET stays as the client wrote it, which is now canonical.
     let pref = server
         .await_preference(
             "Alice",
-            "Bob",
+            "minecraft:Bob",
             |p| p["volume"].as_f64().is_some_and(|v| (v - 0.5).abs() < 1e-6),
             Duration::from_secs(10),
         )

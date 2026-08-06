@@ -43,8 +43,8 @@ export class GroupsView {
     /**
      * @param channels Every channel on the server.
      * @param joinedId The channel this client is in, if any.
-     * @param audible Names this client can currently hear, in any name form.
-     * @param self This client's own name, in any name form, for the ownership test.
+     * @param audible Canonical identities this client can currently hear.
+     * @param self This client's canonical identity, for the ownership test.
      */
     rows(
         channels: readonly Channel[],
@@ -60,9 +60,10 @@ export class GroupsView {
                     name: channel.name,
                     members: GroupsView.members(channel, audible),
                     joined: channel.id === joinedId,
-                    // Compared through `namesMatch` because the creator is stored in whatever form
-                    // the certificate's CN carried and this client knows itself by its gamertag.
-                    owned: self !== '' && GameNameUtils.namesMatch(channel.creator, self),
+                    // Exact. The creator is the certificate's Common Name and so is `self`, and a
+                    // comparison that tolerated the bare form would hand the close button for
+                    // `hytale:Bob`'s group to `minecraft:Bob`.
+                    owned: self !== '' && channel.creator === self,
                     activeAt,
                     stirring: activeAt !== null && $now - activeAt < GroupsView.STIR_MS,
                 };
@@ -71,15 +72,15 @@ export class GroupsView {
     }
 
     private static members(channel: Channel, audible: ReadonlySet<string>): GroupMember[] {
-        const heard = new Set([...audible].map((name) => GameNameUtils.stripPrefix(name)));
         return channel.players.map((player) => {
-            const gamertag = GameNameUtils.stripPrefix(player);
+            // Membership already carries the canonical form; composing it again costs nothing
+            // and is what keeps this row's glyph derived from the same string as that player's
+            // card rather than from a different one.
+            const name = GameNameUtils.canonical(player);
             return {
-                // The CN form where membership already carries it, so the glyph matches the one
-                // on that player's card rather than being derived from a different string.
-                name: player.includes(':') ? player : `minecraft:${player}`,
-                gamertag,
-                audible: heard.has(gamertag),
+                name,
+                gamertag: GameNameUtils.stripPrefix(name),
+                audible: audible.has(name),
             };
         });
     }

@@ -6,7 +6,6 @@ use std::time::{Duration, Instant};
 
 use tokio::sync::{mpsc, oneshot};
 
-use common::structs::packet::PacketOwner;
 use common::structs::relay::{AudioQuery, RelayEndpoint};
 
 use super::link::ingest_sink::RelayIngestSink;
@@ -360,7 +359,6 @@ impl PeerManager {
         };
         let reply = QuicNetworkPacket {
             packet_type: PacketType::AudioAvailable,
-            owner: None,
             data: QuicNetworkPacketData::AudioAvailable(available),
             // Not a server fan-out to one connection, so this envelope carries no sequence.
             ..Default::default()
@@ -391,7 +389,6 @@ impl PeerManager {
         }
         let query = QuicNetworkPacket {
             packet_type: PacketType::AudioQuery,
-            owner: None,
             data: QuicNetworkPacketData::AudioQuery(AudioQuery {
                 audio_id: audio_id.to_string(),
                 correlation_id: correlation_id.to_string(),
@@ -432,7 +429,7 @@ impl PeerManager {
     // Enqueues a packet onto a single peer link's outbound queue (drop-on-full,
     // never blocks). Used to send a discovery reply back to the peer that asked.
     fn enqueue_to_link(&self, peer_ep: &str, packet: &RelayedPacket) {
-        let stamped = self.stamp_peer_identity(packet);
+        let stamped = packet.clone();
         let mut links = self.links.lock().expect("peer link map poisoned");
         if let Some(link) = links.get_mut(peer_ep) {
             if link.is_closed() {
@@ -512,30 +509,6 @@ impl PeerManager {
         }
     }
 
-    // Stamps a relayed packet's top-level `owner.name` with THIS server's peer
-    // identity (`server::host:port`) before it goes onto a peer link. The acceptor
-    // classifies the inbound QUIC connection by the first packet's `owner.name`
-    // (`ConnectionClassifier`), so without this the connection is misread as a
-    // player (the relayed frame still carries the original speaker's owner). The
-    // embedded audio sender (used for proximity) and the `client_id` (used for the
-    // receiving client's per-speaker sinks) are preserved — only the routing
-    // identity changes. Every packet self-identifies, so a lost first datagram
-    // cannot misclassify the link.
-    fn stamp_peer_identity(&self, relayed: &RelayedPacket) -> RelayedPacket {
-        let mut out = relayed.clone();
-        let name = format!("server::{}", self.self_endpoint);
-        match out.packet.owner.as_mut() {
-            Some(owner) => owner.name = name,
-            None => {
-                out.packet.owner = Some(PacketOwner {
-                    name,
-                    client_id: Vec::new(),
-                })
-            }
-        }
-        out
-    }
-
     // Outbound fan-out for a local-origin packet. For each peer link whose world
     // has peers, enqueues one copy via `try_send` (drop-on-full; never blocks
     // the audio path). Relayed-origin packets are refused here (single hop).
@@ -552,7 +525,7 @@ impl PeerManager {
             return 0;
         }
 
-        let stamped = self.stamp_peer_identity(relayed);
+        let stamped = relayed.clone();
         let mut sent = 0;
         let mut links = self.links.lock().expect("peer link map poisoned");
         let now = Instant::now();
@@ -594,7 +567,7 @@ impl PeerManager {
     // keys it reached so the caller can record the mutual-proof half per peer.
     // Drop-on-full like the audio fan-out — never blocks.
     pub fn enqueue_to_all_links(&self, packet: &RelayedPacket) -> Vec<String> {
-        let stamped = self.stamp_peer_identity(packet);
+        let stamped = packet.clone();
         let mut reached = Vec::new();
         let mut links = self.links.lock().expect("peer link map poisoned");
         for (key, link) in links.iter_mut() {
@@ -670,7 +643,6 @@ mod tests {
     fn audio_packet() -> QuicNetworkPacket {
         QuicNetworkPacket {
             packet_type: PacketType::AudioFrame,
-            owner: None,
             data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
                 vec![9, 9, 9],
                 48000,
@@ -706,7 +678,6 @@ mod tests {
         });
         QuicNetworkPacket {
             packet_type: PacketType::AudioFrame,
-            owner: None,
             data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
                 vec![9, 9, 9],
                 48000,
@@ -805,7 +776,6 @@ mod tests {
         mgr.register_inbound(key, Instant::now());
         let control = QuicNetworkPacket {
             packet_type: PacketType::PeerPresenceObserved,
-            owner: None,
             data: QuicNetworkPacketData::PeerPresenceObserved(PeerPresenceObservedPacket {
                 token: "tok".into(),
             }),
@@ -834,7 +804,6 @@ mod tests {
         let key = "peerX:7000";
         let query = QuicNetworkPacket {
             packet_type: PacketType::AudioQuery,
-            owner: None,
             data: QuicNetworkPacketData::AudioQuery(AudioQuery {
                 audio_id: "audio-1".into(),
                 correlation_id: "corr-1".into(),
@@ -865,7 +834,6 @@ mod tests {
         let rx = mgr.query_audio("audio-1", "corr-1");
         let available = QuicNetworkPacket {
             packet_type: PacketType::AudioAvailable,
-            owner: None,
             data: QuicNetworkPacketData::AudioAvailable(AudioAvailable {
                 audio_id: "audio-1".into(),
                 stream_token: "tok-1".into(),
@@ -895,7 +863,6 @@ mod tests {
         let mgr = manager_with(ep("self", 1), sink.clone(), Arc::new(AlwaysProven));
         let available = QuicNetworkPacket {
             packet_type: PacketType::AudioAvailable,
-            owner: None,
             data: QuicNetworkPacketData::AudioAvailable(AudioAvailable {
                 audio_id: "never-queried".into(),
                 stream_token: "tok".into(),
@@ -928,7 +895,6 @@ mod tests {
 
         let first = QuicNetworkPacket {
             packet_type: PacketType::AudioAvailable,
-            owner: None,
             data: QuicNetworkPacketData::AudioAvailable(AudioAvailable {
                 audio_id: "audio-1".into(),
                 stream_token: "first".into(),
@@ -939,7 +905,6 @@ mod tests {
         };
         let second = QuicNetworkPacket {
             packet_type: PacketType::AudioAvailable,
-            owner: None,
             data: QuicNetworkPacketData::AudioAvailable(AudioAvailable {
                 audio_id: "audio-1".into(),
                 stream_token: "second".into(),
@@ -973,7 +938,6 @@ mod tests {
 
         let reply_a = QuicNetworkPacket {
             packet_type: PacketType::AudioAvailable,
-            owner: None,
             data: QuicNetworkPacketData::AudioAvailable(AudioAvailable {
                 audio_id: "audio-1".into(),
                 stream_token: "tok-a".into(),
@@ -984,7 +948,6 @@ mod tests {
         };
         let reply_b = QuicNetworkPacket {
             packet_type: PacketType::AudioAvailable,
-            owner: None,
             data: QuicNetworkPacketData::AudioAvailable(AudioAvailable {
                 audio_id: "audio-1".into(),
                 stream_token: "tok-b".into(),

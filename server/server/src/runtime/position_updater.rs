@@ -1,4 +1,4 @@
-use common::structs::packet::{PacketOwner, PlayerDataChunker};
+use common::structs::packet::{PacketSender, PlayerDataChunker};
 
 use crate::stream::quic::WebhookReceiver;
 
@@ -9,26 +9,19 @@ impl PositionUpdater {
         players: Vec<common::PlayerEnum>,
         webhook_receiver: &WebhookReceiver,
     ) {
-        let owner = Self::owner();
+        let sender = PacketSender::synthetic(PacketSender::SERVER_API);
 
-        for chunk in PlayerDataChunker::chunk(players, Some(&owner)) {
-            Self::send_player_chunk(chunk, &owner, webhook_receiver).await;
-        }
-    }
-
-    fn owner() -> PacketOwner {
-        PacketOwner {
-            name: String::from("api"),
-            client_id: vec![0u8; 0],
+        for chunk in PlayerDataChunker::chunk(players, Some(&sender)) {
+            Self::send_player_chunk(chunk, &sender, webhook_receiver).await;
         }
     }
 
     async fn send_player_chunk(
         players: Vec<common::PlayerEnum>,
-        owner: &PacketOwner,
+        sender: &PacketSender,
         webhook_receiver: &WebhookReceiver,
     ) {
-        let packet = PlayerDataChunker::packet(players, Some(owner));
+        let packet = PlayerDataChunker::packet(players, Some(sender));
 
         if let Err(e) = webhook_receiver.send_packet(packet).await {
             tracing::error!("Failed to send packet chunk to QUIC server: {}", e);

@@ -20,7 +20,7 @@ use clap::Parser;
 use common::game_data::Dimension;
 use common::players::MinecraftPlayer;
 use common::structs::packet::{
-    AudioFramePacket, PacketOwner, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
+    AudioFramePacket, PacketSender, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
 };
 use common::{Coordinate, Orientation, PlayerEnum};
 
@@ -59,10 +59,7 @@ impl CloneBench {
 
         let packet = QuicNetworkPacket {
             packet_type: PacketType::AudioFrame,
-            owner: Some(PacketOwner {
-                name: "SpeakerPlayer".to_string(),
-                client_id: vec![7u8; 32],
-            }),
+            sender: Some(PacketSender::new("minecraft:SpeakerPlayer".to_string(), 7)),
             // 160 bytes ~= one 20ms Opus frame at 64kbps
             data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
                 vec![0u8; 160],
@@ -87,13 +84,13 @@ impl CloneBench {
         let warmup = (self.args.iterations / 20).max(1);
         for _ in 0..warmup {
             let clone = self.packet.clone();
-            let _ = self.cache_manager.process_packet(clone, None).await;
+            let _ = self.cache_manager.process_packet(clone).await;
         }
 
         let started = Instant::now();
         for _ in 0..self.args.iterations {
             let clone = self.packet.clone();
-            let _ = self.cache_manager.process_packet(clone, None).await;
+            let _ = self.cache_manager.process_packet(clone).await;
         }
         started.elapsed().as_nanos() as f64 / self.args.iterations as f64
     }

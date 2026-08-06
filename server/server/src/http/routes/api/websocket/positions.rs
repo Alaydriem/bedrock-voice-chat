@@ -42,6 +42,9 @@ pub fn positions(
     let voice_range = voice.spatial_audio.broadcast_range;
     // Redeemed by the guard, so an upgrade that reaches here is already authenticated.
     let WebsocketTicket(identity) = ticket;
+    // Composed once, outside the loop. The world index keys on the canonical identity, and the
+    // ticket carries the game and the gamertag apart.
+    let observer_identity = identity.game.membership_key(&identity.gamertag);
 
     let channel = ws.channel(move |mut stream| {
         Box::pin(async move {
@@ -73,7 +76,7 @@ pub fn positions(
                 // lookup plus the trigonometry for this observer's own neighbours, which is
                 // the part that genuinely cannot be shared.
                 let index = index_rx.borrow_and_update().clone();
-                let snapshot = match index.observer(&identity.gamertag) {
+                let snapshot = match index.observer(&observer_identity) {
                     Some(observer) => {
                         let neighbours = index.neighbours(observer);
                         PositionSnapshot {

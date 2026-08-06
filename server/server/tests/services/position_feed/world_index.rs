@@ -2,8 +2,9 @@ use std::collections::HashSet;
 
 use bvc_server_lib::services::WorldIndex;
 use common::game_data::Dimension;
-use common::players::MinecraftPlayer;
-use common::{Coordinate, Orientation, PlayerEnum};
+use common::players::{HytalePlayer, MinecraftPlayer};
+use common::traits::player_data::PlayerData;
+use common::{Coordinate, HytaleDimension, Orientation, PlayerEnum};
 
 const WORLD: &str = "8f14e45f-ea8f-4b62-9f2a-1c0d7e3b4a55";
 
@@ -25,6 +26,19 @@ fn player(name: &str, x: f32, z: f32) -> PlayerEnum {
     })
 }
 
+fn hytale(name: &str, x: f32, z: f32) -> PlayerEnum {
+    PlayerEnum::Hytale(HytalePlayer {
+        name: name.to_string(),
+        coordinates: Coordinate { x, y: 64.0, z },
+        orientation: Orientation { x: 0.0, y: 0.0 },
+        dimension: HytaleDimension::default(),
+        deafen: false,
+        spectator: false,
+        world_uuid: Some(WORLD.to_string()),
+        player_uuid: None,
+    })
+}
+
 fn index(players: Vec<PlayerEnum>, on_voice: &[&str]) -> WorldIndex {
     let voice: HashSet<String> = on_voice.iter().map(|n| (*n).to_string()).collect();
     WorldIndex::build(players, voice, CELL)
@@ -34,7 +48,37 @@ fn index(players: Vec<PlayerEnum>, on_voice: &[&str]) -> WorldIndex {
 fn an_observer_who_is_not_in_the_world_is_absent_rather_than_an_error() {
     let world = index(vec![player("Alice", 0.0, 0.0)], &[]);
 
-    assert!(world.observer("Bob").is_none());
+    assert!(world.observer("minecraft:Bob").is_none());
+}
+
+/// The index answers on the canonical identity and nothing else.
+///
+/// A bare gamertag missing is indistinguishable from being signed in but not yet in the game,
+/// so the socket would send empty frames forever rather than report anything wrong.
+#[test]
+fn a_bare_gamertag_finds_nobody() {
+    let world = index(vec![player("Alice", 0.0, 0.0)], &[]);
+
+    assert!(world.observer("Alice").is_none());
+    assert!(world.observer("minecraft:Alice").is_some());
+}
+
+/// One server can host both games at once, and then a shared gamertag is two people.
+///
+/// Keyed on the bare name, whichever of them the world reported second replaced the first, and
+/// the loser's socket was served the winner's neighbours — somebody else's view of the world.
+#[test]
+fn the_same_gamertag_in_two_games_is_two_observers() {
+    let world = index(
+        vec![player("Alaydriem", 0.0, 0.0), hytale("Alaydriem", 5_000.0, 0.0)],
+        &[],
+    );
+
+    assert_eq!(world.len(), 2);
+    let mc = world.observer("minecraft:Alaydriem").expect("minecraft");
+    let ht = world.observer("hytale:Alaydriem").expect("hytale");
+    assert_eq!(mc.get_position().x, 0.0);
+    assert_eq!(ht.get_position().x, 5_000.0);
 }
 
 // The neighbour lookup exists to replace a walk of the whole world, so somebody far away
@@ -83,11 +127,12 @@ fn a_negative_coordinate_lands_in_its_own_cell_rather_than_the_origin() {
 
 #[test]
 fn voice_connections_are_tracked_separately_from_the_world() {
+    // The set comes from the connection registry, which names connections `game:gamertag`.
     let world = index(
         vec![player("OnVoice", 0.0, 0.0), player("GameOnly", 5.0, 0.0)],
-        &["OnVoice"],
+        &["minecraft:OnVoice"],
     );
 
-    assert!(world.is_on_voice("OnVoice"));
-    assert!(!world.is_on_voice("GameOnly"));
+    assert!(world.is_on_voice("minecraft:OnVoice"));
+    assert!(!world.is_on_voice("minecraft:GameOnly"));
 }

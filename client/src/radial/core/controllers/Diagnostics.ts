@@ -1,5 +1,14 @@
 export type Severity = "ok" | "warn" | "bad";
 
+/**
+ * Whether the noise gate is in the audio path, and what it is doing there.
+ *
+ * Three states, because a boolean cannot separate the two that matter to someone whose
+ * microphone has gone quiet: a gate that is switched off passes everything and a gate that
+ * is open passes everything, so "is audio getting through" reads the same for both.
+ */
+export type NoiseGateStatus = "Disabled" | "Open" | "Closed";
+
 export interface DiagnosticsInput {
   /** Round-trip time in milliseconds. */
   rtt: number;
@@ -38,6 +47,14 @@ export interface DiagnosticsInput {
    */
   concealmentPercent?: number;
   muted: boolean;
+  /**
+   * What the noise gate is doing, read from the flag the capture path itself consults.
+   *
+   * Spelled out here rather than imported, because the kit does not depend on the app's
+   * generated bindings. `DiagnosticsView` assigns the binding straight into this, so a
+   * variant added on the Rust side fails to typecheck there rather than drifting quietly.
+   */
+  noiseGate: NoiseGateStatus;
   deafened: boolean;
   /** Push-to-talk on but not currently held. */
   pttIdle: boolean;
@@ -112,6 +129,25 @@ export class Diagnostics {
     return ["ok", "Everything looks fine."];
   }
 
+  /**
+   * The gate row.
+   *
+   * Three states rather than two, because "off" and "open" both pass audio and this row
+   * used to print the mute flag instead — so it read `open` whether the gate was bound or
+   * not, and someone whose mic had gone quiet had no way to rule it in or out. Only a gate
+   * that is on and shut can be the cause, so only that one gets the arrow.
+   */
+  static gate(status: NoiseGateStatus): string {
+    switch (status) {
+      case "Disabled":
+        return "off (not in the audio path)";
+      case "Open":
+        return "on, open (passing audio)";
+      case "Closed":
+        return "on, closed  ← this is cutting your mic";
+    }
+  }
+
   static groups(d: DiagnosticsInput): KvGroup[] {
     const rate = (hz: number) => `${(hz / 1000).toFixed(1)} kHz`;
     return [
@@ -123,7 +159,7 @@ export class Diagnostics {
             "Sample rate",
             rate(d.inputRate) + (d.inputRate !== Diagnostics.EXPECTED_RATE ? "  ← expected 48.0" : ""),
           ],
-          ["Noise gate", d.muted ? "muted" : "open"],
+          ["Noise gate", Diagnostics.gate(d.noiseGate)],
           [
             "Sending",
             `${d.datagramsOut} datagrams/s` + (d.datagramsOut === 0 ? "  ← nothing is going out" : ""),

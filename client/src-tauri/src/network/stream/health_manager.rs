@@ -4,7 +4,7 @@ use common::response::{ApiConfigCheckResponse, ApiConfigResponse};
 use common::s2n_quic::Connection;
 use common::structs::network::ConnectionHealth;
 use common::structs::packet::{
-    HealthCheckPacket, PacketOwner, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
+    HealthCheckPacket, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
 };
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -113,12 +113,7 @@ impl ConnectionHealthManager {
     }
 
     /// Start health monitoring for a connection
-    pub fn start(
-        &mut self,
-        connection: Arc<Connection>,
-        packet_owner: Option<PacketOwner>,
-        server_url: String,
-    ) {
+    pub fn start(&mut self, connection: Arc<Connection>, server_url: String) {
         self.stop();
         self.shutdown.store(false, Ordering::Relaxed);
 
@@ -136,7 +131,6 @@ impl ConnectionHealthManager {
             Self::run_health_monitor(
                 health_state,
                 connection,
-                packet_owner,
                 shutdown,
                 app_handle,
                 server_url,
@@ -161,7 +155,6 @@ impl ConnectionHealthManager {
     async fn run_health_monitor(
         health_state: Arc<HealthMonitorState>,
         connection: Arc<Connection>,
-        packet_owner: Option<PacketOwner>,
         shutdown: Arc<AtomicBool>,
         app_handle: tauri::AppHandle,
         server_url: String,
@@ -206,7 +199,7 @@ impl ConnectionHealthManager {
             if health_state.should_send_health_check(health_config.threshold) {
                 log::trace!("Sending health check packet");
 
-                Self::send_health_check(&connection, &packet_owner, &health_state).await;
+                Self::send_health_check(&connection, &health_state).await;
                 tokio::time::sleep(health_config.timeout).await;
 
                 let failures = health_state.on_timeout();
@@ -225,14 +218,9 @@ impl ConnectionHealthManager {
     }
 
     /// Send a health check packet
-    async fn send_health_check(
-        connection: &Connection,
-        packet_owner: &Option<PacketOwner>,
-        health_state: &HealthMonitorState,
-    ) {
+    async fn send_health_check(connection: &Connection, health_state: &HealthMonitorState) {
         let health_packet = QuicNetworkPacket {
             packet_type: PacketType::HealthCheck,
-            owner: packet_owner.clone(),
             data: QuicNetworkPacketData::HealthCheck(HealthCheckPacket),
                     // Not a server fan-out, so this envelope carries no sequence.
             ..Default::default()

@@ -1,5 +1,6 @@
 use common::structs::audio::{PlayerGainSettings, PlayerGainStore};
-use common::structs::control::ClientActionType;
+use common::Game;
+use common::structs::control::{ClientAction, ClientActionType};
 use log::warn;
 use tauri::async_runtime::Mutex;
 use tauri::{Emitter, Manager};
@@ -27,15 +28,18 @@ impl ControlActionsManager {
     /// the only place delivered actions meet the `AppHandle`: producers hold a
     /// `ControlActionSender` (a plain DTO channel), keeping the Tauri GUI runtime
     /// out of their link graph (and out of the cargo test binaries).
-    pub async fn run(self, rx: flume::Receiver<ClientActionType>) {
+    pub async fn run(self, rx: flume::Receiver<ClientAction>) {
         while let Ok(action) = rx.recv_async().await {
             self.apply(&action).await;
         }
     }
 
-    pub async fn apply(&self, action: &ClientActionType) {
+    pub async fn apply(&self, action: &ClientAction) {
+        // The game the action was attributed with. Preference targets are keyed
+        // `game:gamertag`, and a control action names a player in the actor's own game.
+        let game = action.game.clone().unwrap_or(Game::Minecraft);
         let actions = AudioActionsManager::new(self.app_handle.clone());
-        match action {
+        match &action.action {
             ClientActionType::SetMuted(on) => {
                 actions.set_mute(AudioDeviceType::InputDevice, *on).await;
                 actions.broadcast_state().await;
@@ -57,10 +61,11 @@ impl ControlActionsManager {
                     warn!("ControlActionsManager: ignoring non-finite volume for {target}");
                     return;
                 }
-                self.set_gain(target, Some(volume.clamp(0.0, 1.0)), None).await;
+                self.set_gain(target, &game, Some(volume.clamp(0.0, 1.0)), None)
+                    .await;
             }
             ClientActionType::SetHeard { target, muted } => {
-                self.set_gain(target, None, Some(*muted)).await;
+                self.set_gain(target, &game, None, Some(*muted)).await;
             }
             ClientActionType::CreateGroup
             | ClientActionType::JoinGroup { .. }
@@ -68,38 +73,61 @@ impl ControlActionsManager {
         }
     }
 
-    /// Resolves a control-action target onto the exact key the audio pipeline
-    /// tracks. Preferences key on exact gamertags everywhere downstream (the
-    /// sink's name→client-id remap, the dashboard's player cards), so a case-
-    /// or game-prefix-variant target must land on the canonical name — never
-    /// fork a ghost entry that plays no audio and renders nowhere. An exact hit
-    /// wins; otherwise the first candidate matching case-insensitively with
-    /// game prefixes stripped. Candidates are ordered by authority (tracked
-    /// voice names before store keys). An unknown target passes through
-    /// unchanged — the entry parks until that player is tracked.
-    pub fn canonicalize_target(target: &str, candidates: &[&str]) -> String {
-        if candidates.iter().any(|c| *c == target) {
-            return target.to_string();
+    /// Resolves a control-action target onto the exact key the audio pipeline tracks.
+    ///
+    /// The target arrives from a game mod as a bare in-game name, and every key downstream —
+    /// the persisted gain store, the mixer's gain projection, the dashboard's player cards —
+    /// is the canonical `game:gamertag`. So the target is composed against `game` first and
+    /// then matched exactly.
+    ///
+    /// The only looseness kept is casing, and only on the gamertag: what a mod reports varies
+    /// in case from what the certificate carried. The game prefix still has to match exactly,
+    /// because `minecraft:Bob` and `hytale:Bob` are two people — a prefix-insensitive match
+    /// would let a control action from one game mute someone in the other.
+    ///
+    /// Candidates are ordered by authority (tracked voice names before store keys), so the
+    /// first case-insensitive hit wins. An unknown target parks under its composed canonical
+    /// form rather than under the raw name, so the entry resolves once that player is tracked
+    /// instead of sitting under a key nothing will ever look up.
+    pub fn canonicalize_target(target: &str, game: &Game, candidates: &[&str]) -> String {
+        let wanted = Self::canonical(target, game);
+
+        if candidates.iter().any(|c| *c == wanted) {
+            return wanted;
         }
-        let norm = |s: &str| {
+
+        let split = |s: &str| {
             s.split_once(':')
-                .map(|(_, bare)| bare)
-                .unwrap_or(s)
-                .to_ascii_lowercase()
+                .map(|(tag, bare)| (tag.to_string(), bare.to_ascii_lowercase()))
         };
-        let wanted = norm(target);
+        let Some((wanted_tag, wanted_bare)) = split(&wanted) else {
+            return wanted;
+        };
+
         candidates
             .iter()
-            .find(|c| norm(c) == wanted)
+            .find(|c| split(c) == Some((wanted_tag.clone(), wanted_bare.clone())))
             .map(|c| (*c).to_string())
-            .unwrap_or_else(|| target.to_string())
+            .unwrap_or(wanted)
+    }
+
+    /// Composes a canonical identity, leaving an already-canonical name alone.
+    ///
+    /// The Rust counterpart of `GameNameUtils.canonical`, and idempotent for the same reason:
+    /// a target can reach this from a mod (bare) or from the audio pipeline (canonical), and
+    /// prefixing twice would produce `minecraft:minecraft:Bob`.
+    fn canonical(name: &str, game: &Game) -> String {
+        match name.split_once(':') {
+            Some((tag, _)) if Game::from_tag(tag).is_some() => name.to_string(),
+            _ => game.membership_key(name),
+        }
     }
 
     /// Upsert one player's gain/mute into the persisted `player_gain_store` and feed
     /// the `player_gain_store` metadata channel — the same path the dashboard UI
     /// uses (the name→client-id remap + SinkManager update happen downstream). Reads
     /// the whole store and upserts one entry, so other players' settings survive.
-    async fn set_gain(&self, target: &str, volume: Option<f32>, muted: Option<bool>) {
+    async fn set_gain(&self, target: &str, game: &Game, volume: Option<f32>, muted: Option<bool>) {
         let store = match self.app_handle.store("store.json") {
             Ok(s) => s,
             Err(e) => {
@@ -125,7 +153,7 @@ impl ControlActionsManager {
             .map(String::as_str)
             .chain(gains.0.keys().map(String::as_str))
             .collect();
-        let target = Self::canonicalize_target(target, &candidates);
+        let target = Self::canonicalize_target(target, game, &candidates);
 
         let entry = gains
             .0

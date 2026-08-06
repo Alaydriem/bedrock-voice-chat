@@ -83,7 +83,6 @@ mod tests {
         });
         QuicNetworkPacket {
             packet_type: PacketType::AudioFrame,
-            owner: None,
             data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
                 vec![9, 9, 9],
                 48000,

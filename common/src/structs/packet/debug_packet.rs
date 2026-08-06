@@ -4,7 +4,8 @@ use super::quic_network_packet_data::QuicNetworkPacketData;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DebugPacket {
-    pub owner: String,
+    /// The canonical identity of the client that emitted this, `game:gamertag`.
+    pub identity: String,
     pub version: String,
     pub timestamp: u64,
 }

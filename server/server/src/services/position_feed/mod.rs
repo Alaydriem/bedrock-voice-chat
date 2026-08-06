@@ -75,7 +75,7 @@ impl PositionFeedService {
         // Voice connections are tracked by the QUIC registry, not by the position cache the
         // mod feeds — which is exactly what makes "in the world, not on voice" answerable.
         let on_voice: HashSet<String> = match cache_manager.get_connection_registry() {
-            Some(registry) => registry.on_voice_names(),
+            Some(registry) => registry.on_voice_identities(),
             None => HashSet::new(),
         };
 

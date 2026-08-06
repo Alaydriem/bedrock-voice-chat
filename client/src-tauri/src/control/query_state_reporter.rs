@@ -36,10 +36,10 @@ const RESYNC_INTERVAL: Duration = Duration::from_secs(30);
 /// persisted `player_gain_store`, then sends them two ways —
 ///
 /// * ServerBound `QueryState` / `PlayerPreference` QUIC packets, keeping the
-///   server's control cache fresh for the net panel's `/api/state` poll. The
-///   network `OutputStream` stamps the packet owner, so `id`/`owner` come from
-///   `ConnectionIdentity` (the same name the stamp uses) or the server's
-///   authorship guard would drop the report.
+///   server's control cache fresh for the net panel's `/api/state` poll. `id`/`owner`
+///   come from `ConnectionIdentity`, which holds the canonical identity the server
+///   authenticated this connection as; the server's authorship guard compares against
+///   exactly that and drops anything else.
 /// * Encoded `!bvcs:` rides into the `QueryStateInjector`, which the proxy
 ///   session injects as serverbound chat for the no-net panel — this path needs
 ///   no identity and keeps working while the QUIC link is down.
@@ -212,8 +212,7 @@ impl QueryStateReporter {
         let packet = NetworkPacket {
             data: QuicNetworkPacket {
                 packet_type,
-                // Stamped with the connection identity by the network OutputStream.
-                owner: None,
+                // Carries no sender: the server stamps one from the certificate at ingress.
                 data,
                             // Not a server fan-out, so this envelope carries no sequence.
                 ..Default::default()

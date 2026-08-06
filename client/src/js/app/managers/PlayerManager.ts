@@ -37,6 +37,8 @@ export class PlayerManager {
     private playersMapStore: Writable<Map<string, PlayerData>>;
     private currentUserStore: Writable<string>;
     private store: Store;
+    /** The game this session authenticated against, the prefix on every key here. */
+    private readonly game: string;
     private gainStoreUnlisten: UnlistenFn | null = null;
     private visibilityHandler: (() => void) | null = null;
     private reseedInterval: ReturnType<typeof setInterval> | null = null;
@@ -53,23 +55,36 @@ export class PlayerManager {
     public readonly activePlayers: Readable<PlayerData[]>;
 
     /**
-     * Canonical map/store key for a player. Cards arrive from three sources
-     * with two name forms: proximity presence and get_current_players use the
-     * bare gamertag, while channel membership uses the CN form
-     * ("minecraft:Bob"). The persisted gain store, the sink's name remap, and
-     * the control plane all key on the BARE gamertag — so every name entering
-     * this manager is normalized here, or the same player forks into two map
-     * entries and a freshly group-added card never reacts to gain updates.
+     * The map/store key for a player: the canonical `game:gamertag`.
+     *
+     * Cards arrive from several sources in both name forms — proximity presence and
+     * get_current_players report a bare gamertag, channel membership and the audio pipeline
+     * report the canonical form — so every name entering this manager is composed here. Without
+     * that, one player forks into two map entries and a freshly group-added card never reacts
+     * to gain updates.
+     *
+     * Canonical rather than bare because this key reaches the persisted gain store and the
+     * mixer, both of which resolve settings by canonical identity. It also cannot collide:
+     * `minecraft:Bob` and `hytale:Bob` are two people, and a bare key merges them.
+     *
+     * Public because the same composition has to be available to anything comparing a name
+     * against these keys — the channel manager compares against certificate-form membership,
+     * and a second implementation of this is how the two forms drifted apart in the first place.
      */
-    private static key(name: string): string {
-        return GameNameUtils.stripPrefix(name);
+    identity(name: string): string {
+        return GameNameUtils.canonical(name, this.game);
     }
 
-    constructor(store: Store, currentUser: string = '') {
+    constructor(store: Store, currentUser: string = '', game: string = 'minecraft') {
+        this.store = store;
+        this.game = game;
+
         // Initialize internal stores
         this.playersMapStore = writable(new Map<string, PlayerData>());
-        this.currentUserStore = writable(currentUser);
-        this.store = store;
+        // Canonical, because this is compared against channel membership and the roster, both
+        // of which carry the certificate's form. Held bare, the client failed to recognise
+        // itself in its own group and added a card for the person holding the webview.
+        this.currentUserStore = writable(this.identity(currentUser));
 
         // Create readonly exports
         this.playersMap = { subscribe: this.playersMapStore.subscribe };
@@ -80,7 +95,10 @@ export class PlayerManager {
             [this.playersMapStore, this.currentUserStore],
             ([playersMap, currentUser]) => {
                 const players = Array.from(playersMap.values());
-                return players.filter(player => !GameNameUtils.namesMatch(player.name, currentUser));
+                // Both sides are canonical — map keys by construction, `currentUser` because
+                // it is composed on the way in — so this is an exact comparison rather than a
+                // tolerant one.
+                return players.filter(player => player.name !== currentUser);
             }
         );
 
@@ -88,14 +106,17 @@ export class PlayerManager {
     }
 
     /**
-     * Set the current user name
+     * Set the current user name, in any form.
+     *
+     * Composed on the way in: the login response carries a bare gamertag while everything this
+     * is compared against carries the certificate's `game:gamertag`.
      */
     setCurrentUser(name: string): void {
-        this.currentUserStore.set(name);
+        this.currentUserStore.set(this.identity(name));
     }
 
     /**
-     * Get the current user name
+     * The current user's canonical identity.
      */
     getCurrentUser(): string {
         return get(this.currentUserStore);
@@ -106,7 +127,7 @@ export class PlayerManager {
      */
     add(name: string, settings?: PlayerGainSettings): boolean {
         try {
-            name = PlayerManager.key(name);
+            name = this.identity(name);
             const playerSettings = settings || { gain: 1.0, muted: false };
 
             this.playersMapStore.update(map => {
@@ -129,7 +150,7 @@ export class PlayerManager {
      */
     remove(name: string): boolean {
         try {
-            name = PlayerManager.key(name);
+            name = this.identity(name);
             this.playersMapStore.update(map => {
                 const removed = map.delete(name);
                 return new Map(map);
@@ -146,7 +167,7 @@ export class PlayerManager {
      */
     update(name: string, settings: Partial<PlayerGainSettings>): boolean {
         try {
-            name = PlayerManager.key(name);
+            name = this.identity(name);
             this.playersMapStore.update(map => {
                 const player = map.get(name);
                 if (player) {
@@ -169,7 +190,7 @@ export class PlayerManager {
      */
     has(name: string): boolean {
         const currentMap = get(this.playersMapStore);
-        return currentMap.has(PlayerManager.key(name));
+        return currentMap.has(this.identity(name));
     }
 
     /**
@@ -177,7 +198,7 @@ export class PlayerManager {
      */
     get(name: string): PlayerData | undefined {
         const currentMap = get(this.playersMapStore);
-        return currentMap.get(PlayerManager.key(name));
+        return currentMap.get(this.identity(name));
     }
 
     /**
@@ -214,7 +235,7 @@ export class PlayerManager {
 
         try {
             const playerGainStore = await this.store.get("player_gain_store") as PlayerGainStore || {};
-            const settings = playerGainStore[PlayerManager.key(playerName)] || { gain: 1.0, muted: false };
+            const settings = playerGainStore[this.identity(playerName)] || { gain: 1.0, muted: false };
             return settings;
         } catch (err) {
             error(`PlayerManager: Failed to load settings for ${playerName}: ${err}`);
@@ -228,7 +249,7 @@ export class PlayerManager {
      */
     async addPlayerSource(name: string, source: PlayerSource, settings?: PlayerGainSettings, gamerpic?: string, game?: string): Promise<boolean> {
         try {
-            name = PlayerManager.key(name);
+            name = this.identity(name);
             // Load settings if not provided
             const playerSettings = settings || await this.loadPlayerSettings(name);
 
@@ -267,7 +288,7 @@ export class PlayerManager {
      * Update a player's gamerpic
      */
     updatePlayerGamepic(name: string, gamerpic: string): void {
-        name = PlayerManager.key(name);
+        name = this.identity(name);
         this.playersMapStore.update(map => {
             const player = map.get(name);
             if (player) {
@@ -283,7 +304,7 @@ export class PlayerManager {
      */
     removePlayerSource(name: string, source: PlayerSource): boolean {
         try {
-            name = PlayerManager.key(name);
+            name = this.identity(name);
             this.playersMapStore.update(map => {
                 const existing = map.get(name);
                 if (existing) {
@@ -383,9 +404,9 @@ export class PlayerManager {
      * Private method to update the persistent Tauri store
      */
     private async updatePlayerGainStore(playerName: string, newSettings: Partial<PlayerGainSettings>): Promise<void> {
-        // The persisted store keys on the bare gamertag — the same key the
-        // sink's name remap and the control plane use.
-        const key = PlayerManager.key(playerName);
+        // The persisted store keys on the canonical identity — the same key the mixer's gain
+        // projection and the control plane resolve against.
+        const key = this.identity(playerName);
         this.pendingGains[key] = { ...this.pendingGains[key], ...newSettings };
         this.gainWrites.request();
     }
@@ -503,12 +524,11 @@ export class PlayerManager {
         try {
             const playerGainStore = await this.store.get("player_gain_store") as PlayerGainStore || {};
 
-            // Update settings for existing players. Store keys are normalized
-            // too: entries written before key canonicalization may carry the
-            // CN-prefixed form.
+            // Store keys are already canonical, so they are used as read. Re-composing one
+            // here would turn a leftover bare key from an older install into a live entry
+            // under a canonical name it was never written for.
             this.playersMapStore.update(map => {
-                for (const [storeKey, settings] of Object.entries(playerGainStore)) {
-                    const playerName = PlayerManager.key(storeKey);
+                for (const [playerName, settings] of Object.entries(playerGainStore)) {
                     const player = map.get(playerName);
                     if (player && settings) {
                         player.settings = settings;

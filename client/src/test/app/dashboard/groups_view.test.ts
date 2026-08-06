@@ -63,11 +63,26 @@ describe("GroupsView", () => {
             [channel("mine", "Mine", [], "minecraft:Alaydriem"), channel("theirs", "Theirs", [], "minecraft:Petra")],
             null,
             new Set(),
-            "Alaydriem",
+            "minecraft:Alaydriem",
         );
 
         expect(get(rows).map((r) => r.owned)).toEqual([true, false]);
         expect(get(rows).map((r) => r.joined)).toEqual([false, false]);
+    });
+
+    // The creator and this client's own name both come from a certificate Common Name, so the
+    // game is part of the answer. A comparison that ignored it would hand somebody the rename
+    // and close buttons for a group created by their namesake in the other game.
+    it("does not own a group created by the same gamertag in another game", () => {
+        const view = new GroupsView();
+        const rows = view.rows(
+            [channel("theirs", "Theirs", [], "hytale:Alaydriem")],
+            null,
+            new Set(),
+            "minecraft:Alaydriem",
+        );
+
+        expect(get(rows)[0].owned).toBe(false);
     });
 
     // Without a name there is nobody to compare against, and defaulting to owned would offer

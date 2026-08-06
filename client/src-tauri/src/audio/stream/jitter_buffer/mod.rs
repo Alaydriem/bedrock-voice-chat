@@ -1,5 +1,4 @@
 use crate::audio::stream::stream_manager::AudioSinkType;
-use base64::{Engine as _, engine::general_purpose};
 use common::RecordingPlayerData as PlayerData;
 
 pub mod adaptive;
@@ -73,14 +72,16 @@ pub(crate) struct EncodedAudioFramePacket {
 }
 
 impl EncodedAudioFramePacket {
-    pub fn get_author(&self) -> String {
-        if let Some(ref client_id) = self.emitter.client_id {
-            return general_purpose::STANDARD.encode(client_id);
+    /// The key this frame's sink and gain are resolved under.
+    ///
+    /// The emitter's device id, so one player speaking from two devices gets two sinks
+    /// rather than two streams interleaved into one. A synthetic emitter — jukebox
+    /// playback, channel API audio — has no connection and falls back to its name, which
+    /// already carries a per-event suffix and so keeps concurrent playbacks apart.
+    pub fn sink_key(&self) -> String {
+        match self.emitter.device {
+            Some(device) => device.to_string(),
+            None => self.emitter.name.clone(),
         }
-        String::from("")
-    }
-
-    pub fn get_client_id(&self) -> Vec<u8> {
-        self.emitter.client_id.clone().unwrap_or_default()
     }
 }

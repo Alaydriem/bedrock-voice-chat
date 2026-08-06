@@ -1,7 +1,26 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
+import { mockInvoke } from "../tauri";
 import DevicesScreen from "../../components/setup/DevicesScreen.svelte";
+
+vi.mock("@tauri-apps/plugin-os", () => ({ platform: () => "windows" }));
+
+const DEVICES = {
+    input: [{ display_name: "Headset", io: "InputDevice" }],
+    output: [{ display_name: "Speakers", io: "OutputDevice" }],
+};
+
+// The screen embeds the device pickers, which ask the backend for the device list on
+// mount. Left unmocked they report a failure of their own, and this screen's own
+// speaker-failure alert is then one alert among two.
+beforeEach(() => {
+    mockInvoke({
+        get_devices: () => DEVICES,
+        get_audio_device: ({ io }: { io: string }) =>
+            io === "InputDevice" ? DEVICES.input[0] : DEVICES.output[0],
+    });
+});
 
 function props(overrides: Record<string, unknown> = {}) {
   return {

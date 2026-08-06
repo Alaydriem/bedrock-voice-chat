@@ -5,7 +5,7 @@ use bvc_server_lib::stream::quic::connection_registry::RoutedPacket;
 use common::game_data::Dimension;
 use common::players::MinecraftPlayer;
 use common::structs::packet::{
-    AudioFramePacket, PacketOwner, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
+    AudioFramePacket, PacketSender, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
 };
 use common::{Coordinate, Orientation, PlayerEnum};
 use moka::future::Cache;
@@ -32,13 +32,10 @@ impl RoutingFixture {
         })
     }
 
-    pub fn audio_packet(sender: PlayerEnum, sender_name: &str) -> QuicNetworkPacket {
+    pub fn audio_packet(sender: PlayerEnum, sender_identity: &str) -> QuicNetworkPacket {
         QuicNetworkPacket {
             packet_type: PacketType::AudioFrame,
-            owner: Some(PacketOwner {
-                name: sender_name.to_string(),
-                client_id: vec![1],
-            }),
+            sender: Some(PacketSender::new(sender_identity.to_string(), 1)),
             data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
                 vec![0u8; 160],
                 48000,
@@ -52,13 +49,10 @@ impl RoutingFixture {
 
     // An audio frame from a sender that carries NO PlayerEnum: what a client emits
     // before it has any position, i.e. it joined a channel but not the game yet.
-    pub fn audio_packet_without_position(sender_name: &str) -> QuicNetworkPacket {
+    pub fn audio_packet_without_position(sender_identity: &str) -> QuicNetworkPacket {
         QuicNetworkPacket {
             packet_type: PacketType::AudioFrame,
-            owner: Some(PacketOwner {
-                name: sender_name.to_string(),
-                client_id: vec![1],
-            }),
+            sender: Some(PacketSender::new(sender_identity.to_string(), 1)),
             data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
                 vec![0u8; 160],
                 48000,
@@ -74,7 +68,9 @@ impl RoutingFixture {
         let cache: Arc<Cache<String, PlayerEnum>> = Arc::new(Cache::builder().build());
         for p in players {
             use common::traits::player_data::PlayerData;
-            cache.insert(p.get_name().to_string(), p.clone()).await;
+            // Keyed the way the router reads it: on the canonical identity, not the
+            // bare name. Seeding it bare made every lookup miss.
+            cache.insert(p.identity(), p.clone()).await;
         }
         cache
     }

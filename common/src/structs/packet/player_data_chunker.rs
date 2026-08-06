@@ -1,6 +1,6 @@
 use crate::PlayerEnum;
 
-use super::packet_owner::PacketOwner;
+use super::packet_sender::PacketSender;
 use super::packet_type::PacketType;
 use super::player_data_packet::PlayerDataPacket;
 use super::quic_network_packet::{MAX_DATAGRAM_SIZE, QuicNetworkPacket};
@@ -23,9 +23,9 @@ const MAX_PLAYERS_PER_CHUNK: usize = 32;
 pub struct PlayerDataChunker;
 
 impl PlayerDataChunker {
-    pub fn chunk(players: Vec<PlayerEnum>, owner: Option<&PacketOwner>) -> Vec<Vec<PlayerEnum>> {
+    pub fn chunk(players: Vec<PlayerEnum>, sender: Option<&PacketSender>) -> Vec<Vec<PlayerEnum>> {
         let hoists = PlayerDataPacket::shared_world_uuid(&players).is_some();
-        let budget = MAX_DATAGRAM_SIZE.saturating_sub(Self::envelope_overhead(owner, hoists));
+        let budget = MAX_DATAGRAM_SIZE.saturating_sub(Self::envelope_overhead(sender, hoists));
 
         let mut chunks: Vec<Vec<PlayerEnum>> = Vec::new();
         let mut current: Vec<PlayerEnum> = Vec::new();
@@ -52,15 +52,15 @@ impl PlayerDataChunker {
 
         chunks
             .into_iter()
-            .flat_map(|chunk| Self::enforce_datagram_budget(chunk, owner))
+            .flat_map(|chunk| Self::enforce_datagram_budget(chunk, sender))
             .collect()
     }
 
     /// Builds the packet this chunker sizes against. Callers send exactly this
     /// so the measurement and the transmitted bytes cannot diverge.
-    pub fn packet(players: Vec<PlayerEnum>, owner: Option<&PacketOwner>) -> QuicNetworkPacket {
+    pub fn packet(players: Vec<PlayerEnum>, sender: Option<&PacketSender>) -> QuicNetworkPacket {
         QuicNetworkPacket {
-            owner: owner.cloned(),
+            sender: sender.cloned(),
             packet_type: PacketType::PlayerData,
             data: QuicNetworkPacketData::PlayerData(PlayerDataPacket::new(players)),
             // Sized and sent by the position broadcaster, not stamped for one connection; the
@@ -75,22 +75,22 @@ impl PlayerDataChunker {
     // packet on the wire.
     fn enforce_datagram_budget(
         chunk: Vec<PlayerEnum>,
-        owner: Option<&PacketOwner>,
+        sender: Option<&PacketSender>,
     ) -> Vec<Vec<PlayerEnum>> {
-        if chunk.len() <= 1 || Self::encoded_packet_size(&chunk, owner) <= MAX_DATAGRAM_SIZE {
+        if chunk.len() <= 1 || Self::encoded_packet_size(&chunk, sender) <= MAX_DATAGRAM_SIZE {
             return vec![chunk];
         }
 
         let mut head = chunk;
         let tail = head.split_off(head.len() / 2);
 
-        let mut out = Self::enforce_datagram_budget(head, owner);
-        out.extend(Self::enforce_datagram_budget(tail, owner));
+        let mut out = Self::enforce_datagram_budget(head, sender);
+        out.extend(Self::enforce_datagram_budget(tail, sender));
         out
     }
 
-    fn encoded_packet_size(players: &[PlayerEnum], owner: Option<&PacketOwner>) -> usize {
-        postcard::to_stdvec(&Self::packet(players.to_vec(), owner))
+    fn encoded_packet_size(players: &[PlayerEnum], sender: Option<&PacketSender>) -> usize {
+        postcard::to_stdvec(&Self::packet(players.to_vec(), sender))
             .map(|bytes| bytes.len())
             .unwrap_or(usize::MAX)
     }
@@ -113,10 +113,10 @@ impl PlayerDataChunker {
             .unwrap_or(MAX_DATAGRAM_SIZE)
     }
 
-    // Everything in the datagram that is not a player: packet type, owner, the
+    // Everything in the datagram that is not a player: packet type, sender, the
     // data variant tag, the hoisted world identifier and the sequence length.
     // Measured against a real empty packet so it tracks changes to those types.
-    fn envelope_overhead(owner: Option<&PacketOwner>, hoists: bool) -> usize {
+    fn envelope_overhead(sender: Option<&PacketSender>, hoists: bool) -> usize {
         // Room for the sequence length prefix to grow past a single byte.
         const LENGTH_PREFIX_HEADROOM: usize = 8;
         // The largest world identifier in use: a 64-character blake3 digest
@@ -124,7 +124,7 @@ impl PlayerDataChunker {
         // no world, so it is reserved explicitly.
         const LONGEST_WORLD_UUID: usize = 66;
 
-        let base = postcard::to_stdvec(&Self::packet(Vec::new(), owner))
+        let base = postcard::to_stdvec(&Self::packet(Vec::new(), sender))
             .map(|bytes| bytes.len())
             .unwrap_or(0);
 

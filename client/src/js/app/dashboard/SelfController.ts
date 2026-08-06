@@ -74,11 +74,18 @@ export class SelfController {
         try {
             const backend = await invoke<VoiceRuntimeState>('voice_runtime_state');
             this.diagnosticsStore.set({ backend, mic: this.mic.activity });
-            this.state.sync({
-                mode: backend.voiceMode === 'pushToTalk' ? 'ptt' : 'activated',
-                muted: backend.inputMuted,
-                deafened: backend.outputMuted,
-            });
+            this.state.sync(
+                {
+                    mode: backend.voiceMode === 'pushToTalk' ? 'ptt' : 'activated',
+                    muted: backend.inputMuted,
+                    deafened: backend.outputMuted,
+                    // Reconciled here for the same reason as mute: the events that announce
+                    // it are not the only way it changes, and one that does not arrive used
+                    // to leave the button wrong for the rest of the session.
+                    recording: backend.recording,
+                },
+                performance.now(),
+            );
             // Reconciles an optimistic hold the backend refused, and a hold released by a
             // gesture whose pointerup never landed.
             this.state.hold(backend.pttActive);
@@ -191,8 +198,32 @@ export class SelfController {
         }));
     }
 
+    /**
+     * Arm or finish a recording.
+     *
+     * Settles on the command rather than on the event, which is what mute and deafen
+     * already did. Firing and forgetting left the button waiting for `recording:started`,
+     * and an event that did not arrive stranded it off over a backend that was recording:
+     * the next press asked to start again, was refused with "Recording already in
+     * progress", and nothing corrected either side.
+     *
+     * A refusal is the strongest evidence available that the button is the wrong one, so
+     * it re-reads rather than keeping its own answer.
+     */
     pressRecord(): void {
-        void this.send(this.state.snapshot.recording ? 'stop_recording' : 'start_recording', {});
+        const recording = this.state.snapshot.recording;
+        this.state.sync({ recording: !recording }, performance.now());
+        void this.confirm(recording ? 'stop_recording' : 'start_recording');
+    }
+
+    private async confirm(command: string): Promise<void> {
+        try {
+            info(`SelfController: invoking ${command}`);
+            await invoke(command, {});
+        } catch (e) {
+            warn(`SelfController: ${command} failed: ${e}`);
+            await this.seed();
+        }
     }
 
     /**

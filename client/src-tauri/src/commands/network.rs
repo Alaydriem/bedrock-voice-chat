@@ -110,6 +110,14 @@ pub(crate) async fn change_network_stream(
     analytics.clear_connected_server();
     analytics.clear_player();
     let gamertag = data.gamertag.clone();
+    // The canonical identity, composed from the same two fields the server put in the
+    // certificate CN. Every control report the client sends names itself with this, and the
+    // server compares it against the CN — a bare gamertag is dropped silently.
+    let identity = data
+        .game
+        .clone()
+        .unwrap_or(common::Game::Minecraft)
+        .membership_key(&gamertag);
     // The error is rendered to a String before any further await: it is a
     // `Box<dyn Error>`, which is not Send, and holding one across an await would
     // make this command's future non-Send.
@@ -118,7 +126,7 @@ pub(crate) async fn change_network_stream(
             server_fqdn.clone(),
             server.clone(),
             plan,
-            data.gamertag,
+            identity,
             data.certificate_ca,
             data.certificate,
             data.certificate_key,

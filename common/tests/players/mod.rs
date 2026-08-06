@@ -1,2 +1,2 @@
-mod fixture;
+pub mod fixture;
 mod minecraft;

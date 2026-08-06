@@ -29,7 +29,6 @@ impl BedrockEventEmitter {
         let packet = NetworkPacket {
             data: QuicNetworkPacket {
                 packet_type: PacketType::BedrockEvent,
-                owner: None,
                 data: QuicNetworkPacketData::BedrockEvent(bedrock_packet),
                             // Not a server fan-out, so this envelope carries no sequence.
                 ..Default::default()
@@ -52,7 +51,6 @@ impl BedrockEventEmitter {
         let packet = NetworkPacket {
             data: QuicNetworkPacket {
                 packet_type: PacketType::ClientAction,
-                owner: None,
                 data: QuicNetworkPacketData::ClientAction(ca_packet),
                             // Not a server fan-out, so this envelope carries no sequence.
                 ..Default::default()
@@ -74,7 +72,6 @@ impl BedrockEventEmitter {
         let packet = NetworkPacket {
             data: QuicNetworkPacket {
                 packet_type: PacketType::PlayerPosition,
-                owner: None,
                 data: QuicNetworkPacketData::PlayerPosition(PlayerPositionPacket { player }),
                             // Not a server fan-out, so this envelope carries no sequence.
                 ..Default::default()
@@ -96,7 +93,6 @@ impl BedrockEventEmitter {
         let packet = NetworkPacket {
             data: QuicNetworkPacket {
                 packet_type: PacketType::PeerPresenceObserved,
-                owner: None,
                 data: QuicNetworkPacketData::PeerPresenceObserved(PeerPresenceObservedPacket {
                     token,
                 }),
@@ -120,7 +116,6 @@ impl BedrockEventEmitter {
         let packet = NetworkPacket {
             data: QuicNetworkPacket {
                 packet_type: PacketType::PeerAnnounceObserved,
-                owner: None,
                 data: QuicNetworkPacketData::PeerAnnounceObserved(PeerAnnounceObservedPacket {
                     hashed_world,
                     endpoint,

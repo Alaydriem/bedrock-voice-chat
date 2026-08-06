@@ -5,6 +5,7 @@ use bvc_client_lib::diagnostics::{
     DeviceInfo, InputPipelineStats, LinkDiagnosticsService, LinkSession, PeerRegistry, QuicLinkStats,
     SessionConfig, TransportStats,
 };
+use common::structs::audio::NoiseGateStatus;
 use common::structs::reachability::AddressFamily;
 use tokio::sync::watch;
 
@@ -166,10 +167,14 @@ fn gate_is_open_when_frames_with_signal_advanced_in_the_window() {
     let h = Harness::new();
     h.connect();
     h.baseline();
+    DeviceInfo::set_noise_gate_enabled(true);
 
     h.input.record_frame(false);
 
-    assert!(h.tick().expect("connected").mic.gate_open);
+    assert_eq!(
+        h.tick().expect("connected").mic.noise_gate,
+        NoiseGateStatus::Open
+    );
 }
 
 #[test]
@@ -177,13 +182,42 @@ fn gate_is_closed_when_no_frame_carried_signal() {
     let h = Harness::new();
     h.connect();
     h.baseline();
+    DeviceInfo::set_noise_gate_enabled(true);
 
     // Frames are still arriving; none of them carry signal.
     for _ in 0..10 {
         h.input.record_frame(true);
     }
 
-    assert!(!h.tick().expect("connected").mic.gate_open);
+    assert_eq!(
+        h.tick().expect("connected").mic.noise_gate,
+        NoiseGateStatus::Closed
+    );
+}
+
+/// Silence with the gate switched off is silence, not a gate holding the mic shut. The
+/// readout reported `open`/`closed` from signal alone, so it accused a gate that was not
+/// even in the audio path — and said `open` when it was not attached at all.
+#[test]
+fn a_disabled_gate_is_reported_as_disabled_whatever_the_signal_did() {
+    let h = Harness::new();
+    h.connect();
+    h.baseline();
+    DeviceInfo::set_noise_gate_enabled(false);
+
+    for _ in 0..10 {
+        h.input.record_frame(true);
+    }
+    assert_eq!(
+        h.tick().expect("connected").mic.noise_gate,
+        NoiseGateStatus::Disabled
+    );
+
+    h.input.record_frame(false);
+    assert_eq!(
+        h.tick().expect("connected").mic.noise_gate,
+        NoiseGateStatus::Disabled
+    );
 }
 
 #[test]

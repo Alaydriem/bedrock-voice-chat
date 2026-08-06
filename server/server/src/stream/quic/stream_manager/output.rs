@@ -1,4 +1,3 @@
-use crate::stream::quic::client_id_hasher::ClientIdHasher;
 use crate::stream::quic::connection_registry::RoutedPacket;
 use anyhow::Error;
 use bytes::Bytes;
@@ -13,7 +12,6 @@ pub(crate) struct OutputStream {
     packet_rx: Option<mpsc::Receiver<RoutedPacket>>,
     is_stopped: Arc<AtomicBool>,
     pub(crate) player_id: Arc<std::sync::OnceLock<String>>,
-    pub(crate) client_id: Arc<std::sync::OnceLock<Vec<u8>>>,
 }
 
 impl OutputStream {
@@ -23,7 +21,6 @@ impl OutputStream {
             packet_rx: None,
             is_stopped: Arc::new(AtomicBool::new(true)),
             player_id: Arc::new(std::sync::OnceLock::new()),
-            client_id: Arc::new(std::sync::OnceLock::new()),
         }
     }
 
@@ -33,10 +30,6 @@ impl OutputStream {
 
     pub fn get_player_id(&self) -> Option<String> {
         self.player_id.get().cloned()
-    }
-
-    pub fn get_client_id(&self) -> Option<Vec<u8>> {
-        self.client_id.get().cloned()
     }
 
     fn send_datagram(&self, connection: &Connection, payload: Bytes) -> DatagramResult {
@@ -99,43 +92,35 @@ impl StreamTrait for OutputStream {
                 };
 
                 let player = self.get_player_id().unwrap_or_else(|| "unknown".into());
-                let client_hash = self
-                    .get_client_id()
-                    .map(|cid| ClientIdHasher::hash(&cid))
-                    .unwrap_or_else(|| "????".into());
 
                 match self.send_datagram(&connection, payload) {
                     DatagramResult::Ok => {}
                     DatagramResult::ConnectionClosed(emsg) => {
                         tracing::error!(
-                            "datagram_send_closed player={} client={} err={}",
+                            "datagram_send_closed player={} err={}",
                             player,
-                            client_hash,
                             emsg
                         );
                         break;
                     }
                     DatagramResult::Capacity(emsg) => {
                         tracing::debug!(
-                            "datagram send capacity issue player={} client={} err={}",
+                            "datagram send capacity issue player={} err={}",
                             player,
-                            client_hash,
                             emsg
                         );
                     }
                     DatagramResult::Other(emsg) => {
                         tracing::debug!(
-                            "datagram send error player={} client={} err={}",
+                            "datagram send error player={} err={}",
                             player,
-                            client_hash,
                             emsg
                         );
                     }
                     DatagramResult::Fatal(emsg) => {
                         tracing::error!(
-                            "datagram_send_query_failed player={} client={} err={}",
+                            "datagram_send_query_failed player={} err={}",
                             player,
-                            client_hash,
                             emsg
                         );
                         break;

@@ -1,9 +1,9 @@
-import App from './app.js';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { info, warn, error as logError } from '@tauri-apps/plugin-log';
 import { invoke } from "@tauri-apps/api/core";
 import { Store } from '@tauri-apps/plugin-store';
 import { DeepLinkRouter } from './deepLinkRouter.ts';
+import BootOverlay from './shell/BootOverlay';
 import type { DeepLink } from '../bindings/DeepLink';
 import type { ConnectionHealth } from '../bindings/ConnectionHealth';
 
@@ -15,7 +15,7 @@ interface AudioStreamRecoveryPayload {
     error: string;
 }
 
-export default class BVCApp extends App {
+export default class BVCApp {
     /**
      * One router for the whole context, so the de-dup that protects a single-use OAuth
      * code is shared by every manager. A screen can construct more than one — the login
@@ -35,12 +35,42 @@ export default class BVCApp extends App {
     private audioRecoveryUnlisten: UnlistenFn | null = null;
     private initialized = false;
     private storeInstance: Store | null = null;
+    private isCleanedUp = false;
 
     constructor() {
-        super();
+        this.registerCleanupEvents();
         this.setupDeepLinkListener();
         this.setupConnectionHealthListener();
         this.setupAudioRecoveryListener();
+    }
+
+    /**
+     * Take the boot overlay down, once a screen is up behind it.
+     *
+     * Every route that renders a first screen calls this. False means there was nothing
+     * to dismiss, which is the normal answer on a client-side navigation.
+     */
+    preloader(): boolean {
+        return BootOverlay.dismiss();
+    }
+
+    /**
+     * The listeners this instance registered are process-wide, so they outlive the
+     * document unless something releases them. `pagehide` covers the webview cases
+     * `beforeunload` misses on mobile.
+     */
+    private registerCleanupEvents(): void {
+        const cleanup = () => this.safeCleanup();
+        window.addEventListener('beforeunload', cleanup);
+        window.addEventListener('pagehide', cleanup);
+        window.addEventListener('popstate', cleanup);
+        window.addEventListener('unload', cleanup);
+    }
+
+    private safeCleanup(): void {
+        if (this.isCleanedUp) return;
+        this.isCleanedUp = true;
+        this.cleanup().catch((err) => logError(`BVCApp: Error during cleanup: ${err}`));
     }
 
     /**

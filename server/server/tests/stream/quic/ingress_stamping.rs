@@ -1,87 +1,66 @@
 use bvc_server_lib::stream::quic::PacketIdentityStamp;
-use common::structs::control::QueryState;
 use common::structs::packet::{
-    PacketOwner, PacketType, QueryStatePacket, QuicNetworkPacket, QuicNetworkPacketData,
+    HealthCheckPacket, PacketSender, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
 };
 
-fn query_state_packet(
-    owner_name: &str,
-    client_id: Vec<u8>,
-    reported_id: &str,
-) -> QuicNetworkPacket {
+fn inbound() -> QuicNetworkPacket {
     QuicNetworkPacket {
-        packet_type: PacketType::QueryState,
-        owner: Some(PacketOwner {
-            name: owner_name.to_string(),
-            client_id,
-        }),
-        data: QuicNetworkPacketData::QueryState(QueryStatePacket::new(QueryState {
-            id: reported_id.to_string(),
-            muted: false,
-            deafened: false,
-            recording: false,
-            current_group: None,
-        })),
+        packet_type: PacketType::HealthCheck,
+        data: QuicNetworkPacketData::HealthCheck(HealthCheckPacket),
         // Not a server fan-out to one connection, so this envelope carries no sequence.
         ..Default::default()
     }
 }
 
-// A client claiming someone else's name must be rewritten to its authenticated
-// identity, so `get_author()` can never return the spoofed value.
+// The identity is the certificate CN verbatim, so whatever the client claimed is irrelevant —
+// it no longer has a field to claim it in.
 #[test]
-fn spoofed_owner_name_is_replaced_with_the_authenticated_name() {
-    let mut packet = query_state_packet("Victim", vec![1, 2, 3], "Victim");
-    PacketIdentityStamp::apply(&mut packet, "Attacker");
-    assert_eq!(packet.get_author(), "Attacker");
+fn the_stamped_identity_is_canonical() {
+    let mut packet = inbound();
+    PacketIdentityStamp::apply(&mut packet, "minecraft:Alaydriem", 7);
+
+    let sender = packet.sender.expect("stamped");
+    assert_eq!(sender.identity, "minecraft:Alaydriem");
+    assert_eq!(sender.device, Some(7));
 }
 
-// `get_author()` falls back to base64(client_id) when the name is "api" or empty,
-// which would let a client borrow the identity shape used by server-injected
-// packets. Stamping must close that before the fallback is ever reached.
+// Two devices for one player must stay distinguishable, which is what lets the mixer keep a
+// separate sink per device while applying one set of gain settings.
 #[test]
-fn api_owner_name_cannot_borrow_the_internal_author_shape() {
-    let mut packet = query_state_packet("api", vec![9, 9, 9], "api");
-    PacketIdentityStamp::apply(&mut packet, "Steve");
-    assert_eq!(packet.get_author(), "Steve");
+fn two_devices_share_an_identity_and_differ_by_device() {
+    let mut first = inbound();
+    let mut second = inbound();
+    PacketIdentityStamp::apply(&mut first, "minecraft:Alaydriem", 1);
+    PacketIdentityStamp::apply(&mut second, "minecraft:Alaydriem", 2);
+
+    let a = first.sender.expect("stamped");
+    let b = second.sender.expect("stamped");
+    assert_eq!(a.identity, b.identity);
+    assert_ne!(a.device, b.device);
 }
 
+// Stamping replaces whatever was there rather than reconciling with it. A packet that arrived
+// carrying somebody else's sender must not keep it when this server fans it out under its own
+// authority.
 #[test]
-fn empty_owner_name_is_replaced_with_the_authenticated_name() {
-    let mut packet = query_state_packet("", vec![7], "");
-    PacketIdentityStamp::apply(&mut packet, "Steve");
-    assert_eq!(packet.get_author(), "Steve");
+fn stamping_overwrites_an_existing_sender() {
+    let mut packet = inbound();
+    packet.sender = Some(PacketSender::new("minecraft:Attacker".to_string(), 99));
+
+    PacketIdentityStamp::apply(&mut packet, "minecraft:Alaydriem", 1);
+
+    let sender = packet.sender.expect("stamped");
+    assert_eq!(sender.identity, "minecraft:Alaydriem");
+    assert_eq!(sender.device, Some(1));
 }
 
-// client_id is the per-device routing key and must survive stamping untouched, so
-// one player on two devices stays distinguishable.
+// A real connection can hold device id 0, because s2n-quic counts internal connection ids from
+// zero. Stamping it must produce a sender that is not mistaken for server-injected audio.
 #[test]
-fn client_id_is_preserved_exactly() {
-    let mut packet = query_state_packet("Steve", vec![4, 2, 4, 2], "Steve");
-    PacketIdentityStamp::apply(&mut packet, "Steve");
-    assert_eq!(packet.get_client_id(), vec![4, 2, 4, 2]);
-}
+fn the_first_connections_device_is_not_synthetic() {
+    let mut packet = inbound();
+    PacketIdentityStamp::apply(&mut packet, "minecraft:Alaydriem", 0);
 
-// Two devices for the same authenticated player keep different client_ids, which is
-// what lets the registry route to each independently.
-#[test]
-fn two_devices_share_a_name_but_keep_distinct_client_ids() {
-    let mut first = query_state_packet("Steve", vec![1], "Steve");
-    let mut second = query_state_packet("Steve", vec![2], "Steve");
-    PacketIdentityStamp::apply(&mut first, "Steve");
-    PacketIdentityStamp::apply(&mut second, "Steve");
-
-    assert_eq!(first.get_author(), second.get_author());
-    assert_ne!(first.get_client_id(), second.get_client_id());
-}
-
-// An owner-less packet is unattributable; stamping must not invent a client_id for
-// it, and `get_author()` stays empty so no guard can match it.
-#[test]
-fn ownerless_packet_is_left_unattributed() {
-    let mut packet = query_state_packet("Steve", vec![1], "Steve");
-    packet.owner = None;
-    PacketIdentityStamp::apply(&mut packet, "Steve");
-    assert!(packet.owner.is_none());
-    assert_eq!(packet.get_author(), "");
+    let sender = packet.sender.expect("stamped");
+    assert!(!sender.is_synthetic());
 }

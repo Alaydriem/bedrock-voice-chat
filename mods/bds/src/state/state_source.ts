@@ -62,7 +62,7 @@ export class NetStateSource implements PanelFeed {
     ];
 
     const stateResponse = await httpClient.request(
-      `${this.config.bvcServer}/api/state?id=${encodeURIComponent(name)}`,
+      `${this.config.bvcServer}/api/state?id=${encodeURIComponent(name)}&game=minecraft`,
       'Get',
       undefined,
       headers,
@@ -83,7 +83,7 @@ export class NetStateSource implements PanelFeed {
       return;
     }
     const prefsResponse = await httpClient.request(
-      `${this.config.bvcServer}/api/preferences?owner=${encodeURIComponent(name)}&targets=${encodeURIComponent(targets.join(','))}`,
+      `${this.config.bvcServer}/api/preferences?owner=${encodeURIComponent(name)}&game=minecraft&targets=${encodeURIComponent(targets.join(','))}`,
       'Get',
       undefined,
       headers,

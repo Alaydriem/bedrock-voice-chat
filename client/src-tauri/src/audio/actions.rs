@@ -148,6 +148,22 @@ impl AudioActionsManager {
             ptt_active,
             input_muted: self.is_muted(AudioDeviceType::InputDevice).await,
             output_muted: self.is_muted(AudioDeviceType::OutputDevice).await,
+            recording: self.is_recording().await,
+        }
+    }
+
+    /// Whether a recording session is open, or false if nothing is holding one.
+    ///
+    /// Absent state rather than an unwrap: this is read on a poll, and a build without a
+    /// recording manager registered must report "not recording" rather than panic in the
+    /// loop that keeps every self-state surface honest.
+    async fn is_recording(&self) -> bool {
+        match self
+            .app_handle
+            .try_state::<Arc<Mutex<RecordingManager>>>()
+        {
+            Some(manager) => manager.lock().await.is_recording(),
+            None => false,
         }
     }
 

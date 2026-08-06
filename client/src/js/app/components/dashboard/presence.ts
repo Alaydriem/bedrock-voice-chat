@@ -107,9 +107,14 @@ export class PlayerPresenceManager {
         }
 
         // Support both 'player' (from auto-detection) and 'player_name' (from server events)
-        const playerName = payload.player || payload.player_name;
+        const rawName = payload.player || payload.player_name;
         const status = payload.status;
         const game: string | undefined = payload.game ?? undefined;
+
+        // Composed once, here, rather than at each of the three store helpers below. The
+        // presence event's name form varies with which producer emitted it, and the gain store
+        // is keyed on the canonical identity — so the boundary is the place to settle it.
+        const playerName = rawName ? GameNameUtils.canonical(rawName, game ?? 'minecraft') : rawName;
 
         if (!playerName) {
             error(`Player presence event missing player name: ${JSON.stringify(payload)}`);

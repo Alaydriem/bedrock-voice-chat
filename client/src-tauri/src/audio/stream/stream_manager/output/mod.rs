@@ -22,7 +22,7 @@ use common::{
     Coordinate, Game, GenericPlayer, Orientation, PlayerEnum,
     structs::{
         SpatialAudioConfig,
-        audio::{PlayerGainSettings, PlayerGainStore, StreamEvent},
+        audio::{GainProjection, PlayerGainSettings, PlayerGainStore, StreamEvent},
     },
 };
 use log::{error, info, warn};
@@ -30,7 +30,7 @@ use moka::future::Cache;
 use once_cell::sync::Lazy;
 use std::{
     sync::{
-        Arc, Mutex as StdMutex,
+        Arc,
         atomic::{AtomicBool, Ordering},
     },
     time::Duration,
@@ -54,7 +54,10 @@ pub(crate) struct OutputStream {
     playback_stream: Option<rodio::MixerDeviceSink>,
     player_presence: Arc<moka::sync::Cache<String, Option<String>>>,
     player_presence_debounce: Arc<moka::sync::Cache<String, ()>>,
-    client_id_to_player: Arc<moka::sync::Cache<String, String>>,
+    // Per-device gain and mute. Owned here because both halves that feed it live here: the
+    // router observes which player each device belongs to, and the persisted store arrives as
+    // a metadata write.
+    gain: Arc<GainProjection>,
     recording_producer: Option<Arc<RecordingProducer>>,
     player_gain_cache: Arc<moka::sync::Cache<String, PlayerGainSettings>>,
     peer_registry: Arc<crate::diagnostics::PeerRegistry>,
@@ -97,24 +100,10 @@ impl common::traits::StreamTrait for OutputStream {
                                 .insert(player_name.clone(), gain_settings.clone());
                         }
 
-                        if let Some(sink_manager) = self.sink_manager.as_mut() {
-                            let mut remapped_settings = PlayerGainStore::default();
-
-                            for (player_name, gain_settings) in &settings.0 {
-                                for (client_id, mapped_player_name) in
-                                    self.client_id_to_player.iter()
-                                {
-                                    if mapped_player_name.as_str() == player_name {
-                                        remapped_settings.0.insert(
-                                            client_id.as_ref().clone(),
-                                            gain_settings.clone(),
-                                        );
-                                    }
-                                }
-                            }
-
-                            sink_manager.update_player_store(remapped_settings)
-                        }
+                        // Handed over whole. The projection resolves a device against it at
+                        // lookup, so a device first heard from after this write still picks up
+                        // its settings — which is what the remap this replaced could not do.
+                        self.gain.set_store(settings);
                     }
                     Err(e) => {
                         error!("Failed to parse PlayerGainStore: {:?}", e);
@@ -230,10 +219,6 @@ impl OutputStream {
             .time_to_live(Duration::from_secs(3))
             .build();
 
-        let client_id_to_player = moka::sync::Cache::builder()
-            .time_to_idle(Duration::from_secs(3 * 60))
-            .build();
-
         let player_gain_cache = moka::sync::Cache::builder()
             .time_to_idle(Duration::from_secs(3 * 60))
             .build();
@@ -251,7 +236,7 @@ impl OutputStream {
             playback_stream: None,
             player_presence: Arc::new(player_presence),
             player_presence_debounce: Arc::new(player_presence_debounce),
-            client_id_to_player: Arc::new(client_id_to_player),
+            gain: Arc::new(GainProjection::new()),
             recording_producer,
             player_gain_cache: Arc::new(player_gain_cache),
             peer_registry,
@@ -293,7 +278,7 @@ impl OutputStream {
             self.player_gain_cache.clone(),
             self.player_presence.clone(),
             self.player_presence_debounce.clone(),
-            self.client_id_to_player.clone(),
+            self.gain.clone(),
             self.app_handle.clone(),
             #[cfg(feature = "bedrock-protocol")]
             self.beacon_cache.clone(),
@@ -417,7 +402,7 @@ impl OutputStream {
             consumer,
             (*players).clone(),
             current_player_name,
-            Arc::new(StdMutex::new(PlayerGainStore::default())),
+            self.gain.clone(),
             mix_target.mixer,
             self.app_handle.clone(),
             self.recording_producer.as_ref().map(|p| (**p).clone()),
