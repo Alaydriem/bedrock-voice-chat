@@ -79,8 +79,30 @@ export class BootTimeline {
                 `  ${'phase'.padEnd(width)}  ${'delta'.padStart(6)}      since launch`,
                 ...lines,
                 `  ${'TOTAL'.padEnd(width)}  ${total.toFixed(0).padStart(6)} ms`,
+                ...BootTimeline.markResizeLines(),
                 '=====================',
             ].join('\n'),
         );
+    }
+
+    /**
+     * The preloader's record of every change to its mark's box.
+     *
+     * Recorded there and read here because the preloader runs before the bundle and has no
+     * logger. A single entry means the mark was sized once and never moved; more than one
+     * means it was laid out, painted, and then resized — which is visible as the loader
+     * changing size on screen after it has already appeared.
+     */
+    private static markResizeLines(): string[] {
+        const samples = (window as unknown as { __bvcMarkResizes?: { t: number; w: number; h: number }[] })
+            .__bvcMarkResizes;
+        if (!samples?.length) return [];
+
+        const lines = samples.map((s) => `    t+${String(s.t).padStart(5)} ms   ${s.w} x ${s.h}`);
+        const verdict =
+            samples.length === 1
+                ? 'sized once, never resized'
+                : `RESIZED ${samples.length - 1} time(s) after first layout`;
+        return ['', `  mark box — ${verdict}`, ...lines];
     }
 }

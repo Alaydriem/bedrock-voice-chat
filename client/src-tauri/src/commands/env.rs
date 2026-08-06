@@ -6,7 +6,7 @@ pub(crate) fn get_env(name: &str) -> String {
 #[tauri::command]
 pub(crate) fn get_variant() -> String {
     use common::consts::variant::Variant;
-    match common::consts::variant::get_variant() {
+    match common::consts::variant::Variant::get() {
         Variant::Dev => "dev".to_string(),
         Variant::Release => "release".to_string(),
     }

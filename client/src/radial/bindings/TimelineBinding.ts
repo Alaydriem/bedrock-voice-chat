@@ -42,6 +42,7 @@ export class TimelineBinding implements Binding {
   destroy(): void {
     this.#stop?.();
     this.#stop = null;
+    this.#surface.destroy();
   }
 
   #paint(t: number): void {

@@ -96,6 +96,7 @@ export class LevelMeterBinding implements Binding {
     this.#unsubscribe = null;
     this.#observer?.disconnect();
     this.#observer = null;
+    this.#surface.destroy();
   }
 
   #measure(): void {

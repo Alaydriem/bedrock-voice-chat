@@ -117,6 +117,7 @@ export class RingBinding implements Binding {
   destroy(): void {
     this.#stop?.();
     this.#stop = null;
+    this.#surface.destroy();
   }
 
   #paint(t: number): void {

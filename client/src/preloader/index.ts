@@ -213,7 +213,38 @@ class AppPreloaderController {
         this.ring = null;
     }
 
+    /**
+     * Record every change to the mark's box, with the time it happened.
+     *
+     * Diagnostic only. A `ResizeObserver` rather than a per-frame measurement, because
+     * reading the box is itself what forces layout — the thing being investigated must not
+     * be disturbed by the instrument. The samples are left on `window` for the bundle to
+     * log once it is up: this file has no runtime imports and so no logger of its own.
+     */
+    private watchMarkSize(): void {
+        if (!this.markEl || typeof ResizeObserver === "undefined") return;
+
+        const samples: { t: number; w: number; h: number }[] = [];
+        (window as unknown as { __bvcMarkResizes?: unknown }).__bvcMarkResizes = samples;
+
+        const observer = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                const box = entry.contentRect;
+                // Capped: a resize storm must not grow without bound on a screen that is
+                // already the busiest moment the app has.
+                if (samples.length >= 24) return;
+                samples.push({
+                    t: Math.round(performance.now()),
+                    w: Math.round(box.width * 100) / 100,
+                    h: Math.round(box.height * 100) / 100,
+                });
+            }
+        });
+        observer.observe(this.markEl);
+    }
+
     start(): void {
+        this.watchMarkSize();
         this.startMark();
         this.startStatus();
         this.armHatch();

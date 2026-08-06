@@ -8,6 +8,21 @@
  * duplication is the price of painting before the bundle exists.
  */
 
+/* Matched to the resets Tailwind's preflight applies later, so those rules change nothing
+   here. Without them the mark was laid out at 326px and shrank to 292px when the bundle's
+   stylesheet landed. */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+.app-preloader,
+.app-preloader *,
+.app-preloader *::before,
+.app-preloader *::after {
+  box-sizing: border-box;
+}
+
 .app-preloader {
   position: fixed;
   inset: 0;
@@ -111,12 +126,18 @@
 /* The copy and the escape actions keep the 26rem measure the column used to impose on
    everything. Applied here rather than to the column because the mark is sized against the
    column and wants the whole frame's width; a shared measure cannot serve both. */
+/* `contain: layout` on both of these, because their text is rewritten while the ring beside
+   them animates: the braille glyph turns eleven times a second. Containment keeps each
+   rewrite's layout invalidation inside its own subtree, so anything that reads a layout box
+   afterwards — the mark's canvas, measured by its binding — is not made to resolve the
+   column's layout again to answer. */
 .app-preloader-headline {
   max-width: 26rem;
   margin: 1rem auto 0;
   font-size: 0.875rem;
   line-height: 1.25rem;
   font-weight: 600;
+  contain: layout;
   /* --color-rad-tx */
   color: #fbf8ff;
 }
@@ -129,6 +150,7 @@
   justify-content: center;
   gap: 0.625rem;
   min-height: 22px;
+  contain: layout;
   /* --font-rad-mono: the status row is a readout, as it is in the app */
   font-family: ui-monospace, Menlo, Consolas, monospace;
   letter-spacing: 0.08em;

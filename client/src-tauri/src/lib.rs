@@ -4,7 +4,7 @@ pub use crate::structs::app_state::AppState;
 pub(crate) use audio::AudioPacket;
 pub(crate) use audio::AudioStreamManager;
 pub(crate) use audio::recording::RecordingManager;
-use common::consts::variant::{Variant, get_variant};
+use common::consts::variant::{Variant};
 pub(crate) use flume::{Receiver, Sender};
 use log::{error, info, warn};
 pub use network::NetworkPacket;
@@ -125,7 +125,7 @@ pub fn run() {
             enable_logs: true,
             traces_sample_rate: 0.1,
             environment: Some(
-                match get_variant() {
+                match Variant::get() {
                     Variant::Dev => "development",
                     Variant::Release => "production",
                 }
