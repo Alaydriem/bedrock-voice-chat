@@ -23,7 +23,7 @@ import { ProximityCast } from "$radial/core/sources/ProximityCast";
 // thing the user can act on. Login is excluded because its connecting view carries its
 // own cancel and its own recovery link. Setup carries neither: a failed initialize there
 // has no way out except this.
-const ESCAPE_HATCH_ROUTES = ["/", "/dashboard", "/settings", "/server", "/setup"];
+const ESCAPE_HATCH_ROUTES = ["/", "/dashboard", "/settings", "/setup"];
 const ESCAPE_HATCH_DELAY_MS = 10000;
 
 // Staged reveal: the mark shows instantly, the status copy only once a load is slow
@@ -171,7 +171,7 @@ class AppPreloaderController {
         try {
             serverCount = parseInt(window.localStorage.getItem("bvc_server_count") ?? "0", 10);
         } catch (_) {}
-        if (path === "/server" || !(serverCount > 1)) {
+        if (path === "/" || !(serverCount > 1)) {
             const serverAction = this.root.querySelector<HTMLElement>(
                 "#app-preloader-action-server",
             );

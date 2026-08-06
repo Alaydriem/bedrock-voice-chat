@@ -46,6 +46,8 @@ pub(crate) async fn change_network_stream(
         state.get_api_client_for_server(&server).await
     };
 
+    let api_for_invalidation = api.as_ref().ok().cloned();
+
     let advertised = match api {
         Ok(api) => match api.get_config().await {
             Ok(config) => Some((config.quic_ports, config.quic_port)),
@@ -135,6 +137,12 @@ pub(crate) async fn change_network_stream(
             // A verdict that led nowhere must not persist to its TTL: the next
             // attempt re-probes rather than repeating the same ordering.
             reachability.invalidate(&server_fqdn).await;
+            // The advertised port is a verdict too. A connect that failed because the
+            // server moved it would otherwise be handed the same stale answer for the
+            // rest of the window.
+            if let Some(api) = api_for_invalidation {
+                api.invalidate_config().await;
+            }
             return Err(format!("QUIC_FAIL: {}", detail));
         }
     };

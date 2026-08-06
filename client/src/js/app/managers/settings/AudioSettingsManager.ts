@@ -5,6 +5,7 @@ import Analytics from "../../analytics";
 import PlatformDetector from "../../utils/PlatformDetector";
 import type { KeybindConfig } from "../../../bindings/KeybindConfig";
 import type { VoiceMode } from "../../../bindings/VoiceMode";
+import type { VoiceRuntimeState } from "../../../bindings/VoiceRuntimeState";
 
 export class AudioSettingsManager {
     private readonly platformDetector: PlatformDetector;
@@ -19,6 +20,9 @@ export class AudioSettingsManager {
     public readonly voiceMode: Readable<VoiceMode>;
     private panningIntensityStore: Writable<number>;
     public readonly panningIntensity: Readable<number>;
+    private voiceModeErrorStore: Writable<string>;
+    /** Why the last mode change did not take, or empty. */
+    public readonly voiceModeError: Readable<string>;
 
     constructor() {
         this.platformDetector = new PlatformDetector();
@@ -33,6 +37,8 @@ export class AudioSettingsManager {
         this.voiceMode = { subscribe: this.voiceModeStore.subscribe };
         this.panningIntensityStore = writable(80);
         this.panningIntensity = { subscribe: this.panningIntensityStore.subscribe };
+        this.voiceModeErrorStore = writable("");
+        this.voiceModeError = { subscribe: this.voiceModeErrorStore.subscribe };
     }
 
     async initialize(): Promise<void> {
@@ -77,27 +83,56 @@ export class AudioSettingsManager {
         });
     }
 
+    /**
+     * Change the voice mode, and show what the backend actually reached.
+     *
+     * The control used to move first and hope. When the command failed — or was dropped
+     * because the store had not finished loading — the segmented control sat on a mode the
+     * backend was not in, and the mic button, which reads the backend, kept behaving as the
+     * old one. So nothing here moves until the backend answers.
+     */
     async handleVoiceModeChange(mode: VoiceMode): Promise<void> {
-        this.voiceModeStore.set(mode);
+        this.voiceModeErrorStore.set("");
+        try {
+            // Loaded on demand rather than skipped. `initialize` is not awaited by the pane,
+            // so a change made early used to be discarded without a word.
+            const store = await this.requireStore();
+            const saved = await store.get<KeybindConfig>("keybinds");
+            const config: KeybindConfig = {
+                toggleMute: saved?.toggleMute ?? "ControlLeft+BracketLeft",
+                toggleDeafen: saved?.toggleDeafen ?? "ControlLeft+BracketRight",
+                toggleRecording: saved?.toggleRecording ?? "ControlLeft+Backslash",
+                pushToTalk: saved?.pushToTalk ?? "Backquote",
+                voiceMode: mode,
+            };
+            await store.set("keybinds", config);
+            await store.save();
 
-        let store: Store | undefined;
-        this.storeStore.update((current) => {
-            store = current;
-            return current;
+            const reached = await invoke<VoiceRuntimeState>("start_keybind_listener", { config });
+            this.voiceModeStore.set(reached.voiceMode);
+            if (reached.voiceMode !== mode) {
+                this.voiceModeErrorStore.set(
+                    `The app is still in ${reached.voiceMode === "pushToTalk" ? "push-to-talk" : "open mic"}.`,
+                );
+                return;
+            }
+            Analytics.track("VoiceModeChanged", { mode });
+        } catch (e) {
+            this.voiceModeErrorStore.set(String(e));
+        }
+    }
+
+    /** The store, loading it if `initialize` has not finished. */
+    private async requireStore(): Promise<Store> {
+        let current: Store | undefined;
+        this.storeStore.update((value) => {
+            current = value;
+            return value;
         });
-        if (!store) return;
+        if (current) return current;
 
-        const saved = await store.get<KeybindConfig>("keybinds");
-        const config: KeybindConfig = {
-            toggleMute: saved?.toggleMute ?? "ControlLeft+BracketLeft",
-            toggleDeafen: saved?.toggleDeafen ?? "ControlLeft+BracketRight",
-            toggleRecording: saved?.toggleRecording ?? "ControlLeft+Backslash",
-            pushToTalk: saved?.pushToTalk ?? "Backquote",
-            voiceMode: mode,
-        };
-        await store.set("keybinds", config);
-        await store.save();
-        await invoke("start_keybind_listener", { config });
-        Analytics.track("VoiceModeChanged", { mode });
+        const store = await Store.load("store.json", { autoSave: false, defaults: {} });
+        this.storeStore.set(store);
+        return store;
     }
 }

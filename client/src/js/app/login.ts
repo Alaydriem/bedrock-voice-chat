@@ -203,8 +203,8 @@ export default class Login extends BVCApp {
     let backLabel = 'Back to Dashboard';
     if (isAddServer) {
       const returnTarget = urlParams.get('return') ?? '';
-      if (returnTarget === '/server') {
-        backHref = '/server';
+      if (returnTarget === '/') {
+        backHref = '/';
         backLabel = 'Back to Server List';
       }
     }

@@ -33,8 +33,8 @@ describe("dropping the server switch", () => {
   it("leaves no action pointing at the server list", () => {
     for (const definition of DEFINITIONS) {
       const adjusted = FaultCatalog.withoutServerSwitch(definition);
-      expect(adjusted.primaryAction.url, definition.code).not.toBe("/server");
-      expect(adjusted.secondaryAction?.url, definition.code).not.toBe("/server");
+      expect(adjusted.primaryAction.url, definition.code).not.toBe("/");
+      expect(adjusted.secondaryAction?.url, definition.code).not.toBe("/");
     }
   });
 

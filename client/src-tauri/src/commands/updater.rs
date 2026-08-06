@@ -1,8 +1,15 @@
+use std::time::Duration;
+
 use tauri_plugin_updater::UpdaterExt;
 
 pub(crate) struct UpdaterHelper;
 
 impl UpdaterHelper {
+    // A hung update check used to be bounded only by OS defaults. It holds the in-flight
+    // guard in the frontend's UpdateStatus while it waits, which makes the manual
+    // "Check again" button do nothing until it resolves.
+    const CHECK_TIMEOUT: Duration = Duration::from_secs(10);
+
     fn is_msix_packaged() -> bool {
         std::env::current_exe()
             .ok()
@@ -43,6 +50,7 @@ impl UpdaterHelper {
 
         let updater = app
             .updater_builder()
+            .timeout(Self::CHECK_TIMEOUT)
             .endpoints(vec![
                 endpoint
                     .parse()

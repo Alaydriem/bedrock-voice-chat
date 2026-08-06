@@ -16,12 +16,14 @@
     const audio = new AudioSettingsManager();
 
     let voiceMode = $state<VoiceMode>("openMic");
+    let voiceModeError = $state("");
     let panning = $state(100);
 
     const unsubs: Array<() => void> = [];
 
     onMount(() => {
         unsubs.push(audio.voiceMode.subscribe((v) => (voiceMode = v)));
+        unsubs.push(audio.voiceModeError.subscribe((v) => (voiceModeError = v)));
         unsubs.push(audio.panningIntensity.subscribe((v) => (panning = v)));
         void audio.initialize();
     });
@@ -65,6 +67,15 @@
                 />
             {/snippet}
         </SettingRow>
+
+        {#if voiceModeError}
+            <div class="rad-callout rad-callout--warn">
+                <span>
+                    <b>The voice mode did not change.</b>
+                    {voiceModeError}
+                </span>
+            </div>
+        {/if}
 
         <SettingRow
             label="Spatial panning"

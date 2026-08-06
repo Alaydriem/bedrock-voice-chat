@@ -1085,6 +1085,10 @@
 
 .rad-self__btn {
   flex: 0 0 auto;
+  /* A hold control in push-to-talk, so the browser must not read a press on it as the
+     start of a scroll: it answers that by cancelling the gesture, and a hold cancelled
+     rather than released never sends its release. */
+  touch-action: none;
   /* Sized by max-width rather than width so the record button can grow to fit its
      timer: `width: auto` is not an animatable value, and snapping open was the
      single most abrupt moment on the dashboard. */

@@ -181,6 +181,182 @@ describe("SelfController", () => {
         expect(self.state.snapshot.transmitting).toBe(false);
     });
 
+    /**
+     * A phone has no global hotkey, so this button is the only way into push-to-talk. Moving
+     * `SelfState` here and stopping — which is what it did — lights the meter and the frame
+     * stripe over a microphone the backend still has muted.
+     */
+    it("asks the backend to open the mic when the button is held", async () => {
+        mockInvoke({ mute_status: () => false, is_recording: () => false, set_ptt: () => null });
+
+        const self = new SelfController(store({ keybinds: { voiceMode: "pushToTalk" } }));
+        await self.start();
+
+        self.hold(true);
+        self.hold(false);
+
+        expect(invokeCalls().filter((c) => c.cmd === "set_ptt").map((c) => c.args)).toEqual([
+            { down: true },
+            { down: false },
+        ]);
+    });
+
+    /**
+     * Painted on the press, not on the answer.
+     *
+     * Waiting for the round trip read as a button that had not taken, and on a phone the
+     * event that carries the answer does not reliably arrive at all. The backend is still
+     * the authority — the poll below corrects a hold it refused.
+     */
+    it("paints the hold immediately", async () => {
+        mockInvoke({ mute_status: () => false, is_recording: () => false, set_ptt: () => null });
+
+        const self = new SelfController(store({ keybinds: { voiceMode: "pushToTalk" } }));
+        await self.start();
+
+        self.hold(true);
+        expect(self.state.snapshot.transmitting).toBe(true);
+    });
+
+    /**
+     * The mode used to be read once, in `seed`. Changing it in settings left the dashboard
+     * offering a toggle for a mode where holding is the only thing that transmits — and on
+     * desktop the backend had already muted the input, so that toggle unmuted for real and
+     * quietly turned push-to-talk into an open mic.
+     */
+    it("follows a voice mode changed somewhere else", async () => {
+        mockInvoke({ mute_status: () => false, is_recording: () => false });
+
+        const self = new SelfController(store({ keybinds: { voiceMode: "openMic" } }));
+        await self.start();
+        expect(self.state.snapshot.mode).toBe("activated");
+
+        emit("voice-mode:changed", "pushToTalk");
+        expect(self.state.snapshot.mode).toBe("ptt");
+
+        emit("voice-mode:changed", "openMic");
+        expect(self.state.snapshot.mode).toBe("activated");
+    });
+
+    it("stops treating the mic button as a toggle the moment the mode changes", async () => {
+        mockInvoke({ mute_status: () => false, is_recording: () => false });
+
+        const self = new SelfController(store({ keybinds: { voiceMode: "openMic" } }));
+        await self.start();
+
+        emit("voice-mode:changed", "pushToTalk");
+        self.pressMute();
+
+        expect(invokeCalls().some((c) => c.cmd === "set_mute")).toBe(false);
+    });
+
+    /**
+     * The fix for a mode change that never arrived.
+     *
+     * On Android the `voice-mode:changed` event did not reach this window, so the mic button
+     * kept offering a toggle for push-to-talk — and that toggle opened the microphone for
+     * real, defeating the mode. Reading the backend rather than waiting to be told makes the
+     * button correct whether or not the event lands.
+     */
+    it("adopts the mode the backend reports, without any event", async () => {
+        mockInvoke({
+            mute_status: () => false,
+            is_recording: () => false,
+            voice_runtime_state: () => ({
+                voiceMode: "pushToTalk",
+                pttActive: false,
+                inputMuted: true,
+                outputMuted: false,
+            }),
+        });
+
+        // Saved as open mic, so nothing but the backend can tell it otherwise.
+        const self = new SelfController(store({ keybinds: { voiceMode: "openMic" } }));
+        await self.start();
+
+        expect(self.state.snapshot.mode).toBe("ptt");
+        expect(self.state.snapshot.muted).toBe(true);
+    });
+
+    // With the mode right, the tap that used to defeat push-to-talk is refused.
+    it("stops the mic button opening the mic once the backend is read", async () => {
+        mockInvoke({
+            mute_status: () => false,
+            is_recording: () => false,
+            voice_runtime_state: () => ({
+                voiceMode: "pushToTalk",
+                pttActive: false,
+                inputMuted: true,
+                outputMuted: false,
+            }),
+        });
+
+        const self = new SelfController(store({ keybinds: { voiceMode: "openMic" } }));
+        await self.start();
+        self.pressMute();
+
+        expect(invokeCalls().some((c) => c.cmd === "set_mute")).toBe(false);
+    });
+
+    // A hold the backend refused would otherwise leave the meter lit over a muted mic.
+    it("clears a hold the backend never registered", async () => {
+        mockInvoke({
+            mute_status: () => false,
+            is_recording: () => false,
+            set_ptt: () => null,
+            voice_runtime_state: () => ({
+                voiceMode: "pushToTalk",
+                pttActive: false,
+                inputMuted: true,
+                outputMuted: false,
+            }),
+        });
+
+        const self = new SelfController(store({ keybinds: { voiceMode: "pushToTalk" } }));
+        await self.start();
+        self.hold(true);
+        expect(self.state.snapshot.holding).toBe(true);
+
+        await self.refresh();
+        expect(self.state.snapshot.holding).toBe(false);
+    });
+
+    /**
+     * Deafen and the mic button read the same flag, and the poll adopts it.
+     *
+     * The backend mutes the input on deafen and restores the voice mode's resting state on
+     * undeafen, so in push-to-talk the microphone goes back to muted rather than open. The
+     * button follows, instead of showing an open mic over a shut one.
+     */
+    it("keeps the mic button on the backend's answer through deafen", async () => {
+        let inputMuted = true;
+        mockInvoke({
+            mute_status: () => false,
+            is_recording: () => false,
+            set_deafened: () => true,
+            voice_runtime_state: () => ({
+                voiceMode: "pushToTalk",
+                pttActive: false,
+                inputMuted,
+                outputMuted: false,
+            }),
+        });
+
+        const self = new SelfController(store({ keybinds: { voiceMode: "pushToTalk" } }));
+        await self.start();
+        expect(self.state.snapshot.muted).toBe(true);
+
+        // Undeafened, and the backend puts push-to-talk back to its resting state.
+        inputMuted = true;
+        await self.refresh();
+        expect(self.state.snapshot.muted).toBe(true);
+
+        // A backend that reported the mic open would move the button, not be ignored.
+        inputMuted = false;
+        await self.refresh();
+        expect(self.state.snapshot.muted).toBe(false);
+    });
+
     it("times a recording from when it was observed starting", async () => {
         mockInvoke({ mute_status: () => false, is_recording: () => false });
 

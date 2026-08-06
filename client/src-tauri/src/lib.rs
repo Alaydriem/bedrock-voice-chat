@@ -24,6 +24,7 @@ pub mod android;
 // only reach `pub` items) to cover first-run and install-date resolution.
 pub use analytics::InstallMarker;
 mod api;
+pub use api::FetchCache;
 pub mod app_builder;
 pub mod audio;
 mod auth;
@@ -50,7 +51,6 @@ mod iap;
 // only reach `pub` items) to cover the store price-selection fallback.
 #[cfg(feature = "e2e")]
 pub use crate::iap::store::StoreProvider;
-#[cfg(desktop)]
 pub mod keybinds;
 mod keyring;
 mod logging;
@@ -303,6 +303,8 @@ pub fn run() {
             crate::commands::analytics::track_event,
             // Keybinds
             crate::commands::keybinds::start_keybind_listener,
+            crate::commands::keybinds::set_ptt,
+            crate::commands::keybinds::voice_runtime_state,
             // Feature Flags
             crate::commands::feature_flags::get_feature_flag,
             crate::commands::feature_flags::refresh_feature_flags,
@@ -734,6 +736,12 @@ pub fn run() {
                 Some(Arc::clone(&bedrock_announce_injector)),
             )?;
 
+            // The listener owns the voice-mode transition and the push-to-talk hold. Both
+            // exist on a phone, which reaches them through commands rather than hotkeys, so
+            // it is managed everywhere and only the shortcut plumbing below is desktop-only.
+            let listener = Arc::new(keybinds::KeybindListener::new(handle.clone()));
+            app.manage(listener.clone());
+
             // KeybindManager listens for global key events and triggers actions in AudioActionsManager for desktop
             #[cfg(desktop)]
             {
@@ -741,7 +749,6 @@ pub fn run() {
 
                 let action_map: Arc<parking_lot::RwLock<keybinds::ActionMap>> =
                     Arc::new(parking_lot::RwLock::new(Vec::new()));
-                let listener = Arc::new(keybinds::listener::KeybindListener::new(handle.clone()));
 
                 let handler_map = action_map.clone();
                 let handler_listener = listener.clone();

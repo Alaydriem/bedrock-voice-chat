@@ -27,8 +27,11 @@
         standalone?: boolean;
         /** Servers for the rail. Empty on the standalone route, which has no session. */
         servers?: readonly { host: string }[];
-        /** An update is waiting, so About carries the badge. */
-        updateWaiting?: boolean;
+        /**
+         * The session's update status, from the shell that polls it. Omitted by the
+         * standalone route, which has no shell behind it and checks on demand.
+         */
+        updates?: UpdateStatus;
         /**
          * Routing is the route's business. The shell says which pane was asked for and
          * that it wants out; where those go is decided by whoever mounted it, which is
@@ -43,7 +46,7 @@
         pane,
         standalone = false,
         servers = [],
-        updateWaiting = false,
+        updates = new UpdateStatus(),
         onnavigate,
         onclose,
         onsignout = () => {},
@@ -51,9 +54,6 @@
 
     /** The mobile build. Not the same as a narrow window, which is a container query. */
     let mobile = $state(false);
-
-    /** Owned here because the nav badge outlives any one pane. */
-    const updates = new UpdateStatus();
 
     /** One manager across both Bedrock panes; built on first use. */
     let bedrock: BedrockManager | null = null;
@@ -70,7 +70,7 @@
 
     const groups = $derived(SettingsCatalogue.groups(mobile));
     const current = $derived(SettingsCatalogue.find(pane, mobile) ?? SettingsCatalogue.all[0]);
-    const badged = $derived(updateWaiting || updateBadge ? "about" : null);
+    const badged = $derived(updateBadge ? "about" : null);
 
     /** Which of the phone's two levels is showing. Ignored at desktop width. */
     let level = $state<"list" | "detail">("list");

@@ -23,6 +23,7 @@ import { RailView, type RailServer } from './dashboard/RailView';
 import { NearbyManager } from './dashboard/NearbyManager';
 import { PlayerLevelSources } from './dashboard/PlayerLevelSources';
 import type { ScreenLanding } from './shell/ScreenLanding';
+import { BootTimeline } from './shell/BootTimeline';
 import Analytics from './analytics';
 import type { KeybindConfig } from '../bindings/KeybindConfig.ts';
 import type { NoiseGateSettings } from '../bindings/NoiseGateSettings.ts';
@@ -121,11 +122,15 @@ export default class Dashboard extends BVCApp {
     }
 
     async initialize(): Promise<ScreenLanding> {
+        const timeline = BootTimeline.shared();
+        timeline.mark("dashboard route mounted");
+
         this.store = await Store.load("store.json", {
             autoSave: false,
             defaults: {}
         });
         this.platformDetector = new PlatformDetector();
+        timeline.mark("Store.load");
 
         // Stop any recording that was active before a page refresh.
         // The Tauri backend persists across webview reloads, so a recording
@@ -139,11 +144,13 @@ export default class Dashboard extends BVCApp {
         } catch (e) {
             warn(`Failed to check/stop recording on refresh: ${e}`);
         }
+        timeline.mark("is_recording");
 
         // Device setup is re-checked on every launch: permissions and audio hardware
         // change underneath the app, and the OS is the source of truth for both.
         this.setup = new SetupFlow(this.store);
         await this.setup.initialize();
+        timeline.mark("SetupFlow.initialize");
 
         info("Setup complete: " + this.setup.isComplete());
         if (!this.setup.isComplete()) {
@@ -170,9 +177,11 @@ export default class Dashboard extends BVCApp {
                 warn("Could not check certificate expiry: " + e);
             }
         }
+        timeline.mark("is_certificate_expired");
 
         // Initialize managers with dependency injection
         await this.initializeManagers();
+        timeline.mark("initializeManagers");
 
         // Start the websocket server if on desktop and is enabled
         if (!await this.platformDetector.checkMobile()) {
@@ -188,19 +197,27 @@ export default class Dashboard extends BVCApp {
                     error(`Error auto-starting WebSocket server: ${e}`);
                 });
             }
-
-            // Start keybind listener with saved config
-            const keybindConfig = await this.store!.get<KeybindConfig>("keybinds") ?? {
-                toggleMute: "ControlLeft+BracketLeft",
-                toggleDeafen: "ControlLeft+BracketRight",
-                toggleRecording: "ControlLeft+Backslash",
-                pushToTalk: "Backquote",
-                voiceMode: "openMic",
-            };
-            await invoke('start_keybind_listener', { config: keybindConfig }).catch((e) => {
-                error(`Error starting keybind listener: ${e}`);
-            });
         }
+        timeline.mark("websocket server (desktop only)");
+
+        // Every platform, not just desktop.
+        //
+        // Registering global shortcuts is the desktop-only half; applying the voice mode is
+        // not. It is what mutes the input on the way into push-to-talk, and skipping it left
+        // a phone that had push-to-talk saved booting with an open microphone — and with the
+        // backend believing the mode was open mic, so every hold it was later asked for was
+        // refused.
+        const keybindConfig = await this.store!.get<KeybindConfig>("keybinds") ?? {
+            toggleMute: "ControlLeft+BracketLeft",
+            toggleDeafen: "ControlLeft+BracketRight",
+            toggleRecording: "ControlLeft+Backslash",
+            pushToTalk: "Backquote",
+            voiceMode: "openMic",
+        };
+        await invoke('start_keybind_listener', { config: keybindConfig }).catch((e) => {
+            error(`Error starting keybind listener: ${e}`);
+        });
+        timeline.mark("keybinds (store.get + start_keybind_listener)");
 
         // If the audio engine is stopped for either the input or output channel, shutdown the existing one, reinitialize everything
         if (currentServer) {
@@ -215,16 +232,20 @@ export default class Dashboard extends BVCApp {
             } catch (e) {
                 warn("Failed to refresh server state, using cached permissions");
             }
+            timeline.mark("credentials x2 + refresh_server_state (NETWORK)");
 
             if (await this.isAgeBlocked(currentServer, this.currentServerCredentials)) {
                 return this.redirect("/error?code=AGE01");
             }
+            timeline.mark("age gate (api_initialize_client + api_get_config)");
 
             const isInputStreamStopped = await invoke("is_stopped", { device: "InputDevice" }).then((stopped) => stopped as boolean);
             const isOutputStreamStopped = await invoke("is_stopped", { device: "OutputDevice" }).then((stopped) => stopped as boolean);
+            timeline.mark("is_stopped x2");
 
             if (isInputStreamStopped || isOutputStreamStopped) {
                 await this.shutdown();
+                timeline.mark("shutdown (audio teardown)");
 
                 // Check audio permission first
                 info("Checking audio permission...");
@@ -259,6 +280,8 @@ export default class Dashboard extends BVCApp {
                     }
                 }
 
+                timeline.mark("permissions + foreground service (OS)");
+
                 // Initialize audio devices and network stream
                 await this.initializeAudioDevicesAndNetworkStream(this.store!, currentServer ?? "", this.currentServerCredentials);
 
@@ -290,8 +313,14 @@ export default class Dashboard extends BVCApp {
             return { kind: 'navigate', href: this.pendingHref };
         }
 
+        timeline.mark("post-connect tail (activity mgr, listeners, notification)");
+
         await this.loadIdentity();
+        timeline.mark("loadIdentity");
+
         await this.startNearby();
+        timeline.mark("startNearby (position feed)");
+
         return { kind: 'show' };
     }
 
@@ -689,10 +718,14 @@ export default class Dashboard extends BVCApp {
                     warn(`Failed to fetch server config, using stored values: ${e}`);
                 }
 
+                BootTimeline.shared().mark("stream metadata + api_get_config (pre-connect)");
+
                 await this.changeNetworkStream(currentServer, credentials);
+                BootTimeline.shared().mark(">>> QUIC HANDSHAKE (change_network_stream) <<<");
 
                 await this.updateAudioDevice("OutputDevice");
                 await this.updateAudioDevice("InputDevice");
+                BootTimeline.shared().mark("updateAudioDevice x2");
                 await invoke("change_audio_device").catch((e) => {
                     const errStr = String(e);
                     if (errStr.includes("INCOMPATIBLE_DEVICE")) {
@@ -712,13 +745,14 @@ export default class Dashboard extends BVCApp {
                     }
                     error(`Audio device error: ${e}`);
                 });
+                BootTimeline.shared().mark("change_audio_device (stream start)");
             }).catch((e) => {
                 error(`Error updating current player: ${e}`);
             });
         } else {
             warn("No current server found in store!");
             await this.shutdown();
-            this.redirect("/server");
+            this.redirect("/");
         }
     }
 

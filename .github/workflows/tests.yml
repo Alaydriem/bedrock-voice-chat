@@ -13,6 +13,10 @@ permissions:
 #   - `e2e-build-server` (Windows) — compiles the server cdylib (loaded via FFI).
 #   - `e2e-build-client` (Windows) — compiles the e2e harness bin + the client test
 #                                    binaries (packaged with `nextest archive`).
+#   - `frontend`         (Linux)   — the client's TypeScript and Svelte suites:
+#                                    vitest (happy-dom) plus the radial kit's
+#                                    node --test suite. No Rust, no Tauri, so it
+#                                    needs none of the Windows setup below.
 #   - `e2e-shard`        (Windows) — downloads both build artifacts and RUNS a shard
 #                                    of the suite via `nextest run --archive-file
 #                                    --partition`. No compilation. Filtered to
@@ -25,7 +29,8 @@ permissions:
 # the server job skips node/yarn/ASIO/frontend, the client job skips vcpkg.
 #
 # COVERAGE: the `common`, `server`, and `client-lib` suites run under
-# cargo-llvm-cov and upload lcov to Codecov under one flag each. The e2e shards
+# cargo-llvm-cov, and `frontend` runs under v8 + node's own coverage; each
+# uploads lcov to Codecov under one flag. The e2e shards
 # do NOT — instrumenting them means covering a cdylib built in the other Cargo
 # workspace and dlopen'd at runtime, plus child processes, and it is unsolved.
 # Coverage never gates a merge (see codecov.yml); patch coverage on changed
@@ -289,6 +294,63 @@ jobs:
         with:
           files: ./client/src-tauri/lcov-client.info
           flags: client
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
+  frontend:
+    name: Frontend tests (Linux)
+    runs-on: ubuntu-latest
+    # Pure TypeScript and Svelte: vitest against happy-dom, and the radial kit's
+    # node --test suite. Neither compiles Rust or needs a Tauri toolchain, so this
+    # job skips every Windows/ASIO/vcpkg step the others carry and finishes in
+    # about a minute.
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: 'yarn'
+          cache-dependency-path: client/yarn.lock
+
+      - name: Install JavaScript dependencies
+        working-directory: ./client
+        # `prepare` runs svelte-kit sync, which generates .svelte-kit/tsconfig.json.
+        # client/tsconfig.json extends it, so skipping this fails later and obscurely.
+        run: yarn install --frozen-lockfile
+
+      - name: Component and unit tests (instrumented)
+        working-directory: ./client
+        run: yarn test:coverage
+
+      - name: Radial kit tests (instrumented)
+        working-directory: ./client
+        # A separate runner on purpose: the kit is framework-free and its tests run
+        # on node --test with no DOM, which is what keeps it honest about being
+        # framework-free. Its coverage is a second lcov file in the same upload.
+        run: yarn radial:test:coverage
+
+      - name: Rebase frontend paths onto the repo root
+        working-directory: ./client
+        # Both runners emit paths relative to their own cwd, which is client/ —
+        # so `src/...`, missing the leading `client/` that the repo has. Codecov
+        # matches coverage records against git paths, so without this it matches
+        # nothing and reports 0 changed lines covered for every frontend PR.
+        #
+        # Separators need no fixing because this job is Linux. Moving it to a
+        # Windows runner needs the `tr` normalization the client-lib job carries.
+        run: |
+          sed -i -E 's|^SF:|SF:client/|' coverage/lcov.info coverage/lcov-radial.info
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./client/coverage/lcov.info,./client/coverage/lcov-radial.info
+          flags: frontend
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
 

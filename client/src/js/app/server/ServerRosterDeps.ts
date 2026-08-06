@@ -1,3 +1,4 @@
+import type { LoginResponse } from '../../bindings/LoginResponse';
 import type ImageCache from '../components/imageCache';
 import type { ServerListStore } from '../services/ServerListStore';
 import type { PreflightObserver } from './preflight/PreflightRunner';
@@ -18,4 +19,8 @@ export interface ServerRosterDeps {
     readonly forgetCredentials: (server: string) => Promise<void>;
     /** The app version waiting to be installed, or null. Rejects where there is no updater. */
     readonly checkForUpdates: () => Promise<string | null>;
+    /** This server's saved credentials. Rejects when there are none. Injected so a test never touches a keyring. */
+    readonly credentials: (server: string) => Promise<LoginResponse>;
+    /** Whether the saved certificate has expired. Local, so it costs nothing to ask before navigating. */
+    readonly isCertificateExpired: (server: string) => Promise<boolean>;
 }

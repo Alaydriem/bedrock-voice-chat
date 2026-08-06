@@ -5,6 +5,7 @@ import BVCApp from './BVCApp.ts';
 import { ServerRosterManager } from './server/ServerRosterManager';
 import type { ServerLanding } from './server/ServerLanding';
 import type { NextAction } from './shell/NextAction';
+import { BootTimeline } from './shell/BootTimeline';
 
 declare global {
   interface Window {
@@ -21,39 +22,41 @@ export default class Server extends BVCApp {
   }
 
   /**
-   * Decide whether this page is the destination.
+   * Decide whether this screen is the destination.
    *
-   * Two of the four cases never reach this screen: no saved servers goes to sign-in, and one
-   * saved server that passes its preflight goes straight to the dashboard. Returning the
-   * destination rather than navigating lets the caller keep the boot overlay up over both, so
-   * the list cannot flash on its way past.
+   * No saved servers goes to sign-in, and one saved server goes straight to its dashboard once
+   * local credentials check out. Returning the destination rather than navigating lets the
+   * caller keep the boot overlay up over both, so the list cannot flash on its way past.
+   *
+   * The preflight never gates this. It is the list's diagnostic — it explains a server that
+   * will not work to somebody choosing between several — and the connect path measures the
+   * network for itself either way.
    */
   async initialize(): Promise<ServerLanding> {
+    const timeline = BootTimeline.shared();
+
     if (await this.initializeDeepLinks()) {
       return { kind: 'handoff' };
     }
+    timeline.mark('/ deep links');
 
     const count = await this.roster.load();
+    timeline.mark(`/ roster.load (${count} server(s))`);
 
     if (count === 0) {
       info('No servers saved, going to sign-in');
       return { kind: 'navigate', href: ServerRosterManager.SIGN_IN_HREF };
     }
 
-    // A single server is worth waiting for a verdict on, because the verdict may be that this
-    // page has nothing to ask. Several are not: the list is the destination either way, so
-    // the plates settle in front of the user rather than behind the overlay.
     if (count === 1) {
-      await this.roster.sweep();
-      const only = ServerRosterManager.autoJoin(this.roster.current());
-      if (only) {
-        const next = await this.roster.choose(only);
-        if (next.kind === 'navigate') return next;
-      }
-    } else {
-      void this.roster.sweep();
+      const sole = await this.roster.soleDestination();
+      timeline.mark('/ soleDestination (credentials + cert, local)');
+      if (sole.kind === 'navigate') return sole;
     }
 
+    // The list is the destination, so the plates settle in front of the user rather than
+    // behind the overlay.
+    void this.roster.sweep();
     return { kind: 'show' };
   }
 

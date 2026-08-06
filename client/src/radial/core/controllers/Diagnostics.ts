@@ -77,8 +77,13 @@ export class Diagnostics {
       return ["bad", "Your audio is not reaching the server. Try reconnecting."];
     }
     if (d.deafened) return ["warn", "You are deafened. You cannot hear anyone."];
-    if (d.muted) return ["bad", "You are muted. Nobody can hear you."];
+    // Above mute, because in push-to-talk mute is not a fault — it is the mode at rest, and
+    // the two are the same fact told twice. Below it, a released button read as "You are
+    // muted. Nobody can hear you." in coral, and the release tail made the panel cycle
+    // through three verdicts in a third of a second: fine while held, push-to-talk for the
+    // tail, then muted. Only a mute that is not push-to-talk's doing is worth alarm.
     if (d.pttIdle) return ["warn", "Push-to-talk is on. Hold the mic button to speak."];
+    if (d.muted) return ["bad", "You are muted. Nobody can hear you."];
     if (d.inputRate !== Diagnostics.EXPECTED_RATE) {
       return [
         "warn",

@@ -132,7 +132,7 @@ export default class FaultCatalog {
       caption: "TOO OLD",
       label: "Incompatible",
       hint: "Only the server owner can fix this one",
-      primaryAction: { label: "Choose Different Server", url: "/server" },
+      primaryAction: { label: "Choose Different Server", url: "/" },
     },
     DNS01: {
       code: "DNS01",
@@ -146,7 +146,7 @@ export default class FaultCatalog {
       label: "Not connected",
       hint: "A typo in the address is the usual cause",
       primaryAction: { label: "Try Again", url: "/dashboard" },
-      secondaryAction: { label: "Choose Different Server", url: "/server" },
+      secondaryAction: { label: "Choose Different Server", url: "/" },
     },
     QUIC01: {
       code: "QUIC01",
@@ -160,7 +160,7 @@ export default class FaultCatalog {
       label: "Not connected",
       hint: "HTTP got through; UDP did not",
       primaryAction: { label: "Try Again", url: "/dashboard" },
-      secondaryAction: { label: "Choose Different Server", url: "/server" },
+      secondaryAction: { label: "Choose Different Server", url: "/" },
     },
     CONN01: {
       code: "CONN01",
@@ -174,7 +174,7 @@ export default class FaultCatalog {
       label: "Not connected",
       hint: "A server that is not running answers exactly like this",
       primaryAction: { label: "Try Again", url: "/dashboard" },
-      secondaryAction: { label: "Choose Different Server", url: "/server" },
+      secondaryAction: { label: "Choose Different Server", url: "/" },
     },
     AUTH01: {
       code: "AUTH01",
@@ -188,7 +188,7 @@ export default class FaultCatalog {
       label: "Refused",
       hint: "Signing in again issues fresh credentials",
       primaryAction: { label: "Sign In Again", url: "/login" },
-      secondaryAction: { label: "Choose Different Server", url: "/server" },
+      secondaryAction: { label: "Choose Different Server", url: "/" },
     },
     AUTH02: {
       code: "AUTH02",
@@ -203,7 +203,7 @@ export default class FaultCatalog {
       label: "No access",
       hint: "Nothing is wrong with your setup",
       primaryAction: { label: "Try Again", url: "/login" },
-      secondaryAction: { label: "Choose Different Server", url: "/server" },
+      secondaryAction: { label: "Choose Different Server", url: "/" },
     },
     UPD01: {
       code: "UPD01",
@@ -218,7 +218,7 @@ export default class FaultCatalog {
       label: "Ready to install",
       hint: "Takes about a minute on a normal connection",
       primaryAction: { label: "Update Now", url: "" },
-      secondaryAction: { label: "Stay on This Version", url: "/server" },
+      secondaryAction: { label: "Stay on This Version", url: "/" },
     },
     AGE01: {
       code: "AGE01",
@@ -232,7 +232,7 @@ export default class FaultCatalog {
       caption: "NEEDS UNLOCKING",
       label: "Locked",
       hint: "Nothing is wrong with your setup",
-      primaryAction: { label: "Choose Different Server", url: "/server" },
+      primaryAction: { label: "Choose Different Server", url: "/" },
       secondaryAction: {
         label: "How do I unlock this?",
         url: "https://github.com/Alaydriem/bedrock-voice-chat/wiki/Age-Signals-&-Declared-Age-Ranges",
@@ -289,7 +289,7 @@ export default class FaultCatalog {
    * way out at all.
    */
   static withoutServerSwitch(definition: FaultDefinition): FaultDefinition {
-    const SWITCH = "/server";
+    const SWITCH = "/";
     let adjusted = definition;
 
     if (adjusted.secondaryAction?.url === SWITCH) {

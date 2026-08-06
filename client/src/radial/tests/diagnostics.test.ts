@@ -73,6 +73,38 @@ describe("Diagnostics.verdict", () => {
     assert.match(text, /Push-to-talk/);
   });
 
+  // In push-to-talk a shut microphone is the mode at rest, not a fault. Alarming about it
+  // states the same fact twice, in coral, whenever nobody is holding the button.
+  it("reports push-to-talk before muted, because the mode is why it is muted", () => {
+    const [severity, text] = Diagnostics.verdict({ ...healthy, pttIdle: true, muted: true });
+    assert.equal(severity, "warn");
+    assert.match(text, /Push-to-talk/);
+  });
+
+  /**
+   * The mic closes a beat after the button is released, so `muted` lags `pttIdle`. Ranked
+   * below it, the panel cycled fine → push-to-talk → muted in a third of a second every
+   * time somebody stopped talking.
+   */
+  it("says the same thing either side of the release tail", () => {
+    const duringTail = Diagnostics.verdict({ ...healthy, pttIdle: true, muted: false });
+    const afterTail = Diagnostics.verdict({ ...healthy, pttIdle: true, muted: true });
+    assert.deepEqual(duringTail, afterTail);
+  });
+
+  // Held, the mic is genuinely open and there is nothing to report.
+  it("is quiet while the button is held", () => {
+    const [severity] = Diagnostics.verdict({ ...healthy, pttIdle: false, muted: false });
+    assert.equal(severity, "ok");
+  });
+
+  // A mute nobody asked push-to-talk for is still a fault worth the alarm.
+  it("still alarms about a mute outside push-to-talk", () => {
+    const [severity, text] = Diagnostics.verdict({ ...healthy, pttIdle: false, muted: true });
+    assert.equal(severity, "bad");
+    assert.match(text, /Nobody can hear you/);
+  });
+
   it("names the actual sample rate", () => {
     const [severity, text] = Diagnostics.verdict({ ...healthy, inputRate: 44100 });
     assert.equal(severity, "warn");

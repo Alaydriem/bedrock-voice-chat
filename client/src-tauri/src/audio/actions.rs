@@ -1,6 +1,7 @@
 use crate::audio::types::AudioDeviceType;
 use crate::audio::{AudioStreamManager, RecordingManager};
-use common::structs::audio::{MuteEvent, StreamEvent};
+use common::structs::audio::{MuteEvent, StreamEvent, VoiceRuntimeState};
+use common::structs::keybinds::VoiceMode;
 use log::info;
 use std::sync::Arc;
 use tauri::async_runtime::Mutex;
@@ -92,10 +93,23 @@ impl AudioActionsManager {
     /// The pairing lives here rather than in each caller so the in-game action, the global
     /// hotkey and the app cannot disagree about what deafen means. Each leg still emits its
     /// own `mute:*` event, which is how every surface learns the resulting pair.
+    /// Deafen, and put the microphone back where the voice mode says it belongs.
+    ///
+    /// Coming out of deafen used to open the input unconditionally. In push-to-talk that is
+    /// the wrong resting state — the microphone is supposed to be shut until the button is
+    /// held — so undeafening left it live, and the mic button, which reads the same flag,
+    /// disagreed with the mode it was drawing.
     pub async fn set_deafened(&self, desired: bool) -> bool {
         self.set_mute(AudioDeviceType::OutputDevice, desired).await;
-        self.set_mute(AudioDeviceType::InputDevice, desired).await;
+        self.set_mute(AudioDeviceType::InputDevice, desired || self.input_rests_muted().await)
+            .await;
         desired
+    }
+
+    /// Whether an idle microphone belongs muted. True in push-to-talk, where only the hold
+    /// opens it.
+    pub async fn input_rests_muted(&self) -> bool {
+        self.voice_mode_and_hold().await.0 == VoiceMode::PushToTalk
     }
 
     /// Drive recording to `desired`, starting/stopping only if it differs — the
@@ -122,7 +136,37 @@ impl AudioActionsManager {
         Ok(desired)
     }
 
-    /// Query current muted/deafened/recording state as a DTO.
+    /// What the backend believes about this microphone, for the diagnostics readout.
+    ///
+    /// Read from the flag the capture stream itself consults and the mode the listener
+    /// holds, so it reports the two copies that decide whether audio leaves this machine —
+    /// not the third copy the UI keeps.
+    pub async fn voice_runtime_state(&self) -> VoiceRuntimeState {
+        let (voice_mode, ptt_active) = self.voice_mode_and_hold().await;
+        VoiceRuntimeState {
+            voice_mode,
+            ptt_active,
+            input_muted: self.is_muted(AudioDeviceType::InputDevice).await,
+            output_muted: self.is_muted(AudioDeviceType::OutputDevice).await,
+        }
+    }
+
+    async fn voice_mode_and_hold(&self) -> (VoiceMode, bool) {
+        match self
+            .app_handle
+            .try_state::<Arc<crate::keybinds::KeybindListener>>()
+        {
+            Some(listener) => (listener.voice_mode().await, listener.is_ptt_held()),
+            None => (VoiceMode::OpenMic, false),
+        }
+    }
+
+    /// Query current mute, deafen, recording and voice-mode state as a DTO.
+    ///
+    /// The voice mode travels with the rest because it decides what the mute flag means: in
+    /// push-to-talk `muted` is the resting state and only the hold clears it, so a
+    /// controller that reads the flag without the mode draws a mute button that is on
+    /// almost always and does nothing when pressed.
     pub async fn query_state(&self) -> crate::websocket::StateData {
         let asm = self.app_handle.state::<Mutex<AudioStreamManager>>();
         let mut asm = asm.lock().await;
@@ -141,10 +185,18 @@ impl AudioActionsManager {
         let recording = manager.is_recording();
         drop(manager);
 
+        let (mode, ptt_active) = self.voice_mode_and_hold().await;
+        let voice_mode = match mode {
+            VoiceMode::PushToTalk => websocket_types::VoiceMode::PushToTalk,
+            VoiceMode::OpenMic => websocket_types::VoiceMode::OpenMic,
+        };
+
         crate::websocket::StateData {
             muted,
             deafened,
             recording,
+            voice_mode,
+            ptt_active,
         }
     }
 

@@ -1,6 +1,8 @@
 import type { DiagnosticsInput, KvGroup } from '$radial/core/controllers/Diagnostics';
 import { Diagnostics } from '$radial/core/controllers/Diagnostics';
 import type { LinkDiagnosticsSnapshot } from '../../bindings/LinkDiagnosticsSnapshot';
+import type { VoiceMode } from '$radial/core/controllers/SelfState';
+import type { VoiceDiagnostics } from './SelfController';
 
 /**
  * The backend's snapshot, as the status panel's view type.
@@ -65,6 +67,67 @@ export class DiagnosticsView {
         const uplink = snapshot.link.uplink_loss_pct;
         const downlink = snapshot.link.downlink_loss_pct ?? 0;
         return DiagnosticsView.round(Math.max(uplink, downlink));
+    }
+
+    /**
+     * What the microphone is actually doing, as the backend reports it.
+     *
+     * Three of these four rows exist because nothing else on screen can show them. The mic
+     * button never draws the muted glyph in push-to-talk, so mute is invisible there; and a
+     * muted input and a capture stream that stopped emitting produce the same flat meter,
+     * so the event rate is the only thing that separates "muted" from "not running".
+     */
+    static voiceGroup(voice: VoiceDiagnostics | null, uiMode?: VoiceMode): KvGroup {
+        if (!voice) {
+            return { title: 'Voice', rows: [['State', 'not read yet']] };
+        }
+        if (!voice.backend) {
+            return {
+                title: 'Voice',
+                rows: [['State', `could not read  ← ${voice.error ?? 'no reason given'}`]],
+            };
+        }
+
+        const { backend, mic } = voice;
+        const ptt = backend.voiceMode === 'pushToTalk';
+        // The mode reaches the button by event, and the button is what turns a tap into a
+        // hold. Disagreement here means that event did not arrive, which is invisible
+        // otherwise: the button simply keeps behaving like the mode it last heard about.
+        const agreed = uiMode === undefined || (uiMode === 'ptt') === ptt;
+        const mode = ptt ? 'push-to-talk' : 'open mic';
+        return {
+            title: 'Voice',
+            rows: [
+                [
+                    'Mode',
+                    agreed
+                        ? mode
+                        : `${mode}  ← the button still thinks ${uiMode === 'ptt' ? 'push-to-talk' : 'open mic'}`,
+                ],
+                [
+                    'Microphone',
+                    backend.inputMuted
+                        ? `muted${ptt ? '  (resting state of push-to-talk)' : '  ← nothing is being captured'}`
+                        : 'open',
+                ],
+                ['Hold', ptt ? (backend.pttActive ? 'held' : 'released') : 'n/a in open mic'],
+                ['Capture stream', DiagnosticsView.captureStream(mic)],
+            ],
+        };
+    }
+
+    /**
+     * Whether the capture stream is emitting, told apart from whether it is muted.
+     *
+     * A muted stream still emits, at rms 0. No events at all is a different fault with a
+     * different fix, and the meter draws them identically.
+     */
+    private static captureStream(mic: VoiceDiagnostics['mic']): string {
+        if (mic.events === 0) return 'no events  ← the capture stream is not running';
+        const rate = `${mic.eventsPerSecond.toFixed(1)}/s`;
+        const rms = `rms ${mic.lastRms.toFixed(3)}`;
+        const stale = mic.silentForMs !== null && mic.silentForMs > 1000;
+        return stale ? `${rate}, ${rms}  ← stopped ${Math.round(mic.silentForMs! / 1000)}s ago` : `${rate}, ${rms}`;
     }
 
     /**

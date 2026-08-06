@@ -11,7 +11,7 @@ use common::bedrock_protocol::protocol::codec::PacketDecode;
 use common::bedrock_protocol::protocol::packets::PacketHeader;
 use common::bedrock_protocol::protocol::packets::generated::ids;
 use common::bedrock_protocol::protocol::packets::generated::misc::play_sound::{
-    PlaySoundPacketAny, PlaySoundPacketV975, PlaySoundPacketV2169,
+    PlaySoundPacketAny, PlaySoundPacketV975, PlaySoundPacketV2168,
 };
 use common::bedrock_protocol::protocol::packets::generated::misc::text::TextPacket;
 use common::bedrock_protocol::protocol::types::generated::TextPacketBody;
@@ -257,8 +257,8 @@ impl FakeBedrockUpstream {
     /// value is world_coord * 8 (handler divides by 8 to recover block coords).
     fn play_packet(&self, name: &str, x: i32, y: i32, z: i32) -> PlaySoundPacketAny {
         let position = BlockPos::new(x * 8, y * 8, z * 8);
-        if self.version >= ProtocolVersion::V2169 {
-            PlaySoundPacketAny::V2169(PlaySoundPacketV2169 {
+        if self.version >= ProtocolVersion::V2168 {
+            PlaySoundPacketAny::V2168(PlaySoundPacketV2168 {
                 name: name.to_string(),
                 position,
                 volume: 1.0,

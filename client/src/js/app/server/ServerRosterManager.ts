@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
-import { error as logError, info } from '@tauri-apps/plugin-log';
+import { error as logError, info, warn } from '@tauri-apps/plugin-log';
+import type { LoginResponse } from '../../bindings/LoginResponse';
 import { get, writable, type Readable, type Writable } from 'svelte/store';
 import ImageCache from '../components/imageCache';
 import ImageCacheOptions from '../components/imageCacheOptions';
@@ -21,7 +22,7 @@ import type { ServerRosterEntry } from './ServerRosterEntry';
  * where is testable without a browser.
  */
 export class ServerRosterManager {
-    static readonly ADD_HREF = '/login?addserver=true&return=/server';
+    static readonly ADD_HREF = '/login?addserver=true&return=/';
     static readonly SIGN_IN_HREF = '/login';
 
     /** A week, matching what the old card used. Operator art does not change often. */
@@ -47,6 +48,12 @@ export class ServerRosterManager {
                 ((server: string) => invoke<void>('delete_credentials', { server })),
             checkForUpdates:
                 deps?.checkForUpdates ?? (() => invoke<string | null>('check_for_updates')),
+            credentials:
+                deps?.credentials ??
+                ((server: string) => invoke<LoginResponse>('get_credentials', { server })),
+            isCertificateExpired:
+                deps?.isCertificateExpired ??
+                ((server: string) => invoke<boolean>('is_certificate_expired', { server })),
         };
 
         this.entriesStore = writable<ServerRosterEntry[]>([]);
@@ -137,12 +144,7 @@ export class ServerRosterManager {
 
         switch (PlateView.of(entry).kind) {
             case 'connect':
-                await this.deps.serverList.setCurrent({
-                    server: entry.server,
-                    player: entry.player,
-                    game: entry.game,
-                });
-                return { kind: 'navigate', href: `/dashboard?server=${entry.server}` };
+                return this.connectTo(entry);
 
             case 'signin':
                 return { kind: 'navigate', href: `/login?reauth=true&server=${entry.server}` };
@@ -186,15 +188,59 @@ export class ServerRosterManager {
     }
 
     /**
-     * The server to join without asking, or null to show the list.
+     * Record this server as current and hand back the dashboard.
      *
-     * One saved server that passes its preflight is not a choice, so it is not presented as
-     * one. Anything else about that server is something to be told, and the list is where
-     * that is said.
+     * Shared with `choose`, because a plate that leads to the dashboard and a sole server that
+     * leads there have to record the same thing — a divergence here shows up as the dashboard
+     * opening the previous server.
      */
-    static autoJoin(entries: readonly ServerRosterEntry[]): string | null {
-        if (entries.length !== 1) return null;
-        return PlateView.isJoinable(entries[0]) ? entries[0].server : null;
+    private async connectTo(entry: ServerRosterEntry): Promise<NextAction> {
+        await this.deps.serverList.setCurrent({
+            server: entry.server,
+            player: entry.player,
+            game: entry.game,
+        });
+        return { kind: 'navigate', href: `/dashboard?server=${entry.server}` };
+    }
+
+    /**
+     * Where a single saved server leads, decided without touching the network.
+     *
+     * Only the checks the dashboard cannot recover from are made here. Absent credentials throw
+     * inside its own initialize with no redirect, and an expired certificate has to be reissued
+     * before anything else is worth attempting. Everything else the preflight would have
+     * reported — whether the server answers, whether UDP gets through — the connect measures
+     * for itself and reports through its own error path.
+     */
+    async soleDestination(): Promise<NextAction> {
+        const entries = get(this.entriesStore);
+        if (entries.length !== 1) return { kind: 'none' };
+
+        const entry = entries[0];
+
+        try {
+            await this.deps.credentials(entry.server);
+        } catch (e) {
+            info(`No usable credentials for ${entry.server}, going to sign-in: ${e}`);
+            return { kind: 'navigate', href: ServerRosterManager.SIGN_IN_HREF };
+        }
+
+        try {
+            if (await this.deps.isCertificateExpired(entry.server)) {
+                info(`Certificate expired for ${entry.server}, going to reauth`);
+                return {
+                    kind: 'navigate',
+                    href: `/login?reauth=true&server=${entry.server}`,
+                };
+            }
+        } catch (e) {
+            // An unreadable expiry is not an expired certificate. The dashboard checks this
+            // again and does redirect on expiry, so guessing wrong here would send somebody to
+            // re-authenticate over a keyring hiccup.
+            warn(`Could not read certificate expiry for ${entry.server}: ${e}`);
+        }
+
+        return this.connectTo(entry);
     }
 
     static hostOf(server: string): string {

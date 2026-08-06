@@ -1,6 +1,6 @@
 <script lang="ts">
   import "../../css/app.css";
-  import { onDestroy, onMount, type Snippet } from "svelte";
+  import { onDestroy, onMount, setContext, type Snippet } from "svelte";
   import { get } from "svelte/store";
   import { Store } from "@tauri-apps/plugin-store";
   import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
@@ -9,6 +9,10 @@
   import { page } from "$app/state";
   import Cover from "../../components/shell/Cover.svelte";
   import { SettingsRoute } from "../../js/app/settings/SettingsRoute";
+  import { UpdateStatus } from "../../js/app/settings/UpdateStatus";
+  import { UpdatePoller } from "../../js/app/shell/UpdatePoller";
+  import { UPDATE_STATUS_KEY } from "../../js/app/shell/UpdateStatusContext";
+  import { BootTimeline } from "../../js/app/shell/BootTimeline";
   import type { SelfSnapshot } from "$radial/core/controllers/SelfState";
   import type { LevelSource } from "$radial/core/sources/LevelSource";
   import { ConstantLevelSource } from "$radial/core/sources/LevelSource";
@@ -51,6 +55,15 @@
   const groupsView = new GroupsView();
   const unsubs: Array<() => void> = [];
 
+  /**
+   * One per session, so the nav badge and the About row read the same object and the check does
+   * not restart every time settings is opened. Published rather than passed: the settings
+   * screen is a descendant route, and a layout cannot hand props to a page.
+   */
+  const updates = new UpdateStatus();
+  const updatePoller = new UpdatePoller(updates);
+  setContext(UPDATE_STATUS_KEY, updates);
+
   let servers = $state<readonly RailServer[]>([]);
   let player = $state("");
   let currentHost = $state("");
@@ -69,6 +82,7 @@
   let reconnecting = $state(false);
 
   let snapshot = $state<import("../../js/bindings/LinkDiagnosticsSnapshot").LinkDiagnosticsSnapshot | null>(null);
+  let voice = $state<import("../../js/app/dashboard/SelfController").VoiceDiagnostics | null>(null);
   let health = $state<LinkHealth>({ connected: true, reconnecting: false });
 
   /**
@@ -204,12 +218,19 @@
     const clock = setInterval(() => (now = Date.now()), 1_000);
     unsubs.push(() => clearInterval(clock));
 
+    // Outside the initialize chain: a dashboard that could not connect should still learn that
+    // a newer build exists, which may be the reason it could not.
+    updatePoller.start();
+    unsubs.push(() => updatePoller.stop());
+
     instance
       .initialize()
       .then(async (landing) => {
         // The overlay stays up over a redirect. Lifting it there shows a dashboard already on
         // its way to the sign-in or an error page.
         if (landing.kind === "navigate") {
+          BootTimeline.shared().mark(`REDIRECTED: ${landing.href}`);
+          BootTimeline.shared().report();
           window.location.href = landing.href;
           return;
         }
@@ -221,6 +242,7 @@
 
         if (instance.selfController) {
           unsubs.push(instance.selfController.state.subscribe((s) => (selfState = s)));
+          unsubs.push(instance.selfController.diagnostics.subscribe((v) => (voice = v)));
         }
         if (instance.playerManager) {
           unsubs.push(
@@ -238,6 +260,8 @@
 
         ready = true;
         instance.showPreloader();
+        BootTimeline.shared().mark("OVERLAY DISMISSED");
+        BootTimeline.shared().report();
 
         await diagnostics.start();
         unsubs.push(diagnostics.snapshot.subscribe((v) => (snapshot = v)));
@@ -460,7 +484,7 @@
       {groupName}
       {statusOpen}
       onswitch={(server) => (window.location.href = `/dashboard?server=${encodeURIComponent(server)}`)}
-      onadd={() => (window.location.href = "/server")}
+      onadd={() => (window.location.href = "/")}
       onsettings={() => void goto(SettingsRoute.href("audio"))}
       onsignout={signOut}
       onstatus={(open) => (statusOpen = open)}
@@ -537,6 +561,8 @@
         <StatusPanel
             {snapshot}
             {health}
+            {voice}
+            selfMode={selfState.mode}
             pttIdle={selfState.mode === "ptt" && !selfState.holding}
             visiblePlayers={carded.length}
             {reconnecting}

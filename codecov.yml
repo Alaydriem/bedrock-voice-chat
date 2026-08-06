@@ -21,23 +21,24 @@ coverage:
 comment:
   # diff  -> the patch-coverage summary: of the lines this PR touched, how many
   #          are executed by a test. This is the number to read first.
-  # flags -> per-area rollup. The flags map 1:1 onto common/server/client, so
-  #          this answers "which crate did this PR move" without a second tool.
-  #          (Codecov "Components" would duplicate this; flags already align.)
+  # flags -> per-area rollup. The flags map 1:1 onto
+  #          common/server/client/frontend, so this answers "which area did this
+  #          PR move" without a second tool. (Codecov "Components" would
+  #          duplicate this; flags already align.)
   # files -> the per-changed-file table — which specific files need tests.
   layout: "condensed_header, diff, flags, files, condensed_footer"
   behavior: default
   require_changes: false
-  # Three uploads per commit: common, server, client. Codecov's default is to
-  # post and rewrite the comment after EACH one, so the first version appears
-  # ~90s into a ~40min pipeline holding only `common` — which is almost entirely
-  # ts-rs export_bindings tests, and reads as "coverage is broken". Waiting for
-  # all three means the number is right the first time it is shown.
+  # Four uploads per commit: common, server, client, frontend. Codecov's default
+  # is to post and rewrite the comment after EACH one, so the first version
+  # appears ~90s into a ~40min pipeline holding only `common` — which is almost
+  # entirely ts-rs export_bindings tests, and reads as "coverage is broken".
+  # Waiting for all four means the number is right the first time it is shown.
   #
   # Keep this in sync with the number of Codecov uploads in tests.yml. If a
-  # fourth upload is ever added (e.g. instrumented e2e shards) and this is not
+  # fifth upload is ever added (e.g. instrumented e2e shards) and this is not
   # raised, the comment stops appearing at all.
-  after_n_builds: 3
+  after_n_builds: 4
 
 flag_management:
   default_rules:
@@ -49,12 +50,23 @@ flag_management:
     - name: server
       paths:
         - server/
+    # The client is two codebases behind one directory, measured by two different
+    # tools. Splitting them keeps the flags non-overlapping, so the rollup answers
+    # "Rust or TypeScript" rather than counting the same PR twice.
     - name: client
       paths:
-        - client/
+        - client/src-tauri/
+    - name: frontend
+      paths:
+        - client/src/
 
 ignore:
   # ts-rs generated from the Rust types in common/; the generator is what is
   # under test, not the output.
   - client/src/js/bindings/**
   - "**/tests/**"
+  # Vitest harness and the SvelteKit module stubs it needs.
+  - client/src/test/**
+  # The reference gallery: design sources built to dist-radial, never shipped in
+  # the app. They are the spec the app is checked against, not app code.
+  - client/src/radial/examples/**

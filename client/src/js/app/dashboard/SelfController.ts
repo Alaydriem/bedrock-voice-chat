@@ -3,9 +3,12 @@ import type { UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { info, warn } from '@tauri-apps/plugin-log';
 import type { Store } from '@tauri-apps/plugin-store';
+import { writable, type Readable, type Writable } from 'svelte/store';
 import { SelfState } from '$radial/core/controllers/SelfState';
 import type { KeybindConfig } from '../../bindings/KeybindConfig';
-import { MicLevelSource } from './MicLevelSource';
+import type { VoiceMode as ConfiguredVoiceMode } from '../../bindings/VoiceMode';
+import type { VoiceRuntimeState } from '../../bindings/VoiceRuntimeState';
+import { MicLevelSource, type MicActivity } from './MicLevelSource';
 
 /**
  * Mute, deafen, record and push-to-talk, against the real backend.
@@ -17,12 +20,24 @@ import { MicLevelSource } from './MicLevelSource';
  * change the same flags underneath. A UI that assumed its own press had landed would drift
  * the first time either fired, and stay wrong.
  */
+/** The backend's own answer plus proof of life from the capture stream. */
+export interface VoiceDiagnostics {
+    readonly backend: VoiceRuntimeState | null;
+    readonly mic: MicActivity;
+    readonly error?: string;
+}
+
 export class SelfController {
     readonly state = new SelfState();
+
+    /** How often the diagnostics readout re-asks the backend what it believes. */
+    private static readonly PROBE_MS = 1000;
 
     private readonly mic = new MicLevelSource();
     private readonly store: Store;
     private unlisteners: UnlistenFn[] = [];
+    private readonly diagnosticsStore: Writable<VoiceDiagnostics | null> = writable(null);
+    private probe: ReturnType<typeof setInterval> | null = null;
 
     constructor(store: Store) {
         this.store = store;
@@ -33,10 +48,51 @@ export class SelfController {
         return this.mic.source;
     }
 
+    /** What the backend believes, for the status panel. */
+    get diagnostics(): Readable<VoiceDiagnostics | null> {
+        return { subscribe: this.diagnosticsStore.subscribe };
+    }
+
+    /**
+     * Ask the backend what it believes, and adopt it.
+     *
+     * The voice mode and the mute flag are not this window's to own, and the event that was
+     * supposed to carry a mode change did not arrive on Android — leaving the mic button
+     * offering a toggle for a mode where holding is the only thing that transmits, and that
+     * toggle then opening the microphone for real.
+     *
+     * So the mode is read rather than awaited. The events below still arrive first when they
+     * arrive at all, which is what keeps a press feeling immediate; this is what makes the
+     * button correct within a second whether or not they do.
+     */
+    /** Read the backend now rather than waiting for the next tick. */
+    async refresh(): Promise<void> {
+        await this.pollBackend();
+    }
+
+    private async pollBackend(): Promise<void> {
+        try {
+            const backend = await invoke<VoiceRuntimeState>('voice_runtime_state');
+            this.diagnosticsStore.set({ backend, mic: this.mic.activity });
+            this.state.sync({
+                mode: backend.voiceMode === 'pushToTalk' ? 'ptt' : 'activated',
+                muted: backend.inputMuted,
+                deafened: backend.outputMuted,
+            });
+            // Reconciles an optimistic hold the backend refused, and a hold released by a
+            // gesture whose pointerup never landed.
+            this.state.hold(backend.pttActive);
+        } catch (e) {
+            this.diagnosticsStore.set({ backend: null, mic: this.mic.activity, error: String(e) });
+        }
+    }
+
     async start(): Promise<void> {
         await this.seed();
         await this.subscribe();
         await this.mic.start();
+        await this.pollBackend();
+        this.probe = setInterval(() => void this.pollBackend(), SelfController.PROBE_MS);
     }
 
     /**
@@ -87,6 +143,13 @@ export class SelfController {
             this.state.sync({ deafened });
         });
         await listen<boolean>('ptt:active', (down) => this.state.hold(down));
+        // Settings, a Stream Deck and a hotkey all write the same setting, and the mic
+        // button is a hold in one mode and a toggle in the other. Read once at start-up it
+        // goes stale the first time anything changes it.
+        await listen<ConfiguredVoiceMode>('voice-mode:changed', (mode) => {
+            info(`SelfController: voice mode -> ${mode}`);
+            this.state.sync({ mode: mode === 'pushToTalk' ? 'ptt' : 'activated' });
+        });
         await listen<unknown>('recording:started', () =>
             this.state.sync({ recording: true }, performance.now()),
         );
@@ -163,9 +226,19 @@ export class SelfController {
         }
     }
 
-    /** Push-to-talk from the button. The global hotkey arrives as `ptt:active` instead. */
+    /**
+     * Push-to-talk from the on-screen button.
+     *
+     * The backend owns the microphone, so this asks rather than paints: `set_ptt` opens the
+     * input and echoes `ptt:active`, which is the same path the global hotkey takes. Moving
+     * `SelfState` here instead would light the meter over a mic that is still muted — which
+     * is what a phone had, since a phone has no hotkey and this button is the only way in.
+     */
     hold(down: boolean): void {
+        // Painted immediately: a hold that waits for a round trip before the meter moves
+        // reads as a button that did not take. The poll corrects it if the backend refused.
         this.state.hold(down);
+        void this.send('set_ptt', { down });
     }
 
     /** mm:ss since recording was armed. */
@@ -186,6 +259,10 @@ export class SelfController {
     }
 
     cleanup(): void {
+        if (this.probe) {
+            clearInterval(this.probe);
+            this.probe = null;
+        }
         for (const off of this.unlisteners) off();
         this.unlisteners = [];
         this.mic.stop();

@@ -7,7 +7,10 @@ use log::{error, warn};
 mod channel;
 mod circuit_breaker;
 mod client;
+mod fetch_cache;
 mod gamerpic;
+
+pub use fetch_cache::FetchCache;
 
 use common::reqwest::{
     Client as ReqwestClient, StatusCode,
@@ -31,9 +34,19 @@ pub(crate) struct Api {
     // verdict captured at construction would freeze. The cell also bridges the
     // async/sync boundary, since get_client cannot await a probe.
     family_preference: Arc<common::net::FamilyPreferenceCell>,
+    // Cloned out of the pool per call, so the handle has to be one every clone shares. A
+    // cache created per clone would never see a second hit. `moka::future::Cache` is
+    // internally shared, so deriving Clone gives that for free.
+    config: FetchCache<ApiConfigResponse>,
 }
 
 impl Api {
+    // Long enough to cover one launch, where the age gate, the port and spatial-audio
+    // refresh, the bedrock hints and the connect all read this document. Far shorter than
+    // the reachability probe's window, because this one decides which port to dial.
+    const CONFIG_TTL: Duration = Duration::from_secs(30);
+    const CONFIG_CAPACITY: u64 = 16;
+
     pub fn new(
         endpoint: String,
         ca_cert: String,
@@ -44,6 +57,7 @@ impl Api {
             endpoint,
             client: client::Client::new(ca_cert, pem),
             family_preference,
+            config: FetchCache::new(Self::CONFIG_TTL, Self::CONFIG_CAPACITY),
         }
     }
 
@@ -277,7 +291,24 @@ impl Api {
         serde_json::from_str(&body).map_err(|e| format!("Failed to parse ticket response: {}", e))
     }
 
+    /// `/api/config`, from this window's copy when there is one.
+    ///
+    /// Several callers read different fields of this document within a second of each other
+    /// on the screen the user is waiting on: the age gate, the port and spatial-audio
+    /// refresh, the bedrock connection hints, and the connect path's candidate planning.
     pub(crate) async fn get_config(&self) -> Result<ApiConfigResponse, String> {
+        let endpoint = self.endpoint.clone();
+        self.config
+            .get_or_fetch(&endpoint, || self.fetch_config())
+            .await
+    }
+
+    /// Drop this server's cached config so the next read goes to the network.
+    pub(crate) async fn invalidate_config(&self) {
+        self.config.invalidate(&self.endpoint).await;
+    }
+
+    async fn fetch_config(&self) -> Result<ApiConfigResponse, String> {
         let client = self.get_client();
 
         let mut headers = HeaderMap::new();

@@ -24,6 +24,10 @@ interface Fixture {
   readonly servers: string[];
   readonly outcomes?: Record<string, PreflightOutcome>;
   readonly update?: string | null;
+  /** Servers whose credentials are missing. `credentials` rejects for these. */
+  readonly withoutCredentials?: string[];
+  /** Servers whose certificate has expired. */
+  readonly expired?: string[];
 }
 
 function build(fixture: Fixture) {
@@ -44,15 +48,36 @@ function build(fixture: Fixture) {
   const checkForUpdates = vi.fn(async () => fixture.update ?? null);
   const getImage = vi.fn(async (_options: { url: string; ttl: number }) => "");
 
+  const credentials = vi.fn(async (server: string) => {
+    if (fixture.withoutCredentials?.includes(server)) {
+      throw new Error(`no credentials for ${server}`);
+    }
+    return { gamertag: "Alaydriem", quic_connect_string: "443" } as never;
+  });
+  const isCertificateExpired = vi.fn(
+    async (server: string) => fixture.expired?.includes(server) ?? false,
+  );
+
   const manager = new ServerRosterManager({
     serverList: serverList as never,
     preflight,
     imageCache: { getImage } as never,
     forgetCredentials,
     checkForUpdates,
+    credentials,
+    isCertificateExpired,
   });
 
-  return { manager, serverList, preflight, forgetCredentials, checkForUpdates, getImage };
+  return {
+    manager,
+    serverList,
+    preflight,
+    forgetCredentials,
+    checkForUpdates,
+    getImage,
+    credentials,
+    isCertificateExpired,
+  };
 }
 
 describe("loading the list", () => {
@@ -358,44 +383,68 @@ describe("forgetting a server", () => {
   });
 });
 
-describe("ServerRosterManager.autoJoin", () => {
-  function row(status: PreflightOutcome["status"], server = "https://a") {
-    return {
-      server,
-      host: server,
-      player: "p",
+describe("soleDestination", () => {
+  it("sends a single server with valid credentials to the dashboard", async () => {
+    const { manager, serverList } = build({ servers: ["https://a.example"] });
+    await manager.load();
+
+    const next = await manager.soleDestination();
+
+    expect(next).toEqual({
+      kind: "navigate",
+      href: "/dashboard?server=https://a.example",
+    });
+    expect(serverList.setCurrent).toHaveBeenCalledWith({
+      server: "https://a.example",
+      player: "Alaydriem",
       game: "minecraft",
-      status,
-      steps: PreflightRunner.pending(),
-      rtt: 0,
-      slow: false,
-      quicPort: 443,
-      serverVersion: "",
-      clientVersion: "",
-      clientTooOld: false,
-      avatarUrl: "",
-      canvasUrl: "",
-    };
-  }
-
-  it("skips the list when the only saved server passed its preflight", () => {
-    expect(ServerRosterManager.autoJoin([row("connect")])).toBe("https://a");
+    });
   });
 
-  // Everything the list would have said about a single broken server is worth saying.
-  it("shows the list when the only saved server failed anything", () => {
-    for (const status of [
-      "reauth",
-      "udp_blocked",
-      "unreachable",
-      "version_mismatch",
-    ] as const) {
-      expect(ServerRosterManager.autoJoin([row(status)])).toBeNull();
-    }
+  // The dashboard throws on absent credentials rather than redirecting, so letting this
+  // case through lands on a half-initialized dashboard instead of the sign-in.
+  it("sends a single server with no credentials to sign-in", async () => {
+    const { manager } = build({
+      servers: ["https://a.example"],
+      withoutCredentials: ["https://a.example"],
+    });
+    await manager.load();
+
+    const next = await manager.soleDestination();
+
+    expect(next).toEqual({ kind: "navigate", href: "/login" });
   });
 
-  it("never skips a choice between two servers", () => {
-    expect(ServerRosterManager.autoJoin([row("connect"), row("connect", "https://b")])).toBeNull();
+  it("sends an expired certificate to reauth for that server", async () => {
+    const { manager } = build({
+      servers: ["https://a.example"],
+      expired: ["https://a.example"],
+    });
+    await manager.load();
+
+    const next = await manager.soleDestination();
+
+    expect(next).toEqual({
+      kind: "navigate",
+      href: "/login?reauth=true&server=https://a.example",
+    });
+  });
+
+  it("declines to decide when more than one server is saved", async () => {
+    const { manager } = build({ servers: ["https://a.example", "https://b.example"] });
+    await manager.load();
+
+    expect(await manager.soleDestination()).toEqual({ kind: "none" });
+  });
+
+  // The whole point: the pre-dashboard wait no longer includes a network round trip.
+  it("reaches the dashboard without running any preflight", async () => {
+    const { manager, preflight } = build({ servers: ["https://a.example"] });
+    await manager.load();
+
+    await manager.soleDestination();
+
+    expect(preflight).not.toHaveBeenCalled();
   });
 });
 

@@ -143,8 +143,9 @@ jobs:
       build_mode: ${{ needs.changes.outputs.build_mode }}
     secrets: inherit
 
-  # Workspace tests (common + client + server) under nextest. Runs in parallel
-  # with the build jobs; gates the overall result via collect-artifacts.
+  # Workspace tests (common + client + server) under nextest, plus the frontend
+  # suites under vitest and node --test. Runs in parallel with the build jobs;
+  # gates the overall result via collect-artifacts.
   tests:
     name: Tests
     uses: ./.github/workflows/tests.yml

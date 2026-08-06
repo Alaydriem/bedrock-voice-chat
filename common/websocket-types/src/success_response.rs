@@ -1,6 +1,8 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use super::VoiceMode;
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct SuccessResponse {
     pub success: bool,
@@ -14,6 +16,7 @@ pub enum ResponseData {
     Mute(MuteData),
     Record(RecordData),
     State(StateData),
+    Ptt(PttData),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -33,10 +36,20 @@ pub struct RecordData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct PttData {
+    pub active: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct StateData {
     pub muted: bool,
     pub deafened: bool,
     pub recording: bool,
+    /// What the mute control means. A controller that ignores this offers a toggle for a
+    /// state push-to-talk already owns.
+    pub voice_mode: VoiceMode,
+    /// Whether push-to-talk is held right now. Always false in `openMic`.
+    pub ptt_active: bool,
 }
 
 impl SuccessResponse {
@@ -61,14 +74,17 @@ impl SuccessResponse {
         }
     }
 
-    pub fn state(muted: bool, deafened: bool, recording: bool) -> Self {
+    pub fn state(state: StateData) -> Self {
         Self {
             success: true,
-            data: ResponseData::State(StateData {
-                muted,
-                deafened,
-                recording,
-            }),
+            data: ResponseData::State(state),
+        }
+    }
+
+    pub fn ptt(active: bool) -> Self {
+        Self {
+            success: true,
+            data: ResponseData::Ptt(PttData { active }),
         }
     }
 }

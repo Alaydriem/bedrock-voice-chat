@@ -95,7 +95,15 @@
      */
     $effect(() => {
         if (!frame) return;
-        frame.classList.toggle("is-muted", selfState.muted && !selfState.deafened);
+        // The stripe is an alarm, and push-to-talk is muted whenever nobody is holding the
+        // button — so wearing it there would light the whole screen permanently and say
+        // nothing. The mic button carries that state instead; the stripe stays for a mute
+        // that is not supposed to be there.
+        const restingInPtt = selfState.mode === "ptt" && !selfState.holding;
+        frame.classList.toggle(
+            "is-muted",
+            selfState.muted && !selfState.deafened && !restingInPtt,
+        );
         frame.classList.toggle("is-deafened", selfState.deafened);
     });
 

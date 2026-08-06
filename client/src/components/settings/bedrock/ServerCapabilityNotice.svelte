@@ -72,7 +72,7 @@
             </div>
             <div class="flex flex-col items-center gap-3">
                 <a
-                    href="/server"
+                    href="/"
                     class="btn bg-primary font-medium text-white hover:bg-primary-focus dark:bg-accent dark:hover:bg-accent-focus"
                 >
                     Switch server

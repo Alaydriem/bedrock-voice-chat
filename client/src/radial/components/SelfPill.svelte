@@ -42,6 +42,15 @@
   // In push-to-talk the mic button is a hold control, not a toggle: not holding it
   // already is mute, so a separate mute would be a second word for the same thing.
   const ptt = $derived(state.mode === "ptt");
+
+  /**
+   * Muted is drawn in push-to-talk too.
+   *
+   * Hiding it read as an open microphone at rest, which is the opposite of what
+   * push-to-talk means and the one thing a mute indicator must never get wrong. The label
+   * carries the difference between "muted, press to talk" and a mute you have to undo.
+   */
+  const closed = $derived(state.muted && !state.holding);
 </script>
 
 <div class={capsule ? "rad-self-capsule" : "rad-self-pill"}>
@@ -62,15 +71,23 @@
   <button
     class="rad-self__btn {capsule ? 'rad-self__btn--primary' : ''}"
     class:is-holding={ptt && state.holding}
+    class:is-ptt={ptt}
     type="button"
     aria-pressed={state.muted}
-    aria-label={ptt ? "Hold to talk" : state.muted ? "Unmute" : "Mute"}
+    aria-label={ptt
+      ? state.holding
+        ? "Talking, release to stop"
+        : "Muted. Hold to talk"
+      : state.muted
+        ? "Unmute"
+        : "Mute"}
     onclick={(e) => !ptt && onmute?.(e)}
     onpointerdown={() => ptt && onhold?.(true)}
     onpointerup={() => ptt && onhold?.(false)}
     onpointerleave={() => ptt && onhold?.(false)}
+    onpointercancel={() => ptt && onhold?.(false)}
   >
-    <Icon name={state.muted && !ptt ? "micoff" : "mic"} />
+    <Icon name={closed ? "micoff" : "mic"} />
   </button>
 
   <button

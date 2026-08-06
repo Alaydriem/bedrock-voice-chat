@@ -10,6 +10,11 @@ pub enum Command {
     Mute { device: DeviceType },
     Record,
     State,
+    /// Push-to-talk, held. `down` is the press; the mic closes on the release.
+    ///
+    /// A controller holding this open is responsible for sending the release. A dropped
+    /// connection does not close the mic, so a button that latches leaves it open.
+    Ptt { down: bool },
 }
 
 impl Command {
@@ -48,6 +53,15 @@ mod tests {
     fn test_parse_ping() {
         let cmd = Command::from_json(r#"{"action":"ping"}"#).unwrap();
         assert!(matches!(cmd, Command::Ping));
+    }
+
+    #[test]
+    fn test_parse_ptt() {
+        let cmd = Command::from_json(r#"{"action":"ptt","down":true}"#).unwrap();
+        match cmd {
+            Command::Ptt { down } => assert!(down),
+            _ => panic!("Expected Ptt command"),
+        }
     }
 
     #[test]

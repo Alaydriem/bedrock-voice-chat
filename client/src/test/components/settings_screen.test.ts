@@ -10,6 +10,14 @@ vi.mock("@tauri-apps/plugin-os", () => ({ platform: () => platformName }));
 const { default: SettingsScreen } = await import(
     "../../components/settings/SettingsScreen.svelte"
 );
+const { UpdateStatus } = await import("../../js/app/settings/UpdateStatus");
+
+/** An `UpdateStatus` already settled on a verdict, so the badge is not racing a check. */
+async function settled(version: string | null) {
+    const updates = new UpdateStatus(async () => version);
+    await updates.check();
+    return updates;
+}
 
 function mount(props: Record<string, unknown> = {}) {
     const frame = document.createElement("div");
@@ -116,12 +124,16 @@ describe("SettingsScreen", () => {
         expect(onclose).toHaveBeenCalledTimes(1);
     });
 
+    // Driven through the injected UpdateStatus rather than a flag, because that object is
+    // what the shell polls and what the About row reads — a flag would have proved the badge
+    // renders without proving anything reaches it.
     it("badges About only when an update is waiting", async () => {
-        const waiting = mount({ updateWaiting: true });
+        const waiting = mount({ updates: await settled("1.0.0-beta.9") });
         await waitFor(() =>
             expect(waiting.frame.querySelector(".rad-nav-item__badge")).not.toBeNull(),
         );
-        const current = mount({ updateWaiting: false });
+
+        const current = mount({ updates: await settled(null) });
         expect(current.frame.querySelector(".rad-nav-item__badge")).toBeNull();
     });
 });

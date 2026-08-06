@@ -1,3 +1,4 @@
+use common::structs::keybinds::VoiceMode as KeybindVoiceMode;
 use common::traits::StreamTrait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -13,8 +14,8 @@ pub mod structs;
 pub use clients::{ClientRegistration, WebSocketClients};
 pub use route::{RejectReason, WebSocketRoute};
 pub use structs::{
-    Command, CommandMessage, DeviceType, ErrorResponse, MuteData, PongData, RecordData,
-    ResponseData, StateData, SuccessResponse,
+    Command, CommandMessage, DeviceType, ErrorResponse, MuteData, PongData, PttData, RecordData,
+    ResponseData, StateData, SuccessResponse, VoiceMode, VoiceModeGuard,
 };
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -61,7 +62,7 @@ impl WebSocketBroadcaster {
 
     /// Serialize a StateData DTO and broadcast to all connected WS clients.
     pub fn broadcast_state(&self, state: StateData) {
-        let response = SuccessResponse::state(state.muted, state.deafened, state.recording);
+        let response = SuccessResponse::state(state);
         if let Ok(json) = serde_json::to_string(&response) {
             let _ = self.commands.send(json);
         }
@@ -473,31 +474,16 @@ impl WebSocketManager {
         cmd: Command,
         app_handle: &AppHandle,
     ) -> Result<ResponseData, anyhow::Error> {
+        // One rule, asked once, from the crate a controller compiles against — rather than
+        // a check per arm that a new command can forget to make.
+        if let Some(reason) = VoiceModeGuard::refusal(Self::voice_mode(app_handle).await, &cmd) {
+            return Err(anyhow::anyhow!(reason));
+        }
+
         match cmd {
             Command::Ping => Ok(ResponseData::Pong(PongData { pong: true })),
 
             Command::Mute { device } => {
-                // In PTT mode, input mute via WebSocket is a no-op
-                if matches!(device, DeviceType::Input) {
-                    if let Ok(store) = app_handle.store("store.json") {
-                        if let Some(config) = store.get("keybinds") {
-                            if let Some(mode) = config.get("voiceMode").and_then(|v| v.as_str()) {
-                                if mode == "pushToTalk" {
-                                    let actions =
-                                        app_handle.state::<crate::audio::AudioActionsManager>();
-                                    let status = actions
-                                        .is_muted(crate::audio::types::AudioDeviceType::InputDevice)
-                                        .await;
-                                    return Ok(ResponseData::Mute(MuteData {
-                                        device: "input".to_string(),
-                                        muted: status,
-                                    }));
-                                }
-                            }
-                        }
-                    }
-                }
-
                 let audio_device = match device {
                     DeviceType::Input => crate::audio::types::AudioDeviceType::InputDevice,
                     DeviceType::Output => crate::audio::types::AudioDeviceType::OutputDevice,
@@ -517,6 +503,16 @@ impl WebSocketManager {
                 }))
             }
 
+            // A held key on a controller. The client owns the release: a connection that
+            // drops mid-hold does not close the microphone.
+            Command::Ptt { down } => {
+                let listener = app_handle.state::<Arc<crate::keybinds::KeybindListener>>();
+                listener.set_ptt(down).await;
+                Ok(ResponseData::Ptt(PttData {
+                    active: listener.is_ptt_held(),
+                }))
+            }
+
             Command::Record => {
                 let actions = app_handle.state::<crate::audio::AudioActionsManager>();
                 let recording = actions.toggle_recording().await?;
@@ -530,38 +526,31 @@ impl WebSocketManager {
         }
     }
 
-    /// Query current muted/deafened/recording state from the app
-    async fn query_state(app_handle: &AppHandle) -> StateData {
-        let asm = app_handle.state::<tauri::async_runtime::Mutex<crate::AudioStreamManager>>();
-        let mut asm = asm.lock().await;
-
-        let muted = asm
-            .mute_status(&crate::audio::types::AudioDeviceType::InputDevice)
-            .await
-            .unwrap_or(false);
-        let deafened = asm
-            .mute_status(&crate::audio::types::AudioDeviceType::OutputDevice)
-            .await
-            .unwrap_or(false);
-        drop(asm);
-
-        let recording_manager =
-            app_handle.state::<Arc<tauri::async_runtime::Mutex<crate::audio::RecordingManager>>>();
-        let manager = recording_manager.lock().await;
-        let recording = manager.is_recording();
-
-        StateData {
-            muted,
-            deafened,
-            recording,
+    /// The mode as the protocol names it. The client's own enum is a separate type, the
+    /// same way `DeviceType` is.
+    async fn voice_mode(app_handle: &AppHandle) -> VoiceMode {
+        let mode = match app_handle.try_state::<Arc<crate::keybinds::KeybindListener>>() {
+            Some(listener) => listener.voice_mode().await,
+            None => KeybindVoiceMode::OpenMic,
+        };
+        match mode {
+            KeybindVoiceMode::PushToTalk => VoiceMode::PushToTalk,
+            KeybindVoiceMode::OpenMic => VoiceMode::OpenMic,
         }
+    }
+
+    /// Query current state from the app.
+    async fn query_state(app_handle: &AppHandle) -> StateData {
+        app_handle
+            .state::<crate::audio::AudioActionsManager>()
+            .query_state()
+            .await
     }
 
     /// Build a full state JSON string for broadcasting
     async fn build_state_json(app_handle: &AppHandle) -> Result<String, serde_json::Error> {
         let state_data = Self::query_state(app_handle).await;
-        let response =
-            SuccessResponse::state(state_data.muted, state_data.deafened, state_data.recording);
+        let response = SuccessResponse::state(state_data);
         serde_json::to_string(&response)
     }
 }

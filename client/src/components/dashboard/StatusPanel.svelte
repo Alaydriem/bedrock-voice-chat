@@ -7,11 +7,17 @@
     import { KvGridView } from "$radial/core/controllers/KvGridView";
     import type { LinkDiagnosticsSnapshot } from "../../js/bindings/LinkDiagnosticsSnapshot";
     import type { LinkHealth } from "../../js/app/dashboard/DiagnosticsManager";
+    import type { VoiceDiagnostics } from "../../js/app/dashboard/SelfController";
+    import type { VoiceMode } from "$radial/core/controllers/SelfState";
     import { DiagnosticsView } from "../../js/app/dashboard/DiagnosticsView";
 
     interface Props {
         snapshot: LinkDiagnosticsSnapshot | null;
         health: LinkHealth;
+        /** What the backend says about the microphone. Independent of the link. */
+        voice?: VoiceDiagnostics | null;
+        /** What the mic button believes, so the readout can show the two disagreeing. */
+        selfMode?: VoiceMode;
         pttIdle: boolean;
         visiblePlayers: number;
         reconnecting: boolean;
@@ -24,6 +30,8 @@
     let {
         snapshot,
         health,
+        voice = null,
+        selfMode,
         pttIdle,
         visiblePlayers,
         reconnecting,
@@ -78,9 +86,19 @@
 
     // Values written in place rather than markup rebuilt: this repaints once a second, and
     // replacing the DOM that often reflows the panel and reads as flicker.
+    /**
+     * Voice is drawn whether or not the link has reported.
+     *
+     * Every other group needs a snapshot, so before one arrives the panel used to be empty
+     * — and "is my microphone open" is a question worth answering on a client that has not
+     * connected yet, which is exactly when someone opens this panel.
+     */
     $effect(() => {
-        if (!grid || !input || !snapshot) return;
-        grid.update([...Diagnostics.groups(input), ...DiagnosticsView.extraGroups(snapshot)]);
+        if (!grid) return;
+        const link = input && snapshot
+            ? [...Diagnostics.groups(input), ...DiagnosticsView.extraGroups(snapshot)]
+            : [];
+        grid.update([DiagnosticsView.voiceGroup(voice, selfMode), ...link]);
     });
 
     onDestroy(() => {

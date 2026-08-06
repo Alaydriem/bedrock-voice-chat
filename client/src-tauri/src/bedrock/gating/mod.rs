@@ -94,10 +94,13 @@ impl ProtocolGatingService {
 
     // Build the kick message shown in the rejected client's Minecraft UI.
     // The displayed Minecraft version comes from
-    // `ProtocolVersion::LATEST.client_version_str()` so the message
-    // auto-tracks future LATEST bumps without code changes.
+    // `ProtocolVersion::RELEASED_LATEST.client_version_str()` so the message
+    // auto-tracks future release bumps without code changes. RELEASED_LATEST,
+    // not LATEST: the newest generated codec can be a preview-only protocol,
+    // and naming it would tell the player to install a build retail does not
+    // offer.
     pub fn kick_message(&self, peer_version: ProtocolVersion) -> String {
-        let latest = ProtocolVersion::LATEST.client_version_str();
+        let latest = ProtocolVersion::RELEASED_LATEST.client_version_str();
         format!(
             "Minecraft protocol {peer} isn't supported by BVC yet. \
              Please use Minecraft {latest}, or check for a BVC update.",
@@ -157,7 +160,7 @@ mod tests {
     fn kick_message_includes_peer_protocol_and_latest_version() {
         let svc = build_service();
         let msg = svc.kick_message(ProtocolVersion(988));
-        let expected_latest = ProtocolVersion::LATEST.client_version_str();
+        let expected_latest = ProtocolVersion::RELEASED_LATEST.client_version_str();
         assert!(msg.contains("988"));
         assert!(msg.contains(expected_latest));
     }
