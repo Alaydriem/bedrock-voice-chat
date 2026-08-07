@@ -27,7 +27,6 @@ import Analytics from './analytics';
 import type { KeybindConfig } from '../bindings/KeybindConfig.ts';
 import type { NoiseGateSettings } from '../bindings/NoiseGateSettings.ts';
 import { NoiseGateModel } from './settings/NoiseGateModel.ts';
-import type { PlayerGainStore } from '../bindings/PlayerGainStore.ts';
 import type { ApiConfigCheckResponse } from '../bindings/ApiConfigCheckResponse.ts';
 import type { ServerListEntry } from '../bindings/ServerListEntry.ts';
 import type { WebSocketConfig } from './managers/settings/WebSocketConfig';
@@ -363,6 +362,23 @@ export default class Dashboard extends BVCApp {
      * before `refresh_server_state` could reissue credentials would be holding a ticket
      * bought with a certificate that is no longer in use.
      */
+    /**
+     * The one object that distributes levels, created before anything asks for one.
+     *
+     * `initializeManagers` runs long before `startNearby`, and the controller needs a source
+     * for the pill at construction — which is exactly why the pill grew a parallel mechanism
+     * of its own. Ensuring it here means both callers get the same instance whichever runs
+     * first, and a reconnect reuses it rather than leaving every mounted meter bound to one
+     * nothing writes to.
+     */
+    private levelSources(): PlayerLevelSources {
+        if (!this.levels) {
+            this.levels = new PlayerLevelSources();
+            void this.levels.start();
+        }
+        return this.levels;
+    }
+
     private async startNearby(): Promise<void> {
         if (!this.store || !this.currentServer) return;
 
@@ -370,12 +386,9 @@ export default class Dashboard extends BVCApp {
         // screen is already holding references into them: a level source is handed to a meter
         // at mount, and the roster subscribes to these stores once at boot. Swapping either
         // object leaves every card on screen bound to one that nothing writes to any more.
-        if (!this.levels) {
-            this.levels = new PlayerLevelSources();
-            await this.levels.start();
-        }
+        this.levelSources();
         if (!this.nearby) {
-            this.nearby = new NearbyManager(this.store);
+            this.nearby = new NearbyManager();
         }
 
         // `start` stops itself first, so re-entering it re-opens the feed on a fresh ticket
@@ -469,11 +482,21 @@ export default class Dashboard extends BVCApp {
             // session actually authenticated against — the login paths all persist it.
             this.activeGame = (await this.store.get("active_game") as string | null) || 'minecraft';
 
-            this.playerManager = new PlayerManager(this.store, currentUser, this.activeGame);
+            this.playerManager = new PlayerManager(currentUser, this.activeGame);
             await this.playerManager.listenForBackendUpdates();
             this.channelManager = new ChannelManager(this.playerManager, this.store, serverUrl);
 
-            this.selfController = new SelfController(this.store);
+            // Reused rather than replaced, for the reason `startNearby` gives about the level
+            // sources: the pill is handed `micSource` at mount and the status panel subscribes
+            // to `diagnostics` once, so a reconnect that swapped this object left both bound to
+            // an instance nothing writes to any more — a meter that never moves and a readout
+            // that reports no events, over a microphone that is working.
+            //
+            // `start` is idempotent enough to re-enter: it re-seeds from the backend and
+            // re-attaches the level listener, which is what a reconnect needs anyway.
+            if (!this.selfController) {
+                this.selfController = new SelfController(this.store, this.levelSources());
+            }
             await this.selfController.start();
 
             // Initialize AudioActivityManager (independent)
@@ -671,19 +694,9 @@ export default class Dashboard extends BVCApp {
                     device: "InputDevice"
                 });
 
-                // Update the player gain metadata
-                let playerGainStore = await store.get("player_gain_store") as PlayerGainStore | null;
-                if (!playerGainStore || typeof playerGainStore !== "object" || Array.isArray(playerGainStore)) {
-                    playerGainStore = {};
-                    await store.set("player_gain_store", playerGainStore);
-                    await store.save();
-                }
-
-                await invoke("update_stream_metadata", {
-                    key: "player_gain_store",
-                    value: JSON.stringify(playerGainStore),
-                    device: "OutputDevice"
-                });
+                // Seed the mixer with this server's persisted volumes. The projection starts
+                // empty, so until this runs every mute the user set is inert.
+                await invoke("player_settings_publish");
 
                 // Fetch server config to get fresh QUIC port and spatial audio settings
                 try {

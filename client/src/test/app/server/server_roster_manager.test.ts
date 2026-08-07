@@ -28,6 +28,12 @@ interface Fixture {
   readonly withoutCredentials?: string[];
   /** Servers whose certificate has expired. */
   readonly expired?: string[];
+  /** Servers whose expiry cannot be read at all. `isCertificateExpired` rejects for these. */
+  readonly expiryUnreadable?: string[];
+  /** Whether device setup has been finished. Defaults to finished. */
+  readonly setupComplete?: boolean;
+  /** Whether the setup-state read rejects. */
+  readonly setupUnreadable?: boolean;
 }
 
 function build(fixture: Fixture) {
@@ -54,9 +60,17 @@ function build(fixture: Fixture) {
     }
     return { gamertag: "Alaydriem", quic_connect_string: "443" } as never;
   });
-  const isCertificateExpired = vi.fn(
-    async (server: string) => fixture.expired?.includes(server) ?? false,
-  );
+  const isCertificateExpired = vi.fn(async (server: string) => {
+    if (fixture.expiryUnreadable?.includes(server)) {
+      throw new Error(`keyring unavailable for ${server}`);
+    }
+    return fixture.expired?.includes(server) ?? false;
+  });
+
+  const isSetupComplete = vi.fn(async () => {
+    if (fixture.setupUnreadable) throw new Error("store unavailable");
+    return fixture.setupComplete ?? true;
+  });
 
   const manager = new ServerRosterManager({
     serverList: serverList as never,
@@ -66,6 +80,7 @@ function build(fixture: Fixture) {
     checkForUpdates,
     credentials,
     isCertificateExpired,
+    isSetupComplete,
   });
 
   return {
@@ -77,6 +92,7 @@ function build(fixture: Fixture) {
     getImage,
     credentials,
     isCertificateExpired,
+    isSetupComplete,
   };
 }
 
@@ -445,6 +461,140 @@ describe("soleDestination", () => {
     await manager.soleDestination();
 
     expect(preflight).not.toHaveBeenCalled();
+  });
+
+
+  it("asks the keyring for each answer exactly once", async () => {
+    const { manager, credentials, isCertificateExpired } = build({
+      servers: ["https://a.example"],
+    });
+    await manager.load();
+
+    await manager.soleDestination();
+
+    expect(credentials).toHaveBeenCalledTimes(1);
+    expect(isCertificateExpired).toHaveBeenCalledTimes(1);
+  });
+
+  // The preload is an optimisation. A build whose dashboard chunk will not load still has to
+  // reach the dashboard, where the failure is visible, rather than stalling on this screen.
+
+  // An unreadable expiry now arrives as a rejected settlement rather than a thrown call, and
+  // still must not be read as expired.
+  it("treats an unreadable certificate expiry as not expired", async () => {
+    const { manager } = build({
+      servers: ["https://a.example"],
+      expiryUnreadable: ["https://a.example"],
+    });
+    await manager.load();
+
+    expect(await manager.soleDestination()).toEqual({
+      kind: "navigate",
+      href: "/dashboard?server=https://a.example",
+    });
+  });
+
+  // Both reads are now in flight together, so a rejected credentials read must still win over
+  // whatever the expiry read reported.
+  it("sends missing credentials to sign-in even when the expiry read succeeds", async () => {
+    const { manager } = build({
+      servers: ["https://a.example"],
+      withoutCredentials: ["https://a.example"],
+      expired: ["https://a.example"],
+    });
+    await manager.load();
+
+    expect(await manager.soleDestination()).toEqual({ kind: "navigate", href: "/login" });
+  });
+});
+
+describe("the setup gate", () => {
+  // The dashboard checks this itself and bounces to /setup, having already mounted its whole
+  // component tree. Deciding here means that mount is never paid for.
+  it("sends a sole server to setup when device setup is unfinished", async () => {
+    const { manager } = build({ servers: ["https://a.example"], setupComplete: false });
+    await manager.load();
+
+    expect(await manager.soleDestination()).toEqual({ kind: "navigate", href: "/setup" });
+  });
+
+  // Setup hands off to /dashboard when it finishes, and the dashboard opens whichever server is
+  // current. Skipping this leaves it opening the previous one, or none.
+  it("records the current server before sending it to setup", async () => {
+    const { manager, serverList } = build({
+      servers: ["https://a.example"],
+      setupComplete: false,
+    });
+    await manager.load();
+
+    await manager.soleDestination();
+
+    expect(serverList.setCurrent).toHaveBeenCalledWith({
+      server: "https://a.example",
+      player: "Alaydriem",
+      game: "minecraft",
+    });
+  });
+
+  it("sends a chosen plate to setup when device setup is unfinished", async () => {
+    const { manager } = build({
+      servers: ["https://a.example", "https://b.example"],
+      setupComplete: false,
+    });
+    await manager.load();
+    await manager.sweep();
+
+    expect(await manager.choose("https://b.example")).toEqual({
+      kind: "navigate",
+      href: "/setup",
+    });
+  });
+
+  // A launch with nothing saved has to reach sign-in, which is where the introduction lives.
+  // Gating setup ahead of that skipped both and opened the microphone prompt on a first run.
+  it("never preempts sign-in when nothing is saved", async () => {
+    const { manager, isSetupComplete } = build({ servers: [], setupComplete: false });
+    const count = await manager.load();
+
+    expect(count).toBe(0);
+    expect(await manager.soleDestination()).toEqual({ kind: "none" });
+    expect(isSetupComplete).not.toHaveBeenCalled();
+  });
+
+  // The dashboard checks this again, so a store hiccup must not divert somebody into onboarding
+  // they have already finished.
+  it("treats an unreadable setup state as finished", async () => {
+    const { manager } = build({ servers: ["https://a.example"], setupUnreadable: true });
+    await manager.load();
+
+    expect(await manager.soleDestination()).toEqual({
+      kind: "navigate",
+      href: "/dashboard?server=https://a.example",
+    });
+  });
+
+  // One round trip for three answers, rather than the keyring reads in a batch and this one
+  // trailing behind them.
+  it("reads the setup state alongside the keyring, not after it", async () => {
+    const { manager, isSetupComplete } = build({ servers: ["https://a.example"] });
+    await manager.load();
+
+    await manager.soleDestination();
+
+    expect(isSetupComplete).toHaveBeenCalledTimes(1);
+  });
+
+  // Absent credentials mean sign-in regardless: setup is a device concern and the dashboard it
+  // leads to is unreachable without an account.
+  it("still sends a server with no credentials to sign-in", async () => {
+    const { manager } = build({
+      servers: ["https://a.example"],
+      withoutCredentials: ["https://a.example"],
+      setupComplete: false,
+    });
+    await manager.load();
+
+    expect(await manager.soleDestination()).toEqual({ kind: "navigate", href: "/login" });
   });
 });
 

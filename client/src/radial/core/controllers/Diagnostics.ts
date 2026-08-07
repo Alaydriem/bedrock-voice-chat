@@ -16,7 +16,23 @@ export interface DiagnosticsInput {
   jitterMs: number;
   jitterDrops: number;
   datagramsIn: number;
+  /**
+   * Audio frames handed to the network each second.
+   *
+   * Audio only. Taken from the count of every datagram this client sends it read as a healthy
+   * microphone on a client capturing nothing, because position, presence, control and health
+   * traffic all leave over the same socket and keep that number in the dozens on their own.
+   */
   datagramsOut: number;
+  /**
+   * Frames arriving from the capture device each second, or null before one interval has
+   * been measured.
+   *
+   * Upstream of the gate, the encoder and the network, so it is the only row that separates a
+   * microphone that stopped from audio that stopped getting through. Null rather than zero
+   * while unmeasured: zero is an accusation.
+   */
+  capturing: number | null;
   inputDevice: string;
   inputRate: number;
   outputDevice: string;
@@ -148,6 +164,20 @@ export class Diagnostics {
     }
   }
 
+  /**
+   * The capture row.
+   *
+   * The row above it reports what left for the network, and the two only look alike while
+   * everything works. A device that stops delivering leaves this at zero while the gate still
+   * reads open and the sending figure still moves, which is the shape of the fault that was
+   * previously impossible to tell apart from a quiet room.
+   */
+  static capture(framesPerSecond: number | null): string {
+    if (framesPerSecond === null) return "not measured yet";
+    if (framesPerSecond === 0) return "0 frames/s  ← your microphone has stopped";
+    return `${Math.round(framesPerSecond)} frames/s`;
+  }
+
   static groups(d: DiagnosticsInput): KvGroup[] {
     const rate = (hz: number) => `${(hz / 1000).toFixed(1)} kHz`;
     return [
@@ -160,9 +190,11 @@ export class Diagnostics {
             rate(d.inputRate) + (d.inputRate !== Diagnostics.EXPECTED_RATE ? "  ← expected 48.0" : ""),
           ],
           ["Noise gate", Diagnostics.gate(d.noiseGate)],
+          ["Capturing", Diagnostics.capture(d.capturing)],
           [
             "Sending",
-            `${d.datagramsOut} datagrams/s` + (d.datagramsOut === 0 ? "  ← nothing is going out" : ""),
+            `${d.datagramsOut} audio datagrams/s` +
+              (d.datagramsOut === 0 ? "  ← nothing is going out" : ""),
           ],
         ],
       },

@@ -10,5 +10,6 @@ mod feature_flags;
 mod harness;
 mod iap;
 mod keybinds;
+mod players;
 mod scenarios;
 mod websocket;

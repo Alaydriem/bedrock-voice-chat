@@ -4,7 +4,10 @@ import type { LoginResponse } from '../../bindings/LoginResponse';
 import { get, writable, type Readable, type Writable } from 'svelte/store';
 import ImageCache from '../components/imageCache';
 import ImageCacheOptions from '../components/imageCacheOptions';
+import { Store } from '@tauri-apps/plugin-store';
 import { ServerListStore } from '../services/ServerListStore';
+import SetupFlow from '../setup/SetupFlow';
+import type { SetupState } from '../../bindings/SetupState';
 import type { NextAction } from '../shell/NextAction';
 import { PlateView } from './PlateView';
 import { PreflightRunner } from './preflight/PreflightRunner';
@@ -24,6 +27,7 @@ import type { ServerRosterEntry } from './ServerRosterEntry';
 export class ServerRosterManager {
     static readonly ADD_HREF = '/login?addserver=true&return=/';
     static readonly SIGN_IN_HREF = '/login';
+    static readonly SETUP_HREF = '/setup';
 
     /** A week, matching what the old card used. Operator art does not change often. */
     private static readonly ART_TTL_SECONDS = 60 * 60 * 24 * 7;
@@ -54,6 +58,18 @@ export class ServerRosterManager {
             isCertificateExpired:
                 deps?.isCertificateExpired ??
                 ((server: string) => invoke<boolean>('is_certificate_expired', { server })),
+            isSetupComplete:
+                deps?.isSetupComplete ??
+                (async () => {
+                    const store = await Store.load('store.json', {
+                        autoSave: false,
+                        defaults: {},
+                    });
+                    const state = await store.get<SetupState>(SetupFlow.STORE_KEY);
+                    const flow = new SetupFlow();
+                    if (state) flow.hydrate(state);
+                    return flow.isComplete();
+                }),
         };
 
         this.entriesStore = writable<ServerRosterEntry[]>([]);
@@ -194,12 +210,31 @@ export class ServerRosterManager {
      * leads there have to record the same thing — a divergence here shows up as the dashboard
      * opening the previous server.
      */
-    private async connectTo(entry: ServerRosterEntry): Promise<NextAction> {
+    private async connectTo(
+        entry: ServerRosterEntry,
+        setupComplete?: boolean,
+    ): Promise<NextAction> {
         await this.deps.serverList.setCurrent({
             server: entry.server,
             player: entry.player,
             game: entry.game,
         });
+
+        // Taken from the caller when it already asked, so the launch path does not pay a second
+        // round trip for an answer it has.
+        const complete = setupComplete ?? (await this.deps.isSetupComplete());
+
+        // Recorded first, because setup hands off to the dashboard when it finishes and the
+        // dashboard opens whichever server is current.
+        //
+        // Only here, where the destination is already known to be the dashboard. A launch with
+        // nothing saved goes to sign-in, which is where the introduction lives, and setup is a
+        // device concern that cannot come before an account.
+        if (!complete) {
+            info(`Device setup is not finished, going to setup before ${entry.server}`);
+            return { kind: 'navigate', href: ServerRosterManager.SETUP_HREF };
+        }
+
         return { kind: 'navigate', href: `/dashboard?server=${entry.server}` };
     }
 
@@ -218,29 +253,43 @@ export class ServerRosterManager {
 
         const entry = entries[0];
 
-        try {
-            await this.deps.credentials(entry.server);
-        } catch (e) {
-            info(`No usable credentials for ${entry.server}, going to sign-in: ${e}`);
+        // Asked together rather than in turn, so the launch pays one round trip rather than three.
+        //
+        // `allSettled`, not `all`: absent credentials, an unreadable expiry and an unreadable
+        // setup state mean different things, and `all` loses the distinction.
+        const [credentials, expired, setup] = await Promise.allSettled([
+            this.deps.credentials(entry.server),
+            this.deps.isCertificateExpired(entry.server),
+            this.deps.isSetupComplete(),
+        ]);
+
+        if (credentials.status === 'rejected') {
+            info(
+                `No usable credentials for ${entry.server}, going to sign-in: ${credentials.reason}`,
+            );
             return { kind: 'navigate', href: ServerRosterManager.SIGN_IN_HREF };
         }
 
-        try {
-            if (await this.deps.isCertificateExpired(entry.server)) {
-                info(`Certificate expired for ${entry.server}, going to reauth`);
-                return {
-                    kind: 'navigate',
-                    href: `/login?reauth=true&server=${entry.server}`,
-                };
-            }
-        } catch (e) {
+        if (expired.status === 'rejected') {
             // An unreadable expiry is not an expired certificate. The dashboard checks this
             // again and does redirect on expiry, so guessing wrong here would send somebody to
             // re-authenticate over a keyring hiccup.
-            warn(`Could not read certificate expiry for ${entry.server}: ${e}`);
+            warn(`Could not read certificate expiry for ${entry.server}: ${expired.reason}`);
+        } else if (expired.value) {
+            info(`Certificate expired for ${entry.server}, going to reauth`);
+            return {
+                kind: 'navigate',
+                href: `/login?reauth=true&server=${entry.server}`,
+            };
         }
 
-        return this.connectTo(entry);
+        // An unreadable setup state counts as finished. The dashboard checks it again, and a
+        // store hiccup should not divert somebody into onboarding they have already done.
+        if (setup.status === 'rejected') {
+            warn(`Could not read the setup state: ${setup.reason}`);
+        }
+
+        return this.connectTo(entry, setup.status === 'fulfilled' ? setup.value : true);
     }
 
     static hostOf(server: string): string {

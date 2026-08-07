@@ -1,8 +1,7 @@
 import { type Readable, type Writable, derived, get, writable } from 'svelte/store';
+import { invoke } from '@tauri-apps/api/core';
 import { warn } from '@tauri-apps/plugin-log';
-import type { Store } from '@tauri-apps/plugin-store';
 import { PlayerHue } from '$radial/core/sources/PlayerHue';
-import type { PlayerGainStore } from '../../bindings/PlayerGainStore';
 import type { PositionSnapshot } from '../../bindings/PositionSnapshot';
 import type { RelativePosition } from '../../bindings/RelativePosition';
 import GameNameUtils from '../utils/GameNameUtils';
@@ -35,13 +34,32 @@ export class NearbyManager {
     /** Until `/api/config` answers, the kit's own default. */
     private static readonly DEFAULT_RANGE_M = 48;
 
+    /**
+     * How often a player already in the feed is stamped again.
+     *
+     * Stamping once on arrival made forgetting somebody permanent while they stood next to
+     * you: the settings pane deletes their row, and nothing writes it back until they leave
+     * feed scope for the falloff and return. Re-stamping makes "forget" the temporary act it
+     * reads as. A minute is short enough that the row is back before anyone goes looking for
+     * it, and long enough that a busy server costs one touch per player per minute — which
+     * the Rust side coalesces into roughly one disk write.
+     */
+    private static readonly TOUCH_INTERVAL_MS = 60_000;
+
     private readonly playersStore: Writable<readonly NearbyPlayer[]>;
-    private readonly store: Store;
     private feed: PositionFeed | null = null;
     private range = NearbyManager.DEFAULT_RANGE_M;
 
     /** Last time each player appeared in a snapshot, for the falloff. */
     private seenAt = new Map<string, number>();
+    /**
+     * Last time each player was stamped in the settings store.
+     *
+     * Separate from `seenAt`, which governs the falloff. Reusing that one is what tied
+     * persistence to arrival: it holds a player for as long as they keep appearing, so the
+     * stamp fired once and never again.
+     */
+    private touchedAt = new Map<string, number>();
     /** The most recent entry per player, so absence can be distinguished from silence. */
     private latest = new Map<string, NearbyPlayer>();
     private sweep: ReturnType<typeof setInterval> | null = null;
@@ -53,8 +71,7 @@ export class NearbyManager {
     /** Those beyond it but within feed scope — the ring's cast. */
     public readonly approaching: Readable<readonly NearbyPlayer[]>;
 
-    constructor(store: Store) {
-        this.store = store;
+    constructor() {
         this.playersStore = writable([]);
         this.players = { subscribe: this.playersStore.subscribe };
         this.inEarshot = derived(this.playersStore, ($all) => $all.filter((p) => p.inEarshot));
@@ -81,9 +98,13 @@ export class NearbyManager {
         for (const entry of snapshot.positions) {
             const player = this.toPlayer(entry);
             this.latest.set(player.name, player);
-            const first = !this.seenAt.has(player.name);
             this.seenAt.set(player.name, now);
-            if (first) void this.remember(player);
+
+            const stamped = this.touchedAt.get(player.name);
+            if (stamped === undefined || now - stamped >= NearbyManager.TOUCH_INTERVAL_MS) {
+                this.touchedAt.set(player.name, now);
+                void this.remember(player);
+            }
         }
         this.publish();
     }
@@ -119,6 +140,10 @@ export class NearbyManager {
             if (at >= cutoff) continue;
             this.seenAt.delete(name);
             this.latest.delete(name);
+            // Dropped here too, so somebody who walks away and comes back is stamped on
+            // arrival rather than waiting out the rest of an interval they left in the
+            // middle of, and so the map cannot outgrow the roster it tracks.
+            this.touchedAt.delete(name);
             dropped = true;
         }
         if (dropped) this.publish();
@@ -130,21 +155,20 @@ export class NearbyManager {
     }
 
     /**
-     * Record a player the first time they are seen.
+     * Record a player as seen.
      *
-     * The persisted gain store is already the list of players this device has an opinion
-     * about; stamping when they were last seen turns it into the recently-seen list as well,
-     * without a second store to keep in step with it.
+     * The settings store is already the list of players this device has an opinion about;
+     * stamping when they were last seen turns it into the recently-seen list as well, without
+     * a second store to keep in step with it.
+     *
+     * The stamp is held in memory on the Rust side and flushed on a debounce, so a crowd
+     * walking past costs one disk write rather than one per person.
      */
     private async remember(player: NearbyPlayer): Promise<void> {
         try {
             // `player.name` is already the canonical identity from the position feed;
             // `player.gamertag` is the bare display form and would not resolve at the mixer.
-            const gains = ((await this.store.get('player_gain_store')) as PlayerGainStore) || {};
-            const existing = gains[player.name] ?? { gain: 1.0, muted: false };
-            gains[player.name] = { ...existing, last_seen: Date.now() };
-            await this.store.set('player_gain_store', gains);
-            await this.store.save();
+            await invoke('player_settings_touch', { cn: player.name });
         } catch (e) {
             warn(`NearbyManager: could not record ${player.gamertag}: ${e}`);
         }
@@ -165,6 +189,7 @@ export class NearbyManager {
             this.feed = null;
         }
         this.seenAt.clear();
+        this.touchedAt.clear();
         this.latest.clear();
         this.playersStore.set([]);
     }

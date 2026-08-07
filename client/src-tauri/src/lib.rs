@@ -55,6 +55,7 @@ pub mod keybinds;
 mod keyring;
 mod logging;
 mod network;
+pub mod players;
 mod structs;
 #[cfg(feature = "e2e")]
 pub mod testkit;
@@ -265,10 +266,19 @@ pub fn run() {
             crate::commands::audio::is_recording,
             crate::commands::audio::get_current_players,
             crate::commands::audio::restart_audio_stream,
+            crate::commands::audio::input_capture_active,
             crate::commands::audio::start_input_meter,
             crate::commands::audio::stop_input_meter,
             crate::commands::audio::test_output_device,
             // Recordings Management
+            // Per-player volume and mute
+            crate::commands::players::player_settings_list,
+            crate::commands::players::player_settings_set_gain,
+            crate::commands::players::player_settings_set_muted,
+            crate::commands::players::player_settings_forget,
+            crate::commands::players::player_settings_reset_all,
+            crate::commands::players::player_settings_touch,
+            crate::commands::players::player_settings_publish,
             crate::commands::recordings::get_recording_sessions,
             crate::commands::recordings::delete_recording_session,
             crate::commands::recordings::rename_recording_session,
@@ -644,6 +654,15 @@ pub fn run() {
             keyring_service.initialize()?;
             app.manage(Mutex::new(keyring_service));
 
+            // Spawned so the platform keystore's first touch runs alongside the webview's bundle
+            // parse rather than in front of the launch route, which is where it was measured
+            // costing 662 ms of a 3081 ms launch. State is registered above, so the task cannot
+            // race it.
+            let keyring_warm_handle = handle.clone();
+            tauri::async_runtime::spawn(async move {
+                keyring::KeyringService::warm(keyring_warm_handle).await;
+            });
+
             let app_state = AppState::new(store.clone(), handle.clone());
             app.manage(telemetry);
             app.manage(sentry_logger);
@@ -794,6 +813,17 @@ pub fn run() {
                 analytics.track(common::structs::AnalyticsEvent::AppExited, None);
                 tauri::async_runtime::block_on(analytics.flush())
                     .unwrap_or_else(|e| log::warn!("Final analytics flush failed: {}", e));
+
+                // Proximity stamps are held back for two seconds of quiet, so an exit inside
+                // that window would otherwise drop them. This is the only exit hook the app
+                // has — a Tauri desktop client installs no signal handlers.
+                if let Some(players) =
+                    app_handle.try_state::<Arc<crate::players::PlayerSettingsService>>()
+                {
+                    players
+                        .flush()
+                        .unwrap_or_else(|e| log::warn!("Final player settings flush failed: {e}"));
+                }
             }
         });
 }

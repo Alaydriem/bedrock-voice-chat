@@ -1076,11 +1076,125 @@ chatSend.addEventListener("click", send);
 
 function send(): void {
   const text = chatInput.value.trim();
-  if (!text) return;
+  if (!text || chatTarget.kind === "unavailable") return;
   chat.add({ author: "Alaydriem", text, fromApp: true });
   chatInput.value = "";
   chatSend.classList.remove("is-ready");
   if (!chat.isOpen) setChat(true);
+}
+
+/* ---------------------------------------------------------------- chat target
+
+   One BVC server can host several worlds, and a message has to land in exactly one of
+   them. Three cases, and only the last one has any UI at all:
+
+     in game      the server already knows where you are standing. No choice is offered,
+                  because the only thing a choice can do here is put your message in front
+                  of the wrong people.
+     one world    nothing to pick. Same words, no affordance.
+     several      you are not in game and have been in more than one. Now it is a button.
+
+   `unavailable` is orthogonal to all three: a world can be up and hosting while the chat
+   channel behind it is down, and the composer has to say so rather than going quiet.
+*/
+
+type ChatTarget =
+  | { kind: "in-game"; world: string }
+  | { kind: "only"; world: string }
+  | { kind: "choose"; world: string }
+  | { kind: "unavailable"; reason: string };
+
+const WORLDS = [
+  { name: "Survival", seen: "in game now", available: true },
+  { name: "Creative Flats", seen: "last seen 2 h ago", available: true },
+  { name: "Skyblock", seen: "last seen yesterday", available: false },
+];
+
+const chatTargetBtn = q("[data-chat-target]");
+const chatTargetName = q("[data-chat-target-name]");
+const chatStatus = q("[data-chat-status]");
+const chatBar = q(".rad-chat-bar");
+const chatWorldRows = q("[data-sheet-chat-worlds]");
+
+let chatTarget: ChatTarget = { kind: "in-game", world: "Survival" };
+
+function applyChatTarget(): void {
+  chatTargetBtn.classList.toggle("is-static", chatTarget.kind !== "choose");
+
+  if (chatTarget.kind === "unavailable") {
+    chatTargetName.textContent = "Server chat";
+    chatStatus.className = "rad-status-chip rad-status-chip--warn";
+    chatStatus.textContent = "Off";
+    chatBar.classList.add("is-unavailable");
+    chatInput.disabled = true;
+    chatInput.value = "";
+    chatInput.placeholder = chatTarget.reason;
+    chatSend.classList.remove("is-ready");
+    renderChatWorlds();
+    return;
+  }
+
+  chatTargetName.textContent = chatTarget.world;
+  chatStatus.className = "rad-status-chip rad-status-chip--live";
+  chatStatus.textContent = chatTarget.kind === "in-game" ? "In game" : "Live";
+  chatBar.classList.remove("is-unavailable");
+  chatInput.disabled = false;
+  // The target is named where the typing happens, not only in the header. The scrollback
+  // is shut most of the time, and the moment that matters is the one where somebody is
+  // deciding what to send.
+  chatInput.placeholder = `Message ${chatTarget.world}…`;
+  renderChatWorlds();
+}
+
+function renderChatWorlds(): void {
+  const current = "world" in chatTarget ? chatTarget.world : "";
+  chatWorldRows.innerHTML = WORLDS.map((w, i) => {
+    const on = w.name === current;
+    return (
+      `<button class="rad-sheet-row ${on ? "is-on" : ""}" data-chat-world="${w.name}"` +
+      ` style="--i:${i}"${w.available ? "" : " disabled"}>` +
+      '<span class="rad-sheet-row__text">' +
+      `<span class="rad-sheet-row__name">${w.name}</span>` +
+      `<span class="rad-sheet-row__host">${w.available ? w.seen : "chat unavailable"}</span>` +
+      "</span>" +
+      (on ? '<span class="rad-sheet-row__tick" data-rad-icon="check"></span>' : "") +
+      "</button>"
+    );
+  }).join("");
+  IconBinding.sync(chatWorldRows);
+
+  for (const row of chatWorldRows.querySelectorAll<HTMLElement>("[data-chat-world]")) {
+    row.addEventListener("click", () => {
+      chatTarget = { kind: "choose", world: row.dataset.chatWorld ?? "" };
+      applyChatTarget();
+      sheet.close();
+    });
+  }
+}
+
+applyChatTarget();
+
+// Driven from the gallery bar, not a timer. Somebody comparing "in game" against "several"
+// needs both on demand; a rotation makes them wait for the state they wanted and makes the
+// difference between the two hard to see at all.
+const TARGET_STATES: Record<string, ChatTarget> = {
+  "in-game": { kind: "in-game", world: "Survival" },
+  only: { kind: "only", world: "Survival" },
+  choose: { kind: "choose", world: "Creative Flats" },
+  unavailable: { kind: "unavailable", reason: "Survival is not running chat right now" },
+};
+
+for (const button of document.querySelectorAll<HTMLElement>('[data-act="chat-target"]')) {
+  button.addEventListener("click", () => {
+    chatTarget = TARGET_STATES[button.dataset.target ?? "in-game"] ?? TARGET_STATES["in-game"];
+    for (const b of document.querySelectorAll<HTMLElement>('[data-act="chat-target"]')) {
+      b.setAttribute("aria-pressed", String(b === button));
+    }
+    applyChatTarget();
+    // The head lives inside the scrollback, so opening it is the only way the switch shows
+    // anything at all.
+    if (!chat.isOpen) setChat(true);
+  });
 }
 
 const SCRIPT = [
@@ -1146,6 +1260,7 @@ function diagnostics(): DiagnosticsInput {
     jitterDrops: link.drops,
     datagramsIn: s.deafened ? 0 : Math.round(46 + Math.random() * 5),
     datagramsOut: s.transmitting ? Math.round(48 + Math.random() * 4) : 0,
+    capturing: 50,
     inputDevice: "Focusrite Scarlett 2i2",
     inputRate: link.inRate,
     outputDevice: "Sennheiser HD 560S",

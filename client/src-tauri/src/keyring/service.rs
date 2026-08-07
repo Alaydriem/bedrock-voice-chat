@@ -4,7 +4,7 @@ use common::response::LoginResponse;
 use common::structs::config::Keypair;
 use common::structs::permission::ServerPermissions;
 use std::collections::HashMap;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tauri_plugin_keyring::{CredentialType, CredentialValue, KeyringExt};
 
 const KEY_GAMERPIC: &str = "gamerpic";
@@ -103,6 +103,61 @@ impl KeyringService {
 
         self.cache.insert(server.to_string(), response.clone());
         Ok(())
+    }
+
+    /// The server a launch will ask about, or `None` when there is nothing saved.
+    ///
+    /// `current_server` first, because a client with several saved servers reads credentials for
+    /// whichever one it opens; the single entry is the fallback for an install that has never
+    /// recorded a current one.
+    fn launch_server(app: &AppHandle) -> Option<String> {
+        use tauri_plugin_store::StoreExt;
+
+        let store = app.store("store.json").ok()?;
+
+        if let Some(current) = store
+            .get("current_server")
+            .and_then(|v| v.as_str().map(str::to_string))
+        {
+            return Some(current);
+        }
+
+        store
+            .get("server_list")
+            .and_then(|v| v.as_array().cloned())
+            .and_then(|list| list.first().cloned())
+            .and_then(|entry| entry.get("server")?.as_str().map(str::to_string))
+    }
+
+    /// Read one server's credentials so the platform keystore initialises off the launch path.
+    ///
+    /// On Android the first touch of the keystore costs hundreds of milliseconds whatever is
+    /// read, and it lands in the launch route with the webview already waiting on it. Started
+    /// here it overlaps with the bundle parse instead, and the read fills the cache the launch
+    /// route then hits.
+    ///
+    /// Absent credentials are the expected first-run state, so a failure is logged at debug and
+    /// otherwise ignored.
+    ///
+    /// Goes through the managed service rather than a private instance, so the launch route gets
+    /// a cache hit instead of eleven warm keystore lookups.
+    pub async fn warm(app: AppHandle) {
+        let Some(server) = Self::launch_server(&app) else {
+            return;
+        };
+
+        let started = std::time::Instant::now();
+        let state = app.state::<tauri::async_runtime::Mutex<Self>>();
+        let result = state.lock().await.get_credentials(&server);
+
+        match result {
+            Ok(_) => log::info!(
+                "Keyring warmed for {} in {} ms",
+                server,
+                started.elapsed().as_millis()
+            ),
+            Err(e) => log::debug!("Keyring warm-up read failed for {}: {}", server, e),
+        }
     }
 
     pub fn get_credentials(&mut self, server: &str) -> Result<LoginResponse, anyhow::Error> {

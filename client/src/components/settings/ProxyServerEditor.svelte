@@ -81,39 +81,41 @@
     <div class="rad-modal is-open">
         <h5 class="rad-modal__title">{entry ? "Edit this server" : "Add a server"}</h5>
 
-        <!-- Stacked fields rather than label-and-control rows: a modal is narrow, and a row
-             gives the input whatever is left after the label. -->
-        <div class="rad-fields">
-            <label class="rad-field-row">
-                <span class="rad-field-row__label">Name</span>
-                <span class="rad-input">
-                    <input type="text" bind:value={name} bind:this={first} />
-                </span>
-            </label>
+        <p>
+            Give it a name you will recognise, and the address Minecraft would have connected
+            to. The port defaults to {DEFAULT_PORT}, and Auto reports whatever the backend does.
+        </p>
 
-            <label class="rad-field-row">
-                <span class="rad-field-row__label">Address</span>
-                <span class="rad-input">
-                    <input type="text" bind:value={address} placeholder="play.example.com" />
-                </span>
-                <span class="rad-field-row__note">
-                    Where Minecraft would have connected. Port defaults to {DEFAULT_PORT}.
-                </span>
-            </label>
+        <span class="rad-input" style="margin-top: 14px; width: 100%">
+            <input
+                type="text"
+                bind:value={name}
+                bind:this={first}
+                placeholder="Name"
+                aria-label="Name"
+            />
+        </span>
 
-            <label class="rad-field-row">
-                <span class="rad-field-row__label">Advertised version</span>
-                <select class="rad-select" bind:value={version}>
-                    <option value={AUTO}>Auto &mdash; mirror the backend</option>
-                    {#each versions as option (option.protocol)}
-                        <option value={String(option.protocol)}>{option.label}</option>
-                    {/each}
-                </select>
-                <span class="rad-field-row__note">
-                    What the proxy reports to Minecraft. Auto is right almost always.
-                </span>
-            </label>
-        </div>
+        <span class="rad-input" style="margin-top: 10px; width: 100%">
+            <input
+                type="text"
+                bind:value={address}
+                placeholder="play.example.com"
+                aria-label="Address"
+            />
+        </span>
+
+        <select
+            class="rad-select"
+            style="margin-top: 10px; width: 100%"
+            bind:value={version}
+            aria-label="Advertised version"
+        >
+            <option value={AUTO}>Auto &mdash; mirror the backend</option>
+            {#each versions as option (option.protocol)}
+                <option value={String(option.protocol)}>{option.label}</option>
+            {/each}
+        </select>
 
         {#if failure}
             <div class="rad-callout rad-callout--bad" style="margin-top: 12px">

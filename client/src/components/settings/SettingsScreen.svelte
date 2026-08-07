@@ -13,6 +13,7 @@
     import AudioPane from "./panes/AudioPane.svelte";
     import KeybindsPane from "./panes/KeybindsPane.svelte";
     import LibraryPane from "./panes/LibraryPane.svelte";
+    import PlayersPane from "./panes/PlayersPane.svelte";
     import ProxyPane from "./panes/ProxyPane.svelte";
     import RealmsPane from "./panes/RealmsPane.svelte";
     import RecordingsPane from "./panes/RecordingsPane.svelte";
@@ -178,6 +179,8 @@
                         <AccountPane {onsignout} />
                     {:else if current.id === "audio"}
                         <AudioPane {mobile} />
+                    {:else if current.id === "players"}
+                        <PlayersPane />
                     {:else if current.id === "recordings"}
                         <RecordingsPane />
                     {:else if current.id === "library"}

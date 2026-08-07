@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DiagnosticsView } from "../../../js/app/dashboard/DiagnosticsView";
 import type { VoiceDiagnostics } from "../../../js/app/dashboard/SelfController";
+import type { MicActivity } from "../../../js/app/dashboard/PlayerLevelSources";
 import type { VoiceRuntimeState } from "../../../js/bindings/VoiceRuntimeState";
 
 /**
@@ -20,16 +21,40 @@ function backend(over: Partial<VoiceRuntimeState> = {}): VoiceRuntimeState {
     };
 }
 
-function voice(over: Partial<VoiceDiagnostics> = {}): VoiceDiagnostics {
+/** Defaulted for the same reason as `backend()`. */
+function mic(over: Partial<MicActivity> = {}): MicActivity {
     return {
-        backend: backend(),
-        mic: { events: 120, eventsPerSecond: 10, lastRms: 0.041, silentForMs: 90 },
+        attached: true,
+        events: 120,
+        failures: 0,
+        eventsPerSecond: 10,
+        lastRms: 0.041,
+        silentForMs: 90,
         ...over,
     };
 }
 
-function row(v: VoiceDiagnostics | null, label: string, uiMode?: "activated" | "ptt"): string {
-    const found = DiagnosticsView.voiceGroup(v, uiMode).rows.find(([name]) => name === label);
+function voice(over: Partial<VoiceDiagnostics> = {}): VoiceDiagnostics {
+    return {
+        backend: backend(),
+        mic: mic(),
+        ...over,
+    };
+}
+
+/**
+ * `capturing` defaults to 0 — nothing coming off the device — so a case that says nothing
+ * about the backend gets the reading that lets this row blame the capture stream.
+ */
+function row(
+    v: VoiceDiagnostics | null,
+    label: string,
+    uiMode?: "activated" | "ptt",
+    capturing: number | null = 0,
+): string {
+    const found = DiagnosticsView.voiceGroup(v, uiMode, capturing).rows.find(
+        ([name]) => name === label,
+    );
     return found?.[1] ?? "";
 }
 
@@ -120,12 +145,12 @@ describe("the capture stream row", () => {
     it("separates a muted stream from one that is not running", () => {
         const muted = voice({
             backend: backend({ voiceMode: "pushToTalk", pttActive: false, inputMuted: true, outputMuted: false  }),
-            mic: { events: 300, eventsPerSecond: 10, lastRms: 0, silentForMs: 80 },
+            mic: mic({ events: 300, lastRms: 0, silentForMs: 80 }),
         });
         expect(row(muted, "Capture stream")).toContain("10.0/s");
         expect(row(muted, "Capture stream")).not.toContain("not running");
 
-        const dead = voice({ mic: { events: 0, eventsPerSecond: 0, lastRms: 0, silentForMs: null } });
+        const dead = voice({ mic: mic({ events: 0, eventsPerSecond: 0, lastRms: 0, silentForMs: null }) });
         expect(row(dead, "Capture stream")).toContain("not running");
     });
 
@@ -133,13 +158,58 @@ describe("the capture stream row", () => {
     // would keep reporting the average it built up before it died.
     it("calls out a stream that has stopped emitting", () => {
         const stalled = voice({
-            mic: { events: 300, eventsPerSecond: 10, lastRms: 0.02, silentForMs: 4200 },
+            mic: mic({ events: 300, lastRms: 0.02, silentForMs: 4200 }),
         });
         expect(row(stalled, "Capture stream")).toContain("stopped 4s ago");
     });
 
     it("says nothing about staleness while events are arriving", () => {
         expect(row(voice(), "Capture stream")).not.toContain("stopped");
+    });
+
+    /*
+     * This row counts events arriving in this window, and reported their absence as "the
+     * capture stream is not running" — a claim about the backend it has no way to make. A
+     * phone carrying audio in both directions read as a dead microphone, and the report was
+     * believed over the audio.
+     */
+    it("does not blame the capture stream while the backend is capturing", () => {
+        const dead = voice({ mic: mic({ events: 0, eventsPerSecond: 0, lastRms: 0, silentForMs: null }) });
+        const said = row(dead, "Capture stream", undefined, 50);
+        expect(said).not.toContain("not running");
+        expect(said).toContain("the microphone is fine");
+        expect(said).toContain("50 frames/s");
+    });
+
+    it("still blames the capture stream when nothing is being captured either", () => {
+        const dead = voice({ mic: mic({ events: 0, eventsPerSecond: 0, lastRms: 0, silentForMs: null }) });
+        expect(row(dead, "Capture stream", undefined, 0)).toContain("not running");
+    });
+
+    /*
+     * A listener that never registered and a capture stream that stopped both leave the count
+     * at zero, and this accused the second for both. They are not fixed in the same place, so
+     * a readout that cannot separate them sends the reader to the wrong half of the app.
+     */
+    /*
+     * A handler that throws leaves the listener registered and the count where it was, which
+     * reads identically to an event that never arrived — so the readout blames the transport
+     * for a fault inside the window, and nothing anywhere contradicts it.
+     */
+    it("separates events it could not handle from events that never came", () => {
+        const failing = voice({ mic: mic({ events: 40, failures: 40 }) });
+        const said = row(failing, "Capture stream", undefined, 50);
+        expect(said).toContain("could not be read");
+        expect(said).not.toContain("no events");
+    });
+
+    it("reports a meter that never attached as its own fault", () => {
+        const detached = voice({
+            mic: mic({ attached: false, events: 0, eventsPerSecond: 0, lastRms: 0, silentForMs: null }),
+        });
+        const said = row(detached, "Capture stream", undefined, 50);
+        expect(said).toContain("failed to register");
+        expect(said).not.toContain("not running");
     });
 });
 
@@ -153,7 +223,7 @@ describe("the voice group before it can report", () => {
     it("reports a probe that failed, with the reason", () => {
         const failed = DiagnosticsView.voiceGroup({
             backend: null,
-            mic: { events: 0, eventsPerSecond: 0, lastRms: 0, silentForMs: null },
+            mic: mic({ events: 0, eventsPerSecond: 0, lastRms: 0, silentForMs: null }),
             error: "command not found",
         });
         expect(failed.rows[0]?.[1]).toContain("could not read");

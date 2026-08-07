@@ -49,6 +49,55 @@
   overflow-y: auto;
 }
 
+/* ---- where the message goes ----
+
+   One BVC server can host several worlds. This says which one is listening, and it is a
+   button only when the choice is real — when the player is not in game and has history in
+   more than one. Somebody standing in a world is not offered a choice, because the only
+   thing a choice can do there is put their message in front of the wrong people.
+*/
+
+.rad-chat-target {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: -8px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-rad-faint);
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-2xs);
+  letter-spacing: var(--tracking-rad-tag);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: 0.16s;
+}
+
+.rad-chat-target:hover {
+  color: var(--color-rad-tx);
+  background: var(--color-rad-panel);
+}
+
+.rad-chat-target__caret > svg {
+  width: 12px;
+  height: 12px;
+  transform: rotate(90deg);
+}
+
+/* Nothing to choose. Same words, no affordance offered. */
+.rad-chat-target.is-static {
+  margin-left: 0;
+  padding-left: 0;
+  background: transparent;
+  pointer-events: none;
+}
+
+.rad-chat-target.is-static .rad-chat-target__caret {
+  display: none;
+}
+
 .rad-chat__note {
   margin-bottom: 12px;
   padding: 10px 0 16px;
@@ -245,6 +294,22 @@
 
 .rad-chat-send:hover {
   background: var(--color-rad-brand-lift);
+}
+
+/* ---- nothing is listening ----
+
+   The composer states the reason in the place someone is about to type, and the send
+   button leaves rather than sitting dead. A box that accepts text and silently discards it
+   is worse than one that is obviously shut.
+*/
+
+.rad-chat-bar.is-unavailable .rad-chat-input {
+  color: var(--color-rad-faint);
+  cursor: not-allowed;
+}
+
+.rad-chat-bar.is-unavailable .rad-chat-send {
+  display: none;
 }
 
 .rad-chat-send > [data-rad-icon] > svg {

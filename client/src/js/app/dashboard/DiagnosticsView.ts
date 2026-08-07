@@ -35,6 +35,7 @@ export class DiagnosticsView {
             jitterDrops: Number(link.jitter_buffer_drops),
             datagramsIn: Math.round(playback.datagrams_per_sec),
             datagramsOut: Math.round(mic.datagrams_per_sec),
+            capturing: mic.capture_frames_per_sec ?? null,
             inputDevice: mic.device ?? DiagnosticsView.UNKNOWN,
             inputRate: mic.sample_rate ?? Diagnostics.EXPECTED_RATE,
             outputDevice: playback.device ?? DiagnosticsView.UNKNOWN,
@@ -78,7 +79,11 @@ export class DiagnosticsView {
      * muted input and a capture stream that stopped emitting produce the same flat meter,
      * so the event rate is the only thing that separates "muted" from "not running".
      */
-    static voiceGroup(voice: VoiceDiagnostics | null, uiMode?: VoiceMode): KvGroup {
+    static voiceGroup(
+        voice: VoiceDiagnostics | null,
+        uiMode?: VoiceMode,
+        capturing?: number | null,
+    ): KvGroup {
         if (!voice) {
             return { title: 'Voice', rows: [['State', 'not read yet']] };
         }
@@ -112,23 +117,51 @@ export class DiagnosticsView {
                         : 'open',
                 ],
                 ['Hold', ptt ? (backend.pttActive ? 'held' : 'released') : 'n/a in open mic'],
-                ['Capture stream', DiagnosticsView.captureStream(mic)],
+                ['Capture stream', DiagnosticsView.captureStream(mic, capturing ?? null)],
             ],
         };
     }
 
     /**
-     * Whether the capture stream is emitting, told apart from whether it is muted.
+     * Whether level events are reaching this window, told apart from whether anything is
+     * being captured.
      *
-     * A muted stream still emits, at rms 0. No events at all is a different fault with a
-     * different fix, and the meter draws them identically.
+     * A muted stream still emits, at rms 0, so the meter draws a muted microphone and a dead
+     * one identically and the event count is the only thing between them.
+     *
+     * What this counts, though, is events arriving *here* — and it used to report their
+     * absence as "the capture stream is not running", which is a claim about the backend it
+     * cannot make. A phone carrying audio in both directions read as a dead microphone,
+     * because the events were not arriving while the capture stream was perfectly alive.
+     * `capturing` is the backend's own frame rate off the device, so the two can now be told
+     * apart: frames without events is a broken bridge to this window, not a broken microphone.
      */
-    private static captureStream(mic: VoiceDiagnostics['mic']): string {
-        if (mic.events === 0) return 'no events  ← the capture stream is not running';
+    private static captureStream(mic: VoiceDiagnostics['mic'], capturing: number | null): string {
+        if (!mic.attached) {
+            return 'not attached  ← the level listener failed to register in this window';
+        }
+        // Above the event count, because it is the stronger statement: events arrived and this
+        // window could not read them, which no amount of looking at the transport will explain.
+        if (mic.failures > 0) {
+            return `${mic.failures} of ${mic.events} events could not be read  ← the meter is receiving but failing to handle them`;
+        }
+        if (mic.events === 0) {
+            if (capturing !== null && capturing > 0) {
+                return `no events here, but ${Math.round(capturing)} frames/s are being captured  ← the meter is not receiving, the microphone is fine`;
+            }
+            if (capturing === null) return 'no events  ← nothing captured yet either';
+            return 'no events  ← the capture stream is not running';
+        }
+        // The meter's own level, not an RMS. It was labelled `rms` and stopped being one when
+        // levels became quantised steps — and it is the number that says whether a still meter
+        // is being told to be still or is failing to draw what it was told.
         const rate = `${mic.eventsPerSecond.toFixed(1)}/s`;
-        const rms = `rms ${mic.lastRms.toFixed(3)}`;
+        const level =
+            mic.lastRms > 0 ? `level ${mic.lastRms.toFixed(2)}` : 'level 0  ← reported as not speaking';
         const stale = mic.silentForMs !== null && mic.silentForMs > 1000;
-        return stale ? `${rate}, ${rms}  ← stopped ${Math.round(mic.silentForMs! / 1000)}s ago` : `${rate}, ${rms}`;
+        return stale
+            ? `${rate}, ${level}  ← stopped ${Math.round(mic.silentForMs! / 1000)}s ago`
+            : `${rate}, ${level}`;
     }
 
     /**
@@ -153,6 +186,21 @@ export class DiagnosticsView {
                     ['Downlink', downlink],
                     ['Provable, lower bound', `${DiagnosticsView.round(link.burst_loss_pct)} %`],
                     ['Worst direction', `${DiagnosticsView.worstLoss(snapshot)} %`],
+                ],
+            },
+            {
+                // Not a network figure, and not under any of the subsystems, because it belongs
+                // to none of them. On a phone every one of these is a unit of main-thread work
+                // on the same thread that paints the meters they feed, so it is the number that
+                // decides whether the meters can keep up — and the only way to tell a change
+                // that halved the traffic from one that did nothing.
+                title: 'Interface',
+                rows: [
+                    [
+                        'Meter updates',
+                        `${DiagnosticsView.round(snapshot.meter_events_per_sec)}/s` +
+                            (snapshot.meter_events_per_sec === 0 ? '  (nobody is speaking)' : ''),
+                    ],
                 ],
             },
             {

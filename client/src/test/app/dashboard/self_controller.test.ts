@@ -10,13 +10,11 @@ import { invokeCalls, mockInvoke } from "../../tauri";
  */
 const listeners = new Map<string, (event: { payload: unknown }) => void>();
 
-vi.mock("@tauri-apps/api/webviewWindow", () => ({
-    getCurrentWebviewWindow: () => ({
-        listen: async (event: string, run: (e: { payload: unknown }) => void) => {
-            listeners.set(event, run);
-            return () => listeners.delete(event);
-        },
-    }),
+vi.mock("@tauri-apps/api/event", () => ({
+    listen: async (event: string, run: (e: { payload: unknown }) => void) => {
+        listeners.set(event, run);
+        return () => listeners.delete(event);
+    },
 }));
 
 function emit(event: string, payload: unknown): void {
@@ -24,6 +22,18 @@ function emit(event: string, payload: unknown): void {
 }
 
 const { SelfController } = await import("../../../js/app/dashboard/SelfController");
+const { PlayerLevelSources } = await import("../../../js/app/dashboard/PlayerLevelSources");
+
+/**
+ * The real level sources, not a stub.
+ *
+ * The controller no longer owns a level source; it reads the one the roster's meters are
+ * already bound to. Faking it here would let the two drift apart again in exactly the way that
+ * left the pill's meter still while everyone else's moved.
+ */
+function levels() {
+    return new PlayerLevelSources();
+}
 
 function store(values: Record<string, unknown> = {}) {
     return {
@@ -42,7 +52,7 @@ describe("SelfController", () => {
             is_recording: () => false,
         });
 
-        const self = new SelfController(store({ keybinds: { voiceMode: "openMic" } }));
+        const self = new SelfController(store({ keybinds: { voiceMode: "openMic" } }), levels());
         await self.start();
 
         // A mute survives a webview reload. A pill that opened unmuted would be lying, and
@@ -54,7 +64,7 @@ describe("SelfController", () => {
     it("reads push-to-talk out of the saved keybinds", async () => {
         mockInvoke({ mute_status: () => false, is_recording: () => false });
 
-        const self = new SelfController(store({ keybinds: { voiceMode: "pushToTalk" } }));
+        const self = new SelfController(store({ keybinds: { voiceMode: "pushToTalk" } }), levels());
         await self.start();
 
         expect(self.state.snapshot.mode).toBe("ptt");
@@ -74,7 +84,7 @@ describe("SelfController", () => {
             set_mute: () => true,
         });
 
-        const self = new SelfController(store());
+        const self = new SelfController(store(), levels());
         await self.start();
         self.pressMute();
 
@@ -98,7 +108,7 @@ describe("SelfController", () => {
             set_mute: () => false,
         });
 
-        const self = new SelfController(store());
+        const self = new SelfController(store(), levels());
         await self.start();
         self.pressMute();
         expect(self.state.snapshot.muted).toBe(true);
@@ -111,7 +121,7 @@ describe("SelfController", () => {
     it("still follows an echo it did not ask for", async () => {
         mockInvoke({ mute_status: () => false, is_recording: () => false });
 
-        const self = new SelfController(store());
+        const self = new SelfController(store(), levels());
         await self.start();
 
         emit("mute:input", true);
@@ -129,7 +139,7 @@ describe("SelfController", () => {
             },
         });
 
-        const self = new SelfController(store());
+        const self = new SelfController(store(), levels());
         await self.start();
         self.pressMute();
         expect(self.state.snapshot.muted).toBe(true);
@@ -144,7 +154,7 @@ describe("SelfController", () => {
             set_deafened: () => false,
         });
 
-        const self = new SelfController(store());
+        const self = new SelfController(store(), levels());
         await self.start();
         expect(self.state.snapshot.deafened).toBe(true);
 
@@ -161,7 +171,7 @@ describe("SelfController", () => {
     it("ignores the mic button in push-to-talk, where not holding already is mute", async () => {
         mockInvoke({ mute_status: () => false, is_recording: () => false });
 
-        const self = new SelfController(store({ keybinds: { voiceMode: "pushToTalk" } }));
+        const self = new SelfController(store({ keybinds: { voiceMode: "pushToTalk" } }), levels());
         await self.start();
         self.pressMute();
 
@@ -171,7 +181,7 @@ describe("SelfController", () => {
     it("follows the global hotkey's hold, which is the whole point of a global hotkey", async () => {
         mockInvoke({ mute_status: () => false, is_recording: () => false });
 
-        const self = new SelfController(store({ keybinds: { voiceMode: "pushToTalk" } }));
+        const self = new SelfController(store({ keybinds: { voiceMode: "pushToTalk" } }), levels());
         await self.start();
 
         expect(self.state.snapshot.transmitting).toBe(false);
@@ -189,7 +199,7 @@ describe("SelfController", () => {
     it("asks the backend to open the mic when the button is held", async () => {
         mockInvoke({ mute_status: () => false, is_recording: () => false, set_ptt: () => null });
 
-        const self = new SelfController(store({ keybinds: { voiceMode: "pushToTalk" } }));
+        const self = new SelfController(store({ keybinds: { voiceMode: "pushToTalk" } }), levels());
         await self.start();
 
         self.hold(true);
@@ -211,7 +221,7 @@ describe("SelfController", () => {
     it("paints the hold immediately", async () => {
         mockInvoke({ mute_status: () => false, is_recording: () => false, set_ptt: () => null });
 
-        const self = new SelfController(store({ keybinds: { voiceMode: "pushToTalk" } }));
+        const self = new SelfController(store({ keybinds: { voiceMode: "pushToTalk" } }), levels());
         await self.start();
 
         self.hold(true);
@@ -227,7 +237,7 @@ describe("SelfController", () => {
     it("follows a voice mode changed somewhere else", async () => {
         mockInvoke({ mute_status: () => false, is_recording: () => false });
 
-        const self = new SelfController(store({ keybinds: { voiceMode: "openMic" } }));
+        const self = new SelfController(store({ keybinds: { voiceMode: "openMic" } }), levels());
         await self.start();
         expect(self.state.snapshot.mode).toBe("activated");
 
@@ -241,7 +251,7 @@ describe("SelfController", () => {
     it("stops treating the mic button as a toggle the moment the mode changes", async () => {
         mockInvoke({ mute_status: () => false, is_recording: () => false });
 
-        const self = new SelfController(store({ keybinds: { voiceMode: "openMic" } }));
+        const self = new SelfController(store({ keybinds: { voiceMode: "openMic" } }), levels());
         await self.start();
 
         emit("voice-mode:changed", "pushToTalk");
@@ -271,7 +281,7 @@ describe("SelfController", () => {
         });
 
         // Saved as open mic, so nothing but the backend can tell it otherwise.
-        const self = new SelfController(store({ keybinds: { voiceMode: "openMic" } }));
+        const self = new SelfController(store({ keybinds: { voiceMode: "openMic" } }), levels());
         await self.start();
 
         expect(self.state.snapshot.mode).toBe("ptt");
@@ -291,7 +301,7 @@ describe("SelfController", () => {
             }),
         });
 
-        const self = new SelfController(store({ keybinds: { voiceMode: "openMic" } }));
+        const self = new SelfController(store({ keybinds: { voiceMode: "openMic" } }), levels());
         await self.start();
         self.pressMute();
 
@@ -312,7 +322,7 @@ describe("SelfController", () => {
             }),
         });
 
-        const self = new SelfController(store({ keybinds: { voiceMode: "pushToTalk" } }));
+        const self = new SelfController(store({ keybinds: { voiceMode: "pushToTalk" } }), levels());
         await self.start();
         self.hold(true);
         expect(self.state.snapshot.holding).toBe(true);
@@ -342,7 +352,7 @@ describe("SelfController", () => {
             }),
         });
 
-        const self = new SelfController(store({ keybinds: { voiceMode: "pushToTalk" } }));
+        const self = new SelfController(store({ keybinds: { voiceMode: "pushToTalk" } }), levels());
         await self.start();
         expect(self.state.snapshot.muted).toBe(true);
 
@@ -360,7 +370,7 @@ describe("SelfController", () => {
     it("times a recording from when it was observed starting", async () => {
         mockInvoke({ mute_status: () => false, is_recording: () => false });
 
-        const self = new SelfController(store());
+        const self = new SelfController(store(), levels());
         await self.start();
 
         const started = performance.now();
@@ -392,7 +402,7 @@ describe("SelfController", () => {
             }),
         });
 
-        const self = new SelfController(store());
+        const self = new SelfController(store(), levels());
         await self.start();
         expect(self.state.snapshot.recording).toBe(false);
 
@@ -417,7 +427,7 @@ describe("SelfController", () => {
             }),
         });
 
-        const self = new SelfController(store());
+        const self = new SelfController(store(), levels());
         await self.start();
 
         const observed = performance.now();
@@ -436,7 +446,7 @@ describe("SelfController", () => {
             start_recording: () => "session-1",
         });
 
-        const self = new SelfController(store());
+        const self = new SelfController(store(), levels());
         await self.start();
         self.pressRecord();
 
@@ -463,7 +473,7 @@ describe("SelfController", () => {
             },
         });
 
-        const self = new SelfController(store());
+        const self = new SelfController(store(), levels());
         await self.start();
         expect(self.state.snapshot.recording).toBe(true);
 
@@ -484,7 +494,7 @@ describe("SelfController", () => {
             },
         });
 
-        const self = new SelfController(store());
+        const self = new SelfController(store(), levels());
         await self.start();
         expect(self.state.snapshot.recording).toBe(true);
 

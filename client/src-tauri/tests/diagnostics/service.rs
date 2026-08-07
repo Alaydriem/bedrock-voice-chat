@@ -5,6 +5,7 @@ use bvc_client_lib::diagnostics::{
     DeviceInfo, InputPipelineStats, LinkDiagnosticsService, LinkSession, PeerRegistry, QuicLinkStats,
     SessionConfig, TransportStats,
 };
+use bvc_client_lib::audio::LevelBus;
 use common::structs::audio::NoiseGateStatus;
 use common::structs::reachability::AddressFamily;
 use tokio::sync::watch;
@@ -19,6 +20,7 @@ struct Harness {
     session: Arc<LinkSession>,
     quic_tx: watch::Sender<Arc<QuicLinkStats>>,
     quic: Arc<QuicLinkStats>,
+    levels: Arc<LevelBus>,
 }
 
 impl Harness {
@@ -28,6 +30,7 @@ impl Harness {
         let transport = Arc::new(TransportStats::new());
         let input = Arc::new(InputPipelineStats::new());
         let session = Arc::new(LinkSession::new());
+        let levels = LevelBus::new_shared();
 
         let service = LinkDiagnosticsService::new(
             quic_rx,
@@ -37,6 +40,7 @@ impl Harness {
             Arc::new(SessionConfig::new()),
             PeerRegistry::new_shared(),
             Arc::new(DeviceInfo::new()),
+            levels.clone(),
         );
 
         Self {
@@ -46,6 +50,7 @@ impl Harness {
             session,
             quic_tx,
             quic,
+            levels,
         }
     }
 
@@ -95,6 +100,7 @@ fn rate_is_derived_from_monotonic_counters_over_an_interval() {
     let sends = 50u64;
     for _ in 0..sends {
         h.transport.record_sent();
+        h.transport.record_frame_sent();
     }
     let elapsed = Duration::from_millis(200);
     std::thread::sleep(elapsed);
@@ -118,6 +124,7 @@ fn a_counter_reset_between_ticks_yields_zero_not_a_negative_rate() {
 
     for _ in 0..100 {
         h.transport.record_sent();
+        h.transport.record_frame_sent();
         h.quic.record_sent();
         h.quic.record_lost();
     }
@@ -139,6 +146,117 @@ fn a_counter_reset_between_ticks_yields_zero_not_a_negative_rate() {
         snapshot.mic.datagrams_per_sec, 0.0,
         "a window with no new sends must report no rate"
     );
+}
+
+/// The row is headed "Your mic", and it was fed from every datagram this client sends.
+/// Position, presence, control and health traffic all leave over the same socket and keep that
+/// number in the dozens on their own, so it read as a working microphone on a client whose
+/// capture stream was dead — and sent a real report of a dead microphone the wrong way.
+#[test]
+fn the_mic_send_rate_counts_audio_frames_not_every_datagram_this_client_sends() {
+    let h = Harness::new();
+    h.connect();
+    h.baseline();
+
+    for _ in 0..200 {
+        h.transport.record_sent();
+    }
+    std::thread::sleep(Duration::from_millis(50));
+
+    assert_eq!(
+        h.tick().expect("connected").mic.datagrams_per_sec,
+        0.0,
+        "non-audio traffic must not appear as a microphone sending"
+    );
+}
+
+/// Capture is counted off the device, upstream of the gate, the encoder and the network. It is
+/// the only reading that separates a microphone that stopped from audio that stopped getting
+/// through, and nothing read it before: the counter existed and no diagnostic consulted it.
+#[test]
+fn capture_is_reported_from_frames_off_the_device() {
+    let h = Harness::new();
+    h.connect();
+    h.baseline();
+
+    for _ in 0..25 {
+        h.input.record_frame(true);
+    }
+    std::thread::sleep(Duration::from_millis(100));
+
+    let rate = h
+        .tick()
+        .expect("connected")
+        .mic
+        .capture_frames_per_sec
+        .expect("a measured interval reports a rate");
+
+    // A range rather than positivity: asserting `> 0` passes against an implementation that
+    // reports the raw delta and never divides by the interval. 25 frames over ~100 ms is
+    // ~250/s.
+    assert!(
+        (100.0..1_000.0).contains(&rate),
+        "expected a per-second rate near 250, got {rate}"
+    );
+}
+
+/// The figure the whole meter path is tuned against. Two fixed-rate emitters spent about twenty
+/// webview messages a second on the meters; on Android each one is a unit of main-thread work on
+/// the thread that paints them. Reported rather than assumed, because a change that halves that
+/// traffic and a change that does nothing look identical from outside the process.
+#[test]
+fn meter_messages_are_counted_so_the_traffic_can_be_seen() {
+    let h = Harness::new();
+    h.connect();
+    h.baseline();
+
+    for _ in 0..5 {
+        h.levels.record_emitted();
+    }
+    std::thread::sleep(Duration::from_millis(100));
+
+    let rate = h.tick().expect("connected").meter_events_per_sec;
+
+    // A range rather than positivity: `> 0` passes against an implementation that reports the
+    // raw delta and never divides by the interval. 5 messages over ~100 ms is ~50/s.
+    assert!(
+        (20.0..200.0).contains(&rate),
+        "expected a per-second rate near 50, got {rate}"
+    );
+}
+
+/// Zero here accuses the capture device, and the tick that has nothing to diff against would
+/// make that accusation on every connect — one tick before the first real reading contradicts
+/// it.
+#[test]
+fn capture_is_unmeasured_rather_than_zero_before_an_interval_has_passed() {
+    let h = Harness::new();
+    h.connect();
+
+    assert_eq!(
+        h.tick().expect("connected").mic.capture_frames_per_sec,
+        None
+    );
+}
+
+/// The signature of the fault this exists for: the device stops delivering while the client's
+/// uplink keeps moving, because position and presence traffic is unaffected by a dead
+/// microphone. Both readings have to be visible independently or the panel cannot show it.
+#[test]
+fn a_dead_capture_device_reads_as_zero_while_other_traffic_continues() {
+    let h = Harness::new();
+    h.connect();
+    h.input.record_frame(false);
+    h.baseline();
+
+    for _ in 0..100 {
+        h.transport.record_sent();
+    }
+    std::thread::sleep(Duration::from_millis(50));
+
+    let snapshot = h.tick().expect("connected");
+    assert_eq!(snapshot.mic.capture_frames_per_sec, Some(0.0));
+    assert_eq!(snapshot.mic.datagrams_per_sec, 0.0);
 }
 
 #[test]
@@ -336,7 +454,7 @@ fn reading_a_snapshot_does_not_advance_the_ring() {
     // The ring is only half the guard. The actual rate-inflation vector was a read overwriting the
     // delta baseline, so a later tick measured a fraction of its true interval. After the reads
     // above, the very first tick must still see no previous reading and therefore report no rate.
-    h.transport.record_sent();
+    h.transport.record_frame_sent();
     let first = h.tick().expect("connected");
     assert_eq!(
         first.mic.datagrams_per_sec, 0.0,

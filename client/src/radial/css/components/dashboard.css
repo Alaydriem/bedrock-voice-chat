@@ -476,21 +476,23 @@
   margin-left: -7px;
 }
 
-.rad-group-cluster__id {
+/* Initials on the player's own hue, the same hue their card carries. The block glyph
+   the cards use needs room its 5x5 grid does not have here, and two members reduced to
+   22px of mirrored blocks are not tellable apart. */
+.rad-group-cluster__face {
+  flex: 0 0 auto;
   width: 22px;
   height: 22px;
-  border-radius: var(--radius-rad-xs);
-  box-shadow: 0 0 0 1px var(--color-rad-void);
-}
-
-.rad-group-cluster__id canvas,
-.rad-group-cluster__id img {
-  border-radius: inherit;
-}
-
-.rad-group-cluster__face.is-quiet {
-  filter: grayscale(1);
-  opacity: 0.5;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--face, var(--color-rad-brand));
+  box-shadow: 0 0 0 1.5px var(--color-rad-void);
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-2xs);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-rad-void);
 }
 
 .rad-group-cluster__more {
@@ -591,9 +593,18 @@
   border-radius: 15px;
   opacity: calc(var(--level, 0) * 0.9);
   transform: scale(calc(1 + var(--level, 0) * 0.06));
+  /*
+    Matched to the gap between level messages rather than to a frame.
+    An avatar has no render loop to carry it between values — that is the whole point of
+    driving it from a custom property — so the transition is the only thing that fills the
+    gap, and levels now arrive when they change rather than ten times a second. At 0.12s it
+    reached each new height and then sat there until the next one, which reads as stepping.
+    A quarter second is one message apart, so consecutive levels blend into one movement,
+    and the compositor does it off the main thread.
+  */
   transition:
-    opacity 0.12s linear,
-    transform 0.12s linear;
+    opacity 0.25s ease-out,
+    transform 0.25s ease-out;
 }
 
 .rad-avatar-chip__name {

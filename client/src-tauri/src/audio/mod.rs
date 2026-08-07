@@ -11,6 +11,14 @@ pub(crate) mod types;
 pub(crate) mod stream;
 
 pub use actions::AudioActionsManager;
+// Re-exported rather than opening `stream`: the watchdog's decision rule is a behavioural
+// contract worth testing on its own, and the rest of that module is not.
+pub use stream::capture_watchdog::{CaptureVerdict, CaptureWatchdog};
+// Same reason: what makes a level worth a webview message, and how a measured RMS becomes a
+// step, are both decision rules worth testing without an audio device or a webview.
+pub use stream::level_bus::{LevelBus, LevelEmitPolicy, LoudnessTracker};
+pub use stream::stream_manager::device_lease::DeviceLease;
+pub use stream::stream_manager::job_set::JobSet;
 pub use backend::AudioBackend;
 pub(crate) use recording::RecordingManager;
 pub use speaker_test::Chime;

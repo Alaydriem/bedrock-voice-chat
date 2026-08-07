@@ -33,6 +33,31 @@ pub struct ClientProc {
 const E2E_APP_DATA_IDENTIFIER: &str = "com.alaydriem.bvc.client.e2e";
 
 impl ClientProc {
+    /// Where this client's redb settings file lives.
+    ///
+    /// Every harness process shares one app identifier and would otherwise resolve one path;
+    /// redb takes an exclusive lock, so exactly one client in a scenario would get a real
+    /// store and the rest would fall back to memory, nondeterministically and silently.
+    ///
+    /// Per gamertag rather than per process, so a client that is shut down and respawned
+    /// inside one scenario keeps its rows — which is what production does, and what any future
+    /// test asserting "a mute survives a reconnect" would need. The root is a `OnceLock`, and
+    /// nextest runs one process per test, so it is per test run for free. The `TempDir` is held
+    /// in the static deliberately: dropping it would delete the tree under live clients.
+    fn player_settings_path(gamertag: &str) -> std::path::PathBuf {
+        static ROOT: std::sync::OnceLock<tempfile::TempDir> = std::sync::OnceLock::new();
+        let root = ROOT.get_or_init(|| tempfile::tempdir().expect("player settings temp root"));
+
+        // One scenario spawns a client with an empty gamertag, which would otherwise collapse
+        // to the root directory itself.
+        let safe: String = gamertag
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+            .collect();
+        let name = if safe.is_empty() { "anonymous" } else { &safe };
+        root.path().join(name).join("player_settings.redb")
+    }
+
     fn wipe_e2e_app_data_once() {
         static WIPE: std::sync::Once = std::sync::Once::new();
         WIPE.call_once(|| {
@@ -107,6 +132,7 @@ impl ClientProc {
         if let Some(id) = channel_id {
             cmd.env("BVC_E2E_CHANNEL_ID", id);
         }
+        cmd.env("BVC_PLAYER_SETTINGS_PATH", Self::player_settings_path(gamertag));
         let mut child = cmd
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())

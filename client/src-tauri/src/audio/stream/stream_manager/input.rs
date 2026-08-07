@@ -1,6 +1,7 @@
 use super::resampler::AudioResampler;
 
 use super::AudioFrame;
+use super::{DeviceLease, JobSet};
 use super::input_core::InputProcessCore;
 use super::source::{AudioInputSource, CaptureConfig};
 use crate::NetworkPacket;
@@ -26,7 +27,7 @@ use std::{
     time::Duration,
 };
 use tauri_plugin_store::StoreExt;
-use tokio::task::{AbortHandle, JoinHandle};
+use tokio::task::JoinHandle;
 
 /// Indicator for if the Input Stream should be muted
 pub(crate) static MUTE_INPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
@@ -44,9 +45,14 @@ pub(crate) struct InputStream {
     pub device: Option<AudioDevice>,
     source: AudioInputSource,
     pub bus: Arc<flume::Sender<NetworkPacket>>,
-    jobs: Vec<AbortHandle>,
+    jobs: JobSet,
+    // Whether a session stream is meant to be capturing right now, which is the only thing that
+    // makes an absent frame count a fault rather than an idle client. `jobs` cannot answer it:
+    // its handles outlive a capture callback that stopped being called, which is exactly the
+    // failure the watchdog exists to catch.
+    capture_expected: Arc<AtomicBool>,
     shutdown: Arc<AtomicBool>,
-    shutdown_tx: Option<tokio::sync::oneshot::Sender<()>>,
+    stream: DeviceLease<rodio::cpal::Stream>,
     pub metadata: Arc<moka::future::Cache<String, String>>,
     #[allow(unused)]
     app_handle: tauri::AppHandle,
@@ -54,6 +60,11 @@ pub(crate) struct InputStream {
     recording_active: Option<Arc<AtomicBool>>,
     recovery_tx: RecoverySender,
     input_stats: Arc<crate::diagnostics::InputPipelineStats>,
+    // Where this microphone's level goes in a session, and the only thing that publishes it.
+    levels: Arc<crate::audio::stream::level_bus::LevelBus>,
+    // Whether to also emit the unquantised `audio-input-level` at capture rate. True only for
+    // the setup screen's metering stream; see `listener`.
+    raw_levels: bool,
     #[cfg(feature = "bedrock-protocol")]
     player_state_cache: Option<Arc<BedrockPlayerStateCache>>,
 }
@@ -104,30 +115,38 @@ impl common::traits::StreamTrait for InputStream {
     }
 
     async fn stop(&mut self) -> Result<(), anyhow::Error> {
-        // Signal the dedicated audio-input thread to shut down
-        if let Some(tx) = self.shutdown_tx.take() {
-            let _ = tx.send(());
+        if self.jobs.is_empty() && !self.stream.is_held() {
+            return Ok(());
         }
+
+        // Cleared first. A stop that raced the watchdog's read would otherwise be seen as a
+        // stream that stopped delivering, and answered with a restart of the stream the caller
+        // is in the middle of shutting down.
+        self.capture_expected.store(false, Ordering::Relaxed);
+
         _ = self.shutdown.store(true, Ordering::Relaxed);
 
-        _ = tokio::time::sleep(Duration::from_millis(100)).await;
+        // Before the join, not after: the capture callback owns the only sender into the frame
+        // channel, so the sender job's `recv_async` ends when this drops.
+        self.stream.release().await;
 
-        // Then hard terminate them
-        for job in &self.jobs {
-            job.abort();
+        if !self.jobs.settle(Self::STOP_GRACE).await {
+            warn!("Input stream jobs did not finish within the grace window; aborting them.");
         }
 
-        self.jobs = vec![];
         Ok(())
     }
 
     fn is_stopped(&self) -> bool {
-        self.jobs.len() == 0
+        // Both, because either can be the only thing running: the session stream has a sender task
+        // and a device, the setup screen's metering stream has only a device.
+        self.jobs.is_empty() && !self.stream.is_held()
     }
 
     #[tracing::instrument(skip(self))]
     async fn start(&mut self) -> Result<(), anyhow::Error> {
         _ = self.shutdown.store(false, Ordering::Relaxed);
+        self.raw_levels = false;
 
         let mut jobs = vec![];
 
@@ -153,9 +172,10 @@ impl common::traits::StreamTrait for InputStream {
         let source_sample_rate = capture_config.sample_rate;
         let source_channels = capture_config.channels;
 
-        // Start the audio input listener thread
+        // Open the capture device. The cpal callback is driven by the device rather than by a
+        // task of ours, so this contributes no job — it leaves the stream on `self.stream`.
         match self.listener(capture_config, producer, self.shutdown.clone()) {
-            Ok(job) => jobs.push(job),
+            Ok(stream) => self.stream.hold(stream).await,
             Err(e) => {
                 error!("input listener encountered an error: {:?}", e);
                 return Err(e);
@@ -178,12 +198,17 @@ impl common::traits::StreamTrait for InputStream {
             }
         };
 
-        self.jobs = jobs.iter().map(|handle| handle.abort_handle()).collect();
+        self.jobs = JobSet::from(jobs);
+        // Last, so the watchdog only ever arms over a stream that reached the end of start().
+        self.capture_expected.store(true, Ordering::Relaxed);
         Ok(())
     }
 }
 
 impl InputStream {
+    /// How long a stop waits for its own jobs before killing them. A backstop, not a schedule.
+    const STOP_GRACE: Duration = Duration::from_millis(500);
+
     /// Capture and meter, without encoding or transmitting anything.
     ///
     /// What the setup screen's microphone test needs. It is `start` minus the network
@@ -198,23 +223,36 @@ impl InputStream {
     /// queues and nothing is held.
     pub async fn start_metering(&mut self) -> Result<(), anyhow::Error> {
         self.shutdown.store(false, Ordering::Relaxed);
+        // The one place the unquantised level is still published. See `listener`.
+        self.raw_levels = true;
 
         let (producer, consumer) = flume::bounded::<AudioFrame>(1);
         drop(consumer);
 
         let capture_config = self.source.resolve_config(&self.device)?;
 
-        let job = self
+        let stream = self
             .listener(capture_config, producer, self.shutdown.clone())
             .inspect_err(|e| error!("input metering listener failed to start: {:?}", e))?;
+        self.stream.hold(stream).await;
 
-        self.jobs = vec![job.abort_handle()];
+        // No jobs: metering is the capture callback and nothing else. `self.stream` is what says
+        // this is running, which is why `is_stopped` reads both.
+        self.jobs = JobSet::empty();
         Ok(())
     }
 
     /// Discard capture accounting, so the next stream is measured from zero.
     pub fn reset_stats(&self) {
         self.input_stats.reset();
+    }
+
+    /// Whether a session stream is supposed to be delivering frames right now.
+    ///
+    /// False for the setup screen's metering stream: it has no session to be rebuilt into, and
+    /// `restart` would try to open the full network path for a client that has not connected.
+    pub fn capture_expected(&self) -> bool {
+        self.capture_expected.load(Ordering::Relaxed)
     }
 
     pub fn new(
@@ -227,6 +265,7 @@ impl InputStream {
         recording_active: Option<Arc<AtomicBool>>,
         recovery_tx: RecoverySender,
         input_stats: Arc<crate::diagnostics::InputPipelineStats>,
+        levels: Arc<crate::audio::stream::level_bus::LevelBus>,
         #[cfg(feature = "bedrock-protocol")] player_state_cache: Option<
             Arc<BedrockPlayerStateCache>,
         >,
@@ -235,15 +274,18 @@ impl InputStream {
             device,
             source,
             bus,
-            jobs: vec![],
+            jobs: JobSet::empty(),
+            stream: DeviceLease::empty(),
+            capture_expected: Arc::new(AtomicBool::new(false)),
             shutdown: Arc::new(AtomicBool::new(false)),
-            shutdown_tx: None,
             metadata,
             app_handle: app_handle.clone(),
             recording_producer,
             recording_active,
             recovery_tx,
             input_stats,
+            levels,
+            raw_levels: false,
             #[cfg(feature = "bedrock-protocol")]
             player_state_cache,
         }
@@ -253,12 +295,14 @@ impl InputStream {
     // capture config, then hands the core's push sink to the active source. The
     // source decides where frames originate — a live cpal callback or the test
     // bridge — while the gate/resampler/core wiring stays identical for both.
+    // Returns the device handle for the caller to lease. Kept free of await points: the gate
+    // settings are read under a `std::sync::Mutex`, whose guard is not `Send`.
     fn listener(
         &mut self,
         config: CaptureConfig,
         producer: flume::Sender<AudioFrame>,
         shutdown: Arc<AtomicBool>,
-    ) -> Result<JoinHandle<()>, anyhow::Error> {
+    ) -> Result<Option<rodio::cpal::Stream>, anyhow::Error> {
         let recovery_tx = self.recovery_tx.clone();
         let device = self.device.clone();
 
@@ -312,11 +356,15 @@ impl InputStream {
             None => None,
         };
 
-        // The level leaves the callback on a channel and is emitted from a task, so
-        // no AppHandle reaches the processing core. Batched at 100 ms with a
-        // peak-hold, because a 20 ms transient between ticks is exactly what a
-        // meter exists to show.
+        // The raw level meter, for the setup screen only.
+        //
+        // Ten messages a second, which is affordable there and nowhere else: that screen has no
+        // session behind it, so nothing else is competing for the webview, and the calibration
+        // it exists for wants the real amplitude rather than a quantised one. In a session the
+        // levels go to `LevelBus` instead, which is what keeps the message rate survivable on a
+        // phone. Absent here, the task below never runs and the channel is never created.
         let (level_tx, level_rx) = flume::unbounded::<InputLevel>();
+        let level_tx = self.raw_levels.then_some(level_tx);
         let level_handle = self.app_handle.clone();
         tokio::spawn(async move {
             use tauri::Emitter;
@@ -363,6 +411,7 @@ impl InputStream {
             producer,
             self.input_stats.clone(),
             level_tx,
+            self.levels.clone(),
         );
 
         let process = move |data: &[f32]| {
@@ -370,8 +419,7 @@ impl InputStream {
         };
 
         let driver = source.drive(config, device, process, shutdown, recovery_tx)?;
-        self.shutdown_tx = driver.shutdown_tx;
-        Ok(driver.handle)
+        Ok(driver.stream)
     }
 
     fn sender(

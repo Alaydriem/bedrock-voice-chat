@@ -9,13 +9,13 @@ use common::structs::packet::{
 };
 use log::{debug, warn};
 use tauri::Manager;
-use tauri_plugin_store::StoreExt;
 use tokio::sync::broadcast;
 
 use super::connection_identity::ConnectionIdentity;
 use super::state_signal::ControlStateSignal;
 use crate::NetworkPacket;
 use crate::audio::AudioActionsManager;
+use crate::players::PlayerSettingsCoordinator;
 #[cfg(feature = "bedrock-protocol")]
 use crate::bedrock::QueryStateInjector;
 
@@ -150,13 +150,20 @@ impl QueryStateReporter {
         }
 
         if wave.preferences || !wave.sync_targets.is_empty() {
-            let gains: PlayerGainStore = self
+            // Read from the settings service rather than `store.json`, which no longer
+            // carries these. Scoped to the current server by `store_for`, which is correct
+            // here for the same reason it is at the mixer: a preference is reported to the
+            // server it was set on.
+            let gains: PlayerGainStore = match self
                 .app_handle
-                .store("store.json")
-                .ok()
-                .and_then(|store| store.get("player_gain_store"))
-                .and_then(|v| serde_json::from_value(v).ok())
-                .unwrap_or_default();
+                .try_state::<Arc<PlayerSettingsCoordinator>>()
+            {
+                Some(coordinator) => coordinator
+                    .store_for_current_server(&self.app_handle)
+                    .await
+                    .unwrap_or_default(),
+                None => PlayerGainStore::default(),
+            };
 
             for (target, settings) in gains.0.iter() {
                 let entry = (settings.gain, settings.muted);

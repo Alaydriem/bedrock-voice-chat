@@ -1,10 +1,12 @@
 /** One member of a group, as the cluster draws them. */
 export interface GroupMember {
-    /** The CN form, which the glyph and the hue are both derived from. */
+    /** The CN form, which the hue is derived from. */
     name: string;
     gamertag: string;
-    /** True when this client can currently hear them, so the face is not drawn dimmed. */
-    audible: boolean;
+    /** The same hue this player's card carries, derived from the same key. */
+    hue: string;
+    /** One or two letters, which is all a 22px face has room to say. */
+    initials: string;
 }
 
 /** One row in the groups pane. */

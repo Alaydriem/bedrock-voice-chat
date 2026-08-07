@@ -1,8 +1,10 @@
 mod audio_sink;
+pub(crate) mod device_lease;
 #[cfg(feature = "e2e")]
 pub(crate) mod frame_clock;
 mod input;
 mod input_core;
+pub(crate) mod job_set;
 mod mono_to_panned;
 mod output;
 mod resampler;
@@ -17,6 +19,8 @@ use std::sync::Arc;
 use crate::audio::types::AudioDevice;
 
 pub(crate) use audio_sink::AudioSinkType;
+pub(crate) use device_lease::DeviceLease;
+pub(crate) use job_set::JobSet;
 pub(crate) use common::traits::StreamTrait;
 pub(crate) use input::InputStream;
 pub(crate) use output::OutputStream;
@@ -145,6 +149,17 @@ impl StreamTraitType {
         match self {
             Self::Input(stream) => stream.reset_stats(),
             Self::Output(_) => {}
+        }
+    }
+
+    /// Whether a session capture stream is supposed to be delivering frames right now.
+    ///
+    /// Always false for an output stream: there is no capture counter behind it, so absence
+    /// there says nothing.
+    pub fn capture_expected(&self) -> bool {
+        match self {
+            Self::Input(stream) => stream.capture_expected(),
+            Self::Output(_) => false,
         }
     }
 }

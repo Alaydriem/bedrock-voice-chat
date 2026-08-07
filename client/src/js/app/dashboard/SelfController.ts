@@ -1,6 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { UnlistenFn } from '@tauri-apps/api/event';
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { info, warn } from '@tauri-apps/plugin-log';
 import type { Store } from '@tauri-apps/plugin-store';
 import { writable, type Readable, type Writable } from 'svelte/store';
@@ -8,7 +7,7 @@ import { SelfState } from '$radial/core/controllers/SelfState';
 import type { KeybindConfig } from '../../bindings/KeybindConfig';
 import type { VoiceMode as ConfiguredVoiceMode } from '../../bindings/VoiceMode';
 import type { VoiceRuntimeState } from '../../bindings/VoiceRuntimeState';
-import { MicLevelSource, type MicActivity } from './MicLevelSource';
+import type { MicActivity, PlayerLevelSources } from './PlayerLevelSources';
 
 /**
  * Mute, deafen, record and push-to-talk, against the real backend.
@@ -33,19 +32,22 @@ export class SelfController {
     /** How often the diagnostics readout re-asks the backend what it believes. */
     private static readonly PROBE_MS = 1000;
 
-    private readonly mic = new MicLevelSource();
+    // Not its own. Your level is one entry in the same snapshot as everyone else's, and a
+    // second mechanism for it is what left the pill's meter still while the roster's moved.
+    private readonly levels: PlayerLevelSources;
     private readonly store: Store;
     private unlisteners: UnlistenFn[] = [];
     private readonly diagnosticsStore: Writable<VoiceDiagnostics | null> = writable(null);
     private probe: ReturnType<typeof setInterval> | null = null;
 
-    constructor(store: Store) {
+    constructor(store: Store, levels: PlayerLevelSources) {
         this.store = store;
+        this.levels = levels;
     }
 
-    /** Your microphone, for the pill's meter. */
+    /** Your microphone, for the pill's meter. The roster's own source, not a parallel one. */
     get micSource() {
-        return this.mic.source;
+        return this.levels.own();
     }
 
     /** What the backend believes, for the status panel. */
@@ -73,7 +75,7 @@ export class SelfController {
     private async pollBackend(): Promise<void> {
         try {
             const backend = await invoke<VoiceRuntimeState>('voice_runtime_state');
-            this.diagnosticsStore.set({ backend, mic: this.mic.activity });
+            this.diagnosticsStore.set({ backend, mic: this.levels.activity });
             this.state.sync(
                 {
                     mode: backend.voiceMode === 'pushToTalk' ? 'ptt' : 'activated',
@@ -90,16 +92,33 @@ export class SelfController {
             // gesture whose pointerup never landed.
             this.state.hold(backend.pttActive);
         } catch (e) {
-            this.diagnosticsStore.set({ backend: null, mic: this.mic.activity, error: String(e) });
+            this.diagnosticsStore.set({ backend: null, mic: this.levels.activity, error: String(e) });
         }
     }
 
+    /**
+     * Re-entrant, because a reconnect calls it again on the same instance.
+     *
+     * The instance is reused rather than replaced — the pill holds `micSource` from mount and
+     * the status panel subscribes to `diagnostics` once — so this has to be able to run twice
+     * without stacking a second set of listeners and a second probe on top of the first.
+     */
     async start(): Promise<void> {
+        this.detach();
         await this.seed();
         await this.subscribe();
-        await this.mic.start();
         await this.pollBackend();
         this.probe = setInterval(() => void this.pollBackend(), SelfController.PROBE_MS);
+    }
+
+    /** Drop every listener and the probe, leaving the state and the level source in place. */
+    private detach(): void {
+        if (this.probe) {
+            clearInterval(this.probe);
+            this.probe = null;
+        }
+        for (const off of this.unlisteners) off();
+        this.unlisteners = [];
     }
 
     /**
@@ -127,11 +146,21 @@ export class SelfController {
         }
     }
 
+    /**
+     * Every listener registered against `Any` rather than this webview.
+     *
+     * These were webview-scoped, which meant each one first called
+     * `getCurrentWebviewWindow()` — and that dereferences
+     * `__TAURI_INTERNALS__.metadata.currentWebview` on the spot. Where that metadata is absent
+     * the call throws before any listener is registered, every event below is lost for the
+     * session, and the only thing keeping the buttons honest is the one-second poll. Nothing
+     * here is ever emitted to a named window, and an `Any` listener matches a targeted emit
+     * too, so the scoping only ever narrowed what could work.
+     */
     private async subscribe(): Promise<void> {
-        const webview = getCurrentWebviewWindow();
-        const listen = async <T>(event: string, run: (payload: T) => void) => {
+        const subscribe = async <T>(event: string, run: (payload: T) => void) => {
             try {
-                this.unlisteners.push(await webview.listen<T>(event, (e) => run(e.payload)));
+                this.unlisteners.push(await listen<T>(event, (e) => run(e.payload)));
             } catch (e) {
                 warn(`SelfController: could not listen for ${event}: ${e}`);
             }
@@ -141,26 +170,26 @@ export class SelfController {
         // otherwise see: the command's own logging proves the press reached Rust, and this
         // proves the answer came back. A press that logs one and not the other localises the
         // fault immediately.
-        await listen<boolean>('mute:input', (muted) => {
+        await subscribe<boolean>('mute:input', (muted) => {
             info(`SelfController: mute:input echo -> ${muted}`);
             this.state.sync({ muted });
         });
-        await listen<boolean>('mute:output', (deafened) => {
+        await subscribe<boolean>('mute:output', (deafened) => {
             info(`SelfController: mute:output echo -> ${deafened}`);
             this.state.sync({ deafened });
         });
-        await listen<boolean>('ptt:active', (down) => this.state.hold(down));
+        await subscribe<boolean>('ptt:active', (down) => this.state.hold(down));
         // Settings, a Stream Deck and a hotkey all write the same setting, and the mic
         // button is a hold in one mode and a toggle in the other. Read once at start-up it
         // goes stale the first time anything changes it.
-        await listen<ConfiguredVoiceMode>('voice-mode:changed', (mode) => {
+        await subscribe<ConfiguredVoiceMode>('voice-mode:changed', (mode) => {
             info(`SelfController: voice mode -> ${mode}`);
             this.state.sync({ mode: mode === 'pushToTalk' ? 'ptt' : 'activated' });
         });
-        await listen<unknown>('recording:started', () =>
+        await subscribe<unknown>('recording:started', () =>
             this.state.sync({ recording: true }, performance.now()),
         );
-        await listen<unknown>('recording:stopped', () => this.state.sync({ recording: false }));
+        await subscribe<unknown>('recording:stopped', () => this.state.sync({ recording: false }));
     }
 
     /**
@@ -290,12 +319,6 @@ export class SelfController {
     }
 
     cleanup(): void {
-        if (this.probe) {
-            clearInterval(this.probe);
-            this.probe = null;
-        }
-        for (const off of this.unlisteners) off();
-        this.unlisteners = [];
-        this.mic.stop();
+        this.detach();
     }
 }

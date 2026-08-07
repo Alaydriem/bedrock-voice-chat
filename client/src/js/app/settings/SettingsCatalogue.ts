@@ -13,6 +13,7 @@ export class SettingsCatalogue {
     static readonly all: readonly SettingsPane[] = [
         { id: "account", title: "Account", group: "", wide: false, desktopOnly: false },
         { id: "audio", title: "Audio settings", group: "", wide: false, desktopOnly: false },
+        { id: "players", title: "Players", group: "", wide: true, desktopOnly: false },
         { id: "recordings", title: "Recordings", group: "", wide: false, desktopOnly: true },
         { id: "library", title: "Audio library", group: "", wide: true, desktopOnly: false },
         { id: "keybinds", title: "Keybinds", group: "", wide: false, desktopOnly: true },

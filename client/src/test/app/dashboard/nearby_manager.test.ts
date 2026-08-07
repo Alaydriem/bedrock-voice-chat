@@ -33,18 +33,6 @@ vi.mock("@tauri-apps/api/webviewWindow", () => ({
 
 const { NearbyManager } = await import("../../../js/app/dashboard/NearbyManager");
 
-function store() {
-    const values: Record<string, unknown> = {};
-    return {
-        get: async (key: string) => values[key],
-        set: async (key: string, value: unknown) => {
-            values[key] = value;
-        },
-        save: async () => {},
-        values,
-    } as never as import("@tauri-apps/plugin-store").Store & { values: Record<string, unknown> };
-}
-
 function entry(name: string, distance: number, presence = "voice") {
     return { name, presence, bearing_deg: 90, distance, elevation: 0 };
 }
@@ -61,11 +49,12 @@ describe("NearbyManager", () => {
         sockets.length = 0;
         mockInvoke({
             api_websocket_ticket: () => ({ ticket: "abc", expires_in: 60 }),
+            player_settings_touch: () => null,
         });
     });
 
     it("offers the ticket as a subprotocol, because a browser cannot set a header", async () => {
-        const nearby = new NearbyManager(store());
+        const nearby = new NearbyManager();
         await nearby.start("https://voice.example.com", 48);
 
         expect(opened?.url).toBe("wss://voice.example.com/api/websocket/positions");
@@ -75,7 +64,7 @@ describe("NearbyManager", () => {
     });
 
     it("splits the roster from the ring at the server's own voice range", async () => {
-        const nearby = new NearbyManager(store());
+        const nearby = new NearbyManager();
         let inEarshot: readonly { name: string }[] = [];
         let approaching: readonly { name: string }[] = [];
         nearby.inEarshot.subscribe((v) => (inEarshot = v));
@@ -92,7 +81,7 @@ describe("NearbyManager", () => {
     });
 
     it("orders everyone nearest first, which is what the card split relies on", async () => {
-        const nearby = new NearbyManager(store());
+        const nearby = new NearbyManager();
         let all: readonly { distance: number }[] = [];
         nearby.players.subscribe((v) => (all = v));
 
@@ -108,7 +97,7 @@ describe("NearbyManager", () => {
     });
 
     it("keeps a silent player, because the feed reports them whether they talk or not", async () => {
-        const nearby = new NearbyManager(store());
+        const nearby = new NearbyManager();
         let all: readonly unknown[] = [];
         nearby.players.subscribe((v) => (all = v));
 
@@ -124,7 +113,7 @@ describe("NearbyManager", () => {
     });
 
     it("discards a snapshot that arrives after a newer one", async () => {
-        const nearby = new NearbyManager(store());
+        const nearby = new NearbyManager();
         let all: readonly { name: string }[] = [];
         nearby.players.subscribe((v) => (all = v));
 
@@ -148,7 +137,7 @@ describe("NearbyManager", () => {
     it("forgets the sequence when the socket is replaced", async () => {
         vi.useFakeTimers();
         try {
-            const nearby = new NearbyManager(store());
+            const nearby = new NearbyManager();
             let all: readonly { name: string }[] = [];
             nearby.players.subscribe((v) => (all = v));
 
@@ -181,20 +170,83 @@ describe("NearbyManager", () => {
     });
 
     it("records a player on first sight so their volume outlives them", async () => {
-        const s = store();
-        const nearby = new NearbyManager(s);
+        const nearby = new NearbyManager();
 
         await nearby.start("https://voice.example.com", 48);
         await deliver(1, [entry("minecraft:Petra", 10)]);
-        await vi.waitFor(() => expect(s.values["player_gain_store"]).toBeDefined());
+        await vi.waitFor(() =>
+            expect(invokeCalls().some((c) => c.cmd === "player_settings_touch")).toBe(true),
+        );
 
-        const gains = s.values["player_gain_store"] as Record<string, { last_seen?: number }>;
         // Keyed on the canonical identity, which is what the mixer's gain projection and the
-        // persisted store resolve against. A bare key here would write an entry that nothing
+        // settings store resolve against. A bare key here would stamp an entry that nothing
         // downstream ever looks up.
-        expect(gains["minecraft:Petra"]).toBeDefined();
-        expect(typeof gains["minecraft:Petra"].last_seen).toBe("number");
-        expect(gains["Petra"]).toBeUndefined();
+        const touches = invokeCalls().filter((c) => c.cmd === "player_settings_touch");
+        expect(touches.map((c) => (c.args as { cn: string }).cn)).toContain("minecraft:Petra");
+        expect(touches.map((c) => (c.args as { cn: string }).cn)).not.toContain("Petra");
+        nearby.stop();
+    });
+
+    /**
+     * Forgetting somebody from the settings pane deletes their row. Stamping only on arrival
+     * meant nothing wrote it back while they stayed in the feed, so deleting a player standing
+     * next to you removed them until they walked out of scope and returned — which reads as
+     * the delete having been permanent.
+     */
+    it("stamps a player again while they stay in the feed", async () => {
+        vi.useFakeTimers();
+        try {
+            const nearby = new NearbyManager();
+            const starting = nearby.start("https://voice.example.com", 48);
+            await vi.advanceTimersByTimeAsync(0);
+            await starting;
+
+            // Increasing, because the feed drops a snapshot that does not advance the sequence
+            // and every frame after the first would otherwise never reach the manager at all.
+            let seq = 0;
+            const send = () =>
+                sockets.at(-1)!.onmessage!({
+                    data: JSON.stringify({
+                        seq: (seq += 1),
+                        positions: [entry("minecraft:Petra", 10)],
+                    }),
+                });
+
+            const touches = () =>
+                invokeCalls().filter((c) => c.cmd === "player_settings_touch").length;
+
+            send();
+            await vi.advanceTimersByTimeAsync(0);
+            expect(touches()).toBe(1);
+
+            // Every 5s, well inside the 15s falloff, so they are never expired and re-added —
+            // which would prove nothing about the interval. Twelve frames is 60s of somebody
+            // standing still in front of you.
+            for (let frame = 0; frame < 12; frame += 1) {
+                await vi.advanceTimersByTimeAsync(5_000);
+                send();
+                await vi.advanceTimersByTimeAsync(0);
+            }
+
+            expect(touches()).toBe(2);
+            nearby.stop();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    // The whole point of moving the stamp behind a command: proximity must not reach
+    // `store.json`, where a write rewrites the auth token along with everything else.
+    it("does not write the settings store from the webview", async () => {
+        const nearby = new NearbyManager();
+
+        await nearby.start("https://voice.example.com", 48);
+        await deliver(1, [entry("minecraft:Petra", 10)]);
+        await vi.waitFor(() =>
+            expect(invokeCalls().some((c) => c.cmd === "player_settings_touch")).toBe(true),
+        );
+
+        expect(invokeCalls().map((c) => c.cmd)).not.toContain("update_stream_metadata");
         nearby.stop();
     });
 
@@ -205,7 +257,7 @@ describe("NearbyManager", () => {
      * empty for as long as that ran.
      */
     it("spends one ticket per socket", async () => {
-        const nearby = new NearbyManager(store());
+        const nearby = new NearbyManager();
         await nearby.start("https://voice.example.com", 48);
 
         expect(invokeCalls().filter((c) => c.cmd === "api_websocket_ticket")).toHaveLength(1);
@@ -222,7 +274,7 @@ describe("NearbyManager", () => {
                 }),
         });
 
-        const nearby = new NearbyManager(store());
+        const nearby = new NearbyManager();
         const starting = nearby.start("https://voice.example.com", 48);
         nearby.stop();
         release({ ticket: "abc", expires_in: 60 });
@@ -234,7 +286,7 @@ describe("NearbyManager", () => {
     });
 
     it("reports somebody in the world but not on voice", async () => {
-        const nearby = new NearbyManager(store());
+        const nearby = new NearbyManager();
         let all: readonly { presence: string }[] = [];
         nearby.players.subscribe((v) => (all = v));
 

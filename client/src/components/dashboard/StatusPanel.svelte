@@ -98,7 +98,10 @@
         const link = input && snapshot
             ? [...Diagnostics.groups(input), ...DiagnosticsView.extraGroups(snapshot)]
             : [];
-        grid.update([DiagnosticsView.voiceGroup(voice, selfMode), ...link]);
+        grid.update([
+            DiagnosticsView.voiceGroup(voice, selfMode, snapshot?.mic.capture_frames_per_sec),
+            ...link,
+        ]);
     });
 
     onDestroy(() => {

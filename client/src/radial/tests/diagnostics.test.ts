@@ -10,6 +10,7 @@ const healthy: DiagnosticsInput = {
   jitterDrops: 0,
   datagramsIn: 48,
   datagramsOut: 50,
+  capturing: 50,
   inputDevice: "Focusrite Scarlett 2i2",
   inputRate: 48000,
   outputDevice: "Sennheiser HD 560S",
@@ -184,6 +185,52 @@ describe("Diagnostics.groups", () => {
     const groups = Diagnostics.groups({ ...healthy, datagramsOut: 0 });
     const sending = groups[0].rows.find(([key]) => key === "Sending");
     assert.ok(sending?.[1].includes("nothing is going out"));
+  });
+
+  /*
+   * The sending figure was taken from every datagram this client sends, and position,
+   * presence, control and health traffic all leave over the same socket. It therefore read as
+   * a healthy microphone on a client capturing nothing at all, which is exactly the reading
+   * that sent a real dead-capture report the wrong way. Naming it audio is half the fix; the
+   * capture row below is the other half.
+   */
+  it("names the sending figure as audio rather than as all traffic", () => {
+    const sending = Diagnostics.groups(healthy)[0].rows.find(([key]) => key === "Sending");
+    assert.ok(sending?.[1].includes("audio datagrams/s"));
+  });
+
+  it("accuses the microphone only once capture has actually been measured", () => {
+    const unmeasured = Diagnostics.groups({ ...healthy, capturing: null })[0].rows.find(
+      ([key]) => key === "Capturing",
+    );
+    assert.ok(!unmeasured?.[1].includes("stopped"));
+    assert.ok(unmeasured?.[1].includes("not measured"));
+  });
+
+  it("points at the microphone when the device has stopped delivering", () => {
+    const stopped = Diagnostics.groups({ ...healthy, capturing: 0 })[0].rows.find(
+      ([key]) => key === "Capturing",
+    );
+    assert.ok(stopped?.[1].includes("←"));
+    assert.ok(stopped?.[1].includes("stopped"));
+  });
+
+  /*
+   * A dead capture device and a client sending nothing are different faults with different
+   * fixes, and the panel has to be able to show one without the other: capture stopping while
+   * the uplink keeps moving is the whole signature of the failure this row was added for.
+   */
+  it("reports capture separately from what reaches the network", () => {
+    const rows = Diagnostics.groups({ ...healthy, capturing: 0, datagramsOut: 50 })[0].rows;
+    assert.ok(rows.find(([key]) => key === "Capturing")?.[1].includes("stopped"));
+    assert.ok(!rows.find(([key]) => key === "Sending")?.[1].includes("nothing is going out"));
+  });
+
+  it("reports a live capture rate without an accusation", () => {
+    const live = Diagnostics.groups({ ...healthy, capturing: 49.6 })[0].rows.find(
+      ([key]) => key === "Capturing",
+    );
+    assert.equal(live?.[1], "50 frames/s");
   });
 
   it("marks a non-standard QUIC port as a fallback", () => {

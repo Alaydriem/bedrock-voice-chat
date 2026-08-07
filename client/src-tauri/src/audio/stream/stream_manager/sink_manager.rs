@@ -13,6 +13,7 @@ use tokio::task::JoinHandle;
 use crate::audio::recording::RecordingProducer;
 use crate::audio::stream::ActivityUpdate;
 use crate::audio::stream::jitter_buffer::{EncodedAudioFramePacket, JitterBuffer, PanState};
+use crate::audio::stream::level_bus::LoudnessTracker;
 use crate::audio::stream::stream_manager::audio_sink::AudioSink;
 use crate::audio::stream::stream_manager::mono_to_panned::MonoToPanned;
 use crate::diagnostics::{PeerRegistry, PeerRoute, PlayerReceiveStats};
@@ -143,33 +144,34 @@ impl SinkManager {
         spatial_config: SpatialAudioConfig,
         panning_intensity: f32,
         peer_registry: Arc<PeerRegistry>,
+        levels: Arc<crate::audio::stream::level_bus::LevelBus>,
     ) -> Self {
         // Create activity streaming channel
         let (activity_tx, activity_rx) = flume::unbounded::<ActivityUpdate>();
 
-        // Spawn activity streaming task
-        let app_handle_clone = app_handle.clone();
+        // Peer activity folded into the shared bus rather than emitted from here.
+        //
+        // This used to be a second emitter on its own 100 ms timer, publishing `audio-activity`
+        // alongside the capture path's `audio-input-level`. Two webview messages every tenth of
+        // a second, for information that is always read together — and on Android each of those
+        // is a unit of main-thread work competing with the rendering of the very meters they
+        // feed. Now the levels are collected here and one publisher decides when they are worth
+        // a message.
+        //
+        // The trackers are held per peer so a steady voice stops changing its step. Without
+        // them a peer sitting on a boundary would flip between two values every frame, and a
+        // changed value is what buys a message.
+        let bus = levels.clone();
         tokio::spawn(async move {
-            let mut batch_timer = tokio::time::interval(Duration::from_millis(100));
-            let mut current_activities = std::collections::HashMap::new();
+            let mut trackers: std::collections::HashMap<String, LoudnessTracker> =
+                std::collections::HashMap::new();
 
-            loop {
-                tokio::select! {
-                    // Collect activity updates
-                    Ok(update) = activity_rx.recv_async() => {
-                        current_activities.insert(update.player_name.clone(), update.rms_level);
-                    }
-
-                    // Batch and stream every 100ms
-                    _ = batch_timer.tick() => {
-                        if !current_activities.is_empty() {
-                            if let Err(e) = app_handle_clone.emit("audio-activity", &current_activities) {
-                                log::warn!("Failed to emit audio activity: {}", e);
-                            }
-                            current_activities.clear(); // Reset for next batch
-                        }
-                    }
-                }
+            while let Ok(update) = activity_rx.recv_async().await {
+                let tracker = trackers.entry(update.player_name.clone()).or_default();
+                // A peer's frame reaching the mixer at all is a frame that was decoded and
+                // played, so it is audible by construction; only the amplitude is in question.
+                let level = tracker.observe(update.rms_level, update.rms_level > 0.0);
+                bus.set_peer(update.player_name, level);
             }
         });
 
@@ -448,8 +450,6 @@ impl SinkManager {
 
     pub async fn stop(&mut self) {
         self.shutdown.store(true, Ordering::Relaxed);
-
-        tokio::time::sleep(Duration::from_millis(500)).await;
 
         for (_, bundle) in self.sinks.iter() {
             if let Some(h) = &bundle.normal_handle {

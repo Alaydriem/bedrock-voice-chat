@@ -312,6 +312,15 @@ impl NetworkStreamManager {
         }
     }
 
+    /// Discards audio captured for a connection that is going away, returning how much went.
+    ///
+    /// Nothing else empties this queue: the sending end is an `Arc` clone held by whichever
+    /// input stream the audio manager currently has, and rebuilding that stream does not touch
+    /// what it already sent.
+    pub fn drain_outbound(&self) -> usize {
+        self.consumer.drain().count()
+    }
+
     pub async fn reset(&mut self) -> Result<(), anyhow::Error> {
         self.clear_connection_identity();
         self.health_manager.stop();

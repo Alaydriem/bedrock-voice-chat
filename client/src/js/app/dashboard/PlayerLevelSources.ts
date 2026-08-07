@@ -1,18 +1,37 @@
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-import type { UnlistenFn } from '@tauri-apps/api/event';
-import { warn } from '@tauri-apps/plugin-log';
+import { LevelFeed } from './LevelFeed';
 import type { LevelSource } from '$radial/core/sources/LevelSource';
 import { PushLevelSource } from '$radial/core/sources/LevelSource';
-import { LevelScale } from '$radial/core/sources/LevelScale';
+import type { LevelSnapshot } from '../../bindings/LevelSnapshot';
+import { LevelSteps } from './LevelSteps';
 import GameNameUtils from '../utils/GameNameUtils';
 
+/** Whether levels are reaching this window, and what your own last measured. */
+export interface MicActivity {
+    /** Whether the underlying subscription is registered. */
+    readonly attached: boolean;
+    readonly events: number;
+    /** Snapshots that arrived and could not be handled. Never the same fault as none arriving. */
+    readonly failures: number;
+    readonly eventsPerSecond: number;
+    /** Your own level, 0 to 1. */
+    readonly lastRms: number;
+    /** Milliseconds since the last snapshot, or null if none has ever arrived. */
+    readonly silentForMs: number | null;
+}
+
 /**
- * One level source per speaker, from the `audio-activity` event.
+ * One level source per speaker, from the shared `audio-levels` event.
  *
- * The event carries only the players who produced audio in the last batch, and the map is
- * cleared each time — so a player going quiet is reported by their absence rather than by a
- * zero. A meter left at its last value reads as somebody still talking, which is the one
- * thing it must never say, so silence decays here.
+ * Your own is one of them. It used to be a second mechanism entirely — its own subscription,
+ * its own push source, owned by the controller and rebuilt whenever a reconnect replaced it —
+ * and the two did not behave the same: the roster's meters moved and the pill's did not.
+ * Nothing about `own` justifies a separate path; it is another entry in the same snapshot, so
+ * it is served from the same object, with the same lifetime and the same subscription.
+ *
+ * The event carries everyone the backend currently knows about, so a player who went quiet is
+ * reported as not speaking rather than by absence — but absence still has to mean silence,
+ * because a peer who leaves stops appearing at all. A meter left at its last value reads as
+ * somebody still talking, which is the one thing it must never say, so silence decays here.
  *
  * Sources are created on demand and kept: a card that is remounted while its player is still
  * around should pick up the same source rather than start from nothing, and a handful of
@@ -26,19 +45,21 @@ export class PlayerLevelSources {
 
     private readonly sources = new Map<string, PushLevelSource>();
     private readonly seenAt = new Map<string, number>();
-    private unlisten: UnlistenFn | null = null;
+    private readonly ownSource = new PushLevelSource();
+    private unlisten: (() => void) | null = null;
     private sweep: ReturnType<typeof setInterval> | null = null;
+    private received = 0;
+    private failures = 0;
+    private lastOwn = 0;
+    private lastPush = 0;
+    private startedAt = 0;
 
     async start(): Promise<void> {
         this.stop();
-        try {
-            this.unlisten = await getCurrentWebviewWindow().listen<Record<string, number>>(
-                'audio-activity',
-                (event) => this.receive(event.payload),
-            );
-        } catch (e) {
-            warn(`PlayerLevelSources: could not listen for activity: ${e}`);
-        }
+        this.received = 0;
+        this.failures = 0;
+        this.startedAt = performance.now();
+        this.unlisten = LevelFeed.shared().subscribe((snapshot) => this.receive(snapshot));
 
         this.sweep = setInterval(() => this.decay(), PlayerLevelSources.SWEEP_MS);
     }
@@ -60,14 +81,58 @@ export class PlayerLevelSources {
         return source;
     }
 
-    private receive(activity: Record<string, number>): void {
+    /** Your own microphone, for the pill. The same object for the life of this instance. */
+    own(): LevelSource {
+        return this.ownSource;
+    }
+
+    /**
+     * Proof of life for the level feed, for the diagnostics readout.
+     *
+     * Counted here rather than in a second reader, so the number the panel prints is the one
+     * belonging to the object that actually drives the meters. A count kept somewhere else can
+     * disagree with them, and did.
+     */
+    get activity(): MicActivity {
+        const elapsed = this.startedAt ? (performance.now() - this.startedAt) / 1000 : 0;
+        return {
+            attached: this.unlisten !== null && LevelFeed.shared().attached,
+            events: this.received,
+            failures: this.failures,
+            eventsPerSecond: elapsed > 0 ? this.received / elapsed : 0,
+            lastRms: this.lastOwn,
+            silentForMs: this.lastPush ? performance.now() - this.lastPush : null,
+        };
+    }
+
+    private receive(snapshot: LevelSnapshot): void {
         const now = performance.now();
-        for (const [name, level] of Object.entries(activity)) {
+        const present = new Set<string>();
+
+        // Counted before any work, so a snapshot that could not be handled is never mistaken
+        // for one that never came.
+        this.received += 1;
+        this.lastPush = now;
+        try {
+            this.lastOwn = LevelSteps.toLevel(snapshot.own);
+            this.ownSource.push(this.lastOwn);
+        } catch {
+            this.failures += 1;
+        }
+
+        for (const [name, level] of Object.entries(snapshot.peers)) {
             const key = GameNameUtils.canonical(name);
+            present.add(key);
+            if (!level.speaking) continue;
             this.seenAt.set(key, now);
-            // Scaled for the same reason your own meter is: a linear RMS spends its whole
-            // range on levels nobody produces.
-            (this.for(key) as PushLevelSource).push(LevelScale.fromRms(level));
+            (this.for(key) as PushLevelSource).push(LevelSteps.toLevel(level));
+        }
+
+        // Anyone the backend no longer lists has gone, and their meter has to be told. The
+        // decay below would get there eventually; doing it here stops a departed player's card
+        // holding a level for the length of the silence window.
+        for (const [key, source] of this.sources) {
+            if (!present.has(key) && source.level !== 0) source.push(0);
         }
     }
 
@@ -91,5 +156,6 @@ export class PlayerLevelSources {
             this.sweep = null;
         }
         for (const source of this.sources.values()) source.push(0);
+        this.ownSource.push(0);
     }
 }

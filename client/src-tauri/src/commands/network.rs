@@ -25,6 +25,7 @@ pub(crate) async fn stop_network_stream(
 #[tauri::command]
 #[tracing::instrument(skip(state, network_stream, data, analytics), fields(server = %server))]
 pub(crate) async fn change_network_stream(
+    app: tauri::AppHandle,
     server: String,
     data: LoginResponse,
     state: State<'_, Mutex<AppState>>,
@@ -154,6 +155,14 @@ pub(crate) async fn change_network_stream(
             return Err(format!("QUIC_FAIL: {}", detail));
         }
     };
+
+    // Per-player volumes are keyed `(server, cn)`, so the projection the mixer holds belongs
+    // to whichever server was current before this. Re-seeded here, at the one place that
+    // authoritatively changes `AppState.current_server`, rather than from a particular
+    // navigation in the webview — that way the cold start, a reconnect and any future switch
+    // path all get it without each having to remember.
+    drop(network_stream);
+    crate::players::PlayerSettingsCoordinator::reseed(&app).await;
 
     Ok(())
 }

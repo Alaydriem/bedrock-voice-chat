@@ -34,4 +34,15 @@ impl PlayerGainSettings {
             last_seen: None,
         }
     }
+
+    /// Whether the user has made a decision about this player, as opposed to merely having
+    /// been near them.
+    ///
+    /// `last_seen` is deliberately not part of the answer. Proximity stamps every player who
+    /// walks past, so counting a stamp as a decision would make the Players pane's default
+    /// view the entire server. It also decides what the pruner may drop: a stamp expires, a
+    /// decision never does.
+    pub fn is_adjusted(&self) -> bool {
+        self.gain != 1.0 || self.muted
+    }
 }

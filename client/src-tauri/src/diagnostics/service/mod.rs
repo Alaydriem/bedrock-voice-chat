@@ -57,6 +57,10 @@ pub struct LinkDiagnosticsService {
     // window — and an on-demand read from a command or a report must not consume a tick's worth of
     // any of those.
     latest: StdMutex<Option<LinkDiagnosticsSnapshot>>,
+    // The count of meter messages published to the webview. Reported rather than assumed:
+    // without it, a change that halves that traffic and a change that does nothing look
+    // identical from outside the process.
+    levels: Arc<crate::audio::LevelBus>,
     shutdown: Arc<AtomicBool>,
 }
 
@@ -70,6 +74,7 @@ impl LinkDiagnosticsService {
         config: Arc<SessionConfig>,
         peers: Arc<PeerRegistry>,
         devices: Arc<DeviceInfo>,
+        levels: Arc<crate::audio::LevelBus>,
     ) -> Self {
         Self {
             quic_stats,
@@ -79,6 +84,7 @@ impl LinkDiagnosticsService {
             config,
             peers,
             devices,
+            levels,
             ring: StdMutex::new(SampleRing::new()),
             last: StdMutex::new(CounterReadings::default()),
             stall: StdMutex::new(StallState::default()),
@@ -97,6 +103,7 @@ impl LinkDiagnosticsService {
         config: Arc<SessionConfig>,
         peers: Arc<PeerRegistry>,
         devices: Arc<DeviceInfo>,
+        levels: Arc<crate::audio::LevelBus>,
     ) -> Arc<Self> {
         Arc::new(Self::new(
             quic_stats,
@@ -106,6 +113,7 @@ impl LinkDiagnosticsService {
             config,
             peers,
             devices,
+            levels,
         ))
     }
 
@@ -227,6 +235,9 @@ impl LinkDiagnosticsService {
             at: Some(now),
             datagrams_sent: self.transport.datagrams_sent(),
             datagrams_received: self.transport.datagrams_received(),
+            audio_frames_sent: self.transport.frames_sent(),
+            meter_events: self.levels.emitted(),
+            frames_captured: self.input.frames_captured(),
             frames_with_signal: self.input.frames_with_signal(),
             packets_sent: quic.packets_sent(),
             packets_received: quic.packets_received(),
@@ -284,13 +295,23 @@ impl LinkDiagnosticsService {
 
         let sent_delta = Self::delta(current.datagrams_sent, previous.datagrams_sent);
         let received_delta = Self::delta(current.datagrams_received, previous.datagrams_received);
+        let audio_sent_delta = Self::delta(current.audio_frames_sent, previous.audio_frames_sent);
+        let captured_delta = Self::delta(current.frames_captured, previous.frames_captured);
+        let meter_delta = Self::delta(current.meter_events, previous.meter_events);
         let signal_delta = Self::delta(current.frames_with_signal, previous.frames_with_signal);
         let quic_sent_delta = Self::delta(current.packets_sent, previous.packets_sent);
         let quic_received_delta = Self::delta(current.packets_received, previous.packets_received);
         let quic_lost_delta = Self::delta(current.packets_lost, previous.packets_lost);
 
-        let send_rate = Self::rate(sent_delta, elapsed);
+        let send_rate = Self::rate(audio_sent_delta, elapsed);
+        // Absent rather than zero on the tick that has nothing to diff against. Reported as a
+        // measurement it would accuse the capture device of being dead every time a client
+        // connects, one tick before the first real reading contradicts it.
+        let capture_rate = previous
+            .at
+            .map(|_| Self::rate(captured_delta, elapsed));
         let recv_rate = Self::rate(received_delta, elapsed);
+        let meter_rate = Self::rate(meter_delta, elapsed);
         let uplink_loss_pct = Self::ratio_pct(quic_lost_delta, quic_sent_delta);
 
         // Downlink from the server's own sequence, over the window rather than cumulatively, so a
@@ -376,6 +397,7 @@ impl LinkDiagnosticsService {
 
         LinkDiagnosticsSnapshot {
             captured_at_ms: sample.at_ms,
+            meter_events_per_sec: meter_rate,
             mic: MicDiagnostics {
                 device: devices.input_name,
                 sample_rate: devices.input_sample_rate,
@@ -384,6 +406,7 @@ impl LinkDiagnosticsService {
                     signal_delta > 0,
                 ),
                 muted: input_muted,
+                capture_frames_per_sec: capture_rate,
                 datagrams_per_sec: send_rate,
             },
             playback: PlaybackDiagnostics {

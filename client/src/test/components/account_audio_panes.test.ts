@@ -154,6 +154,25 @@ describe("AudioPane", () => {
         expect(view.text()).toContain("Noise gate");
     });
 
+    /**
+     * The picker asks a question it never answered: whether the device you chose is the one
+     * BVC hears, and whether anything comes out of the one you listen on. Setup proves both
+     * and the pane you are sent to afterwards proved neither.
+     *
+     * On mobile too, where there is nothing to pick — the OS chose the route, and the test is
+     * the only way to find out what it chose.
+     */
+    it("offers both halves of the device test, mobile included", async () => {
+        const view = mount(AudioPane, { mobile: true });
+        await waitFor(() => expect(view.text()).toContain("Test your devices"));
+        expect(view.text()).toContain("Test my microphone");
+
+        const playback = [...view.host.querySelectorAll<HTMLButtonElement>("button")].find((b) =>
+            b.textContent?.includes("Test playback"),
+        );
+        expect(playback).toBeDefined();
+    });
+
     // A bare slider says nothing about where it is set, and the thing it governs is only
     // audible with two people in earshot — so the readout is the only feedback there is.
     it("reads out where the panning slider is set", async () => {

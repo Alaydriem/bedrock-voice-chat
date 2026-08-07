@@ -48,7 +48,7 @@ beforeEach(() => {
 describe("SettingsScreen", () => {
     it("lists every pane on desktop", async () => {
         const view = mount();
-        await waitFor(() => expect(view.navItems()).toHaveLength(9));
+        await waitFor(() => expect(view.navItems()).toHaveLength(10));
         expect(view.groupHeads().map((el) => el.textContent)).toContain("Minecraft Bedrock");
     });
 
@@ -57,7 +57,7 @@ describe("SettingsScreen", () => {
     it("drops the panes the mobile build does not have", async () => {
         platformName = "android";
         const view = mount();
-        await waitFor(() => expect(view.navItems()).toHaveLength(7));
+        await waitFor(() => expect(view.navItems()).toHaveLength(8));
         const labels = view.navItems().map((el) => el.textContent?.trim());
         expect(labels).not.toContain("Recordings");
         expect(labels).not.toContain("Keybinds");
@@ -84,7 +84,7 @@ describe("SettingsScreen", () => {
 
     it("navigates to a pane rather than swapping it in place", async () => {
         const view = mount();
-        await waitFor(() => expect(view.navItems()).toHaveLength(9));
+        await waitFor(() => expect(view.navItems()).toHaveLength(10));
         view.navItems().find((el) => el.textContent?.includes("Keybinds"))?.click();
         expect(onnavigate).toHaveBeenCalledWith("keybinds");
     });
@@ -93,7 +93,7 @@ describe("SettingsScreen", () => {
     // screen that is not there.
     it("shows an X at the section list and an arrow inside a pane", async () => {
         const view = mount();
-        await waitFor(() => expect(view.navItems()).toHaveLength(9));
+        await waitFor(() => expect(view.navItems()).toHaveLength(10));
         expect(view.backIcon()).toBe("close");
 
         view.navItems()[1]?.click();
@@ -102,7 +102,7 @@ describe("SettingsScreen", () => {
 
     it("climbs to the section list before it leaves", async () => {
         const view = mount();
-        await waitFor(() => expect(view.navItems()).toHaveLength(9));
+        await waitFor(() => expect(view.navItems()).toHaveLength(10));
         view.navItems()[1]?.click();
         await waitFor(() => expect(view.backIcon()).toBe("back"));
         onclose.mockClear();
@@ -119,7 +119,7 @@ describe("SettingsScreen", () => {
     // level to climb and nothing to close back to.
     it("leaves outright from the standalone route", async () => {
         const view = mount({ standalone: true });
-        await waitFor(() => expect(view.navItems()).toHaveLength(9));
+        await waitFor(() => expect(view.navItems()).toHaveLength(10));
         view.backButton()?.click();
         expect(onclose).toHaveBeenCalledTimes(1);
     });

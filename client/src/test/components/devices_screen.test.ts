@@ -59,8 +59,9 @@ describe("DevicesScreen", () => {
    */
   it("distinguishes a microphone it cannot open from a quiet one", () => {
     render(DevicesScreen, { props: props({ available: false }) });
+    // One caption, not two. There was a mono-caps line under this saying the same thing again
+    // — and because the two changed together, every state change was two chances to reflow.
     expect(screen.getByText(/cannot open that microphone/i)).toBeInTheDocument();
-    expect(screen.getByText("NO INPUT")).toBeInTheDocument();
     expect(screen.queryByText(/say something/i)).not.toBeInTheDocument();
   });
 
@@ -72,7 +73,7 @@ describe("DevicesScreen", () => {
   it("plays a chime through the chosen output device", async () => {
     const ontestspeaker = vi.fn().mockResolvedValue(true);
     render(DevicesScreen, { props: props({ ontestspeaker }) });
-    await userEvent.click(screen.getByRole("button", { name: /test speaker/i }));
+    await userEvent.click(screen.getByRole("button", { name: /test playback/i }));
     expect(ontestspeaker).toHaveBeenCalledOnce();
   });
 
@@ -83,7 +84,7 @@ describe("DevicesScreen", () => {
     const ontestspeaker = vi.fn(() => new Promise<boolean>((r) => (release = r)));
     render(DevicesScreen, { props: props({ ontestspeaker }) });
 
-    await userEvent.click(screen.getByRole("button", { name: /test speaker/i }));
+    await userEvent.click(screen.getByRole("button", { name: /test playback/i }));
     const playing = screen.getByRole("button", { name: /playing/i });
     expect(playing).toBeDisabled();
 
@@ -93,7 +94,7 @@ describe("DevicesScreen", () => {
   it("says so when the chosen output device cannot be played", async () => {
     const ontestspeaker = vi.fn().mockResolvedValue(false);
     render(DevicesScreen, { props: props({ ontestspeaker }) });
-    await userEvent.click(screen.getByRole("button", { name: /test speaker/i }));
+    await userEvent.click(screen.getByRole("button", { name: /test playback/i }));
     expect(await screen.findByRole("alert")).toHaveTextContent(/could not play/i);
   });
 

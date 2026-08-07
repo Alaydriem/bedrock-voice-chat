@@ -74,6 +74,7 @@ impl Connector {
         // Bring up the QUIC stream through the production command rather than a
         // private reimplementation so DNS resolution and restart stay in sync.
         crate::commands::network::change_network_stream(
+            handle.clone(),
             config.server.clone(),
             login.clone(),
             handle.state::<Mutex<AppState>>(),

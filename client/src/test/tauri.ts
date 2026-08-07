@@ -63,6 +63,19 @@ vi.mock("@tauri-apps/api/webviewWindow", () => ({
     }),
 }));
 
+/**
+ * App events, for the same reason as the webview above.
+ *
+ * `listen` reads `window.__TAURI_INTERNALS__.transformCallback` and throws without it, so a
+ * component that subscribes to an app event rejects inside its own `onMount` and takes the
+ * mount with it. Silent by default: a test that needs to drive an event declares its own
+ * `vi.mock` for this module, which wins over this one.
+ */
+vi.mock("@tauri-apps/api/event", () => ({
+    listen: async () => () => {},
+    emit: async () => {},
+}));
+
 vi.mock("@tauri-apps/plugin-log", () => ({
     info: vi.fn(),
     warn: vi.fn(),

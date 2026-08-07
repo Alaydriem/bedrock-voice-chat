@@ -52,9 +52,9 @@ pub(crate) async fn change_audio_device(
         (input, output)
     };
 
-    // Phase 2: Reset and init/start streams (asm lock only)
+    // Phase 2: init/start streams (asm lock only). `init` stops and rebuilds each stream with its
+    // device, so a reset first would build two device-less streams that are never started.
     let mut asm_active = asm.lock().await;
-    _ = asm_active.reset().await;
 
     // Input device: init, start, fallback to default on failure
     asm_active.init(input_device.clone()).await;
@@ -155,6 +155,13 @@ pub(crate) async fn change_audio_device(
     drop(asm_active);
     let _ = update_current_player(app.clone(), asm.clone()).await;
 
+    // Rebuilding the output stream constructs a fresh, empty `GainProjection`, and the
+    // preserved metadata cache does not carry it — the `player_gain_store` arm hands the store
+    // straight to the projection and never caches it. Without this re-seed every player the
+    // user muted becomes audible again for the rest of the session while their card still says
+    // muted. Only after the lock is released: `publish` takes it itself.
+    crate::players::PlayerSettingsCoordinator::reseed(&app).await;
+
     Ok(())
 }
 
@@ -172,9 +179,21 @@ pub(crate) async fn update_stream_metadata(
 }
 
 #[tauri::command]
-pub(crate) async fn reset_asm(asm: State<'_, Mutex<AudioStreamManager>>) -> Result<(), ()> {
-    let mut asm = asm.lock().await;
-    _ = asm.reset().await;
+pub(crate) async fn reset_asm(
+    app: AppHandle,
+    asm: State<'_, Mutex<AudioStreamManager>>,
+) -> Result<(), ()> {
+    {
+        let mut asm = asm.lock().await;
+        _ = asm.restart_session().await;
+    }
+
+    // A reset builds a new output stream with an empty gain projection. Every caller today
+    // happens to be followed by something that re-seeds — a cold boot, or a sign-out that ends
+    // the session — so this is currently belt and braces. It is here anyway because relying on
+    // that sequencing is exactly the shape of the bug that made every mute stop applying after
+    // an output-device change.
+    crate::players::PlayerSettingsCoordinator::reseed(&app).await;
     Ok(())
 }
 
@@ -401,17 +420,27 @@ pub(crate) async fn get_current_players(
 /// This can be called by the frontend after receiving an audio-stream-recovery event
 #[tauri::command]
 pub(crate) async fn restart_audio_stream(
+    app: AppHandle,
     device: AudioDeviceType,
     asm: State<'_, Mutex<AudioStreamManager>>,
 ) -> Result<(), String> {
     info!("Restarting audio stream for {:?}", device);
-    let mut asm = asm.lock().await;
+    let restarted = {
+        let mut asm = asm.lock().await;
+        asm.restart(device.clone()).await.map_err(|e| {
+            let err_msg = format!("Failed to restart audio stream: {:?}", e);
+            log::error!("{}", err_msg);
+            err_msg
+        })
+    };
+    restarted?;
 
-    asm.restart(device).await.map_err(|e| {
-        let err_msg = format!("Failed to restart audio stream: {:?}", e);
-        log::error!("{}", err_msg);
-        err_msg
-    })
+    // A restarted output stream carries a fresh, empty gain projection. Re-seeded outside the
+    // lock, because `publish` acquires it.
+    if matches!(device, AudioDeviceType::OutputDevice) {
+        crate::players::PlayerSettingsCoordinator::reseed(&app).await;
+    }
+    Ok(())
 }
 
 /// Capture only to drive the level meter on the setup screen. Emits
@@ -421,6 +450,18 @@ pub(crate) async fn restart_audio_stream(
 /// its preselected value from. The stream manager keeps its own copy and has none until
 /// `init`, so metering the selection means handing it over rather than assuming the
 /// manager already knows it.
+/// Whether a session capture stream is already running.
+///
+/// The settings meter asks this before starting one of its own. Inferring it from the arrival
+/// of level events cost a live capture every time somebody opened the audio pane once levels
+/// stopped being published on a fixed clock.
+#[tauri::command]
+pub(crate) async fn input_capture_active(
+    asm: State<'_, Mutex<AudioStreamManager>>,
+) -> Result<bool, String> {
+    Ok(asm.lock().await.input_capture_active())
+}
+
 #[tauri::command]
 pub(crate) async fn start_input_meter(
     state: State<'_, Mutex<AppState>>,

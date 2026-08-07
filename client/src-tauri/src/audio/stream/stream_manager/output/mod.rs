@@ -1,5 +1,6 @@
 mod router;
 
+use super::JobSet;
 use super::sink_manager::SinkManager;
 use crate::audio::recording::RecordingProducer;
 use crate::audio::stream::RecoverySender;
@@ -36,7 +37,7 @@ use std::{
     time::Duration,
 };
 
-use tokio::task::{AbortHandle, JoinHandle};
+use tokio::task::JoinHandle;
 
 /// Global mute state for output stream
 pub(crate) static MUTE_OUTPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
@@ -46,7 +47,7 @@ pub(crate) struct OutputStream {
     sink: AudioOutputSink,
     pub bus: Arc<flume::Receiver<AudioPacket>>,
     players: Arc<moka::sync::Cache<String, PlayerEnum>>,
-    jobs: Vec<AbortHandle>,
+    jobs: JobSet,
     shutdown: Arc<AtomicBool>,
     pub metadata: Arc<Cache<String, String>>,
     app_handle: tauri::AppHandle,
@@ -60,6 +61,9 @@ pub(crate) struct OutputStream {
     gain: Arc<GainProjection>,
     recording_producer: Option<Arc<RecordingProducer>>,
     player_gain_cache: Arc<moka::sync::Cache<String, PlayerGainSettings>>,
+    // Peer meter levels go here rather than out of the mixer directly; one publisher owns
+    // every webview message about levels.
+    levels: Arc<crate::audio::stream::level_bus::LevelBus>,
     peer_registry: Arc<crate::diagnostics::PeerRegistry>,
     session_config: Arc<crate::diagnostics::SessionConfig>,
     recording_active: Option<Arc<AtomicBool>>,
@@ -119,22 +123,21 @@ impl common::traits::StreamTrait for OutputStream {
     }
 
     async fn stop(&mut self) -> Result<(), anyhow::Error> {
+        if self.jobs.is_empty() && self.sink_manager.is_none() {
+            return Ok(());
+        }
+
         _ = self.shutdown.store(true, Ordering::Relaxed);
 
         if let Some(sink_manager) = self.sink_manager.as_mut() {
             sink_manager.stop().await;
         }
 
-        // Give existing jobs 500ms to clear
-        _ = tokio::time::sleep(Duration::from_millis(500)).await;
-
-        // Then hard terminate them
-        for job in &self.jobs {
-            job.abort();
+        if !self.jobs.settle(Self::STOP_GRACE).await {
+            warn!("Output stream jobs did not finish within the grace window; aborting them.");
         }
 
         info!("Output stream has been stopped.");
-        self.jobs = vec![];
 
         Ok(())
     }
@@ -184,13 +187,16 @@ impl common::traits::StreamTrait for OutputStream {
             }
         };
 
-        self.jobs = jobs.iter().map(|handle| handle.abort_handle()).collect();
+        self.jobs = JobSet::from(jobs);
 
         Ok(())
     }
 }
 
 impl OutputStream {
+    /// How long a stop waits for its own jobs before killing them. A backstop, not a schedule.
+    const STOP_GRACE: Duration = Duration::from_millis(500);
+
     pub fn new(
         device: Option<AudioDevice>,
         sink: AudioOutputSink,
@@ -201,6 +207,7 @@ impl OutputStream {
         recording_active: Option<Arc<AtomicBool>>,
         recovery_tx: RecoverySender,
         peer_registry: Arc<crate::diagnostics::PeerRegistry>,
+        levels: Arc<crate::audio::stream::level_bus::LevelBus>,
         session_config: Arc<crate::diagnostics::SessionConfig>,
         #[cfg(feature = "bedrock-protocol")] beacon_cache: Option<Arc<JukeboxBeaconCache>>,
         #[cfg(feature = "bedrock-protocol")] eject_injector: Option<Arc<JukeboxEjectInjector>>,
@@ -228,7 +235,7 @@ impl OutputStream {
             sink,
             bus,
             players: Arc::new(players),
-            jobs: vec![],
+            jobs: JobSet::empty(),
             shutdown: Arc::new(AtomicBool::new(false)),
             metadata,
             app_handle: app_handle.clone(),
@@ -240,6 +247,7 @@ impl OutputStream {
             recording_producer,
             player_gain_cache: Arc::new(player_gain_cache),
             peer_registry,
+            levels,
             session_config,
             recording_active,
             recovery_tx,
@@ -410,6 +418,7 @@ impl OutputStream {
             spatial_config,
             panning_intensity,
             self.peer_registry.clone(),
+            self.levels.clone(),
         );
 
         self.sink_manager = Some(sink_manager);

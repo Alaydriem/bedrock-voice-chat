@@ -12,3 +12,6 @@ pub(crate) mod server_error;
 // `LinkDiagnosticsSnapshot`, lives in `common` so ts-rs can export it — leaving the module with
 // nothing but this line.
 pub const LINK_DIAGNOSTICS: &str = "link_diagnostics";
+
+/// Everyone's voice activity, self and peers, in one message.
+pub const AUDIO_LEVELS: &str = "audio-levels";

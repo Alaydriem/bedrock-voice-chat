@@ -1,5 +1,6 @@
 import { get } from "svelte/store";
 import { describe, expect, it } from "vitest";
+import { PlayerHue } from "$radial/core/sources/PlayerHue";
 import { GroupsView } from "../../../js/app/dashboard/GroupsView";
 import type { Channel } from "../../../js/bindings/Channel";
 
@@ -8,20 +9,27 @@ function channel(id: string, name: string, players: string[], creator = "Alaydri
 }
 
 describe("GroupsView", () => {
-    // The signal that replaced the level meter. The server routes a channel's audio to its
-    // members alone, so a client outside one has nothing to measure — who is in it, and who of
-    // them can be heard, is what can be said honestly.
-    it("dims a member this client cannot currently hear", () => {
+    // The cluster's whole job is saying who is in there, and its faces are 22px. Initials do
+    // that; the block glyph the cards carry does not survive the size.
+    it("takes a face's letters from word initials where there are words", () => {
         const view = new GroupsView();
         const rows = view.rows(
-            [channel("raid", "Raid party", ["minecraft:Petra", "minecraft:Juno"])],
+            [channel("raid", "Raid party", ["minecraft:Some Gamer", "minecraft:Sombra"])],
             null,
-            new Set(["minecraft:Petra"]),
         );
 
         const members = get(rows)[0].members;
-        expect(members.find((m) => m.gamertag === "Petra")?.audible).toBe(true);
-        expect(members.find((m) => m.gamertag === "Juno")?.audible).toBe(false);
+        expect(members.find((m) => m.gamertag === "Some Gamer")?.initials).toBe("SG");
+        expect(members.find((m) => m.gamertag === "Sombra")?.initials).toBe("SO");
+    });
+
+    // One player is one colour everywhere. The card derives its hue from the lowercased CN, so
+    // a face derived from anything else would give the same person two identities on one screen.
+    it("hues a face from the same key a player's card uses", () => {
+        const view = new GroupsView();
+        const rows = view.rows([channel("raid", "Raid", ["minecraft:Petra"])], null);
+
+        expect(get(rows)[0].members[0].hue).toBe(PlayerHue.of("minecraft:petra"));
     });
 
     it("marks the group this client is in", () => {
@@ -29,7 +37,6 @@ describe("GroupsView", () => {
         const rows = view.rows(
             [channel("raid", "Raid party", []), channel("build", "Build", [])],
             "build",
-            new Set(),
         );
 
         expect(get(rows).map((r) => r.joined)).toEqual([false, true]);
@@ -40,7 +47,7 @@ describe("GroupsView", () => {
     it("stirs a row on a join and stops on its own", () => {
         const view = new GroupsView();
         view.stir("raid");
-        const rows = view.rows([channel("raid", "Raid party", [])], null, new Set());
+        const rows = view.rows([channel("raid", "Raid party", [])], null);
 
         expect(get(rows)[0].stirring).toBe(true);
         expect(get(rows)[0].activeAt).not.toBeNull();
@@ -48,7 +55,7 @@ describe("GroupsView", () => {
 
     it("says nothing about activity for a group nothing has happened in", () => {
         const view = new GroupsView();
-        const rows = view.rows([channel("quiet", "Quiet", [])], null, new Set());
+        const rows = view.rows([channel("quiet", "Quiet", [])], null);
 
         expect(get(rows)[0].activeAt).toBeNull();
         expect(get(rows)[0].stirring).toBe(false);
@@ -62,7 +69,6 @@ describe("GroupsView", () => {
         const rows = view.rows(
             [channel("mine", "Mine", [], "minecraft:Alaydriem"), channel("theirs", "Theirs", [], "minecraft:Petra")],
             null,
-            new Set(),
             "minecraft:Alaydriem",
         );
 
@@ -78,7 +84,6 @@ describe("GroupsView", () => {
         const rows = view.rows(
             [channel("theirs", "Theirs", [], "hytale:Alaydriem")],
             null,
-            new Set(),
             "minecraft:Alaydriem",
         );
 
@@ -89,16 +94,16 @@ describe("GroupsView", () => {
     // every client the close button on every group.
     it("owns nothing when this client's name is unknown", () => {
         const view = new GroupsView();
-        const rows = view.rows([channel("mine", "Mine", [], "minecraft:Alaydriem")], null, new Set());
+        const rows = view.rows([channel("mine", "Mine", [], "minecraft:Alaydriem")], null);
 
         expect(get(rows)[0].owned).toBe(false);
     });
 
-    it("carries the CN form so a member's glyph matches their card", () => {
+    it("carries the CN form so a member's hue matches their card", () => {
         const view = new GroupsView();
         // Membership arrives in both forms depending on its path; the bare one has to be
-        // promoted or the glyph is derived from a different string than the card's.
-        const rows = view.rows([channel("raid", "Raid", ["Petra"])], null, new Set());
+        // promoted or the hue is derived from a different string than the card's.
+        const rows = view.rows([channel("raid", "Raid", ["Petra"])], null);
 
         expect(get(rows)[0].members[0].name).toBe("minecraft:Petra");
     });

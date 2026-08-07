@@ -60,7 +60,7 @@
 
 <SettingRow
     label="Cut my mic when I am not speaking"
-    note="Runs on this machine. Nothing below the gate is ever encoded."
+    note="Runs on this machine. Anything it filters out is never encoded or sent."
 >
     {#snippet control()}
         <Toggle

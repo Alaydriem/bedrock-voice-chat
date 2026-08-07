@@ -281,7 +281,8 @@ export default class BVCApp {
         }
 
         await this.cleanup();
+        // Stops the network side too, in the one order that leaves neither shared queue holding
+        // audio for the session being torn down.
         await invoke("reset_asm");
-        await invoke("reset_nsm");
     }
 }

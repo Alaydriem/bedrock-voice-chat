@@ -29,6 +29,13 @@
   </head>
 
   <body data-sveltekit-preload-data="tap">
+    <!-- Everything above this line is head parsing and the render-blocking preloader
+         stylesheet, which no bundle code is around to time. BootTimeline reads this back as
+         its first phase. -->
+    <script>
+      window.__bvcBodyAt = performance.now();
+    </script>
+
     <!-- App preloader: markup only. Styling lives in
          static/preloader/app-preloader.css, hand-written.
 

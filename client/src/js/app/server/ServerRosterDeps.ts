@@ -23,4 +23,6 @@ export interface ServerRosterDeps {
     readonly credentials: (server: string) => Promise<LoginResponse>;
     /** Whether the saved certificate has expired. Local, so it costs nothing to ask before navigating. */
     readonly isCertificateExpired: (server: string) => Promise<boolean>;
+    /** Whether device setup has been finished. A store read, so no server or certificate is needed to ask. */
+    readonly isSetupComplete: () => Promise<boolean>;
 }

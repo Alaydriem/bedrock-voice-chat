@@ -192,7 +192,6 @@ export default class Login extends BVCApp {
     }
 
     await invoke('reset_asm').catch(() => {});
-    await invoke('reset_nsm').catch(() => {});
 
     await this.initialize();
     this.preloader();

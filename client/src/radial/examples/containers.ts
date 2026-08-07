@@ -271,6 +271,7 @@ if (kvHost) {
         jitterDrops: 0,
         datagramsIn: Math.round(46 + Math.random() * 5),
         datagramsOut: Math.round(48 + Math.random() * 4),
+        capturing: 50,
         inputDevice: "Focusrite Scarlett 2i2",
         inputRate: 48000,
         outputDevice: "Sennheiser HD 560S",

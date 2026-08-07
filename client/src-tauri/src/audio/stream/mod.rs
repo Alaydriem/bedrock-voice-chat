@@ -1,5 +1,7 @@
 mod activity_detector;
+pub(crate) mod capture_watchdog;
 pub mod jitter_buffer;
+pub(crate) mod level_bus;
 pub(crate) mod stream_manager;
 
 use crate::NetworkPacket;
@@ -25,6 +27,7 @@ use tauri::async_runtime::Mutex as TauriMutex;
 use tokio::sync::mpsc;
 
 use super::AudioPacket;
+use capture_watchdog::{CaptureVerdict, CaptureWatchdog};
 use stream_manager::{AudioInputSource, AudioOutputSink, StreamTrait, StreamTraitType};
 
 pub(crate) use activity_detector::ActivityUpdate;
@@ -50,6 +53,10 @@ pub(crate) struct AudioStreamManager {
     recording_manager: Option<Arc<TauriMutex<RecordingManager>>>,
     recovery_tx: RecoverySender,
     recovery_rx: Option<mpsc::UnboundedReceiver<StreamRecoveryEvent>>,
+    capture_watchdog_started: bool,
+    // Every meter's state, and the only thing that publishes any of it to the webview.
+    levels: Arc<level_bus::LevelBus>,
+    level_publisher_started: bool,
     // Created here and shared with every stream this manager builds, so a device change or a
     // restart keeps writing into the same counters a diagnostic is already reading.
     input_stats: Arc<crate::diagnostics::InputPipelineStats>,
@@ -84,6 +91,22 @@ impl AudioStreamManager {
 
     pub fn session_config(&self) -> Arc<crate::diagnostics::SessionConfig> {
         self.session_config.clone()
+    }
+
+    /// Whether the session's own capture stream is running right now.
+    ///
+    /// Asked rather than inferred. The settings meter used to decide this by waiting to see
+    /// whether level events arrived, which stopped being sound the moment levels were only
+    /// published on change: a quiet room and a dead capture then look identical, and guessing
+    /// wrong costs a live stream — `start_input_metering` runs `init`, which tears the session
+    /// capture down and rebuilds it with no network sender attached.
+    pub fn input_capture_active(&self) -> bool {
+        self.input.capture_expected()
+    }
+
+    /// The meter bus, for the diagnostics service to report its published-message count.
+    pub fn levels(&self) -> Arc<level_bus::LevelBus> {
+        self.levels.clone()
     }
 
     /// Creates a new audio stream manager
@@ -146,6 +169,7 @@ impl AudioStreamManager {
         let input_stats = Arc::new(crate::diagnostics::InputPipelineStats::new());
         let peer_registry = crate::diagnostics::PeerRegistry::new_shared();
         let session_config = Arc::new(crate::diagnostics::SessionConfig::new());
+        let levels = level_bus::LevelBus::new_shared();
 
         Self {
             producer: producer.clone(),
@@ -160,6 +184,7 @@ impl AudioStreamManager {
                 None,
                 recovery_tx.clone(),
                 input_stats.clone(),
+                levels.clone(),
                 #[cfg(feature = "bedrock-protocol")]
                 player_state_cache.clone(),
             )),
@@ -173,6 +198,7 @@ impl AudioStreamManager {
                 None,
                 recovery_tx.clone(),
                 peer_registry.clone(),
+                levels.clone(),
                 session_config.clone(),
                 #[cfg(feature = "bedrock-protocol")]
                 beacon_cache.clone(),
@@ -187,6 +213,9 @@ impl AudioStreamManager {
             recording_manager,
             recovery_tx,
             recovery_rx: Some(recovery_rx),
+            capture_watchdog_started: false,
+            levels: levels.clone(),
+            level_publisher_started: false,
             input_stats,
             peer_registry,
             session_config,
@@ -231,10 +260,124 @@ impl AudioStreamManager {
         }
     }
 
+    /// How often the watchdog reads the capture counter.
+    const CAPTURE_POLL: std::time::Duration = std::time::Duration::from_secs(1);
+
+    /// Consecutive reads with no new frames before the capture stream is rebuilt.
+    ///
+    /// A healthy stream advances the counter about fifty times per read, so three empty reads
+    /// are far outside any scheduling hiccup, and three seconds of silence is short enough that
+    /// the other side hears a gap rather than a person who left.
+    const CAPTURE_DEAD_AFTER: u32 = 3;
+
+    /// Rebuilds the capture stream when the device stops delivering without saying so.
+    ///
+    /// The error callback is the only other thing that notices a dead microphone, and it fires
+    /// on `StreamError` alone. A capture stream has more ways to stop than to fail — an endpoint
+    /// that disappears quietly, an audio focus a phone hands to another application, a callback
+    /// that stops being scheduled — and none of those raise one. The stream then stays running,
+    /// `is_stopped` stays false because its task handles are still alive, and the microphone is
+    /// dead until the application is restarted.
+    ///
+    /// Restarts here rather than by emitting to the frontend, which is what the error path does:
+    /// recovery that depends on a live webview is unavailable in exactly the conditions that
+    /// need it most, and routing both through the same event would restart the stream twice.
+    fn spawn_capture_watchdog(&mut self) {
+        if self.capture_watchdog_started {
+            return;
+        }
+        self.capture_watchdog_started = true;
+
+        let app_handle = self.app_handle.clone();
+        tokio::spawn(async move {
+            let mut watchdog = CaptureWatchdog::new(Self::CAPTURE_DEAD_AFTER);
+            let mut ticker = tokio::time::interval(Self::CAPTURE_POLL);
+            // Without this a suspended process wakes to a burst of backdated ticks, every one of
+            // them reading the same counter, and declares a device dead that was merely asleep.
+            ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+
+            loop {
+                ticker.tick().await;
+
+                let Some(state) = app_handle.try_state::<TauriMutex<AudioStreamManager>>() else {
+                    continue;
+                };
+
+                let mut asm = state.lock().await;
+                let verdict = watchdog.observe(
+                    asm.input.capture_expected(),
+                    asm.input_stats.frames_captured(),
+                );
+
+                if verdict != CaptureVerdict::Dead {
+                    continue;
+                }
+
+                log::warn!(
+                    "Capture stream delivered no frames for {}s and reported no error; rebuilding it",
+                    Self::CAPTURE_DEAD_AFTER as u64 * Self::CAPTURE_POLL.as_secs()
+                );
+                if let Err(e) = asm.restart(AudioDeviceType::InputDevice).await {
+                    log::error!("Capture watchdog could not rebuild the input stream: {:?}", e);
+                }
+            }
+        });
+    }
+
+    /// How often the publisher looks at the bus. Not how often it sends.
+    ///
+    /// Sampling is free — the bus is two atomics and a map — so this is set by how quickly a
+    /// press-to-talk should light the meter rather than by what the webview can carry. What
+    /// reaches the webview is decided by `LevelEmitPolicy`.
+    const LEVEL_POLL: std::time::Duration = std::time::Duration::from_millis(100);
+
+    /// The only thing that publishes meter levels to the webview.
+    ///
+    /// There were two, each on a fixed 100 ms timer: the capture path's `audio-input-level` and
+    /// the mixer's `audio-activity`. Twenty messages a second between them, whether or not
+    /// anything had changed. On Android every one of those is a unit of main-thread work —
+    /// dequeue, marshal a JavaScript string over JNI, evaluate it — on the same thread that
+    /// lays out and paints the meters they feed, so the meter was the first thing to starve
+    /// exactly when the most was happening.
+    ///
+    /// One emitter, sending on change instead of on a clock.
+    fn spawn_level_publisher(&mut self) {
+        if self.level_publisher_started {
+            return;
+        }
+        self.level_publisher_started = true;
+
+        let app_handle = self.app_handle.clone();
+        let levels = self.levels.clone();
+        tokio::spawn(async move {
+            let mut policy = level_bus::LevelEmitPolicy::new();
+            let mut ticker = tokio::time::interval(Self::LEVEL_POLL);
+            // A suspended process otherwise wakes to a burst of backdated ticks and publishes
+            // several times over for one state, which is the opposite of the point.
+            ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+
+            loop {
+                ticker.tick().await;
+
+                let snapshot = levels.snapshot();
+                if !policy.admit(std::time::Instant::now(), &snapshot) {
+                    continue;
+                }
+
+                match app_handle.emit(crate::events::event::AUDIO_LEVELS, &snapshot) {
+                    Ok(()) => levels.record_emitted(),
+                    Err(e) => log::warn!("Failed to emit audio levels: {}", e),
+                }
+            }
+        });
+    }
+
     /// Initializes a given input or output stream with a specific device, then starts it
     pub async fn init(&mut self, device: AudioDevice) {
         // Spawn recovery monitor on first init (now we're in async context)
         self.spawn_recovery_monitor();
+        self.spawn_capture_watchdog();
+        self.spawn_level_publisher();
 
         // Stop the current stream if we're re-initializing a new one so we don't
         // have dangling thread pointers
@@ -269,6 +412,7 @@ impl AudioStreamManager {
                     recording_flag.clone(),
                     self.recovery_tx.clone(),
                     self.input_stats.clone(),
+                    self.levels.clone(),
                     #[cfg(feature = "bedrock-protocol")]
                     self.player_state_cache.clone(),
                 ));
@@ -284,6 +428,7 @@ impl AudioStreamManager {
                     recording_flag,
                     self.recovery_tx.clone(),
                     self.peer_registry.clone(),
+                    self.levels.clone(),
                     self.session_config.clone(),
                     #[cfg(feature = "bedrock-protocol")]
                     self.beacon_cache.clone(),
@@ -330,6 +475,7 @@ impl AudioStreamManager {
                     recording_flag.clone(),
                     self.recovery_tx.clone(),
                     self.input_stats.clone(),
+                    self.levels.clone(),
                     #[cfg(feature = "bedrock-protocol")]
                     self.player_state_cache.clone(),
                 ));
@@ -345,6 +491,7 @@ impl AudioStreamManager {
                     recording_flag,
                     self.recovery_tx.clone(),
                     self.peer_registry.clone(),
+                    self.levels.clone(),
                     self.session_config.clone(),
                     #[cfg(feature = "bedrock-protocol")]
                     self.beacon_cache.clone(),
@@ -469,12 +616,63 @@ impl AudioStreamManager {
         Ok(status)
     }
 
+    /// Discards whatever the network has queued for the output device, returning how much went.
+    ///
+    /// The channel is created once at startup and every stream built here holds an `Arc` clone,
+    /// so replacing a stream leaves the queue as it was. At 20 ms a frame, its 10000 slots are
+    /// over three minutes of audio that would otherwise play at once.
+    pub fn drain_inbound(&self) -> usize {
+        self.consumer.drain().count()
+    }
+
+    /// Stops both sides in the order that leaves nothing queued behind them, then rebuilds.
+    ///
+    /// Each queue is drained only after the stream that fills it has stopped: the outbound queue
+    /// is fed by this manager's input stream, the inbound one by the network manager's. Draining
+    /// ahead of that clears nothing durable.
+    ///
+    /// Locks the network manager while holding this one. Nothing else takes both; if something
+    /// comes to, it must take them in this order.
+    pub async fn restart_session(&mut self) -> Result<(), Error> {
+        self.input.stop().await?;
+
+        let discarded_outbound = match self
+            .app_handle
+            .try_state::<TauriMutex<crate::network::NetworkStreamManager>>()
+        {
+            Some(nsm) => {
+                let mut nsm = nsm.lock().await;
+                nsm.reset().await?;
+                nsm.drain_outbound()
+            }
+            None => 0,
+        };
+
+        let discarded_inbound = self.drain_inbound();
+
+        self.output.stop().await?;
+
+        if discarded_outbound > 0 || discarded_inbound > 0 {
+            log::info!(
+                "Restart discarded {} outbound and {} inbound queued frames",
+                discarded_outbound,
+                discarded_inbound
+            );
+        }
+
+        self.rebuild_streams().await
+    }
+
     /// Resets the audio stream manager by stopping all streams and recreating them
     /// This is used when a full reset is needed (e.g., after page refresh)
     pub async fn reset(&mut self) -> Result<(), Error> {
         // Stop both streams concurrently
         let (_, _) = tokio::join!(self.input.stop(), self.output.stop());
 
+        self.rebuild_streams().await
+    }
+
+    async fn rebuild_streams(&mut self) -> Result<(), Error> {
         // Get recording producer and flag from manager if available
         let (recording_producer, recording_flag) = if let Some(ref rm) = self.recording_manager {
             let manager = rm.lock().await;
@@ -496,6 +694,7 @@ impl AudioStreamManager {
             recording_flag.clone(),
             self.recovery_tx.clone(),
             self.input_stats.clone(),
+            self.levels.clone(),
             #[cfg(feature = "bedrock-protocol")]
             self.player_state_cache.clone(),
         ));
@@ -511,6 +710,7 @@ impl AudioStreamManager {
             recording_flag,
             self.recovery_tx.clone(),
             self.peer_registry.clone(),
+            self.levels.clone(),
             self.session_config.clone(),
             #[cfg(feature = "bedrock-protocol")]
             self.beacon_cache.clone(),

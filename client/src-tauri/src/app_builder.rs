@@ -107,8 +107,54 @@ impl AppBuilder {
         // than constructed here so the writer and the diagnostic share one instance, and pulled out
         // before the move for the same reason as the two above.
         let session_config = audio_stream.session_config();
+        let level_bus = audio_stream.levels();
 
         app.manage(Mutex::new(audio_stream));
+
+        // Per-player volume and mute. Registered here rather than in `run()` because both the
+        // desktop app and the e2e harness need it: the in-game control actions and the
+        // control plane's preference report both resolve it out of managed state, and a
+        // binary without it silently applies no volumes at all.
+        //
+        // Kept out of `store.json` because that file holds the auth token and the server
+        // list, and `save()` rewrites all of it — so a player walking into earshot used to
+        // rewrite the token to disk.
+        // `BVC_PLAYER_SETTINGS_PATH` overrides the location. The e2e harness sets it per client,
+        // because every harness process shares one app identifier and therefore one path —
+        // redb takes an exclusive lock, so exactly one of a scenario's clients would get a real
+        // store and the rest would silently fall back to memory, nondeterministically.
+        let player_settings = match std::env::var_os("BVC_PLAYER_SETTINGS_PATH")
+            .map(|path| Ok(std::path::PathBuf::from(path)))
+            .unwrap_or_else(|| {
+                handle
+                    .path()
+                    .app_local_data_dir()
+                    .map(|dir| dir.join("player_settings.redb"))
+            }) {
+            Ok(path) => match crate::players::RedbBackend::open(&path) {
+                Ok(backend) => crate::players::PlayerSettingsService::new_shared(
+                    crate::players::PlayerSettings::Redb(backend),
+                ),
+                Err(cause) => {
+                    // Transient: locked, no permission, disk full. Run in memory so audio
+                    // still applies what the user sets this session, and leave the file alone
+                    // so nothing is lost once the condition clears.
+                    log::error!(
+                        "Player settings unavailable, running in memory this session: {cause}"
+                    );
+                    crate::players::PlayerSettingsService::new_memory_only()
+                }
+            },
+            Err(cause) => {
+                log::error!("No local data directory for player settings: {cause}");
+                crate::players::PlayerSettingsService::new_memory_only()
+            }
+        };
+        player_settings.clone().spawn_debounce();
+        app.manage(crate::players::PlayerSettingsCoordinator::new_shared(
+            player_settings.clone(),
+        ));
+        app.manage(player_settings);
 
         // Initialize WebSocketManager and register the broadcaster
         let ws_manager = crate::websocket::WebSocketManager::new(handle.clone());
@@ -190,6 +236,7 @@ impl AppBuilder {
             session_config,
             peer_registry,
             device_info,
+            level_bus,
         );
         diagnostics.clone().start(handle.clone());
         app.manage(diagnostics);

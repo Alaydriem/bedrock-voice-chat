@@ -1,3 +1,4 @@
+import { PlayerLevelSources } from "../../js/app/dashboard/PlayerLevelSources";
 import { render } from "@testing-library/svelte";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mockInvoke } from "../tauri";
@@ -13,7 +14,7 @@ const { SelfController } = await import("../../js/app/dashboard/SelfController")
 
 function controller() {
     mockInvoke({ mute_status: () => false, is_recording: () => false, set_mute: () => true });
-    return new SelfController({ get: async () => undefined } as never);
+    return new SelfController({ get: async () => undefined } as never, new PlayerLevelSources());
 }
 
 /**

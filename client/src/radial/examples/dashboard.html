@@ -48,6 +48,11 @@
             <button data-act="link" style="margin-left: 10px">Link: up</button>
             <button data-act="fault" style="margin-left: 10px">Fault: none</button>
             <button data-act="status" style="margin-left: 10px">Status</button>
+            <label style="margin-left: 10px">Chat target</label>
+            <button data-act="chat-target" data-target="in-game" aria-pressed="true">In game</button>
+            <button data-act="chat-target" data-target="only" aria-pressed="false">One world</button>
+            <button data-act="chat-target" data-target="choose" aria-pressed="false">Several</button>
+            <button data-act="chat-target" data-target="unavailable" aria-pressed="false">Off</button>
             <button data-act="reset" style="margin-left: 10px">Reset</button>
           </span>
           <span class="g-seg" data-g-device="dsh-frame">
@@ -168,8 +173,11 @@
                 <div class="rad-chat-dock">
                   <div class="rad-chat-history">
                     <div class="rad-chat__head">
-                      <span class="rad-label">Server chat</span>
-                      <span class="rad-status-chip rad-status-chip--live">Live</span>
+                      <button class="rad-chat-target is-static" data-chat-target data-rad-sheet-open="chat-worlds" aria-label="Where this message goes">
+                        <span class="rad-chat-target__name" data-chat-target-name>Server chat</span>
+                        <span class="rad-chat-target__caret" data-rad-icon="chev"></span>
+                      </button>
+                      <span class="rad-status-chip rad-status-chip--live" data-chat-status>Live</span>
                       <span class="rad-spacer"></span>
                       <button class="rad-icon-btn" data-chat-close aria-label="Close chat">
                         <span data-rad-icon="close"></span>
@@ -219,13 +227,21 @@
               <h4 class="rad-sheet__title">Groups</h4>
               <div class="rad-group-list" data-sheet-groups></div>
             </div>
+
+            <!-- Only reachable when the player is out of game and has been in more than
+                 one world. In game the target is not a choice, so this never opens. -->
+            <div class="rad-sheet" data-rad-sheet="chat-worlds">
+              <span class="rad-sheet__handle"></span>
+              <h4 class="rad-sheet__title">Post to</h4>
+              <div data-sheet-chat-worlds></div>
+            </div>
           </div>
         </div>
       </section>
 
       <section class="g-sec">
         <p class="g-sec__kick">Why it is shaped this way</p>
-        <h2 class="g-sec__title">Four decisions worth keeping</h2>
+        <h2 class="g-sec__title">Five decisions worth keeping</h2>
         <div class="g-grid" style="margin-top: 18px">
           <div class="g-item" style="margin-top: 0">
             <div class="g-item__head"><span class="g-item__name">the ring earns the empty state</span></div>
@@ -263,6 +279,19 @@
               <p class="g-sec__note" style="margin: 0">
                 Pull the list down on a phone, press the dial on desktop. Reconnect lives inside the
                 panel: pulling a list is exploratory and must never take an action on the connection.
+              </p>
+            </div>
+          </div>
+          <div class="g-item" style="margin-top: 0">
+            <div class="g-item__head"><span class="g-item__name">a choice only where there is one</span></div>
+            <div class="g-stage" style="padding: 18px 20px">
+              <p class="g-sec__note" style="margin: 0">
+                One server can host several worlds, so a message has to land in exactly one. Standing
+                in a world settles it and the target is plain text; out of game with one world there is
+                nothing to pick; only out of game with several does it become a button. Offering the
+                choice anywhere else can only put someone&rsquo;s message in front of the wrong people.
+                The world is named in the composer, not just the header, because the scrollback is shut
+                at the moment anyone decides what to type.
               </p>
             </div>
           </div>

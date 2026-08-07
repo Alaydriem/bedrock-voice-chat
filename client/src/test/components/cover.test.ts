@@ -34,6 +34,24 @@ function escape(): void {
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
 }
 
+/**
+ * Watches for the cover taking the pointer.
+ *
+ * The browser retargets a click to whichever element holds the pointer, so a capture taken
+ * on the press itself is the difference between a working button and a dead one. happy-dom
+ * has no capture of its own, hence the stand-in.
+ */
+function watchCapture() {
+    const taken = vi.fn();
+    Element.prototype.setPointerCapture = taken as never;
+    Element.prototype.releasePointerCapture = vi.fn() as never;
+    return taken;
+}
+
+function press(on: Element | null | undefined, y = 0): void {
+    on?.dispatchEvent(new MouseEvent("pointerdown", { clientY: y, bubbles: true }));
+}
+
 describe("Cover", () => {
     it("sits closed until it is opened", () => {
         const { cover, under, scrim } = mount({ open: false });
@@ -188,6 +206,43 @@ describe("Cover", () => {
 
         drag(slider, 0, 200);
         expect(ondismiss).not.toHaveBeenCalled();
+    });
+
+    // Every control on the settings screen is a button inside this cover. A press that takes
+    // the pointer sends the click to the cover instead of to the button, so the pane rendered
+    // and read correctly and nothing on it could be operated — including the close button.
+    it("leaves the pointer with a button that was pressed", () => {
+        const taken = watchCapture();
+        const { cover } = mount({ open: true });
+        const button = document.createElement("button");
+        cover()?.append(button);
+
+        press(button);
+        expect(taken).not.toHaveBeenCalled();
+    });
+
+    it("ignores a drag that began on a button", () => {
+        const ondismiss = vi.fn();
+        const { cover } = mount({ open: true, ondismiss });
+        const button = document.createElement("button");
+        cover()?.append(button);
+
+        drag(button, 0, 200);
+        expect(ondismiss).not.toHaveBeenCalled();
+    });
+
+    // The guard above names the controls it knows about. This is what covers the ones it does
+    // not — a label, a role=button, anything a pane invents later: until the gesture has
+    // travelled, the press still belongs to whatever was pressed.
+    it("does not take the pointer until the press has become a drag", () => {
+        const taken = watchCapture();
+        const { cover } = mount({ open: true });
+
+        press(cover());
+        expect(taken).not.toHaveBeenCalled();
+
+        cover()?.dispatchEvent(new MouseEvent("pointermove", { clientY: 60, bubbles: true }));
+        expect(taken).toHaveBeenCalledTimes(1);
     });
 
     it("ignores a drag while it is closed", () => {

@@ -19,7 +19,7 @@ describe("SettingsCatalogue", () => {
     });
 
     it("keeps every pane on desktop", () => {
-        expect(SettingsCatalogue.for(false)).toHaveLength(9);
+        expect(SettingsCatalogue.for(false)).toHaveLength(10);
     });
 
     // A deep link to a pane this build does not have must not resolve, or the router
@@ -51,6 +51,6 @@ describe("SettingsCatalogue", () => {
         const wide = SettingsCatalogue.for(false)
             .filter((pane) => pane.wide)
             .map((pane) => pane.id);
-        expect(wide.sort()).toEqual(["library", "proxy", "realms"]);
+        expect(wide.sort()).toEqual(["library", "players", "proxy", "realms"]);
     });
 });

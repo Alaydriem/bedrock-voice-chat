@@ -1,6 +1,5 @@
 <script lang="ts">
     import Icon from "$radial/components/Icon.svelte";
-    import ServerGlyph from "$radial/components/ServerGlyph.svelte";
     import { SwipeActions } from "$radial/core/controllers/SwipeActions";
     import { GroupsView } from "../../js/app/dashboard/GroupsView";
     import type { GroupRowView } from "../../js/app/dashboard/GroupRowView";
@@ -220,14 +219,15 @@
 
             <span class="rad-group-cluster">
                 {#each shown as member (member.name)}
+                    <!-- Letters rather than the block glyph the cards carry: at 22px a
+                         mirrored 5x5 pattern is a smudge, and the question this cluster
+                         answers is who is in there. -->
                     <span
                         class="rad-group-cluster__face"
-                        class:is-quiet={!member.audible}
+                        style="--face: {member.hue}"
                         title={member.gamertag}
                     >
-                        <span class="rad-server-id rad-group-cluster__id">
-                            <ServerGlyph name={member.name.toLowerCase()} size={22} />
-                        </span>
+                        {member.initials}
                     </span>
                 {/each}
                 {#if extra}

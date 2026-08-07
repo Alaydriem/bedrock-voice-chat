@@ -13,6 +13,7 @@ pub(crate) mod iap;
 pub(crate) mod keybinds;
 pub(crate) mod keyring;
 pub(crate) mod network;
+pub(crate) mod players;
 pub(crate) mod recordings;
 #[cfg(desktop)]
 pub(crate) mod updater;

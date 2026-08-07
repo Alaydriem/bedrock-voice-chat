@@ -67,6 +67,12 @@ tauri-plugin-os = { version = "^2" }
 once_cell = { version = "^1.21", features = ["atomic-polyfill"] }
 reqwest = { version = "0.12", features = ["rustls-tls", "json", "multipart"], default-features = false }
 nano-wal = { workspace = true }
+# Pinned exactly rather than floated. Precedent: nano-wal 1.0 shipped POSIX-only and broke the
+# Windows build, so a storage crate's minor version is not a safe range here. Pure Rust
+# deliberately — no C toolchain to cross-compile for Android and iOS, which is the same reason
+# SQLite and LMDB were both rejected for this. LMDB also pre-allocates its full map size on
+# Windows, which has no sparse files.
+redb = "=4.1.0"
 uuid = { version = "^1.18", features = ["v4", "v7"] }
 postcard = { version = "^1.0", features = ["alloc"] }
 bwavfile = { version = "2.0.1" }

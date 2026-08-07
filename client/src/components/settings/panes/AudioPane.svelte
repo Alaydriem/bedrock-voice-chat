@@ -4,8 +4,12 @@
     import SettingRow from "$radial/components/SettingRow.svelte";
     import StatusChip from "$radial/components/StatusChip.svelte";
     import AudioDeviceSelector from "../../audio/AudioDeviceSelector.svelte";
+    import MicMeter from "../../audio/MicMeter.svelte";
+    import PlaybackTest from "../../audio/PlaybackTest.svelte";
     import NoiseGate from "../NoiseGate.svelte";
     import { AudioSettingsManager } from "../../../js/app/managers/settings/AudioSettingsManager";
+    import { InputLevelProbe } from "../../../js/app/settings/InputLevelProbe";
+    import SpeakerTest from "../../../js/app/setup/SpeakerTest";
     import type { VoiceMode } from "../../../js/bindings/VoiceMode";
 
     interface Props {
@@ -14,10 +18,15 @@
     let { mobile = false }: Props = $props();
 
     const audio = new AudioSettingsManager();
+    const probe = new InputLevelProbe();
+    const speaker = new SpeakerTest();
 
     let voiceMode = $state<VoiceMode>("openMic");
     let voiceModeError = $state("");
     let panning = $state(100);
+    let inputLevel = $state(0);
+    let gateOpen = $state(false);
+    let meterAvailable = $state(true);
 
     const unsubs: Array<() => void> = [];
 
@@ -25,11 +34,16 @@
         unsubs.push(audio.voiceMode.subscribe((v) => (voiceMode = v)));
         unsubs.push(audio.voiceModeError.subscribe((v) => (voiceModeError = v)));
         unsubs.push(audio.panningIntensity.subscribe((v) => (panning = v)));
+        unsubs.push(probe.rms.subscribe((v) => (inputLevel = v)));
+        unsubs.push(probe.gateOpen.subscribe((v) => (gateOpen = v)));
+        unsubs.push(probe.available.subscribe((v) => (meterAvailable = v)));
         void audio.initialize();
+        void probe.start();
     });
 
     onDestroy(() => {
         for (const off of unsubs) off();
+        void probe.stop();
     });
 </script>
 
@@ -50,6 +64,30 @@
         {:else}
             <AudioDeviceSelector />
         {/if}
+    </div>
+
+    <!-- Directly under the picker, because it answers the question the picker raises. On a
+         phone there is nothing to pick and the test is the entire value of the card: the OS
+         chose the route and this is the only way to find out what it chose. -->
+    <div class="rad-card">
+        <div class="rad-card__head">Test your devices</div>
+
+        <SettingRow
+            label="Test my microphone"
+            note="Talk for a moment. The mark fills out as it hears you."
+            stack
+        >
+            <MicMeter level={inputLevel} speaking={gateOpen} available={meterAvailable} layout="card" />
+        </SettingRow>
+
+        <SettingRow
+            label="Test playback"
+            note="Plays a chime through the device you listen on, not through whatever the browser would pick."
+        >
+            {#snippet control()}
+                <PlaybackTest ontest={() => speaker.play()} />
+            {/snippet}
+        </SettingRow>
     </div>
 
     <div class="rad-card">

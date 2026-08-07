@@ -5,11 +5,15 @@
     import DashboardScreen from "../../components/dashboard/DashboardScreen.svelte";
     import StatusPanel from "../../components/dashboard/StatusPanel.svelte";
     import { SelfController } from "../../js/app/dashboard/SelfController";
+    import { PlayerLevelSources } from "../../js/app/dashboard/PlayerLevelSources";
 
     let statusOpen = $state(false);
     let { coverOpen = false } = $props();
 
-    const self = new SelfController({ get: async () => undefined } as never);
+    const self = new SelfController(
+        { get: async () => undefined } as never,
+        new PlayerLevelSources(),
+    );
     void invoke;
 </script>
 

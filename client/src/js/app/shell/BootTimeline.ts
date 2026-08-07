@@ -40,7 +40,17 @@ export class BootTimeline {
     }
 
     mark(name: string): void {
-        const at = performance.now();
+        this.markAt(name, performance.now());
+    }
+
+    /**
+     * Record a phase that finished before the bundle could measure it.
+     *
+     * The document is parsing and fetching for some time before any of this code exists, so
+     * that stretch can only be timed by something stashing a `performance.now()` on `window`
+     * and handing it over once there is a timeline to hand it to.
+     */
+    markAt(name: string, at: number): void {
         this.marks.push({ name, at, delta: at - this.last });
         this.last = at;
     }
@@ -80,6 +90,7 @@ export class BootTimeline {
                 ...lines,
                 `  ${'TOTAL'.padEnd(width)}  ${total.toFixed(0).padStart(6)} ms`,
                 ...BootTimeline.markResizeLines(),
+                ...BootTimeline.deliveryLines(),
                 '=====================',
             ].join('\n'),
         );
@@ -104,5 +115,39 @@ export class BootTimeline {
                 ? 'sized once, never resized'
                 : `RESIZED ${samples.length - 1} time(s) after first layout`;
         return ['', `  mark box — ${verdict}`, ...lines];
+    }
+
+    /**
+     * How the frontend arrived, and how long the document itself took.
+     *
+     * Printed on every timeline because a dev-server launch serves unbundled ES modules — one
+     * request per module — and an installed build serves a handful of pre-built chunks. The two
+     * are not comparable, and a timeline that does not say which one it is cannot be trusted
+     * against any other timeline. The request count is the tell: single digits is a build,
+     * hundreds is a dev server.
+     */
+    private static deliveryLines(): string[] {
+        const lines: string[] = [];
+
+        const requests = performance.getEntriesByType('resource').length;
+        const bundled = !import.meta.env.DEV;
+        lines.push(
+            '',
+            `  delivery — ${bundled ? 'bundled build' : 'DEV SERVER (not comparable to a build)'}`,
+            `    document requests      ${requests}`,
+        );
+
+        const nav = performance.getEntriesByType('navigation')[0] as
+            | PerformanceNavigationTiming
+            | undefined;
+        if (nav) {
+            lines.push(
+                `    responseEnd            ${nav.responseEnd.toFixed(0)} ms`,
+                `    domContentLoaded       ${nav.domContentLoadedEventEnd.toFixed(0)} ms`,
+                `    domComplete            ${nav.domComplete.toFixed(0)} ms`,
+            );
+        }
+
+        return lines;
     }
 }

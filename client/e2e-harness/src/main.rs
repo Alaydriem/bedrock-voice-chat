@@ -169,18 +169,47 @@ fn main() {
             // moment, so the orchestrator can assert the render trigger and the
             // state a card would show.
             let gain_handle = handle.clone();
+            // Serialises the snapshot-and-emit pairs below, so the orchestrator's single
+            // "latest store" slot cannot be moved backwards by a task that read earlier but
+            // finished later.
+            let gain_order = std::sync::Arc::new(tauri::async_runtime::Mutex::new(()));
             tauri::Listener::listen(
                 &handle.clone(),
                 bvc_client_lib::events::event::player_gain_store::PLAYER_GAIN_STORE_UPDATED,
                 move |_| {
-                    use tauri_plugin_store::StoreExt;
-                    let store_json = gain_handle
-                        .store("store.json")
-                        .ok()
-                        .and_then(|store| store.get("player_gain_store"))
-                        .map(|v| v.to_string())
-                        .unwrap_or_else(|| "{}".to_string());
-                    StdoutBridge::emit(&OutMsg::GainStoreUpdated { store_json });
+                    // Spawned, never blocked on. This callback runs on the async runtime's own
+                    // worker thread, and `block_on` there panics with "cannot start a runtime
+                    // from within a runtime". The panic is the dangerous part rather than the
+                    // lost emit: it unwinds while the event listener registry mutex is held,
+                    // poisoning it, after which every later emit in the process silently falls
+                    // into the pending queue and no Rust-side event is ever delivered again.
+                    // The orchestrator polls with a timeout, so emitting a moment later costs
+                    // nothing.
+                    let handle = gain_handle.clone();
+                    let order = gain_order.clone();
+                    tauri::async_runtime::spawn(async move {
+                        // Read and emit under one lock. Two events spawn two tasks, and
+                        // without this the slower one can publish an older snapshot after the
+                        // newer one — the orchestrator keeps only the latest, so it would sit
+                        // on stale state until the test timed out.
+                        let _ordered = order.lock().await;
+                        // Read from the settings service, which owns these now. The
+                        // projection is keyed on identity and scoped to the current server,
+                        // so this is the same shape and contents the mixer is handed.
+                        let store_json = match tauri::Manager::try_state::<
+                            std::sync::Arc<bvc_client_lib::players::PlayerSettingsCoordinator>,
+                        >(&handle)
+                        {
+                            Some(coordinator) => coordinator
+                                .store_for_current_server(&handle)
+                                .await
+                                .ok()
+                                .and_then(|gains| serde_json::to_string(&gains).ok())
+                                .unwrap_or_else(|| "{}".to_string()),
+                            None => "{}".to_string(),
+                        };
+                        StdoutBridge::emit(&OutMsg::GainStoreUpdated { store_json });
+                    });
                 },
             );
 

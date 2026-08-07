@@ -1,20 +1,21 @@
-use common::structs::audio::{PlayerGainSettings, PlayerGainStore};
+use std::sync::Arc;
+
 use common::Game;
 use common::structs::control::{ClientAction, ClientActionType};
 use log::warn;
+use tauri::Manager;
 use tauri::async_runtime::Mutex;
-use tauri::{Emitter, Manager};
-use tauri_plugin_store::StoreExt;
 
 use crate::audio::AudioActionsManager;
 use crate::audio::AudioStreamManager;
 use crate::audio::types::AudioDeviceType;
+use crate::players::PlayerSettingsCoordinator;
 
 /// Executes delivered `ClientAction`s against the real desktop managers. Self-state
 /// actions route through `AudioActionsManager` (mute/deafen/record); per-player
-/// preferences route through the same persisted `player_gain_store` path the
-/// dashboard UI uses. Group actions are applied server-side (the client learns via
-/// the existing `ChannelEvent`), so they are ignored here.
+/// preferences route through `PlayerSettingsCoordinator`, the same path the dashboard
+/// UI and the settings pane use. Group actions are applied server-side (the client
+/// learns via the existing `ChannelEvent`), so they are ignored here.
 pub struct ControlActionsManager {
     app_handle: tauri::AppHandle,
 }
@@ -123,93 +124,65 @@ impl ControlActionsManager {
         }
     }
 
-    /// Upsert one player's gain/mute into the persisted `player_gain_store` and feed
-    /// the `player_gain_store` metadata channel — the same path the dashboard UI
-    /// uses (the name→client-id remap + SinkManager update happen downstream). Reads
-    /// the whole store and upserts one entry, so other players' settings survive.
+    /// Applies one player's gain or mute through the same coordinator the settings pane and
+    /// the dashboard use.
+    ///
+    /// Routed through `PlayerSettingsCoordinator` rather than writing `store.json` directly,
+    /// so the in-game panel and the desktop UI cannot hold different opinions about the same
+    /// player. The coordinator owns the redb write, the mixer feed and the card nudge; the
+    /// only work left here is resolving what a game mod called somebody onto the key the rest
+    /// of the client uses.
     async fn set_gain(&self, target: &str, game: &Game, volume: Option<f32>, muted: Option<bool>) {
-        let store = match self.app_handle.store("store.json") {
-            Ok(s) => s,
-            Err(e) => {
-                warn!("ControlActionsManager: store unavailable for set_gain: {e}");
-                return;
-            }
+        let Some(coordinator) = self
+            .app_handle
+            .try_state::<Arc<PlayerSettingsCoordinator>>()
+            .map(|state| state.inner().clone())
+        else {
+            warn!("ControlActionsManager: player settings unavailable for set_gain");
+            return;
         };
 
-        let mut gains: PlayerGainStore = store
-            .get("player_gain_store")
-            .and_then(|v| serde_json::from_value(v).ok())
-            .unwrap_or_default();
-
-        // Currently tracked voice names are the authoritative key form; the
-        // existing store keys come second.
+        // Currently tracked voice names are the authoritative key form; the keys already in
+        // the store come second.
+        // Scoped so the guard is released before `coordinator.list` below, which takes the
+        // AppState lock. Nothing may hold the audio stream lock and then wait on AppState:
+        // `set_audio_device` already holds AppState while waiting on this one, so the reverse
+        // edge would complete a deadlock cycle.
         let tracked: Vec<String> = {
-            let asm = self.app_handle.state::<Mutex<AudioStreamManager>>();
+            let Some(asm) = self.app_handle.try_state::<Mutex<AudioStreamManager>>() else {
+                warn!("ControlActionsManager: no audio stream for set_gain");
+                return;
+            };
             let asm = asm.lock().await;
             asm.get_current_players().into_keys().collect()
         };
+        let known: Vec<String> = coordinator
+            .list(&self.app_handle)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|row| row.key.cn)
+            .collect();
         let candidates: Vec<&str> = tracked
             .iter()
             .map(String::as_str)
-            .chain(gains.0.keys().map(String::as_str))
+            .chain(known.iter().map(String::as_str))
             .collect();
         let target = Self::canonicalize_target(target, game, &candidates);
 
-        let entry = gains
-            .0
-            .entry(target.to_string())
-            .or_insert(PlayerGainSettings {
-                gain: 1.0,
-                muted: false,
-                last_seen: None,
-            });
         if let Some(v) = volume {
-            entry.gain = v;
-        }
-        if let Some(m) = muted {
-            entry.muted = m;
-        }
-
-        let serialized = match serde_json::to_string(&gains) {
-            Ok(s) => s,
-            Err(e) => {
-                warn!("ControlActionsManager: serialize player_gain_store failed: {e}");
+            if let Err(e) = coordinator.set_gain(&self.app_handle, &target, v).await {
+                warn!("ControlActionsManager: set_gain failed for {target}: {e}");
                 return;
             }
-        };
-
-        if let Ok(value) = serde_json::to_value(&gains) {
-            store.set("player_gain_store", value);
-            let _ = store.save();
+        }
+        if let Some(m) = muted {
+            if let Err(e) = coordinator.set_muted(&self.app_handle, &target, m).await {
+                warn!("ControlActionsManager: set_muted failed for {target}: {e}");
+                return;
+            }
         }
 
-        // The dashboard's player cards read the store reactively only on its own
-        // writes; nudge them so a control-plane change renders, not just plays.
-        // The payload is the canonical target — the store is the source of
-        // truth, but a named payload traces cleanly in device logs.
-        self.app_handle
-            .emit(
-                crate::events::event::player_gain_store::PLAYER_GAIN_STORE_UPDATED,
-                &target,
-            )
-            .ok();
-
-        // The name→client-id remap that drives the SinkManager lives in the
-        // OUTPUT stream's metadata handler (playback gains); the input stream
-        // has no player_gain_store arm — feeding it there parks the update in a
-        // cache and no audio ever changes. Same device the dashboard UI targets.
-        let asm = self.app_handle.state::<Mutex<AudioStreamManager>>();
-        let mut asm = asm.lock().await;
-        if let Err(e) = asm
-            .metadata(
-                "player_gain_store".to_string(),
-                serialized,
-                &AudioDeviceType::OutputDevice,
-            )
-            .await
-        {
-            warn!("ControlActionsManager: player_gain_store metadata feed failed: {e}");
-        }
         log::debug!(
             "ControlActionsManager: gain applied target={target} volume={volume:?} muted={muted:?}"
         );

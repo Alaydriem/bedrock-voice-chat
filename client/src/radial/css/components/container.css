@@ -88,10 +88,20 @@
   color: var(--color-rad-faint);
 }
 
+/*
+  A fixed share of the row rather than whatever the control happens to measure.
+  
+  Sized by its contents, every control that changes width moved the boundary between the two
+  columns — and the label and note beside it re-wrapped to suit. A button whose text goes from
+  "Test playback" to "Playing…" reflowed the paragraph next to it and bounced the whole card.
+  Fixed at a proportion, nothing a control does can move the text, so the wrap points are the
+  same in every state.
+*/
 .rad-row__control {
-  flex: 0 0 auto;
+  flex: 0 0 38%;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 10px;
 }
 
@@ -521,11 +531,13 @@
   color: var(--color-rad-faint);
 }
 
+/* Wraps rather than clips. A value here is not always a number: the diagnostics rows carry a
+   sentence saying what is wrong, and an ellipsis cut it off at "no events  ← the cap…", which
+   hides the half that names the fault. A long value costs a second line; a clipped one is
+   unreadable. `anywhere` is for the values with no spaces to break at, such as a host name. */
 .rad-kv__value {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
   text-align: right;
   color: var(--color-rad-dim);
   font-variant-numeric: tabular-nums;
@@ -560,7 +572,10 @@
     gap: 12px;
   }
 
+  /* Stacked at this width, so the column share no longer applies and the control takes the
+     row. */
   .rad-row__control {
+    flex: 1 1 auto;
     justify-content: flex-start;
   }
 
@@ -584,6 +599,25 @@
   .rad-kv-grid {
     grid-template-columns: minmax(0, 1fr);
     gap: 16px;
+  }
+
+  /*
+    Several of these values are sentences, and the half that names the fault is at the end —
+    "no events <- the capture stream is not running", "on, closed <- this is cutting your mic".
+    Ellipsised from the right on a narrow screen, every one of them was cut to the half that
+    says nothing, on the device where the reader has no other way to find out.
+  */
+  .rad-kv {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+  }
+
+  .rad-kv__value {
+    overflow: visible;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: left;
   }
 
   .rad-section__head {

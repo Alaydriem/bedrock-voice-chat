@@ -1,5 +1,6 @@
 import { AnimationLoop } from "../core/canvas/AnimationLoop";
 import { Surface } from "../core/canvas/Surface";
+import { RestGate } from "../core/canvas/RestGate";
 import { Visibility } from "../core/canvas/Visibility";
 import { MarkData } from "../core/mark/MarkData";
 import { MarkRenderer } from "../core/mark/MarkRenderer";
@@ -36,6 +37,25 @@ export interface LevelMeterOptions {
  * substance behind the blocks.
  */
 export class LevelMeterBinding implements Binding {
+  /**
+   * How long the height takes to reach a louder reading, and to fall back from one.
+   *
+   * Attack is short because a voice starting has to look immediate; release is longer because
+   * the gaps between syllables are shorter than the gaps between messages, and a meter that
+   * collapsed into every one of them would flicker rather than read as speech.
+   */
+  static readonly ATTACK_MS = 70;
+  static readonly RELEASE_MS = 260;
+
+  /**
+   * At or below this the mark is drawn at its floor, held still.
+   *
+   * `gain` is clamped up to it and `still` is set from it, so every level under it produces
+   * byte-identical pixels — which is what makes skipping the redraw safe rather than merely
+   * cheap.
+   */
+  static readonly REST = 0.05;
+
   readonly canvas: HTMLCanvasElement;
 
   #surface: Surface;
@@ -43,6 +63,20 @@ export class LevelMeterBinding implements Binding {
   #cell = 3;
   #gap = 0.8;
   #level = 0;
+  /**
+   * Where the level is heading, as last reported.
+   *
+   * The mark already dances every frame off the animation clock; what arrives from a source is
+   * only its amplitude, and that arrives a couple of times a second rather than sixty. Snapping
+   * to it makes a meter that moves continuously but changes height in visible jerks, so the
+   * height is eased and the dance carries the frames in between.
+   *
+   * Nothing here is invented: the target is always a measured level, and a meter told to be
+   * still still goes still. Easing only decides how quickly it gets there.
+   */
+  #target = 0;
+  #lastFrame = 0;
+  #rest = new RestGate();
   #live = false;
   #stop: (() => void) | null = null;
   #unsubscribe: Unsubscribe | null = null;
@@ -61,15 +95,22 @@ export class LevelMeterBinding implements Binding {
     }
 
     this.#unsubscribe = options.source?.subscribe((level) => {
-      this.#level = level;
+      this.#target = level;
     }) ?? null;
 
     this.#stop = (options.loop ?? AnimationLoop.shared()).add((t) => this.#paint(t));
   }
 
-  /** Drive the meter directly when there is no LevelSource to subscribe to. */
+  /**
+   * Drive the meter directly when there is no LevelSource to subscribe to.
+   *
+   * Snaps rather than eases. A caller setting this frame by frame is already choosing the
+   * shape, and easing on top of that would fight it.
+   */
   set level(value: number) {
-    this.#level = value < 0 ? 0 : value > 1 ? 1 : value;
+    const clamped = value < 0 ? 0 : value > 1 ? 1 : value;
+    this.#level = clamped;
+    this.#target = clamped;
   }
 
   get level(): number {
@@ -78,15 +119,22 @@ export class LevelMeterBinding implements Binding {
 
   set color(value: string | "rainbow") {
     this.#options.color = value;
+    // A resting meter has nothing about its level left to change, so without this the new
+    // colour would not appear until somebody spoke.
+    this.#rest.invalidate();
   }
 
   /** Replace the source, e.g. when a player card is reused for someone else. */
   setSource(source: LevelSource | null): void {
     this.#unsubscribe?.();
     this.#unsubscribe = source?.subscribe((level) => {
-      this.#level = level;
+      this.#target = level;
     }) ?? null;
-    if (!source) this.#level = 0;
+    if (!source) {
+      this.#level = 0;
+      this.#target = 0;
+    }
+    this.#rest.invalidate();
   }
 
   destroy(): void {
@@ -99,15 +147,49 @@ export class LevelMeterBinding implements Binding {
     this.#surface.destroy();
   }
 
+  /**
+   * Move the drawn height towards the reported one, in real time rather than per frame.
+   *
+   * Framerate-independent on purpose: a phone dropping to thirty frames a second would
+   * otherwise take twice as long to reach the same height, which is exactly the device where
+   * the meter is already the least convincing.
+   */
+  #ease(t: number): void {
+    const elapsed = this.#lastFrame ? Math.min(100, t - this.#lastFrame) : 16;
+    this.#lastFrame = t;
+    if (elapsed <= 0) return;
+
+    const rising = this.#target > this.#level;
+    const constant = rising ? LevelMeterBinding.ATTACK_MS : LevelMeterBinding.RELEASE_MS;
+    // Exponential approach, so the step is proportional to what is left to cover and the
+    // height never overshoots however long a frame took.
+    const k = 1 - Math.exp(-elapsed / constant);
+    this.#level += (this.#target - this.#level) * k;
+
+    // Settle exactly, or a meter told to be silent keeps drawing a hairline forever and the
+    // `still` floor never engages.
+    if (Math.abs(this.#target - this.#level) < 0.002) this.#level = this.#target;
+  }
+
   #measure(): void {
     const cell = CssNumber.read(this.canvas, "--rad-meter-cell", this.#options.cell ?? 3);
     const gap = CssNumber.read(this.canvas, "--rad-meter-gap", this.#options.gap ?? cell * 0.28);
     this.#cell = cell;
     this.#gap = gap;
     this.#surface.resize(MarkData.width(cell, gap), MarkData.height(cell, gap));
+    // A resize clears the canvas, so the resting picture no longer exists.
+    this.#rest.invalidate();
   }
 
   #paint(t: number): void {
+    this.#ease(t);
+
+    // Asked before `isPaintable`, which reads `offsetWidth` and forces layout. A quiet roster
+    // is mostly resting meters, so this is the check that keeps them from costing a reflow
+    // each, every frame, to decide whether to redraw pixels that would not change.
+    const atRest = this.#level <= LevelMeterBinding.REST && this.#target <= LevelMeterBinding.REST;
+    if (!this.#rest.needsPaint(atRest)) return;
+
     if (!Visibility.isPaintable(this.canvas)) return;
 
     const threshold = this.#options.threshold ?? 0.08;
@@ -135,5 +217,6 @@ export class LevelMeterBinding implements Binding {
       mortar: false,
       reduce: this.#reduce,
     });
+    this.#rest.painted(atRest);
   }
 }

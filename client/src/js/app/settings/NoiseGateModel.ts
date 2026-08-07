@@ -47,7 +47,7 @@ export class NoiseGateModel {
         {
             id: "close_threshold",
             label: "Closes below",
-            note: "Held under the open threshold, so a steady voice at the edge does not chatter the gate.",
+            note: "Held under the level that opens it, so a steady voice at the edge does not stutter.",
             unit: "dBFS",
             min: -96,
             max: 0,
@@ -71,7 +71,7 @@ export class NoiseGateModel {
         {
             id: "release_rate",
             label: "Release",
-            note: "How long the gate takes to shut once you stop.",
+            note: "How long it stays open after you stop talking.",
             unit: "ms",
             min: 0,
             max: 250,

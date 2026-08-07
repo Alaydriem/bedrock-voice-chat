@@ -2,7 +2,6 @@
   import "../../css/app.css";
   import { onDestroy, onMount, setContext, type Snippet } from "svelte";
   import { get } from "svelte/store";
-  import { Store } from "@tauri-apps/plugin-store";
   import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
   import { error as logError, info } from "@tauri-apps/plugin-log";
   import { goto } from "$app/navigation";
@@ -319,9 +318,8 @@
         // Audio-driven presence stays wired as the roster's fallback: if the position feed is
         // unreachable, cards still appear for whoever can be heard, just without a distance.
         try {
-          const store = await Store.load("store.json", { autoSave: false, defaults: {} });
           if (instance.playerManager) {
-            presence = new PlayerPresenceManager(store, instance.playerManager);
+            presence = new PlayerPresenceManager(instance.playerManager);
             await presence.initialize();
           }
         } catch (e) {
@@ -359,36 +357,18 @@
   }
 
   /**
-   * Who is audible, as a value that only changes when the answer does.
-   *
-   * Depending on `nearby` directly would rebuild every row twice a second — snapshots arrive at
-   * 2 Hz and each one is a fresh array — to express a set that only changes when somebody walks
-   * in or out. A string compares by value, so this stops propagating while membership holds.
-   *
-   * Joined on a newline rather than a space: Xbox gamertags contain spaces, and splitting on one
-   * would turn "Some Gamer" into two names that match nobody.
-   */
-  const audibleKey = $derived(
-    [...new Set(nearby.map((p) => p.name))].sort().join("\n"),
-  );
-
-  /**
    * One rows subscription, rebuilt whenever any of its inputs move.
    *
    * `rows` is a snapshot over values rather than a live view of them, so binding it once to the
    * channel list left the others frozen: joining a group you were already listed in moved
-   * `joinedId` and nothing else, so the row went on offering Join; and the can-you-hear-them dot
-   * beside each member stayed at whatever earshot was when the list last changed.
+   * `joinedId` and nothing else, so the row went on offering Join.
    *
    * The effect's cleanup releases the previous subscription before the next is made. Pushing
    * each new one onto the teardown list instead freed nothing until the page was destroyed, so
    * ordinary activity left a growing crowd of stores writing to one variable.
    */
   $effect(() => {
-    const audible = new Set(audibleKey === "" ? [] : audibleKey.split("\n"));
-    return groupsView
-      .rows(channelList, joinedId, audible, identity)
-      .subscribe((v) => (groupRows = v));
+    return groupsView.rows(channelList, joinedId, identity).subscribe((v) => (groupRows = v));
   });
 
   /** The group whose editor is open. Set on create so the new one opens ready to be named. */
@@ -521,7 +501,11 @@
           onstatus={() => (statusOpen = true)}
         />
 
-        {#if carded.length}
+        <!-- Being in a group is a state, not a headcount. Gating this on `carded` alone hid
+             the whole section for a group you are alone in, which is how everybody arrives in
+             one they just made — leaving the sidebar as the only evidence of it, and on a
+             phone that is behind a sheet. -->
+        {#if inGroup || carded.length}
           <div class="rad-roster" bind:this={rosterEl}>
             <!-- The group leads. Joining a channel is deliberate and proximity is ambient, so
                  the people you went out of your way to talk to are never below a list of
@@ -531,6 +515,7 @@
                 title={inGroup.name}
                 players={groupRoster}
                 inGroup={true}
+                empty="Nobody else is in here yet."
                 {sourceFor}
                 {gainFor}
                 {mutedFor}

@@ -33,6 +33,10 @@
 
     let cover = $state<HTMLElement | null>(null);
     let startY = 0;
+    /** A press that is allowed to become a drag, before it has become one. */
+    let pressed = false;
+    /** The pointer this cover holds, or null while it holds none. */
+    let held: number | null = null;
     let dragging = $state(false);
     let offset = $state(0);
 
@@ -45,35 +49,49 @@
     }
 
     function onpointerdown(e: PointerEvent): void {
-        // A modal on top owns its own gestures, and a drag on a slider is not a dismiss.
-        if ((e.target as HTMLElement).closest(".rad-modal, .rad-range, input, select")) return;
+        // A press on a control is that control's. A modal on top owns its own gestures, and a
+        // drag on a slider is not a dismiss. Same list the kit's sheet uses.
+        if ((e.target as HTMLElement).closest(".rad-modal, .rad-range, button, a, input, select")) {
+            return;
+        }
         if (!open || !claims(e.target)) return;
         startY = e.clientY;
         offset = 0;
-        dragging = true;
-        try {
-            cover?.setPointerCapture(e.pointerId);
-        } catch {
-            // Synthetic events have no live pointer.
-        }
+        pressed = true;
     }
 
     function onpointermove(e: PointerEvent): void {
-        if (!dragging) return;
+        if (!pressed) return;
         const dy = e.clientY - startY;
         if (!CoverDrag.isDrag(dy) && offset === 0) return;
+        // The pointer is taken once the gesture is a drag, and never on the press itself: the
+        // browser sends the click to whichever element holds the pointer, so capturing early
+        // makes the cover swallow the click and leaves everything inside it inert.
+        if (!dragging) {
+            dragging = true;
+            try {
+                cover?.setPointerCapture(e.pointerId);
+                held = e.pointerId;
+            } catch {
+                // Synthetic events have no live pointer.
+            }
+        }
         offset = CoverDrag.offset(dy);
     }
 
-    function onpointerup(e: PointerEvent): void {
-        if (!dragging) return;
+    function onpointerup(): void {
+        if (!pressed) return;
         const travelled = offset;
+        pressed = false;
         dragging = false;
         offset = 0;
-        try {
-            cover?.releasePointerCapture(e.pointerId);
-        } catch {
-            // Never captured, so nothing to release.
+        if (held !== null) {
+            try {
+                cover?.releasePointerCapture(held);
+            } catch {
+                // The pointer is already gone.
+            }
+            held = null;
         }
         if (CoverDrag.dismisses(travelled)) ondismiss();
     }
