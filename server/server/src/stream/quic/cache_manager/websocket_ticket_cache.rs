@@ -65,22 +65,50 @@ impl WebsocketTicketCache {
     /// leaving a dead ticket to occupy a slot until it expires.
     pub async fn issue(&self, identity: TicketIdentity) -> String {
         let key = Self::identity_key(&identity);
+        let ticket = nanoid::nanoid!(32);
 
-        if let Some(previous) = self.outstanding.get(&key).await {
+        // Redeemable before it is discoverable. Claiming the slot first would let a
+        // caller that displaces this ticket try to remove it before it exists, which
+        // would strand it in the store for its full lifetime.
+        self.cache.insert(ticket.clone(), identity).await;
+
+        // Reading the previous holder and replacing it have to be one operation.
+        // Separately, concurrent callers all observe the same predecessor, all remove
+        // that one, and each leaves its own ticket live and unreachable by any later
+        // supersede -- which is exactly the accumulation the one-outstanding rule above
+        // exists to prevent. `and_upsert_with` serialises on the key, so each caller
+        // sees, and is responsible for, precisely the ticket it displaced.
+        let superseded: Arc<std::sync::Mutex<Option<String>>> =
+            Arc::new(std::sync::Mutex::new(None));
+        let captured = superseded.clone();
+        let claimed = ticket.clone();
+
+        self.outstanding
+            .entry(key)
+            .and_upsert_with(move |maybe_previous| {
+                if let Some(previous) = maybe_previous {
+                    *captured.lock().expect("ticket supersede lock") =
+                        Some(previous.into_value());
+                }
+                std::future::ready(claimed)
+            })
+            .await;
+
+        let previous = superseded.lock().expect("ticket supersede lock").take();
+        if let Some(previous) = previous {
             self.cache.remove(&previous).await;
         }
-
-        let ticket = nanoid::nanoid!(32);
-        self.cache.insert(ticket.clone(), identity).await;
-        self.outstanding.insert(key, ticket.clone()).await;
 
         ticket
     }
 
     /// Consumes the ticket and returns the identity bound to it at issue time.
     pub async fn redeem(&self, ticket: &str) -> Option<TicketIdentity> {
-        let identity = self.cache.get(ticket).await?;
-        self.cache.remove(ticket).await;
+        // The removal IS the redemption. A read followed by a remove lets two upgrades
+        // arriving together both observe the ticket before either consumes it, and both
+        // are then handed the identity; `remove` returns the value it evicted, so
+        // exactly one caller can receive Some.
+        let identity = self.cache.remove(ticket).await?;
 
         // Clear the reverse entry only while it still names this ticket: a
         // newer issue may already have replaced it, and dropping that would

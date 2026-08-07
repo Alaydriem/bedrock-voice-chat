@@ -32,11 +32,42 @@ export class BootTimeline {
      * Shared the way `AnimationLoop` is, because the phases being measured are spread across
      * the launch route and the dashboard and the total is the only interesting number.
      */
+    /** Tasks that occupied the JS thread for over 50 ms, as the platform reports them. */
+    private readonly longTasks: { name: string; start: number; duration: number }[] = [];
+    private longTaskObserver: PerformanceObserver | null = null;
+
     static shared(): BootTimeline {
         if (!BootTimeline.instance) {
             BootTimeline.instance = new BootTimeline();
+            BootTimeline.instance.watchLongTasks();
         }
         return BootTimeline.instance;
+    }
+
+    /**
+     * Record what monopolises the JS thread.
+     *
+     * A scheduler trace can show that thread pinned at 95% for the whole launch but not what is
+     * running on it, because WebView emits no Chromium track events. `longtask` is the platform's
+     * own answer to the same question, and it costs nothing when nothing is slow.
+     */
+    private watchLongTasks(): void {
+        if (typeof PerformanceObserver === 'undefined') return;
+        try {
+            this.longTaskObserver = new PerformanceObserver((list) => {
+                for (const entry of list.getEntries()) {
+                    this.longTasks.push({
+                        name: entry.name,
+                        start: entry.startTime,
+                        duration: entry.duration,
+                    });
+                }
+            });
+            this.longTaskObserver.observe({ entryTypes: ['longtask'] });
+        } catch {
+            // Not every engine implements the entry type; its absence is not worth a log line
+            // on a path that exists to measure other things.
+        }
     }
 
     mark(name: string): void {
@@ -90,6 +121,7 @@ export class BootTimeline {
                 ...lines,
                 `  ${'TOTAL'.padEnd(width)}  ${total.toFixed(0).padStart(6)} ms`,
                 ...BootTimeline.markResizeLines(),
+                ...this.longTaskLines(),
                 ...BootTimeline.deliveryLines(),
                 '=====================',
             ].join('\n'),
@@ -115,6 +147,28 @@ export class BootTimeline {
                 ? 'sized once, never resized'
                 : `RESIZED ${samples.length - 1} time(s) after first layout`;
         return ['', `  mark box — ${verdict}`, ...lines];
+    }
+
+    /**
+     * The tasks that held the JS thread, worst first.
+     *
+     * The total against the launch total is the number that matters: a launch whose thread is
+     * busy for most of its duration is not waiting on anything, and every phase it reports is
+     * really queueing behind these.
+     */
+    private longTaskLines(): string[] {
+        if (!this.longTasks.length) return [];
+
+        const total = this.longTasks.reduce((sum, t) => sum + t.duration, 0);
+        const worst = [...this.longTasks].sort((a, b) => b.duration - a.duration).slice(0, 8);
+
+        return [
+            '',
+            `  long tasks — ${this.longTasks.length} over 50ms, ${total.toFixed(0)} ms of JS thread`,
+            ...worst.map(
+                (t) => `    t+${t.start.toFixed(0).padStart(5)} ms   ${t.duration.toFixed(0).padStart(4)} ms   ${t.name}`,
+            ),
+        ];
     }
 
     /**

@@ -120,6 +120,20 @@ impl CacheManager {
                 }
             }
             PacketType::PlayerData => {
+                // Carries an entry per player, so its keys are the names inside the body
+                // rather than the sender. That is only sound for something this server
+                // injected: no client produces this type, and one arriving from a player
+                // connection is a client writing arbitrary players' coordinates. Those
+                // coordinates are what `route_audio_frame` resolves proximity from, so
+                // accepting one would let a sender place itself beside anybody.
+                if packet.sender_device().is_some() {
+                    tracing::warn!(
+                        sender = packet.sender_identity().unwrap_or("unknown"),
+                        "Dropping PlayerData received from a player connection"
+                    );
+                    return Ok(());
+                }
+
                 if let Some(data) = packet.get_data() {
                     let data: Result<PlayerDataPacket, ()> = data.to_owned().try_into();
                     if let Ok(player_data) = data {
@@ -133,6 +147,19 @@ impl CacheManager {
                 }
             }
             PacketType::ChannelEvent => {
+                // `channel_data.name` names the player the membership change applies to,
+                // which is legitimately somebody other than the sender when the channel API
+                // acts on a player's behalf. Nothing a client sends may say that: from a
+                // player connection this type would join or remove any player from any
+                // channel, and channel membership bypasses the proximity gate entirely.
+                if packet.sender_device().is_some() {
+                    tracing::warn!(
+                        sender = packet.sender_identity().unwrap_or("unknown"),
+                        "Dropping ChannelEvent received from a player connection"
+                    );
+                    return Ok(());
+                }
+
                 if let Some(data) = packet.get_data() {
                     let data: Result<ChannelEventPacket, ()> = data.to_owned().try_into();
                     if let Ok(channel_data) = data {

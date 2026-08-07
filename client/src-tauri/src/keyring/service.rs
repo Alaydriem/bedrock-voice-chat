@@ -152,17 +152,9 @@ impl KeyringService {
             return;
         };
 
-        let started = std::time::Instant::now();
         let state = app.state::<tauri::async_runtime::Mutex<Self>>();
-        let result = state.lock().await.get_credentials(&server);
-
-        match result {
-            Ok(_) => log::info!(
-                "Keyring warmed for {} in {} ms",
-                server,
-                started.elapsed().as_millis()
-            ),
-            Err(e) => log::debug!("Keyring warm-up read failed for {}: {}", server, e),
+        if let Err(e) = state.lock().await.get_credentials(&server) {
+            log::debug!("Keyring warm-up read failed for {}: {}", server, e);
         }
     }
 

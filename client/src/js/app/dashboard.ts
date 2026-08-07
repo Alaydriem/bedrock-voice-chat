@@ -174,6 +174,7 @@ export default class Dashboard extends BVCApp {
         const appWebview = getCurrentWebviewWindow();
 
         const currentServer = await this.store.get<string>("current_server");
+        timeline.mark("store.get current_server");
 
         // Check certificate validity before initializing anything that depends on a valid session
         if (currentServer) {
