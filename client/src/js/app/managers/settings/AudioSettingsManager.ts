@@ -6,6 +6,7 @@ import PlatformDetector from "../../utils/PlatformDetector";
 import type { KeybindConfig } from "../../../bindings/KeybindConfig";
 import type { VoiceMode } from "../../../bindings/VoiceMode";
 import type { VoiceRuntimeState } from "../../../bindings/VoiceRuntimeState";
+import { AppStore } from "../../services/AppStore";
 
 export class AudioSettingsManager {
     private readonly platformDetector: PlatformDetector;
@@ -42,10 +43,7 @@ export class AudioSettingsManager {
     }
 
     async initialize(): Promise<void> {
-        const store = await Store.load("store.json", {
-            autoSave: false,
-            defaults: {},
-        });
+        const store = await AppStore.load();
         this.storeStore.set(store);
 
         this.isMobileStore.set(await this.platformDetector.checkMobile());
@@ -131,7 +129,7 @@ export class AudioSettingsManager {
         });
         if (current) return current;
 
-        const store = await Store.load("store.json", { autoSave: false, defaults: {} });
+        const store = await AppStore.load();
         this.storeStore.set(store);
         return store;
     }

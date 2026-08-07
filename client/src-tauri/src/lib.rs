@@ -267,6 +267,7 @@ pub fn run() {
             crate::commands::audio::get_current_players,
             crate::commands::audio::restart_audio_stream,
             crate::commands::audio::input_capture_active,
+            crate::commands::audio::probe_audio_levels,
             crate::commands::audio::start_input_meter,
             crate::commands::audio::stop_input_meter,
             crate::commands::audio::test_output_device,
@@ -382,6 +383,9 @@ pub fn run() {
             crate::commands::iap::iap_refresh,
         ])
         .setup(move |app| {
+            // Tauri does not serve a command until this hook returns, so anything slow in here is
+            // paid by the webview's first IPC calls rather than by startup in parallel with them.
+            let setup_started = std::time::Instant::now();
             let sentry_logger = sentry_logger.clone();
             // Set Windows timer resolution for high-precision audio timing
             #[cfg(target_os = "windows")]
@@ -419,6 +423,7 @@ pub fn run() {
             let sentry_enabled = sentry::Hub::current().client().map(|c| c.is_enabled()).unwrap_or(false);
             info!("Sentry: {}", if sentry_enabled { "initialized" } else { "not configured (DSN missing or invalid)" });
             let store = app.store("store.json")?;
+            info!("setup: store.json loaded at {} ms", setup_started.elapsed().as_millis());
 
             let telemetry = Arc::new(crate::logging::Telemetry::new(store.get("telemetry").and_then(|v| v.as_bool()).unwrap_or(true)));
 
@@ -526,6 +531,7 @@ pub fn run() {
             }
 
             let analytics_service = Arc::new(analytics_service);
+            info!("setup: analytics ready at {} ms", setup_started.elapsed().as_millis());
             analytics_service.set_user(&install_id);
             analytics_service.track(common::structs::AnalyticsEvent::AppStarted, None);
 
@@ -662,6 +668,7 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 keyring::KeyringService::warm(keyring_warm_handle).await;
             });
+            info!("setup: keyring ready at {} ms", setup_started.elapsed().as_millis());
 
             let app_state = AppState::new(store.clone(), handle.clone());
             app.manage(telemetry);
@@ -803,6 +810,11 @@ pub fn run() {
 
             // Event Handlers
             crate::events::Notification::register(app);
+
+            info!(
+                "setup() completed in {} ms — no IPC command is served before this",
+                setup_started.elapsed().as_millis()
+            );
             Ok(())
         })
         .build(tauri::generate_context!())

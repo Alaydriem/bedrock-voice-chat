@@ -13,20 +13,28 @@
          */
         isCode?: boolean;
         appVersion: string;
+        /**
+         * What to call the way off this screen. Absent on a cold launch, which has nowhere to
+         * go back to — an exit that leads back here is worse than none.
+         */
+        backLabel?: string;
         oninput: (value: string) => void;
         onconnect: () => void;
         onprivacy: () => void;
         onrevisit: () => void;
+        onback?: () => void;
     }
     let {
         address,
         verdict,
         isCode = false,
         appVersion,
+        backLabel,
         oninput,
         onconnect,
         onprivacy,
         onrevisit,
+        onback,
     }: Props = $props();
 
     // The ring is a readout: quiet while the field is being typed into, alive once a name
@@ -97,6 +105,9 @@
 
     {#snippet footbar()}
         <span class="rad-footbar__actions">
+            {#if onback && backLabel}
+                <button class="rad-btn rad-btn--quiet" onclick={onback}>{backLabel}</button>
+            {/if}
             <button class="rad-btn rad-btn--quiet" onclick={onprivacy}>Privacy notice</button>
             <button class="rad-btn rad-btn--quiet" onclick={onrevisit}>What is this?</button>
         </span>

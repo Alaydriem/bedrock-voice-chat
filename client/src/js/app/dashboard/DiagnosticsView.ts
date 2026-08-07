@@ -1,5 +1,6 @@
 import type { DiagnosticsInput, KvGroup } from '$radial/core/controllers/Diagnostics';
 import { Diagnostics } from '$radial/core/controllers/Diagnostics';
+import type { MeterProbeSnapshot } from '$radial/core/canvas/MeterProbe';
 import type { LinkDiagnosticsSnapshot } from '../../bindings/LinkDiagnosticsSnapshot';
 import type { VoiceMode } from '$radial/core/controllers/SelfState';
 import type { VoiceDiagnostics } from './SelfController';
@@ -83,6 +84,7 @@ export class DiagnosticsView {
         voice: VoiceDiagnostics | null,
         uiMode?: VoiceMode,
         capturing?: number | null,
+        meter?: MeterProbeSnapshot,
     ): KvGroup {
         if (!voice) {
             return { title: 'Voice', rows: [['State', 'not read yet']] };
@@ -118,8 +120,41 @@ export class DiagnosticsView {
                 ],
                 ['Hold', ptt ? (backend.pttActive ? 'held' : 'released') : 'n/a in open mic'],
                 ['Capture stream', DiagnosticsView.captureStream(mic, capturing ?? null)],
+                ...(meter ? [['Self meter', DiagnosticsView.selfMeter(meter)] as [string, string]] : []),
             ],
         };
+    }
+
+    /**
+     * What the pill drew against what it was handed.
+     *
+     * The capture-stream row above ends at the level feed; this row covers the last hop, which
+     * has now failed on its own: a phone received a full stream of levels and painted none of
+     * them, and nothing on screen could say which side was lying. The probe counts both sides
+     * inside the binding, so the gap is a measurement rather than an inference.
+     */
+    private static readonly METER_STALL_MS = 2000;
+
+    private static selfMeter(meter: MeterProbeSnapshot): string {
+        if (!meter.mounted) {
+            return 'not mounted  ← no pill has registered a meter in this window';
+        }
+        if (meter.levels === 0) {
+            return 'no levels have reached it  ← the feed above decides whether that is a fault';
+        }
+        if (meter.paints === 0) {
+            return `${meter.levels} levels arrived and none were painted  ← the renderer is not drawing them`;
+        }
+        const levelsFresh =
+            meter.levelAgeMs !== null && meter.levelAgeMs < DiagnosticsView.METER_STALL_MS;
+        const paintsStale =
+            meter.paintAgeMs === null || meter.paintAgeMs > DiagnosticsView.METER_STALL_MS;
+        if (levelsFresh && paintsStale) {
+            return `stopped painting ${Math.round((meter.paintAgeMs ?? 0) / 1000)}s ago  ← levels are still arriving`;
+        }
+        const age =
+            meter.paintAgeMs === null ? '' : `, ${Math.round(meter.paintAgeMs / 1000)}s ago`;
+        return `painting — last level ${meter.lastLevel.toFixed(2)}${age}`;
     }
 
     /**

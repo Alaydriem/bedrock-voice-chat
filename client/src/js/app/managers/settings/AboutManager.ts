@@ -9,6 +9,7 @@ import FeatureFlagService from "../../services/FeatureFlagService";
 import type { AppInfo } from "../../../bindings/AppInfo";
 import type { DiscordLinkStatus } from "../../../bindings/DiscordLinkStatus";
 import type { AboutLink } from "./AboutLink";
+import { AppStore } from "../../services/AppStore";
 
 type DiscordCommand = "discord_link" | "discord_resync" | "discord_unlink";
 
@@ -175,7 +176,7 @@ export class AboutManager {
 
         if (this.variantClickCount >= 3 && !revealed) {
             try {
-                const store = await Store.load("store.json", { autoSave: false, defaults: {} });
+                const store = await AppStore.load();
                 this.platformIdStore.set((await store.get<string>("install_id")) ?? "");
             } catch (e) {
                 error(`Failed to read install_id: ${e}`);

@@ -1,5 +1,6 @@
 import { Store } from '@tauri-apps/plugin-store';
 import type { ServerListEntry } from '../../bindings/ServerListEntry';
+import { AppStore } from './AppStore';
 
 export type { ServerListEntry };
 
@@ -27,7 +28,7 @@ export class ServerListStore {
 
     private getStore(): Promise<Store> {
         if (!this.storePromise) {
-            this.storePromise = Store.load(ServerListStore.STORE_PATH, { autoSave: false, defaults: {} });
+            this.storePromise = AppStore.load();
         }
         return this.storePromise;
     }

@@ -13,8 +13,10 @@ import BVCApp from './BVCApp.ts';
 import HelpLinks from './HelpLinks';
 import Analytics from './analytics';
 import PlatformDetector from './utils/PlatformDetector.ts';
+import { AddServerRoute } from './server/AddServerRoute';
 import type { HytaleDeviceFlowStartResponse, HytaleDeviceFlowStatusResponse, LoginResponse, ServerListEntry } from '../bindings/index.ts';
 import type { LoginPageState } from './login/LoginPageState';
+import { AppStore } from "./services/AppStore";
 
 declare global {
   interface Window {
@@ -197,16 +199,7 @@ export default class Login extends BVCApp {
     this.preloader();
 
     const isAddServer = urlParams.has('addserver');
-
-    let backHref = '/dashboard';
-    let backLabel = 'Back to Dashboard';
-    if (isAddServer) {
-      const returnTarget = urlParams.get('return') ?? '';
-      if (returnTarget === '/') {
-        backHref = '/';
-        backLabel = 'Back to Server List';
-      }
-    }
+    const { href: backHref, label: backLabel } = AddServerRoute.backFrom(urlParams);
 
     const prefilledServer = urlParams.get('server') ?? '';
     const autoReauth = urlParams.has('server') && urlParams.get('reauth') === 'true';
@@ -612,7 +605,7 @@ export default class Login extends BVCApp {
    */
   private async callbackInFlight(): Promise<boolean> {
     try {
-      const store = await Store.load("store.json", { autoSave: false, defaults: {} });
+      const store = await AppStore.load();
       return (await store.get<string>("pending_deep_link")) != null;
     } catch (e) {
       // An unreadable store is not evidence of progress; let the deadline stand.
@@ -690,7 +683,7 @@ export default class Login extends BVCApp {
       const clientId = configData.client_id;
       const secretState = self.crypto.randomUUID();
 
-      const store = await Store.load("store.json", { autoSave: false, defaults: {} });
+      const store = await AppStore.load();
       await store.set("auth_state_token", secretState);
       await store.set("auth_state_endpoint", sanitizedUrl);
       await store.save();
@@ -739,7 +732,7 @@ export default class Login extends BVCApp {
 
       info(`Hytale Device flow started, session_id: ${response.session_id}, user_code: ${response.user_code}`);
 
-      const store = await Store.load("store.json", { autoSave: false, defaults: {} });
+      const store = await AppStore.load();
       await store.set("hytale_session_id", response.session_id);
       await store.set("auth_state_endpoint", serverUrl);
       await store.save();
@@ -809,7 +802,7 @@ export default class Login extends BVCApp {
 
   private async handleHytaleSuccess(server: string, loginResponse: LoginResponse) {
     try {
-      const store = await Store.load("store.json", { autoSave: false, defaults: {} });
+      const store = await AppStore.load();
 
       await store.set("current_server", server);
       await store.set("current_player", loginResponse.gamertag);

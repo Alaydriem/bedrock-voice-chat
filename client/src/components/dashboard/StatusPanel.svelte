@@ -3,6 +3,7 @@
     import Icon from "$radial/components/Icon.svelte";
     import Scope from "$radial/components/Scope.svelte";
     import Verdict from "$radial/components/Verdict.svelte";
+    import { MeterProbe } from "$radial/core/canvas/MeterProbe";
     import { Diagnostics } from "$radial/core/controllers/Diagnostics";
     import { KvGridView } from "$radial/core/controllers/KvGridView";
     import type { LinkDiagnosticsSnapshot } from "../../js/bindings/LinkDiagnosticsSnapshot";
@@ -99,7 +100,12 @@
             ? [...Diagnostics.groups(input), ...DiagnosticsView.extraGroups(snapshot)]
             : [];
         grid.update([
-            DiagnosticsView.voiceGroup(voice, selfMode, snapshot?.mic.capture_frames_per_sec),
+            DiagnosticsView.voiceGroup(
+                voice,
+                selfMode,
+                snapshot?.mic.capture_frames_per_sec,
+                MeterProbe.read("self"),
+            ),
             ...link,
         ]);
     });

@@ -1,4 +1,5 @@
 import { AnimationLoop } from "../core/canvas/AnimationLoop";
+import { MeterProbe } from "../core/canvas/MeterProbe";
 import { Surface } from "../core/canvas/Surface";
 import { RestGate } from "../core/canvas/RestGate";
 import { Visibility } from "../core/canvas/Visibility";
@@ -22,6 +23,14 @@ export interface LevelMeterOptions {
   onLive?: (live: boolean) => void;
   liveAt?: number;
   loop?: AnimationLoop;
+  /**
+   * Report received levels and drawn frames to `MeterProbe` under this name.
+   *
+   * For the meters diagnostics has to be able to vouch for — the self pill has failed both by
+   * not receiving and by not drawing what it received, and the two are indistinguishable on
+   * screen.
+   */
+  probe?: string;
 }
 
 /**
@@ -94,8 +103,10 @@ export class LevelMeterBinding implements Binding {
       this.#observer.observe(canvas.parentElement ?? canvas);
     }
 
+    if (options.probe) MeterProbe.register(options.probe);
     this.#unsubscribe = options.source?.subscribe((level) => {
       this.#target = level;
+      if (options.probe) MeterProbe.level(options.probe, level);
     }) ?? null;
 
     this.#stop = (options.loop ?? AnimationLoop.shared()).add((t) => this.#paint(t));
@@ -129,6 +140,7 @@ export class LevelMeterBinding implements Binding {
     this.#unsubscribe?.();
     this.#unsubscribe = source?.subscribe((level) => {
       this.#target = level;
+      if (this.#options.probe) MeterProbe.level(this.#options.probe, level);
     }) ?? null;
     if (!source) {
       this.#level = 0;
@@ -218,5 +230,8 @@ export class LevelMeterBinding implements Binding {
       reduce: this.#reduce,
     });
     this.#rest.painted(atRest);
+    // Only frames above the floor count: the ledger measures whether a voice moved the meter,
+    // and the one resting repaint after silence would read as a paint that never happened.
+    if (this.#options.probe && !atRest) MeterProbe.painted(this.#options.probe);
   }
 }

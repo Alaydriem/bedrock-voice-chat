@@ -425,6 +425,42 @@
   cursor: grabbing;
 }
 
+/* The way out that asks for no gesture.
+ *
+ * The handle advertises a drag, and a drag is a poor sole exit: it has no affordance for a
+ * mouse, it competes with the list's own scroll, and it fails silently when it is misread.
+ *
+ * Out of flow and over the handle's band, so it costs no vertical space and leaves the
+ * centred handle and the title below it exactly where they were. Sitting in the corner
+ * matches where the settings cover puts the same control. */
+.rad-sheet__close {
+  position: absolute;
+  top: 6px;
+  left: 10px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-rad-md);
+  background: transparent;
+  color: var(--color-rad-dim);
+  cursor: pointer;
+}
+
+.rad-sheet__close:hover {
+  background: var(--color-rad-panel);
+  color: var(--color-rad-tx);
+}
+
+.rad-sheet__close > [data-rad-icon] > svg {
+  width: 17px;
+  height: 17px;
+}
+
 .rad-sheet__title {
   flex: 0 0 auto;
   margin: 0 0 12px;

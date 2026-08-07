@@ -51,6 +51,16 @@
   });
   let step = $state(1);
 
+  /**
+   * The way off this screen, for someone who arrived from a screen they were already using.
+   * Null on a cold launch, where sign-in is the destination and there is nothing behind it.
+   *
+   * A document navigation rather than a client-side one: the way back leads to the roster,
+   * which forwards a single saved server straight to its dashboard, and the boot overlay is
+   * what covers that second hop.
+   */
+  let back = $state<{ href: string; label: string } | null>(null);
+
   // How long the connecting view has been up, so the recovery affordance can appear
   // late rather than immediately. Fifteen seconds sits under Login's 30s finish
   // watchdog, so the user gets an option before the flow gives up on its own.
@@ -124,6 +134,9 @@
       if (entry !== "login") flow?.go(entry);
 
       const pageState = await instance.initializePage();
+      if (pageState.isAddServer) {
+        back = { href: pageState.backHref, label: pageState.backLabel };
+      }
       if (pageState.prefilledServer) {
         instance.setServerInput(pageState.prefilledServer);
         resolver?.input(pageState.prefilledServer);
@@ -342,10 +355,12 @@
       verdict={isCodeLogin ? (codeTarget ? CODE_READY : CODE_INCOMPLETE) : verdict}
       isCode={isCodeLogin}
       {appVersion}
+      backLabel={back?.label}
       oninput={handleInput}
       onconnect={connect}
       onprivacy={() => app?.openPrivacyNotice()}
       onrevisit={() => flow?.go("intro")}
+      onback={back ? () => (window.location.href = back!.href) : undefined}
     />
   {/if}
 </RadFrame>

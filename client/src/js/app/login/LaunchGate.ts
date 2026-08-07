@@ -1,6 +1,7 @@
 import { Store } from '@tauri-apps/plugin-store';
 import { error as logError } from '@tauri-apps/plugin-log';
 import { ServerListStore } from '../services/ServerListStore';
+import { AppStore } from '../services/AppStore';
 
 /**
  * Whether a launch owes the user an explanation before a credential prompt.
@@ -72,6 +73,6 @@ export default class LaunchGate {
     }
 
     private store(): Promise<Store> {
-        return Store.load('store.json', { autoSave: false, defaults: {} });
+        return AppStore.load();
     }
 }

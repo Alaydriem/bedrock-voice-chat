@@ -15,6 +15,7 @@
   import type { SelfSnapshot } from "$radial/core/controllers/SelfState";
   import type { LevelSource } from "$radial/core/sources/LevelSource";
   import { ConstantLevelSource } from "$radial/core/sources/LevelSource";
+  import { GroupName } from "$radial/core/naming/GroupName";
   import RadFrame from "../../components/shell/RadFrame.svelte";
   import DashboardScreen from "../../components/dashboard/DashboardScreen.svelte";
   import GroupsPanel from "../../components/dashboard/GroupsPanel.svelte";
@@ -32,6 +33,7 @@
   import type { RailServer } from "../../js/app/dashboard/RailView";
   import { RosterHandoff } from "../../js/app/dashboard/RosterHandoff";
   import { RosterView } from "../../js/app/dashboard/RosterView";
+  import { AddServerRoute } from "../../js/app/server/AddServerRoute";
   import GameNameUtils from "../../js/app/utils/GameNameUtils";
 
   interface Props {
@@ -378,13 +380,13 @@
    * Create, join, and open for editing.
    *
    * Creating a group you are not in is never what was meant — the reason to make one is to talk
-   * in it. And "New group" is a placeholder, not a name, so the editor opens on it rather than
-   * leaving the user to discover that renaming is behind a swipe.
+   * in it. The generated name is a real name rather than a placeholder, so the editor opens on
+   * it as a suggestion, and to keep renaming from hiding behind a swipe nobody would try.
    */
   async function createGroup(): Promise<void> {
     const channels = app?.channelManager;
     if (!channels) return;
-    const id = await channels.createChannel("New group");
+    const id = await channels.createChannel(GroupName.next(channelList.map((c) => c.name)));
     if (!id) return;
     await channels.joinChannel(id, identity);
     editId = id;
@@ -469,7 +471,7 @@
       {groupName}
       {statusOpen}
       onswitch={(server) => (window.location.href = `/dashboard?server=${encodeURIComponent(server)}`)}
-      onadd={() => (window.location.href = "/")}
+      onadd={() => (window.location.href = AddServerRoute.HREF)}
       onsettings={() => void goto(SettingsRoute.href("audio"))}
       onsignout={signOut}
       onstatus={(open) => (statusOpen = open)}

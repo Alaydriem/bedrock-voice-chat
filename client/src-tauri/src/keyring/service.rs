@@ -36,6 +36,10 @@ const ALL_CREDENTIAL_KEYS: &[&str] = &[
 pub struct KeyringService {
     app_handle: AppHandle,
     cache: HashMap<String, LoginResponse>,
+    // When each server's certificate stops being valid. The parse that produces it is the
+    // expensive half and its answer never changes; whether the certificate has expired changes
+    // with the clock, so only that is recomputed.
+    cert_expiry: HashMap<String, i64>,
 }
 
 impl KeyringService {
@@ -43,6 +47,7 @@ impl KeyringService {
         Self {
             app_handle,
             cache: HashMap::new(),
+            cert_expiry: HashMap::new(),
         }
     }
 
@@ -102,6 +107,7 @@ impl KeyringService {
         }
 
         self.cache.insert(server.to_string(), response.clone());
+        self.cert_expiry.remove(server);
         Ok(())
     }
 
@@ -193,8 +199,17 @@ impl KeyringService {
     }
 
     pub fn is_certificate_expired(&mut self, server: &str) -> Result<bool, anyhow::Error> {
-        let cert_pem = self.get_credential(server, KEY_CERTIFICATE)?;
-        super::CertificateValidator::is_expired(&cert_pem)
+        let not_after = match self.cert_expiry.get(server) {
+            Some(not_after) => *not_after,
+            None => {
+                let cert_pem = self.get_credential(server, KEY_CERTIFICATE)?;
+                let not_after = super::CertificateValidator::not_after(&cert_pem)?;
+                self.cert_expiry.insert(server.to_string(), not_after);
+                not_after
+            }
+        };
+
+        Ok(not_after <= chrono::Utc::now().timestamp())
     }
 
     pub fn delete_credentials(&mut self, server: &str) -> Result<(), anyhow::Error> {
@@ -203,6 +218,7 @@ impl KeyringService {
         }
 
         self.cache.remove(server);
+        self.cert_expiry.remove(server);
         Ok(())
     }
 

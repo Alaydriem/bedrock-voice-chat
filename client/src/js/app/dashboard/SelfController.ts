@@ -3,6 +3,7 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { info, warn } from '@tauri-apps/plugin-log';
 import type { Store } from '@tauri-apps/plugin-store';
 import { writable, type Readable, type Writable } from 'svelte/store';
+import { MeterProbe } from '$radial/core/canvas/MeterProbe';
 import { SelfState } from '$radial/core/controllers/SelfState';
 import type { KeybindConfig } from '../../bindings/KeybindConfig';
 import type { VoiceMode as ConfiguredVoiceMode } from '../../bindings/VoiceMode';
@@ -32,6 +33,16 @@ export class SelfController {
     /** How often the diagnostics readout re-asks the backend what it believes. */
     private static readonly PROBE_MS = 1000;
 
+    /**
+     * When the one-shot meter verdict is logged, measured from the first `start`.
+     *
+     * Late enough that a session has connected and somebody has usually spoken; early enough
+     * that ten launches in a row cost ten short waits. One line per launch is what makes
+     * reliability measurable across builds: grep the device log for `meter self-check` and
+     * count verdicts instead of watching a pill.
+     */
+    private static readonly SELF_CHECK_MS = 20_000;
+
     // Not its own. Your level is one entry in the same snapshot as everyone else's, and a
     // second mechanism for it is what left the pill's meter still while the roster's moved.
     private readonly levels: PlayerLevelSources;
@@ -39,6 +50,7 @@ export class SelfController {
     private unlisteners: UnlistenFn[] = [];
     private readonly diagnosticsStore: Writable<VoiceDiagnostics | null> = writable(null);
     private probe: ReturnType<typeof setInterval> | null = null;
+    private selfCheck: ReturnType<typeof setTimeout> | null = null;
 
     constructor(store: Store, levels: PlayerLevelSources) {
         this.store = store;
@@ -109,6 +121,34 @@ export class SelfController {
         await this.subscribe();
         await this.pollBackend();
         this.probe = setInterval(() => void this.pollBackend(), SelfController.PROBE_MS);
+        if (this.selfCheck === null) {
+            this.selfCheck = setTimeout(() => this.logSelfCheck(), SelfController.SELF_CHECK_MS);
+        }
+    }
+
+    /**
+     * One line per launch stating which meter layer, if any, is broken.
+     *
+     * The pill has failed in two different layers on the same phone — levels that never
+     * arrived, and levels that arrived and were never drawn — and both look identical on
+     * screen. This is the measurement: launch the app, grep the device log for
+     * `meter self-check`, read the verdict. No panel, no debugger, no watching.
+     */
+    private logSelfCheck(): void {
+        const mic = this.levels.activity;
+        const meter = MeterProbe.read('self');
+        const verdict = !mic.attached
+            ? 'FEED-DETACHED'
+            : mic.events === 0
+              ? 'NO-EVENTS'
+              : meter.mounted && meter.levels > 0 && meter.paints === 0
+                ? 'NO-PAINTS'
+                : 'OK';
+        void info(
+            `meter self-check: ${verdict} — feed attached=${mic.attached} events=${mic.events} ` +
+                `rate=${mic.eventsPerSecond.toFixed(1)}/s ownLevel=${mic.lastRms.toFixed(2)} | ` +
+                `pill mounted=${meter.mounted} levels=${meter.levels} paints=${meter.paints}`,
+        );
     }
 
     /** Drop every listener and the probe, leaving the state and the level source in place. */
@@ -320,5 +360,9 @@ export class SelfController {
 
     cleanup(): void {
         this.detach();
+        if (this.selfCheck !== null) {
+            clearTimeout(this.selfCheck);
+            this.selfCheck = null;
+        }
     }
 }

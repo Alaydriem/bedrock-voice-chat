@@ -3,7 +3,9 @@ import { info, warn, error as logError } from '@tauri-apps/plugin-log';
 import { invoke } from "@tauri-apps/api/core";
 import { Store } from '@tauri-apps/plugin-store';
 import { DeepLinkRouter } from './deepLinkRouter.ts';
+import { AppStore } from './services/AppStore';
 import BootOverlay from './shell/BootOverlay';
+import { BootTimeline } from './shell/BootTimeline';
 import type { DeepLink } from '../bindings/DeepLink';
 import type { ConnectionHealth } from '../bindings/ConnectionHealth';
 
@@ -78,10 +80,7 @@ export default class BVCApp {
      */
     protected async getStore(): Promise<Store> {
         if (!this.storeInstance) {
-            this.storeInstance = await Store.load("store.json", {
-                autoSave: false,
-                defaults: {}
-            });
+            this.storeInstance = await AppStore.load();
         }
         return this.storeInstance;
     }
@@ -209,6 +208,10 @@ export default class BVCApp {
 
         try {
             const router = await this.getRouter();
+            // The first `Store.load` of the launch, and the first IPC of any kind. Marked apart
+            // from the routing that follows because the two have nothing to do with each other,
+            // and only one of them is likely to be worth attacking.
+            BootTimeline.shared().mark('first Store.load (plugin init)');
             return await router.processPending();
         } catch (err) {
             logError(`BVCApp: Error processing pending deep link: ${err}`);

@@ -4,6 +4,7 @@ import { Store } from '@tauri-apps/plugin-store';
 import { error as logError } from '@tauri-apps/plugin-log';
 import type { ApiConfigCheckResponse } from '../../../bindings/ApiConfigCheckResponse';
 import type { ProxyServerEntry } from './ProxyServerEntry';
+import { AppStore } from "../../services/AppStore";
 
 export type BedrockCapabilityStatus = 'enabled' | 'disabled' | 'unknown';
 
@@ -98,7 +99,7 @@ export class BedrockCapabilityManager {
 
     private async loadServerHost(): Promise<void> {
         try {
-            const store = await Store.load('store.json', { autoSave: false, defaults: {} });
+            const store = await AppStore.load();
             const url = await store.get<string>('current_server');
             this.serverHostStore.set(url ? url.replace(/^https?:\/\//, '') : '');
         } catch {

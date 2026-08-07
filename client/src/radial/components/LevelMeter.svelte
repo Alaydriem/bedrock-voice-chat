@@ -13,6 +13,8 @@
     cell?: number;
     /** Fires when the level crosses the live threshold. */
     onlive?: (live: boolean) => void;
+    /** Report received levels and drawn frames to `MeterProbe` under this name. */
+    probe?: string;
     class?: string;
   }
 
@@ -22,6 +24,7 @@
     color = "rainbow",
     cell = 3,
     onlive,
+    probe,
     class: className = "",
   }: Props = $props();
 
@@ -29,7 +32,7 @@
   let binding: LevelMeterBinding | null = null;
 
   $effect(() => {
-    binding = new LevelMeterBinding(canvas, { source, color, cell, onLive: onlive });
+    binding = new LevelMeterBinding(canvas, { source, color, cell, onLive: onlive, probe });
     return () => {
       binding?.destroy();
       binding = null;

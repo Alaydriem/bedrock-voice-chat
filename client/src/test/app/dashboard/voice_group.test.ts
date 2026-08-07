@@ -213,6 +213,76 @@ describe("the capture stream row", () => {
     });
 });
 
+/**
+ * The row that separates "levels never reached the pill" from "the pill did not draw them".
+ *
+ * Both have now happened on the same phone, and from the outside they are the same flat
+ * meter. The probe snapshot carries what the binding was handed and what it painted, and
+ * this row turns the gap into a sentence.
+ */
+describe("the self meter row", () => {
+    function meterRow(meter: Parameters<typeof DiagnosticsView.voiceGroup>[3]): string {
+        const found = DiagnosticsView.voiceGroup(voice(), undefined, 50, meter).rows.find(
+            ([name]) => name === "Self meter",
+        );
+        return found?.[1] ?? "";
+    }
+
+    it("is absent when no probe snapshot is supplied", () => {
+        expect(meterRow(undefined)).toBe("");
+    });
+
+    it("says the pill is not mounted rather than inventing a state", () => {
+        expect(
+            meterRow({ mounted: false, levels: 0, lastLevel: 0, levelAgeMs: null, paints: 0, paintAgeMs: null }),
+        ).toContain("not mounted");
+    });
+
+    it("reports a mounted meter that nothing has pushed to", () => {
+        expect(
+            meterRow({ mounted: true, levels: 0, lastLevel: 0, levelAgeMs: null, paints: 0, paintAgeMs: null }),
+        ).toContain("no levels");
+    });
+
+    it("blames the renderer when levels arrived and nothing was ever painted", () => {
+        const said = meterRow({
+            mounted: true,
+            levels: 40,
+            lastLevel: 0.5,
+            levelAgeMs: 300,
+            paints: 0,
+            paintAgeMs: null,
+        });
+        expect(said).toContain("none were painted");
+        expect(said).toContain("renderer");
+    });
+
+    it("blames the renderer when painting stopped while levels keep arriving", () => {
+        const said = meterRow({
+            mounted: true,
+            levels: 400,
+            lastLevel: 0.5,
+            levelAgeMs: 300,
+            paints: 90,
+            paintAgeMs: 9000,
+        });
+        expect(said).toContain("stopped painting");
+    });
+
+    it("reports a painting meter with its level", () => {
+        const said = meterRow({
+            mounted: true,
+            levels: 400,
+            lastLevel: 0.62,
+            levelAgeMs: 300,
+            paints: 900,
+            paintAgeMs: 40,
+        });
+        expect(said).toContain("painting");
+        expect(said).toContain("0.62");
+    });
+});
+
 describe("the voice group before it can report", () => {
     it("says so rather than drawing a state it does not have", () => {
         expect(row(null, "State")).toBe("not read yet");

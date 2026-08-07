@@ -462,6 +462,22 @@ pub(crate) async fn input_capture_active(
     Ok(asm.lock().await.input_capture_active())
 }
 
+/// One `audio-levels` message, now, regardless of what the emit policy would send.
+///
+/// The verification half of the webview's listener handshake: a listener that just registered
+/// invokes this and waits for the snapshot to arrive through itself. Not receiving it is the
+/// only way the page can tell a phantom registration from a quiet room, because the emit
+/// policy never re-sends silence.
+#[tauri::command]
+pub(crate) async fn probe_audio_levels(
+    asm: State<'_, Mutex<AudioStreamManager>>,
+) -> Result<(), String> {
+    asm.lock()
+        .await
+        .publish_levels_now()
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub(crate) async fn start_input_meter(
     state: State<'_, Mutex<AppState>>,

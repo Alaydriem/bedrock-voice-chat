@@ -7,7 +7,6 @@ use log::{info, warn};
 use moka::sync::Cache;
 use rodio::{Player, Source, mixer::Mixer};
 use std::num::NonZero;
-use tauri::Emitter;
 use tokio::task::JoinHandle;
 
 use crate::audio::recording::RecordingProducer;

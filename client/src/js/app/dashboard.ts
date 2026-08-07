@@ -7,6 +7,7 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import type { AudioDevice } from "../../js/bindings/AudioDevice.ts";
 import type { LoginResponse } from "../../js/bindings/LoginResponse.ts";
 import BVCApp from "./BVCApp";
+import { AppStore } from "./services/AppStore";
 import SetupFlow from './setup/SetupFlow';
 import PlatformDetector from './utils/PlatformDetector';
 import AgeGateService from './services/AgeGateService';
@@ -138,10 +139,7 @@ export default class Dashboard extends BVCApp {
         const timeline = BootTimeline.shared();
         timeline.mark("dashboard route mounted");
 
-        this.store = await Store.load("store.json", {
-            autoSave: false,
-            defaults: {}
-        });
+        this.store = await AppStore.load();
         this.platformDetector = new PlatformDetector();
         timeline.mark("Store.load");
 
@@ -312,6 +310,19 @@ export default class Dashboard extends BVCApp {
                     await this.playerManager.listenForBackendUpdates();
                 }
 
+                // shutdown() also stopped the level fan-out and the self
+                // controller. The meters hold their sources from mount, so the
+                // objects are reused — but a stopped PlayerLevelSources is
+                // unsubscribed from the feed, and every COLD start shipped a
+                // pill and roster whose meters never moved again while the
+                // level events kept arriving in the window.
+                if (this.levels) {
+                    await this.levels.start();
+                }
+                if (this.selfController) {
+                    await this.selfController.start();
+                }
+
                 // Update notification
                 await updateNotification({
                     title: "Bedrock Voice Chat",
@@ -468,6 +479,7 @@ export default class Dashboard extends BVCApp {
      * Initialize all managers with proper dependency injection
      */
     private async initializeManagers(): Promise<void> {
+        const timeline = BootTimeline.shared();
         if (!this.store) {
             throw new Error('Store must be initialized before managers');
         }
@@ -482,8 +494,10 @@ export default class Dashboard extends BVCApp {
             // session actually authenticated against — the login paths all persist it.
             this.activeGame = (await this.store.get("active_game") as string | null) || 'minecraft';
 
+            timeline.mark('  ↳ managers: store.get x3');
             this.playerManager = new PlayerManager(currentUser, this.activeGame);
             await this.playerManager.listenForBackendUpdates();
+            timeline.mark('  ↳ managers: player backend listener');
             this.channelManager = new ChannelManager(this.playerManager, this.store, serverUrl);
 
             // Reused rather than replaced, for the reason `startNearby` gives about the level
@@ -498,10 +512,12 @@ export default class Dashboard extends BVCApp {
                 this.selfController = new SelfController(this.store, this.levelSources());
             }
             await this.selfController.start();
+            timeline.mark('  ↳ managers: self controller');
 
             // Initialize AudioActivityManager (independent)
             this.audioActivityManager = new AudioActivityManager(this.store);
             await this.audioActivityManager.initialize();
+            timeline.mark('  ↳ managers: audio activity');
         } catch (err) {
             error(`Dashboard: Failed to initialize managers: ${err}`);
             throw err;

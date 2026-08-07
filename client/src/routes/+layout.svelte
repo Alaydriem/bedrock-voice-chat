@@ -21,7 +21,9 @@
     let { children }: Props = $props();
 
     onMount(() => {
-        BootTimeline.shared().mark("root layout hydrated");
+        // Svelte mounts children before their parents, so the root layout's `onMount` is the
+        // last one to run. This marks the whole tree being up, not the layout alone.
+        BootTimeline.shared().mark("svelte tree mounted");
         SentryManager.initialize();
     });
 </script>

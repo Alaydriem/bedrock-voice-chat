@@ -6,6 +6,7 @@ import { platform } from "@tauri-apps/plugin-os";
 import Analytics from "../../analytics";
 import type { LinkJavaIdentityResponse } from "../../../bindings/LinkJavaIdentityResponse";
 import type { Game } from "../../../bindings/Game";
+import { AppStore } from "../../services/AppStore";
 
 export class AccountManager {
     private gamertagStore: Writable<string>;
@@ -49,7 +50,7 @@ export class AccountManager {
             const os = platform();
             this.isDesktopStore.set(os === "windows" || os === "macos" || os === "linux");
 
-            const store = await Store.load("store.json", { autoSave: false, defaults: {} });
+            const store = await AppStore.load();
             const currentServer = await store.get<string>("current_server");
 
             if (!currentServer) return;
@@ -77,7 +78,7 @@ export class AccountManager {
         this.linkErrorStore.set("");
 
         try {
-            const store = await Store.load("store.json", { autoSave: false, defaults: {} });
+            const store = await AppStore.load();
             const currentServer = await store.get<string>("current_server");
 
             if (!currentServer) {

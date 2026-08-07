@@ -12,6 +12,7 @@
   import FaultCatalog from "../../js/app/error/FaultCatalog";
   import HelpLinks from "../../js/app/HelpLinks";
   import PlatformDetector from "../../js/app/utils/PlatformDetector";
+  import { AppStore } from "../../js/app/services/AppStore";
 
   /**
    * Tears down audio streams, network streams, and the foreground service.
@@ -108,7 +109,7 @@
     // "Stay on This Version" is not a server switch, so the update keeps both of its
     // actions however many servers are configured.
     if (!isUpdate) {
-      const store = await Store.load("store.json", { autoSave: false, defaults: {} });
+      const store = await AppStore.load();
       const serverList = await store.get("server_list") as Array<{ server: string; player: string }> | null;
 
       if (serverList == null || serverList.length <= 1) {

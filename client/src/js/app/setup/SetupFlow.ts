@@ -1,6 +1,7 @@
 import { Store } from '@tauri-apps/plugin-store';
 import { info } from '@tauri-apps/plugin-log';
 import Analytics from '../analytics';
+import { AppStore } from '../services/AppStore';
 import type { SetupState } from '../../bindings/SetupState';
 
 /**
@@ -35,7 +36,7 @@ export default class SetupFlow {
     }
 
     async initialize(): Promise<void> {
-        this.store ??= await Store.load('store.json', { autoSave: false, defaults: {} });
+        this.store ??= await AppStore.load();
         const stored = await this.store.get<SetupState>(SetupFlow.STORE_KEY);
         this.state = {
             microphone: stored?.microphone === true,

@@ -18,6 +18,7 @@ import { BedrockLogsManager } from './logs/BedrockLogsManager';
 import { BedrockConnectionManager } from './connection/BedrockConnectionManager';
 import type { RealmsConnectionError } from './connection/RealmsConnectionError';
 import type { RealmsConnectionErrorKind } from './connection/RealmsConnectionErrorKind';
+import { AppStore } from '../../services/AppStore';
 
 export type { RealmsConnectionError, RealmsConnectionErrorKind };
 
@@ -172,7 +173,7 @@ export class BedrockManager {
         await this.logsManager.initialize();
         await this.connectionManager.initialize();
 
-        this.store = await Store.load('store.json', { autoSave: false, defaults: {} });
+        this.store = await AppStore.load();
         await this.realmsManager.initialize(this.store);
         await this.proxyManager.initialize(this.store);
 

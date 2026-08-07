@@ -109,6 +109,25 @@ impl AudioStreamManager {
         self.levels.clone()
     }
 
+    /// Emit one `audio-levels` snapshot now, outside `LevelEmitPolicy`.
+    ///
+    /// The backend half of the webview's listener handshake. Registering a listener ends with
+    /// an eval into the page that the platform may silently lose — Android drops it during a
+    /// busy page load and the registration still reports success — so a fresh listener asks
+    /// for one guaranteed message and judges itself by its arrival. The policy cannot provide
+    /// that message: it never re-sends silence, so a quiet room offers a new listener nothing
+    /// to wait for.
+    ///
+    /// Counted like any other publish. It is a real webview message, and the emitted rate
+    /// exists to report what actually crosses the bridge.
+    pub fn publish_levels_now(&self) -> Result<(), Error> {
+        let snapshot = self.levels.snapshot();
+        self.app_handle
+            .emit(crate::events::event::AUDIO_LEVELS, &snapshot)?;
+        self.levels.record_emitted();
+        Ok(())
+    }
+
     /// Creates a new audio stream manager
     /// This is responsible for interfacing with all child threads
     pub fn new(

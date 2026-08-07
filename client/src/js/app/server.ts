@@ -2,6 +2,7 @@ import { info } from '@tauri-apps/plugin-log';
 
 import BVCApp from './BVCApp.ts';
 
+import { AddServerRoute } from './server/AddServerRoute';
 import { ServerRosterManager } from './server/ServerRosterManager';
 import type { ServerLanding } from './server/ServerLanding';
 import type { NextAction } from './shell/NextAction';
@@ -61,7 +62,7 @@ export default class Server extends BVCApp {
   }
 
   addServer(): NextAction {
-    return { kind: 'navigate', href: ServerRosterManager.ADD_HREF };
+    return { kind: 'navigate', href: AddServerRoute.HREF };
   }
 
   showPreloader(): void {

@@ -409,6 +409,9 @@
 -->
 <div class="rad-sheet rad-sheet--full" data-rad-sheet="groups">
     <span class="rad-sheet__handle"></span>
+    <button class="rad-sheet__close" data-rad-sheet-close aria-label="Close groups">
+        <Icon name="close" />
+    </button>
     <h4 class="rad-sheet__title">Groups</h4>
     <div class="rad-sheet__body">
         {#if groups}{@render groups()}{/if}

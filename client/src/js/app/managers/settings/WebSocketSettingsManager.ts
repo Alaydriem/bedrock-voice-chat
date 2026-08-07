@@ -5,6 +5,7 @@ import { Store } from "@tauri-apps/plugin-store";
 import Analytics from "../../analytics";
 import PlatformDetector from "../../utils/PlatformDetector";
 import type { WebSocketConfig } from "./WebSocketConfig";
+import { AppStore } from "../../services/AppStore";
 
 export class WebSocketSettingsManager {
     private readonly platformDetector = new PlatformDetector();
@@ -44,10 +45,7 @@ export class WebSocketSettingsManager {
     }
 
     async initialize(): Promise<void> {
-        this.store = await Store.load("store.json", {
-            autoSave: false,
-            defaults: {},
-        });
+        this.store = await AppStore.load();
 
         const mobile = await this.platformDetector.checkMobile().catch(() => false);
         this.isMobileStore.set(mobile);

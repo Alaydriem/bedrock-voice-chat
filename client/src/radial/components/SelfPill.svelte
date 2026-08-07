@@ -63,7 +63,7 @@
       <span class="rad-self__chev">&#9660;</span>
     </span>
     <span class="rad-self__sub">
-      <LevelMeter {source} cell={capsule ? 2 : 3} color={state.transmitting ? "rainbow" : "#7a68a0"} />
+      <LevelMeter {source} cell={capsule ? 2 : 3} color={state.transmitting ? "rainbow" : "#7a68a0"} probe="self" />
       <span class="rad-self__state">{groupName}</span>
     </span>
   </button>

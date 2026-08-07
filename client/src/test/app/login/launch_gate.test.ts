@@ -53,8 +53,11 @@ function fakeStore(seed: Record<string, unknown> = {}) {
 }
 
 let store = fakeStore();
-vi.mock("@tauri-apps/plugin-store", () => ({
-  Store: { load: vi.fn(async () => store) },
+// The shared handle is what LaunchGate asks, so that is what is stood in for. Mocking the
+// plugin underneath leaves AppStore's process-wide cache in the way, handing every case the
+// store the first one built.
+vi.mock("../../../js/app/services/AppStore", () => ({
+  AppStore: { load: vi.fn(async () => store) },
 }));
 
 function gate(servers: string[], seed: Record<string, unknown> = {}) {

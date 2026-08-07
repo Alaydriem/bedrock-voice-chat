@@ -85,6 +85,22 @@ describe("SignInScreen", () => {
     expect(onrevisit).toHaveBeenCalledOnce();
   });
 
+  // Reached from "Add a server" on a device that is already signed in somewhere. Without a
+  // way back this screen is a one-way door: signing in again is the only exit.
+  it("offers the way back it was given", async () => {
+    const onback = vi.fn();
+    render(SignInScreen, { props: props({ onback, backLabel: "Cancel" }) });
+    await userEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
+    expect(onback).toHaveBeenCalledOnce();
+  });
+
+  // A first launch has nowhere to go back to, and an exit that leads back here is worse
+  // than none.
+  it("shows no way back when it was given none", () => {
+    render(SignInScreen, { props: props() });
+    expect(screen.queryByRole("button", { name: /^cancel$/i })).not.toBeInTheDocument();
+  });
+
   it("reaches the privacy notice", async () => {
     const onprivacy = vi.fn();
     render(SignInScreen, { props: props({ onprivacy }) });

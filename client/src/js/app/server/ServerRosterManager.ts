@@ -4,10 +4,11 @@ import type { LoginResponse } from '../../bindings/LoginResponse';
 import { get, writable, type Readable, type Writable } from 'svelte/store';
 import ImageCache from '../components/imageCache';
 import ImageCacheOptions from '../components/imageCacheOptions';
-import { Store } from '@tauri-apps/plugin-store';
+import { AppStore } from '../services/AppStore';
 import { ServerListStore } from '../services/ServerListStore';
 import SetupFlow from '../setup/SetupFlow';
 import type { SetupState } from '../../bindings/SetupState';
+import { BootTimeline } from '../shell/BootTimeline';
 import type { NextAction } from '../shell/NextAction';
 import { PlateView } from './PlateView';
 import { PreflightRunner } from './preflight/PreflightRunner';
@@ -25,7 +26,6 @@ import type { ServerRosterEntry } from './ServerRosterEntry';
  * where is testable without a browser.
  */
 export class ServerRosterManager {
-    static readonly ADD_HREF = '/login?addserver=true&return=/';
     static readonly SIGN_IN_HREF = '/login';
     static readonly SETUP_HREF = '/setup';
 
@@ -61,10 +61,7 @@ export class ServerRosterManager {
             isSetupComplete:
                 deps?.isSetupComplete ??
                 (async () => {
-                    const store = await Store.load('store.json', {
-                        autoSave: false,
-                        defaults: {},
-                    });
+                    const store = await AppStore.load();
                     const state = await store.get<SetupState>(SetupFlow.STORE_KEY);
                     const flow = new SetupFlow();
                     if (state) flow.hydrate(state);
@@ -87,6 +84,7 @@ export class ServerRosterManager {
      */
     async load(): Promise<number> {
         const saved = await this.deps.serverList.getServerList();
+        BootTimeline.shared().mark('  ↳ server list read');
 
         this.entriesStore.set(
             saved.map((entry) => ({

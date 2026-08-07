@@ -9,6 +9,7 @@ import { Diagnostics, type DiagnosticsInput } from "$radial/core/controllers/Dia
 import { Handoff, type Point } from "$radial/core/controllers/Handoff";
 import { KvGridView } from "$radial/core/controllers/KvGridView";
 import { MENU_DIVIDER, Menu } from "$radial/core/controllers/Menu";
+import { GroupName } from "$radial/core/naming/GroupName";
 import { SelfState } from "$radial/core/controllers/SelfState";
 import { Sheet } from "$radial/core/controllers/Sheet";
 import { SwipeActions } from "$radial/core/controllers/SwipeActions";
@@ -793,9 +794,10 @@ frame.addEventListener("click", (e) => {
 
   if (target.closest("[data-group-new]")) {
     // Create, join, and open for editing. Creating a group you are not in is never what was
-    // meant, and "New group" is a placeholder rather than a name.
+    // meant, and the generated name is a suggestion the editor opens on.
     const id = `g${GROUPS.length + 1}`;
-    GROUPS.push({ id, name: "New group", members: 0, owned: true, activeAt: 0, roster: [] });
+    const name = GroupName.next(GROUPS.map((g) => g.name));
+    GROUPS.push({ id, name, members: 0, owned: true, activeAt: 0, roster: [] });
     state.editId = id;
     joinGroup(id);
     Toast.show("Group created");

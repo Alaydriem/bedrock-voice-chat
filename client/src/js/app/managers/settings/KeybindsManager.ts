@@ -4,6 +4,7 @@ import { Store } from "@tauri-apps/plugin-store";
 import type { KeybindConfig } from "../../../bindings/KeybindConfig";
 import type { VoiceMode } from "../../../bindings/VoiceMode";
 import type { KeybindRow } from "./KeybindRow";
+import { AppStore } from "../../services/AppStore";
 
 export class KeybindsManager {
     private readonly DEFAULT_CONFIG: KeybindConfig = {
@@ -114,7 +115,7 @@ export class KeybindsManager {
     }
 
     async initialize(): Promise<void> {
-        this.store = await Store.load("store.json", { autoSave: false, defaults: {} });
+        this.store = await AppStore.load();
         const saved = await this.store.get<KeybindConfig>("keybinds");
         if (saved) {
             this.currentConfig = { ...this.DEFAULT_CONFIG, ...saved };
