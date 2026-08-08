@@ -4,6 +4,8 @@
     import type { ChatRejectionState, ChatTarget } from "../../js/app/chat/ChatTarget";
     import ChatComposer from "./ChatComposer.svelte";
     import ChatMessageRow from "./ChatMessageRow.svelte";
+    import ChatTargetPicker from "./ChatTargetPicker.svelte";
+    import type { ChatWorld } from "../../js/bindings/ChatWorld";
 
     interface Props {
         lines: ChatLine[];
@@ -16,6 +18,7 @@
         onToggle: (open: boolean) => void;
         onSend: (text: string) => void;
         onDismissRejection?: () => void;
+        onPickWorld?: (world: ChatWorld) => void;
     }
     let {
         lines,
@@ -27,6 +30,7 @@
         onToggle,
         onSend,
         onDismissRejection,
+        onPickWorld,
     }: Props = $props();
 
     // Autoscroll only when the reader was already at the bottom. Yanking somebody away from a
@@ -49,6 +53,10 @@
         }
     });
 
+    // Only offered when the player is out of game with more than one world available.
+    let canChoose = $derived(target.kind === "choose");
+    let pickerOpen = $state(false);
+
     let label = $derived(
         target.kind === "local" || target.kind === "unavailable"
             ? "Server chat"
@@ -67,10 +75,17 @@
 <div class="rad-chat-dock">
     <div class="rad-chat-history">
         <div class="rad-chat__head">
-            <!-- Static until a world picker exists: with one world there is nothing to pick. -->
-            <span class="rad-chat-target is-static">
+            <!-- A button only when the choice is real. In game, or with one world, there is
+                 nothing to pick and the caret is hidden. -->
+            <button
+                class="rad-chat-target"
+                class:is-static={!canChoose}
+                onclick={() => canChoose && (pickerOpen = true)}
+                aria-label="Where this message goes"
+            >
                 <span class="rad-chat-target__name">{label}</span>
-            </span>
+                <span class="rad-chat-target__caret"><Icon name="chev" /></span>
+            </button>
             <span class="rad-status-chip {status.cls}">{status.text}</span>
             <span class="rad-spacer"></span>
             <button class="rad-icon-btn" onclick={() => onToggle(false)} aria-label="Close chat">
@@ -100,3 +115,21 @@
         {onDismissRejection}
     />
 </div>
+
+{#if pickerOpen && target.kind === "choose"}
+    <!-- A button rather than a div: dismissing has to work from a keyboard too. -->
+    <button
+        class="rad-scrim"
+        onclick={() => (pickerOpen = false)}
+        aria-label="Close world picker"
+    ></button>
+    <ChatTargetPicker
+        options={target.options}
+        current={target.world}
+        onPick={(world) => {
+            onPickWorld?.(world);
+            pickerOpen = false;
+        }}
+        onClose={() => (pickerOpen = false)}
+    />
+{/if}

@@ -310,6 +310,10 @@ impl QuicServerManager {
         self.cache_manager.set_bedrock_event_service(service);
     }
 
+    pub fn set_chat_service(&mut self, service: Arc<crate::services::ChatService>) {
+        self.cache_manager.set_chat_service(service);
+    }
+
     /// Wires the fan-out sender for serverbound group ClientActions (the no-net
     /// control path); without it they are logged and dropped.
     pub fn set_control_webhook_receiver(&mut self, webhook: WebhookReceiver) {

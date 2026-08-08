@@ -26,6 +26,7 @@ pub struct RocketManager {
     identity_service: PlayerIdentityService,
     audio_playback_service: Arc<AudioPlaybackService>,
     bedrock_event_service: Arc<BedrockEventService>,
+    chat_service: Arc<crate::services::ChatService>,
     cert_service: Arc<CertificateService>,
     hytale_session_cache: routes::api::HytaleSessionCache,
     audio_stream_token_cache: AudioStreamTokenCache,
@@ -50,6 +51,7 @@ impl RocketManager {
         identity_service: PlayerIdentityService,
         audio_playback_service: Arc<AudioPlaybackService>,
         bedrock_event_service: Arc<BedrockEventService>,
+        chat_service: Arc<crate::services::ChatService>,
         cert_service: Arc<CertificateService>,
         server_peer_store: Option<Arc<crate::relay::ServerPeerStore>>,
         relay_inject_delivery: Option<Arc<dyn crate::relay::LocalInjectDelivery>>,
@@ -67,6 +69,7 @@ impl RocketManager {
             identity_service,
             audio_playback_service,
             bedrock_event_service,
+            chat_service,
             cert_service,
             hytale_session_cache: routes::api::HytaleSessionCache::new(),
             audio_stream_token_cache: audio_stream_token_cache
@@ -209,6 +212,7 @@ impl RocketManager {
                     .manage(self.identity_service.clone())
                     .manage(self.audio_playback_service.clone())
                     .manage(self.bedrock_event_service.clone())
+                    .manage(self.chat_service.clone())
                     .manage(self.cert_service.clone())
                     .manage(self.config.permissions.clone())
                     .manage(self.config.audio.clone())
@@ -259,7 +263,10 @@ impl RocketManager {
                     // upgrade is not a JSON route and has no response schema.
                     .mount(
                         "/api",
-                        routes![routes::api::websocket::positions::positions],
+                        routes![
+                            routes::api::websocket::positions::positions,
+                            routes::api::websocket::chat::chat,
+                        ],
                     );
 
                 for (prefix, route_list) in crate::http::openapi::OpenApiSpec::routes() {

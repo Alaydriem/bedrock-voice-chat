@@ -8,6 +8,7 @@ mod m20260322_000001_audio_file;
 mod m20260322_000002_player_permission;
 mod m20260618_000001_player_auth_code_ephemeral;
 mod m20260726_000001_signed_timestamps;
+mod m20260808_000001_player_world;
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -22,6 +23,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260322_000002_player_permission::Migration),
             Box::new(m20260618_000001_player_auth_code_ephemeral::Migration),
             Box::new(m20260726_000001_signed_timestamps::Migration),
+            Box::new(m20260808_000001_player_world::Migration),
         ]
     }
 }

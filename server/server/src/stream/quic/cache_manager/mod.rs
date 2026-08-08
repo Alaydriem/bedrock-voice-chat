@@ -17,6 +17,7 @@ use anyhow::Error;
 use common::structs::channel::{ChannelCollection, ChannelEvents};
 use common::structs::control::PreferenceKey;
 use common::structs::packet::{
+    ChatSendPacket,
     BedrockEventPacket, ChannelEventPacket, ClientActionPacket, PacketDirection, PacketType,
     PlayerDataPacket, PlayerPositionPacket, PlayerPreferencePacket, QueryStatePacket,
     QuicNetworkPacket,
@@ -29,6 +30,7 @@ pub struct CacheManager {
     channel_collection: Arc<ChannelCollection>,
     connection_registry: Option<Arc<ConnectionRegistry>>,
     bedrock_event_service: Option<Arc<BedrockEventService>>,
+    chat_service: Option<Arc<crate::services::ChatService>>,
     // Fan-out sender for group ClientActions arriving ServerBound over QUIC
     // (the no-net path); the HTTP control route receives its own via State.
     webhook_receiver: Option<WebhookReceiver>,
@@ -44,6 +46,7 @@ impl CacheManager {
             channel_collection: Arc::new(ChannelCollection::new(100)),
             connection_registry: None,
             bedrock_event_service: None,
+            chat_service: None,
             webhook_receiver: None,
             player_state: PlayerStateCache::new(),
             preferences: PlayerPreferenceCache::new(),
@@ -73,6 +76,10 @@ impl CacheManager {
 
     pub(crate) fn set_connection_registry(&mut self, registry: Arc<ConnectionRegistry>) {
         self.connection_registry = Some(registry);
+    }
+
+    pub fn set_chat_service(&mut self, service: Arc<crate::services::ChatService>) {
+        self.chat_service = Some(service);
     }
 
     pub fn set_bedrock_event_service(&mut self, service: Arc<BedrockEventService>) {
@@ -227,6 +234,43 @@ impl CacheManager {
                                 tracing::info!("Channel {} deleted", channel_data.channel);
                             }
                             ChannelEvents::Rename => {}
+                        }
+                    }
+                }
+            }
+            PacketType::ChatSend => {
+                let service = match &self.chat_service {
+                    Some(s) => s.clone(),
+                    None => {
+                        tracing::warn!("Received ChatSend but no ChatService is wired up");
+                        return Ok(());
+                    }
+                };
+
+                // Stamped from the certificate at ingress. An unstamped packet was injected by
+                // this server rather than sent by a player, and attributing it to anyone would
+                // let a client post as somebody else.
+                let Some(author) = packet.sender_identity().map(|s| s.to_string()) else {
+                    tracing::warn!("Refusing an unattributed ChatSend");
+                    return Ok(());
+                };
+
+                if let Some(data) = packet.get_data() {
+                    let send: Result<ChatSendPacket, ()> = data.to_owned().try_into();
+                    if let Ok(send) = send {
+                        let Some(world) = send.world_uuid.clone() else {
+                            tracing::debug!(player = %author, "ChatSend named no world");
+                            return Ok(());
+                        };
+                        if let Err(rejection) =
+                            service.on_app_send(&author, &world, send.text).await
+                        {
+                            tracing::info!(
+                                player = %author,
+                                world = %world,
+                                rejection = %rejection,
+                                "ChatSend rejected"
+                            );
                         }
                     }
                 }

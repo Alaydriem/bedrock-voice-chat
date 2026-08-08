@@ -10,14 +10,14 @@ import { NetStateSource, NoNetStateSource } from './state/state_source';
 import type { PanelFeed } from './state/state_source';
 import { ControlPanel } from './ui/panel';
 import { PanelTestConfig } from './ui/panel_test';
-import { DiscCommand } from './commands/mod';
+import { DiscCommand, JukeboxTestCommands } from './commands/mod';
 import { ControlCommands } from './commands/control';
 import { NetAudioSender, NoNetAudioSender } from './audio/sender';
 import { NetControlSender, NoNetControlSender } from './control/sender';
 import type { ControlSender } from './control/sender';
 import { httpClient } from './net';
 import { serverAdminConfig } from './config';
-import { ChatProbe } from './chat/probe';
+import { ChatChannel, ChatListener } from './chat';
 
 const POLL_INTERVAL = 5;
 const REQUEST_TIMEOUT = 1;
@@ -73,15 +73,35 @@ const componentRegistry = new AudioComponentRegistry(
 );
 componentRegistry.register();
 
+const jukeboxTestCommands = new JukeboxTestCommands(audioManager, getWorldUuid);
+jukeboxTestCommands.register();
+
 const chatEjectListener = new ChatEjectListener(audioManager, getWorldUuid);
 chatEjectListener.register();
 
 const chatPresenceListener = new ChatPresenceListener();
 chatPresenceListener.register();
 
-// Temporary, removed in Task 13. Registers /scriptevent bvc:probe so the websocket transport
-// can be measured against the position POSTs that share @minecraft/server-net.
-ChatProbe.register();
+// Net-mode chat relay. Only starts where the network module exists; a no-net world has the
+// desktop proxy observing chat locally instead, and this would have nothing to talk to.
+void (async () => {
+  const hasNet = await httpClient.ensureLoaded();
+  if (!hasNet || !serverAdminConfig.bvcServer) {
+    return;
+  }
+
+  let chatListener: ChatListener | null = null;
+  const chatChannel = new ChatChannel(
+    serverAdminConfig.bvcServer,
+    serverAdminConfig.accessToken,
+    getWorldUuid(),
+    serverAdminConfig.worldName,
+    (author, text) => chatListener?.say(author, text),
+  );
+  chatListener = new ChatListener(chatChannel);
+  chatListener.register();
+  chatChannel.start();
+})();
 
 // Panel state: the !bvcs: reverse ride feeds per-player caches in no-net mode;
 // the control panel binds to the same store.

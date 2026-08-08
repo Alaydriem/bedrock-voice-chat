@@ -1,0 +1,166 @@
+import { system } from '@minecraft/server';
+
+// `@minecraft/server-net` is never statically imported: `full` and `no-net` ship the same
+// bundled main.js, and a static import breaks the no-net pack at load. bundle.js enforces it.
+// Both aliases below are type-position only, so they erase at compile.
+type ServerNetModule = typeof import('@minecraft/server-net');
+type WebSocketClient = Awaited<
+  ReturnType<ServerNetModule['websocket']['connect']>
+>;
+
+const BACKOFF_MIN_TICKS = 40;
+const BACKOFF_MAX_TICKS = 1200;
+const LIVENESS_TICKS = 100;
+
+/**
+ * The mod's chat channel to the BVC server — one socket, both directions.
+ *
+ * Text frames of JSON tagged on `t`, matching `common::structs::chat::ChatFrame`. `hello` is
+ * always first and names the world; nothing after it carries one, because the world is a
+ * property of the connection.
+ */
+export class ChatChannel {
+  private client: WebSocketClient | null = null;
+  private connecting = false;
+  private stopped = false;
+  private backoff = BACKOFF_MIN_TICKS;
+  private liveness: number | null = null;
+
+  constructor(
+    private readonly serverUrl: string,
+    private readonly accessToken: string,
+    private readonly worldUuid: string,
+    private readonly worldName: string,
+    private readonly onSay: (author: string, text: string) => void,
+  ) {}
+
+  get isOpen(): boolean {
+    return this.client !== null && this.client.isOpen;
+  }
+
+  start(): void {
+    this.stopped = false;
+    void this.connect();
+
+    // This client exposes no ping API, so liveness is `isOpen` plus the close event.
+    this.liveness = system.runInterval(() => {
+      if (!this.stopped && !this.isOpen && !this.connecting) {
+        void this.connect();
+      }
+    }, LIVENESS_TICKS);
+  }
+
+  stop(): void {
+    this.stopped = true;
+    if (this.liveness !== null) {
+      system.clearRun(this.liveness);
+      this.liveness = null;
+    }
+    if (this.client && this.client.isOpen) {
+      this.client.close();
+    }
+    this.client = null;
+  }
+
+  /**
+   * Reports a line a player typed in game.
+   *
+   * Nothing is queued while the socket is down. A backlog delivered on reconnect drops stale
+   * lines into a conversation that has moved on, and no message is ever persisted.
+   */
+  report(author: string, text: string): void {
+    if (!this.isOpen) {
+      return;
+    }
+    this.send({ t: 'chat', author, text });
+  }
+
+  private async connect(): Promise<void> {
+    if (this.connecting || this.stopped) {
+      return;
+    }
+    this.connecting = true;
+
+    try {
+      const net = await this.loadNet();
+      if (!net) {
+        // No network module at all: this is a no-net world, where the client-local path owns
+        // chat and this channel has no part to play.
+        this.stopped = true;
+        return;
+      }
+
+      const url = this.serverUrl.replace(/^http/, 'ws') + '/api/websocket/chat';
+      const client = await net.websocket.connect(url, [
+        new net.HttpHeader('X-MC-Access-Token', this.accessToken),
+      ]);
+
+      this.client = client;
+      this.backoff = BACKOFF_MIN_TICKS;
+
+      client.afterEvents.message.subscribe((e) => this.receive(e.message));
+      client.afterEvents.close.subscribe((e) => {
+        console.warn('[BVC] chat channel closed: ' + e.reason);
+        this.client = null;
+        this.scheduleRetry();
+      });
+
+      this.send({
+        t: 'hello',
+        world: this.worldUuid,
+        world_name: this.worldName,
+        game: 'minecraft',
+      });
+      console.info('[BVC] chat channel connected');
+    } catch (e) {
+      console.warn('[BVC] chat channel connect failed: ' + e);
+      this.scheduleRetry();
+    } finally {
+      this.connecting = false;
+    }
+  }
+
+  private receive(body: string): void {
+    try {
+      const frame = JSON.parse(body) as {
+        t?: string;
+        author?: string;
+        text?: string;
+      };
+      if (frame.t !== 'say' || !frame.author || !frame.text) {
+        return;
+      }
+      this.onSay(frame.author, frame.text);
+    } catch {
+      console.warn('[BVC] chat channel received an undecodable frame');
+    }
+  }
+
+  private send(frame: Record<string, string>): void {
+    try {
+      this.client?.send(JSON.stringify(frame));
+    } catch (e) {
+      console.warn('[BVC] chat channel send failed: ' + e);
+    }
+  }
+
+  private scheduleRetry(): void {
+    if (this.stopped) {
+      return;
+    }
+    // Jitter is load-bearing: without it a BVC server restart has every world's mod redial in
+    // lockstep, and they all fail together again.
+    const jitter = Math.floor(Math.random() * BACKOFF_MIN_TICKS);
+    const delay = Math.min(this.backoff, BACKOFF_MAX_TICKS) + jitter;
+    this.backoff = Math.min(this.backoff * 2, BACKOFF_MAX_TICKS);
+    system.runTimeout(() => void this.connect(), delay);
+  }
+
+  private async loadNet(): Promise<ServerNetModule | null> {
+    try {
+      return (await import('@minecraft/server-net')) as unknown as ServerNetModule;
+    } catch {
+      return null;
+    }
+  }
+}

@@ -128,9 +128,16 @@ pub struct SinkManager {
     recording_active: Option<Arc<AtomicBool>>,
     spatial_config: SpatialAudioConfig,
     peer_registry: Arc<PeerRegistry>,
+    sweep_handle: Option<JoinHandle<()>>,
 }
 
 impl SinkManager {
+    // How often quiet jukebox sinks are looked for, and how many consecutive quiet passes retire
+    // one. Two passes rather than one so a scheduling hiccup that starves the audio thread for a
+    // moment cannot retire a sink that is still playing.
+    const SWEEP_INTERVAL: Duration = Duration::from_secs(5);
+    const QUIET_PASSES_TO_RETIRE: u32 = 2;
+
     pub fn new(
         consumer: Receiver<EncodedAudioFramePacket>,
         players: Cache<String, PlayerEnum>,
@@ -166,6 +173,17 @@ impl SinkManager {
                 std::collections::HashMap::new();
 
             while let Ok(update) = activity_rx.recv_async().await {
+                // The roster is people. A jukebox is a synthetic speaker with no card, no
+                // presence and no gain of its own, and both webview consumers of this snapshot
+                // mint an entry for every name in it. Its counters still reach the diagnostics
+                // registry, which is a different feed for a different reader.
+                if update
+                    .player_name
+                    .starts_with(common::consts::audio::JUKEBOX_PLAYER_PREFIX)
+                {
+                    continue;
+                }
+
                 let tracker = trackers.entry(update.player_name.clone()).or_default();
                 // A peer's frame reaching the mixer at all is a frame that was decoded and
                 // played, so it is audible by construction; only the amplitude is in question.
@@ -195,7 +213,85 @@ impl SinkManager {
             recording_active,
             spatial_config,
             peer_registry,
+            sweep_handle: None,
         }
+    }
+
+    // Retires jukebox sinks whose frames have stopped.
+    //
+    // A jukebox sink is per playback, not per block, so nothing ever writes to it again once the
+    // disc is out and the entry would otherwise sit in both caches for fifteen minutes. Frames
+    // stopping is the one signal present in every case: a hand-pulled disc, the server's
+    // auto-eject, and the addon's own stop over HTTP all end with the playback task cancelled.
+    //
+    // Runs on its own task at a fraction of a hertz. It is deliberately not folded into the
+    // packet loop, which must not take on work that has nothing to do with the frame in hand.
+    fn spawn_retirement_sweep(
+        sinks: Cache<String, PlayerSinks>,
+        peer_registry: Arc<PeerRegistry>,
+        shutdown: Arc<AtomicBool>,
+    ) -> JoinHandle<()> {
+        tokio::spawn(async move {
+            let mut last_seen: std::collections::HashMap<String, (u64, u32)> =
+                std::collections::HashMap::new();
+
+            loop {
+                tokio::time::sleep(Self::SWEEP_INTERVAL).await;
+                if shutdown.load(Ordering::Relaxed) {
+                    break;
+                }
+
+                let counts = peer_registry.jukebox_frame_counts();
+                last_seen.retain(|key, _| counts.iter().any(|(live, _)| live == key));
+
+                for (sink_key, received) in counts {
+                    let (previous, quiet_passes) =
+                        last_seen.get(&sink_key).copied().unwrap_or((received, 0));
+
+                    let quiet_passes = if received == previous {
+                        quiet_passes + 1
+                    } else {
+                        0
+                    };
+
+                    if quiet_passes >= Self::QUIET_PASSES_TO_RETIRE {
+                        Self::retire_sink(&sinks, &peer_registry, &sink_key);
+                        last_seen.remove(&sink_key);
+                        continue;
+                    }
+
+                    last_seen.insert(sink_key, (received, quiet_passes));
+                }
+            }
+        })
+    }
+
+    // Stops a sink's jitter buffers, silences and drops its mixer sinks, and removes its
+    // diagnostics rows. The bundle is invalidated last: the handles have to be stopped while
+    // they are still reachable.
+    fn retire_sink(
+        sinks: &Cache<String, PlayerSinks>,
+        peer_registry: &Arc<PeerRegistry>,
+        sink_key: &str,
+    ) {
+        if let Some(bundle) = sinks.get(sink_key) {
+            if let Some(h) = &bundle.normal_handle {
+                h.stop();
+            }
+            if let Some(h) = &bundle.spatial_handle {
+                h.stop();
+            }
+            if let Some(s) = &bundle.normal {
+                s.clear_and_stop();
+            }
+            if let Some(s) = &bundle.spatial {
+                s.clear_and_stop();
+            }
+            sinks.invalidate(sink_key);
+        }
+
+        peer_registry.unregister(sink_key);
+        info!("Retired jukebox sink {}", sink_key);
     }
 
     pub fn update_global_mute(&self, muted: bool) {
@@ -444,11 +540,23 @@ impl SinkManager {
             }
         });
 
+        self.sweep_handle = Some(Self::spawn_retirement_sweep(
+            self.sinks.clone(),
+            self.peer_registry.clone(),
+            self.shutdown.clone(),
+        ));
+
         Ok(handle)
     }
 
     pub async fn stop(&mut self) {
         self.shutdown.store(true, Ordering::Relaxed);
+
+        // Aborted rather than left to notice the flag: it sleeps for whole seconds between
+        // passes, and a torn-down mixer must not have a sink retired out from under it.
+        if let Some(sweep) = self.sweep_handle.take() {
+            sweep.abort();
+        }
 
         for (_, bundle) in self.sinks.iter() {
             if let Some(h) = &bundle.normal_handle {

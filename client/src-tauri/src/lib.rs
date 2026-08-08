@@ -357,6 +357,8 @@ pub fn run() {
             crate::commands::bedrock::bedrock_start_proxy,
             crate::commands::bedrock::bedrock_send_chat,
             crate::commands::chat::chat_availability,
+            crate::commands::chat::chat_send,
+            crate::commands::chat::chat_worlds,
             #[cfg(feature = "bedrock-protocol")]
             crate::commands::bedrock::bedrock_stop_proxy,
             #[cfg(feature = "bedrock-protocol")]

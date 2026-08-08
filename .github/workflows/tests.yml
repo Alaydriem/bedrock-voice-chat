@@ -21,7 +21,15 @@ permissions:
 #                                    of the suite via `nextest run --archive-file
 #                                    --partition`. No compilation. Filtered to
 #                                    `not kind(lib)` so the unit tests, which
-#                                    `client-lib` owns, do not also run here.
+#                                    `client-lib` owns, do not also run here, and
+#                                    to the complement of $RELAY_FILTER.
+#   - `e2e-relay`        (Windows) — the relay-topology scenarios, alone on their
+#                                    own runner. They are the heaviest tests in the
+#                                    suite and .config/nextest.toml caps them to 1-2
+#                                    concurrent, so hash-partitioning them across
+#                                    the shards both unbalanced the shards and left
+#                                    them competing with lighter tests for the
+#                                    headroom their exact-frame assertions need.
 #   - `e2e-report`       (Windows) — merges every shard's profile data into one
 #                                    lcov and uploads it. Runs even when a shard
 #                                    fails, so a red suite still reports what it
@@ -74,6 +82,21 @@ on:
         required: false
         default: '4'
         type: string
+
+# The relay-topology scenarios, defined ONCE. Both jobs anchor on `not kind(lib)`
+# and then intersect / subtract this set, so together they are exactly a partition
+# of the e2e tests: nothing runs twice, nothing goes unrun, and adding a
+# `scenarios::relay_*` file moves it to the relay job with nothing else to update.
+#
+# The membership matches the two test-groups in .config/nextest.toml, which is
+# the repo's existing statement of which scenarios put a relay in the datagram
+# path and are load-sensitive because of it.
+env:
+  RELAY_FILTER: >-
+    test(/scenarios::relay_/)
+    + test(/scenarios::downlink_loss::/)
+    + test(/scenarios::link_stall::/)
+    + test(/scenarios::path_exhaustion::/)
 
 jobs:
   common:
@@ -631,8 +654,9 @@ jobs:
         # `not kind(lib)` drops the client's inline #[cfg(test)] unit tests from
         # the shards. They are in the archive (it is built per-package, not
         # per-target) but the `client-lib` job already runs them under coverage,
-        # so without this filter they run twice. What remains here is the
-        # `integration` target — the actual e2e scenarios.
+        # so without this filter they run twice. Subtracting $RELAY_FILTER hands
+        # the relay scenarios to `e2e-relay`. What remains here is the rest of the
+        # `integration` target, and `--partition` splits it three ways.
         #
         # LLVM_PROFILE_FILE is the ONLY coverage-specific thing here; the binaries
         # arrive already instrumented. `%p` separates processes so a spawned
@@ -658,7 +682,7 @@ jobs:
             --archive-file e2e-client/nextest-archive.tar.zst \
             --workspace-remap . \
             --partition hash:${{ matrix.shard }}/3 \
-            -E 'not kind(lib)' \
+            -E "(not kind(lib)) - ($RELAY_FILTER)" \
             --no-fail-fast \
             -j ${{ inputs.test_jobs || '4' }}
 
@@ -692,6 +716,96 @@ jobs:
           retention-days: 1
           if-no-files-found: ignore
 
+  e2e-relay:
+    name: e2e relay scenarios (Windows)
+    runs-on: windows-2022
+    needs: [e2e-build-server, e2e-build-client]
+    # Not sharded. These scenarios boot 2-3 in-process server runtimes plus up to
+    # 3 client processes each, and .config/nextest.toml already caps them to 2
+    # concurrent (1 for the relayed set). Partitioning them across the shards
+    # therefore bought no parallelism — it only meant whichever shard drew several
+    # of them ran far longer than the others, while the relay tests competed with
+    # lighter tests for a machine they are documented to be sensitive to. On their
+    # own runner they get the whole box, and the shards get an even, light split.
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
+      - name: Download cdylib artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: e2e-cdylib
+          path: e2e-cdylib
+
+      - name: Download client artifacts
+        uses: actions/download-artifact@v5
+        with:
+          name: e2e-client
+          path: e2e-client
+
+      - name: Restore harness + cdylib to their load paths
+        shell: bash
+        run: |
+          mkdir -p target/debug server/target/debug
+          cp e2e-client/bvc_client_e2e.exe target/debug/
+          cp e2e-cdylib/bvc_server_lib.dll server/target/debug/
+
+      - name: Run relay scenarios
+        shell: bash
+        # See the shard job for what LLVM_PROFILE_FILE is doing. These scenarios
+        # are the heaviest profile producers in the suite (3 client processes and
+        # 3 server runtimes per test, each dumping a counter table per module), so
+        # this job's profraw peak is the one to watch if disk gets tight.
+        run: |
+          PROF_DIR="$(cygpath -m "$RUNNER_TEMP")/prof"
+          mkdir -p "$PROF_DIR"
+          export LLVM_PROFILE_FILE="$PROF_DIR/bvc-%p-%4m.profraw"
+          cargo nextest run \
+            --archive-file e2e-client/nextest-archive.tar.zst \
+            --workspace-remap . \
+            -E "(not kind(lib)) & ($RELAY_FILTER)" \
+            --no-fail-fast \
+            -j ${{ inputs.test_jobs || '4' }}
+
+      - name: Collapse relay profile data
+        if: always()
+        shell: bash
+        run: |
+          PROF_DIR="$(cygpath -m "$RUNNER_TEMP")/prof"
+          LLVM_BIN="$(rustc --print sysroot)/lib/rustlib/x86_64-pc-windows-msvc/bin"
+          ls "$PROF_DIR"/*.profraw > "$PROF_DIR/inputs.txt" || {
+            echo "no profraw produced — nothing to merge"; exit 0; }
+          echo "profraw files: $(wc -l < "$PROF_DIR/inputs.txt")"
+          mkdir -p e2e-profdata
+          "$LLVM_BIN/llvm-profdata.exe" merge -sparse \
+            -f "$PROF_DIR/inputs.txt" \
+            -o "e2e-profdata/relay.profdata"
+          rm -rf "$PROF_DIR"
+          ls -la e2e-profdata/
+
+      - name: Upload relay profile data
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          # e2e-report globs e2e-profdata-*, so this joins the shards' data with
+          # no change there.
+          name: e2e-profdata-relay
+          path: e2e-profdata
+          retention-days: 1
+          if-no-files-found: ignore
+
   e2e-report:
     name: e2e coverage report (Windows)
     runs-on: windows-2022
@@ -704,7 +818,7 @@ jobs:
     # error would turn a suite red over a reporting problem.
     if: always()
     continue-on-error: true
-    needs: [e2e-build-server, e2e-build-client, e2e-shard]
+    needs: [e2e-build-server, e2e-build-client, e2e-shard, e2e-relay]
     steps:
       - name: Checkout code
         uses: actions/checkout@v5

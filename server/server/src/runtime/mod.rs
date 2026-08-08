@@ -353,6 +353,21 @@ impl ServerRuntime {
         quic_manager.set_bedrock_event_service(bedrock_event_service.clone());
         quic_manager.set_control_webhook_receiver(webhook_receiver.clone());
 
+        // Net-mode chat hub. Its dependencies arrive by setter rather than constructor so the
+        // service's own tests can exercise routing without a database or a QUIC registry.
+        let chat_service = crate::services::ChatService::new_shared();
+        chat_service.set_db(db_conn.clone());
+        chat_service.set_identities(std::sync::Arc::new(identity_service.clone()));
+        chat_service.set_players(cache_manager.players().inner_arc());
+        if let Some(registry) = cache_manager.get_connection_registry() {
+            chat_service.add_sink(crate::services::QuicChatSink::new_shared(
+                registry,
+                cache_manager.players().inner_arc(),
+            ));
+        }
+
+        quic_manager.set_chat_service(chat_service.clone());
+
         let eject_scheduler =
             EjectScheduler::new_shared(bedrock_event_service.clone(), webhook_receiver.clone());
         audio_playback_service.set_eject_scheduler(eject_scheduler);
@@ -371,6 +386,7 @@ impl ServerRuntime {
             identity_service,
             audio_playback_service,
             bedrock_event_service,
+            chat_service,
             cert_service,
             relay_client_state
                 .as_ref()

@@ -60,4 +60,15 @@ describe('ChatManager.resolveTarget', () => {
     test('no usable world at all is unavailable', () => {
         expect(ChatManager.resolveTarget([], null).kind).toBe('unavailable');
     });
+
+    // First join into a world with no history row yet. Falling through to "some other world
+    // is usable" would name a world the player is not in — the server would reject the send,
+    // but only after the composer spent the whole time claiming it would land there.
+    test('standing in a world that is not in the list is unavailable, not some other world', () => {
+        const worlds = [world('w1', 'Survival'), world('w2', 'Creative')];
+
+        const target = ChatManager.resolveTarget(worlds, 'brand-new-world');
+
+        expect(target.kind).toBe('unavailable');
+    });
 });

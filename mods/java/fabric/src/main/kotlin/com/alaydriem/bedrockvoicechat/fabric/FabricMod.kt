@@ -1,7 +1,10 @@
 package com.alaydriem.bedrockvoicechat.fabric
 
 import com.alaydriem.bedrockvoicechat.audio.AudioEventSender
+import com.alaydriem.bedrockvoicechat.chat.ChatChannel
 import com.alaydriem.bedrockvoicechat.control.ControlSender
+import com.alaydriem.bedrockvoicechat.fabric.chat.FabricChatListener
+import net.fabricmc.fabric.api.message.v1.ServerMessageEvents
 import com.alaydriem.bedrockvoicechat.dto.Dimension
 import com.alaydriem.bedrockvoicechat.dto.Payload
 import com.alaydriem.bedrockvoicechat.dto.PlayerData
@@ -29,6 +32,7 @@ class FabricMod : ModInitializer {
     private lateinit var playerDataProvider: FabricPlayerDataProvider
 
     private var embeddedServer: BvcServerManager? = null
+    private var chatChannel: ChatChannel? = null
     private var positionSender: PositionSender? = null
     private var audioPlayerManager: FabricAudioPlayerManager? = null
     private var tickCounter = 0
@@ -130,10 +134,63 @@ class FabricMod : ModInitializer {
             }
         }
 
+        // Levels do not exist until the server has started, and chat spans all of them:
+        // Fabric mints a world id per dimension while chat is server-wide.
+        ServerLifecycleEvents.SERVER_STARTED.register { server ->
+            startChatChannel(server, config)
+        }
+
         ServerLifecycleEvents.SERVER_STOPPING.register { _ ->
+            chatChannel?.close()
+            chatChannel = null
             audioPlayerManager?.shutdown()
             embeddedServer?.stop()
         }
+    }
+
+    /**
+     * Opens the chat relay to the BVC server.
+     *
+     * Every dimension's world id is declared, because a line typed in the overworld has to
+     * reach somebody standing in the nether. The primary level supplies the canonical id and
+     * the name the app's picker shows.
+     */
+    private fun startChatChannel(
+        server: net.minecraft.server.MinecraftServer,
+        config: com.alaydriem.bedrockvoicechat.config.ModConfig
+    ) {
+        val serverUrl = config.bvcServer
+        val token = config.accessToken
+        if (serverUrl == null || token == null) {
+            // Embedded mode has no external URL to dial.
+            logger.info("Bedrock Voice Chat chat relay not started (no external server configured)")
+            return
+        }
+
+        val worlds = server.allLevels.map { playerDataProvider.getWorldUuid(it) }
+        if (worlds.isEmpty()) {
+            logger.warn("Bedrock Voice Chat chat relay not started (no levels loaded)")
+            return
+        }
+
+        var listener: FabricChatListener? = null
+        val channel = ChatChannel(
+            serverUrl = serverUrl,
+            accessToken = token,
+            worldUuid = worlds.first(),
+            worldName = server.motd ?: "Minecraft server",
+            worlds = worlds,
+            onSay = { author, text -> listener?.say(author, text) },
+            send = { body -> chatChannel?.sendOverSocket(body) }
+        )
+        listener = FabricChatListener(channel, server)
+
+        ServerMessageEvents.CHAT_MESSAGE.register { message, sender, _ ->
+            listener.onChat(sender.name.string, message.signedContent())
+        }
+
+        chatChannel = channel
+        channel.connect()
     }
 
     private fun tick() {

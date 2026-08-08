@@ -27,7 +27,8 @@ use common::{
         network::ConnectionHealth,
         packet::{
             AudioFramePacket, ChannelEventPacket, ConnectionEventType, PacketType,
-            PlayerDataPacket, PlayerPresenceEvent, QuicNetworkPacket, ServerErrorPacket,
+            ChatMessagePacket, PlayerDataPacket, PlayerPresenceEvent, QuicNetworkPacket,
+            ServerErrorPacket,
             ServerErrorType,
         },
     },
@@ -105,6 +106,7 @@ impl PacketRouter {
             PacketType::ServerError => self.handle_server_error(&packet.data).await,
             PacketType::PlayerPresence => self.handle_player_presence(&packet.data).await,
             PacketType::ChannelEvent => self.handle_channel_event(&packet.data).await,
+            PacketType::ChatMessage => self.handle_chat_message(&packet.data).await,
             #[cfg(feature = "bedrock-protocol")]
             PacketType::BedrockEvent => {
                 if let Some(injector) = self.eject_injector.as_ref() {
@@ -444,14 +446,53 @@ impl PacketRouter {
         let data: Result<PlayerDataPacket, ()> = data.data.to_owned().try_into();
         match data {
             Ok(data) => {
+                let current_player_name = self.metadata.get("current_player").await;
+
                 for player in data.players {
                     let player_name = player.get_name().to_string();
+
+                    // The client's own world, which nothing else surfaces. It arrives on every
+                    // pulse, so a mid-session transfer re-targets chat without any extra
+                    // signal — and the webview cannot learn it any other way, because the
+                    // position feed deliberately carries no world.
+                    if current_player_name.as_deref() == Some(player_name.as_str()) {
+                        if let common::PlayerEnum::Minecraft(mc) = &player {
+                            let _ = tauri::Emitter::emit(
+                                &self.app_handle,
+                                "chat-world",
+                                &mc.world_uuid,
+                            );
+                        }
+                    }
+
                     self.players.insert(player_name, player);
                 }
             }
             Err(_) => {
                 warn!("Could not decode player data packet");
             }
+        }
+    }
+
+    /// Server-relayed in-game chat, net mode.
+    ///
+    /// Shaped to match what the no-net proxy path emits so the webview has one listener and
+    /// one line format regardless of which implementation is live.
+    async fn handle_chat_message(&self, data: &QuicNetworkPacket) {
+        let packet: Result<ChatMessagePacket, ()> = data.data.to_owned().try_into();
+        let Ok(packet) = packet else {
+            warn!("Could not decode chat message packet");
+            return;
+        };
+
+        let payload = serde_json::json!({
+            "author": packet.author,
+            "text": packet.text,
+            "system": packet.author.is_none(),
+        });
+
+        if let Err(e) = tauri::Emitter::emit(&self.app_handle, "bedrock-chat", payload) {
+            warn!("Failed to emit chat line: {:?}", e);
         }
     }
 

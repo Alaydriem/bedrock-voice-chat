@@ -41,7 +41,13 @@ export class ChatManager {
 
     private open = false;
     private unlisten: UnlistenFn | null = null;
+    private unlistenWorld: UnlistenFn | null = null;
     private poll: ReturnType<typeof setInterval> | null = null;
+
+    /** The world the player is standing in right now, from the position pulse. */
+    private liveWorld: string | null = null;
+    private worlds: ChatWorld[] = [];
+    private serverMode = false;
 
     constructor(private readonly selfName: string) {
         this.linesStore = writable([]);
@@ -75,6 +81,11 @@ export class ChatManager {
             if (here) {
                 return { kind: 'unavailable', reason: `${here.world_name} is not running chat` };
             }
+            // Standing somewhere the list does not know — a first join, before any history
+            // row exists. Falling through to "some other world is usable" would name a world
+            // the player is not in: the server would reject the send, but only after the
+            // composer had spent the whole time claiming it would land there.
+            return { kind: 'unavailable', reason: 'This world is not relaying chat' };
         }
 
         const usable = worlds.filter((w) => w.available);
@@ -94,16 +105,39 @@ export class ChatManager {
             this.add(event.payload, false);
         });
 
+        // The player's live world, pulsed by the server on every position frame. Nothing else
+        // surfaces it, and a mid-session transfer re-targets chat off the back of it.
+        this.unlistenWorld = await listen<string | null>('chat-world', (event) => {
+            const next = event.payload ?? null;
+            if (next === this.liveWorld) return;
+            this.liveWorld = next;
+            this.applyTarget();
+        });
+
         await this.refreshAvailability();
         this.poll = setInterval(() => {
             void this.refreshAvailability();
         }, ChatManager.AVAILABILITY_POLL_MS);
     }
 
+    /** Off-game picker: the player chose which world to post to. */
+    choose(world: ChatWorld): void {
+        this.targetStore.set({
+            kind: 'choose',
+            world,
+            options: this.worlds.filter((w) => w.available),
+        });
+        this.rejectionStore.set(null);
+    }
+
     async stop(): Promise<void> {
         if (this.unlisten) {
             this.unlisten();
             this.unlisten = null;
+        }
+        if (this.unlistenWorld) {
+            this.unlistenWorld();
+            this.unlistenWorld = null;
         }
         if (this.poll !== null) {
             clearInterval(this.poll);
@@ -119,16 +153,58 @@ export class ChatManager {
      */
     private async refreshAvailability(): Promise<void> {
         try {
+            // The world list is itself the net-mode signal: a world only appears with a chat
+            // channel registered for it. Asking the local proxy first would answer a different
+            // question, and on a net-only server it would answer "no" while chat works.
+            this.worlds = await invoke<ChatWorld[]>('chat_worlds').catch(() => []);
+            this.serverMode = this.worlds.some((w) => w.available);
+
+            if (this.serverMode) {
+                this.applyTarget();
+                return;
+            }
+
+            // No mod is relaying anywhere, so the only remaining source is this client's own
+            // proxy — which is what the local check answers.
             const status = await invoke<ChatAvailability>('chat_availability');
-            this.targetStore.set(
-                status.available
-                    ? { kind: 'local' }
-                    : { kind: 'unavailable', reason: status.reason ?? 'Chat is unavailable' },
-            );
+            if (status.available) {
+                this.targetStore.set({ kind: 'local' });
+                return;
+            }
+
+            this.targetStore.set({
+                kind: 'unavailable',
+                reason: status.reason ?? 'Chat is unavailable',
+            });
         } catch (e) {
             await warn(`chat availability check failed: ${e}`);
             this.targetStore.set({ kind: 'unavailable', reason: 'Chat is unavailable' });
         }
+    }
+
+    /**
+     * Recomputes where a message would go.
+     *
+     * Keeps an explicit off-game choice: re-resolving on every poll would drag the picker back
+     * to the default a second after somebody used it.
+     */
+    private applyTarget(): void {
+        if (!this.serverMode) {
+            this.targetStore.set({ kind: 'local' });
+            return;
+        }
+
+        const current = get(this.targetStore);
+        const chosenStillValid =
+            current.kind === 'choose' &&
+            !this.liveWorld &&
+            this.worlds.some((w) => w.world_uuid === current.world.world_uuid && w.available);
+
+        if (chosenStillValid) {
+            return;
+        }
+
+        this.targetStore.set(ChatManager.resolveTarget(this.worlds, this.liveWorld));
     }
 
     setOpen(open: boolean): void {
@@ -156,6 +232,23 @@ export class ChatManager {
 
         // No optimistic render. The realm echoes the line back and that echo is the
         // confirmation, so there is nothing to reconcile and no duplicate to suppress.
+        if (target.kind !== 'local') {
+            try {
+                await invoke('chat_send', {
+                    worldUuid: target.world.world_uuid,
+                    text: trimmed,
+                });
+            } catch (e) {
+                await warn(`chat send failed: ${e}`);
+                this.rejectionStore.set({
+                    kind: 'failed',
+                    reason: String(e),
+                    text: trimmed,
+                });
+            }
+            return;
+        }
+
         if (target.kind === 'local') {
             try {
                 await invoke('bedrock_send_chat', { text: trimmed });

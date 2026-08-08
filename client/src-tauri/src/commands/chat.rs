@@ -44,3 +44,52 @@ pub(crate) async fn chat_availability(
 pub(crate) async fn chat_availability() -> Result<ChatAvailability, String> {
     Ok(ChatAvailability::unavailable("Chat is not available"))
 }
+
+/// Sends a line from the app into a net-mode world.
+///
+/// The world is named by the caller and validated server-side against where the player is
+/// actually standing: they may have been transferred while the app still held the older
+/// target, and delivering there would put the message in front of people they are not with.
+#[tauri::command]
+pub(crate) async fn chat_send(
+    world_uuid: Option<String>,
+    text: String,
+    producer: State<'_, std::sync::Arc<flume::Sender<crate::NetworkPacket>>>,
+) -> Result<(), String> {
+    let text = text.trim().to_string();
+    if text.is_empty() {
+        return Err("Nothing to send.".to_string());
+    }
+
+    let packet = crate::NetworkPacket {
+        data: common::structs::packet::QuicNetworkPacket {
+            packet_type: common::structs::packet::PacketType::ChatSend,
+            // The server stamps the sender from the connection's mTLS identity. Anything set
+            // here would be ignored, and trusting it would let a client post as anyone.
+            sender: None,
+            data: common::structs::packet::QuicNetworkPacketData::ChatSend(
+                common::structs::packet::ChatSendPacket::new(world_uuid, text),
+            ),
+            ..Default::default()
+        },
+    };
+
+    producer
+        .send(packet)
+        .map_err(|e| format!("Could not reach the server: {e}"))
+}
+
+/// Worlds this player has been seen in, for the composer's target picker.
+///
+/// Net mode only. The no-net path has no world key — the proxy session is the world — so this
+/// returns empty rather than erroring there.
+#[tauri::command]
+pub(crate) async fn chat_worlds(
+    state: State<'_, Mutex<crate::structs::app_state::AppState>>,
+) -> Result<Vec<common::structs::chat::ChatWorld>, String> {
+    let state = state.lock().await;
+    let Some(api) = state.api_client.as_ref() else {
+        return Ok(Vec::new());
+    };
+    api.chat_worlds().await
+}

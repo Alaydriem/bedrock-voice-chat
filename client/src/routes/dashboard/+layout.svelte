@@ -608,6 +608,7 @@
           }}
           onSend={(text) => void chatManager?.send(text)}
           onDismissRejection={() => chatManager?.clearRejection()}
+          onPickWorld={(world) => chatManager?.choose(world)}
         />
       {/snippet}
     </DashboardScreen>
